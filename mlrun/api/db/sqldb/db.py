@@ -2656,12 +2656,18 @@ class SQLDB(DBInterface):
 
         return self._transform_marketplace_source_record_to_schema(source_record)
 
-    def get_version(self, session, name) -> str:
-        return self._get_version(session, name).version
+    def get_version(
+        self, session, name, raise_on_not_found=True
+    ) -> typing.Optional[str]:
+        version_record = self._get_version(session, name, raise_on_not_found)
+        if version_record:
+            return version_record.version
+        else:
+            return None
 
-    def _get_version(self, session, name) -> Version:
+    def _get_version(self, session, name, raise_on_not_found=True) -> Version:
         version_record = self._query(session, Version, name=name).one_or_none()
-        if not version_record:
+        if not version_record and raise_on_not_found:
             raise mlrun.errors.MLRunNotFoundError(f"Version not found. name = {name}")
 
         return version_record
@@ -2671,7 +2677,7 @@ class SQLDB(DBInterface):
             "Creating version in DB", name=name, version=version,
         )
 
-        version_record = self._query(session, Version, name=name).one_or_none()
+        version_record = self._get_version(session, name, raise_on_not_found=False)
         if version_record:
             raise mlrun.errors.MLRunConflictError(
                 f"Version name already exists. name={name}"

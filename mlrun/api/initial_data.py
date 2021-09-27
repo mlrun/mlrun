@@ -38,7 +38,7 @@ def init_data(from_scratch: bool = False) -> None:
     logger.info("Initial data created")
 
 
-current_data_version = 1
+latest_data_version = 1
 data_version_name = "data"
 
 
@@ -47,13 +47,17 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
         # FileDB is not really a thing anymore, so using SQLDB directly
         db = mlrun.api.db.sqldb.db.SQLDB("")
         data_version = int(db.get_version(db_session, data_version_name))
-        logger.info("Performing data migrations", data_version=data_version)
+        logger.info(
+            "Performing data migrations",
+            current_data_version=data_version,
+            latest_data_version=latest_data_version,
+        )
         if data_version < 1:
             _fill_project_state(db, db_session)
             _fix_artifact_tags_duplications(db, db_session)
             _fix_datasets_large_previews(db, db_session)
-        if data_version != current_data_version:
-            db.update_version(db_session, data_version_name, str(current_data_version))
+        if data_version != latest_data_version:
+            db.update_version(db_session, data_version_name, str(latest_data_version))
 
 
 def _add_initial_data(db_session: sqlalchemy.orm.Session):
@@ -66,6 +70,7 @@ def _add_initial_data(db_session: sqlalchemy.orm.Session):
 def _fix_datasets_large_previews(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session,
 ):
+    logger.info("Fixing datasets large previews")
     # get all artifacts
     artifacts = db._find_artifacts(db_session, None, "*")
     for artifact in artifacts:
@@ -145,6 +150,7 @@ def _fix_datasets_large_previews(
 def _fix_artifact_tags_duplications(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
+    logger.info("Fixing artifact tags duplications")
     # get all artifacts
     artifacts = db._find_artifacts(db_session, None, "*")
     # get all artifact tags
@@ -228,6 +234,7 @@ def _find_last_updated_artifact(
 def _fill_project_state(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
+    logger.info("Filling projects state")
     projects = db.list_projects(db_session)
     for project in projects.projects:
         changed = False
@@ -277,11 +284,24 @@ def _add_default_marketplace_source_if_needed(
 def _add_data_version(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
-    # This code was added to 0.8.0
-    # The latest data migration added before adding this was added back in 0.6.0
-    # We can safely assume no one is upgrading from a version pre 0.6.0 directly to 0.8.0, therefore we assume the data
-    # already passed version 0 to 1 migrations
-    db.create_version(db_session, data_version_name, str(1))
+    projects = db.list_projects(db_session)
+    # heuristic - if there are no projects it's a new DB - data version is latest
+    if not projects.projects:
+        logger.info(
+            "Setting data version to latest", latest_data_version=latest_data_version
+        )
+        db.create_version(db_session, data_version_name, str(latest_data_version))
+    else:
+        # This code was added to 0.8.0
+        # The latest data migration added before adding this was added back in 0.6.0
+        # We can safely assume no one is upgrading from a version pre 0.6.0 directly to 0.8.0, therefore we assume the
+        # data already passed version 0 to 1 migrations
+        if (
+            db.get_version(db_session, data_version_name, raise_on_not_found=False)
+            is None
+        ):
+            logger.info("Setting data version to 1")
+            db.create_version(db_session, data_version_name, str(1))
 
 
 def main() -> None:

@@ -166,8 +166,7 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
                 "MLRUN_AUTH_SESSION": function.metadata.credentials.access_key,
             }
             for key, value in auth_env_vars.items():
-                if not function.is_env_exists(key):
-                    function.set_env(key, value)
+                function.set_env(key, value)
 
 
 def try_perform_auto_mount(function, auth_info: mlrun.api.schemas.AuthInfo):

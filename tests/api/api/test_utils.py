@@ -23,6 +23,7 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
             "metadata": {"name": task_name, "project": task_project},
         },
         "function": {
+            "metadata": {"credentials": {"access_key": "some-access-key-override",},},
             "spec": {
                 "volumes": [
                     {
@@ -140,7 +141,7 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
                         ]
                     },
                 },
-            }
+            },
         },
     }
     parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
@@ -149,6 +150,14 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
     assert parsed_function_object.metadata.name == function_name
     assert parsed_function_object.metadata.project == project
     assert parsed_function_object.metadata.tag == function_tag
+    assert (
+        DeepDiff(
+            parsed_function_object.metadata.credentials.to_dict(),
+            submit_job_body["function"]["metadata"]["credentials"],
+            ignore_order=True,
+        )
+        == {}
+    )
     assert (
         DeepDiff(
             parsed_function_object.spec.resources,

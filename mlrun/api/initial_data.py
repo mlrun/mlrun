@@ -47,16 +47,16 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
         # FileDB is not really a thing anymore, so using SQLDB directly
         db = mlrun.api.db.sqldb.db.SQLDB("")
         data_version = int(db.get_version(db_session, data_version_name))
-        logger.info(
-            "Performing data migrations",
-            current_data_version=data_version,
-            latest_data_version=latest_data_version,
-        )
-        if data_version < 1:
-            _fill_project_state(db, db_session)
-            _fix_artifact_tags_duplications(db, db_session)
-            _fix_datasets_large_previews(db, db_session)
         if data_version != latest_data_version:
+            logger.info(
+                "Performing data migrations",
+                current_data_version=data_version,
+                latest_data_version=latest_data_version,
+            )
+            if data_version < 1:
+                _fill_project_state(db, db_session)
+                _fix_artifact_tags_duplications(db, db_session)
+                _fix_datasets_large_previews(db, db_session)
             db.update_version(db_session, data_version_name, str(latest_data_version))
 
 

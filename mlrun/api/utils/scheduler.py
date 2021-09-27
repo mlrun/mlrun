@@ -72,8 +72,10 @@ class Scheduler:
         scheduled_object: Union[Dict, Callable],
         cron_trigger: Union[str, schemas.ScheduleCronTrigger],
         labels: Dict = None,
-        concurrency_limit: int = config.httpdb.scheduling.default_concurrency_limit,
+        concurrency_limit: int = None,
     ):
+        if concurrency_limit is None:
+            concurrency_limit = config.httpdb.scheduling.default_concurrency_limit
         if isinstance(cron_trigger, str):
             cron_trigger = schemas.ScheduleCronTrigger.from_crontab(cron_trigger)
 

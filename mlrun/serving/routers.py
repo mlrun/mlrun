@@ -32,6 +32,7 @@ from ..api.schemas import (
     ModelEndpointStatus,
 )
 from ..config import config
+from .utils import _extract_input_data, _update_result_body
 from .v2_serving import _ModelLogPusher
 
 
@@ -46,6 +47,8 @@ class BaseModelRouter:
         protocol=None,
         url_prefix=None,
         health_prefix=None,
+        input_path: str = None,
+        result_path: str = None,
         **kwargs,
     ):
         self.name = name
@@ -55,6 +58,8 @@ class BaseModelRouter:
         self.url_prefix = url_prefix or f"/{self.protocol}/models"
         self.health_prefix = health_prefix or f"/{self.protocol}/health"
         self.inputs_key = "instances" if self.protocol == "v1" else "inputs"
+        self._input_path = input_path
+        self._result_path = result_path
         self.kwargs = kwargs
 
     def parse_event(self, event):
@@ -117,11 +122,14 @@ class BaseModelRouter:
     def do_event(self, event, *args, **kwargs):
         """handle incoming events, event is nuclio event class"""
 
+        original_body = event.body
+        event.body = _extract_input_data(self._input_path, event.body)
         event = self.preprocess(event)
         event = self._pre_handle_event(event)
-        if hasattr(event, "terminated") and event.terminated:
-            return event
-        return self.postprocess(self._handle_event(event))
+        if not (hasattr(event, "terminated") and event.terminated):
+            event = self.postprocess(self._handle_event(event))
+        event.body = _update_result_body(self._result_path, original_body, event.body)
+        return event
 
     def _handle_event(self, event):
         return event
@@ -514,11 +522,16 @@ class VotingEnsemble(BaseModelRouter):
         start = now_date()
 
         # Handle and verify the request
+        original_body = event.body
+        event.body = _extract_input_data(self._input_path, event.body)
         event = self.preprocess(event)
         event = self._pre_handle_event(event)
 
         # Should we terminate the event?
         if hasattr(event, "terminated") and event.terminated:
+            event.body = _update_result_body(
+                self._result_path, original_body, event.body
+            )
             return event
 
         # Extract route information
@@ -532,6 +545,9 @@ class VotingEnsemble(BaseModelRouter):
             # Return model list
             setattr(event, "terminated", True)
             event.body = {"models": list(self.routes.keys()) + [self.name]}
+            event.body = _update_result_body(
+                self._result_path, original_body, event.body
+            )
             return event
         else:
             # Verify we use the V2 protocol
@@ -557,7 +573,6 @@ class VotingEnsemble(BaseModelRouter):
             # A specific model event
             else:
                 response = route.run(event)
-                event.body = response.body if response else None
 
         response = self.postprocess(response)
 
@@ -565,7 +580,10 @@ class VotingEnsemble(BaseModelRouter):
             if "id" not in request:
                 request["id"] = response.body["id"]
             self._model_logger.push(start, request, response.body)
-        return response
+        event.body = _update_result_body(
+            self._result_path, original_body, response.body if response else None
+        )
+        return event
 
     def extract_results_from_response(self, response):
         """Extracts the prediction from the model response.

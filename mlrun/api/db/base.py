@@ -231,6 +231,19 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    async def get_project_resources_counters(
+        self, session
+    ) -> Tuple[
+        Dict[str, int],
+        Dict[str, int],
+        Dict[str, int],
+        Dict[str, int],
+        Dict[str, int],
+        Dict[str, int],
+    ]:
+        pass
+
+    @abstractmethod
     def create_project(self, session, project: schemas.Project):
         pass
 

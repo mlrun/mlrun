@@ -123,13 +123,15 @@ def delete_function(
 
 @router.get("/funcs")
 def list_functions(
-    project: str = config.default_project,
+    project: str = None,
     name: str = None,
     tag: str = None,
     labels: List[str] = Query([], alias="label"),
     auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    if project is None:
+        project = config.default_project
     mlrun.api.utils.clients.opa.Client().query_project_permissions(
         project, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
     )

@@ -186,7 +186,7 @@ default_config = {
             "followers": "",
             # This is used as the interval for the sync loop both when mlrun is leader and follower
             "periodic_sync_interval": "1 minute",
-            "counters_cache_ttl": "10 seconds",
+            "counters_cache_ttl": "2 minutes",
             # access key to be used when the leader is iguazio and polling is done from it
             "iguazio_access_key": "",
             # the initial implementation was cache and was working great, now it's not needed because we get (read/list)
@@ -345,6 +345,16 @@ class Config:
             build_args = json.loads(build_args_json)
 
         return build_args
+
+    @staticmethod
+    def get_hub_url():
+        if not config.hub_url.endswith("function.yaml"):
+            if config.hub_url.startswith("http"):
+                return f"{config.hub_url}/{{tag}}/{{name}}/function.yaml"
+            elif config.hub_url.startswith("v3io"):
+                return f"{config.hub_url}/{{name}}/function.yaml"
+
+        return config.hub_url
 
     @staticmethod
     def get_default_function_node_selector():

@@ -44,7 +44,6 @@ from .feature_vector import (
     OnlineVectorService,
 )
 from .ingestion import (
-    add_source_trigger,
     context_to_ingestion_params,
     init_featureset_graph,
     run_ingestion_job,
@@ -526,7 +525,7 @@ def deploy_ingestion_service(
         "mlrun.feature_store.ingestion.featureset_initializer"
     )
     function.verbose = function.verbose or verbose
-    add_source_trigger(source, function)
+    function = source.add_nuclio_trigger(function)
 
     if run_config.local:
         return function.to_mock_server(namespace=get_caller_globals())

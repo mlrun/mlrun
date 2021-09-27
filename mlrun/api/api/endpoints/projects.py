@@ -2,6 +2,7 @@ import http
 import typing
 
 import fastapi
+import fastapi.concurrency
 import sqlalchemy.orm
 
 import mlrun.api.api.deps
@@ -213,6 +214,75 @@ def list_projects(
         auth_verifier.auth_info.session,
         allowed_project_names,
     )
+
+
+@router.get(
+    "/project-summaries", response_model=mlrun.api.schemas.ProjectSummariesOutput
+)
+async def list_project_summaries(
+    owner: str = None,
+    labels: typing.List[str] = fastapi.Query(None, alias="label"),
+    state: mlrun.api.schemas.ProjectState = None,
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifierDep
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        mlrun.api.api.deps.get_db_session
+    ),
+):
+    projects_output = await fastapi.concurrency.run_in_threadpool(
+        get_project_member().list_projects,
+        db_session,
+        owner,
+        mlrun.api.schemas.ProjectsFormat.name_only,
+        labels,
+        state,
+        auth_verifier.auth_info.projects_role,
+        auth_verifier.auth_info.session,
+    )
+    allowed_project_names = projects_output.projects
+    # skip permission check if it's the leader
+    if not _is_request_from_leader(auth_verifier.auth_info.projects_role):
+        allowed_project_names = await fastapi.concurrency.run_in_threadpool(
+            mlrun.api.utils.clients.opa.Client().filter_projects_by_permissions,
+            projects_output.projects,
+            auth_verifier.auth_info,
+        )
+    return await get_project_member().list_project_summaries(
+        db_session,
+        owner,
+        labels,
+        state,
+        auth_verifier.auth_info.projects_role,
+        auth_verifier.auth_info.session,
+        allowed_project_names,
+    )
+
+
+@router.get(
+    "/project-summaries/{name}", response_model=mlrun.api.schemas.ProjectSummary
+)
+async def get_project_summary(
+    name: str,
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        mlrun.api.api.deps.get_db_session
+    ),
+    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
+        mlrun.api.api.deps.AuthVerifierDep
+    ),
+):
+    project_summary = await get_project_member().get_project_summary(
+        db_session, name, auth_verifier.auth_info.session
+    )
+    # skip permission check if it's the leader
+    if not _is_request_from_leader(auth_verifier.auth_info.projects_role):
+        await fastapi.concurrency.run_in_threadpool(
+            mlrun.api.utils.clients.opa.Client().query_project_permissions,
+            name,
+            mlrun.api.schemas.AuthorizationAction.read,
+            auth_verifier.auth_info,
+        )
+    return project_summary
 
 
 def _is_request_from_leader(

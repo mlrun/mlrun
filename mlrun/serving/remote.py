@@ -5,7 +5,7 @@ import storey
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-import mlrun
+from .utils import _extract_input_data, _update_result_body
 
 http_adapter = HTTPAdapter(
     max_retries=Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
@@ -23,7 +23,10 @@ class RemoteStep(storey.SendToHttp):
         method: str = None,
         headers: dict = None,
         url_expression: str = None,
+        body_expression: str = None,
         return_json: bool = True,
+        input_path: str = None,
+        result_path: str = None,
         **kwargs,
     ):
         """class for calling remote endpoints
@@ -45,40 +48,57 @@ class RemoteStep(storey.SendToHttp):
         :param method:  HTTP method (GET, POST, ..), default to POST
         :param headers: dictionary with http header values
         :param url_expression: an expression for getting the url from the event, e.g. "event['url']"
+        :param body_expression: an expression for getting the request body from the event, e.g. "event['data']"
         :param return_json: indicate the returned value is json, and convert it to a py object
+        :param input_path:  when specified selects the key/path in the event to use as body
+                            this require that the event body will behave like a dict, example:
+                            event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means request body will be 7
+        :param result_path: selects the key/path in the event to write the results to
+                            this require that the event body will behave like a dict, example:
+                            event: {"x": 5} , result_path="resp" means the returned response will be written
+                            to event["y"] resulting in {"x": 5, "resp": <result>}
         """
-        if url and url_expression:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "cannot set both url and url_expression"
-            )
         self.url = url
         self.url_expression = url_expression
+        self.body_expression = body_expression
         self.headers = headers
         self.method = method
         self.return_json = return_json
-        self.subpath = subpath or ""
-        super().__init__(None, None, **kwargs)
+        self.subpath = subpath
+        super().__init__(
+            None, None, input_path=input_path, result_path=result_path, **kwargs
+        )
 
         self._append_event_path = False
         self._endpoint = ""
         self._session = None
         self._url_function_handler = None
+        self._body_function_handler = None
+        self._full_event = False
 
     def post_init(self, mode="sync"):
+        self._endpoint = self.url
+        if self.url and self.context:
+            self._endpoint = self.context.get_remote_endpoint(self.url).strip("/")
+        if self.body_expression:
+            # init lambda function for calculating url from event
+            self._body_function_handler = eval(
+                "lambda event: " + self.body_expression, {}, {}
+            )
         if self.url_expression:
             # init lambda function for calculating url from event
             self._url_function_handler = eval(
-                "lambda event: " + self.url_expression, {}, {}
+                "lambda event: " + self.url_expression, {"endpoint": self._endpoint}, {}
             )
-        else:
+        elif self.subpath:
             self._append_event_path = self.subpath == "$path"
-            self._endpoint = self.context.get_remote_endpoint(self.url).strip("/")
-            if self.subpath and not self._append_event_path:
+            if not self._append_event_path:
                 self._endpoint = self._endpoint + "/" + self.subpath.lstrip("/")
 
     async def _process_event(self, event):
         # async implementation (with storey)
-        method, url, headers, body = self._generate_request(event)
+        body = self._get_event_or_body(event)
+        method, url, headers, body = self._generate_request(event, body)
         return await self._client_session.request(
             method, url, headers=headers, data=body, ssl=False
         )
@@ -98,7 +118,8 @@ class RemoteStep(storey.SendToHttp):
             self._session.mount("http://", http_adapter)
             self._session.mount("https://", http_adapter)
 
-        method, url, headers, body = self._generate_request(event)
+        body = _extract_input_data(self._input_path, event.body)
+        method, url, headers, body = self._generate_request(event, body)
         try:
             resp = self._session.request(
                 method, url, verify=False, headers=headers, data=body
@@ -108,27 +129,29 @@ class RemoteStep(storey.SendToHttp):
         if not resp.ok:
             raise RuntimeError(f"bad http response {resp.text}")
 
-        event.body = self._get_data(resp.content, resp.headers)
+        result = self._get_data(resp.content, resp.headers)
+        event.body = _update_result_body(self._result_path, event.body, result)
         return event
 
-    def _generate_request(self, event):
+    def _generate_request(self, event, body):
         method = self.method or event.method or "POST"
         headers = self.headers or event.headers or {}
 
-        body = None
-        if method != "GET" and event.body is not None:
-            if isinstance(event.body, (str, bytes)):
-                body = event.body
-            else:
-                body = json.dumps(event.body)
-                headers["Content-Type"] = "application/json"
-
         if self._url_function_handler:
-            url = self._url_function_handler(event.body)
+            url = self._url_function_handler(body)
         else:
             url = self._endpoint
             if self._append_event_path:
                 url = url + "/" + event.path.lstrip("/")
+
+        if method == "GET":
+            body = None
+        elif body is not None and not isinstance(body, (str, bytes)):
+            if self._body_function_handler:
+                body = self._body_function_handler(body)
+            body = json.dumps(body)
+            headers["Content-Type"] = "application/json"
+
         return method, url, headers, body
 
     def _get_data(self, data, headers):
@@ -149,10 +172,14 @@ class RemoteStep(storey.SendToHttp):
                 "headers",
                 "return_json",
                 "url_expression",
+                "body_expression",
             ]
+            if getattr(self, key) is not None
         }
         return {
             "class_name": f"{__name__}.{self.__class__.__name__}",
             "name": self.name or self.__class__.__name__,
             "class_args": args,
+            "input_path": self._input_path,
+            "result_path": self._result_path,
         }

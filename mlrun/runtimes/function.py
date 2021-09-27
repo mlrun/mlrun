@@ -655,6 +655,25 @@ class RemoteRuntime(KubeResource):
             runtime_env["MLRUN_NAMESPACE"] = mlconf.namespace
         return runtime_env
 
+    def get_nuclio_config_spec_env(self):
+        env_dict = {}
+        external_source_env_dict = {}
+        for env_var in self.spec.env:
+
+            value = get_item_name(env_var, "value")
+            if value is not None:
+                env_dict[get_item_name(env_var)] = value
+                continue
+
+            value_from = get_item_name(env_var, "valueFrom")
+            if value_from is not None:
+                external_source_env_dict[get_item_name(env_var)] = value_from
+
+        for key, value in self._get_runtime_env().items():
+            env_dict[key] = value
+
+        return env_dict, external_source_env_dict
+
     def deploy_step(
         self,
         dashboard="",
@@ -949,7 +968,7 @@ def compile_function_config(function: RemoteRuntime):
     # Needs to be here, since it adds env params, which are handled in the next lines.
     function.add_secrets_config_to_spec()
 
-    env_dict, external_source_env_dict = get_nuclio_config_spec_env(function)
+    env_dict, external_source_env_dict = function.get_nuclio_config_spec_env()
     spec = nuclio.ConfigSpec(
         env=env_dict,
         external_source_env=external_source_env_dict,
@@ -1040,21 +1059,6 @@ def compile_function_config(function: RemoteRuntime):
         update_in(config, "metadata.name", name)
 
     return name, project, config
-
-
-def get_nuclio_config_spec_env(function):
-    external_source_env_dict = {}
-    env_dict = {}
-    for env_var in function.spec.env:
-        value = get_item_name(env_var, "value")
-        if value is not None:
-            env_dict[get_item_name(env_var)] = value
-        value_from = get_item_name(env_var, "valueFrom")
-        if value_from is not None:
-            external_source_env_dict[get_item_name(env_var)] = value_from
-    for key, value in function._get_runtime_env().items():
-        env_dict[key] = value
-    return env_dict, external_source_env_dict
 
 
 def enrich_function_with_ingress(config, mode, service_type):

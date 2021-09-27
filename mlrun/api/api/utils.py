@@ -147,16 +147,17 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
     if (
         function.kind
         and function.kind not in mlrun.runtimes.RuntimeKinds.local_runtimes()
-        and mlrun.api.utils.auth.AuthVerifier().is_jobs_auth_required()
+        and mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
     ):
         if auth_info and auth_info.session:
             if (
                 function.metadata.credentials.access_key
                 == mlrun.model.Credentials.generate_access_key
             ):
-                function.metadata.credentials.access_key = mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key(
-                    auth_info.session
-                )
+                # fmt: off
+                function.metadata.credentials.access_key = mlrun.api.utils.auth.verifier\
+                    .AuthVerifier().get_or_create_access_key(auth_info.session)
+                # fmt: on
             if not function.metadata.credentials.access_key:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Function access key must be set (function.metadata.credentials.access_key)"

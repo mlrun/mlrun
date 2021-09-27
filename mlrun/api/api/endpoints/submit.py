@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.api.utils
 import mlrun.api.schemas
-import mlrun.api.utils.clients.opa
+import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.singletons.project_member
 import mlrun.utils.helpers
 from mlrun.api.api import deps
@@ -49,7 +49,7 @@ async def submit_job(
             _,
         ) = mlrun.utils.helpers.parse_versioned_object_uri(function_url)
         await fastapi.concurrency.run_in_threadpool(
-            mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
+            mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
             mlrun.api.schemas.AuthorizationResourceTypes.function,
             function_project,
             function_name,
@@ -58,7 +58,7 @@ async def submit_job(
         )
     if data.get("schedule"):
         await fastapi.concurrency.run_in_threadpool(
-            mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
+            mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
             mlrun.api.schemas.AuthorizationResourceTypes.schedule,
             data["task"]["metadata"]["project"],
             data["task"]["metadata"]["name"],
@@ -67,7 +67,7 @@ async def submit_job(
         )
     else:
         await fastapi.concurrency.run_in_threadpool(
-            mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
+            mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
             mlrun.api.schemas.AuthorizationResourceTypes.run,
             data["task"]["metadata"]["project"],
             "",

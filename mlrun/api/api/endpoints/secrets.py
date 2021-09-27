@@ -5,7 +5,7 @@ import fastapi
 
 import mlrun.api.api.deps
 import mlrun.api.crud
-import mlrun.api.utils.clients.opa
+import mlrun.api.utils.auth.verifier
 import mlrun.errors
 from mlrun.api import schemas
 from mlrun.utils.vault import add_vault_user_secrets
@@ -21,7 +21,7 @@ def store_project_secrets(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.secret,
         project,
         secrets.provider,
@@ -42,7 +42,7 @@ def delete_project_secrets(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.secret,
         project,
         provider,
@@ -63,7 +63,7 @@ def list_secret_keys(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.secret,
         project,
         provider,
@@ -83,7 +83,7 @@ def list_secrets(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.secret,
         project,
         provider,

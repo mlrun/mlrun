@@ -9,7 +9,7 @@ import mlrun
 import mlrun.api.api.deps
 import mlrun.api.crud
 import mlrun.api.schemas
-import mlrun.api.utils.clients.opa
+import mlrun.api.utils.auth.verifier
 
 router = fastapi.APIRouter()
 
@@ -276,7 +276,7 @@ def _get_runtime_resources_allowed_projects(
     typing.List[str], mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput, bool
 ]:
     if project != "*":
-        mlrun.api.utils.clients.opa.Client().query_project_permissions(
+        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
             project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
         )
     grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput
@@ -297,7 +297,7 @@ def _get_runtime_resources_allowed_projects(
             is_non_project_runtime_resource_exists = True
             continue
         projects.append(project)
-    allowed_projects = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
+    allowed_projects = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.runtime_resource,
         projects,
         lambda project: (project, "",),

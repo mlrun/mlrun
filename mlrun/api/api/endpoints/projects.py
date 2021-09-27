@@ -7,7 +7,7 @@ import sqlalchemy.orm
 
 import mlrun.api.api.deps
 import mlrun.api.schemas
-import mlrun.api.utils.clients.opa
+import mlrun.api.utils.auth.verifier
 from mlrun.api.utils.singletons.project_member import get_project_member
 
 router = fastapi.APIRouter()
@@ -130,7 +130,7 @@ def get_project(
     project = get_project_member().get_project(db_session, name, auth_info.session)
     # skip permission check if it's the leader
     if not _is_request_from_leader(auth_info.projects_role):
-        mlrun.api.utils.clients.opa.Client().query_project_permissions(
+        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
             name, mlrun.api.schemas.AuthorizationAction.read, auth_info,
         )
     return project
@@ -199,7 +199,7 @@ def list_projects(
     allowed_project_names = projects_output.projects
     # skip permission check if it's the leader
     if not _is_request_from_leader(auth_info.projects_role):
-        allowed_project_names = mlrun.api.utils.clients.opa.Client().filter_projects_by_permissions(
+        allowed_project_names = mlrun.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
             projects_output.projects, auth_info,
         )
     return get_project_member().list_projects(
@@ -242,7 +242,7 @@ async def list_project_summaries(
     # skip permission check if it's the leader
     if not _is_request_from_leader(auth_info.projects_role):
         allowed_project_names = await fastapi.concurrency.run_in_threadpool(
-            mlrun.api.utils.clients.opa.Client().filter_projects_by_permissions,
+            mlrun.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions,
             projects_output.projects,
             auth_info,
         )
@@ -275,7 +275,7 @@ async def get_project_summary(
     # skip permission check if it's the leader
     if not _is_request_from_leader(auth_info.projects_role):
         await fastapi.concurrency.run_in_threadpool(
-            mlrun.api.utils.clients.opa.Client().query_project_permissions,
+            mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions,
             name,
             mlrun.api.schemas.AuthorizationAction.read,
             auth_info,

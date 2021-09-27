@@ -2,8 +2,8 @@ import fastapi
 
 import mlrun.api.api.deps
 import mlrun.api.schemas
+import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
-import mlrun.api.utils.clients.opa
 
 router = fastapi.APIRouter()
 
@@ -20,7 +20,7 @@ def get_background_task(
     ),
 ):
     # Since there's no not-found option on get_background_task - we authorize before getting (unlike other get endpoint)
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.background_task,
         project,
         name,

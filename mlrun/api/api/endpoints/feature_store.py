@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Header, Query, Response
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud
-import mlrun.api.utils.clients.opa
+import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.singletons.project_member
 import mlrun.errors
 import mlrun.feature_store
@@ -32,7 +32,7 @@ def create_feature_set(
     mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
         db_session, project, auth_info=auth_info
     )
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
         project,
         feature_set.metadata.name,
@@ -68,7 +68,7 @@ def store_feature_set(
     mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
         db_session, project, auth_info=auth_info
     )
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
         project,
         name,
@@ -96,7 +96,7 @@ def patch_feature_set(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
         project,
         name,
@@ -125,7 +125,7 @@ def get_feature_set(
     feature_set = mlrun.api.crud.FeatureStore().get_feature_set(
         db_session, project, name, tag, uid
     )
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
         project,
         name,
@@ -144,7 +144,7 @@ def delete_feature_set(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
         project,
         name,
@@ -180,7 +180,7 @@ def list_feature_sets(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_project_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
     )
     feature_sets = mlrun.api.crud.FeatureStore().list_feature_sets(
@@ -197,7 +197,7 @@ def list_feature_sets(
         sort,
         order,
     )
-    feature_sets = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
+    feature_sets = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
         feature_sets.feature_sets,
         lambda feature_set: (feature_set.metadata.project, feature_set.metadata.name,),
@@ -220,14 +220,14 @@ def list_feature_sets_tags(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Listing a specific feature set tags is not supported, set name to *"
         )
-    mlrun.api.utils.clients.opa.Client().query_project_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
     )
     tag_tuples = mlrun.api.crud.FeatureStore().list_feature_sets_tags(
         db_session, project,
     )
     feature_set_name_to_tag = {tag_tuple[1]: tag_tuple[2] for tag_tuple in tag_tuples}
-    allowed_feature_set_names = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
+    allowed_feature_set_names = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
         list(feature_set_name_to_tag.keys()),
         lambda feature_set_name: (project, feature_set_name,),
@@ -282,14 +282,14 @@ def ingest_feature_set(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
         project,
         name,
         mlrun.api.schemas.AuthorizationAction.update,
         auth_info,
     )
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.run,
         project,
         "",
@@ -300,7 +300,7 @@ def ingest_feature_set(
     if ingest_parameters.source:
         data_source = DataSource.from_dict(ingest_parameters.source.dict())
     if data_source.schedule:
-        mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.schedule,
             project,
             "",
@@ -314,7 +314,7 @@ def ingest_feature_set(
     feature_set = mlrun.feature_store.FeatureSet.from_dict(feature_set_record.dict())
     if feature_set.spec.function and feature_set.spec.function.function_object:
         function = feature_set.spec.function.function_object
-        mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.function,
             function.metadata.project,
             function.metadata.name,
@@ -372,13 +372,13 @@ def list_features(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_project_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
     )
     features = mlrun.api.crud.FeatureStore().list_features(
         db_session, project, name, tag, entities, labels
     )
-    features = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
+    features = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature,
         features.features,
         lambda feature_list_output: (
@@ -399,13 +399,13 @@ def list_entities(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_project_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
     )
     entities = mlrun.api.crud.FeatureStore().list_entities(
         db_session, project, name, tag, labels
     )
-    entities = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
+    entities = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.entity,
         entities.entities,
         lambda entity_list_output: (
@@ -430,7 +430,7 @@ def create_feature_vector(
     mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
         db_session, project, auth_info=auth_info
     )
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
         project,
         feature_vector.metadata.name,
@@ -468,7 +468,7 @@ def get_feature_vector(
     feature_vector = mlrun.api.crud.FeatureStore().get_feature_vector(
         db_session, project, name, tag, uid
     )
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
         project,
         name,
@@ -499,7 +499,7 @@ def list_feature_vectors(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_project_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
     )
     feature_vectors = mlrun.api.crud.FeatureStore().list_feature_vectors(
@@ -514,7 +514,7 @@ def list_feature_vectors(
         sort,
         order,
     )
-    feature_vectors = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
+    feature_vectors = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
         feature_vectors.feature_vectors,
         lambda feature_vector: (
@@ -544,7 +544,7 @@ def list_feature_vectors_tags(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Listing a specific feature vector tags is not supported, set name to *"
         )
-    mlrun.api.utils.clients.opa.Client().query_project_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
     )
     tag_tuples = mlrun.api.crud.FeatureStore().list_feature_vectors_tags(
@@ -553,7 +553,7 @@ def list_feature_vectors_tags(
     feature_vector_name_to_tag = {
         tag_tuple[1]: tag_tuple[2] for tag_tuple in tag_tuples
     }
-    allowed_feature_vector_names = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
+    allowed_feature_vector_names = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
         list(feature_vector_name_to_tag.keys()),
         lambda feature_vector_name: (project, feature_vector_name,),
@@ -583,7 +583,7 @@ def store_feature_vector(
     mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
         db_session, project, auth_info=auth_info
     )
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
         project,
         name,
@@ -615,7 +615,7 @@ def patch_feature_vector(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
         project,
         name,
@@ -641,7 +641,7 @@ def delete_feature_vector(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
         project,
         name,
@@ -676,7 +676,7 @@ def _verify_feature_vector_features_permissions(
     for _project, names in feature_set_project_to_name_set_map.items():
         for name in names:
             feature_set_project_name_tuples.append((_project, name))
-    mlrun.api.utils.clients.opa.Client().query_project_resources_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
         feature_set_project_name_tuples,
         lambda feature_set_project_name_tuple: (

@@ -7,6 +7,7 @@ import requests.adapters
 import urllib3
 
 import mlrun.api.schemas
+import mlrun.api.utils.auth.providers.base
 import mlrun.api.utils.projects.remotes.leader
 import mlrun.errors
 import mlrun.utils.helpers
@@ -14,7 +15,10 @@ import mlrun.utils.singleton
 from mlrun.utils import logger
 
 
-class Client(metaclass=mlrun.utils.singleton.Singleton,):
+class Provider(
+    mlrun.api.utils.auth.providers.base.Provider,
+    metaclass=mlrun.utils.singleton.AbstractSingleton,
+):
     def __init__(self) -> None:
         super().__init__()
         http_adapter = requests.adapters.HTTPAdapter(
@@ -135,6 +139,25 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
                 allowed_resources.append(resources[index])
         return allowed_resources
 
+    def add_allowed_project_for_owner(
+        self, project_name: str, auth_info: mlrun.api.schemas.AuthInfo
+    ):
+        if (
+            not auth_info.user_id
+            or not project_name
+            or not self._allowed_project_owners_cache_ttl_seconds
+        ):
+            # Simply won't be cached, no need to explode
+            return
+        allowed_projects = {}
+        if auth_info.user_id in self._allowed_project_owners_cache:
+            allowed_projects = self._allowed_project_owners_cache[auth_info.user_id]
+        ttl = datetime.datetime.now() + datetime.timedelta(
+            seconds=self._allowed_project_owners_cache_ttl_seconds
+        )
+        allowed_projects[project_name] = ttl
+        self._allowed_project_owners_cache[auth_info.user_id] = allowed_projects
+
     def _check_allowed_project_owners_cache(
         self, resource: str, auth_info: mlrun.api.schemas.AuthInfo
     ):
@@ -165,25 +188,6 @@ class Client(metaclass=mlrun.utils.singleton.Singleton,):
                 user_ids_to_remove.append(user_id)
         for user_id in user_ids_to_remove:
             del self._allowed_project_owners_cache[user_id]
-
-    def add_allowed_project_for_owner(
-        self, project_name: str, auth_info: mlrun.api.schemas.AuthInfo
-    ):
-        if (
-            not auth_info.user_id
-            or not project_name
-            or not self._allowed_project_owners_cache_ttl_seconds
-        ):
-            # Simply won't be cached, no need to explode
-            return
-        allowed_projects = {}
-        if auth_info.user_id in self._allowed_project_owners_cache:
-            allowed_projects = self._allowed_project_owners_cache[auth_info.user_id]
-        ttl = datetime.datetime.now() + datetime.timedelta(
-            seconds=self._allowed_project_owners_cache_ttl_seconds
-        )
-        allowed_projects[project_name] = ttl
-        self._allowed_project_owners_cache[auth_info.user_id] = allowed_projects
 
     def _is_request_from_leader(
         self, projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole]

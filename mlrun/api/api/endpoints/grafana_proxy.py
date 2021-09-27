@@ -10,7 +10,7 @@ from starlette.concurrency import run_in_threadpool
 
 import mlrun.api.crud
 import mlrun.api.schemas
-import mlrun.api.utils.clients.opa
+import mlrun.api.utils.auth.verifier
 from mlrun.api.api import deps
 from mlrun.api.schemas import (
     GrafanaColumn,
@@ -127,7 +127,7 @@ def grafana_list_endpoints(
     end = body.get("rangeRaw", {}).get("end", "now")
 
     if project:
-        mlrun.api.utils.clients.opa.Client().query_project_permissions(
+        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
             project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
         )
     endpoint_list = mlrun.api.crud.ModelEndpoints().list_endpoints(
@@ -140,7 +140,7 @@ def grafana_list_endpoints(
         start=start,
         end=end,
     )
-    allowed_endpoints = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
+    allowed_endpoints = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         endpoint_list.endpoints,
         lambda _endpoint: (_endpoint.metadata.project, _endpoint.metadata.uid,),
@@ -202,7 +202,7 @@ def grafana_individual_feature_analysis(
 ):
     endpoint_id = query_parameters.get("endpoint_id")
     project = query_parameters.get("project")
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,
@@ -264,7 +264,7 @@ def grafana_overall_feature_analysis(
 ):
     endpoint_id = query_parameters.get("endpoint_id")
     project = query_parameters.get("project")
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,
@@ -312,7 +312,7 @@ def grafana_incoming_features(
     start = body.get("rangeRaw", {}).get("from", "now-1h")
     end = body.get("rangeRaw", {}).get("to", "now")
 
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,

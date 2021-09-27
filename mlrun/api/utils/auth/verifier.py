@@ -1,11 +1,14 @@
 import base64
 import http
+import typing
 
 import fastapi
 
 import mlrun
 import mlrun.api.api.utils
 import mlrun.api.schemas
+import mlrun.api.utils.auth.providers.nop
+import mlrun.api.utils.auth.providers.opa
 import mlrun.api.utils.clients.iguazio
 import mlrun.utils.singleton
 
@@ -13,6 +16,141 @@ import mlrun.utils.singleton
 class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     _basic_prefix = "Basic "
     _bearer_prefix = "Bearer "
+
+    def __init__(self) -> None:
+        super().__init__()
+        if mlrun.mlconf.httpdb.authorization.mode == "none":
+            self._auth_provider = mlrun.api.utils.auth.providers.nop.Provider()
+        elif mlrun.mlconf.httpdb.authorization.mode == "opa":
+            self._auth_provider = mlrun.api.utils.auth.providers.opa.Provider()
+
+    def filter_project_resources_by_permissions(
+        self,
+        resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
+        resources: typing.List,
+        project_and_resource_name_extractor: typing.Callable,
+        auth_info: mlrun.api.schemas.AuthInfo,
+        action: mlrun.api.schemas.AuthorizationAction = mlrun.api.schemas.AuthorizationAction.read,
+    ) -> typing.List:
+        def _generate_opa_resource(resource):
+            project_name, resource_name = project_and_resource_name_extractor(resource)
+            return self._generate_resource_string_from_project_resource(
+                resource_type, project_name, resource_name
+            )
+
+        return self.filter_by_permissions(
+            resources, _generate_opa_resource, action, auth_info
+        )
+
+    def filter_projects_by_permissions(
+        self,
+        project_names: typing.List[str],
+        auth_info: mlrun.api.schemas.AuthInfo,
+        action: mlrun.api.schemas.AuthorizationAction = mlrun.api.schemas.AuthorizationAction.read,
+    ) -> typing.List:
+        return self.filter_by_permissions(
+            project_names,
+            self._generate_resource_string_from_project_name,
+            action,
+            auth_info,
+        )
+
+    def query_project_resources_permissions(
+        self,
+        resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
+        resources: typing.List,
+        project_and_resource_name_extractor: typing.Callable,
+        action: mlrun.api.schemas.AuthorizationAction,
+        auth_info: mlrun.api.schemas.AuthInfo,
+        raise_on_forbidden: bool = True,
+    ) -> bool:
+        allowed = True
+        # TODO: execute in parallel
+        for resource in resources:
+            project_name, resource_name = project_and_resource_name_extractor(resource)
+            resource_allowed = self.query_project_resource_permissions(
+                resource_type,
+                project_name,
+                resource_name,
+                action,
+                auth_info,
+                raise_on_forbidden,
+            )
+            allowed = allowed and resource_allowed
+        return allowed
+
+    def query_project_resource_permissions(
+        self,
+        resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
+        project_name: str,
+        resource_name: str,
+        action: mlrun.api.schemas.AuthorizationAction,
+        auth_info: mlrun.api.schemas.AuthInfo,
+        raise_on_forbidden: bool = True,
+    ) -> bool:
+        return self.query_permissions(
+            self._generate_resource_string_from_project_resource(
+                resource_type, project_name, resource_name
+            ),
+            action,
+            auth_info,
+            raise_on_forbidden,
+        )
+
+    def query_project_permissions(
+        self,
+        project_name: str,
+        action: mlrun.api.schemas.AuthorizationAction,
+        auth_info: mlrun.api.schemas.AuthInfo,
+        raise_on_forbidden: bool = True,
+    ) -> bool:
+        return self.query_permissions(
+            self._generate_resource_string_from_project_name(project_name),
+            action,
+            auth_info,
+            raise_on_forbidden,
+        )
+
+    def query_global_resource_permissions(
+        self,
+        resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
+        action: mlrun.api.schemas.AuthorizationAction,
+        auth_info: mlrun.api.schemas.AuthInfo,
+        raise_on_forbidden: bool = True,
+    ) -> bool:
+        return self.query_permissions(
+            resource_type.to_resource_string("", ""),
+            action=action,
+            auth_info=auth_info,
+            raise_on_forbidden=raise_on_forbidden,
+        )
+
+    def query_permissions(
+        self,
+        resource: str,
+        action: mlrun.api.schemas.AuthorizationAction,
+        auth_info: mlrun.api.schemas.AuthInfo,
+        raise_on_forbidden: bool = True,
+    ) -> bool:
+        return self._auth_provider.query_permissions(
+            resource, action, auth_info, raise_on_forbidden,
+        )
+
+    def filter_by_permissions(
+        self,
+        resources: typing.List,
+        opa_resource_extractor: typing.Callable,
+        action: mlrun.api.schemas.AuthorizationAction,
+        auth_info: mlrun.api.schemas.AuthInfo,
+    ) -> typing.List:
+        return self._auth_provider.filter_by_permissions(
+            resources, opa_resource_extractor, action, auth_info,
+        )
+
+    def add_allowed_project_for_owner(
+        self, project_name: str, auth_info: mlrun.api.schemas.AuthInfo
+    ):
+        self._auth_provider.add_allowed_project_for_owner(project_name, auth_info)
 
     def authenticate_request(
         self, request: fastapi.Request
@@ -85,6 +223,24 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
                 "Session is currently supported only for iguazio authentication mode"
             )
         return mlrun.api.utils.clients.iguazio.Client().verify_session(session)
+
+    @staticmethod
+    def _generate_resource_string_from_project_name(project_name: str):
+        return mlrun.api.schemas.AuthorizationResourceTypes.project.to_resource_string(
+            project_name, ""
+        )
+
+    @staticmethod
+    def _generate_resource_string_from_project_resource(
+        resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
+        project_name: str,
+        resource_name: str,
+    ):
+        if not project_name:
+            project_name = "*"
+        if not resource_name:
+            resource_name = "*"
+        return resource_type.to_resource_string(project_name, resource_name)
 
     @staticmethod
     def _basic_auth_configured():

@@ -2,7 +2,7 @@ import fastapi
 
 import mlrun.api.api.deps
 import mlrun.api.schemas
-import mlrun.api.utils.clients.opa
+import mlrun.api.utils.auth.verifier
 
 router = fastapi.APIRouter()
 
@@ -14,7 +14,7 @@ def verify_authorization(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
-    mlrun.api.utils.clients.opa.Client().query_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_permissions(
         authorization_verification_input.resource,
         authorization_verification_input.action,
         auth_info,

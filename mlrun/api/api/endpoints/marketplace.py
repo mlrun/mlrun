@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 import mlrun
 import mlrun.api.api.deps
 import mlrun.api.crud
-import mlrun.api.utils.clients.opa
+import mlrun.api.utils.auth.verifier
 from mlrun.api.schemas import AuthorizationAction
 from mlrun.api.schemas.marketplace import (
     IndexedMarketplaceSource,
@@ -32,7 +32,7 @@ def create_source(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
-    mlrun.api.utils.clients.opa.Client().query_global_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
         AuthorizationAction.create,
         auth_info,
@@ -53,7 +53,7 @@ def list_sources(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
-    mlrun.api.utils.clients.opa.Client().query_global_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
         AuthorizationAction.read,
         auth_info,
@@ -72,7 +72,7 @@ def delete_source(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
-    mlrun.api.utils.clients.opa.Client().query_global_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
         AuthorizationAction.delete,
         auth_info,
@@ -93,7 +93,7 @@ def get_source(
     ),
 ):
     marketplace_source = get_db().get_marketplace_source(db_session, source_name)
-    mlrun.api.utils.clients.opa.Client().query_global_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
         AuthorizationAction.read,
         auth_info,
@@ -113,7 +113,7 @@ def store_source(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
-    mlrun.api.utils.clients.opa.Client().query_global_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
         AuthorizationAction.store,
         auth_info,
@@ -141,7 +141,7 @@ def get_catalog(
     ),
 ):
     ordered_source = get_db().get_marketplace_source(db_session, source_name)
-    mlrun.api.utils.clients.opa.Client().query_global_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
         AuthorizationAction.read,
         auth_info,
@@ -169,7 +169,7 @@ def get_item(
     ),
 ):
     ordered_source = get_db().get_marketplace_source(db_session, source_name)
-    mlrun.api.utils.clients.opa.Client().query_global_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
         AuthorizationAction.read,
         auth_info,
@@ -193,7 +193,7 @@ def get_object(
     object_data = mlrun.api.crud.Marketplace().get_item_object_using_source_credentials(
         ordered_source.source, url
     )
-    mlrun.api.utils.clients.opa.Client().query_global_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
         AuthorizationAction.read,
         auth_info,

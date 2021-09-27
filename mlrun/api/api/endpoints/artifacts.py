@@ -6,7 +6,7 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud
-import mlrun.api.utils.clients.opa
+import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.singletons.project_member
 from mlrun.api import schemas
 from mlrun.api.api import deps
@@ -36,7 +36,7 @@ async def store_artifact(
         auth_info=auth_info,
     )
     await run_in_threadpool(
-        mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
+        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         project,
         key,
@@ -70,12 +70,12 @@ def list_artifact_tags(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_project_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
     )
     tag_tuples = get_db().list_artifact_tags(db_session, project)
     artifact_key_to_tag = {tag_tuple[1]: tag_tuple[2] for tag_tuple in tag_tuples}
-    allowed_artifact_keys = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
+    allowed_artifact_keys = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         list(artifact_key_to_tag.keys()),
         lambda artifact_key: (project, artifact_key,),
@@ -102,7 +102,7 @@ def get_artifact(
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = mlrun.api.crud.Artifacts().get_artifact(db_session, key, tag, iter, project)
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         project,
         key,
@@ -123,7 +123,7 @@ def delete_artifact(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         project,
         key,
@@ -149,7 +149,7 @@ def list_artifacts(
 ):
     if project is None:
         project = config.default_project
-    mlrun.api.utils.clients.opa.Client().query_project_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
     )
 
@@ -164,7 +164,7 @@ def list_artifacts(
         iter=iter,
         best_iteration=best_iteration,
     )
-    artifacts = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
+    artifacts = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         artifacts,
         lambda artifact: (
@@ -190,7 +190,7 @@ def delete_artifacts(
     artifacts = mlrun.api.crud.Artifacts().list_artifacts(
         db_session, project, name, tag, labels
     )
-    mlrun.api.utils.clients.opa.Client().query_project_resources_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         artifacts,
         lambda artifact: (artifact["project"], artifact["db_key"]),

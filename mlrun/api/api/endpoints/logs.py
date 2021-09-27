@@ -5,7 +5,7 @@ import sqlalchemy.orm
 import mlrun.api.api.deps
 import mlrun.api.crud
 import mlrun.api.schemas
-import mlrun.api.utils.clients.opa
+import mlrun.api.utils.auth.verifier
 
 router = fastapi.APIRouter()
 
@@ -21,7 +21,7 @@ async def store_log(
     ),
 ):
     await fastapi.concurrency.run_in_threadpool(
-        mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
+        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.log,
         project,
         uid,
@@ -48,7 +48,7 @@ def get_log(
         mlrun.api.api.deps.get_db_session
     ),
 ):
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.log,
         project,
         uid,

@@ -80,8 +80,14 @@ def delete_endpoint_record(
         mlrun.api.schemas.AuthorizationAction.delete,
         auth_verifier.auth_info,
     )
+    # get_access_key will validate the needed auth (which is used later) exists in the request
+    mlrun.api.crud.ModelEndpoints().get_access_key(auth_verifier.auth_info)
+
     mlrun.api.crud.ModelEndpoints().delete_endpoint_record(
-        auth_verifier.auth_info, project, endpoint_id
+        auth_info=auth_verifier.auth_info,
+        project=project,
+        endpoint_id=endpoint_id,
+        access_key=os.environ.get("V3IO_ACCESS_KEY"),
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 

@@ -23,6 +23,8 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             self._auth_provider = mlrun.api.utils.auth.providers.nop.Provider()
         elif mlrun.mlconf.httpdb.authorization.mode == "opa":
             self._auth_provider = mlrun.api.utils.auth.providers.opa.Provider()
+        else:
+            raise NotImplementedError("Unsupported authorization mode")
 
     def filter_project_resources_by_permissions(
         self,

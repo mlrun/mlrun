@@ -74,10 +74,7 @@ class Provider(
                 raise_on_forbidden,
             )
             return create_allowed and update_allowed
-        if (
-            self._is_request_from_leader(auth_info.projects_role)
-            or mlrun.mlconf.httpdb.authorization.mode == "none"
-        ):
+        if self._is_request_from_leader(auth_info.projects_role):
             return True
         if self._check_allowed_project_owners_cache(resource, auth_info):
             return True
@@ -107,10 +104,7 @@ class Provider(
         # store is not really a verb in our OPA manifest, we map it to 2 query permissions requests (create & update)
         if action == mlrun.api.schemas.AuthorizationAction.store:
             raise NotImplementedError("Store action is not supported in filtering")
-        if (
-            self._is_request_from_leader(auth_info.projects_role)
-            or mlrun.mlconf.httpdb.authorization.mode == "none"
-        ):
+        if self._is_request_from_leader(auth_info.projects_role):
             return resources
         opa_resources = []
         for resource in resources:

@@ -150,6 +150,7 @@ class Client(
                 "attributes": {"label": "MLRun", "planes": planes},
             }
         }
+        logger.debug("Creating access key in Iguazio", planes=planes)
         response = self._send_request_to_api(
             "POST",
             "access_keys",

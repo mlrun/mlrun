@@ -4,6 +4,7 @@ from http import HTTPStatus
 import fastapi
 
 import mlrun.api.api.deps
+import mlrun.api.schemas
 from mlrun.api.api.utils import get_obj_path, get_secrets, log_and_raise
 from mlrun.datastore import store_manager
 from mlrun.utils import logger
@@ -18,8 +19,8 @@ def get_files(
     user: str = "",
     size: int = 0,
     offset: int = 0,
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
 ):
     _, filename = objpath.split(objpath)
@@ -34,7 +35,7 @@ def get_files(
 
     logger.debug("Got get files request", path=objpath)
 
-    secrets = get_secrets(auth_verifier.auth_info)
+    secrets = get_secrets(auth_info)
     body = None
     try:
         stores = store_manager.set(secrets)
@@ -64,8 +65,8 @@ def get_files(
 def get_filestat(
     schema: str = "",
     path: str = "",
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
     user: str = "",
 ):
@@ -79,7 +80,7 @@ def get_filestat(
 
     logger.debug("Got get filestat request", path=path)
 
-    secrets = get_secrets(auth_verifier.auth_info)
+    secrets = get_secrets(auth_info)
     stat = None
     try:
         stores = store_manager.set(secrets)

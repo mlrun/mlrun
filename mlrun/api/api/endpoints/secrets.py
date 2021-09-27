@@ -17,8 +17,8 @@ router = fastapi.APIRouter()
 def store_project_secrets(
     project: str,
     secrets: schemas.SecretsData,
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
 ):
     mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
@@ -26,7 +26,7 @@ def store_project_secrets(
         project,
         secrets.provider,
         mlrun.api.schemas.AuthorizationAction.create,
-        auth_verifier.auth_info,
+        auth_info,
     )
     mlrun.api.crud.Secrets().store_secrets(project, secrets)
 
@@ -38,8 +38,8 @@ def delete_project_secrets(
     project: str,
     provider: schemas.SecretProviderName,
     secrets: List[str] = fastapi.Query(None, alias="secret"),
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
 ):
     mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
@@ -47,7 +47,7 @@ def delete_project_secrets(
         project,
         provider,
         mlrun.api.schemas.AuthorizationAction.delete,
-        auth_verifier.auth_info,
+        auth_info,
     )
     mlrun.api.crud.Secrets().delete_secrets(project, provider, secrets)
 
@@ -59,8 +59,8 @@ def list_secret_keys(
     project: str,
     provider: schemas.SecretProviderName = schemas.SecretProviderName.vault,
     token: str = fastapi.Header(None, alias=schemas.HeaderNames.secret_store_token),
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
 ):
     mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
@@ -68,7 +68,7 @@ def list_secret_keys(
         project,
         provider,
         mlrun.api.schemas.AuthorizationAction.read,
-        auth_verifier.auth_info,
+        auth_info,
     )
     return mlrun.api.crud.Secrets().list_secret_keys(project, provider, token)
 
@@ -79,8 +79,8 @@ def list_secrets(
     secrets: List[str] = fastapi.Query(None, alias="secret"),
     provider: schemas.SecretProviderName = schemas.SecretProviderName.vault,
     token: str = fastapi.Header(None, alias=schemas.HeaderNames.secret_store_token),
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
 ):
     mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
@@ -88,7 +88,7 @@ def list_secrets(
         project,
         provider,
         mlrun.api.schemas.AuthorizationAction.read,
-        auth_verifier.auth_info,
+        auth_info,
     )
     return mlrun.api.crud.Secrets().list_secrets(project, provider, secrets, token)
 

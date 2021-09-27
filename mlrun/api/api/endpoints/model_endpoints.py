@@ -22,8 +22,8 @@ def create_or_patch(
     project: str,
     endpoint_id: str,
     model_endpoint: ModelEndpoint,
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ) -> Response:
@@ -35,10 +35,10 @@ def create_or_patch(
         project,
         endpoint_id,
         mlrun.api.schemas.AuthorizationAction.store,
-        auth_verifier.auth_info,
+        auth_info,
     )
     # get_access_key will validate the needed auth (which is used later) exists in the request
-    mlrun.api.crud.ModelEndpoints().get_access_key(auth_verifier.auth_info)
+    mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
     if project != model_endpoint.metadata.project:
         raise MLRunConflictError(
             f"Can't store endpoint of project {model_endpoint.metadata.project} into project {project}"
@@ -54,7 +54,7 @@ def create_or_patch(
         db_session=db_session,
         access_key=os.environ.get("V3IO_ACCESS_KEY"),
         model_endpoint=model_endpoint,
-        auth_info=auth_verifier.auth_info,
+        auth_info=auth_info,
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
@@ -66,8 +66,8 @@ def create_or_patch(
 def delete_endpoint_record(
     project: str,
     endpoint_id: str,
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
 ) -> Response:
     """
@@ -78,13 +78,13 @@ def delete_endpoint_record(
         project,
         endpoint_id,
         mlrun.api.schemas.AuthorizationAction.delete,
-        auth_verifier.auth_info,
+        auth_info,
     )
     # get_access_key will validate the needed auth (which is used later) exists in the request
-    mlrun.api.crud.ModelEndpoints().get_access_key(auth_verifier.auth_info)
+    mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
 
     mlrun.api.crud.ModelEndpoints().delete_endpoint_record(
-        auth_info=auth_verifier.auth_info,
+        auth_info=auth_info,
         project=project,
         endpoint_id=endpoint_id,
         access_key=os.environ.get("V3IO_ACCESS_KEY"),
@@ -101,8 +101,8 @@ def list_endpoints(
     start: str = Query(default="now-1h"),
     end: str = Query(default="now"),
     metrics: List[str] = Query([], alias="metric"),
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
 ) -> ModelEndpointList:
     """
@@ -120,10 +120,10 @@ def list_endpoints(
      api/projects/{project}/model-endpoints/?label=mylabel=1,myotherlabel=2
      """
     mlrun.api.utils.clients.opa.Client().query_project_permissions(
-        project, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
+        project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
     )
     endpoints = mlrun.api.crud.ModelEndpoints().list_endpoints(
-        auth_info=auth_verifier.auth_info,
+        auth_info=auth_info,
         project=project,
         model=model,
         function=function,
@@ -136,7 +136,7 @@ def list_endpoints(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         endpoints.endpoints,
         lambda _endpoint: (_endpoint.metadata.project, _endpoint.metadata.uid,),
-        auth_verifier.auth_info,
+        auth_info,
     )
     endpoints.endpoints = allowed_endpoints
     return endpoints
@@ -152,12 +152,12 @@ def get_endpoint(
     end: str = Query(default="now"),
     metrics: List[str] = Query([], alias="metric"),
     feature_analysis: bool = Query(default=False),
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
 ) -> ModelEndpoint:
     endpoint = mlrun.api.crud.ModelEndpoints().get_endpoint(
-        auth_info=auth_verifier.auth_info,
+        auth_info=auth_info,
         project=project,
         endpoint_id=endpoint_id,
         metrics=metrics,
@@ -170,6 +170,6 @@ def get_endpoint(
         project,
         endpoint_id,
         mlrun.api.schemas.AuthorizationAction.read,
-        auth_verifier.auth_info,
+        auth_info,
     )
     return endpoint

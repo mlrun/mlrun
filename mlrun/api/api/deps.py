@@ -17,8 +17,5 @@ def get_db_session() -> typing.Generator[Session, None, None]:
         mlrun.api.db.session.close_session(db_session)
 
 
-class AuthVerifierDep:
-    def __init__(self, request: Request):
-        self.auth_info = mlrun.api.utils.auth.AuthVerifier().authenticate_request(
-            request
-        )
+def authenticate_request(request: Request) -> mlrun.api.schemas.AuthInfo:
+    return mlrun.api.utils.auth.AuthVerifier().authenticate_request(request)

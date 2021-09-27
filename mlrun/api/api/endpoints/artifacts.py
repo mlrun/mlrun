@@ -26,14 +26,14 @@ async def store_artifact(
     key: str,
     tag: str = "",
     iter: int = 0,
-    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     await run_in_threadpool(
         mlrun.api.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project,
-        auth_info=auth_verifier.auth_info,
+        auth_info=auth_info,
     )
     await run_in_threadpool(
         mlrun.api.utils.clients.opa.Client().query_project_resource_permissions,
@@ -41,7 +41,7 @@ async def store_artifact(
         project,
         key,
         mlrun.api.schemas.AuthorizationAction.store,
-        auth_verifier.auth_info,
+        auth_info,
     )
 
     data = None
@@ -67,11 +67,11 @@ async def store_artifact(
 @router.get("/projects/{project}/artifact-tags")
 def list_artifact_tags(
     project: str,
-    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_project_permissions(
-        project, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
+        project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
     )
     tag_tuples = get_db().list_artifact_tags(db_session, project)
     artifact_key_to_tag = {tag_tuple[1]: tag_tuple[2] for tag_tuple in tag_tuples}
@@ -79,7 +79,7 @@ def list_artifact_tags(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         list(artifact_key_to_tag.keys()),
         lambda artifact_key: (project, artifact_key,),
-        auth_verifier.auth_info,
+        auth_info,
     )
     tags = [
         tag_tuple[2]
@@ -98,7 +98,7 @@ def get_artifact(
     key: str,
     tag: str = "latest",
     iter: int = 0,
-    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = mlrun.api.crud.Artifacts().get_artifact(db_session, key, tag, iter, project)
@@ -107,7 +107,7 @@ def get_artifact(
         project,
         key,
         mlrun.api.schemas.AuthorizationAction.read,
-        auth_verifier.auth_info,
+        auth_info,
     )
     return {
         "data": data,
@@ -120,7 +120,7 @@ def delete_artifact(
     uid: str,
     key: str,
     tag: str = "",
-    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
@@ -128,7 +128,7 @@ def delete_artifact(
         project,
         key,
         mlrun.api.schemas.AuthorizationAction.delete,
-        auth_verifier.auth_info,
+        auth_info,
     )
     mlrun.api.crud.Artifacts().delete_artifact(db_session, key, tag, project)
     return {}
@@ -144,13 +144,13 @@ def list_artifacts(
     labels: List[str] = Query([], alias="label"),
     iter: int = Query(None, ge=0),
     best_iteration: bool = Query(False, alias="best-iteration"),
-    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     if project is None:
         project = config.default_project
     mlrun.api.utils.clients.opa.Client().query_project_permissions(
-        project, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
+        project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
     )
 
     artifacts = mlrun.api.crud.Artifacts().list_artifacts(
@@ -171,7 +171,7 @@ def list_artifacts(
             artifact.get("project", mlrun.mlconf.default_project),
             artifact["db_key"],
         ),
-        auth_verifier.auth_info,
+        auth_info,
     )
     return {
         "artifacts": artifacts,
@@ -184,7 +184,7 @@ def delete_artifacts(
     name: str = "",
     tag: str = "",
     labels: List[str] = Query([], alias="label"),
-    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     artifacts = mlrun.api.crud.Artifacts().list_artifacts(
@@ -195,7 +195,7 @@ def delete_artifacts(
         artifacts,
         lambda artifact: (artifact["project"], artifact["db_key"]),
         mlrun.api.schemas.AuthorizationAction.delete,
-        auth_verifier.auth_info,
+        auth_info,
     )
     mlrun.api.crud.Artifacts().delete_artifacts(db_session, project, name, tag, labels)
     return {}

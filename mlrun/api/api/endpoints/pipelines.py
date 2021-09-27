@@ -34,8 +34,8 @@ def list_pipelines(
         mlrun.api.schemas.PipelinesFormat.metadata_only, alias="format"
     ),
     page_size: int = Query(None, gt=0, le=200),
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -43,9 +43,7 @@ def list_pipelines(
         namespace = config.namespace
     if project != "*":
         mlrun.api.utils.clients.opa.Client().query_project_permissions(
-            project,
-            mlrun.api.schemas.AuthorizationAction.read,
-            auth_verifier.auth_info,
+            project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
         )
     total_size, next_page_token, runs = None, None, []
     if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
@@ -70,7 +68,7 @@ def list_pipelines(
         mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
         runs,
         lambda run: (run["project"], run["id"],),
-        auth_verifier.auth_info,
+        auth_info,
     )
     if format_ == mlrun.api.schemas.PipelinesFormat.name_only:
         allowed_runs = [run["name"] for run in allowed_runs]
@@ -89,14 +87,14 @@ async def submit_pipeline_legacy(
     namespace: str = None,
     experiment_name: str = Query("Default", alias="experiment"),
     run_name: str = Query("", alias="run"),
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
 ):
     if namespace is None:
         namespace = config.namespace
     response = await _create_pipeline(
-        auth_verifier.auth_info, request, namespace, experiment_name, run_name,
+        auth_info, request, namespace, experiment_name, run_name,
     )
     return response
 
@@ -108,14 +106,14 @@ async def create_pipeline(
     namespace: str = None,
     experiment_name: str = Query("Default", alias="experiment"),
     run_name: str = Query("", alias="run"),
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
 ):
     if namespace is None:
         namespace = config.namespace
     response = await _create_pipeline(
-        auth_verifier.auth_info, request, namespace, experiment_name, run_name, project
+        auth_info, request, namespace, experiment_name, run_name, project
     )
     return response
 
@@ -209,14 +207,12 @@ def _try_resolve_project_from_body(
 def get_pipeline_legacy(
     run_id: str,
     namespace: str = Query(config.namespace),
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    return _get_pipeline_without_project(
-        db_session, auth_verifier.auth_info, run_id, namespace
-    )
+    return _get_pipeline_without_project(db_session, auth_info, run_id, namespace)
 
 
 @router.get("/projects/{project}/pipelines/{run_id}")
@@ -227,8 +223,8 @@ def get_pipeline(
     format_: mlrun.api.schemas.PipelinesFormat = Query(
         mlrun.api.schemas.PipelinesFormat.summary, alias="format"
     ),
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -241,16 +237,14 @@ def get_pipeline(
         # legacy flow in which we first get the pipeline, resolve the project out of it, and only then query permissions
         # we don't use the return value from this function since the user may have asked for a different format than
         # summary which is the one used inside
-        _get_pipeline_without_project(
-            db_session, auth_verifier.auth_info, run_id, namespace
-        )
+        _get_pipeline_without_project(db_session, auth_info, run_id, namespace)
     else:
         mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
             project,
             run_id,
             mlrun.api.schemas.AuthorizationAction.read,
-            auth_verifier.auth_info,
+            auth_info,
         )
     return pipeline
 

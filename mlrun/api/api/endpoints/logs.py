@@ -16,8 +16,8 @@ async def store_log(
     project: str,
     uid: str,
     append: bool = True,
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
 ):
     await fastapi.concurrency.run_in_threadpool(
@@ -26,7 +26,7 @@ async def store_log(
         project,
         uid,
         mlrun.api.schemas.AuthorizationAction.store,
-        auth_verifier.auth_info,
+        auth_info,
     )
     body = await request.body()
     await fastapi.concurrency.run_in_threadpool(
@@ -41,8 +41,8 @@ def get_log(
     uid: str,
     size: int = -1,
     offset: int = 0,
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         mlrun.api.api.deps.get_db_session
@@ -53,7 +53,7 @@ def get_log(
         project,
         uid,
         mlrun.api.schemas.AuthorizationAction.read,
-        auth_verifier.auth_info,
+        auth_info,
     )
     run_state, log = mlrun.api.crud.Logs().get_logs(
         db_session, project, uid, size, offset

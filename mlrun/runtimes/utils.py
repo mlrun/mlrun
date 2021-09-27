@@ -458,6 +458,7 @@ def enrich_function_from_dict(function, function_dict):
         "node_selector",
         "affinity",
         "priority_class_name",
+        "credentials",
     ]:
         override_value = getattr(override_function.spec, attribute, None)
         if override_value:
@@ -476,6 +477,8 @@ def enrich_function_from_dict(function, function_dict):
                     "requests", {}
                 ):
                     setattr(function.spec, attribute, override_value)
+            elif attribute == "credentials":
+                function.metadata.credentials = mlrun.model.Credentials(**override_value)
             else:
                 setattr(function.spec, attribute, override_value)
     return function

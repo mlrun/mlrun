@@ -360,15 +360,19 @@ def test_list_projects_leader_format(
         project_names.append(project_name)
 
     # list in leader format
-    response = client.get("/api/projects",
-                          params={"format": mlrun.api.schemas.ProjectsFormat.leader},
-                          headers={mlrun.api.schemas.HeaderNames.projects_role: mlrun.mlconf.httpdb.projects.leader})
-    returned_project_names = [project['data']['metadata']['name'] for project in response.json()['projects']]
+    response = client.get(
+        "/api/projects",
+        params={"format": mlrun.api.schemas.ProjectsFormat.leader},
+        headers={
+            mlrun.api.schemas.HeaderNames.projects_role: mlrun.mlconf.httpdb.projects.leader
+        },
+    )
+    returned_project_names = [
+        project["data"]["metadata"]["name"] for project in response.json()["projects"]
+    ]
     assert (
-            deepdiff.DeepDiff(
-                project_names, returned_project_names, ignore_order=True,
-            )
-            == {}
+        deepdiff.DeepDiff(project_names, returned_project_names, ignore_order=True,)
+        == {}
     )
 
 

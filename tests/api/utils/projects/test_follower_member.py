@@ -248,9 +248,7 @@ def test_list_project(
 
     # list no valid names
     _assert_list_projects(
-        projects_follower,
-        [],
-        names=[],
+        projects_follower, [], names=[],
     )
 
     # list labeled - key existence

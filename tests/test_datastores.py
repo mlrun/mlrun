@@ -19,10 +19,11 @@ import pandas as pd
 import pytest
 
 import mlrun
+import mlrun.api.db.sqldb.db
+import sqlalchemy.orm
 import mlrun.errors
+import mlrun.artifacts
 from tests.conftest import rundb_path
-
-mlrun.mlconf.dbpath = rundb_path
 
 raw_data = {
     "name": ["Jason", "Molly", "Tina", "Jake", "Amy"],
@@ -31,7 +32,7 @@ raw_data = {
 df = pd.DataFrame(raw_data, columns=["name", "age"])
 
 
-def test_in_memory():
+def test_in_memory(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
     context = mlrun.get_or_create_ctx("test-in-mem")
     context.artifact_path = "memory://"
     context.log_artifact("k1", body="abc")
@@ -49,7 +50,7 @@ def test_in_memory():
     ), "failed to log in mem artifact"
 
 
-def test_file():
+def test_file(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
     with TemporaryDirectory() as tmpdir:
         print(tmpdir)
 

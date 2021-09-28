@@ -175,6 +175,12 @@ def test_list_project_names_filter(
         == {}
     )
 
+    projects_output = db.list_projects(
+        db_session, format_=mlrun.api.schemas.ProjectsFormat.name_only, names=[],
+    )
+
+    assert projects_output.projects == []
+
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
 @pytest.mark.parametrize(

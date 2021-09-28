@@ -9,7 +9,6 @@ logger = mlrun.utils.create_logger(level="debug", name="automation")
 
 
 class PackageTester:
-
     def __init__(self):
         self._logger = logger
 

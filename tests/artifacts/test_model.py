@@ -1,8 +1,8 @@
 import pandas as pd
+import sqlalchemy.orm
 
 import mlrun
 import mlrun.api.db.sqldb.db
-import sqlalchemy.orm
 from mlrun.artifacts.model import ModelArtifact, get_model, update_model
 from mlrun.features import Feature
 from tests.conftest import results
@@ -38,7 +38,9 @@ def test_infer():
     ], "wrong stat keys"
 
 
-def test_model_update(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
+def test_model_update(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
     model = ModelArtifact("my-model", model_file="a.pkl")
     target_path = results_dir + "model/"
 

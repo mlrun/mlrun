@@ -4,16 +4,18 @@ import pathlib
 
 import deepdiff
 import pytest
+import sqlalchemy.orm
 
 import mlrun
+import mlrun.api.db.sqldb.db
 import mlrun.errors
 import mlrun.projects.project
-import mlrun.api.db.sqldb.db
-import sqlalchemy.orm
 import tests.conftest
 
 
-def test_sync_functions(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
+def test_sync_functions(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
     project_name = "project-name"
     project = mlrun.new_project(project_name)
     project.set_function("hub://describe", "describe")
@@ -34,7 +36,9 @@ def test_sync_functions(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.
     assert fn.metadata.name == "train", "train func did not return"
 
 
-def test_create_project_from_file_with_legacy_structure(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
+def test_create_project_from_file_with_legacy_structure(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
     project_name = "project-name"
     description = "project description"
     params = {"param_key": "param value"}

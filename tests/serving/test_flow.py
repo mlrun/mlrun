@@ -1,8 +1,8 @@
 import pytest
+import sqlalchemy.orm
 
 import mlrun
 import mlrun.api.db.sqldb.db
-import sqlalchemy.orm
 from mlrun.serving import GraphContext
 from mlrun.utils import logger
 
@@ -36,7 +36,9 @@ class Mul(storey.MapClass):
         return event * 2
 
 
-def test_basic_flow(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
+def test_basic_flow(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("flow", engine="sync")
     graph.add_step(name="s1", class_name="Chain")
@@ -73,7 +75,9 @@ def test_basic_flow(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.
 
 
 @pytest.mark.parametrize("engine", engines)
-def test_handler(engine, db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
+def test_handler(
+    engine, db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("flow", engine=engine)
     graph.to(name="s1", handler="(event + 1)").to(name="s2", handler="json.dumps")
@@ -88,7 +92,9 @@ def test_handler(engine, db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy
     assert resp == "6", f"got unexpected result {resp}"
 
 
-def test_handler_with_context(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
+def test_handler_with_context(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("flow", engine="sync")
     graph.to(name="s1", handler=myfunc1).to(name="s2", handler=myfunc2).to(
@@ -100,7 +106,9 @@ def test_handler_with_context(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlal
     assert resp == 40, f"got unexpected result {resp}"
 
 
-def test_init_class(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
+def test_init_class(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("flow", engine="sync")
     graph.to(name="s1", class_name="Echo").to(name="s2", class_name="RespName")
@@ -130,7 +138,9 @@ def return_type(event):
     return event.__class__.__name__
 
 
-def test_content_type(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
+def test_content_type(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("flow", engine="sync")
     graph.to(name="totype", handler=return_type)
@@ -198,7 +208,12 @@ path_control_tests = {"handler": (myfunc2, None), "class": (None, "Mul")}
 
 @pytest.mark.parametrize("test_type", path_control_tests.keys())
 @pytest.mark.parametrize("engine", engines)
-def test_path_control(engine, test_type, db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
+def test_path_control(
+    engine,
+    test_type,
+    db: mlrun.api.db.sqldb.db.SQLDB,
+    db_session: sqlalchemy.orm.Session,
+):
     function = mlrun.new_function("test", kind="serving")
     flow = function.set_topology("flow", engine=engine)
 
@@ -216,7 +231,9 @@ def test_path_control(engine, test_type, db: mlrun.api.db.sqldb.db.SQLDB, db_ses
     assert resp == {"x": 5, "y": {"z": 10}}, "wrong resp"
 
 
-def test_path_control_routers(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
+def test_path_control_routers(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     graph.to(name="s1", class_name="Echo").to(

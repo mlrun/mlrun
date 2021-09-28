@@ -17,13 +17,12 @@ from unittest.mock import Mock
 
 import pandas as pd
 import pytest
+import sqlalchemy.orm
 
 import mlrun
 import mlrun.api.db.sqldb.db
-import sqlalchemy.orm
-import mlrun.errors
 import mlrun.artifacts
-from tests.conftest import rundb_path
+import mlrun.errors
 
 raw_data = {
     "name": ["Jason", "Molly", "Tina", "Jake", "Amy"],

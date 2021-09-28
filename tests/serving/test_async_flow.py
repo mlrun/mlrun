@@ -1,13 +1,16 @@
+import sqlalchemy.orm
+
 import mlrun
+import mlrun.api.db.sqldb.db
 from mlrun.utils import logger
 from tests.conftest import results
-import mlrun.api.db.sqldb.db
-import sqlalchemy.orm
 
 from .demo_states import *  # noqa
 
 
-def test_async_basic(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
+def test_async_basic(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
     function = mlrun.new_function("tests", kind="serving")
     flow = function.set_topology("flow", engine="async")
     queue = flow.to(name="s1", class_name="ChainWithContext").to(
@@ -41,7 +44,9 @@ def test_async_basic(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm
     }, "flow didnt visit expected states"
 
 
-def test_async_nested(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
+def test_async_nested(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     graph.add_step(name="s1", class_name="Echo")

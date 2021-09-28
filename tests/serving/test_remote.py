@@ -1,8 +1,8 @@
 import pytest
+import sqlalchemy.orm
 
 import mlrun
 import mlrun.api.db.sqldb.db
-import sqlalchemy.orm
 
 
 def echo(event):
@@ -37,7 +37,12 @@ def _new_server(url, engine, method="POST", **kwargs):
 
 
 @pytest.mark.parametrize("engine", ["sync", "async"])
-def test_remote_step(httpserver, engine, db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
+def test_remote_step(
+    httpserver,
+    engine,
+    db: mlrun.api.db.sqldb.db.SQLDB,
+    db_session: sqlalchemy.orm.Session,
+):
     httpserver.expect_request("/", method="GET").respond_with_json({"get": "ok"})
     httpserver.expect_request("/foo", method="GET").respond_with_json({"foo": "ok"})
     httpserver.expect_request(
@@ -63,7 +68,12 @@ def test_remote_step(httpserver, engine, db: mlrun.api.db.sqldb.db.SQLDB, db_ses
 
 
 @pytest.mark.parametrize("engine", ["sync", "async"])
-def test_remote_class(httpserver, engine, db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
+def test_remote_class(
+    httpserver,
+    engine,
+    db: mlrun.api.db.sqldb.db.SQLDB,
+    db_session: sqlalchemy.orm.Session,
+):
     from mlrun.serving.remote import RemoteStep
 
     httpserver.expect_request("/cat", method="GET").respond_with_json({"cat": "ok"})
@@ -87,7 +97,12 @@ def test_remote_class(httpserver, engine, db: mlrun.api.db.sqldb.db.SQLDB, db_se
 
 
 @pytest.mark.parametrize("engine", ["sync", "async"])
-def test_remote_advance(httpserver, engine, db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
+def test_remote_advance(
+    httpserver,
+    engine,
+    db: mlrun.api.db.sqldb.db.SQLDB,
+    db_session: sqlalchemy.orm.Session,
+):
     from mlrun.serving.remote import RemoteStep
 
     httpserver.expect_request("/dog", method="POST", json={"x": 5}).respond_with_json(

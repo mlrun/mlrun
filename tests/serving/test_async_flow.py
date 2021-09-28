@@ -1,11 +1,13 @@
 import mlrun
 from mlrun.utils import logger
 from tests.conftest import results
+import mlrun.api.db.sqldb.db
+import sqlalchemy.orm
 
 from .demo_states import *  # noqa
 
 
-def test_async_basic():
+def test_async_basic(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
     function = mlrun.new_function("tests", kind="serving")
     flow = function.set_topology("flow", engine="async")
     queue = flow.to(name="s1", class_name="ChainWithContext").to(
@@ -39,7 +41,7 @@ def test_async_basic():
     }, "flow didnt visit expected states"
 
 
-def test_async_nested():
+def test_async_nested(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     graph.add_step(name="s1", class_name="Echo")
@@ -66,7 +68,7 @@ def test_async_nested():
     assert resp["outputs"] == 5 * 2 * 200, f"wrong health response {resp}"
 
 
-def test_on_error():
+def test_on_error(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     chain = graph.to("Chain", name="s1")

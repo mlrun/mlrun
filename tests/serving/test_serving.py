@@ -5,6 +5,8 @@ import time
 from nuclio_sdk import Context as NuclioContext
 
 import mlrun
+import mlrun.api.db.sqldb.db
+import sqlalchemy.orm
 from mlrun.runtimes import nuclio_init_hook
 from mlrun.runtimes.serving import serving_subkind
 from mlrun.serving import V2ModelServer
@@ -132,7 +134,7 @@ def init_ctx(spec=spec, context=None):
     return context
 
 
-def test_v2_get_models():
+def test_v2_get_models(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
     context = init_ctx()
 
     e = MockEvent("", path="/v2/models/", method="GET")
@@ -143,7 +145,7 @@ def test_v2_get_models():
     assert len(data["models"]) == 4, f"wrong get models response {resp.body}"
 
 
-def test_ensemble_get_models():
+def test_ensemble_get_models(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
     context = init_ctx(ensemble_spec)
     event = MockEvent("", path="/v2/models/", method="GET")
     resp = context.mlrun_handler(context, event)
@@ -153,7 +155,7 @@ def test_ensemble_get_models():
     assert len(data["models"]) == 5, f"wrong get models response {resp.body}"
 
 
-def test_ensemble_infer():
+def test_ensemble_infer(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
     def run_model(url, expected):
         url = f"/v2/models/{url}/infer" if url else "/v2/models/infer"
         event = MockEvent(testdata, path=url)
@@ -176,7 +178,7 @@ def test_ensemble_infer():
     run_model("", 1250.0)
 
 
-def test_v2_infer():
+def test_v2_infer(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
     def run_model(url, expected):
         event = MockEvent(testdata, path=f"/v2/models/{url}/infer")
         resp = context.mlrun_handler(context, event)
@@ -190,7 +192,7 @@ def test_v2_infer():
     run_model("m3/versions/v2", 2000)
 
 
-def test_v2_stream_mode():
+def test_v2_stream_mode(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
     # model and operation are specified inside the message body
     context = init_ctx()
     event = MockEvent('{"model": "m2", "inputs": [5]}')
@@ -207,7 +209,7 @@ def test_v2_stream_mode():
     assert data["outputs"]["explained"] == 5, f"wrong model response {data}"
 
 
-def test_v2_raised_err():
+def test_v2_raised_err(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
     os.environ["SERVING_SPEC_ENV"] = json.dumps(raiser_spec)
     context = GraphContext()
     nuclio_init_hook(context, globals(), serving_subkind)
@@ -218,7 +220,7 @@ def test_v2_raised_err():
     assert resp.status_code == 400, "expecting Response() with status_code 400"
 
 
-def test_v2_async_mode():
+def test_v2_async_mode(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
     # model loading is async
     os.environ["SERVING_SPEC_ENV"] = json.dumps(asyncspec)
     context = GraphContext()
@@ -249,7 +251,7 @@ def test_v2_async_mode():
     assert data["outputs"] == 5, f"wrong model response {data}"
 
 
-def test_v2_explain():
+def test_v2_explain(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
     context = init_ctx()
     event = MockEvent(testdata, path="/v2/models/m1/explain")
     resp = context.mlrun_handler(context, event)
@@ -257,7 +259,7 @@ def test_v2_explain():
     assert data["outputs"]["explained"] == 5, f"wrong explain response {resp.body}"
 
 
-def test_v2_get_modelmeta():
+def test_v2_get_modelmeta(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
     def get_model(name, version, url):
         event = MockEvent("", path=f"/v2/models/{url}", method="GET")
         resp = context.mlrun_handler(context, event)
@@ -274,7 +276,7 @@ def test_v2_get_modelmeta():
     get_model("m3", "v2", "m3/versions/v2")
 
 
-def test_v2_custom_handler():
+def test_v2_custom_handler(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
     context = init_ctx()
     event = MockEvent('{"test": "ok"}', path="/v2/models/m1/myop")
     resp = context.mlrun_handler(context, event)
@@ -282,7 +284,7 @@ def test_v2_custom_handler():
     assert data["test"] == "ok", f"wrong custom op response {resp.body}"
 
 
-def test_v2_errors():
+def test_v2_errors(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
     context = init_ctx(context=NuclioContext(logger=logger))
     event = MockEvent('{"test": "ok"}', path="/v2/models/m1/xx")
     resp = context.mlrun_handler(context, event)
@@ -295,14 +297,14 @@ def test_v2_errors():
     assert resp.status_code == 400, f"didnt get proper model error {resp.body}"
 
 
-def test_v2_model_ready():
+def test_v2_model_ready(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
     context = init_ctx()
     event = MockEvent("", path="/v2/models/m1/ready", method="GET")
     resp = context.mlrun_handler(context, event)
     assert resp.status_code == 200, f"didnt get proper ready resp {resp.body}"
 
 
-def test_v2_health():
+def test_v2_health(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
     context = init_ctx()
     event = MockEvent(None, path="/", method="GET")
     resp = context.mlrun_handler(context, event)
@@ -316,7 +318,7 @@ def test_v2_health():
     assert data["version"] == "v2", f"wrong health response {resp.body}"
 
 
-def test_v2_mock():
+def test_v2_mock(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
     host = create_graph_server(graph=RouterStep())
     host.graph.add_route(
         "my", class_name=ModelTestingClass, model_path="", multiplier=100
@@ -330,7 +332,7 @@ def test_v2_mock():
     assert resp["outputs"] == 5 * 100, f"wrong health response {resp}"
 
 
-def test_function():
+def test_function(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("router")
     fn.add_model("my", class_name="ModelTestingClass", model_path=".", multiplier=100)

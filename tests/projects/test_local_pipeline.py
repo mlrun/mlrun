@@ -2,6 +2,9 @@ import pathlib
 import sys
 
 import mlrun
+import mlrun.artifacts
+import mlrun.api.db.sqldb.db
+import sqlalchemy.orm
 from tests.conftest import out_path
 
 project_dir = f"{out_path}/project_dir"
@@ -27,7 +30,7 @@ class TestNewProject:
         proj.spec.params = {"label_column": "label"}
         return proj
 
-    def test_run_alone(self):
+    def test_run_alone(self, db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
         mlrun.projects.pipeline_context.clear(with_project=True)
         function = mlrun.code_to_function(
             "test1",
@@ -41,7 +44,7 @@ class TestNewProject:
         # expect y = param1 * 2 = 10
         assert run_result.output("accuracy") == 10, "unexpected run result"
 
-    def test_run_project(self):
+    def test_run_project(self, db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
         mlrun.projects.pipeline_context.clear(with_project=True)
         self._create_project("localpipe1")
         run1 = mlrun.run_function(
@@ -57,7 +60,7 @@ class TestNewProject:
         # expect y = (param1 * 2) + 1 = 7
         assert run2.output("y") == 7, "unexpected run result"
 
-    def test_run_pipeline(self):
+    def test_run_pipeline(self, db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
         mlrun.projects.pipeline_context.clear(with_project=True)
         project = self._create_project("localpipe2")
         project.run(

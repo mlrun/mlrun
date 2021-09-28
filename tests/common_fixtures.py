@@ -69,6 +69,7 @@ def db():
         db_session = create_session()
         db = SQLDB(dsn)
         db.initialize(db_session)
+        config.dbpath = dsn
     finally:
         if db_session is not None:
             db_session.close()

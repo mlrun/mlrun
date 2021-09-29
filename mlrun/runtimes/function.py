@@ -658,17 +658,23 @@ class RemoteRuntime(KubeResource):
     def get_nuclio_config_spec_env(self):
         env_dict = {}
         external_source_env_dict = {}
-        for env_var in self.spec.env:
 
-            value = get_item_name(env_var, "value")
+        api = client.ApiClient()
+        for env_var in self.spec.env:
+            # sanitize env if not sanitized
+            if isinstance(env_var, dict):
+                sanitized_env_var = env_var
+            else:
+                sanitized_env_var = api.sanitize_for_serialization(env_var)
+
+            value = sanitized_env_var.get("value")
             if value is not None:
-                env_dict[get_item_name(env_var)] = value
+                env_dict[sanitized_env_var.get("name")] = value
                 continue
 
-            # currently supported only after spec passed serialization hence using CamelCase
-            value_from = get_item_name(env_var, "valueFrom")
+            value_from = sanitized_env_var.get("valueFrom")
             if value_from is not None:
-                external_source_env_dict[get_item_name(env_var)] = value_from
+                external_source_env_dict[sanitized_env_var.get("name")] = value_from
 
         for key, value in self._get_runtime_env().items():
             env_dict[key] = value

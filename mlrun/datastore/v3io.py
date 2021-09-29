@@ -86,7 +86,10 @@ class V3ioStore(DataStore):
         return self._filesystem
 
     def get_storage_options(self):
-        return dict(v3io_access_key=self._get_secret_or_env("V3IO_ACCESS_KEY"))
+        return dict(
+            v3io_access_key=self._get_secret_or_env("V3IO_ACCESS_KEY"),
+            v3io_api=mlrun.mlconf.v3io_api,
+        )
 
     def upload(self, key, src_path):
         http_upload(self.url + self._join(key), src_path, self.headers, None)

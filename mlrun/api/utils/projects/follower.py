@@ -6,9 +6,9 @@ import sqlalchemy.orm
 
 import mlrun.api.db.session
 import mlrun.api.schemas
+import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.clients.nuclio
-import mlrun.api.utils.clients.opa
 import mlrun.api.utils.periodic
 import mlrun.api.utils.projects.member
 import mlrun.api.utils.projects.remotes.nop_leader
@@ -129,7 +129,7 @@ class Member(
             db_session, name, wait_for_completion, auth_info
         )
         if is_project_created:
-            mlrun.api.utils.clients.opa.Client().add_allowed_project_for_owner(
+            mlrun.api.utils.auth.verifier.AuthVerifier().add_allowed_project_for_owner(
                 name, auth_info,
             )
         return is_project_created
@@ -385,7 +385,7 @@ class Member(
         state: mlrun.api.schemas.ProjectState = None,
         names: typing.Optional[typing.List[str]] = None,
     ) -> typing.List[mlrun.api.schemas.Project]:
-        if names:
+        if names is not None:
             projects = [
                 project for project in projects if project.metadata.name in names
             ]

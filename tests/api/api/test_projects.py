@@ -341,6 +341,41 @@ def test_delete_project_deletion_strategy_check(
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
 
 
+# leader format is only relevant to follower mode
+@pytest.mark.parametrize("project_member_mode", ["follower"], indirect=True)
+def test_list_projects_leader_format(
+    db: Session, client: TestClient, project_member_mode: str
+) -> None:
+    """
+    See list_projects in follower.py for explanation on the rationality behind the leader format
+    """
+    # create some projects in the db (mocking projects left there from before when leader format was used)
+    project_names = []
+    for _ in range(5):
+        project_name = f"prj-{uuid4().hex}"
+        project = mlrun.api.schemas.Project(
+            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+        )
+        mlrun.api.utils.singletons.db.get_db().create_project(db, project)
+        project_names.append(project_name)
+
+    # list in leader format
+    response = client.get(
+        "/api/projects",
+        params={"format": mlrun.api.schemas.ProjectsFormat.leader},
+        headers={
+            mlrun.api.schemas.HeaderNames.projects_role: mlrun.mlconf.httpdb.projects.leader
+        },
+    )
+    returned_project_names = [
+        project["data"]["metadata"]["name"] for project in response.json()["projects"]
+    ]
+    assert (
+        deepdiff.DeepDiff(project_names, returned_project_names, ignore_order=True,)
+        == {}
+    )
+
+
 def test_projects_crud(
     db: Session, client: TestClient, project_member_mode: str
 ) -> None:

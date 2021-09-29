@@ -1,11 +1,9 @@
 import base64
-import http
 import typing
 
 import fastapi
 
 import mlrun
-import mlrun.api.api.utils
 import mlrun.api.schemas
 import mlrun.api.utils.auth.providers.nop
 import mlrun.api.utils.auth.providers.opa
@@ -161,32 +159,23 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         header = request.headers.get("Authorization", "")
         if self._basic_auth_configured():
             if not header.startswith(self._basic_prefix):
-                mlrun.api.api.utils.log_and_raise(
-                    http.HTTPStatus.UNAUTHORIZED.value,
-                    reason="Missing basic auth header",
-                )
+                raise mlrun.errors.MLRunUnauthorizedError("Missing basic auth header")
             username, password = self._parse_basic_auth(header)
             if (
                 username != mlrun.mlconf.httpdb.authentication.basic.username
                 or password != mlrun.mlconf.httpdb.authentication.basic.password
             ):
-                mlrun.api.api.utils.log_and_raise(
-                    http.HTTPStatus.UNAUTHORIZED.value,
-                    reason="Username or password did not match",
+                raise mlrun.errors.MLRunUnauthorizedError(
+                    "Username or password did not match"
                 )
             auth_info.username = username
             auth_info.password = password
         elif self._bearer_auth_configured():
             if not header.startswith(self._bearer_prefix):
-                mlrun.api.api.utils.log_and_raise(
-                    http.HTTPStatus.UNAUTHORIZED.value,
-                    reason="Missing bearer auth header",
-                )
+                raise mlrun.errors.MLRunUnauthorizedError("Missing bearer auth header")
             token = header[len(self._bearer_prefix) :]
             if token != mlrun.mlconf.httpdb.authentication.bearer.token:
-                mlrun.api.api.utils.log_and_raise(
-                    http.HTTPStatus.UNAUTHORIZED.value, reason="Token did not match"
-                )
+                raise mlrun.errors.MLRunUnauthorizedError("Token did not match")
             auth_info.token = token
         elif self._iguazio_auth_configured():
             iguazio_client = mlrun.api.utils.clients.iguazio.Client()

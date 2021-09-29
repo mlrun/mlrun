@@ -31,7 +31,7 @@ def init_data(from_scratch: bool = False) -> None:
     db_session = create_session()
     try:
         init_db(db_session)
-        # _perform_data_migrations(db_session)
+        _perform_data_migrations(db_session)
     finally:
         close_session(db_session)
     logger.info("Initial data created")
@@ -41,9 +41,9 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
     # FileDB is not really a thing anymore, so using SQLDB directly
     db = mlrun.api.db.sqldb.db.SQLDB("")
     logger.info("Performing data migrations")
-    _fill_project_state(db, db_session)
-    _fix_artifact_tags_duplications(db, db_session)
-    _fix_datasets_large_previews(db, db_session)
+    # _fill_project_state(db, db_session)
+    # _fix_artifact_tags_duplications(db, db_session)
+    # _fix_datasets_large_previews(db, db_session)
     _add_default_marketplace_source_if_needed(db, db_session)
 
 

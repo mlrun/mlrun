@@ -31,7 +31,7 @@ def init_data(from_scratch: bool = False) -> None:
     db_session = create_session()
     try:
         init_db(db_session)
-        _perform_data_migrations(db_session)
+        # _perform_data_migrations(db_session)
     finally:
         close_session(db_session)
     logger.info("Initial data created")

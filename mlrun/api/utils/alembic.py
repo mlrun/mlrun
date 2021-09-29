@@ -38,9 +38,9 @@ class AlembicUtil(object):
             self._downgrade_to_revision(db_file_path, current_revision, latest_revision)
 
         # get current revision again if it changed during the last commands
-        current_revision = self._get_current_revision()
-        if current_revision:
-            self._backup_revision(db_file_path, current_revision)
+        # current_revision = self._get_current_revision()
+        # if current_revision:
+        #     self._backup_revision(db_file_path, current_revision)
         alembic.command.upgrade(self._alembic_config, "head")
 
     @staticmethod

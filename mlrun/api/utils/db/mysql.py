@@ -49,7 +49,7 @@ class MySQLUtil(object):
 
     @staticmethod
     def get_dsn() -> str:
-        return os.environ.get(MySQLUtil.dsn_env_var, '')
+        return os.environ.get(MySQLUtil.dsn_env_var, "")
 
     @staticmethod
     def get_mysql_dsn_data() -> typing.Optional[dict]:

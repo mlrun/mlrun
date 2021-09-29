@@ -84,7 +84,7 @@ class PyTorchMLRunInterface:
     def context(self) -> mlrun.MLClientCtx:
         """
         Get the interface MLRun context.
-        
+
         :return: The interface MLRun context.
         """
         return self._context

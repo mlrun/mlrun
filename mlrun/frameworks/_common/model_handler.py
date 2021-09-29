@@ -261,7 +261,7 @@ class ModelHandler(ABC):
         mlrun.artifacts.update_model(
             model_artifact=self._model_path,
             parameters=parameters,
-            extra_data={**artifacts, **extra_data,},
+            extra_data={**artifacts, **extra_data},
             labels=labels,
         )
 

@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun
+import mlrun.api.utils.auth.verifier
 from mlrun.api.schemas import AuthInfo
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config as mlconf
@@ -56,9 +57,9 @@ def pod_create_mock():
     auth_info_mock = AuthInfo(username=username, data_session=access_key)
 
     authenticate_request_orig_function = (
-        mlrun.api.utils.auth.AuthVerifier().authenticate_request
+        mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request
     )
-    mlrun.api.utils.auth.AuthVerifier().authenticate_request = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request = unittest.mock.Mock(
         return_value=auth_info_mock
     )
 
@@ -73,7 +74,7 @@ def pod_create_mock():
         update_run_state_orig_function
     )
     mlrun.runtimes.base.BaseRuntime._wrap_run_result = wrap_run_result_orig_function
-    mlrun.api.utils.auth.AuthVerifier().authenticate_request = (
+    mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request = (
         authenticate_request_orig_function
     )
 

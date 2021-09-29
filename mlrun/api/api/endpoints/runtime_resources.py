@@ -9,7 +9,7 @@ import mlrun
 import mlrun.api.api.deps
 import mlrun.api.crud
 import mlrun.api.schemas
-import mlrun.api.utils.clients.opa
+import mlrun.api.utils.auth.verifier
 
 router = fastapi.APIRouter()
 
@@ -18,11 +18,11 @@ router = fastapi.APIRouter()
 # TODO: remove when 0.6.6 is no longer relevant
 def list_runtime_resources_legacy(
     label_selector: str = None,
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
 ):
-    _list_runtime_resources("*", auth_verifier.auth_info, label_selector)
+    _list_runtime_resources("*", auth_info, label_selector)
 
 
 @router.get(
@@ -41,12 +41,12 @@ def list_runtime_resources(
     group_by: typing.Optional[
         mlrun.api.schemas.ListRuntimeResourcesGroupByField
     ] = fastapi.Query(None, alias="group-by"),
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
 ):
     return _list_runtime_resources(
-        project, auth_verifier.auth_info, label_selector, group_by, kind, object_id
+        project, auth_info, label_selector, group_by, kind, object_id
     )
 
 
@@ -55,12 +55,12 @@ def list_runtime_resources(
 def list_runtime_resources_by_kind_legacy(
     kind: str,
     label_selector: str = None,
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
 ):
     runtime_resources_output = _list_runtime_resources(
-        "*", auth_verifier.auth_info, label_selector, kind_filter=kind
+        "*", auth_info, label_selector, kind_filter=kind
     )
     if runtime_resources_output:
         return runtime_resources_output[0]
@@ -83,8 +83,8 @@ def delete_runtime_resources(
     grace_period: int = fastapi.Query(
         mlrun.mlconf.runtime_resources_deletion_grace_period, alias="grace-period"
     ),
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         mlrun.api.api.deps.get_db_session
@@ -92,7 +92,7 @@ def delete_runtime_resources(
 ):
     return _delete_runtime_resources(
         db_session,
-        auth_verifier.auth_info,
+        auth_info,
         project,
         label_selector,
         kind,
@@ -108,8 +108,8 @@ def delete_runtimes_legacy(
     label_selector: str = None,
     force: bool = False,
     grace_period: int = mlrun.mlconf.runtime_resources_deletion_grace_period,
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         mlrun.api.api.deps.get_db_session
@@ -117,7 +117,7 @@ def delete_runtimes_legacy(
 ):
     return _delete_runtime_resources(
         db_session,
-        auth_verifier.auth_info,
+        auth_info,
         "*",
         label_selector,
         force=force,
@@ -133,8 +133,8 @@ def delete_runtime_legacy(
     label_selector: str = None,
     force: bool = False,
     grace_period: int = mlrun.mlconf.runtime_resources_deletion_grace_period,
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         mlrun.api.api.deps.get_db_session
@@ -142,7 +142,7 @@ def delete_runtime_legacy(
 ):
     return _delete_runtime_resources(
         db_session,
-        auth_verifier.auth_info,
+        auth_info,
         "*",
         label_selector,
         kind,
@@ -162,8 +162,8 @@ def delete_runtime_object_legacy(
     label_selector: str = None,
     force: bool = False,
     grace_period: int = mlrun.mlconf.runtime_resources_deletion_grace_period,
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         mlrun.api.api.deps.get_db_session
@@ -171,7 +171,7 @@ def delete_runtime_object_legacy(
 ):
     return _delete_runtime_resources(
         db_session,
-        auth_verifier.auth_info,
+        auth_info,
         "*",
         label_selector,
         kind,
@@ -276,7 +276,7 @@ def _get_runtime_resources_allowed_projects(
     typing.List[str], mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput, bool
 ]:
     if project != "*":
-        mlrun.api.utils.clients.opa.Client().query_project_permissions(
+        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
             project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
         )
     grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput
@@ -297,7 +297,7 @@ def _get_runtime_resources_allowed_projects(
             is_non_project_runtime_resource_exists = True
             continue
         projects.append(project)
-    allowed_projects = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
+    allowed_projects = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.runtime_resource,
         projects,
         lambda project: (project, "",),

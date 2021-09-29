@@ -8,7 +8,6 @@ import fastapi
 import fastapi.concurrency
 
 import mlrun.api.schemas
-import mlrun.api.utils.clients.opa
 import mlrun.api.utils.singletons.project_member
 import mlrun.errors
 import mlrun.utils.singleton

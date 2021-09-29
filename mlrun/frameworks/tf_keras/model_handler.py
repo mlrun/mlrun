@@ -1,6 +1,7 @@
 import os
 import shutil
 import zipfile
+from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Tuple, Union
 
 import numpy as np
@@ -12,6 +13,45 @@ import mlrun
 from mlrun.artifacts import Artifact
 from mlrun.features import Feature
 from mlrun.frameworks._common import ModelHandler
+
+
+# TODO: Implement a format handler for each model format and update the TFKerasModelHandler code accordingly.
+class _ModelFormatHandler(ABC):
+    """
+    Handling files collection, saving and loading tf.keras model according to a specific format.
+    """
+
+    @staticmethod
+    @abstractmethod
+    def collect_files_from_store_object(*args, **kwargs) -> str:
+        """
+        Collect the needed model files from the given model object (store) to enable loading the model.
+        """
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def collect_files_from_local_path(*args, **kwargs) -> str:
+        """
+        Search for the needed model files from the given local path and collect them to enable loading the model.
+        """
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def save(*args, **kwargs):
+        """
+        Save the given model.
+        """
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def load(*args, **kwargs) -> keras.Model:
+        """
+        Load and return the keras model.
+        """
+        pass
 
 
 class TFKerasModelHandler(ModelHandler):
@@ -150,20 +190,9 @@ class TFKerasModelHandler(ModelHandler):
         :param data_types:  List of data types for each input layer.
         :param shapes:      List of tensor shapes for each input layer.
         """
-        # Initialize the inputs list:
-        self._inputs = []
-
-        # Check if needed to read from a given sample:
-        if from_sample is not None:
-            # If there is only one input, wrap in a list:
-            if not (isinstance(from_sample, list) or isinstance(from_sample, tuple)):
-                from_sample = [from_sample]
-            # Go through the inputs and read them:
-            for sample in from_sample:
-                self._inputs.append(self._read_sample(sample=sample))
-            return
-
-        # TODO: Read from given lists
+        self._inputs = self._read_ports(
+            from_sample=from_sample, names=names, data_types=data_types, shapes=shapes
+        )
 
     def set_outputs(
         self,
@@ -181,19 +210,9 @@ class TFKerasModelHandler(ModelHandler):
         :param data_types:  List of data types for each output layer.
         :param shapes:      List of tensor shapes for each output layer.
         """
-        # Initialize the inputs list:
-        self._outputs = []
-
-        if from_sample is not None:
-            # If there is only one input, wrap in a list:
-            if not (isinstance(from_sample, list) or isinstance(from_sample, tuple)):
-                from_sample = [from_sample]
-            # Go through the inputs and read them:
-            for sample in from_sample:
-                self._outputs.append(self._read_sample(sample=sample))
-            return
-
-        # TODO: Read from given lists
+        self._outputs = self._read_ports(
+            from_sample=from_sample, names=names, data_types=data_types, shapes=shapes
+        )
 
     # TODO: output_path won't work well with logging artifacts. Need to look into changing the logic of 'log_artifact'.
     def save(
@@ -382,7 +401,7 @@ class TFKerasModelHandler(ModelHandler):
         optimize: bool = True,
         output_path: str = None,
         log: bool = None,
-    ) -> "onnx.ModelProto":
+    ):
         """
         Convert the model in this handler to an ONNX model.
 
@@ -573,6 +592,41 @@ class TFKerasModelHandler(ModelHandler):
                 )
 
     @staticmethod
+    def _read_ports(
+        from_sample: Union[IOSample, List[IOSample], Tuple[IOSample]] = None,
+        names: List[str] = None,
+        data_types: List[tf.DType] = None,
+        shapes: List[List[int]] = None,
+    ) -> List[Feature]:
+        """
+        Generate a list of Features (ports) of a model.
+
+        :param from_sample: Read the ports properties from a given sample to the model.
+        :param names:       List of names for each port.
+        :param data_types:  List of data types for each port.
+        :param shapes:      List of tensor shapes for each port.
+
+        :return: The generated ports list.
+        """
+        # Initialize the ports list:
+        ports = []
+
+        # Check if needed to read from a given sample:
+        if from_sample is not None:
+            # If there is only one input, wrap in a list:
+            if not (isinstance(from_sample, list) or isinstance(from_sample, tuple)):
+                from_sample = [from_sample]
+            # Go through the inputs and read them:
+            for sample in from_sample:
+                ports.append(TFKerasModelHandler._read_sample(sample=sample))
+        else:
+            # Read from given properties:
+            for name, data_type, shape in zip(names, data_types, shapes):
+                ports.append(Feature(name=name, value_type=data_type.name, dims=shape))
+
+        return ports
+
+    @staticmethod
     def _read_sample(sample: IOSample) -> Feature:
         """
         Read the sample into a MLRun Feature.
@@ -586,11 +640,7 @@ class TFKerasModelHandler(ModelHandler):
         if isinstance(sample, np.ndarray):
             # From 'np.ndarray':
             return Feature(value_type=sample.dtype.name, dims=sample.shape)
-        elif isinstance(sample, tf.Tensor):
-            # From 'tf.Tensor':
-            return Feature(value_type=sample.dtype.name, dims=list(sample.shape))
-        elif isinstance(sample, tf.TensorSpec):
-            # From 'tf.TensorSpec':
+        elif isinstance(sample, tf.Tensor) or isinstance(sample, tf.TensorSpec):
             return Feature(value_type=sample.dtype.name, dims=list(sample.shape))
 
         # Unsupported type:

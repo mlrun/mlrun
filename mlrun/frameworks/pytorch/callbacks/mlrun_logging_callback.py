@@ -2,7 +2,7 @@ from typing import Callable, Dict, List, Tuple, Union
 
 import mlrun
 from mlrun.artifacts import Artifact
-from mlrun.frameworks._common.loggers import MLRunLogger, LoggerMode, TrackableType
+from mlrun.frameworks._common.loggers import LoggerMode, MLRunLogger, TrackableType
 from mlrun.frameworks.pytorch.callbacks.logging_callback import LoggingCallback
 from mlrun.frameworks.pytorch.model_handler import PyTorchModelHandler
 

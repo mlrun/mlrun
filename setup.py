@@ -96,9 +96,10 @@ extras_require = {
         "onnxoptimizer~=0.2.0",
     ],
     "pytorch": ["torch~=1.8.0", "bokeh~=2.3", "onnxoptimizer~=0.2.0"],
-    "sklearn": ["scikit-learn~=0.23.0", "skl2onnx~=1.9.0", "onnxoptimizer~=0.2.0"],
-    "xgboost": ["xgboost~=1.1", "onnxmltools~=1.9.0", "onnxoptimizer~=0.2.0"],
-    "onnx": ["onnxruntime~=1.8.1", "onnxoptimizer~=0.2.0"],
+    # "sklearn": ["scikit-learn~=0.23.0", "skl2onnx~=1.9.0", "onnxoptimizer~=0.2.0"],
+    # "xgboost": ["xgboost~=1.1", "onnxmltools~=1.9.0", "onnxoptimizer~=0.2.0"],
+    "onnx": ["onnx~=1.10.1", "onnxruntime~=1.8.1", "onnxoptimizer~=0.2.0"],
+    "onnx-gpu": ["onnx~=1.10.1", "onnxruntime-gpu~=1.8.1", "onnxoptimizer~=0.2.0"],
     "bokeh": ["bokeh~=2.3"],
 }
 extras_require["complete"] = sorted(

@@ -15,12 +15,11 @@
 from enum import Enum
 
 # this module is WIP
-from typing import Dict, TypeVar, Union
-
 import pyarrow
 from pyarrow.lib import TimestampType
 
 
+# TODO: Enable when implementing IOLogging.
 class DataType(Enum):
     """
     Tensor data type. Used to define inputs (datasets content) and outputs (predictions) of a model.
@@ -67,7 +66,7 @@ class DataType(Enum):
             )
         return conversion_map[data_type_string]
 
-    def to_numpy_dtype(self) -> "numpy.dtype":
+    def to_numpy_dtype(self):
         """
         Get the 'numpy.dtype' equivalent to this MLRun data type.
 
@@ -96,7 +95,7 @@ class DataType(Enum):
         # Convert and return:
         return self._to_framework(conversion_map=conversion_map)
 
-    def to_tensorflow_dtype(self) -> "tensorflow.DType":
+    def to_tensorflow_dtype(self):
         """
         Get the 'tensorflow.DType' equivalent to this MLRun data type.
 
@@ -126,7 +125,7 @@ class DataType(Enum):
         # Convert and return:
         return self._to_framework(conversion_map=conversion_map)
 
-    def to_torch_dtype(self) -> "torch.dtype":
+    def to_torch_dtype(self):
         """
         Get the 'torch.dtype' equivalent to this MLRun data type.
 
@@ -154,14 +153,13 @@ class DataType(Enum):
         return self._to_framework(conversion_map=conversion_map)
 
     @staticmethod
-    def from_numpy_dtype(
-        numpy_data_type: Union["numpy.dtype", type, str]
-    ) -> "DataType":
+    def from_numpy_dtype(numpy_data_type):
         """
         Convert the given numpy data type to MLRun data type. It is better to use explicit bit namings (for example:
         instead of using 'np.double', use 'np.float64').
 
-        :param numpy_data_type: The numpy data type to convert to MLRun's data type.
+        :param numpy_data_type: The numpy data type to convert to MLRun's data type. Expected to be a 'numpy.dtype',
+                                'type' or 'str'.
 
         :return: The MLRun data type converted from the given data type.
 
@@ -208,14 +206,13 @@ class DataType(Enum):
         )
 
     @staticmethod
-    def from_tensorflow_dtype(
-        tensorflow_data_type: Union["tensorflow.DType", str]
-    ) -> "DataType":
+    def from_tensorflow_dtype(tensorflow_data_type):
         """
         Convert the given tensorflow data type to MLRun data type. All of the CUDA supported data types are supported.
         For more information regarding tensorflow data types visit: https://www.tensorflow.org/api_docs/python/tf/dtypes
 
-        :param tensorflow_data_type: The tensorflow data type to convert to MLRun's data type.
+        :param tensorflow_data_type: The tensorflow data type to convert to MLRun's data type. Expected to be a
+                                     'tensorflow.dtype' or 'str'.
 
         :return: The MLRun data type converted from the given data type.
 
@@ -252,12 +249,13 @@ class DataType(Enum):
         )
 
     @staticmethod
-    def from_torch_dtype(torch_data_type: Union["torch.dtype", str]) -> "DataType":
+    def from_torch_dtype(torch_data_type):
         """
         Convert the given torch data type to MLRun data type. All of the CUDA supported data types are supported. For
         more information regarding torch data types visit: https://pytorch.org/docs/stable/tensors.html#data-types
 
-        :param torch_data_type: The torch data type to convert to MLRun's data type.
+        :param torch_data_type: The torch data type to convert to MLRun's data type. Expected to be a 'torch.dtype' or
+                                'str'.
 
         :return: The MLRun data type converted from the given data type.
 
@@ -294,16 +292,12 @@ class DataType(Enum):
             conversion_map=conversion_map, data_type=torch_data_type
         )
 
-    # Generic data type hint (as each framework data type is different):
-    _FrameworkDataType = TypeVar("_FrameworkDataType")
-
-    def _to_framework(
-        self, conversion_map: Dict[str, _FrameworkDataType]
-    ) -> _FrameworkDataType:
+    def _to_framework(self, conversion_map: dict):
         """
         Get the equivalent value of this enum according to the given conversion map.
 
-        :param conversion_map: The conversion map to use for getting the equivalent value of this enum.
+        :param conversion_map: The conversion map to use for getting the equivalent value of this enum. A dictionary of
+                               string keys and a supported framework data type as values.
 
         :return: The equivalent value of this enum according to the given conversion map.
 
@@ -318,12 +312,13 @@ class DataType(Enum):
         )
 
     @staticmethod
-    def _from_framework(conversion_map: Dict[str, "DataType"], data_type: str):
+    def _from_framework(conversion_map: dict, data_type: str):
         """
         Look for the given data type in the given conversion map and return the value. If the required data type is not
         in the map, a value error will be raised.
 
-        :param conversion_map: The map to use for the conversion.
+        :param conversion_map: The map to use for the conversion. A dictionary of string as keys and MLRun DataType as
+                               values.
         :param data_type:      The data type to convert to MLRun's data type.
 
         :return: The MLRun data type converted from the given framework data type.

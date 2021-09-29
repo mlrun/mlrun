@@ -41,12 +41,14 @@ class PyTorchMLRunInterface:
         :param context: MLRun context to use. If None, the context will be taken from 'mlrun.get_or_create_ctx()'.
         """
         # Set the context:
-        if context is None:
-            context = mlrun.get_or_create_ctx(self.DEFAULT_CONTEXT_NAME)
+        self._context = (
+            context
+            if context is not None
+            else mlrun.get_or_create_ctx(self.DEFAULT_CONTEXT_NAME)
+        )
 
         # Store the model:
         self._model = model
-        self._context = context
 
         # Prepare methods parameters:
         self._training_set = None  # type: DataLoader
@@ -369,7 +371,7 @@ class PyTorchMLRunInterface:
             # Get the model's prediction:
             y = self._model(x)
             # Store the predictions one by one:
-            # TODO: Remove tolist() call
+            # TODO: Remove tolist() call, returning the predictions as torch.Tensor for performance.
             for prediction in y.tolist():
                 predictions.append(prediction)
 

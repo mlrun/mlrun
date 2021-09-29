@@ -105,7 +105,7 @@ class PyTorchModelHandler(ModelHandler):
         :param data_types:  List of data types for each input layer.
         :param shapes:      List of tensor shapes for each input layer.
         """
-        # TODO: Finish this
+        # TODO: Implement for IOLogging
         pass
 
     def set_outputs(
@@ -124,7 +124,7 @@ class PyTorchModelHandler(ModelHandler):
         :param data_types:  List of data types for each output layer.
         :param shapes:      List of tensor shapes for each output layer.
         """
-        # TODO: Finish this
+        # TODO: Implement for IOLogging
         pass
 
     def save(
@@ -259,7 +259,7 @@ class PyTorchModelHandler(ModelHandler):
         optimize: bool = True,
         output_path: str = None,
         log: bool = None,
-    ) -> "onnx.ModelProto":
+    ):
         """
         Convert the model in this handler to an ONNX model. The layer names are optional, they do not change the
         semantics of the model, it is only for readability.
@@ -289,7 +289,7 @@ class PyTorchModelHandler(ModelHandler):
             )
 
         # Set the input signature:
-        # TODO: Finish PyTorch to_onnx input signature parsing
+        # TODO: Read the input signature parsing in case its None (from the PyTorchModelHandler - IOLogging).
 
         # Set the output path:
         if output_path is not None:

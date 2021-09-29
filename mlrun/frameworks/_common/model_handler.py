@@ -261,15 +261,12 @@ class ModelHandler(ABC):
         mlrun.artifacts.update_model(
             model_artifact=self._model_path,
             parameters=parameters,
-            extra_data={
-                **artifacts,
-                **extra_data,
-            },
+            extra_data={**artifacts, **extra_data,},
             labels=labels,
         )
 
     @abstractmethod
-    def to_onnx(self, *args, **kwargs) -> "onnx.ModelProto":
+    def to_onnx(self, *args, **kwargs):
         """
         Convert the model in this handler to an ONNX model.
 
@@ -283,7 +280,9 @@ class ModelHandler(ABC):
         """
         # Validate model path is set:
         if self._model_path is None:
-            raise ValueError("In order to collect the model's files a model path must be provided.")
+            raise ValueError(
+                "In order to collect the model's files a model path must be provided."
+            )
 
         # Collect by the path's type:
         if mlrun.datastore.is_store_uri(self._model_path):

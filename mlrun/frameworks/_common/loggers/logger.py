@@ -1,5 +1,6 @@
-from typing import Dict, List, Union
 from enum import Enum
+from typing import Dict, List, Union
+
 import mlrun
 
 # All trackable values types:
@@ -10,6 +11,7 @@ class LoggerMode(Enum):
     """
     The logger's mode, can be training or validation.
     """
+
     TRAINING = "Training"
     EVALUATION = "Evaluation"
 

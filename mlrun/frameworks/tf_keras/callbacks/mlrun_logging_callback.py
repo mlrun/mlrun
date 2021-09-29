@@ -2,7 +2,7 @@ from typing import Callable, Dict, List, Union
 
 import mlrun
 from mlrun.artifacts import Artifact
-from mlrun.frameworks._common.loggers import MLRunLogger, LoggerMode, TrackableType
+from mlrun.frameworks._common.loggers import LoggerMode, MLRunLogger, TrackableType
 from mlrun.frameworks.tf_keras.callbacks.logging_callback import LoggingCallback
 from mlrun.frameworks.tf_keras.model_handler import TFKerasModelHandler
 
@@ -141,9 +141,19 @@ class MLRunLoggingCallback(LoggingCallback):
         self._output_sample = output_sample
 
     def set_input_sample(self, sample: TFKerasModelHandler.IOSample):
+        """
+        Set an input sample to the model to be logged with it into MLRun.
+
+        :param sample: The input sample to set.
+        """
         self._input_sample = sample
 
     def set_output_sample(self, sample: TFKerasModelHandler.IOSample):
+        """
+        Set an output sample of the model to be logged with it into MLRun.
+
+        :param sample: The output sample to set.
+        """
         self._output_sample = sample
 
     def on_train_end(self, logs: dict = None):

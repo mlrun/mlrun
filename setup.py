@@ -89,17 +89,17 @@ extras_require = {
     "azure-blob-storage": ["azure-storage-blob~=12.0, <12.7.0", "adlfs~=0.7.1"],
     "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
     # mlrun.frameworks requirements per framework:
-    "tensorflow": [
-        "tensorflow~=2.4.1",
-        "bokeh~=2.3",
-        "tf2onnx~=1.9.0",
-        "onnxoptimizer~=0.2.0",
-    ],
-    "pytorch": ["torch~=1.8.0", "bokeh~=2.3", "onnxoptimizer~=0.2.0"],
+    # "tensorflow": [
+    #     "tensorflow~=2.4.1",
+    #     "bokeh~=2.3",
+    #     "tf2onnx~=1.9.0",
+    #     "onnxoptimizer~=0.2.0",
+    # ],
+    # "pytorch": ["torch~=1.8.0", "bokeh~=2.3", "onnxoptimizer~=0.2.0"],
     # "sklearn": ["scikit-learn~=0.23.0", "skl2onnx~=1.9.0", "onnxoptimizer~=0.2.0"],
     # "xgboost": ["xgboost~=1.1", "onnxmltools~=1.9.0", "onnxoptimizer~=0.2.0"],
-    "onnx": ["onnx~=1.10.1", "onnxruntime~=1.8.1", "onnxoptimizer~=0.2.0"],
-    "onnx-gpu": ["onnx~=1.10.1", "onnxruntime-gpu~=1.8.1", "onnxoptimizer~=0.2.0"],
+    # "onnx": ["onnx~=1.10.1", "onnxruntime~=1.8.1", "onnxoptimizer~=0.2.0"],
+    # "onnx-gpu": ["onnx~=1.10.1", "onnxruntime-gpu~=1.8.1", "onnxoptimizer~=0.2.0"],
     "bokeh": ["bokeh~=2.3"],
 }
 extras_require["complete"] = sorted(

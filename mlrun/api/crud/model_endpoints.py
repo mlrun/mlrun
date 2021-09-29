@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 from v3io.dataplane import RaiseForStatus
 
 import mlrun.api.api.utils
-import mlrun.api.utils.clients.opa
 import mlrun.datastore.store_resources
 from mlrun.api.api.utils import _submit_run, get_run_db_instance
 from mlrun.api.schemas import (
@@ -37,10 +36,6 @@ from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 
 
 class ModelEndpoints:
-
-    ENDPOINTS = "endpoints"
-    EVENTS = "events"
-
     def create_or_patch(
         self,
         db_session: Session,
@@ -135,7 +130,11 @@ class ModelEndpoints:
         return model_endpoint
 
     def delete_endpoint_record(
-        self, auth_info: mlrun.api.schemas.AuthInfo, project: str, endpoint_id: str
+        self,
+        auth_info: mlrun.api.schemas.AuthInfo,
+        project: str,
+        endpoint_id: str,
+        access_key: str,
     ):
         """
         Deletes the KV record of a given model endpoint, project and endpoint_id are used for lookup
@@ -143,13 +142,13 @@ class ModelEndpoints:
         :param auth_info: The required auth information for doing the deletion
         :param project: The name of the project
         :param endpoint_id: The id of the endpoint
+        :param access_key: access key with permission to delete
         """
-        access_key = self.get_access_key(auth_info)
         logger.info("Clearing model endpoint table", endpoint_id=endpoint_id)
         client = get_v3io_client(endpoint=config.v3io_api)
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind=self.ENDPOINTS
+            project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -210,7 +209,7 @@ class ModelEndpoints:
         client = get_v3io_client(endpoint=config.v3io_api)
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind=self.ENDPOINTS
+            project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -222,13 +221,16 @@ class ModelEndpoints:
                 project, function, model, labels
             ),
             attribute_names=["endpoint_id"],
+            raise_for_status=RaiseForStatus.never,
         )
 
         endpoint_list = ModelEndpointList(endpoints=[])
-        while True:
-            item = cursor.next_item()
-            if item is None:
-                break
+        try:
+            items = cursor.all()
+        except Exception:
+            return endpoint_list
+
+        for item in items:
             endpoint_id = item["endpoint_id"]
             endpoint = self.get_endpoint(
                 auth_info=auth_info,
@@ -271,7 +273,7 @@ class ModelEndpoints:
         client = get_v3io_client(endpoint=config.v3io_api)
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind=self.ENDPOINTS
+            project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -409,7 +411,8 @@ class ModelEndpoints:
         function = client.kv.update if update else client.kv.put
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=endpoint.metadata.project, kind=self.ENDPOINTS
+            project=endpoint.metadata.project,
+            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -455,7 +458,7 @@ class ModelEndpoints:
             raise MLRunInvalidArgumentError("Metric names must be provided")
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind=self.EVENTS
+            project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -566,11 +569,11 @@ class ModelEndpoints:
         function_uri = function_uri.replace("db://", "")
 
         task = mlrun.new_task(name="model-monitoring-batch", project=project)
+        task.spec.function = function_uri
 
         data = {
             "task": task.to_dict(),
             "schedule": "0 */1 * * *",
-            "functionUrl": function_uri,
         }
 
         _submit_run(db_session=db_session, auth_info=auth_info, data=data)

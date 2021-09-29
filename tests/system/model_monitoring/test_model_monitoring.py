@@ -1,7 +1,6 @@
 import json
 import os
 import string
-from datetime import datetime, timedelta
 from random import choice, randint, uniform
 from time import monotonic, sleep
 from typing import Optional
@@ -14,7 +13,6 @@ from v3io_frames import frames_pb2 as fpb2
 from v3io_frames.errors import CreateError
 
 import mlrun
-import mlrun.api.crud
 import mlrun.api.schemas
 from mlrun.api.schemas import (
     ModelEndpoint,
@@ -33,6 +31,8 @@ from tests.system.base import TestMLRunSystem
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestModelMonitoringAPI(TestMLRunSystem):
+    project_name = "model-monitor-sys-test"
+
     def test_clear_endpoint(self):
         endpoint = self._mock_random_endpoint()
         db = mlrun.get_run_db()
@@ -86,12 +86,17 @@ class TestModelMonitoringAPI(TestMLRunSystem):
 
         assert endpoint_after_update.status.state == updated_state
 
+    def test_list_endpoints_on_empty_project(self):
+        endpoints_out = mlrun.get_run_db().list_model_endpoints(self.project_name)
+        assert len(endpoints_out.endpoints) == 0
+
     def test_list_endpoints(self):
+        db = mlrun.get_run_db()
+
         number_of_endpoints = 5
         endpoints_in = [
             self._mock_random_endpoint("testing") for _ in range(number_of_endpoints)
         ]
-        db = mlrun.get_run_db()
 
         for endpoint in endpoints_in:
             db.create_or_patch_model_endpoint(
@@ -147,71 +152,9 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         )
         assert len(filter_labels.endpoints) == 4
 
-    def test_get_endpoint_metrics(self):
-        auth_info = self._get_auth_info()
-        access_key = auth_info.data_session
-        db = mlrun.get_run_db()
-
-        path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=self.project_name, kind=mlrun.api.crud.ModelEndpoints().EVENTS
-        )
-        _, container, path = parse_model_endpoint_store_prefix(path)
-
-        frames = get_frames_client(
-            token=access_key, container=container, address=config.v3io_framesd,
-        )
-
-        start = datetime.utcnow()
-
-        for i in range(5):
-            endpoint = self._mock_random_endpoint()
-            db.create_or_patch_model_endpoint(
-                endpoint.metadata.project, endpoint.metadata.uid, endpoint
-            )
-            frames.create(backend="tsdb", table=path, rate="10/m", if_exists=1)
-
-            total = 0
-
-            dfs = []
-
-            for j in range(10):
-                count = randint(1, 10)
-                total += count
-                data = {
-                    "predictions_per_second_count_1s": count,
-                    "endpoint_id": endpoint.metadata.uid,
-                    "timestamp": start - timedelta(minutes=10 - j),
-                }
-                df = pd.DataFrame(data=[data])
-                dfs.append(df)
-
-            frames.write(
-                backend="tsdb",
-                table=path,
-                dfs=dfs,
-                index_cols=["timestamp", "endpoint_id"],
-            )
-
-            endpoint = db.get_model_endpoint(
-                self.project_name,
-                endpoint.metadata.uid,
-                metrics=["predictions_per_second_count_1s"],
-            )
-            assert len(endpoint.status.metrics) > 0
-
-            predictions_per_second = endpoint.status.metrics[
-                "predictions_per_second_count_1s"
-            ]
-
-            assert predictions_per_second.name == "predictions_per_second_count_1s"
-
-            response_total = sum((m[1] for m in predictions_per_second.values))
-
-            assert total == response_total
-
-    @pytest.mark.timeout(480)
+    @pytest.mark.timeout(270)
     def test_basic_model_monitoring(self):
-        simulation_time = 60 * 5  # 5 minutes
+        simulation_time = 90  # 90 seconds
         # Deploy Model Servers
         project = mlrun.get_run_db().get_project(self.project_name)
         project.set_model_monitoring_credentials(os.environ.get("V3IO_ACCESS_KEY"))
@@ -236,11 +179,13 @@ class TestModelMonitoringAPI(TestMLRunSystem):
 
         model_name = "sklearn_RandomForestClassifier"
 
-        # Log the model through the projects API so that it is available through the feature store API
+        # Upload the model through the projects API so that it is available to the serving function
         project.log_model(
             model_name,
-            model_file=os.path.relpath(str(self.assets_path / "model.pkl")),
+            model_dir=os.path.relpath(self.assets_path),
+            model_file="model.pkl",
             training_set=train_set,
+            artifact_path=f"v3io:///projects/{project.metadata.name}",
         )
         # Add the model to the serving function's routing spec
         serving_fn.add_model(
@@ -260,11 +205,26 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             serving_fn.invoke(
                 f"v2/models/{model_name}/infer", json.dumps({"inputs": [data_point]})
             )
-            sleep(uniform(0.2, 1.7))
+            sleep(uniform(0.2, 1.1))
 
-    @pytest.mark.timeout(480)
+        # test metrics
+        endpoints_list = mlrun.get_run_db().list_model_endpoints(
+            self.project_name, metrics=["predictions_per_second"]
+        )
+        assert len(endpoints_list.endpoints) == 1
+
+        endpoint = endpoints_list.endpoints[0]
+        assert len(endpoint.status.metrics) > 0
+
+        predictions_per_second = endpoint.status.metrics["predictions_per_second"]
+        assert predictions_per_second.name == "predictions_per_second"
+
+        total = sum((m[1] for m in predictions_per_second.values))
+        assert total > 0
+
+    @pytest.mark.timeout(200)
     def test_model_monitoring_voting_ensemble(self):
-        simulation_time = 60 * 5  # 5 minutes
+        simulation_time = 20  # 20 seconds
         project = mlrun.get_run_db().get_project(self.project_name)
         project.set_model_monitoring_credentials(os.environ.get("V3IO_ACCESS_KEY"))
 
@@ -302,8 +262,10 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             # Log the model through the projects API so that it is available through the feature store API
             project.log_model(
                 name,
-                model_file=os.path.relpath(str(self.assets_path / "model.pkl")),
+                model_dir=os.path.relpath(self.assets_path),
+                model_file="model.pkl",
                 training_set=train_set,
+                artifact_path=f"v3io:///projects/{project.metadata.name}",
             )
             # Add the model to the serving function's routing spec
             serving_fn.add_model(
@@ -332,6 +294,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
     @pytest.fixture(autouse=True)
     def cleanup_endpoints(self):
         db = mlrun.get_run_db()
+
         endpoints = db.list_model_endpoints(self.project_name)
         for endpoint in endpoints.endpoints:
             db.delete_model_endpoint_record(
@@ -343,7 +306,8 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         )
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=self.project_name, kind=mlrun.api.crud.ModelEndpoints().ENDPOINTS
+            project=self.project_name,
+            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 

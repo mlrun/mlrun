@@ -10,7 +10,6 @@ from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
-import mlrun.api.utils.clients.opa
 import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
@@ -129,6 +128,10 @@ def _generate_function_and_task_from_submit_run_body(
     # be able to communicate with the api
     ensure_function_has_auth_set(function, auth_info)
 
+    # if this was triggered by the UI, we will need to attempt auto-mount based on auto-mount config and params passed
+    # in the auth_info. If this was triggered by the SDK, then auto-mount was already attempted and will be skipped.
+    try_perform_auto_mount(function, auth_info)
+
     return function, task
 
 
@@ -151,6 +154,22 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
             for key, value in auth_env_vars.items():
                 if not function.is_env_exists(key):
                     function.set_env(key, value)
+
+
+def try_perform_auto_mount(function, auth_info: mlrun.api.schemas.AuthInfo):
+    if (
+        function.kind in mlrun.runtimes.RuntimeKinds.local_runtimes()
+        or function.spec.disable_auto_mount
+    ):
+        return
+    # Retrieve v3io auth params from the caller auth info
+    override_params = {}
+    if auth_info.data_session:
+        override_params["access_key"] = auth_info.data_session
+    if auth_info.username:
+        override_params["user"] = auth_info.username
+
+    function.try_auto_mount_based_on_config(override_params)
 
 
 def _submit_run(

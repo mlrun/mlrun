@@ -1,13 +1,13 @@
+import os
 import pathlib
 import re
 import typing
 
 import pymysql
 
-from mlrun import mlconf
-
 
 class MySQLUtil(object):
+    dsn_env_var = "MLRUN_HTTPDB__DSN"
     dsn_regex = (
         r"mysql\+pymysql://(?P<username>.+)@(?P<host>.+):(?P<port>\d+)/(?P<database>.+)"
     )
@@ -20,7 +20,7 @@ class MySQLUtil(object):
     def __init__(self):
         mysql_dsn_data = self.get_mysql_dsn_data()
         if not mysql_dsn_data:
-            raise RuntimeError(f"Invalid mysql dsn: {mlconf.httpdb.dsn}")
+            raise RuntimeError(f"Invalid mysql dsn: {self.get_dsn()}")
 
         self._connection = pymysql.connect(
             host=mysql_dsn_data["host"],
@@ -48,8 +48,12 @@ class MySQLUtil(object):
             f.writelines(database_dump)
 
     @staticmethod
+    def get_dsn() -> str:
+        return os.environ.get(MySQLUtil.dsn_env_var, '')
+
+    @staticmethod
     def get_mysql_dsn_data() -> typing.Optional[dict]:
-        match = re.match(MySQLUtil.dsn_regex, mlconf.httpdb.dsn)
+        match = re.match(MySQLUtil.dsn_regex, MySQLUtil.get_dsn())
         if not match:
             return None
 

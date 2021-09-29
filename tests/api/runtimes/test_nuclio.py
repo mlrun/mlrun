@@ -347,7 +347,7 @@ class TestNuclioRuntime(TestRuntimeBase):
                 "name": name,
                 "valueFrom": {"secretKeyRef": {"key": secret_key, "name": secret}},
             },
-            {"name": name2, "value": value2,},
+            {"name": name2, "value": value2},
         ]
 
         function_name, project_name, config = compile_function_config(function)

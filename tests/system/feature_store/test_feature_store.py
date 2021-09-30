@@ -1767,7 +1767,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         fs.ingest(data_set1, data, infer_options=fs.InferOptions.default())
 
-        data2 = pd.DataFrame({"data2": [1, None, np.inf], "name": ["ab", "cd", "ef"],})
+        data2 = pd.DataFrame({"data2": [1, None, np.inf], "name": ["ab", "cd", "ef"]})
 
         data_set2 = fs.FeatureSet("imp2", entities=[Entity("name")])
         fs.ingest(data_set2, data2, infer_options=fs.InferOptions.default())

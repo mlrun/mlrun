@@ -215,6 +215,20 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             )
         return mlrun.api.utils.clients.iguazio.Client().verify_session(session)
 
+    def get_or_create_access_key(
+        self, session: str, planes: typing.List[str] = None
+    ) -> str:
+        if not self._iguazio_auth_configured():
+            raise NotImplementedError(
+                "Access key is currently supported only for iguazio authentication mode"
+            )
+        return mlrun.api.utils.clients.iguazio.Client().get_or_create_access_key(
+            session, planes
+        )
+
+    def is_jobs_auth_required(self):
+        return self._iguazio_auth_configured()
+
     @staticmethod
     def _generate_resource_string_from_project_name(project_name: str):
         return mlrun.api.schemas.AuthorizationResourceTypes.project.to_resource_string(

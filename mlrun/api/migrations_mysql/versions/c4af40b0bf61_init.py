@@ -1,15 +1,14 @@
 """init
 
 Revision ID: c4af40b0bf61
-Revises: 
+Revises:
 Create Date: 2021-09-30 10:55:51.956636
 
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 from mlrun.api.utils.db.sql_collation import SQLCollationUtil
-
 
 # revision identifiers, used by Alembic.
 revision = "c4af40b0bf61"

@@ -23,7 +23,7 @@ from .utils.db.sqlite_migration import SQLiteMigrationUtil
 def init_data(from_scratch: bool = False) -> None:
     logger.info("Creating initial data")
 
-    alembic_config_file_name = "alembic_sqlite.ini"
+    alembic_config_file_name = "alembic.ini"
     if MySQLUtil.get_mysql_dsn_data():
         alembic_config_file_name = "alembic_mysql.ini"
 

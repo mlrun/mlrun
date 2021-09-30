@@ -36,7 +36,7 @@ class ModelEndpointSpec(ObjectSpec):
 
 class Metric(BaseModel):
     name: str
-    values: List[Tuple[str, float]]
+    values: List[Optional[Tuple[str, float]]] = []
 
 
 class Histogram(BaseModel):
@@ -154,7 +154,7 @@ class GrafanaDataPoint(BaseModel):
 
 class GrafanaTimeSeriesTarget(BaseModel):
     target: str
-    datapoints: List[Tuple[float, int]] = []
+    datapoints: List[Optional[Tuple[float, int]]] = []
 
     def add_data_point(self, data_point: GrafanaDataPoint):
         self.datapoints.append((data_point.value, data_point.timestamp))

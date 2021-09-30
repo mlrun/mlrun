@@ -14,7 +14,7 @@
 import collections
 from copy import copy
 from enum import Enum
-from typing import List
+from typing import List, Union
 
 import numpy as np
 import pandas as pd
@@ -342,7 +342,7 @@ class OnlineVectorService:
         self._impute_values = {}
 
     def load(self):
-        """load the enricher: start the feature service and prep the imputing logic"""
+        """internal, init the feature service and prep the imputing logic"""
         if not self.impute_policy:
             return
 
@@ -380,8 +380,29 @@ class OnlineVectorService:
         """vector merger function status (ready, running, error)"""
         return "ready"
 
-    def get(self, entity_rows: List[dict], as_list=False):
-        """get feature vector given the provided entity inputs"""
+    def get(self, entity_rows: List[Union[dict, list]], as_list=False):
+        """get feature vector given the provided entity inputs
+
+        take a list of input vectors/rows and return a list of eriched feature vectors
+        each input and/or output vector can be a list of values or a dictionary of field names and values,
+        to return the vector as a list of values set the `as_list` to True.
+
+        if the input is a list of list (vs a list of dict), the values in the list will correspond to the
+        index/entity values, i.e. [["GOOG"], ["MSFT"]] means "GOOG" and "MSFT" are the index/entity fields.
+
+        example::
+
+            # accept list of dict, return list of dict
+            svc = fs.get_online_feature_service(vector)
+            resp = svc.get([{"name": "joe"}, {"name": "mike"}])
+
+            # accept list of list, return list of list
+            svc = fs.get_online_feature_service(vector, as_list=True)
+            resp = svc.get([["joe"], ["mike"]])
+
+        :param entity_rows:  list of list/dict with input entity data/rows
+        :param as_list:      return a list of list (list input is required by many ML frameworks)
+        """
         results = []
         futures = []
         if isinstance(entity_rows, dict):

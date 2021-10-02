@@ -76,7 +76,7 @@ class DataType(Enum):
         """
         import numpy as np
 
-        # Initialize the mlrun to tensorflow data type conversion map:
+        # Initialize the mlrun to numpy data type conversion map:
         conversion_map = {
             DataType.BOOL.value: np.bool,
             DataType.INT8.value: np.int8,

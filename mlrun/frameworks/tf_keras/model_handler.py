@@ -487,7 +487,7 @@ class TFKerasModelHandler(ModelHandler):
             self._extra_data,
         ) = mlrun.artifacts.get_model(self._model_path)
 
-        # Get the model file:
+        # Get the model file:  TODO: Once implementing abstract formats, '.pkl' check is only relevant to SavedModel.
         if self._model_file.endswith(".pkl"):
             self._model_file = self._extra_data[
                 self._get_model_file_artifact_name()

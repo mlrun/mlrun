@@ -36,8 +36,10 @@ def train(
     use_cuda: bool = True,
     use_horovod: bool = False,
     auto_log: bool = True,
+    model_name: str = None,
     custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
     custom_objects_directory: str = None,
+    tensorboard_directory: str = None,
     mlrun_callback_kwargs: Dict[str, Any] = None,
     tensorboard_callback_kwargs: Dict[str, Any] = None,
     context: mlrun.MLClientCtx = None,
@@ -71,6 +73,8 @@ def train(
                                         False.
     :param auto_log:                    Whether or not to apply auto-logging (to both MLRun and Tensorboard). Defaulted
                                         to True. IF True, the custom objects are not optional.
+    :param model_name:                  The model name to use for storing the model artifact. If not given, the model's
+                                        class name will be used.
     :param custom_objects_map:          A dictionary of all the custom objects required for loading the model. Each key
                                         is a path to a python file and its value is the custom object name to import
                                         from it. If multiple objects needed to be imported from the same py file a list
@@ -91,6 +95,12 @@ def train(
                                         Can be passed as a zip file as well (will be extracted during the run before
                                         loading the model). If the model path given is of a store object, the custom
                                         objects files will be read from the logged custom object artifact of the model.
+    :param tensorboard_directory:       If context is not given, or if wished to set the directory even with context,
+                                        this will be the output for the event logs of tensorboard. If not given, the
+                                        'tensorboard_dir' parameter will be tried to be taken from the provided context.
+                                        If not found in the context, the default tensorboard output directory will be:
+                                        /User/.tensorboard/<PROJECT_NAME> or if working on local, the set artifacts
+                                        path.
     :param mlrun_callback_kwargs:       Key word arguments for the MLRun callback. For further information see the
                                         documentation of the class 'MLRunLoggingCallback'. Note that both 'context',
                                         'custom_objects' and 'auto_log' parameters are already given here.
@@ -110,9 +120,11 @@ def train(
     if auto_log:
         # Parse the custom objects and the kwargs:
         mlrun_callback_kwargs, tensorboard_callback_kwargs = _parse_callbacks_kwargs(
+            model_name=model_name,
             model_path=None,
             custom_objects_map=custom_objects_map,
             custom_objects_directory=custom_objects_directory,
+            tensorboard_directory=tensorboard_directory,
             mlrun_callback_kwargs=mlrun_callback_kwargs,
             tensorboard_callback_kwargs=tensorboard_callback_kwargs,
         )
@@ -151,6 +163,7 @@ def evaluate(
     use_cuda: bool = True,
     use_horovod: bool = False,
     auto_log: bool = True,
+    model_name: str = None,
     custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
     custom_objects_directory: str = None,
     mlrun_callback_kwargs: Dict[str, Any] = None,
@@ -174,6 +187,8 @@ def evaluate(
                                      False.
     :param auto_log:                 Whether or not to apply auto-logging (to both MLRun and Tensorboard). Defaulted to
                                      True.
+    :param model_name:               The model name to use for storing the model artifact. If not given, the model's
+                                     class name will be used.
     :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key is
                                      a path to a python file and its value is the custom object name to import from it.
                                      If multiple objects needed to be imported from the same py file a list can be
@@ -206,9 +221,11 @@ def evaluate(
     if auto_log:
         # Parse the custom objects and the kwargs:
         mlrun_callback_kwargs, _ = _parse_callbacks_kwargs(
+            model_name=model_name,
             model_path=model_path,
             custom_objects_map=custom_objects_map,
             custom_objects_directory=custom_objects_directory,
+            tensorboard_directory=None,
             mlrun_callback_kwargs=mlrun_callback_kwargs,
             tensorboard_callback_kwargs=None,
         )
@@ -230,14 +247,18 @@ def evaluate(
 
 
 def _parse_callbacks_kwargs(
+    model_name: Union[str, None],
     model_path: Union[str, None],
     custom_objects_map: Union[Dict[str, Union[str, List[str]]], str],
     custom_objects_directory: str,
+    tensorboard_directory: Union[str, None],
     mlrun_callback_kwargs: Union[Dict[str, Any], None],
     tensorboard_callback_kwargs: Union[Dict[str, Any], None],
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """
     Parse the given custom objects parameters into the MLRun callback kwargs.
+    :param model_name:                  The model name to use for storing the model artifact. If not given, the model's
+                                        class name will be used.
     :param model_path:                  The model's store object path. Mandatory for evaluation (to know which model to
                                         update).
     :param custom_objects_map:          A dictionary of all the custom objects required for loading the model. Each key
@@ -257,6 +278,12 @@ def _parse_callbacks_kwargs(
     :param custom_objects_directory:    Path to the directory with all the python files required for the custom
                                         objects. Can be passed as a zip file as well (will be extracted during the run
                                         before loading the model).
+    :param tensorboard_directory:       If context is not given, or if wished to set the directory even with context,
+                                        this will be the output for the event logs of tensorboard. If not given, the
+                                        'tensorboard_dir' parameter will be tried to be taken from the provided context.
+                                        If not found in the context, the default tensorboard output directory will be:
+                                        /User/.tensorboard/<PROJECT_NAME> or if working on local, the set artifacts
+                                        path.
     :param mlrun_callback_kwargs:       Key word arguments for the MLRun callback. For further information see the
                                         documentation of the class 'MLRunLoggingCallback'. Note that both 'context',
                                         'custom_objects' and 'auto_log' parameters are already given here.
@@ -285,7 +312,11 @@ def _parse_callbacks_kwargs(
         {} if tensorboard_callback_kwargs is None else tensorboard_callback_kwargs
     )
 
-    # Add the custom objects to MLRun's callback kwargs dictionary:
+    # Add the additional parameters to tensorboard's callback kwargs dictionary:
+    tensorboard_callback_kwargs["tensorboard_directory"] = tensorboard_directory
+
+    # Add the additional parameters to MLRun's callback kwargs dictionary:
+    mlrun_callback_kwargs["model_name"] = model_name
     mlrun_callback_kwargs["model_path"] = model_path
     mlrun_callback_kwargs["custom_objects_map"] = custom_objects_map
     mlrun_callback_kwargs["custom_objects_directory"] = custom_objects_directory

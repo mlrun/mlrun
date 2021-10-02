@@ -130,6 +130,7 @@ class ONNXModelHandler(ModelHandler):
         # Log the model:
         self._context.log_model(
             self._model_name,
+            db_key=self._model_name,
             model_file=self._model_file,
             framework="onnx",
             labels=labels,

@@ -375,11 +375,12 @@ class TFKerasModelHandler(ModelHandler):
 
         # Log the model:
         self._context.log_model(
-            self._model.name,
+            self._model_name,
+            db_key=self._model_name,
             model_file=self._model_file,
             inputs=self._inputs,
             outputs=self._outputs,
-            framework="tensorflow.keras",
+            framework="tf.keras",
             labels={
                 "model-format": self._model_format,
                 "save-traces": self._save_traces,

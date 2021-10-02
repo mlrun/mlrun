@@ -12,11 +12,13 @@ from mlrun.frameworks.tf_keras.model_server import TFKerasModelServer
 
 def apply_mlrun(
     model: keras.Model,
+    model_name: str = None,
     model_path: str = None,
     custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
     custom_objects_directory: str = None,
     context: mlrun.MLClientCtx = None,
     auto_log: bool = True,
+    tensorboard_directory: str = None,
     mlrun_callback_kwargs: Dict[str, Any] = None,
     tensorboard_callback_kwargs: Dict[str, Any] = None,
     use_horovod: bool = None,
@@ -26,6 +28,8 @@ def apply_mlrun(
     features.
 
     :param model:                       The model to wrap.
+    :param model_name:                  The model name to use for storing the model artifact. If not given, the
+                                        tf.keras.Model.name will be used.
     :param model_path:                  The model's store object path. Mandatory for evaluation (to know which model to
                                         update).
     :param custom_objects_map:          A dictionary of all the custom objects required for loading the model. Each key
@@ -51,6 +55,12 @@ def apply_mlrun(
     :param context:                     MLRun context to work with. If no context is given it will be retrieved via
                                         'mlrun.get_or_create_ctx(None)'
     :param auto_log:                    Whether or not to apply MLRun's auto logging on the model. Defaulted to True.
+    :param tensorboard_directory:       If context is not given, or if wished to set the directory even with context,
+                                        this will be the output for the event logs of tensorboard. If not given, the
+                                        'tensorboard_dir' parameter will be tried to be taken from the provided context.
+                                        If not found in the context, the default tensorboard output directory will be:
+                                        /User/.tensorboard/<PROJECT_NAME> or if working on local, the set artifacts
+                                        path.
     :param mlrun_callback_kwargs:       Key word arguments for the MLRun callback. For further information see the
                                         documentation of the class 'MLRunLoggingCallback'. Note that both 'context'
                                         and 'auto_log' parameters are already given here.
@@ -88,7 +98,10 @@ def apply_mlrun(
         tensorboard_callback_kwargs = (
             {} if tensorboard_callback_kwargs is None else tensorboard_callback_kwargs
         )
-        # Add the custom objects to MLRun's callback kwargs dictionary:
+        # Add the additional parameters to Tensorboard's callback kwargs dictionary:
+        tensorboard_callback_kwargs["tensorboard_directory"] = tensorboard_directory
+        # Add the additional parameters to MLRun's callback kwargs dictionary:
+        mlrun_callback_kwargs["model_name"] = model_name
         mlrun_callback_kwargs["model_path"] = model_path
         mlrun_callback_kwargs["custom_objects_map"] = custom_objects_map
         mlrun_callback_kwargs["custom_objects_directory"] = custom_objects_directory

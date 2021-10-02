@@ -238,6 +238,7 @@ class PyTorchModelHandler(ModelHandler):
         # Log the model:
         self._context.log_model(
             self._model_name,
+            db_key=self._model_name,
             model_file=self._weights_file,
             framework="pytorch",
             labels={"model-class-name": self._model_class_name, **labels},

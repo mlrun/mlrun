@@ -31,6 +31,7 @@ class MLRunLoggingCallback(LoggingCallback):
     def __init__(
         self,
         context: mlrun.MLClientCtx,
+        model_name: str = None,
         model_path: str = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
@@ -54,6 +55,8 @@ class MLRunLoggingCallback(LoggingCallback):
 
         :param context:                  MLRun context to log to. Its parameters will be logged automatically  if
                                          'auto_log' is True.
+        :param model_name:               The model name to use for storing the model artifact. If not given, the
+                                         tf.keras.Model.name will be used.
         :param model_path:               The model's store object path. Mandatory for evaluation (to know which model to
                                          update).
         :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key
@@ -132,6 +135,7 @@ class MLRunLoggingCallback(LoggingCallback):
         )
 
         # Store the additional TFKerasModelHandler parameters for logging the model later:
+        self._model_name = model_name
         self._model_path = model_path
         self._custom_objects_map = custom_objects_map
         self._custom_objects_directory = custom_objects_directory
@@ -200,9 +204,14 @@ class MLRunLoggingCallback(LoggingCallback):
         """
         End the run, logging the collected artifacts.
         """
+        # Set the model name:
+        self._model_name = (
+            self.model.name if self._model_name is None else self._model_name
+        )
+
         # Create the model handler:
         model_handler = TFKerasModelHandler(
-            model_name=self.model.name,
+            model_name=self._model_name,
             model_path=self._model_path,
             model=self.model,
             custom_objects_map=self._custom_objects_map,

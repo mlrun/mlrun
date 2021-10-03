@@ -2667,8 +2667,11 @@ class SQLDB(DBInterface):
 
     def _get_version_record(self, session, name, raise_on_not_found=True) -> Version:
         version_record = self._query(session, Version, name=name).one_or_none()
-        if not version_record and raise_on_not_found:
-            raise mlrun.errors.MLRunNotFoundError(f"Version not found. name = {name}")
+        if not version_record:
+            log_method = logger.warning if raise_on_not_found else logger.debug
+            log_method("Version not found", name=name)
+            if raise_on_not_found:
+                raise mlrun.errors.MLRunNotFoundError(f"Version not found. name = {name}")
 
         return version_record
 

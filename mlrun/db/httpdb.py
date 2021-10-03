@@ -39,6 +39,7 @@ from ..lists import ArtifactList, RunList
 from ..runtimes import BaseRuntime
 from ..utils import datetime_to_iso, dict_to_json, logger, new_pipe_meta
 from .base import RunDBError, RunDBInterface
+from ..utils.model_monitoring import EndpointType
 
 _artifact_keys = [
     "format",
@@ -2360,6 +2361,49 @@ class HTTPRunDB(RunDBInterface):
         )
         return schemas.ModelEndpointList(**response.json())
 
+    def list_top_level_endpoints( self,
+        project: str,
+        model: Optional[str] = None,
+        function: Optional[str] = None,
+        labels: List[str] = None,
+        start: str = "now-1h",
+        end: str = "now",
+        metrics: Optional[List[str]] = None,
+        access_key: Optional[str] = None,
+    ) -> schemas.ModelEndpointList:
+
+        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
+        if not access_key:
+            raise MLRunInvalidArgumentError(
+                "access_key must be initialized, either by passing it as an argument or by populating a "
+                "V3IO_ACCESS_KEY environment parameter"
+            )
+
+        path = f"projects/{project}/model-endpoints"
+        response = self.api_call(
+            method="GET",
+            path=path,
+            params={
+                "model": model,
+                "function": function,
+                "label": labels or [],
+                "start": start,
+                "end": end,
+                "metric": metrics or [],
+            },
+            headers={"X-V3io-Access-Key": access_key},
+        )
+
+        all_endpoints = schemas.ModelEndpointList(**response.json())
+
+        top_level_endpoints = schemas.ModelEndpointList(endpoints=[])
+
+        for endpoint in all_endpoints.endpoints:
+            if endpoint.status.endpoint_type != EndpointType.NODE_EP:
+                top_level_endpoints.endpoints.append(endpoint)
+
+        return top_level_endpoints
+
     def get_model_endpoint(
         self,
         project: str,
@@ -2402,6 +2446,58 @@ class HTTPRunDB(RunDBInterface):
             headers={"X-V3io-Access-Key": access_key},
         )
         return schemas.ModelEndpoint(**response.json())
+
+    def get_router_children(
+        self,
+        project: str,
+        endpoint_id: str,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        metrics: Optional[List[str]] = None,
+        feature_analysis: bool = False,
+        access_key: Optional[str] = None,
+    ) -> schemas.ModelEndpoint:
+        """
+        Returns a ModelEndpoint object with additional metrics and feature related data.
+
+        :param project: The name of the project
+        :param endpoint_id: The id of the model endpoint
+        :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
+        :param start: The start time of the metrics
+        :param end: The end time of the metrics
+        :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
+        the output of the resulting object
+        :param access_key: V3IO access key, when None, will be look for in environ
+        """
+        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
+        if not access_key:
+            raise MLRunInvalidArgumentError(
+                "access_key must be initialized, either by passing it as an argument or by populating a "
+                "V3IO_ACCESS_KEY environment parameter"
+            )
+
+        path = f"projects/{project}/model-endpoints/{endpoint_id}"
+        response = self.api_call(
+            method="GET",
+            path=path,
+            params={
+                "start": start,
+                "end": end,
+                "metric": metrics or [],
+                "feature_analysis": feature_analysis,
+            },
+            headers={"X-V3io-Access-Key": access_key},
+        )
+
+        router = schemas.ModelEndpoint(**response.json())
+
+        children_endpoints = schemas.ModelEndpointList(endpoints=[])
+
+        for child_id in router.status.children_uids:
+            child = self.get_model_endpoint(project, child_id, start, end, metrics, feature_analysis, access_key)
+            children_endpoints.endpoints.append(child)
+
+        return children_endpoints
 
     def create_marketplace_source(
         self, source: Union[dict, schemas.IndexedMarketplaceSource]

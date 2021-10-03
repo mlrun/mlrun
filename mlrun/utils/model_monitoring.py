@@ -108,3 +108,11 @@ def set_project_model_monitoring_credentials(
         provider=mlrun.api.schemas.SecretProviderName.kubernetes,
         secrets={"MODEL_MONITORING_ACCESS_KEY": access_key},
     )
+
+from enum import IntEnum
+
+
+class EndpointType(IntEnum):
+    NODE_EP = 1
+    ROUTER = 2
+    LEAF_EP = 3

@@ -25,7 +25,7 @@ from tests.system.base import TestMLRunSystem
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestModelMonitoringAPI(TestMLRunSystem):
-    project_name = "model-monitor-sys-test"
+    project_name = "model-monitor-sys-test4"
 
     def test_clear_endpoint(self):
         endpoint = self._mock_random_endpoint()
@@ -247,6 +247,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             "router", "mlrun.serving.VotingEnsemble", name="VotingEnsemble"
         )
         serving_fn.set_tracking()
+        serving_fn.spec.image = "mlrun/mlrun:debug_997"
 
         model_names = [
             "sklearn_RandomForestClassifier",
@@ -283,6 +284,15 @@ class TestModelMonitoringAPI(TestMLRunSystem):
                 "v2/models/VotingEnsemble/infer", json.dumps({"inputs": [data_point]})
             )
             sleep(uniform(0.2, 1.7))
+
+        jjj = mlrun.get_run_db().list_top_level_endpoints(self.project_name)
+
+        router_id = jjj.endpoints[0].metadata.uid
+
+        vvv = mlrun.get_run_db().get_router_children(self.project_name, router_id)
+
+        print("blabla")
+
 
     @staticmethod
     def _get_auth_info() -> mlrun.api.schemas.AuthInfo:

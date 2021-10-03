@@ -26,6 +26,7 @@ from mlrun.api.schemas import (
 from mlrun.artifacts import ModelArtifact  # noqa: F401
 from mlrun.config import config
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
+from mlrun.utils.model_monitoring import EndpointType
 
 
 class V2ModelServer:
@@ -90,6 +91,7 @@ class V2ModelServer:
         if model:
             self.model = model
             self.ready = True
+        self.model_endpoint_uid = None
 
     def _load_and_update_state(self):
         try:
@@ -118,7 +120,7 @@ class V2ModelServer:
             logger.warn("GraphServer not initialized for VotingEnsemble instance")
             return
 
-        _init_endpoint_record(server, self)
+        self.model_endpoint_uid = _init_endpoint_record(server, self)
 
     def get_param(self, key: str, default=None):
         """get param by key (specified in the model or the function)"""
@@ -380,6 +382,7 @@ class _ModelLogPusher:
 
 def _init_endpoint_record(graph_server, model: V2ModelServer):
     logger.info("Initializing endpoint records")
+
     try:
         project, uri, tag, hash_key = parse_versioned_object_uri(
             graph_server.function_uri
@@ -402,7 +405,7 @@ def _init_endpoint_record(graph_server, model: V2ModelServer):
                 ),
                 active=True,
             ),
-            status=ModelEndpointStatus(),
+            status=ModelEndpointStatus(endpoint_type=EndpointType.LEAF_EP),
         )
 
         db = mlrun.get_run_db()
@@ -414,3 +417,5 @@ def _init_endpoint_record(graph_server, model: V2ModelServer):
         )
     except Exception as e:
         logger.error("Failed to create endpoint record", exc=e)
+
+    return model_endpoint.metadata.uid

@@ -319,6 +319,12 @@ class ModelEndpoints:
         monitor_configuration = endpoint.get("monitor_configuration")
         monitor_configuration = self._json_loads_if_not_none(monitor_configuration)
 
+        endpoint_type = endpoint.get("endpoint_type")
+        endpoint_type = self._json_loads_if_not_none(endpoint_type)
+
+        children_uids = endpoint.get("children_uids")
+        children_uids = self._json_loads_if_not_none(children_uids)
+
         endpoint = ModelEndpoint(
             metadata=ModelEndpointMetadata(
                 project=endpoint.get("project"),
@@ -347,6 +353,8 @@ class ModelEndpoints:
                 accuracy=endpoint.get("accuracy") or None,
                 error_count=endpoint.get("error_count") or None,
                 drift_status=endpoint.get("drift_status") or None,
+                endpoint_type=endpoint_type or None,
+                children_uids=children_uids or None,
             ),
         )
 
@@ -413,6 +421,8 @@ class ModelEndpoints:
         current_stats = endpoint.status.current_stats or {}
         children = endpoint.status.children or []
         monitor_configuration = endpoint.spec.monitor_configuration or {}
+        endpoint_type = endpoint.status.endpoint_type or None
+        children_uids = endpoint.status.children_uids or []
 
         client = get_v3io_client(endpoint=config.v3io_api)
         function = client.kv.update if update else client.kv.put
@@ -445,6 +455,8 @@ class ModelEndpoints:
                 "children": json.dumps(children),
                 "label_names": json.dumps(label_names),
                 "monitor_configuration": json.dumps(monitor_configuration),
+                "endpoint_type": json.dumps(endpoint_type),
+                "children_uids": json.dumps(children_uids),
                 **searchable_labels,
             },
         )

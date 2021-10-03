@@ -57,7 +57,8 @@ kubernetes~=11.0
 humanfriendly~=8.2
 fastapi~=0.68.0
 # fsspec versioning changed to year.month.patch after 0.9.0
-fsspec>=0.9.0, <=2021.8.1v3iofs~=0.1.7
+fsspec>=0.9.0, <=2021.8.1
+v3iofs~=0.1.7
 # 3.4 and above failed builidng in some images - see https://github.com/pyca/cryptography/issues/5771
 cryptography~=3.0, <3.4
 storey~=0.8.0; python_version >= '3.7'

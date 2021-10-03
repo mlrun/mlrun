@@ -11,7 +11,7 @@ from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
 
 here = Path(__file__).absolute().parent
-config_file_path = here / "test-s3-objects.yml"
+config_file_path = here / "test-aws-s3.yml"
 with config_file_path.open() as fp:
     config = yaml.safe_load(fp)
 
@@ -22,7 +22,7 @@ with open(test_filename, "r") as f:
 credential_params = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
 
 
-def s3_object_configured():
+def aws_s3_configured():
     env_params = config["env"]
     needed_params = ["bucket_name", *credential_params]
     for param in needed_params:
@@ -31,8 +31,8 @@ def s3_object_configured():
     return True
 
 
-@pytest.mark.skipif(not s3_object_configured(), reason="S3 parameters not configured")
-class TestS3Objects:
+@pytest.mark.skipif(not aws_s3_configured(), reason="AWS S3 parameters not configured")
+class TestAwsS3:
     def setup_method(self, method):
         self._bucket_name = config["env"].get("bucket_name")
         self._access_key_id = config["env"].get("AWS_ACCESS_KEY_ID")
@@ -48,7 +48,7 @@ class TestS3Objects:
 
         logger.info(f"Object URL: {self._object_url}")
 
-    def _perform_s3_object_tests(self, secrets=None):
+    def _perform_aws_s3_tests(self, secrets=None):
         data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
         data_item.put(test_string)
 
@@ -77,7 +77,7 @@ class TestS3Objects:
                 "env"
             ][param]
 
-        self._perform_s3_object_tests()
+        self._perform_aws_s3_tests()
 
         # cleanup
         for param in credential_params:
@@ -89,7 +89,7 @@ class TestS3Objects:
             os.environ[param] = config["env"][param]
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param), None)
 
-        self._perform_s3_object_tests()
+        self._perform_aws_s3_tests()
 
         # cleanup
         for param in credential_params:
@@ -102,4 +102,4 @@ class TestS3Objects:
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param), None)
 
         secrets = {param: config["env"][param] for param in credential_params}
-        self._perform_s3_object_tests(secrets=secrets)
+        self._perform_aws_s3_tests(secrets=secrets)

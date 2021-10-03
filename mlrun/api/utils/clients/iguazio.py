@@ -5,6 +5,7 @@ import json
 import typing
 import urllib.parse
 
+import deepdiff
 import fastapi
 import requests.adapters
 import urllib3
@@ -38,6 +39,18 @@ class JobStates:
             JobStates.completed,
             JobStates.failed,
             JobStates.canceled,
+        ]
+
+
+class SessionPlanes:
+    data = "data"
+    control = "control"
+
+    @staticmethod
+    def all():
+        return [
+            SessionPlanes.data,
+            SessionPlanes.control,
         ]
 
 
@@ -112,6 +125,40 @@ class Client(
             session,
         )
         return self._generate_auth_info_from_session_verification_response(response)
+
+    def get_or_create_access_key(
+        self, session: str, planes: typing.List[str] = None
+    ) -> str:
+        if planes is None:
+            planes = [
+                SessionPlanes.data,
+                SessionPlanes.control,
+            ]
+
+        response = self._send_request_to_api(
+            "GET", "access_keys", "Failed getting access keys from Iguazio", session,
+        )
+        response_body = response.json()
+        for access_key in response_body.get("data", []):
+            access_key_planes = access_key.get("attributes", {}).get("planes", [])
+            if deepdiff.DeepDiff(planes, access_key_planes, ignore_order=True,) == {}:
+                return access_key["id"]
+        # If we're here we couldn't find an existing access key with the requested planes, so let's create one
+        body = {
+            "data": {
+                "type": "access_key",
+                "attributes": {"label": "MLRun", "planes": planes},
+            }
+        }
+        logger.debug("Creating access key in Iguazio", planes=planes)
+        response = self._send_request_to_api(
+            "POST",
+            "access_keys",
+            "Failed verifying iguazio session",
+            session,
+            json=body,
+        )
+        return response.json()["data"]["id"]
 
     def create_project(
         self,
@@ -405,7 +452,7 @@ class Client(
             user_id=response.headers.get("x-user-id"),
             user_group_ids=gids or [],
         )
-        if "data" in planes:
+        if SessionPlanes.data in planes:
             auth_info.data_session = auth_info.session
         return auth_info
 

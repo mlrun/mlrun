@@ -385,7 +385,7 @@ class Member(
         state: mlrun.api.schemas.ProjectState = None,
         names: typing.Optional[typing.List[str]] = None,
     ) -> typing.List[mlrun.api.schemas.Project]:
-        if names:
+        if names is not None:
             projects = [
                 project for project in projects if project.metadata.name in names
             ]

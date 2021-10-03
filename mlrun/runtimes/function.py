@@ -466,6 +466,7 @@ class RemoteRuntime(KubeResource):
         if not dashboard:
             # Attempt auto-mounting, before sending to remote build
             self.try_auto_mount_based_on_config()
+            self.fill_credentials()
             db = self._get_db()
             logger.info("Starting remote function deploy")
             data = db.remote_builder(self, False)
@@ -653,7 +654,35 @@ class RemoteRuntime(KubeResource):
             runtime_env["MLRUN_DBPATH"] = self.spec.rundb or mlconf.httpdb.api_url
         if mlconf.namespace:
             runtime_env["MLRUN_NAMESPACE"] = mlconf.namespace
+        if self.metadata.credentials.access_key:
+            runtime_env["MLRUN_AUTH_SESSION"] = self.metadata.credentials.access_key
         return runtime_env
+
+    def get_nuclio_config_spec_env(self):
+        env_dict = {}
+        external_source_env_dict = {}
+
+        api = client.ApiClient()
+        for env_var in self.spec.env:
+            # sanitize env if not sanitized
+            if isinstance(env_var, dict):
+                sanitized_env_var = env_var
+            else:
+                sanitized_env_var = api.sanitize_for_serialization(env_var)
+
+            value = sanitized_env_var.get("value")
+            if value is not None:
+                env_dict[sanitized_env_var.get("name")] = value
+                continue
+
+            value_from = sanitized_env_var.get("valueFrom")
+            if value_from is not None:
+                external_source_env_dict[sanitized_env_var.get("name")] = value_from
+
+        for key, value in self._get_runtime_env().items():
+            env_dict[key] = value
+
+        return env_dict, external_source_env_dict
 
     def deploy_step(
         self,
@@ -949,10 +978,12 @@ def compile_function_config(function: RemoteRuntime):
     # Needs to be here, since it adds env params, which are handled in the next lines.
     function.add_secrets_config_to_spec()
 
-    env_dict = {get_item_name(v): get_item_name(v, "value") for v in function.spec.env}
-    for key, value in function._get_runtime_env().items():
-        env_dict[key] = value
-    spec = nuclio.ConfigSpec(env=env_dict, config=function.spec.config)
+    env_dict, external_source_env_dict = function.get_nuclio_config_spec_env()
+    spec = nuclio.ConfigSpec(
+        env=env_dict,
+        external_source_env=external_source_env_dict,
+        config=function.spec.config,
+    )
     spec.cmd = function.spec.build.commands or []
     project = function.metadata.project or "default"
     tag = function.metadata.tag

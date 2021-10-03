@@ -246,6 +246,11 @@ def test_list_project(
         names=[archived_project.metadata.name, labeled_project.metadata.name],
     )
 
+    # list no valid names
+    _assert_list_projects(
+        projects_follower, [], names=[],
+    )
+
     # list labeled - key existence
     _assert_list_projects(
         projects_follower,

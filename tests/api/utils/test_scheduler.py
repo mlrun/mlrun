@@ -224,12 +224,6 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-    """
-    Continue here
-    this test doesn't work cause reload schedules takes for granted that there is a session, which made me think whether
-    session is enough - after runtimes refactor and getting auth info out of sqlrundb is will be enough, so also can
-    remove the mlrun.api.utils.auth.AuthVerifier().generate_auth_info_from_session call from scheduler run wrapper
-    """
     name = "schedule-name"
     project = config.default_project
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)

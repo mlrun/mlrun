@@ -495,7 +495,7 @@ def extend_hub_uri_if_needed(uri):
 
     # hub function directory name are with underscores instead of hyphens
     name = name.replace("-", "_")
-    return config.hub_url.format(name=name, tag=tag), True
+    return config.get_hub_url().format(name=name, tag=tag), True
 
 
 def gen_md_table(header, rows=None):

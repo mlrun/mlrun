@@ -306,8 +306,7 @@ def _add_data_version(
         else:
             # This code was added to 0.8.0
             # The latest data migration added before adding this was added back in 0.6.0
-            # We can safely assume no one is upgrading from a version pre 0.6.0 directly to 0.8.0, therefore we assume
-            # the data already passed version 0 to 1 migrations
+            # Upgrading from a version earlier than 0.6.0 to v>=0.8.0 is not supported
             logger.info("Setting data version to 1")
             db.create_version(db_session, data_version_name, str(1))
 

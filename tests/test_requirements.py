@@ -216,7 +216,7 @@ def _parse_requirement_specifiers_list(
         assert (
             match is not None
         ), f"Requirement specifier did not matched regex. {requirement_specifier}"
-        requirement_specifiers_map[match.groupdict()["requirementName"]].add(
+        requirement_specifiers_map[match.groupdict()["requirementName"].lower()].add(
             match.groupdict()["requirementSpecifier"]
         )
     return requirement_specifiers_map

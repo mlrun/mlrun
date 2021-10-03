@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import getpass
+import os
 import shlex
 import traceback
 import typing
@@ -226,6 +227,12 @@ class BaseRuntime(ModelObj):
     def try_auto_mount_based_on_config(self):
         pass
 
+    def fill_credentials(self):
+        if "MLRUN_AUTH_SESSION" in os.environ or "V3IO_ACCESS_KEY" in os.environ:
+            self.metadata.credentials.access_key = os.environ.get(
+                "MLRUN_AUTH_SESSION"
+            ) or os.environ.get("V3IO_ACCESS_KEY")
+
     def run(
         self,
         runspec: RunObject = None,
@@ -281,6 +288,7 @@ class BaseRuntime(ModelObj):
         # Perform auto-mount if necessary - make sure it only runs on client side (when using remote API)
         if self._use_remote_api():
             self.try_auto_mount_based_on_config()
+            self.fill_credentials()
 
         if local:
 
@@ -1032,8 +1040,10 @@ class BaseRuntimeHandler(ABC):
         db_session: Session,
         label_selector: str = None,
         force: bool = False,
-        grace_period: int = config.runtime_resources_deletion_grace_period,
+        grace_period: int = None,
     ):
+        if grace_period is None:
+            grace_period = config.runtime_resources_deletion_grace_period
         # We currently don't support removing runtime resources in non k8s env
         if not mlrun.k8s_utils.get_k8s_helper(
             silent=True
@@ -1070,8 +1080,10 @@ class BaseRuntimeHandler(ABC):
         object_id: str,
         label_selector: str = None,
         force: bool = False,
-        grace_period: int = config.runtime_resources_deletion_grace_period,
+        grace_period: int = None,
     ):
+        if grace_period is None:
+            grace_period = config.runtime_resources_deletion_grace_period
         label_selector = self._add_object_label_selector_if_needed(
             object_id, label_selector
         )
@@ -1165,11 +1177,14 @@ class BaseRuntimeHandler(ABC):
         deleted_resources: List[Dict],
         label_selector: str = None,
         force: bool = False,
-        grace_period: int = config.runtime_resources_deletion_grace_period,
+        grace_period: int = None,
     ):
         """
         Override this to handle deletion of resources other then pods or CRDs (which are handled by the base class)
         Note that this is happening before the deletion of the CRDs or the pods
+        Note to add this at the beginning:
+        if grace_period is None:
+            grace_period = config.runtime_resources_deletion_grace_period
         """
         pass
 
@@ -1417,8 +1432,10 @@ class BaseRuntimeHandler(ABC):
         namespace: str,
         label_selector: str = None,
         force: bool = False,
-        grace_period: int = config.runtime_resources_deletion_grace_period,
+        grace_period: int = None,
     ) -> List[Dict]:
+        if grace_period is None:
+            grace_period = config.runtime_resources_deletion_grace_period
         k8s_helper = get_k8s_helper()
         pods = k8s_helper.v1api.list_namespaced_pod(
             namespace, label_selector=label_selector
@@ -1477,8 +1494,10 @@ class BaseRuntimeHandler(ABC):
         namespace: str,
         label_selector: str = None,
         force: bool = False,
-        grace_period: int = config.runtime_resources_deletion_grace_period,
+        grace_period: int = None,
     ) -> List[Dict]:
+        if grace_period is None:
+            grace_period = config.runtime_resources_deletion_grace_period
         k8s_helper = get_k8s_helper()
         crd_group, crd_version, crd_plural = self._get_crd_info()
         deleted_crds = []

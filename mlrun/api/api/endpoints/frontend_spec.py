@@ -18,15 +18,13 @@ router = fastapi.APIRouter()
     "/frontend-spec", response_model=mlrun.api.schemas.FrontendSpec,
 )
 def get_frontend_spec(
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
 ):
     jobs_dashboard_url = None
-    if auth_verifier.auth_info.session:
-        jobs_dashboard_url = _resolve_jobs_dashboard_url(
-            auth_verifier.auth_info.session
-        )
+    if auth_info.session:
+        jobs_dashboard_url = _resolve_jobs_dashboard_url(auth_info.session)
     feature_flags = _resolve_feature_flags()
     registry, repository = mlrun.utils.helpers.get_parsed_docker_registry()
     repository = mlrun.utils.helpers.get_docker_repository_or_default(repository)

@@ -2,11 +2,12 @@ import http
 import typing
 
 import fastapi
+import fastapi.concurrency
 import sqlalchemy.orm
 
 import mlrun.api.api.deps
 import mlrun.api.schemas
-import mlrun.api.utils.clients.opa
+import mlrun.api.utils.auth.verifier
 from mlrun.api.utils.singletons.project_member import get_project_member
 
 router = fastapi.APIRouter()
@@ -25,8 +26,8 @@ def create_project(
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         mlrun.api.api.deps.get_db_session
@@ -35,8 +36,8 @@ def create_project(
     project, is_running_in_background = get_project_member().create_project(
         db_session,
         project,
-        auth_verifier.auth_info.projects_role,
-        auth_verifier.auth_info.session,
+        auth_info.projects_role,
+        auth_info.session,
         wait_for_completion=wait_for_completion,
     )
     if is_running_in_background:
@@ -58,8 +59,8 @@ def store_project(
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         mlrun.api.api.deps.get_db_session
@@ -69,8 +70,8 @@ def store_project(
         db_session,
         name,
         project,
-        auth_verifier.auth_info.projects_role,
-        auth_verifier.auth_info.session,
+        auth_info.projects_role,
+        auth_info.session,
         wait_for_completion=wait_for_completion,
     )
     if is_running_in_background:
@@ -95,8 +96,8 @@ def patch_project(
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         mlrun.api.api.deps.get_db_session
@@ -107,8 +108,8 @@ def patch_project(
         name,
         project,
         patch_mode,
-        auth_verifier.auth_info.projects_role,
-        auth_verifier.auth_info.session,
+        auth_info.projects_role,
+        auth_info.session,
         wait_for_completion=wait_for_completion,
     )
     if is_running_in_background:
@@ -122,17 +123,15 @@ def get_project(
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         mlrun.api.api.deps.get_db_session
     ),
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
 ):
-    project = get_project_member().get_project(
-        db_session, name, auth_verifier.auth_info.session
-    )
+    project = get_project_member().get_project(db_session, name, auth_info.session)
     # skip permission check if it's the leader
-    if not _is_request_from_leader(auth_verifier.auth_info.projects_role):
-        mlrun.api.utils.clients.opa.Client().query_project_permissions(
-            name, mlrun.api.schemas.AuthorizationAction.read, auth_verifier.auth_info,
+    if not _is_request_from_leader(auth_info.projects_role):
+        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+            name, mlrun.api.schemas.AuthorizationAction.read, auth_info,
         )
     return project
 
@@ -153,8 +152,8 @@ def delete_project(
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         mlrun.api.api.deps.get_db_session
@@ -164,8 +163,8 @@ def delete_project(
         db_session,
         name,
         deletion_strategy,
-        auth_verifier.auth_info.projects_role,
-        auth_verifier.auth_info,
+        auth_info.projects_role,
+        auth_info,
         wait_for_completion=wait_for_completion,
     )
     if is_running_in_background:
@@ -181,27 +180,27 @@ def list_projects(
     owner: str = None,
     labels: typing.List[str] = fastapi.Query(None, alias="label"),
     state: mlrun.api.schemas.ProjectState = None,
-    auth_verifier: mlrun.api.api.deps.AuthVerifierDep = fastapi.Depends(
-        mlrun.api.api.deps.AuthVerifierDep
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         mlrun.api.api.deps.get_db_session
     ),
 ):
-    projects_output = get_project_member().list_projects(
-        db_session,
-        owner,
-        mlrun.api.schemas.ProjectsFormat.name_only,
-        labels,
-        state,
-        auth_verifier.auth_info.projects_role,
-        auth_verifier.auth_info.session,
-    )
-    allowed_project_names = projects_output.projects
+    allowed_project_names = None
     # skip permission check if it's the leader
-    if not _is_request_from_leader(auth_verifier.auth_info.projects_role):
-        allowed_project_names = mlrun.api.utils.clients.opa.Client().filter_projects_by_permissions(
-            projects_output.projects, auth_verifier.auth_info,
+    if not _is_request_from_leader(auth_info.projects_role):
+        projects_output = get_project_member().list_projects(
+            db_session,
+            owner,
+            mlrun.api.schemas.ProjectsFormat.name_only,
+            labels,
+            state,
+            auth_info.projects_role,
+            auth_info.session,
+        )
+        allowed_project_names = mlrun.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
+            projects_output.projects, auth_info,
         )
     return get_project_member().list_projects(
         db_session,
@@ -209,10 +208,79 @@ def list_projects(
         format_,
         labels,
         state,
-        auth_verifier.auth_info.projects_role,
-        auth_verifier.auth_info.session,
+        auth_info.projects_role,
+        auth_info.session,
         allowed_project_names,
     )
+
+
+@router.get(
+    "/project-summaries", response_model=mlrun.api.schemas.ProjectSummariesOutput
+)
+async def list_project_summaries(
+    owner: str = None,
+    labels: typing.List[str] = fastapi.Query(None, alias="label"),
+    state: mlrun.api.schemas.ProjectState = None,
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        mlrun.api.api.deps.get_db_session
+    ),
+):
+    projects_output = await fastapi.concurrency.run_in_threadpool(
+        get_project_member().list_projects,
+        db_session,
+        owner,
+        mlrun.api.schemas.ProjectsFormat.name_only,
+        labels,
+        state,
+        auth_info.projects_role,
+        auth_info.session,
+    )
+    allowed_project_names = projects_output.projects
+    # skip permission check if it's the leader
+    if not _is_request_from_leader(auth_info.projects_role):
+        allowed_project_names = await fastapi.concurrency.run_in_threadpool(
+            mlrun.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions,
+            projects_output.projects,
+            auth_info,
+        )
+    return await get_project_member().list_project_summaries(
+        db_session,
+        owner,
+        labels,
+        state,
+        auth_info.projects_role,
+        auth_info.session,
+        allowed_project_names,
+    )
+
+
+@router.get(
+    "/project-summaries/{name}", response_model=mlrun.api.schemas.ProjectSummary
+)
+async def get_project_summary(
+    name: str,
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        mlrun.api.api.deps.get_db_session
+    ),
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
+):
+    project_summary = await get_project_member().get_project_summary(
+        db_session, name, auth_info.session
+    )
+    # skip permission check if it's the leader
+    if not _is_request_from_leader(auth_info.projects_role):
+        await fastapi.concurrency.run_in_threadpool(
+            mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions,
+            name,
+            mlrun.api.schemas.AuthorizationAction.read,
+            auth_info,
+        )
+    return project_summary
 
 
 def _is_request_from_leader(

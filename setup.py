@@ -132,6 +132,7 @@ setup(
         "mlrun.api.utils.auth",
         "mlrun.api.utils.auth.providers",
         "mlrun.api.utils.clients",
+        "mlrun.api.utils.db",
         "mlrun.api.utils.projects",
         "mlrun.api.utils.projects.remotes",
         "mlrun.api.utils.singletons",

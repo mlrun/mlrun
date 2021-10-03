@@ -2671,7 +2671,9 @@ class SQLDB(DBInterface):
             log_method = logger.warning if raise_on_not_found else logger.debug
             log_method("Version not found", name=name)
             if raise_on_not_found:
-                raise mlrun.errors.MLRunNotFoundError(f"Version not found. name = {name}")
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Version not found. name = {name}"
+                )
 
         return version_record
 
@@ -2680,7 +2682,9 @@ class SQLDB(DBInterface):
             "Creating version in DB", name=name, version=version,
         )
 
-        version_record = self._get_version_record(session, name, raise_on_not_found=False)
+        version_record = self._get_version_record(
+            session, name, raise_on_not_found=False
+        )
         if version_record:
             raise mlrun.errors.MLRunConflictError(
                 f"Version name already exists. name={name}"

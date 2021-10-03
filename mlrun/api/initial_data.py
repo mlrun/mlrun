@@ -64,7 +64,7 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                 latest_data_version=latest_data_version,
             )
             if data_version < 1:
-                _fill_project_state(db, db_session)
+                _enrich_project_state(db, db_session)
                 _fix_artifact_tags_duplications(db, db_session)
                 _fix_datasets_large_previews(db, db_session)
             db.update_version(db_session, data_version_name, str(latest_data_version))
@@ -241,10 +241,10 @@ def _find_last_updated_artifact(
     return last_updated_artifact
 
 
-def _fill_project_state(
+def _enrich_project_state(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
-    logger.info("Filling projects state")
+    logger.info("Enriching projects state")
     projects = db.list_projects(db_session)
     for project in projects.projects:
         changed = False

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import getpass
+import os
 import shlex
 import traceback
 import typing
@@ -226,6 +227,12 @@ class BaseRuntime(ModelObj):
     def try_auto_mount_based_on_config(self):
         pass
 
+    def fill_credentials(self):
+        if "MLRUN_AUTH_SESSION" in os.environ or "V3IO_ACCESS_KEY" in os.environ:
+            self.metadata.credentials.access_key = os.environ.get(
+                "MLRUN_AUTH_SESSION"
+            ) or os.environ.get("V3IO_ACCESS_KEY")
+
     def run(
         self,
         runspec: RunObject = None,
@@ -281,6 +288,7 @@ class BaseRuntime(ModelObj):
         # Perform auto-mount if necessary - make sure it only runs on client side (when using remote API)
         if self._use_remote_api():
             self.try_auto_mount_based_on_config()
+            self.fill_credentials()
 
         if local:
 

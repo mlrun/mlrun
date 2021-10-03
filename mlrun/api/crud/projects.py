@@ -113,6 +113,9 @@ class Projects(
             session, name
         )
 
+        # delete model monitoring resources
+        mlrun.api.crud.ModelEndpoints().delete_model_endpoints_resources(name)
+
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
     ) -> mlrun.api.schemas.Project:

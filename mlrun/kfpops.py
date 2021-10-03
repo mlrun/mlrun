@@ -610,10 +610,12 @@ def add_default_env(k8s_client, cop):
             )
         )
 
-    if "V3IO_ACCESS_KEY" in os.environ:
+    if "MLRUN_AUTH_SESSION" in os.environ or "V3IO_ACCESS_KEY" in os.environ:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
-                name="V3IO_ACCESS_KEY", value=os.environ["V3IO_ACCESS_KEY"]
+                name="MLRUN_AUTH_SESSION",
+                value=os.environ.get("MLRUN_AUTH_SESSION")
+                or os.environ.get("V3IO_ACCESS_KEY"),
             )
         )
 

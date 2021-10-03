@@ -24,9 +24,9 @@
       "keepTime": true,
       "tags": [],
       "targetBlank": true,
-      "title": "Performance",
+      "title": "Model Monitoring - Performance",
       "type": "link",
-      "url": "/d/9CazA-UGz/performance"
+      "url": "/d/9CazA-UGz/model-monitoring-performance"
     },
     {
       "icon": "dashboard",
@@ -34,7 +34,7 @@
       "keepTime": true,
       "tags": [],
       "targetBlank": true,
-      "title": "Overview",
+      "title": "Model Monitoring - Overview",
       "tooltip": "",
       "type": "link",
       "url": "/d/g0M4uh0Mz"
@@ -242,7 +242,7 @@
       "type": "table"
     },
     {
-      "datasource": "mlrun-api",
+      "datasource": "model-monitoring",
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -426,7 +426,7 @@
       "type": "table"
     },
     {
-      "datasource": "mlrun-api",
+      "datasource": "model-monitoring",
       "description": "Feature analysis of the latest batch",
       "fieldConfig": {
         "defaults": {
@@ -718,7 +718,7 @@
       {
         "allValue": null,
         "current": {},
-        "datasource": "mlrun-api",
+        "datasource": "model-monitoring",
         "definition": "target_endpoint=list_projects",
         "hide": 0,
         "includeAll": false,
@@ -767,7 +767,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Details",
+  "title": "Model Monitoring - Details",
   "uid": "AohIXhAMk",
   "version": 3
 }

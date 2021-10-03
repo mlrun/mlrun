@@ -107,7 +107,7 @@ def test_requirement_specifiers_convention():
         "orjson": {">=3,<3.4"},
         "alembic": {"~=1.4,<1.6.0"},
         "distributed": {">=2.23, <3"},
-        "boto3": {"~=1.9, <1.17.50"},
+        "boto3": {"~=1.9, <1.17.107"},
         "azure-storage-blob": {"~=12.0, <12.7.0"},
         "dask-ml": {"~=1.4,<1.9.0"},
     }

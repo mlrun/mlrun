@@ -466,6 +466,7 @@ class RemoteRuntime(KubeResource):
         if not dashboard:
             # Attempt auto-mounting, before sending to remote build
             self.try_auto_mount_based_on_config()
+            self.fill_credentials()
             db = self._get_db()
             logger.info("Starting remote function deploy")
             data = db.remote_builder(self, False)
@@ -653,6 +654,8 @@ class RemoteRuntime(KubeResource):
             runtime_env["MLRUN_DBPATH"] = self.spec.rundb or mlconf.httpdb.api_url
         if mlconf.namespace:
             runtime_env["MLRUN_NAMESPACE"] = mlconf.namespace
+        if self.metadata.credentials.access_key:
+            runtime_env["MLRUN_AUTH_SESSION"] = self.metadata.credentials.access_key
         return runtime_env
 
     def get_nuclio_config_spec_env(self):

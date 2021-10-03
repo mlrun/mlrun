@@ -4,7 +4,6 @@ twine~=3.1
 black<=19.10b0
 flake8~=3.8
 pytest-asyncio~=0.15.0
-deepdiff~=5.0
 pytest-alembic~=0.4.0
 pytest-httpserver~=1.0
 requests-mock~=1.8

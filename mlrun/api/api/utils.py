@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
-import mlrun.api.utils.clients.opa
+import mlrun.api.utils.auth.verifier
 import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
@@ -147,14 +147,26 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
     if (
         function.kind
         and function.kind not in mlrun.runtimes.RuntimeKinds.local_runtimes()
+        and mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
     ):
         if auth_info and auth_info.session:
+            if (
+                function.metadata.credentials.access_key
+                == mlrun.model.Credentials.generate_access_key
+            ):
+                # fmt: off
+                function.metadata.credentials.access_key = mlrun.api.utils.auth.verifier\
+                    .AuthVerifier().get_or_create_access_key(auth_info.session)
+                # fmt: on
+            if not function.metadata.credentials.access_key:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Function access key must be set (function.metadata.credentials.access_key)"
+                )
             auth_env_vars = {
-                "MLRUN_AUTH_SESSION": auth_info.session,
+                "MLRUN_AUTH_SESSION": function.metadata.credentials.access_key,
             }
             for key, value in auth_env_vars.items():
-                if not function.is_env_exists(key):
-                    function.set_env(key, value)
+                function.set_env(key, value)
 
 
 def try_perform_auto_mount(function, auth_info: mlrun.api.schemas.AuthInfo):

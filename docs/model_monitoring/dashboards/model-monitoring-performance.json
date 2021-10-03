@@ -24,9 +24,9 @@
       "includeVars": false,
       "keepTime": true,
       "tags": [],
-      "title": "Overview",
+      "title": "Model Monitoring - Overview",
       "type": "link",
-      "url": "d/g0M4uh0Mz/overview"
+      "url": "d/g0M4uh0Mz/model-monitoring-overview"
     },
     {
       "icon": "external link",
@@ -34,9 +34,9 @@
       "keepTime": true,
       "tags": [],
       "targetBlank": false,
-      "title": "Details",
+      "title": "Model Monitoring Details",
       "type": "link",
-      "url": "d/AohIXhAMk/details"
+      "url": "d/AohIXhAMk/model-monitoring-details"
     }
   ],
   "panels": [
@@ -538,7 +538,7 @@
       {
         "allValue": null,
         "current": {},
-        "datasource": "mlrun-api",
+        "datasource": "model-monitoring",
         "definition": "target_endpoint=list_projects",
         "hide": 0,
         "includeAll": false,
@@ -587,7 +587,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Performance",
+  "title": "Model Monitoring - Performance",
   "uid": "9CazA-UGz",
   "version": 2
 }

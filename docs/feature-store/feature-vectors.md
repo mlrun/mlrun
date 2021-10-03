@@ -130,7 +130,7 @@ svc = fstore.get_online_feature_service(feature_vector)
 The online feature service support value imputing (substitute NaN/Inf values with statistical or constant value), you 
 can set the `impute_policy` parameter with the imputing policy, and specify which constant or statistical value will be used
 instead of NaN/Inf value, this can be defined per column or for all the columns (`"*"`).
-the replaced value can be fixed number for constants or $mean, $max, etc. for statistical values.
+the replaced value can be fixed number for constants or $mean, $max, $min, $std, $count for statistical values.
 "*" is used to specify the default for all features, example: 
 
     svc = fstore.get_online_feature_service(feature_vector, impute_policy={"*": "$mean", "age": 33})

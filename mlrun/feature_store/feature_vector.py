@@ -341,7 +341,7 @@ class OnlineVectorService:
         self._index_columns = index_columns
         self._impute_values = {}
 
-    def load(self):
+    def initialize(self):
         """internal, init the feature service and prep the imputing logic"""
         if not self.impute_policy:
             return
@@ -383,7 +383,7 @@ class OnlineVectorService:
     def get(self, entity_rows: List[Union[dict, list]], as_list=False):
         """get feature vector given the provided entity inputs
 
-        take a list of input vectors/rows and return a list of eriched feature vectors
+        take a list of input vectors/rows and return a list of enriched feature vectors
         each input and/or output vector can be a list of values or a dictionary of field names and values,
         to return the vector as a list of values set the `as_list` to True.
 
@@ -415,7 +415,7 @@ class OnlineVectorService:
             or not isinstance(entity_rows[0], (list, dict))
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"input data is of type {type(entity_rows)}. must be a list of list or list of dict"
+                f"input data is of type {type(entity_rows)}. must be a list of lists or list of dicts"
             )
 
         # if list of list, convert to dicts (with the index columns as the dict keys)

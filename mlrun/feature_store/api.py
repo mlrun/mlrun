@@ -172,8 +172,8 @@ def get_online_feature_service(
     :param run_config:        function and/or run configuration for remote jobs/services
     :param impute_policy:     a dict with `impute_policy` per feature, the dict key is the feature name and the dict
                               value indicate which value will be used in case the feature is NaN/empty, the replaced
-                              value can be fixed number for constants or $mean, $max, etc. for statistical values.
-                              "*" is used to specify the default for all features, example: `{"*": "$mean"}`
+                              value can be fixed number for constants or $mean, $max, $min, $std, $count for statistical
+                              values. "*" is used to specify the default for all features, example: `{"*": "$mean"}`
     :param fixed_window_type: determines how to query the fixed window values which were previously inserted by ingest.
     """
     feature_vector = _features_to_vector(feature_vector)
@@ -181,7 +181,7 @@ def get_online_feature_service(
     service = OnlineVectorService(
         feature_vector, graph, index_columns, impute_policy=impute_policy
     )
-    service.load()
+    service.initialize()
 
     # todo: support remote service (using remote nuclio/mlrun function if run_config)
     return service

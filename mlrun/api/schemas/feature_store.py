@@ -150,10 +150,15 @@ class DataTarget(BaseModel):
         extra = Extra.allow
 
 
+class Credentials(BaseModel):
+    access_key: Optional[str]
+
+
 class FeatureSetIngestInput(BaseModel):
     source: Optional[DataSource]
     targets: Optional[List[DataTarget]]
     infer_options: Optional[int]
+    credentials: Credentials = Credentials()
 
 
 class FeatureSetIngestOutput(BaseModel):

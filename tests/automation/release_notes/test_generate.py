@@ -56,6 +56,15 @@ def test_commit_regex_matching():
             "expected_commit_message": "Added H5 saving format",
             "expected_pull_request_number": "#1055",
         },
+        {
+            "commit_line": "a654a04e {Hedingber} [CI] Mistakenly removing the space(#685)"
+            "",
+            "expected_commit_id": "a654a04e",
+            "expected_username": "Hedingber",
+            "expected_scope": "CI",
+            "expected_commit_message": "Mistakenly removing the space",
+            "expected_pull_request_number": "#685",
+        },
     ]
 
     for case in cases:

@@ -6,7 +6,6 @@ from http import HTTPStatus
 from sqlalchemy.orm import Session
 
 import mlrun.api.schemas
-import mlrun.api.utils.clients.opa
 import mlrun.utils.singleton
 from mlrun.api.api.utils import log_and_raise, log_path, project_logs_path
 from mlrun.api.constants import LogSources

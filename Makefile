@@ -69,14 +69,37 @@ install-requirements: ## Install all requirements needed for development
 		-r dockerfiles/mlrun-api/requirements.txt \
 		-r docs/requirements.txt
 
-.PHONY: create-migration
-create-migration: export MLRUN_HTTPDB__DSN="sqlite:///$(PWD)/mlrun/api/migrations/mlrun.db?check_same_thread=false"
-create-migration: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
+.PHONY: create-migration-sqlite
+create-migration-sqlite: export MLRUN_HTTPDB__DSN="sqlite:///$(PWD)/mlrun/api/migrations/mlrun.db?check_same_thread=false"
+create-migration-sqlite: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
 ifndef MLRUN_MIGRATION_MESSAGE
 	$(error MLRUN_MIGRATION_MESSAGE is undefined)
 endif
-	alembic -c ./mlrun/api/alembic.ini upgrade head
-	alembic -c ./mlrun/api/alembic.ini revision --autogenerate -m "$(MLRUN_MIGRATION_MESSAGE)"
+	alembic -c ./mlrun/api/alembic_sqlite.ini upgrade head
+	alembic -c ./mlrun/api/alembic_sqlite.ini revision --autogenerate -m "$(MLRUN_MIGRATION_MESSAGE)"
+
+.PHONY: create-migration-mysql
+create-migration-mysql: export MLRUN_HTTPDB__DSN="mysql+pymysql://root:pass@localhost:3306/mlrun"
+create-migration-mysql: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
+ifndef MLRUN_MIGRATION_MESSAGE
+	$(error MLRUN_MIGRATION_MESSAGE is undefined)
+endif
+	docker run \
+		--name=migration-db \
+		--rm \
+		-v $(pwd):/mlrun \
+		-p 3306:3306 \
+		-e MYSQL_ROOT_PASSWORD="pass" \
+		-e MYSQL_ROOT_HOST=% \
+		-e MYSQL_DATABASE="mlrun" \
+		-d \
+		mysql/mysql-server:5.7 \
+		--character-set-server=utf8 \
+		--collation-server=utf8_bin
+	alembic -c ./mlrun/api/alembic_mysql.ini upgrade head
+	alembic -c ./mlrun/api/alembic_mysql.ini revision --autogenerate -m "$(MLRUN_MIGRATION_MESSAGE)"
+	docker kill migration-db
+	docker rm migration-db
 
 .PHONY: bump-version
 bump-version: ## Bump version in all needed places in code
@@ -489,7 +512,7 @@ test-migrations: clean ## Run mlrun db migrations tests
 		--durations=100 \
 		-rf \
 		--test-alembic \
-		migrations/tests/*
+		migrations_sqlite/tests/*
 
 .PHONY: test-system-dockerized
 test-system-dockerized: build-test-system ## Run mlrun system tests in docker container

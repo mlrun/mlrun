@@ -23,6 +23,7 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
             "metadata": {"name": task_name, "project": task_project},
         },
         "function": {
+            "metadata": {"credentials": {"access_key": "some-access-key-override"}},
             "spec": {
                 "volumes": [
                     {
@@ -140,7 +141,7 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
                         ]
                     },
                 },
-            }
+            },
         },
     }
     parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
@@ -149,6 +150,14 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
     assert parsed_function_object.metadata.name == function_name
     assert parsed_function_object.metadata.project == project
     assert parsed_function_object.metadata.tag == function_tag
+    assert (
+        DeepDiff(
+            parsed_function_object.metadata.credentials.to_dict(),
+            submit_job_body["function"]["metadata"]["credentials"],
+            ignore_order=True,
+        )
+        == {}
+    )
     assert (
         DeepDiff(
             parsed_function_object.spec.resources,
@@ -229,6 +238,31 @@ def test_generate_function_and_task_from_submit_run_body_keep_resources(
         )
         == {}
     )
+
+
+def test_generate_function_and_task_from_submit_run_body_keep_credentials(
+    db: Session, client: TestClient
+):
+    task_name = "task_name"
+    task_project = "task-project"
+    access_key = "original-function-access-key"
+    project, function_name, function_tag, original_function = _mock_original_function(
+        client, access_key
+    )
+    submit_job_body = {
+        "task": {
+            "spec": {"function": f"{project}/{function_name}:{function_tag}"},
+            "metadata": {"name": task_name, "project": task_project},
+        },
+        "function": {"metadata": {"credentials": None}},
+    }
+    parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
+        db, mlrun.api.schemas.AuthInfo(), submit_job_body
+    )
+    assert parsed_function_object.metadata.name == function_name
+    assert parsed_function_object.metadata.project == project
+    assert parsed_function_object.metadata.tag == function_tag
+    assert parsed_function_object.metadata.credentials.access_key == access_key
 
 
 def test_generate_function_and_task_from_submit_run_body_imported_function_project_assignment(
@@ -335,13 +369,13 @@ def _mock_import_function(monkeypatch):
     )
 
 
-def _mock_original_function(client):
+def _mock_original_function(client, access_key=None):
     (
         project,
         function_name,
         function_tag,
         original_function,
-    ) = _generate_original_function()
+    ) = _generate_original_function(access_key=access_key)
     resp = client.post(
         f"/api/func/{project}/{function_name}",
         json=original_function,
@@ -351,7 +385,7 @@ def _mock_original_function(client):
     return project, function_name, function_tag, original_function
 
 
-def _generate_original_function():
+def _generate_original_function(access_key=None):
     function_name = "function_name"
     project = "some-project"
     function_tag = "function_tag"
@@ -405,6 +439,10 @@ def _generate_original_function():
             "replicas": "1",
         },
     }
+    if access_key:
+        original_function["metadata"]["credentials"] = {
+            "access_key": access_key,
+        }
     return project, function_name, function_tag, original_function
 
 

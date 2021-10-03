@@ -144,6 +144,25 @@ def test_iguazio_api_url_resolution():
     assert mlconf.config.iguazio_api_url == url
 
 
+def test_get_hub_url():
+    # full path configured - no edits
+    mlconf.config.hub_url = (
+        "https://raw.githubusercontent.com/mlrun/functions/{tag}/{name}/function.yaml"
+    )
+    assert mlconf.config.get_hub_url() == mlconf.config.hub_url
+    # partial path configured + http - edit with tag
+    mlconf.config.hub_url = "https://raw.githubusercontent.com/some-fork/functions"
+    assert (
+        mlconf.config.get_hub_url()
+        == f"{mlconf.config.hub_url}/{{tag}}/{{name}}/function.yaml"
+    )
+    # partial path configured + http - edit without tag
+    mlconf.config.hub_url = "v3io://users/admin/mlrun/function-hub"
+    assert (
+        mlconf.config.get_hub_url() == f"{mlconf.config.hub_url}/{{name}}/function.yaml"
+    )
+
+
 def test_setting_dbpath_trigger_connect(requests_mock: requests_mock_package.Mocker):
     api_url = "http://mlrun-api-url:8080"
     remote_host = "some-namespace"

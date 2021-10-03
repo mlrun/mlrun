@@ -1,11 +1,12 @@
+import asyncio
 import collections
 import re
 import typing
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
-import humanfriendly
+import fastapi.concurrency
 import mergedeep
 import pytz
 from sqlalchemy import and_, distinct, func, or_
@@ -60,7 +61,7 @@ run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 unversioned_tagged_object_uid_prefix = "unversioned-"
 
 
-class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
+class SQLDB(DBInterface):
     def __init__(self, dsn):
         self.dsn = dsn
         self._cache = {
@@ -829,155 +830,192 @@ class SQLDB(mlrun.api.utils.projects.remotes.follower.Member, DBInterface):
         query = self._query(session, Project, owner=owner, state=state)
         if labels:
             query = self._add_labels_filter(session, query, Project, labels)
-        if names:
+        if names is not None:
             query = query.filter(Project.name.in_(names))
         project_records = query.all()
-        project_names = [project_record.name for project_record in project_records]
         projects = []
-        # calculating the project summary data is done by doing cross project queries (and not per project) so we're
-        # building it outside of the loop
-        if format_ == mlrun.api.schemas.ProjectsFormat.summary:
-            projects = self.generate_projects_summaries(session, project_names)
-        else:
-            for project_record in project_records:
-                if format_ == mlrun.api.schemas.ProjectsFormat.name_only:
-                    projects = project_names
-                # leader format is only for follower mode which will format the projects returned from here
-                elif format_ in [
-                    mlrun.api.schemas.ProjectsFormat.full,
-                    mlrun.api.schemas.ProjectsFormat.leader,
-                ]:
-                    projects.append(
-                        self._transform_project_record_to_schema(
-                            session, project_record
-                        )
-                    )
-                else:
-                    raise NotImplementedError(
-                        f"Provided format is not supported. format={format_}"
-                    )
+        for project_record in project_records:
+            if format_ == mlrun.api.schemas.ProjectsFormat.name_only:
+                projects = [project_record.name for project_record in project_records]
+            # leader format is only for follower mode which will format the projects returned from here
+            elif format_ in [
+                mlrun.api.schemas.ProjectsFormat.full,
+                mlrun.api.schemas.ProjectsFormat.leader,
+            ]:
+                projects.append(
+                    self._transform_project_record_to_schema(session, project_record)
+                )
+            else:
+                raise NotImplementedError(
+                    f"Provided format is not supported. format={format_}"
+                )
         return schemas.ProjectsOutput(projects=projects)
 
-    def _get_project_resources_counters(self, session: Session):
-        now = datetime.now()
-        if (
-            not self._cache["project_resources_counters"]["ttl"]
-            or self._cache["project_resources_counters"]["ttl"] < now
-        ):
-            logger.debug(
-                "Project resources counter cache expired. Calculating",
-                ttl=self._cache["project_resources_counters"]["ttl"],
-            )
-            import mlrun.artifacts
-
-            functions_count_per_project = (
-                session.query(Function.project, func.count(distinct(Function.name)))
-                .group_by(Function.project)
-                .all()
-            )
-            project_to_function_count = {
-                result[0]: result[1] for result in functions_count_per_project
-            }
-            feature_sets_count_per_project = (
-                session.query(FeatureSet.project, func.count(distinct(FeatureSet.name)))
-                .group_by(FeatureSet.project)
-                .all()
-            )
-            project_to_feature_set_count = {
-                result[0]: result[1] for result in feature_sets_count_per_project
-            }
-            # The kind filter is applied post the query to the DB (manually in python code), so counting should be that
-            # way as well, therefore we're doing it here, and can't do it with sql as the above
-            # We're using the "latest" which gives us only one version of each artifact key, which is what we want to
-            # count (artifact count, not artifact versions count)
-            model_artifacts = self._find_artifacts(
-                session, None, "latest", kind=mlrun.artifacts.model.ModelArtifact.kind
-            )
-            project_to_models_count = collections.defaultdict(int)
-            for model_artifact in model_artifacts:
-                project_to_models_count[model_artifact.project] += 1
-            runs = self._find_runs(session, None, "*", None)
-            project_to_recent_failed_runs_count = collections.defaultdict(int)
-            project_to_running_runs_count = collections.defaultdict(int)
-            # we want to count unique run names, and not all occurrences of all runs, therefore we're keeping set of
-            # names and only count new names
-            project_to_recent_failed_run_names = collections.defaultdict(set)
-            project_to_running_run_names = collections.defaultdict(set)
-            runs = runs.all()
-            for run in runs:
-                run_json = run.struct
-                if self._is_run_matching_state(
-                    run,
-                    run_json,
-                    mlrun.runtimes.constants.RunStates.non_terminal_states(),
-                ):
-                    if (
-                        run_json.get("metadata", {}).get("name")
-                        and run_json["metadata"]["name"]
-                        not in project_to_running_run_names[run.project]
-                    ):
-                        project_to_running_run_names[run.project].add(
-                            run_json["metadata"]["name"]
-                        )
-                        project_to_running_runs_count[run.project] += 1
-                if self._is_run_matching_state(
-                    run,
-                    run_json,
-                    [
-                        mlrun.runtimes.constants.RunStates.error,
-                        mlrun.runtimes.constants.RunStates.aborted,
-                    ],
-                ):
-                    one_day_ago = datetime.now() - timedelta(hours=24)
-                    if run.start_time and run.start_time >= one_day_ago:
-                        if (
-                            run_json.get("metadata", {}).get("name")
-                            and run_json["metadata"]["name"]
-                            not in project_to_recent_failed_run_names[run.project]
-                        ):
-                            project_to_recent_failed_run_names[run.project].add(
-                                run_json["metadata"]["name"]
-                            )
-                            project_to_recent_failed_runs_count[run.project] += 1
-
-            self._cache["project_resources_counters"]["result"] = (
-                project_to_function_count,
-                project_to_feature_set_count,
-                project_to_models_count,
-                project_to_recent_failed_runs_count,
-                project_to_running_runs_count,
-            )
-            ttl_time = datetime.now() + timedelta(
-                seconds=humanfriendly.parse_timespan(
-                    config.httpdb.projects.counters_cache_ttl
-                )
-            )
-            self._cache["project_resources_counters"]["ttl"] = ttl_time
-
-        return self._cache["project_resources_counters"]["result"]
-
-    def generate_projects_summaries(
-        self, session: Session, projects: List[str]
-    ) -> List[mlrun.api.schemas.ProjectSummary]:
+    async def get_project_resources_counters(
+        self, session
+    ) -> Tuple[
+        Dict[str, int],
+        Dict[str, int],
+        Dict[str, int],
+        Dict[str, int],
+        Dict[str, int],
+        Dict[str, int],
+    ]:
+        results = await asyncio.gather(
+            fastapi.concurrency.run_in_threadpool(
+                self._calculate_functions_counters, session
+            ),
+            fastapi.concurrency.run_in_threadpool(
+                self._calculate_schedules_counters, session
+            ),
+            fastapi.concurrency.run_in_threadpool(
+                self._calculate_feature_sets_counters, session
+            ),
+            fastapi.concurrency.run_in_threadpool(
+                self._calculate_models_counters, session
+            ),
+            fastapi.concurrency.run_in_threadpool(
+                self._calculate_runs_counters, session
+            ),
+        )
         (
             project_to_function_count,
+            project_to_schedule_count,
+            project_to_feature_set_count,
+            project_to_models_count,
+            (project_to_recent_failed_runs_count, project_to_running_runs_count,),
+        ) = results
+        return (
+            project_to_function_count,
+            project_to_schedule_count,
             project_to_feature_set_count,
             project_to_models_count,
             project_to_recent_failed_runs_count,
             project_to_running_runs_count,
-        ) = self._get_project_resources_counters(session)
+        )
+
+    def _calculate_functions_counters(self, session) -> Dict[str, int]:
+        functions_count_per_project = (
+            session.query(Function.project, func.count(distinct(Function.name)))
+            .group_by(Function.project)
+            .all()
+        )
+        project_to_function_count = {
+            result[0]: result[1] for result in functions_count_per_project
+        }
+        return project_to_function_count
+
+    def _calculate_schedules_counters(self, session) -> Dict[str, int]:
+        schedules_count_per_project = (
+            session.query(Schedule.project, func.count(distinct(Schedule.name)))
+            .group_by(Schedule.project)
+            .all()
+        )
+        project_to_schedule_count = {
+            result[0]: result[1] for result in schedules_count_per_project
+        }
+        return project_to_schedule_count
+
+    def _calculate_feature_sets_counters(self, session) -> Dict[str, int]:
+        feature_sets_count_per_project = (
+            session.query(FeatureSet.project, func.count(distinct(FeatureSet.name)))
+            .group_by(FeatureSet.project)
+            .all()
+        )
+        project_to_feature_set_count = {
+            result[0]: result[1] for result in feature_sets_count_per_project
+        }
+        return project_to_feature_set_count
+
+    def _calculate_models_counters(self, session) -> Dict[str, int]:
+        import mlrun.artifacts
+
+        # The kind filter is applied post the query to the DB (manually in python code), so counting should be that
+        # way as well, therefore we're doing it here, and can't do it with sql as the above
+        # We're using the "latest" which gives us only one version of each artifact key, which is what we want to
+        # count (artifact count, not artifact versions count)
+        model_artifacts = self._find_artifacts(
+            session, None, "latest", kind=mlrun.artifacts.model.ModelArtifact.kind
+        )
+        project_to_models_count = collections.defaultdict(int)
+        for model_artifact in model_artifacts:
+            project_to_models_count[model_artifact.project] += 1
+        return project_to_models_count
+
+    def _calculate_runs_counters(
+        self, session
+    ) -> Tuple[Dict[str, int], Dict[str, int]]:
+        runs = self._find_runs(session, None, "*", None)
+        project_to_recent_failed_runs_count = collections.defaultdict(int)
+        project_to_running_runs_count = collections.defaultdict(int)
+        # we want to count unique run names, and not all occurrences of all runs, therefore we're keeping set of
+        # names and only count new names
+        project_to_recent_failed_run_names = collections.defaultdict(set)
+        project_to_running_run_names = collections.defaultdict(set)
+        runs = runs.all()
+        for run in runs:
+            run_json = run.struct
+            if self._is_run_matching_state(
+                run, run_json, mlrun.runtimes.constants.RunStates.non_terminal_states(),
+            ):
+                if (
+                    run_json.get("metadata", {}).get("name")
+                    and run_json["metadata"]["name"]
+                    not in project_to_running_run_names[run.project]
+                ):
+                    project_to_running_run_names[run.project].add(
+                        run_json["metadata"]["name"]
+                    )
+                    project_to_running_runs_count[run.project] += 1
+            if self._is_run_matching_state(
+                run,
+                run_json,
+                [
+                    mlrun.runtimes.constants.RunStates.error,
+                    mlrun.runtimes.constants.RunStates.aborted,
+                ],
+            ):
+                one_day_ago = datetime.now() - timedelta(hours=24)
+                if run.start_time and run.start_time >= one_day_ago:
+                    if (
+                        run_json.get("metadata", {}).get("name")
+                        and run_json["metadata"]["name"]
+                        not in project_to_recent_failed_run_names[run.project]
+                    ):
+                        project_to_recent_failed_run_names[run.project].add(
+                            run_json["metadata"]["name"]
+                        )
+                        project_to_recent_failed_runs_count[run.project] += 1
+
+        return project_to_recent_failed_runs_count, project_to_running_runs_count
+
+    async def generate_projects_summaries(
+        self, session: Session, projects: List[str]
+    ) -> List[mlrun.api.schemas.ProjectSummary]:
+        (
+            project_to_function_count,
+            project_to_schedule_count,
+            project_to_feature_set_count,
+            project_to_models_count,
+            project_to_recent_failed_runs_count,
+            project_to_running_runs_count,
+        ) = await self._get_project_resources_counters(session)
         project_summaries = []
         for project in projects:
             project_summaries.append(
                 mlrun.api.schemas.ProjectSummary(
                     name=project,
                     functions_count=project_to_function_count.get(project, 0),
+                    schedules_count=project_to_schedule_count.get(project, 0),
                     feature_sets_count=project_to_feature_set_count.get(project, 0),
                     models_count=project_to_models_count.get(project, 0),
                     runs_failed_recent_count=project_to_recent_failed_runs_count.get(
                         project, 0
                     ),
                     runs_running_count=project_to_running_runs_count.get(project, 0),
+                    # This is a mandatory field - filling here with 0, it will be filled with the real number in the
+                    # crud layer
+                    pipelines_running_count=0,
                 )
             )
         return project_summaries

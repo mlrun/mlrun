@@ -187,18 +187,18 @@ def list_projects(
         mlrun.api.api.deps.get_db_session
     ),
 ):
-    projects_output = get_project_member().list_projects(
-        db_session,
-        owner,
-        mlrun.api.schemas.ProjectsFormat.name_only,
-        labels,
-        state,
-        auth_info.projects_role,
-        auth_info.session,
-    )
-    allowed_project_names = projects_output.projects
+    allowed_project_names = None
     # skip permission check if it's the leader
     if not _is_request_from_leader(auth_info.projects_role):
+        projects_output = get_project_member().list_projects(
+            db_session,
+            owner,
+            mlrun.api.schemas.ProjectsFormat.name_only,
+            labels,
+            state,
+            auth_info.projects_role,
+            auth_info.session,
+        )
         allowed_project_names = mlrun.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
             projects_output.projects, auth_info,
         )

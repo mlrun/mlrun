@@ -831,7 +831,7 @@ class SQLDB(DBInterface):
         query = self._query(session, Project, owner=owner, state=state)
         if labels:
             query = self._add_labels_filter(session, query, Project, labels)
-        if names:
+        if names is not None:
             query = query.filter(Project.name.in_(names))
         project_records = query.all()
         projects = []

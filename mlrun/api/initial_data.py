@@ -15,18 +15,28 @@ from mlrun.api.db.session import close_session, create_session
 from mlrun.config import config
 from mlrun.utils import logger
 
-from .utils.alembic import AlembicUtil
+from .utils.db.alembic import AlembicUtil
+from .utils.db.mysql import MySQLUtil
+from .utils.db.sqlite_migration import SQLiteMigrationUtil
 
 
 def init_data(from_scratch: bool = False) -> None:
     logger.info("Creating initial data")
 
+    alembic_config_file_name = "alembic.ini"
+    if MySQLUtil.get_mysql_dsn_data():
+        alembic_config_file_name = "alembic_mysql.ini"
+
     # run schema migrations on existing DB or create it with alembic
     dir_path = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
-    alembic_config_path = dir_path / "alembic.ini"
+    alembic_config_path = dir_path / alembic_config_file_name
 
     alembic_util = AlembicUtil(alembic_config_path)
     alembic_util.init_alembic(from_scratch=from_scratch)
+
+    if not from_scratch:
+        sqlite_migration_util = SQLiteMigrationUtil()
+        sqlite_migration_util.transfer()
 
     db_session = create_session()
     try:

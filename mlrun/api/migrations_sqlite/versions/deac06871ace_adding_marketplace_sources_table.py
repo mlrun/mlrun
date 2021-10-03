@@ -8,6 +8,8 @@ Create Date: 2021-06-30 15:56:09.543139
 import sqlalchemy as sa
 from alembic import op
 
+from mlrun.api.utils.db.sql_collation import SQLCollationUtil
+
 # revision identifiers, used by Alembic.
 revision = "deac06871ace"
 down_revision = "e1dd5983c06b"
@@ -20,7 +22,11 @@ def upgrade():
     op.create_table(
         "marketplace_sources",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("name", sa.String(), nullable=True),
+        sa.Column(
+            "name",
+            sa.String(255, collation=SQLCollationUtil.collation()),
+            nullable=True,
+        ),
         sa.Column("index", sa.Integer(), nullable=True),
         sa.Column("created", sa.TIMESTAMP(), nullable=True),
         sa.Column("updated", sa.TIMESTAMP(), nullable=True),

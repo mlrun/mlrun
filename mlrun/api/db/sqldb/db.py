@@ -27,6 +27,7 @@ from mlrun.api.db.sqldb.helpers import (
 )
 from mlrun.api.db.sqldb.models import (
     Artifact,
+    DataVersion,
     Entity,
     Feature,
     FeatureSet,
@@ -38,7 +39,6 @@ from mlrun.api.db.sqldb.models import (
     Run,
     Schedule,
     User,
-    DataVersion,
     _labeled,
     _tagged,
 )
@@ -2659,7 +2659,12 @@ class SQLDB(DBInterface):
     def get_current_data_version(
         self, session, raise_on_not_found=True
     ) -> typing.Optional[str]:
-        current_data_version_record = self._query(session, DataVersion).order_by(DataVersion.created.desc()).limit(1).one_or_none()
+        current_data_version_record = (
+            self._query(session, DataVersion)
+            .order_by(DataVersion.created.desc())
+            .limit(1)
+            .one_or_none()
+        )
         if not current_data_version_record:
             log_method = logger.warning if raise_on_not_found else logger.debug
             message = "No data version found"

@@ -49,25 +49,24 @@ def init_data(from_scratch: bool = False) -> None:
 
 
 latest_data_version = 1
-data_version_name = "data"
 
 
 def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
     if config.httpdb.db.data_migrations_mode == "enabled":
         # FileDB is not really a thing anymore, so using SQLDB directly
         db = mlrun.api.db.sqldb.db.SQLDB("")
-        data_version = int(db.get_version(db_session, data_version_name))
-        if data_version != latest_data_version:
+        current_data_version = int(db.get_current_data_version(db_session))
+        if current_data_version != latest_data_version:
             logger.info(
                 "Performing data migrations",
-                current_data_version=data_version,
+                current_data_version=current_data_version,
                 latest_data_version=latest_data_version,
             )
-            if data_version < 1:
+            if current_data_version < 1:
                 _enrich_project_state(db, db_session)
                 _fix_artifact_tags_duplications(db, db_session)
                 _fix_datasets_large_previews(db, db_session)
-            db.update_version(db_session, data_version_name, str(latest_data_version))
+            db.create_data_version(db_session, str(latest_data_version))
 
 
 def _add_initial_data(db_session: sqlalchemy.orm.Session):
@@ -294,7 +293,7 @@ def _add_default_marketplace_source_if_needed(
 def _add_data_version(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
-    if db.get_version(db_session, data_version_name, raise_on_not_found=False) is None:
+    if db.get_current_data_version(db_session, raise_on_not_found=False) is None:
         projects = db.list_projects(db_session)
         # heuristic - if there are no projects it's a new DB - data version is latest
         if not projects.projects:
@@ -302,13 +301,13 @@ def _add_data_version(
                 "Setting data version to latest",
                 latest_data_version=latest_data_version,
             )
-            db.create_version(db_session, data_version_name, str(latest_data_version))
+            db.create_data_version(db_session, str(latest_data_version))
         else:
             # This code was added to 0.8.0
             # The latest data migration added before adding this was added back in 0.6.0
             # Upgrading from a version earlier than 0.6.0 to v>=0.8.0 is not supported
             logger.info("Setting data version to 1")
-            db.create_version(db_session, data_version_name, str(1))
+            db.create_data_version(db_session, str(1))
 
 
 def main() -> None:

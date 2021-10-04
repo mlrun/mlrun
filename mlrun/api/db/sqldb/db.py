@@ -38,7 +38,7 @@ from mlrun.api.db.sqldb.models import (
     Run,
     Schedule,
     User,
-    Version,
+    DataVersion,
     _labeled,
     _tagged,
 )
@@ -2656,50 +2656,26 @@ class SQLDB(DBInterface):
 
         return self._transform_marketplace_source_record_to_schema(source_record)
 
-    def get_version(
-        self, session, name, raise_on_not_found=True
+    def get_current_data_version(
+        self, session, raise_on_not_found=True
     ) -> typing.Optional[str]:
-        version_record = self._get_version_record(session, name, raise_on_not_found)
-        if version_record:
-            return version_record.version
+        current_data_version_record = self._query(session, DataVersion).order_by(DataVersion.created.desc()).limit(1).one_or_none()
+        if not current_data_version_record:
+            log_method = logger.warning if raise_on_not_found else logger.debug
+            message = "No data version found"
+            log_method(message)
+            if raise_on_not_found:
+                raise mlrun.errors.MLRunNotFoundError(message)
+        if current_data_version_record:
+            return current_data_version_record.version
         else:
             return None
 
-    def _get_version_record(self, session, name, raise_on_not_found=True) -> Version:
-        version_record = self._query(session, Version, name=name).one_or_none()
-        if not version_record:
-            log_method = logger.warning if raise_on_not_found else logger.debug
-            log_method("Version not found", name=name)
-            if raise_on_not_found:
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"Version not found. name = {name}"
-                )
-
-        return version_record
-
-    def create_version(self, session, name, version):
+    def create_data_version(self, session, version):
         logger.debug(
-            "Creating version in DB", name=name, version=version,
+            "Creating data version in DB", version=version,
         )
 
-        version_record = self._get_version_record(
-            session, name, raise_on_not_found=False
-        )
-        if version_record:
-            raise mlrun.errors.MLRunConflictError(
-                f"Version name already exists. name={name}"
-            )
         now = datetime.now(timezone.utc)
-        version_record = Version(name=name, version=version, created=now, updated=now,)
-        self._upsert(session, version_record)
-
-    def update_version(self, session, name, version):
-        logger.debug(
-            "Updating version in DB", name=name, version=version,
-        )
-
-        version_record = self._get_version_record(session, name)
-        version_record.version = version
-        version_record.updated = datetime.now(timezone.utc)
-        session.merge(version_record)
-        session.commit()
+        data_version_record = DataVersion(version=version, created=now)
+        self._upsert(session, data_version_record)

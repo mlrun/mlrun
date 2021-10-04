@@ -81,7 +81,6 @@ _sparkjob_template = {
             "volumeMounts": [],
             "env": [],
         },
-        "nodeSelector": {},
     },
 }
 
@@ -317,7 +316,8 @@ class AbstractSparkRuntime(KubejobRuntime):
         verify_and_update_in(
             job, "spec.executor.instances", self.spec.replicas or 1, int,
         )
-        update_in(job, "spec.nodeSelector", self.spec.node_selector or {})
+        if self.spec.node_selector:
+            update_in(job, "spec.nodeSelector", self.spec.node_selector)
 
         if not self.spec.image:
             if self.spec.use_default_image:

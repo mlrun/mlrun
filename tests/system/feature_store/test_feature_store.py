@@ -545,8 +545,9 @@ class TestFeatureStore(TestMLRunSystem):
             f"{name}.*",
         ]
         vector = fs.FeatureVector("myvector", features)
-        vector.spec.with_indexes = True
-        resp2 = fs.get_offline_features(vector, entity_timestamp_column="timestamp")
+        resp2 = fs.get_offline_features(
+            vector, entity_timestamp_column="timestamp", with_indexes=True
+        )
         resp2 = resp2.to_dataframe().to_dict()
 
         assert resp1 == resp2
@@ -620,8 +621,7 @@ class TestFeatureStore(TestMLRunSystem):
             f"{name}.*",
         ]
         vector = fs.FeatureVector("myvector", features)
-        vector.spec.with_indexes = True
-        resp2 = fs.get_offline_features(vector)
+        resp2 = fs.get_offline_features(vector, with_indexes=True)
         resp2 = resp2.to_dataframe()
         assert resp2.to_dict() == {
             "my_string": {"mykey1": "hello"},

@@ -18,6 +18,7 @@ from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config as mlconf
 from mlrun.model import new_task
 from mlrun.runtimes.constants import PodPhases
+from mlrun.secrets import SecretsStore
 from mlrun.utils import create_logger
 from mlrun.utils.azure_vault import AzureVaultStore
 from mlrun.utils.vault import VaultStore
@@ -244,6 +245,24 @@ class TestRuntimeBase:
             return_value=service_account
         )
 
+    @staticmethod
+    def _mock_project_secrets(secret_name, secret_keys, encode_key_names=True):
+        get_k8s().get_project_secret_name = unittest.mock.Mock(return_value=secret_name)
+        get_k8s().get_project_secret_keys = unittest.mock.Mock(return_value=secret_keys)
+
+        # What we expect in this case is that environment variables will be added to the pod which get their
+        # value from the k8s secret, using the correct keys.
+        expected_env_from_secrets = {}
+        for key in secret_keys:
+            env_variable_name = (
+                SecretsStore.k8s_env_variable_name_for_secret(key)
+                if encode_key_names
+                else key
+            )
+            expected_env_from_secrets[env_variable_name] = {secret_name: key}
+
+        return expected_env_from_secrets
+
     def _execute_run(self, runtime, **kwargs):
         # Reset the mock, so that when checking is create_pod was called, no leftovers are there (in case running
         # multiple runs in the same test)
@@ -340,6 +359,19 @@ class TestRuntimeBase:
     @staticmethod
     def _assert_pod_env_from_secrets(pod_env, expected_variables):
         for env_variable in pod_env:
+            if isinstance(env_variable, dict) and env_variable.setdefault(
+                "valueFrom", None
+            ):
+                # Nuclio spec comes in as a dict, with some differences from the V1EnvVar - convert it.
+                value_from = client.V1EnvVarSource(
+                    secret_key_ref=client.V1SecretKeySelector(
+                        name=env_variable["valueFrom"]["secretKeyRef"]["name"],
+                        key=env_variable["valueFrom"]["secretKeyRef"]["key"],
+                    )
+                )
+                env_variable = V1EnvVar(
+                    name=env_variable["name"], value_from=value_from
+                )
             if (
                 isinstance(env_variable, V1EnvVar)
                 and env_variable.value_from is not None

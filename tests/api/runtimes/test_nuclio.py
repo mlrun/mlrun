@@ -118,6 +118,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         call_count=1,
         expected_params=[],
         expected_labels=None,
+        expected_env_from_secrets=None,
     ):
         if expected_labels is None:
             expected_labels = {}
@@ -160,6 +161,10 @@ class TestNuclioRuntime(TestRuntimeBase):
             assert spec_source_code.startswith(original_source_code)
 
             assert build_info["baseImage"] == self.image_name
+
+            if expected_env_from_secrets:
+                env_vars = deploy_config["spec"]["env"]
+                self._assert_pod_env_from_secrets(env_vars, expected_env_from_secrets)
 
     def _assert_triggers(self, http_trigger=None, v3io_trigger=None):
         args, _ = nuclio.deploy.deploy_config.call_args
@@ -361,6 +366,22 @@ class TestNuclioRuntime(TestRuntimeBase):
         function_name, project_name, config = compile_function_config(function)
         for expected_env_var in expected_env_vars:
             assert expected_env_var in config["spec"]["env"]
+
+    def test_deploy_with_project_secrets(self, db: Session, client: TestClient):
+        project_secret_name = "dummy_secret_name"
+        secret_keys = ["secret1", "secret2", "secret3"]
+
+        expected_secrets = self._mock_project_secrets(
+            project_secret_name,
+            secret_keys,
+            encode_key_names=(self.class_name != "remote"),
+        )
+
+        function = self._generate_runtime(self.runtime_kind)
+        self._serialize_and_deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(
+            expected_class=self.class_name, expected_env_from_secrets=expected_secrets
+        )
 
     def test_deploy_basic_function(self, db: Session, client: TestClient):
         function = self._generate_runtime(self.runtime_kind)

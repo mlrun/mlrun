@@ -4,6 +4,7 @@ import os
 import unittest.mock
 
 import deepdiff
+import kubernetes
 import nuclio
 import pytest
 from fastapi.testclient import TestClient
@@ -26,6 +27,16 @@ from tests.api.runtimes.base import TestRuntimeBase
 
 
 class TestNuclioRuntime(TestRuntimeBase):
+    @property
+    def runtime_kind(self):
+        # enables extending classes to run the same tests with different runtime
+        return "nuclio"
+
+    @property
+    def class_name(self):
+        # enables extending classes to run the same tests with different class
+        return "remote"
+
     def custom_setup_after_fixtures(self):
         self._mock_nuclio_deploy_config()
 
@@ -35,6 +46,11 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         os.environ["V3IO_ACCESS_KEY"] = self.v3io_access_key = "1111-2222-3333-4444"
         os.environ["V3IO_USERNAME"] = self.v3io_user = "test-user"
+
+    def _serialize_and_deploy_nuclio_function(self, function):
+        # simulating sending to API - serialization through dict
+        function = function.from_dict(function.to_dict())
+        deploy_nuclio_function(function)
 
     @staticmethod
     def _mock_nuclio_deploy_config():
@@ -111,10 +127,12 @@ class TestNuclioRuntime(TestRuntimeBase):
         call_args_list = deploy_mock.call_args_list
         for single_call_args in call_args_list:
             args, kwargs = single_call_args
+            parent_function = None
             if expected_params:
                 current_parameters = expected_params.pop(0)
                 expected_function_name = current_parameters["function_name"]
                 source_filename = current_parameters["file_name"]
+                parent_function = current_parameters.get("parent_function")
             else:
                 expected_function_name = f"{self.project}-{self.name}"
                 source_filename = self.code_filename
@@ -125,8 +143,11 @@ class TestNuclioRuntime(TestRuntimeBase):
             deploy_config = args[0]
             function_metadata = deploy_config["metadata"]
             assert function_metadata["name"] == expected_function_name
-            expected_labels.update({"mlrun/class": expected_class})
-            assert deepdiff.DeepDiff(function_metadata["labels"], expected_labels) == {}
+            labels_for_diff = expected_labels.copy()
+            labels_for_diff.update({"mlrun/class": expected_class})
+            if parent_function:
+                labels_for_diff.update({"mlrun/parent-function": parent_function})
+            assert deepdiff.DeepDiff(function_metadata["labels"], labels_for_diff) == {}
 
             build_info = deploy_config["spec"]["build"]
 
@@ -253,7 +274,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         Expect no ingress template to be created, thought its mode is "always",
         since the function already have a pre-configured ingress
         """
-        function = self._generate_runtime("nuclio")
+        function = self._generate_runtime(self.runtime_kind)
 
         # both ingress and node port
         ingress_host = "something.com"
@@ -273,7 +294,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         """
         Expect ingress template to be created as the configuration templated ingress mode is "always"
         """
-        function = self._generate_runtime("nuclio")
+        function = self._generate_runtime(self.runtime_kind)
         function_name, project_name, config = compile_function_config(function)
         service_type = "NodePort"
         enrich_function_with_ingress(
@@ -287,7 +308,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         Expect ingress template to be created as the configuration templated ingress mode is "onClusterIP" while the
         function service type is ClusterIP
         """
-        function = self._generate_runtime("nuclio")
+        function = self._generate_runtime(self.runtime_kind)
         function_name, project_name, config = compile_function_config(function)
         service_type = "ClusterIP"
         enrich_function_with_ingress(
@@ -300,7 +321,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         """
         Expect no ingress to be created automatically as the configuration templated ingress mode is "never"
         """
-        function = self._generate_runtime("nuclio")
+        function = self._generate_runtime(self.runtime_kind)
         function_name, project_name, config = compile_function_config(function)
         service_type = "DoesNotMatter"
         enrich_function_with_ingress(
@@ -309,24 +330,58 @@ class TestNuclioRuntime(TestRuntimeBase):
         ingresses = resolve_function_ingresses(config["spec"])
         assert ingresses == []
 
-    def test_deploy_basic_function(self, db: Session, client: TestClient):
-        function = self._generate_runtime("nuclio")
+    def test_nuclio_config_spec_env(self, db: Session, client: TestClient):
+        function = self._generate_runtime(self.runtime_kind)
 
-        deploy_nuclio_function(function)
-        self._assert_deploy_called_basic_config()
+        name = "env1"
+        secret = "shh"
+        secret_key = "open sesame"
+        function.set_env_from_secret(name, secret=secret, secret_key=secret_key)
+
+        name2 = "env2"
+        value2 = "value2"
+        function.set_env(name2, value2)
+
+        expected_env_vars = [
+            {
+                "name": name,
+                "valueFrom": {"secretKeyRef": {"key": secret_key, "name": secret}},
+            },
+            {"name": name2, "value": value2},
+        ]
+
+        function_name, project_name, config = compile_function_config(function)
+        for expected_env_var in expected_env_vars:
+            assert expected_env_var in config["spec"]["env"]
+        assert isinstance(function.spec.env[0], kubernetes.client.V1EnvVar)
+        assert isinstance(function.spec.env[1], kubernetes.client.V1EnvVar)
+
+        # simulating sending to API - serialization through dict
+        function = function.from_dict(function.to_dict())
+        function_name, project_name, config = compile_function_config(function)
+        for expected_env_var in expected_env_vars:
+            assert expected_env_var in config["spec"]["env"]
+
+    def test_deploy_basic_function(self, db: Session, client: TestClient):
+        function = self._generate_runtime(self.runtime_kind)
+
+        self._serialize_and_deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(expected_class=self.class_name)
 
     def test_deploy_function_with_labels(self, db: Session, client: TestClient):
         labels = {
             "key": "value",
             "key-2": "value-2",
         }
-        function = self._generate_runtime("nuclio", labels)
+        function = self._generate_runtime(self.runtime_kind, labels)
 
-        deploy_nuclio_function(function)
-        self._assert_deploy_called_basic_config(expected_labels=labels)
+        self._serialize_and_deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(
+            expected_labels=labels, expected_class=self.class_name
+        )
 
     def test_deploy_with_triggers(self, db: Session, client: TestClient):
-        function = self._generate_runtime("nuclio")
+        function = self._generate_runtime(self.runtime_kind)
 
         http_trigger = {
             "workers": 2,
@@ -348,32 +403,32 @@ class TestNuclioRuntime(TestRuntimeBase):
         function.with_http(**http_trigger)
         function.add_v3io_stream_trigger(**v3io_trigger)
 
-        deploy_nuclio_function(function)
-        self._assert_deploy_called_basic_config()
+        self._serialize_and_deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(expected_class=self.class_name)
         self._assert_triggers(http_trigger, v3io_trigger)
 
     def test_deploy_with_v3io(self, db: Session, client: TestClient):
-        function = self._generate_runtime("nuclio")
+        function = self._generate_runtime(self.runtime_kind)
         local_path = "/local/path"
         remote_path = "/container/and/path"
         function.with_v3io(local_path, remote_path)
 
-        deploy_nuclio_function(function)
-        self._assert_deploy_called_basic_config()
+        self._serialize_and_deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(expected_class=self.class_name)
         self._assert_nuclio_v3io_mount(local_path, remote_path)
 
     def test_deploy_with_node_selection(self, db: Session, client: TestClient):
         mlconf.nuclio_version = "1.6.10"
-        function = self._generate_runtime("nuclio")
+        function = self._generate_runtime(self.runtime_kind)
 
         node_name = "some-node-name"
         function.with_node_selection(node_name=node_name)
 
-        deploy_nuclio_function(function)
-        self._assert_deploy_called_basic_config()
+        self._serialize_and_deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(expected_class=self.class_name)
         self._assert_node_selections(function.spec, expected_node_name=node_name)
 
-        function = self._generate_runtime("nuclio")
+        function = self._generate_runtime(self.runtime_kind)
 
         node_selector = {
             "label-1": "val1",
@@ -383,37 +438,45 @@ class TestNuclioRuntime(TestRuntimeBase):
             json.dumps(node_selector).encode("utf-8")
         )
         function.with_node_selection(node_selector=node_selector)
-        deploy_nuclio_function(function)
-        self._assert_deploy_called_basic_config(call_count=2)
+        self._serialize_and_deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(
+            call_count=2, expected_class=self.class_name
+        )
         self._assert_node_selections(
             function.spec, expected_node_selector=node_selector
         )
 
-        function = self._generate_runtime("nuclio")
+        function = self._generate_runtime(self.runtime_kind)
 
         node_selector = {
             "label-3": "val3",
             "label-4": "val4",
         }
         function.with_node_selection(node_selector=node_selector)
-        deploy_nuclio_function(function)
-        self._assert_deploy_called_basic_config(call_count=3)
+        self._serialize_and_deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(
+            call_count=3, expected_class=self.class_name
+        )
         self._assert_node_selections(
             function.spec, expected_node_selector=node_selector
         )
 
-        function = self._generate_runtime("nuclio")
+        function = self._generate_runtime(self.runtime_kind)
         affinity = self._generate_affinity()
 
         function.with_node_selection(affinity=affinity)
-        deploy_nuclio_function(function)
-        self._assert_deploy_called_basic_config(call_count=4)
+        self._serialize_and_deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(
+            call_count=4, expected_class=self.class_name
+        )
         self._assert_node_selections(function.spec, expected_affinity=affinity)
 
-        function = self._generate_runtime("nuclio")
+        function = self._generate_runtime(self.runtime_kind)
         function.with_node_selection(node_name, node_selector, affinity)
-        deploy_nuclio_function(function)
-        self._assert_deploy_called_basic_config(call_count=5)
+        self._serialize_and_deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(
+            call_count=5, expected_class=self.class_name
+        )
         self._assert_node_selections(
             function.spec,
             expected_node_name=node_name,
@@ -427,10 +490,10 @@ class TestNuclioRuntime(TestRuntimeBase):
         default_priority_class_name = "default-priority"
         mlrun.mlconf.default_function_priority_class_name = default_priority_class_name
         mlrun.mlconf.valid_function_priority_class_names = default_priority_class_name
-        function = self._generate_runtime("nuclio")
+        function = self._generate_runtime(self.runtime_kind)
 
-        deploy_nuclio_function(function)
-        self._assert_deploy_called_basic_config()
+        self._serialize_and_deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(expected_class=self.class_name)
         args, _ = nuclio.deploy.deploy_config.call_args
         deploy_spec = args[0]["spec"]
 
@@ -438,26 +501,30 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         mlconf.nuclio_version = "1.6.18"
         mlrun.mlconf.valid_function_priority_class_names = ""
-        function = self._generate_runtime("nuclio")
+        function = self._generate_runtime(self.runtime_kind)
 
-        deploy_nuclio_function(function)
-        self._assert_deploy_called_basic_config(call_count=2)
+        self._serialize_and_deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(
+            call_count=2, expected_class=self.class_name
+        )
         args, _ = nuclio.deploy.deploy_config.call_args
         deploy_spec = args[0]["spec"]
 
         assert "priorityClassName" not in deploy_spec
 
         mlrun.mlconf.valid_function_priority_class_names = default_priority_class_name
-        function = self._generate_runtime("nuclio")
+        function = self._generate_runtime(self.runtime_kind)
 
-        deploy_nuclio_function(function)
-        self._assert_deploy_called_basic_config(call_count=3)
+        self._serialize_and_deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(
+            call_count=3, expected_class=self.class_name
+        )
         args, _ = nuclio.deploy.deploy_config.call_args
         deploy_spec = args[0]["spec"]
 
         assert deploy_spec["priorityClassName"] == default_priority_class_name
 
-        function = self._generate_runtime()
+        function = self._generate_runtime(self.runtime_kind)
         medium_priority_class_name = "medium-priority"
         mlrun.mlconf.valid_function_priority_class_names = medium_priority_class_name
         mlconf.nuclio_version = "1.5.20"
@@ -471,8 +538,10 @@ class TestNuclioRuntime(TestRuntimeBase):
         mlconf.nuclio_version = "1.6.18"
         function.with_priority_class(medium_priority_class_name)
 
-        deploy_nuclio_function(function)
-        self._assert_deploy_called_basic_config(call_count=4)
+        self._serialize_and_deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(
+            call_count=4, expected_class=self.class_name
+        )
         args, _ = nuclio.deploy.deploy_config.call_args
         deploy_spec = args[0]["spec"]
 
@@ -535,7 +604,7 @@ class TestNuclioRuntime(TestRuntimeBase):
                 success()
 
     def test_load_function_with_source_archive_git(self):
-        fn = self._generate_runtime("nuclio")
+        fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
             "git://github.com/org/repo#my-branch",
             handler="path/inside/repo#main:handler",
@@ -567,7 +636,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         }
 
     def test_load_function_with_source_archive_s3(self):
-        fn = self._generate_runtime("nuclio")
+        fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
             "s3://my-bucket/path/in/bucket/my-functions-archive",
             handler="path/inside/functions/archive#main:Handler",
@@ -605,7 +674,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         }
 
     def test_load_function_with_source_archive_v3io(self):
-        fn = self._generate_runtime("nuclio")
+        fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
             "v3ios://host.com/container/my-functions-archive.zip",
             handler="path/inside/functions/archive#main:handler",

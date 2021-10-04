@@ -58,6 +58,16 @@ class TestAutoMount:
         self._execute_run(runtime)
         rundb_mock.assert_no_mount_or_creds_configured()
 
+    def test_fill_credentials(self, rundb_mock):
+        os.environ["MLRUN_AUTH_SESSION"] = "some-access-key"
+
+        runtime = self._generate_runtime()
+        self._execute_run(runtime)
+        assert (
+            runtime.metadata.credentials.access_key == os.environ["MLRUN_AUTH_SESSION"]
+        )
+        del os.environ["MLRUN_AUTH_SESSION"]
+
     def test_auto_mount_invalid_value(self):
         # When invalid value is used, we explode
         mlconf.storage.auto_mount_type = "something_wrong"
@@ -71,10 +81,12 @@ class TestAutoMount:
 
     def test_run_with_automount_pvc(self, rundb_mock):
         mlconf.storage.auto_mount_type = "pvc"
+        # Verify that extra parameters get filtered out
         pvc_params = {
             "pvc_name": "test_pvc",
             "volume_name": "test_volume",
             "volume_mount_path": "/mnt/test/path",
+            "invalid_param": "blublu",
         }
 
         # Try with a simple string

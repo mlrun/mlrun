@@ -18,6 +18,9 @@ MLRUN_DOCKER_REPO ?= mlrun
 # empty by default (dockerhub), can be set to something like "quay.io/".
 # This will be used to tag the images built using this makefile
 MLRUN_DOCKER_REGISTRY ?=
+# empty by default (use cache), set it to anything to disable caching (will add flags to pip and docker commands to
+# disable caching)
+MLRUN_NO_CACHE ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 MLRUN_PYTHON_VERSION ?= 3.7.9
 MLRUN_LEGACY_ML_PYTHON_VERSION ?= 3.6.12
@@ -42,6 +45,8 @@ MLRUN_LEGACY_DOCKER_TAG_SUFFIX := -py$(subst .,,$(MLRUN_LEGACY_ML_PYTHON_VERSION
 MLRUN_CORE_DOCKER_TAG_SUFFIX := -core
 MLRUN_LEGACY_DOCKERFILE_DIR_NAME := py$(subst .,,$(MLRUN_LEGACY_ML_PYTHON_VERSION_MAJOR_MINOR))
 MLRUN_DOCKER_CACHE_FROM_FLAG :=
+MLRUN_DOCKER_NO_CACHE_FLAG := $(if $(MLRUN_NO_CACHE),--no-cache,)
+MLRUN_PIP_NO_CACHE_FLAG := $(if $(MLRUN_NO_CACHE),--no-cache-dir,)
 
 MLRUN_OLD_VERSION_ESCAPED = $(shell echo "$(MLRUN_OLD_VERSION)" | sed 's/\./\\\./g')
 
@@ -55,22 +60,46 @@ all:
 
 .PHONY: install-requirements
 install-requirements: ## Install all requirements needed for development
-	python -m pip install --upgrade pip~=20.2.0
+	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=20.2.0
 	python -m pip install \
+		$(MLRUN_PIP_NO_CACHE_FLAG) \
 		-r requirements.txt \
 		-r extras-requirements.txt \
 		-r dev-requirements.txt \
 		-r dockerfiles/mlrun-api/requirements.txt \
 		-r docs/requirements.txt
 
-.PHONY: create-migration
-create-migration: export MLRUN_HTTPDB__DSN="sqlite:///$(PWD)/mlrun/api/migrations/mlrun.db?check_same_thread=false"
-create-migration: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
+.PHONY: create-migration-sqlite
+create-migration-sqlite: export MLRUN_HTTPDB__DSN="sqlite:///$(PWD)/mlrun/api/migrations/mlrun.db?check_same_thread=false"
+create-migration-sqlite: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
 ifndef MLRUN_MIGRATION_MESSAGE
 	$(error MLRUN_MIGRATION_MESSAGE is undefined)
 endif
-	alembic -c ./mlrun/api/alembic.ini upgrade head
-	alembic -c ./mlrun/api/alembic.ini revision --autogenerate -m "$(MLRUN_MIGRATION_MESSAGE)"
+	alembic -c ./mlrun/api/alembic_sqlite.ini upgrade head
+	alembic -c ./mlrun/api/alembic_sqlite.ini revision --autogenerate -m "$(MLRUN_MIGRATION_MESSAGE)"
+
+.PHONY: create-migration-mysql
+create-migration-mysql: export MLRUN_HTTPDB__DSN="mysql+pymysql://root:pass@localhost:3306/mlrun"
+create-migration-mysql: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
+ifndef MLRUN_MIGRATION_MESSAGE
+	$(error MLRUN_MIGRATION_MESSAGE is undefined)
+endif
+	docker run \
+		--name=migration-db \
+		--rm \
+		-v $(pwd):/mlrun \
+		-p 3306:3306 \
+		-e MYSQL_ROOT_PASSWORD="pass" \
+		-e MYSQL_ROOT_HOST=% \
+		-e MYSQL_DATABASE="mlrun" \
+		-d \
+		mysql/mysql-server:5.7 \
+		--character-set-server=utf8 \
+		--collation-server=utf8_bin
+	alembic -c ./mlrun/api/alembic_mysql.ini upgrade head
+	alembic -c ./mlrun/api/alembic_mysql.ini revision --autogenerate -m "$(MLRUN_MIGRATION_MESSAGE)"
+	docker kill migration-db
+	docker rm migration-db
 
 .PHONY: bump-version
 bump-version: ## Bump version in all needed places in code
@@ -135,6 +164,7 @@ mlrun: update-version-file ## Build mlrun docker image
 		--file dockerfiles/mlrun/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		$(MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_IMAGE_NAME_TAGGED) .
 
 .PHONY: push-mlrun
@@ -158,6 +188,7 @@ base-core: pull-cache update-version-file ## Build base core docker image
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_CORE_BASE_IMAGE_NAME_TAGGED) .
 
 .PHONY: base
@@ -166,6 +197,7 @@ base: base-core ## Build base docker image
 		--file dockerfiles/common/Dockerfile \
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_BASE_IMAGE_NAME_TAGGED) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_BASE_IMAGE_NAME_TAGGED) .
 
 .PHONY: push-base
@@ -189,6 +221,7 @@ base-legacy-core: pull-cache update-version-file ## Build base legacy core docke
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_LEGACY_ML_PYTHON_VERSION) \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_CORE_LEGACY_BASE_IMAGE_NAME_TAGGED) .
 
 .PHONY: base-legacy
@@ -197,6 +230,7 @@ base-legacy: base-legacy-core ## Build base legacy docker image
 		--file dockerfiles/common/Dockerfile \
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_LEGACY_BASE_IMAGE_NAME_TAGGED) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_LEGACY_BASE_IMAGE_NAME_TAGGED) .
 
 .PHONY: push-base-legacy
@@ -219,6 +253,7 @@ models-core: base-core ## Build models core docker image
 		--file dockerfiles/models/Dockerfile \
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_BASE_IMAGE_NAME_TAGGED) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_CORE_MODELS_IMAGE_NAME_TAGGED) .
 
 .PHONY: models
@@ -230,6 +265,7 @@ models: models-core ## Build models docker image
 		--build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
 		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_MODELS_IMAGE_NAME_TAGGED) .
 
 .PHONY: push-models
@@ -252,6 +288,7 @@ models-legacy-core: base-legacy-core ## Build models legacy core docker image
 		--file dockerfiles/models/$(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)/Dockerfile \
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_LEGACY_BASE_IMAGE_NAME_TAGGED) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_CORE_LEGACY_MODELS_IMAGE_NAME_TAGGED) .
 
 .PHONY: models-legacy
@@ -261,6 +298,7 @@ models-legacy: models-legacy-core ## Build models legacy docker image
 		--file dockerfiles/common/Dockerfile \
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_LEGACY_MODELS_IMAGE_NAME_TAGGED) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_LEGACY_MODELS_IMAGE_NAME_TAGGED) .
 
 .PHONY: push-models-legacy
@@ -287,6 +325,7 @@ models-gpu: update-version-file ## Build models-gpu docker image
 		--build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
 		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
 		$(MLRUN_MODELS_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED) .
 
 .PHONY: push-models-gpu
@@ -310,6 +349,7 @@ models-gpu-legacy: update-version-file ## Build models-gpu legacy docker image
 		--file dockerfiles/models-gpu/$(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)/Dockerfile \
 		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		$(MLRUN_LEGACY_MODELS_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME_TAGGED) .
 
 .PHONY: push-models-gpu-legacy
@@ -326,27 +366,12 @@ jupyter: update-version-file ## Build mlrun jupyter docker image
 	docker build \
 		--file dockerfiles/jupyter/Dockerfile \
 		--build-arg MLRUN_CACHE_DATE=$(MLRUN_CACHE_DATE) \
+		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_JUPYTER_IMAGE_NAME) .
 
 .PHONY: push-jupyter
 push-jupyter: jupyter ## Push mlrun jupyter docker image
 	docker push $(MLRUN_JUPYTER_IMAGE_NAME)
-
-
-MLRUN_SERVING_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)serving:$(MLRUN_DOCKER_TAG)
-
-.PHONY: serving
-serving: update-version-file ## Build serving docker image
-	docker build \
-		--file dockerfiles/serving/Dockerfile \
-		--build-arg MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
-		--build-arg MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
-		--build-arg MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX=$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX) \
-		--tag $(MLRUN_SERVING_IMAGE_NAME) .
-
-.PHONY: push-serving
-push-serving: serving ## Push serving docker image
-	docker push $(MLRUN_SERVING_IMAGE_NAME)
 
 
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api
@@ -364,6 +389,7 @@ api: update-version-file ## Build mlrun-api docker image
 		--file dockerfiles/mlrun-api/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		$(MLRUN_API_IMAGE_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_API_IMAGE_NAME_TAGGED) .
 
 .PHONY: push-api
@@ -386,6 +412,7 @@ build-test: update-version-file ## Build test docker image
 		--file dockerfiles/test/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		$(MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_TEST_IMAGE_NAME_TAGGED) .
 
 .PHONY: push-test
@@ -400,6 +427,7 @@ build-test-system: update-version-file ## Build system tests docker image
 	docker build \
 		--file dockerfiles/test-system/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_SYSTEM_TEST_IMAGE_NAME) .
 
 .PHONY: package-wheel
@@ -436,6 +464,7 @@ test: clean ## Run mlrun tests
 	python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
+		--durations=100 \
 		--ignore=tests/integration \
 		--ignore=tests/test_notebooks.py \
 		--ignore=tests/rundb/test_httpdb.py \
@@ -458,6 +487,7 @@ test-integration: clean ## Run mlrun integration tests
 	python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
+		--durations=100 \
 		-rf \
 		tests/integration \
 		tests/test_notebooks.py \
@@ -479,9 +509,10 @@ test-migrations: clean ## Run mlrun db migrations tests
 	python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
+		--durations=100 \
 		-rf \
 		--test-alembic \
-		migrations/tests/*
+		migrations_sqlite/tests/*
 
 .PHONY: test-system-dockerized
 test-system-dockerized: build-test-system ## Run mlrun system tests in docker container
@@ -492,6 +523,7 @@ test-system: ## Run mlrun system tests
 	MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
+		--durations=100 \
 		-rf \
 		tests/system
 
@@ -500,7 +532,8 @@ test-system-open-source: ## Run mlrun system tests with opensource configuration
 	MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
-		-rsf \
+		--durations=100 \
+		-rf \
 		-m "not enterprise" \
 		tests/system
 

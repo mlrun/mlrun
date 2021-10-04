@@ -13,6 +13,7 @@ def test_new_function_from_runtime():
             "tag": "",
             "hash": "7b3064c6b334535a5d949ebe9cfc61a094f98c78",
             "updated": "2020-10-21T22:40:35.042132+00:00",
+            "credentials": {"access_key": "some-access-key"},
         },
         "spec": {
             "command": "spark-submit",

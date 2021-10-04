@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session
 import mlrun.api.api.utils
 import mlrun.api.crud
 import mlrun.api.schemas
-import mlrun.api.utils.clients.opa
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.logs_dir
@@ -83,7 +82,7 @@ def test_get_non_existing_project(
     not found - which "ruined" the `mlrun.get_or_create_project` logic - so adding a specific test to verify it works
     """
     project = "does-not-exist"
-    mlrun.api.utils.clients.opa.Client().query_project_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions = unittest.mock.Mock(
         side_effect=mlrun.errors.MLRunUnauthorizedError("bla")
     )
     response = client.get(f"/api/projects/{project}")
@@ -173,7 +172,7 @@ def test_delete_project_with_resources(
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
 
-def test_list_projects_summary_format(
+def test_list_and_get_project_summaries(
     db: Session, client: TestClient, project_member_mode: str
 ) -> None:
     # create empty project
@@ -251,14 +250,23 @@ def test_list_projects_summary_format(
         client, project_name, 3, mlrun.runtimes.constants.RunStates.error, two_days_ago
     )
 
-    # list projects with summary format
-    response = client.get(
-        "/api/projects", params={"format": mlrun.api.schemas.ProjectsFormat.summary}
+    # create schedules for the project
+    schedules_count = 3
+    _create_schedules(
+        client, project_name, schedules_count,
     )
-    projects_output = mlrun.api.schemas.ProjectsOutput(**response.json())
-    for index, project_summary in enumerate(projects_output.projects):
+
+    # mock pipelines for the project
+    running_pipelines_count = _mock_pipelines(project_name,)
+
+    # list project summaries
+    response = client.get("/api/project-summaries")
+    project_summaries_output = mlrun.api.schemas.ProjectSummariesOutput(
+        **response.json()
+    )
+    for index, project_summary in enumerate(project_summaries_output.project_summaries):
         if project_summary.name == empty_project_name:
-            _assert_project_summary(project_summary, 0, 0, 0, 0, 0)
+            _assert_project_summary(project_summary, 0, 0, 0, 0, 0, 0, 0)
         elif project_summary.name == project_name:
             _assert_project_summary(
                 project_summary,
@@ -267,9 +275,25 @@ def test_list_projects_summary_format(
                 models_count,
                 recent_failed_runs_count + recent_aborted_runs_count,
                 running_runs_count,
+                schedules_count,
+                running_pipelines_count,
             )
         else:
             pytest.fail(f"Unexpected project summary returned: {project_summary}")
+
+    # get project summary
+    response = client.get(f"/api/project-summaries/{project_name}")
+    project_summary = mlrun.api.schemas.ProjectSummary(**response.json())
+    _assert_project_summary(
+        project_summary,
+        functions_count,
+        feature_sets_count,
+        models_count,
+        recent_failed_runs_count + recent_aborted_runs_count,
+        running_runs_count,
+        schedules_count,
+        running_pipelines_count,
+    )
 
 
 def test_delete_project_deletion_strategy_check(
@@ -315,6 +339,41 @@ def test_delete_project_deletion_strategy_check(
         },
     )
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
+
+
+# leader format is only relevant to follower mode
+@pytest.mark.parametrize("project_member_mode", ["follower"], indirect=True)
+def test_list_projects_leader_format(
+    db: Session, client: TestClient, project_member_mode: str
+) -> None:
+    """
+    See list_projects in follower.py for explanation on the rationality behind the leader format
+    """
+    # create some projects in the db (mocking projects left there from before when leader format was used)
+    project_names = []
+    for _ in range(5):
+        project_name = f"prj-{uuid4().hex}"
+        project = mlrun.api.schemas.Project(
+            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+        )
+        mlrun.api.utils.singletons.db.get_db().create_project(db, project)
+        project_names.append(project_name)
+
+    # list in leader format
+    response = client.get(
+        "/api/projects",
+        params={"format": mlrun.api.schemas.ProjectsFormat.leader},
+        headers={
+            mlrun.api.schemas.HeaderNames.projects_role: mlrun.mlconf.httpdb.projects.leader
+        },
+    )
+    returned_project_names = [
+        project["data"]["metadata"]["name"] for project in response.json()["projects"]
+    ]
+    assert (
+        deepdiff.DeepDiff(project_names, returned_project_names, ignore_order=True,)
+        == {}
+    )
 
 
 def test_projects_crud(
@@ -796,12 +855,16 @@ def _assert_project_summary(
     models_count: int,
     runs_failed_recent_count: int,
     runs_running_count: int,
+    schedules_count: int,
+    pipelines_running_count: int,
 ):
     assert project_summary.functions_count == functions_count
     assert project_summary.feature_sets_count == feature_sets_count
     assert project_summary.models_count == models_count
     assert project_summary.runs_failed_recent_count == runs_failed_recent_count
     assert project_summary.runs_running_count == runs_running_count
+    assert project_summary.schedules_count == schedules_count
+    assert project_summary.pipelines_running_count == pipelines_running_count
 
 
 def _assert_project(
@@ -898,3 +961,34 @@ def _create_runs(
                 run.setdefault("status", {})["start_time"] = start_time.isoformat()
             response = client.post(f"/api/run/{project_name}/{run_uid}", json=run)
             assert response.status_code == HTTPStatus.OK.value, response.json()
+
+
+def _create_schedules(client: TestClient, project_name, schedules_count):
+    for index in range(schedules_count):
+        schedule_name = f"schedule-name-{str(uuid4())}"
+        schedule = mlrun.api.schemas.ScheduleInput(
+            name=schedule_name,
+            kind=mlrun.api.schemas.ScheduleKinds.job,
+            scheduled_object={"metadata": {"name": "something"}},
+            cron_trigger=mlrun.api.schemas.ScheduleCronTrigger(year=1999),
+        )
+        response = client.post(
+            f"/api/projects/{project_name}/schedules", json=schedule.dict()
+        )
+        assert response.status_code == HTTPStatus.CREATED.value, response.json()
+
+
+def _mock_pipelines(project_name):
+    status_count_map = {
+        mlrun.run.RunStatuses.running: 4,
+        mlrun.run.RunStatuses.succeeded: 3,
+        mlrun.run.RunStatuses.failed: 2,
+    }
+    pipelines = []
+    for status, count in status_count_map.items():
+        for index in range(count):
+            pipelines.append({"status": status, "project": project_name})
+    mlrun.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
+        return_value=(None, None, pipelines)
+    )
+    return status_count_map[mlrun.run.RunStatuses.running]

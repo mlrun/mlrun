@@ -14,15 +14,8 @@
 
 import uuid
 
-import v3io
-
 import mlrun
-from mlrun.datastore.sources import (
-    HttpSource,
-    StreamSource,
-    get_source_from_dict,
-    get_source_step,
-)
+from mlrun.datastore.sources import get_source_from_dict, get_source_step
 from mlrun.datastore.targets import (
     add_target_steps,
     get_target_driver,
@@ -32,7 +25,6 @@ from mlrun.datastore.targets import (
 
 from ..data_types import InferOptions
 from ..datastore.store_resources import ResourceCache
-from ..platforms.iguazio import parse_v3io_path, split_path
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
 from ..serving.server import MockEvent, create_graph_server
@@ -207,11 +199,17 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
     task.set_label("job-type", "feature-ingest").set_label(
         "feature-set", featureset.uri
     )
+    if run_config.owner:
+        task.set_label("owner", run_config.owner).set_label(
+            "v3io_user", run_config.owner
+        )
 
     # set run UID and save in the feature set status (linking the features et to the job)
     task.metadata.uid = uuid.uuid4().hex
     featureset.status.run_uri = task.metadata.uid
     featureset.save()
+
+    function.set_db_connection(featureset._get_run_db())
 
     run = function.run(
         task, schedule=schedule, local=run_config.local, watch=run_config.watch
@@ -219,35 +217,6 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
     if run_config.watch:
         featureset.reload()
     return run
-
-
-def add_source_trigger(source, function):
-    if isinstance(source, HttpSource):
-        # Http source is added automatically when creating serving function
-        return
-    if isinstance(source, StreamSource):
-        endpoint, stream_path = parse_v3io_path(source.path)
-        v3io_client = v3io.dataplane.Client(endpoint=endpoint)
-        container, stream_path = split_path(stream_path)
-        res = v3io_client.create_stream(
-            container=container,
-            path=stream_path,
-            shard_count=source.attributes["shards"],
-            retention_period_hours=source.attributes["retention_in_hours"],
-            raise_for_status=v3io.dataplane.RaiseForStatus.never,
-        )
-        res.raise_for_status([409, 204])
-        function.add_v3io_stream_trigger(
-            source.path,
-            source.name,
-            source.attributes["group"],
-            source.attributes["seek_to"],
-            source.attributes["shards"],
-        )
-    else:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Source type {type(source)} is not supported with ingestion service yet"
-        )
 
 
 _default_job_handler = """

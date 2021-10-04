@@ -27,8 +27,8 @@ class S3Store(DataStore):
         super().__init__(parent, name, schema, endpoint)
         region = None
 
-        access_key = self._secret("AWS_ACCESS_KEY_ID")
-        secret_key = self._secret("AWS_SECRET_ACCESS_KEY")
+        access_key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
+        secret_key = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
 
         if access_key or secret_key:
             self.s3 = boto3.resource(
@@ -57,11 +57,9 @@ class S3Store(DataStore):
         return self._filesystem
 
     def get_storage_options(self):
-        return dict(
-            anon=False,
-            key=self._get_secret_or_env("AWS_ACCESS_KEY_ID"),
-            secret=self._get_secret_or_env("AWS_SECRET_ACCESS_KEY"),
-        )
+        key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
+        secret = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
+        return dict(anon=not (key and secret), key=key, secret=secret,)
 
     def upload(self, key, src_path):
         self.s3.Object(self.endpoint, self._join(key)[1:]).put(
@@ -86,6 +84,10 @@ class S3Store(DataStore):
     def listdir(self, key):
         if not key.endswith("/"):
             key += "/"
+        # Object names is S3 are not fully following filesystem semantics - they do not start with /, even for
+        # "absolute paths". Therefore, we are are removing leading / from path filter.
+        if key.startswith("/"):
+            key = key[1:]
         key_length = len(key)
         bucket = self.s3.Bucket(self.endpoint)
         return [obj.key[key_length:] for obj in bucket.objects.filter(Prefix=key)]

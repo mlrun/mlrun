@@ -204,7 +204,7 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
                     "The full kfp api_run_detail object is needed to generate the summary format"
                 )
             return mlrun.kfpops.format_summary_from_kfp_run(
-                api_run_detail, session=db_session
+                api_run_detail, run["project"], db_session
             )
         else:
             raise NotImplementedError(

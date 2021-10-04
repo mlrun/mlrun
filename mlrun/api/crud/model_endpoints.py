@@ -1,12 +1,15 @@
 import json
+import os
+import traceback
 from typing import Any, Dict, List, Optional
 
 from nuclio.utils import DeployError
 from sqlalchemy.orm import Session
 from v3io.dataplane import RaiseForStatus
+from v3io_frames import frames_pb2
+from v3io_frames.errors import CreateError
 
 import mlrun.api.api.utils
-import mlrun.api.utils.clients.opa
 import mlrun.datastore.store_resources
 from mlrun.api.api.utils import _submit_run, get_run_db_instance
 from mlrun.api.schemas import (
@@ -32,15 +35,14 @@ from mlrun.model_monitoring.helpers import (
 from mlrun.runtimes import KubejobRuntime
 from mlrun.runtimes.function import deploy_nuclio_function, get_nuclio_deploy_status
 from mlrun.utils.helpers import logger
-from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
+from mlrun.utils.model_monitoring import (
+    parse_model_endpoint_project_prefix,
+    parse_model_endpoint_store_prefix,
+)
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 
 
 class ModelEndpoints:
-
-    ENDPOINTS = "endpoints"
-    EVENTS = "events"
-
     def create_or_patch(
         self,
         db_session: Session,
@@ -135,7 +137,11 @@ class ModelEndpoints:
         return model_endpoint
 
     def delete_endpoint_record(
-        self, auth_info: mlrun.api.schemas.AuthInfo, project: str, endpoint_id: str
+        self,
+        auth_info: mlrun.api.schemas.AuthInfo,
+        project: str,
+        endpoint_id: str,
+        access_key: str,
     ):
         """
         Deletes the KV record of a given model endpoint, project and endpoint_id are used for lookup
@@ -143,13 +149,13 @@ class ModelEndpoints:
         :param auth_info: The required auth information for doing the deletion
         :param project: The name of the project
         :param endpoint_id: The id of the endpoint
+        :param access_key: access key with permission to delete
         """
-        access_key = self.get_access_key(auth_info)
         logger.info("Clearing model endpoint table", endpoint_id=endpoint_id)
         client = get_v3io_client(endpoint=config.v3io_api)
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind=self.ENDPOINTS
+            project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -210,7 +216,7 @@ class ModelEndpoints:
         client = get_v3io_client(endpoint=config.v3io_api)
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind=self.ENDPOINTS
+            project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -222,13 +228,16 @@ class ModelEndpoints:
                 project, function, model, labels
             ),
             attribute_names=["endpoint_id"],
+            raise_for_status=RaiseForStatus.never,
         )
 
         endpoint_list = ModelEndpointList(endpoints=[])
-        while True:
-            item = cursor.next_item()
-            if item is None:
-                break
+        try:
+            items = cursor.all()
+        except Exception:
+            return endpoint_list
+
+        for item in items:
             endpoint_id = item["endpoint_id"]
             endpoint = self.get_endpoint(
                 auth_info=auth_info,
@@ -271,7 +280,7 @@ class ModelEndpoints:
         client = get_v3io_client(endpoint=config.v3io_api)
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind=self.ENDPOINTS
+            project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -409,7 +418,8 @@ class ModelEndpoints:
         function = client.kv.update if update else client.kv.put
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=endpoint.metadata.project, kind=self.ENDPOINTS
+            project=endpoint.metadata.project,
+            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -455,7 +465,7 @@ class ModelEndpoints:
             raise MLRunInvalidArgumentError("Metric names must be provided")
 
         path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind=self.EVENTS
+            project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS
         )
         _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -484,6 +494,79 @@ class ModelEndpoints:
             ]
             metrics_mapping[metric] = Metric(name=metric, values=values)
         return metrics_mapping
+
+    def delete_model_endpoints_resources(self, project_name: str):
+        auth_info = mlrun.api.schemas.AuthInfo(
+            data_session=os.getenv("V3IO_ACCESS_KEY")
+        )
+        access_key = auth_info.data_session
+
+        # we would ideally base on config.v3io_api but can't for backwards compatibility reasons,
+        # we're using the igz version heuristic
+        if not config.igz_version or not config.v3io_api:
+            return
+
+        endpoints = self.list_endpoints(auth_info, project_name)
+        for endpoint in endpoints.endpoints:
+            self.delete_endpoint_record(
+                auth_info, endpoint.metadata.project, endpoint.metadata.uid, access_key,
+            )
+
+        v3io = get_v3io_client(endpoint=config.v3io_api, access_key=access_key)
+
+        path = config.model_endpoint_monitoring.store_prefixes.default.format(
+            project=project_name,
+            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
+        )
+        tsdb_path = parse_model_endpoint_project_prefix(path, project_name)
+        _, container, path = parse_model_endpoint_store_prefix(path)
+
+        frames = get_frames_client(
+            token=access_key, container=container, address=config.v3io_framesd,
+        )
+        try:
+            all_records = v3io.kv.new_cursor(
+                container=container,
+                table_path=path,
+                raise_for_status=RaiseForStatus.never,
+                access_key=access_key,
+            ).all()
+
+            all_records = [r["__name"] for r in all_records]
+
+            # Cleanup KV
+            for record in all_records:
+                v3io.kv.delete(
+                    container=container,
+                    table_path=path,
+                    key=record,
+                    access_key=access_key,
+                    raise_for_status=RaiseForStatus.never,
+                )
+        except RuntimeError as exc:
+            # KV might raise an exception even it was set not raise one.  exception is raised if path is empty or
+            # not exist, therefore ignoring failures until they'll fix the bug.
+            # TODO: remove try except after bug is fixed
+            logger.debug(
+                "Failed cleaning model endpoints KV. Ignoring",
+                exc=str(exc),
+                traceback=traceback.format_exc(),
+            )
+            pass
+
+        # Cleanup TSDB
+        try:
+            frames.delete(
+                backend="tsdb", table=path, if_missing=frames_pb2.IGNORE,
+            )
+        except CreateError:
+            # frames might raise an exception if schema file does not exist.
+            pass
+
+        # final cleanup of tsdb path
+        tsdb_path.replace("://u", ":///u")
+        store, _ = mlrun.store_manager.get_or_create_store(tsdb_path)
+        store.rm(tsdb_path, recursive=True)
 
     @staticmethod
     def deploy_model_monitoring_stream_processing(
@@ -566,11 +649,11 @@ class ModelEndpoints:
         function_uri = function_uri.replace("db://", "")
 
         task = mlrun.new_task(name="model-monitoring-batch", project=project)
+        task.spec.function = function_uri
 
         data = {
             "task": task.to_dict(),
             "schedule": "0 */1 * * *",
-            "functionUrl": function_uri,
         }
 
         _submit_run(db_session=db_session, auth_info=auth_info, data=data)

@@ -28,13 +28,13 @@ ns_env_key = f"{mlconf.env_prefix}NAMESPACE"
 @pytest.fixture
 def config():
     old = mlconf.config
-    mlconf.config = mlconf.dynamic.Config.from_dict(mlconf.default_config)
-    mlconf.loader.ConfigLoader.loaded = False
+    mlconf.config = mlconf.Config.from_dict(mlconf.default_config)
+    mlconf._loaded = False
 
     yield mlconf.config
 
     mlconf.config = old
-    mlconf.loader.ConfigLoader.loaded = False
+    mlconf._loaded = False
 
 
 @contextmanager
@@ -142,6 +142,25 @@ def test_iguazio_api_url_resolution():
     url = "some-url"
     mlconf.config._iguazio_api_url = url
     assert mlconf.config.iguazio_api_url == url
+
+
+def test_get_hub_url():
+    # full path configured - no edits
+    mlconf.config.hub_url = (
+        "https://raw.githubusercontent.com/mlrun/functions/{tag}/{name}/function.yaml"
+    )
+    assert mlconf.config.get_hub_url() == mlconf.config.hub_url
+    # partial path configured + http - edit with tag
+    mlconf.config.hub_url = "https://raw.githubusercontent.com/some-fork/functions"
+    assert (
+        mlconf.config.get_hub_url()
+        == f"{mlconf.config.hub_url}/{{tag}}/{{name}}/function.yaml"
+    )
+    # partial path configured + http - edit without tag
+    mlconf.config.hub_url = "v3io://users/admin/mlrun/function-hub"
+    assert (
+        mlconf.config.get_hub_url() == f"{mlconf.config.hub_url}/{{name}}/function.yaml"
+    )
 
 
 def test_setting_dbpath_trigger_connect(requests_mock: requests_mock_package.Mocker):

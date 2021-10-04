@@ -522,6 +522,8 @@ def deploy_ingestion_service(
     if isinstance(featureset, str):
         featureset = get_feature_set_by_uri(featureset)
 
+    verify_feature_permissions(featureset, mlrun.api.schemas.AuthorizationAction.update)
+
     run_config = run_config.copy() if run_config else RunConfig()
     if isinstance(source, StreamSource) and not source.path:
         source.path = get_default_prefix_for_target(source.kind).format(

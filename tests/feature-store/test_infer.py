@@ -3,7 +3,7 @@ import unittest.mock
 import deepdiff
 import pandas as pd
 
-import mlrun.api.utils.clients.opa
+import mlrun
 import mlrun.feature_store as fs
 from mlrun.data_types import InferOptions
 from mlrun.datastore.targets import ParquetTarget
@@ -119,8 +119,8 @@ def test_check_permissions():
     )
     data_set1 = fs.FeatureSet("fs1", entities=[Entity("string")])
 
-    mlrun.api.utils.clients.opa.Client().query_project_resources_permissions = unittest.mock.Mock(
-        side_effect=mlrun.errors.MLRunAccessDeniedError("")
+    mlrun.db.FileRunDB.verify_authorization = unittest.mock.Mock(
+        side_effect=mlrun.errors.MLRunHTTPError("")
     )
 
     try:
@@ -131,13 +131,13 @@ def test_check_permissions():
             timestamp_key="time_stamp",
         )
         assert False
-    except mlrun.errors.MLRunAccessDeniedError:
+    except mlrun.errors.MLRunHTTPError:
         pass
 
     try:
         fs.ingest(data_set1, data, infer_options=fs.InferOptions.default())
         assert False
-    except mlrun.errors.MLRunAccessDeniedError:
+    except mlrun.errors.MLRunHTTPError:
         pass
 
     features = ["fs1.*"]
@@ -145,17 +145,23 @@ def test_check_permissions():
     try:
         fs.get_offline_features(feature_vector, entity_timestamp_column="time_stamp")
         assert False
-    except mlrun.errors.MLRunAccessDeniedError:
+    except mlrun.errors.MLRunHTTPError:
         pass
 
     try:
         fs.get_online_feature_service(feature_vector)
         assert False
-    except mlrun.errors.MLRunAccessDeniedError:
+    except mlrun.errors.MLRunHTTPError:
+        pass
+
+    try:
+        fs.deploy_ingestion_service(featureset=data_set1)
+        assert False
+    except mlrun.errors.MLRunHTTPError:
         pass
 
     try:
         data_set1.purge_targets()
         assert False
-    except mlrun.errors.MLRunAccessDeniedError:
+    except mlrun.errors.MLRunHTTPError:
         pass

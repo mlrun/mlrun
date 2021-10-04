@@ -16,8 +16,9 @@ from copy import copy
 
 import mlrun
 import mlrun.errors
+from mlrun.api.schemas import AuthorizationVerificationInput
 from mlrun.runtimes.function_reference import FunctionReference
-from mlrun.utils import StorePrefix, parse_versioned_object_uri
+from mlrun.utils import StorePrefix, mlconf, parse_versioned_object_uri
 
 from ..config import config
 
@@ -82,18 +83,14 @@ def get_feature_set_by_uri(uri, project=None):
     """get feature set object from db by uri"""
     db = mlrun.get_run_db()
     project, name, tag, uid = parse_feature_set_uri(uri, project)
-
-    fs_project_name = [project, name]
-    mlrun.api.utils.clients.opa.Client().query_project_resources_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
-        project,
-        lambda feature_set_project_name_tuple: (
-            fs_project_name[0],
-            fs_project_name[1],
-        ),
-        mlrun.api.schemas.AuthorizationAction.read,
-        mlrun.api.schemas.AuthInfo(),
+    rsc = mlrun.api.schemas.AuthorizationResourceTypes.feature_set.to_resource_string(
+        project, "feature-set"
     )
+
+    auth = AuthorizationVerificationInput(
+        resource=rsc, action=mlrun.api.schemas.AuthorizationAction.read
+    )
+    db.verify_authorization(auth)
 
     return db.get_feature_set(name, project, tag, uid)
 
@@ -113,41 +110,34 @@ def get_feature_vector_by_uri(uri, project=None):
         uri = new_uri
 
     project, name, tag, uid = parse_versioned_object_uri(uri, default_project)
-    fs_project_name = [project, name]
 
-    mlrun.api.utils.clients.opa.Client().query_project_resources_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
-        project,
-        lambda feature_set_project_name_tuple: (
-            fs_project_name[0],
-            fs_project_name[1],
-        ),
-        mlrun.api.schemas.AuthorizationAction.read,
-        mlrun.api.schemas.AuthInfo(),
+    rsc = mlrun.api.schemas.AuthorizationResourceTypes.feature_set.to_resource_string(
+        project, "feature-vector"
     )
+
+    auth = AuthorizationVerificationInput(
+        resource=rsc, action=mlrun.api.schemas.AuthorizationAction.read
+    )
+    db.verify_authorization(auth)
 
     return db.get_feature_vector(name, project, tag, uid)
 
 
 def verify_feature_permissions(resource, action: mlrun.api.schemas.AuthorizationAction):
     if type(resource).__name__ == "FeatureSet":
-        t = mlrun.api.schemas.AuthorizationResourceTypes.feature_set
+        t = "feature-set"
+        project, _, _, _ = parse_feature_set_uri(resource.uri)
     else:
-        t = mlrun.api.schemas.AuthorizationResourceTypes.feature_vector
+        t = "feature-vector"
+        project = resource._metadata.project or mlconf.default_project
 
-    project_name = resource._metadata.project or config.default_project
-
-    fs_project_name = [project_name, resource.metadata.name]
-    mlrun.api.utils.clients.opa.Client().query_project_resources_permissions(
-        t,
-        fs_project_name,
-        lambda feature_set_project_name_tuple: (
-            fs_project_name[0],
-            fs_project_name[1],
-        ),
-        action,
-        mlrun.api.schemas.AuthInfo(),
+    rsc = mlrun.api.schemas.AuthorizationResourceTypes.feature_set.to_resource_string(
+        project, t
     )
+
+    db = mlrun.get_run_db()
+    auth = AuthorizationVerificationInput(resource=rsc, action=action)
+    db.verify_authorization(auth)
 
 
 class RunConfig:

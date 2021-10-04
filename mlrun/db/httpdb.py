@@ -2589,7 +2589,7 @@ class HTTPRunDB(RunDBInterface):
             "POST",
             "authorization/verifications",
             error_message,
-            body=dict_to_json(authorization_verification_input),
+            body=dict_to_json(authorization_verification_input.dict()),
         )
 
 

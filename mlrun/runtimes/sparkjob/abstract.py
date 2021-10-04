@@ -359,6 +359,12 @@ class AbstractSparkRuntime(KubejobRuntime):
                     str,
                 )
         if "requests" in self.spec.executor_resources:
+            verify_and_update_in(
+                job,
+                "spec.executor.cores",
+                1,  # Must be set due to CRD validations. Will be overridden by coreRequest
+                int,
+            )
             if "cpu" in self.spec.executor_resources["requests"]:
                 verify_and_update_in(
                     job,
@@ -393,7 +399,7 @@ class AbstractSparkRuntime(KubejobRuntime):
                     str,
                 )
         if "requests" in self.spec.driver_resources:
-            # CPU Requests for driver moved to spark2job & spark3job as spark3 supports string (i.e: "100m") and not only int
+            # CPU Requests for driver moved to child classes as spark3 supports string (i.e: "100m") and not only int
             if "memory" in self.spec.driver_resources["requests"]:
                 verify_and_update_in(
                     job,

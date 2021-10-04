@@ -106,6 +106,12 @@ class Spark3Runtime(AbstractSparkRuntime):
                 str,
             )
 
+        verify_and_update_in(
+            job,
+            "spec.driver.cores",
+            1,  # Must be set due to CRD validations. Will be overridden by coreRequest
+            int,
+        )
         if "requests" in self.spec.driver_resources:
             if "cpu" in self.spec.driver_resources["requests"]:
                 verify_and_update_in(

@@ -69,7 +69,10 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
         :param context:               A MLRun context to use for logging into the user's tensorboard directory. The
                                       context parameters can be logged as static hyperparameters as well.
         :param tensorboard_directory: If context is not given, or if wished to set the directory even with context,
-                                      this will be the output for the event logs of tensorboard.
+                                      this will be the output for the event logs of tensorboard. If not given, the
+                                      'tensorboard_dir' parameter will be tried to be taken from the provided context.
+                                      If not found in the context, the default tensorboard output directory will be:
+                                      /User/.tensorboard/<PROJECT_NAME> or if working on local, the set artifacts path.
         :param run_name:              This experiment run name. Each run name will be indexed at the end of the name so
                                       each experiment will be numbered automatically. If a context was given, the
                                       context's uid will be added instead of an index. If a run name was not given the

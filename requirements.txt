@@ -59,7 +59,8 @@ humanfriendly~=8.2
 # the breaking PR is: https://github.com/tiangolo/fastapi/commit/97fa743ecb5a716fa0223a7463cb83f3f0df494c
 # the bug report on: https://github.com/tiangolo/fastapi/issues/3782
 fastapi~= 0.67.0
-fsspec~=0.9.0
+# fsspec versioning changed to year.month.patch after 0.9.0
+fsspec>=0.9.0, <=2021.8.1
 v3iofs~=0.1.7
 # 3.4 and above failed builidng in some images - see https://github.com/pyca/cryptography/issues/5771
 cryptography~=3.0, <3.4

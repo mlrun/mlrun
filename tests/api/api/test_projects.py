@@ -724,7 +724,7 @@ def _assert_db_resources_in_project(
             cls.__name__ == "User"
             or cls.__tablename__ == "runs_tags"
             or cls.__tablename__ == "marketplace_sources"
-            or cls.__tablename__ == "versions"
+            or cls.__tablename__ == "data_versions"
             or cls.__name__ == "Feature"
             or cls.__name__ == "Entity"
             or cls.__name__ == "Log"

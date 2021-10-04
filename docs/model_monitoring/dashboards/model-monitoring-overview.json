@@ -23,9 +23,9 @@
       "includeVars": true,
       "keepTime": true,
       "tags": [],
-      "title": "Performance",
+      "title": "Model Monitoring - Performance",
       "type": "link",
-      "url": "/d/9CazA-UGz/performance"
+      "url": "/d/9CazA-UGz/model-monitoring-performance"
     },
     {
       "icon": "info",
@@ -289,7 +289,7 @@
       "type": "stat"
     },
     {
-      "datasource": "mlrun-api",
+      "datasource": "model-monitoring",
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -527,7 +527,7 @@
                   {
                     "targetBlank": true,
                     "title": "",
-                    "url": "/d/AohIXhAMk/details?orgId=1&refresh=1m&var-PROJECT=$PROJECT&var-MODEL=﻿${__value.text}"
+                    "url": "/d/AohIXhAMk/model-monitoring-details?orgId=1&refresh=1m&var-PROJECT=$PROJECT&var-MODEL=﻿${__value.text}"
                   }
                 ]
               }
@@ -892,7 +892,7 @@
       {
         "allValue": null,
         "current": {},
-        "datasource": "mlrun-api",
+        "datasource": "model-monitoring",
         "definition": "target_endpoint=list_projects",
         "hide": 0,
         "includeAll": false,
@@ -919,7 +919,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Overview",
+  "title": "Model Monitoring - Overview",
   "uid": "g0M4uh0Mz",
   "version": 2
 }

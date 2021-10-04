@@ -121,6 +121,7 @@ class Client(
         format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
         labels: typing.List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
+        names: typing.Optional[typing.List[str]] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
         if owner:
             raise NotImplementedError(
@@ -133,6 +134,10 @@ class Client(
         if state:
             raise NotImplementedError(
                 "Filtering nuclio projects by state is currently not supported"
+            )
+        if names:
+            raise NotImplementedError(
+                "Filtering nuclio projects by names is currently not supported"
             )
         response = self._send_request_to_api("GET", "projects")
         response_body = response.json()
@@ -149,6 +154,21 @@ class Client(
             raise NotImplementedError(
                 f"Provided format is not supported. format={format_}"
             )
+
+    def list_project_summaries(
+        self,
+        session: sqlalchemy.orm.Session,
+        owner: str = None,
+        labels: typing.List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
+        names: typing.Optional[typing.List[str]] = None,
+    ) -> mlrun.api.schemas.ProjectSummariesOutput:
+        raise NotImplementedError("Listing project summaries is not supported")
+
+    def get_project_summary(
+        self, session: sqlalchemy.orm.Session, name: str
+    ) -> mlrun.api.schemas.ProjectSummary:
+        raise NotImplementedError("Get project summary is not supported")
 
     def get_dashboard_version(self) -> str:
         response = self._send_request_to_api("GET", "versions")

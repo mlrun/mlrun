@@ -362,9 +362,9 @@ class AbstractSparkRuntime(KubejobRuntime):
             if "cpu" in self.spec.executor_resources["requests"]:
                 verify_and_update_in(
                     job,
-                    "spec.executor.cores",
-                    self.spec.executor_resources["requests"]["cpu"],
-                    int,
+                    "spec.executor.coreRequest",
+                    str(self.spec.executor_resources["requests"]["cpu"]), # Backwards compatibility
+                    str,
                 )
             if "memory" in self.spec.executor_resources["requests"]:
                 verify_and_update_in(
@@ -391,13 +391,7 @@ class AbstractSparkRuntime(KubejobRuntime):
                     str,
                 )
         if "requests" in self.spec.driver_resources:
-            if "cpu" in self.spec.driver_resources["requests"]:
-                verify_and_update_in(
-                    job,
-                    "spec.driver.cores",
-                    self.spec.driver_resources["requests"]["cpu"],
-                    int,
-                )
+            # CPU Requests for driver moved to spark2job & spark3job as spark3 supports string (i.e: "100m") and not only int
             if "memory" in self.spec.driver_resources["requests"]:
                 verify_and_update_in(
                     job,

@@ -54,7 +54,9 @@ jobs:
       with:
         python-version: 3.7
     - name: Install automation scripts dependencies and add mlrun to dev packages
-      run: pip install -r automation/requirements.txt -r dockerfiles/test-system/requirements.txt && pip install -e .
+      run: |
+        pip install -r automation/requirements.txt -r dockerfiles/test-system/requirements.txt \
+          -r dockerfiles/mlrun-api/requirements.txt && pip install -e .
 
       # TODO: How can we avoid these duplicate lines from the enterprise system tests, up until line 120.
     - name: Install curl and jq
@@ -68,7 +70,7 @@ jobs:
       id: git_action_info
       run: |
         echo "::set-output name=mlrun_hash::$(git rev-parse --short=8 $GITHUB_SHA)"
-    - name: Extract git hash from action mlrun version
+    - name: Extract UI git hash from action mlrun version
       if: ${{ github.event.inputs.ui_code_from_action == 'true' }}
       id: git_action_ui_info
       run: |
@@ -144,19 +146,6 @@ jobs:
         helm repo update
         minikube kubectl -- create namespace ${NAMESPACE}
 
-    - name: Override MLRun Registry ConfigMap
-      run: |
-        cat <<EOF | minikube kubectl -- apply -f -
-        apiVersion: v1
-        kind: ConfigMap
-        metadata:
-          name: mlrun-override-env
-          namespace: ${NAMESPACE}
-        data:
-          MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER: mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ steps.computed_params.outputs.mlrun_hash }}
-          MLRUN_IMAGES_REGISTRY: ${{ steps.computed_params.outputs.mlrun_docker_registry }}
-        EOF
-
     - name: Install MLRun Kit helm chart
       run: |
         helm --namespace ${NAMESPACE} \
@@ -169,7 +158,19 @@ jobs:
             --set mlrun.api.image.tag=${{ steps.computed_params.outputs.mlrun_version }} \
             --set mlrun.ui.image.repository=ghcr.io/mlrun/mlrun-ui \
             --set mlrun.ui.image.tag=${{ steps.computed_params.outputs.mlrun_ui_version }} \
+            --set mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ steps.computed_params.outputs.mlrun_hash }}" \
+            --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
             v3io-stable/mlrun-kit
+
+    - name: Prepare system tests env
+      run: |
+        echo "MLRUN_DBPATH: http://$(minikube ip):${MLRUN_API_NODE_PORT}" > tests/system/env.yml
+
+    - name: Run system tests
+      timeout-minutes: 15
+      run: |
+        MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}" \
+          make test-system-open-source
 
     - name: Output some logs in case of failure
       if: ${{ failure() }}
@@ -177,20 +178,15 @@ jobs:
       run: |
         set -x
         minikube logs
-        kubectl --namespace ${NAMESPACE} get pvc
-        kubectl --namespace ${NAMESPACE} get pv
-        kubectl --namespace ${NAMESPACE} get pods
-        kubectl --namespace ${NAMESPACE} get pods -o yaml
-        kubectl --namespace ${NAMESPACE} describe pods
-        kubectl --namespace ${NAMESPACE} get all
-        kubectl --namespace ${NAMESPACE} get all -o yaml
+        minikube kubectl -- --namespace ${NAMESPACE} get pvc
+        minikube kubectl -- --namespace ${NAMESPACE} get pv
+        minikube kubectl -- --namespace ${NAMESPACE} get cm
+        minikube kubectl -- --namespace ${NAMESPACE} get secrets
+        minikube kubectl -- --namespace ${NAMESPACE} get pods
+        minikube kubectl -- --namespace ${NAMESPACE} get pods -o yaml
+        minikube kubectl -- --namespace ${NAMESPACE} describe pods
+        minikube kubectl -- --namespace ${NAMESPACE} get cm -o yaml
+        minikube kubectl -- --namespace ${NAMESPACE} get secrets -o yaml
+        minikube kubectl -- --namespace ${NAMESPACE} get all
+        minikube kubectl -- --namespace ${NAMESPACE} get all -o yaml
         set +x
-
-    - name: Prepare system tests env
-      run: |
-        echo "MLRUN_DBPATH: http://$(minikube ip):${MLRUN_API_NODE_PORT}" > tests/system/env.yml
-
-    - name: Run system tests
-      run: |
-        MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}" \
-          make test-system-open-source

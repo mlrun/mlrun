@@ -9,12 +9,6 @@ logger = mlrun.utils.create_logger(level="debug", name="automation")
 
 
 class PackageTester:
-
-    import_test_result_map_key = "import test"
-    requirements_conflicts_test_result_map_key = "requirements conflicts test"
-    test_passed_result_map_key = "passed"
-    test_exception_result_map_key = "exc"
-
     def __init__(self):
         self._logger = logger
 

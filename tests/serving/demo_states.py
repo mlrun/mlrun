@@ -80,5 +80,15 @@ class ModelClass(V2ModelServer):
 
     def predict(self, request):
         print("predict:", request)
-        resp = request["inputs"][0] * self.get_param("multiplier")
+        resp = request["inputs"][0] * self.get_param("multiplier", 1)
         return resp
+
+
+class ModelClassList(V2ModelServer):
+    def load(self):
+        print("loading")
+
+    def predict(self, request):
+        print("predict:", request)
+        resp = request["inputs"][0][0] * self.get_param("multiplier", 1)
+        return [resp]

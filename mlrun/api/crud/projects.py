@@ -1,5 +1,10 @@
+import asyncio
+import collections
+import datetime
 import typing
 
+import fastapi.concurrency
+import humanfriendly
 import sqlalchemy.orm
 
 import mlrun.api.crud
@@ -16,6 +21,12 @@ class Projects(
     mlrun.api.utils.projects.remotes.follower.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
+    def __init__(self) -> None:
+        super().__init__()
+        self._cache = {
+            "project_resources_counters": {"value": None, "ttl": datetime.datetime.min}
+        }
+
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
     ):
@@ -102,6 +113,9 @@ class Projects(
             session, name
         )
 
+        # delete model monitoring resources
+        mlrun.api.crud.ModelEndpoints().delete_model_endpoints_resources(name)
+
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
     ) -> mlrun.api.schemas.Project:
@@ -119,3 +133,135 @@ class Projects(
         return mlrun.api.utils.singletons.db.get_db().list_projects(
             session, owner, format_, labels, state, names
         )
+
+    async def list_project_summaries(
+        self,
+        session: sqlalchemy.orm.Session,
+        owner: str = None,
+        labels: typing.List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
+        names: typing.Optional[typing.List[str]] = None,
+    ) -> mlrun.api.schemas.ProjectSummariesOutput:
+        projects_output = await fastapi.concurrency.run_in_threadpool(
+            self.list_projects,
+            session,
+            owner,
+            mlrun.api.schemas.ProjectsFormat.name_only,
+            labels,
+            state,
+            names,
+        )
+        project_summaries = await self.generate_projects_summaries(
+            session, projects_output.projects
+        )
+        return mlrun.api.schemas.ProjectSummariesOutput(
+            project_summaries=project_summaries
+        )
+
+    async def get_project_summary(
+        self, session: sqlalchemy.orm.Session, name: str
+    ) -> mlrun.api.schemas.ProjectSummary:
+        # Call get project so we'll explode if project doesn't exists
+        await fastapi.concurrency.run_in_threadpool(self.get_project, session, name)
+        project_summaries = await self.generate_projects_summaries(session, [name])
+        return project_summaries[0]
+
+    async def generate_projects_summaries(
+        self, session: sqlalchemy.orm.Session, projects: typing.List[str]
+    ) -> typing.List[mlrun.api.schemas.ProjectSummary]:
+        (
+            project_to_function_count,
+            project_to_schedule_count,
+            project_to_feature_set_count,
+            project_to_models_count,
+            project_to_recent_failed_runs_count,
+            project_to_running_runs_count,
+            project_to_running_pipelines_count,
+        ) = await self._get_project_resources_counters(session)
+        project_summaries = []
+        for project in projects:
+            project_summaries.append(
+                mlrun.api.schemas.ProjectSummary(
+                    name=project,
+                    functions_count=project_to_function_count.get(project, 0),
+                    schedules_count=project_to_schedule_count.get(project, 0),
+                    feature_sets_count=project_to_feature_set_count.get(project, 0),
+                    models_count=project_to_models_count.get(project, 0),
+                    runs_failed_recent_count=project_to_recent_failed_runs_count.get(
+                        project, 0
+                    ),
+                    runs_running_count=project_to_running_runs_count.get(project, 0),
+                    pipelines_running_count=project_to_running_pipelines_count.get(
+                        project, 0
+                    ),
+                )
+            )
+        return project_summaries
+
+    async def _get_project_resources_counters(
+        self, session: sqlalchemy.orm.Session
+    ) -> typing.Tuple[
+        typing.Dict[str, int],
+        typing.Dict[str, int],
+        typing.Dict[str, int],
+        typing.Dict[str, int],
+        typing.Dict[str, int],
+        typing.Dict[str, int],
+        typing.Dict[str, int],
+    ]:
+        now = datetime.datetime.now()
+        if (
+            not self._cache["project_resources_counters"]["ttl"]
+            or self._cache["project_resources_counters"]["ttl"] < now
+        ):
+            logger.debug(
+                "Project resources counter cache expired. Calculating",
+                ttl=self._cache["project_resources_counters"]["ttl"],
+            )
+
+            results = await asyncio.gather(
+                mlrun.api.utils.singletons.db.get_db().get_project_resources_counters(
+                    session
+                ),
+                self._calculate_pipelines_counters(session),
+            )
+            (
+                project_to_function_count,
+                project_to_schedule_count,
+                project_to_feature_set_count,
+                project_to_models_count,
+                project_to_recent_failed_runs_count,
+                project_to_running_runs_count,
+            ) = results[0]
+            project_to_running_pipelines_count = results[1]
+            self._cache["project_resources_counters"]["result"] = (
+                project_to_function_count,
+                project_to_schedule_count,
+                project_to_feature_set_count,
+                project_to_models_count,
+                project_to_recent_failed_runs_count,
+                project_to_running_runs_count,
+                project_to_running_pipelines_count,
+            )
+            ttl_time = datetime.datetime.now() + datetime.timedelta(
+                seconds=humanfriendly.parse_timespan(
+                    mlrun.mlconf.httpdb.projects.counters_cache_ttl
+                )
+            )
+            self._cache["project_resources_counters"]["ttl"] = ttl_time
+        return self._cache["project_resources_counters"]["result"]
+
+    async def _calculate_pipelines_counters(
+        self, session: sqlalchemy.orm.Session,
+    ) -> typing.Dict[str, int]:
+        _, _, pipelines = await fastapi.concurrency.run_in_threadpool(
+            mlrun.api.crud.Pipelines().list_pipelines,
+            session,
+            "*",
+            format_=mlrun.api.schemas.PipelinesFormat.metadata_only,
+        )
+        project_to_running_pipelines_count = collections.defaultdict(int)
+        for pipeline in pipelines:
+            if pipeline["status"] not in mlrun.run.RunStatuses.stable_statuses():
+                project_to_running_pipelines_count[pipeline["project"]] += 1
+        return project_to_running_pipelines_count

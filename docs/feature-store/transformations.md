@@ -173,34 +173,37 @@ use Spark as the transformation engine in ingestion, follow these steps:
     2. A `RunConfig` which has a function configured within it. As mentioned, the function runtime must be of 
        type `remote-spark`.
        
-For example, the following code will execute data ingestion using Spark:
+For example, the following code will execute data ingestion using a local Spark session
+When using a local Spark session, the `ingest` API would wait for its completion
 
 ```python
+import mlrun
 from mlrun.datastore.sources import CSVSource
 from mlrun.datastore.targets import CSVTarget
 from mlrun import code_to_function
 import mlrun.feature_store as fstore
-    
+
+mlrun.set_environment(project="stocks")
 feature_set = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")], engine="spark")
 
-source = CSVSource("mycsv", path="stocks.csv")
-targets = [CSVTarget("mycsv", path="./my_result_stocks.csv")]
+source = CSVSource("mycsv", path="v3io:///projects/stocks.csv")
 
 # Execution using a local Spark session
 spark = SparkSession.builder.appName("Spark function").getOrCreate()
-fstore.ingest(feature_set, source, targets, spark_context=spark)
-
-# Remote execution using a remote-spark runtime
-fstore.ingest(feature_set, source, targets, run_config=fstore.RunConfig())
-
-# Remote execution using a remote-spark runtime over iguazio
-spark_service_name = "iguazio-spark-service"
-fstore.ingest(feature_set, source, targets, run_config=fstore.RunConfig(), spark_context=spark_service_name)
+fstore.ingest(feature_set, source, spark_context=spark)
 ```
-When using a local Spark session, the `ingest` API would wait for its completion, while when using remote execution 
-the MLRun run execution details would be returned, allowing tracking of its status and results.
 
-Remote Iguazio spark ingestion example:
+Remote Iguazio spark ingestion example
+When using remote execution the MLRun run execution details would be returned, allowing tracking of its status and results.
+
+The following code should be executed only once to build the remote spark image before running the first ingest
+It may take a few minutes to prepare the image
+```python
+from mlrun.runtimes import RemoteSparkRuntime
+RemoteSparkRuntime.deploy_default_image()
+```
+
+Remote ingestion:
 ```python
 # mlrun: start-code
 ```
@@ -223,15 +226,14 @@ import mlrun.feature_store as fstore
 
 feature_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")], engine="spark")
 
-source = CSVSource("mycsv", path="quotes.csv")
-targets = [CSVTarget("mycsv", path="./my_result_stock_quotes.csv")]
+source = CSVSource("mycsv", path="v3io:///projects/quotes.csv")
 
 spark_service_name = "iguazio-spark-service" # As configured & shown in the Iguazio dashboard
 
 feature_set.graph.to(name="s1", handler="my_spark_func")
 my_func = code_to_function("func", kind="remote-spark")
 config = fstore.RunConfig(local=False, function=my_func, handler="ingest_handler")
-fstore.ingest(feature_set, source, targets, run_config=fstore.RunConfig(), spark_context=spark_service_name)
+fstore.ingest(feature_set, source, run_config=fstore.RunConfig(), spark_context=spark_service_name)
 ```
 
 ### Spark execution engine and S3

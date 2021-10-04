@@ -14,8 +14,9 @@
 import collections
 from copy import copy
 from enum import Enum
-from typing import List
+from typing import List, Union
 
+import numpy as np
 import pandas as pd
 
 import mlrun
@@ -332,26 +333,105 @@ class FeatureVector(ModelObj):
 class OnlineVectorService:
     """get_online_feature_service response object"""
 
-    def __init__(self, vector, graph, index_columns):
+    def __init__(self, vector, graph, index_columns, impute_policy: dict = None):
         self.vector = vector
+        self.impute_policy = impute_policy or {}
+
         self._controller = graph.controller
         self._index_columns = index_columns
+        self._impute_values = {}
+
+    def initialize(self):
+        """internal, init the feature service and prep the imputing logic"""
+        if not self.impute_policy:
+            return
+
+        vector = self.vector
+        feature_stats = vector.get_stats_table()
+        self._impute_values = {}
+
+        feature_keys = list(vector.status.features.keys())
+        if vector.status.label_column in feature_keys:
+            feature_keys.remove(vector.status.label_column)
+
+        if "*" in self.impute_policy:
+            value = self.impute_policy["*"]
+            del self.impute_policy["*"]
+
+            for name in feature_keys:
+                if name not in self.impute_policy:
+                    if isinstance(value, str) and value.startswith("$"):
+                        self._impute_values[name] = feature_stats.loc[name, value[1:]]
+                    else:
+                        self._impute_values[name] = value
+
+        for name, value in self.impute_policy.items():
+            if name not in feature_keys:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"feature {name} in impute_policy but not in feature vector"
+                )
+            if isinstance(value, str) and value.startswith("$"):
+                self._impute_values[name] = feature_stats.loc[name, value[1:]]
+            else:
+                self._impute_values[name] = value
 
     @property
     def status(self):
         """vector merger function status (ready, running, error)"""
         return "ready"
 
-    def get(self, entity_rows: List[dict], as_list=False):
-        """get feature vector given the provided entity inputs"""
+    def get(self, entity_rows: List[Union[dict, list]], as_list=False):
+        """get feature vector given the provided entity inputs
+
+        take a list of input vectors/rows and return a list of enriched feature vectors
+        each input and/or output vector can be a list of values or a dictionary of field names and values,
+        to return the vector as a list of values set the `as_list` to True.
+
+        if the input is a list of list (vs a list of dict), the values in the list will correspond to the
+        index/entity values, i.e. [["GOOG"], ["MSFT"]] means "GOOG" and "MSFT" are the index/entity fields.
+
+        example::
+
+            # accept list of dict, return list of dict
+            svc = fs.get_online_feature_service(vector)
+            resp = svc.get([{"name": "joe"}, {"name": "mike"}])
+
+            # accept list of list, return list of list
+            svc = fs.get_online_feature_service(vector, as_list=True)
+            resp = svc.get([["joe"], ["mike"]])
+
+        :param entity_rows:  list of list/dict with input entity data/rows
+        :param as_list:      return a list of list (list input is required by many ML frameworks)
+        """
         results = []
         futures = []
         if isinstance(entity_rows, dict):
             entity_rows = [entity_rows]
-        if not isinstance(entity_rows, list):
+
+        # validate we have valid input struct
+        if (
+            not entity_rows
+            or not isinstance(entity_rows, list)
+            or not isinstance(entity_rows[0], (list, dict))
+        ):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"{entity_rows} is of type {type(entity_rows)}. It should be list of Dictionaries"
+                f"input data is of type {type(entity_rows)}. must be a list of lists or list of dicts"
             )
+
+        # if list of list, convert to dicts (with the index columns as the dict keys)
+        if isinstance(entity_rows[0], list):
+            if not self._index_columns or len(entity_rows[0]) != len(
+                self._index_columns
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "input list must be in the same size of the index_keys list"
+                )
+            index_range = range(len(self._index_columns))
+            entity_rows = [
+                {self._index_columns[i]: item[i] for i in index_range}
+                for item in entity_rows
+            ]
+
         for row in entity_rows:
             futures.append(self._controller.emit(row, return_awaitable_result=True))
         for future in futures:
@@ -371,6 +451,13 @@ class OnlineVectorService:
                         and column != self.vector.status.label_column
                     ):
                         data[column] = None
+
+            if self._impute_values:
+                for name in data.keys():
+                    v = data[name]
+                    if v is None or (type(v) == float and (np.isinf(v) or np.isnan(v))):
+                        data[name] = self._impute_values.get(name, v)
+
             if as_list:
                 data = [
                     result.body[key]

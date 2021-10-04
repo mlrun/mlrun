@@ -25,6 +25,7 @@ import requests
 import urllib3
 
 import mlrun.errors
+from mlrun.secrets import SecretsStore
 from mlrun.utils import is_ipython, logger
 
 verify_ssl = False
@@ -79,7 +80,13 @@ class DataStore:
         return True
 
     def _get_secret_or_env(self, key, default=None):
-        return self._secret(key) or getenv(key, default)
+        # Project-secrets are mounted as env variables whose name can be retrieved from SecretsStore
+        return (
+            self._secret(key)
+            or getenv(key)
+            or getenv(SecretsStore.k8s_env_variable_name_for_secret(key))
+            or default
+        )
 
     def get_storage_options(self):
         """get fsspec storage options"""

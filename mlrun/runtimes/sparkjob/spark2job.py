@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mlrun.config import config
-
 from ...utils import update_in
 from .abstract import AbstractSparkJobSpec, AbstractSparkRuntime
 
@@ -27,9 +25,7 @@ class Spark2Runtime(AbstractSparkRuntime):
         update_in(job, "spec.serviceAccount", "sparkapp")
         return
 
-    def with_priority_class(
-        self, name: str = config.default_function_priority_class_name
-    ):
+    def with_priority_class(self, name: str = None):
         raise NotImplementedError("Not supported in spark 2 operator")
 
     def _get_spark_version(self):

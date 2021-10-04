@@ -1,3 +1,4 @@
+import asyncio
 import typing
 import unittest.mock
 
@@ -5,6 +6,7 @@ import deepdiff
 import pytest
 import sqlalchemy.orm
 
+import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.projects.follower
 import mlrun.api.utils.projects.remotes.leader
@@ -192,11 +194,13 @@ def test_list_project(
     projects_follower: mlrun.api.utils.projects.follower.Member,
     nop_leader: mlrun.api.utils.projects.remotes.leader.Member,
 ):
-    project = _generate_project(name="name-1")
+    owner = "project-owner"
+    project = _generate_project(name="name-1", owner=owner)
     archived_project = _generate_project(
         name="name-2",
         desired_state=mlrun.api.schemas.ProjectDesiredState.archived,
         state=mlrun.api.schemas.ProjectState.archived,
+        owner=owner,
     )
     label_key = "key"
     label_value = "value"
@@ -230,11 +234,21 @@ def test_list_project(
         state=mlrun.api.schemas.ProjectState.archived,
     )
 
+    # list by owner
+    _assert_list_projects(
+        projects_follower, [project, archived_project], owner=owner,
+    )
+
     # list specific names only
     _assert_list_projects(
         projects_follower,
         [archived_project, labeled_project],
         names=[archived_project.metadata.name, labeled_project.metadata.name],
+    )
+
+    # list no valid names
+    _assert_list_projects(
+        projects_follower, [], names=[],
     )
 
     # list labeled - key existence
@@ -274,7 +288,8 @@ def test_list_project(
     )
 
 
-def test_list_project_format_summary(
+@pytest.mark.asyncio
+async def test_list_project_summaries(
     db: sqlalchemy.orm.Session,
     projects_follower: mlrun.api.utils.projects.follower.Member,
     nop_leader: mlrun.api.utils.projects.remotes.leader.Member,
@@ -287,17 +302,20 @@ def test_list_project_format_summary(
         models_count=6,
         runs_failed_recent_count=7,
         runs_running_count=8,
+        schedules_count=1,
+        pipelines_running_count=2,
     )
-    mlrun.api.utils.singletons.db.get_db().generate_projects_summaries = unittest.mock.Mock(
-        return_value=[project_summary]
+    mlrun.api.crud.Projects().generate_projects_summaries = unittest.mock.Mock(
+        return_value=asyncio.Future()
     )
-    project_summaries = projects_follower.list_projects(
-        None, format_=mlrun.api.schemas.ProjectsFormat.summary
+    mlrun.api.crud.Projects().generate_projects_summaries.return_value.set_result(
+        [project_summary]
     )
-    assert len(project_summaries.projects) == 1
+    project_summaries = await projects_follower.list_project_summaries(None)
+    assert len(project_summaries.project_summaries) == 1
     assert (
         deepdiff.DeepDiff(
-            project_summaries.projects[0].dict(),
+            project_summaries.project_summaries[0].dict(),
             project_summary.dict(),
             ignore_order=True,
         )

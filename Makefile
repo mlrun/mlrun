@@ -70,13 +70,13 @@ install-requirements: ## Install all requirements needed for development
 		-r docs/requirements.txt
 
 .PHONY: create-migration-sqlite
-create-migration-sqlite: export MLRUN_HTTPDB__DSN="sqlite:///$(PWD)/mlrun/api/migrations/mlrun.db?check_same_thread=false"
+create-migration-sqlite: export MLRUN_HTTPDB__DSN="sqlite:///$(PWD)/mlrun/api/migrations_sqlite/mlrun.db?check_same_thread=false"
 create-migration-sqlite: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
 ifndef MLRUN_MIGRATION_MESSAGE
 	$(error MLRUN_MIGRATION_MESSAGE is undefined)
 endif
-	alembic -c ./mlrun/api/alembic_sqlite.ini upgrade head
-	alembic -c ./mlrun/api/alembic_sqlite.ini revision --autogenerate -m "$(MLRUN_MIGRATION_MESSAGE)"
+	alembic -c ./mlrun/api/alembic.ini upgrade head
+	alembic -c ./mlrun/api/alembic.ini revision --autogenerate -m "$(MLRUN_MIGRATION_MESSAGE)"
 
 .PHONY: create-migration-mysql
 create-migration-mysql: export MLRUN_HTTPDB__DSN="mysql+pymysql://root:pass@localhost:3306/mlrun"

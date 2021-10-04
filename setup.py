@@ -73,20 +73,19 @@ api_deps = list(load_deps("dockerfiles/mlrun-api/requirements.txt"))
 #       corresponding line there.
 #     - We have a copy of these in extras-requirements.txt. If you modify these, make sure to change it there as well
 extras_require = {
-    # from 1.17.50 it requires botocore>=1.20.50,<1.21.0 which conflicts with s3fs 0.5.2 that has aiobotocore>=1.0.1
-    # which until 1.3.1 has botocore>=1.20.49,<1.20.50
-    # boto3 1.17.49 has botocore<1.21.0,>=1.20.49, so we must add botocore explicitly
-    # we can move forward to aiobotocore 1.3.2 which will require bumping botocore and boto3, but those 3 release pretty
-    # often, causing conflicts so anyway we'll need to lock on something, so locking (aiobotocore) on what is currently
-    # existing (as of writing this)
+    # from 1.17.107 boto3 requires botocore>=1.20.107,<1.21.0 which
+    # conflicts with s3fs 2021.8.1 that has aiobotocore~=1.4.0
+    # which so far (1.4.1) has botocore>=1.20.106,<1.20.107
+    # boto3 1.17.106 has botocore>=1.20.106,<1.21.0, so we must add botocore explicitly
+    # s3fs versioning changed to year.month.patch after 0.6.0
     "s3": [
-        "boto3~=1.9, <1.17.50",
-        "botocore>=1.20.49,<1.20.50",
-        "aiobotocore<=1.3.1",
-        "s3fs>=0.5.0, <=0.6.0",
+        "boto3~=1.9, <1.17.107",
+        "botocore>=1.20.106,<1.20.107",
+        "aiobotocore~=1.4.0",
+        "s3fs>=0.5.0, <=2021.8.1",
     ],
-    # <12.7.0 from adlfs 0.6.3
-    "azure-blob-storage": ["azure-storage-blob~=12.0, <12.7.0", "adlfs~=0.7.1"],
+    # adlfs versioning changed to year.month.patch after 0.7.7
+    "azure-blob-storage": ["azure-storage-blob~=12.0", "adlfs>=0.7.1, <=2021.8.1"],
     "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
     # mlrun.frameworks requirements per framework:  # TODO: should be added in a later PR
     "bokeh": ["bokeh~=2.3"],

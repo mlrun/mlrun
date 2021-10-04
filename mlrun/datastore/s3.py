@@ -57,11 +57,9 @@ class S3Store(DataStore):
         return self._filesystem
 
     def get_storage_options(self):
-        return dict(
-            anon=False,
-            key=self._get_secret_or_env("AWS_ACCESS_KEY_ID"),
-            secret=self._get_secret_or_env("AWS_SECRET_ACCESS_KEY"),
-        )
+        key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
+        secret = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
+        return dict(anon=not (key and secret), key=key, secret=secret,)
 
     def upload(self, key, src_path):
         self.s3.Object(self.endpoint, self._join(key)[1:]).put(

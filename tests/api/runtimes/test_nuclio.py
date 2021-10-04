@@ -4,6 +4,7 @@ import os
 import unittest.mock
 
 import deepdiff
+import kubernetes
 import nuclio
 import pytest
 from fastapi.testclient import TestClient
@@ -328,6 +329,38 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
         ingresses = resolve_function_ingresses(config["spec"])
         assert ingresses == []
+
+    def test_nuclio_config_spec_env(self, db: Session, client: TestClient):
+        function = self._generate_runtime(self.runtime_kind)
+
+        name = "env1"
+        secret = "shh"
+        secret_key = "open sesame"
+        function.set_env_from_secret(name, secret=secret, secret_key=secret_key)
+
+        name2 = "env2"
+        value2 = "value2"
+        function.set_env(name2, value2)
+
+        expected_env_vars = [
+            {
+                "name": name,
+                "valueFrom": {"secretKeyRef": {"key": secret_key, "name": secret}},
+            },
+            {"name": name2, "value": value2},
+        ]
+
+        function_name, project_name, config = compile_function_config(function)
+        for expected_env_var in expected_env_vars:
+            assert expected_env_var in config["spec"]["env"]
+        assert isinstance(function.spec.env[0], kubernetes.client.V1EnvVar)
+        assert isinstance(function.spec.env[1], kubernetes.client.V1EnvVar)
+
+        # simulating sending to API - serialization through dict
+        function = function.from_dict(function.to_dict())
+        function_name, project_name, config = compile_function_config(function)
+        for expected_env_var in expected_env_vars:
+            assert expected_env_var in config["spec"]["env"]
 
     def test_deploy_basic_function(self, db: Session, client: TestClient):
         function = self._generate_runtime(self.runtime_kind)

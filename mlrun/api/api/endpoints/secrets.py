@@ -2,10 +2,12 @@ from http import HTTPStatus
 from typing import List
 
 import fastapi
+from sqlalchemy.orm import Session
 
 import mlrun.api.api.deps
 import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.singletons.project_member
 import mlrun.errors
 from mlrun.api import schemas
 from mlrun.utils.vault import add_vault_user_secrets
@@ -20,7 +22,15 @@ def store_project_secrets(
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
+    db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
 ):
+    # Doing a specific check for project existence, because we want to return 404 in the case of a project not
+    # existing, rather than returning a permission error, as it misleads the user. We don't even care for return
+    # value.
+    mlrun.api.utils.singletons.project_member.get_project_member().get_project(
+        db_session, project, auth_info.session
+    )
+
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.secret,
         project,
@@ -41,7 +51,12 @@ def delete_project_secrets(
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
+    db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
 ):
+    mlrun.api.utils.singletons.project_member.get_project_member().get_project(
+        db_session, project, auth_info.session
+    )
+
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.secret,
         project,
@@ -62,7 +77,11 @@ def list_secret_keys(
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
+    db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
 ):
+    mlrun.api.utils.singletons.project_member.get_project_member().get_project(
+        db_session, project, auth_info.session
+    )
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.secret,
         project,
@@ -82,7 +101,11 @@ def list_secrets(
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
+    db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
 ):
+    mlrun.api.utils.singletons.project_member.get_project_member().get_project(
+        db_session, project, auth_info.session
+    )
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.secret,
         project,

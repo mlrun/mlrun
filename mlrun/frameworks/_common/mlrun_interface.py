@@ -3,6 +3,8 @@ from abc import ABC, abstractmethod
 from types import MethodType
 from typing import Any, Dict, List, Type
 
+from mlrun.frameworks._common.model_handler import Model
+
 
 class MLRunInterface(ABC):
     """
@@ -23,7 +25,7 @@ class MLRunInterface(ABC):
 
     @classmethod
     @abstractmethod
-    def add_interface(cls, model: object, *args, **kwargs):
+    def add_interface(cls, model: Model):
         """
         Enrich the model object with this class properties, methods and functions so it will have MLRun specific
         features.
@@ -40,7 +42,7 @@ class MLRunInterface(ABC):
         cls._insert_functions(model=model, interface=cls)
 
     @staticmethod
-    def _insert_properties(model, interface: Type["MLRunInterface"]):
+    def _insert_properties(model: Model, interface: Type["MLRunInterface"]):
         """
         Insert the properties of the given interface to the model. The properties default values are being copied (not
         deep copied) into the model.
@@ -53,7 +55,7 @@ class MLRunInterface(ABC):
                 setattr(model, property_name, copy.copy(default_value))
 
     @staticmethod
-    def _insert_methods(model, interface: Type["MLRunInterface"]):
+    def _insert_methods(model: Model, interface: Type["MLRunInterface"]):
         """
         Insert the methods of the given interface to the model.
 
@@ -69,7 +71,7 @@ class MLRunInterface(ABC):
                 )
 
     @staticmethod
-    def _insert_functions(model, interface: Type["MLRunInterface"]):
+    def _insert_functions(model: Model, interface: Type["MLRunInterface"]):
         """
         Insert the functions of the given interface to the model.
 

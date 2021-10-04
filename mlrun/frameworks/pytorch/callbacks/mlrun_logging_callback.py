@@ -2,7 +2,7 @@ from typing import Callable, Dict, List, Tuple, Union
 
 import mlrun
 from mlrun.artifacts import Artifact
-from mlrun.frameworks._common.loggers import MLRunLogger, TrackableType
+from mlrun.frameworks._common.loggers import LoggerMode, MLRunLogger, TrackableType
 from mlrun.frameworks.pytorch.callbacks.logging_callback import LoggingCallback
 from mlrun.frameworks.pytorch.model_handler import PyTorchModelHandler
 
@@ -33,6 +33,8 @@ class MLRunLoggingCallback(LoggingCallback):
         context: mlrun.MLClientCtx,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str],
         custom_objects_directory: str,
+        model_name: str = None,
+        model_path: str = None,
         log_model_labels: Dict[str, TrackableType] = None,
         log_model_parameters: Dict[str, TrackableType] = None,
         log_model_extra_data: Dict[str, Union[TrackableType, Artifact]] = None,
@@ -70,6 +72,10 @@ class MLRunLoggingCallback(LoggingCallback):
                                          before loading the model). If the model path given is of a store object, the
                                          custom objects files will be read from the logged custom object artifact of the
                                          model.
+        :param model_name:               The model name to use for storing the model artifact. If not given, the model's
+                                         class name will be used.
+        :param model_path:               The model's store object path. Mandatory for evaluation (to know which model to
+                                         update).
         :param log_model_labels:         Labels to log with the model.
         :param log_model_parameters:     Parameters to log with the model.
         :param log_model_extra_data:     Extra data to log with the model.
@@ -114,6 +120,8 @@ class MLRunLoggingCallback(LoggingCallback):
         )
 
         # Store the additional PyTorchModelHandler parameters for logging the model later:
+        self._model_name = model_name
+        self._model_path = model_path
         self._custom_objects_map = custom_objects_map
         self._custom_objects_directory = custom_objects_directory
 
@@ -121,13 +129,25 @@ class MLRunLoggingCallback(LoggingCallback):
         """
         Before the run ends, this method will be called to log the model and the run summaries charts.
         """
-        model = self._objects[self._ObjectKeys.MODEL]
+        # Check if the logger is in evaluation mode, if so, log the last epoch
+        if self._logger.mode == LoggerMode.EVALUATION:
+            self._logger.log_epoch_to_context(epoch=1)
+
+        # Set the model name:
+        self._model_name = (
+            type(self._objects[self._ObjectKeys.MODEL]).__name__
+            if self._model_name is None
+            else self._model_name
+        )
+
+        # End the run:
         self._logger.log_run(
             model_handler=PyTorchModelHandler(
-                model_name=type(model).__name__,
+                model_name=self._model_name,
+                model_path=self._model_path,
                 custom_objects_map=self._custom_objects_map,
                 custom_objects_directory=self._custom_objects_directory,
-                model=model,
+                model=self._objects[self._ObjectKeys.MODEL],
             )
         )
 

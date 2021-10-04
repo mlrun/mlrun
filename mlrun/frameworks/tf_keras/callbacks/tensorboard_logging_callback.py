@@ -11,10 +11,10 @@ from tensorflow.python.ops import summary_ops_v2
 
 import mlrun
 from mlrun.frameworks._common.loggers import TensorboardLogger, TrackableType
-from mlrun.frameworks.keras.callbacks.logging_callback import LoggingCallback
+from mlrun.frameworks.tf_keras.callbacks.logging_callback import LoggingCallback
 
 
-class _KerasTensorboardLogger(TensorboardLogger):
+class _TFKerasTensorboardLogger(TensorboardLogger):
     """
     The keras framework implementation of the 'TensorboardLogger'.
     """
@@ -48,7 +48,7 @@ class _KerasTensorboardLogger(TensorboardLogger):
                                       update. Notice that writing to tensorboard too frequently may cause the training
                                       to be slower. Defaulted to 'epoch'.
         """
-        super(_KerasTensorboardLogger, self).__init__(
+        super(_TFKerasTensorboardLogger, self).__init__(
             statistics_functions=statistics_functions,
             context=context,
             tensorboard_directory=tensorboard_directory,
@@ -248,7 +248,11 @@ class TensorboardLoggingCallback(LoggingCallback):
 
         :param context:                 A mlrun context to use for logging into the user's tensorboard directory.
         :param tensorboard_directory:   If context is not given, or if wished to set the directory even with context,
-                                        this will be the output for the event logs of tensorboard.
+                                        this will be the output for the event logs of tensorboard. If not given, the
+                                        'tensorboard_dir' parameter will be tried to be taken from the provided context.
+                                        If not found in the context, the default tensorboard output directory will be:
+                                        /User/.tensorboard/<PROJECT_NAME> or if working on local, the set artifacts
+                                        path.
         :param run_name:                This experiment run name. Each run name will be indexed at the end of the name
                                         so each experiment will be numbered automatically. If a context was given, the
                                         context's uid will be added instead of an index. If a run name was not given the
@@ -310,7 +314,7 @@ class TensorboardLoggingCallback(LoggingCallback):
 
         # Replace the logger with a TensorboardLogger:
         del self._logger
-        self._logger = _KerasTensorboardLogger(
+        self._logger = _TFKerasTensorboardLogger(
             statistics_functions=(
                 statistics_functions
                 if statistics_functions is not None

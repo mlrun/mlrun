@@ -363,7 +363,9 @@ class AbstractSparkRuntime(KubejobRuntime):
                 verify_and_update_in(
                     job,
                     "spec.executor.coreRequest",
-                    str(self.spec.executor_resources["requests"]["cpu"]), # Backwards compatibility
+                    str(
+                        self.spec.executor_resources["requests"]["cpu"]
+                    ),  # Backwards compatibility
                     str,
                 )
             if "memory" in self.spec.executor_resources["requests"]:

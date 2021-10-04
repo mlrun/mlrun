@@ -85,7 +85,7 @@ extras_require = {
         "s3fs>=0.5.0, <=2021.8.1",
     ],
     # adlfs versioning changed to year.month.patch after 0.7.7
-    "azure-blob-storage": ["azure-storage-blob~=12.0", "adlfs>=0.7.1, <=2021.8.1",],
+    "azure-blob-storage": ["azure-storage-blob~=12.0", "adlfs>=0.7.1, <=2021.8.1"],
     "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
     # mlrun.frameworks requirements per framework:  # TODO: should be added in a later PR
     "bokeh": ["bokeh~=2.3"],

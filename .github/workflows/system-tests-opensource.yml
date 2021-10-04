@@ -56,7 +56,7 @@ jobs:
     - name: Install automation scripts dependencies and add mlrun to dev packages
       run: |
         pip install -r automation/requirements.txt -r dockerfiles/test-system/requirements.txt \
-          -r dockerfiles/api/requirements.txt && pip install -e .
+          -r dockerfiles/mlrun-api/requirements.txt && pip install -e .
 
       # TODO: How can we avoid these duplicate lines from the enterprise system tests, up until line 120.
     - name: Install curl and jq

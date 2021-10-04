@@ -23,6 +23,22 @@ from .utils.db.sqlite_migration import SQLiteMigrationUtil
 def init_data(from_scratch: bool = False) -> None:
     logger.info("Creating initial data")
 
+    _perform_schema_migrations(from_scratch)
+
+    db_session = create_session()
+    try:
+        init_db(db_session)
+        _add_initial_data(db_session)
+        _perform_data_migrations(db_session)
+    finally:
+        close_session(db_session)
+    logger.info("Initial data created")
+
+
+latest_data_version = 1
+
+
+def _perform_schema_migrations(from_scratch: bool = False):
     alembic_config_file_name = "alembic.ini"
     if MySQLUtil.get_mysql_dsn_data():
         alembic_config_file_name = "alembic_mysql.ini"
@@ -37,18 +53,6 @@ def init_data(from_scratch: bool = False) -> None:
     if not from_scratch:
         sqlite_migration_util = SQLiteMigrationUtil()
         sqlite_migration_util.transfer()
-
-    db_session = create_session()
-    try:
-        init_db(db_session)
-        _add_initial_data(db_session)
-        _perform_data_migrations(db_session)
-    finally:
-        close_session(db_session)
-    logger.info("Initial data created")
-
-
-latest_data_version = 1
 
 
 def _perform_data_migrations(db_session: sqlalchemy.orm.Session):

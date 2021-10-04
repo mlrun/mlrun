@@ -5,7 +5,7 @@ from torch import Tensor
 from torch.nn import Module, Parameter
 
 import mlrun
-from mlrun.frameworks._common.loggers import Logger, TrackableType
+from mlrun.frameworks._common.loggers import Logger, LoggerMode, TrackableType
 from mlrun.frameworks.pytorch.callbacks.callback import (
     Callback,
     MetricFunctionType,
@@ -279,6 +279,7 @@ class LoggingCallback(Callback):
         """
         if self._is_training is None:
             self._is_training = False
+            self._logger.set_mode(mode=LoggerMode.EVALUATION)
 
     def on_validation_end(
         self, loss_value: MetricValueType, metric_values: List[float]

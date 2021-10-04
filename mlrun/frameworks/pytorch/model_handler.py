@@ -89,14 +89,52 @@ class PyTorchModelHandler(ModelHandler):
             context=context,
         )
 
+    def set_inputs(
+        self,
+        from_sample: torch.Tensor = None,
+        names: List[str] = None,
+        data_types: List[torch.dtype] = None,
+        shapes: List[List[int]] = None,
+    ):
+        """
+        Set the inputs property of this model to be logged along with it. The method 'to_onnx' can use this property as
+        well for the conversion process.
+
+        :param from_sample: Read the inputs properties from a given input sample to the model.
+        :param names:       List of names for each input layer.
+        :param data_types:  List of data types for each input layer.
+        :param shapes:      List of tensor shapes for each input layer.
+        """
+        # TODO: Implement for IOLogging
+        pass
+
+    def set_outputs(
+        self,
+        from_sample: torch.Tensor = None,
+        names: List[str] = None,
+        data_types: List[torch.dtype] = None,
+        shapes: List[List[int]] = None,
+    ):
+        """
+        Set the outputs property of this model to be logged along with it. The method 'to_onnx' can use this property as
+        well for the conversion process.
+
+        :param from_sample: Read the inputs properties from a given input sample to the model.
+        :param names:       List of names for each output layer.
+        :param data_types:  List of data types for each output layer.
+        :param shapes:      List of tensor shapes for each output layer.
+        """
+        # TODO: Implement for IOLogging
+        pass
+
     def save(
         self, output_path: str = None, *args, **kwargs
     ) -> Union[Dict[str, Artifact], None]:
         """
         Save the handled model at the given output path.
 
-        :param output_path:  The full path to the directory to save the handled model at. If not given, the context
-                             stored will be used to save the model in the defaulted location.
+        :param output_path: The full path to the directory to save the handled model at. If not given, the context
+                            stored will be used to save the model in the defaulted location.
 
         :return The saved model artifacts dictionary if context is available and None otherwise.
 
@@ -118,7 +156,7 @@ class PyTorchModelHandler(ModelHandler):
         artifacts = None
         if self._context is not None:
             artifacts = {
-                "weights_file": self._context.log_artifact(
+                self._get_weights_file_artifact_name(): self._context.log_artifact(
                     weights_file,
                     local_path=weights_file,
                     artifact_path=output_path,
@@ -161,10 +199,10 @@ class PyTorchModelHandler(ModelHandler):
 
     def log(
         self,
-        labels: Dict[str, Union[str, int, float]],
-        parameters: Dict[str, Union[str, int, float]],
-        extra_data: Dict[str, Any],
-        artifacts: Dict[str, Artifact],
+        labels: Dict[str, Union[str, int, float]] = None,
+        parameters: Dict[str, Union[str, int, float]] = None,
+        extra_data: Dict[str, Any] = None,
+        artifacts: Dict[str, Artifact] = None,
     ):
         """
         Log the model held by this handler into the MLRun context provided.
@@ -172,10 +210,9 @@ class PyTorchModelHandler(ModelHandler):
         :param labels:     Labels to log the model with.
         :param parameters: Parameters to log with the model.
         :param extra_data: Extra data to log with the model.
-        :param artifacts:  Artifacts to log the model with.
+        :param artifacts:  Artifacts to log the model with. Will be added to the extra data.
 
-        :raise RuntimeError: In case there is no model in this handler.
-        :raise ValueError:   In case a context is missing.
+        :raise ValueError: In case a context is missing or there is no model in this handler.
         """
         super(PyTorchModelHandler, self).log(
             labels=labels,
@@ -183,6 +220,12 @@ class PyTorchModelHandler(ModelHandler):
             extra_data=extra_data,
             artifacts=artifacts,
         )
+
+        # Set default values:
+        labels = {} if labels is None else labels
+        parameters = {} if parameters is None else parameters
+        extra_data = {} if extra_data is None else extra_data
+        artifacts = {} if artifacts is None else artifacts
 
         # Save the model:
         model_artifacts = self.save()
@@ -195,6 +238,7 @@ class PyTorchModelHandler(ModelHandler):
         # Log the model:
         self._context.log_model(
             self._model_name,
+            db_key=self._model_name,
             model_file=self._weights_file,
             framework="pytorch",
             labels={"model-class-name": self._model_class_name, **labels},
@@ -207,6 +251,79 @@ class PyTorchModelHandler(ModelHandler):
                 **extra_data,
             },
         )
+
+    def to_onnx(
+        self,
+        input_sample: Union[torch.Tensor, Dict[str, torch.Tensor]] = None,
+        input_layers_names: List[str] = None,
+        output_layers_names: List[str] = None,
+        optimize: bool = True,
+        output_path: str = None,
+        log: bool = None,
+    ):
+        """
+        Convert the model in this handler to an ONNX model. The layer names are optional, they do not change the
+        semantics of the model, it is only for readability.
+
+        :param input_sample:        A torch.Tensor with the shape and data type of the expected input to the model. It
+                                    is optional but recommended.
+        :param input_layers_names:  List of names to assign to the input nodes of the graph in order. All of the other
+                                    parameters (inner layers) can be set as well by passing additional names in the
+                                    list. The order is by the order of the parameters in the model.
+        :param output_layers_names: List of names to assign to the input nodes of the graph in order.
+        :param optimize:            Whether or not to optimize the ONNX model using 'onnxoptimizer' before saving the
+                                    model. Defaulted to True.
+        :param output_path:         In order to save the ONNX model, pass here the output directory. The model file will
+                                    be named with the model name in this handler. Defaulted to None (not saving).
+        :param log:                 In order to log the ONNX model, pass True. If None, the model will be logged if this
+                                    handler has a MLRun context set. Defaulted to None.
+
+        :return: The converted ONNX model (onnx.ModelProto).
+        """
+        # Import onnx related modules:
+        try:
+            from mlrun.frameworks.onnx import ONNXModelHandler
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                "ONNX conversion requires additional packages to be installed. "
+                "Please run 'pip install mlrun[pytorch]' to install MLRun's PyTorch package."
+            )
+
+        # Set the input signature:
+        # TODO: Read the input signature parsing in case its None (from the PyTorchModelHandler - IOLogging).
+
+        # Set the output path:
+        if output_path is not None:
+            output_path = os.path.join(output_path, "{}.onnx".format(self._model_name))
+
+        # Set the logging flag:
+        log = self._context is not None if log is None else log
+
+        # Convert to ONNX:
+        torch.onnx.export(
+            self._model,
+            input_sample,
+            output_path,
+            input_names=input_layers_names,
+            output_names=output_layers_names,
+        )
+
+        # Create a handler for the model:
+        onnx_handler = ONNXModelHandler(
+            model_name=self.model_name, model_path=output_path, context=self._context
+        )
+        onnx_handler.load()
+
+        # Optimize the model if needed:
+        if optimize:
+            onnx_handler.optimize()
+            # Save if logging is not required, as logging will save as well:
+            if not log and output_path is not None:
+                onnx_handler.save(output_path=output_path)
+
+        # Log as a model object if needed:
+        if log:
+            onnx_handler.log()
 
     def _collect_files_from_store_object(self):
         """
@@ -225,10 +342,10 @@ class PyTorchModelHandler(ModelHandler):
 
         # Read the custom objects:
         self._custom_objects_map = self._extra_data[
-            self._CUSTOM_OBJECTS_MAP_ARTIFACT_NAME.format(self._model_name)
+            self._get_custom_objects_map_artifact_name()
         ].local()
         self._custom_objects_directory = self._extra_data[
-            self._CUSTOM_OBJECTS_DIRECTORY_ARTIFACT_NAME.format(self._model_name)
+            self._get_custom_objects_directory_artifact_name()
         ].local()
 
     def _collect_files_from_local_path(self):

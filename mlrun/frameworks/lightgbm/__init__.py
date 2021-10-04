@@ -1,14 +1,14 @@
 """
 Description:
-__init__ function of Xgboost-autologger. Will be extended and contain multiple Xgboost-specific functions.
+__init__ function of LightGBM-autologger. Will be extended and contain multiple LightGBM-specific functions.
 """
 
 import mlrun
 from mlrun.frameworks._common.pkl_model_server import PickleModelServer
 from mlrun.frameworks.mlbase.mlrun_interface import MLBaseMLRunInterface
 
-# Temporary placeholder, XGBModelServer may deviate from PklModelServer in upcoming versions.
-XGBModelServer = PickleModelServer
+# Temporary placeholder, LGBMModelServer may deviate from PklModelServer in upcoming versions.
+LGBMModelServer = PickleModelServer
 
 
 def apply_mlrun(
@@ -24,7 +24,7 @@ def apply_mlrun(
     Wrap the given model with MLRun model, saving the model's attributes and methods while giving it mlrun's additional
     features.
     examples::
-        model = XGBRegressor()
+        model = LGBMClassifier()
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
         model = apply_mlrun(model, context, X_test=X_test, y_test=y_test)
         model.fit(X_train, y_train)
@@ -38,11 +38,12 @@ def apply_mlrun(
     :return: The model with MLRun's interface.
     """
     if context is None:
-        context = mlrun.get_or_create_ctx("mlrun_xgb")
+        context = mlrun.get_or_create_ctx("mlrun_lgbm")
 
     kwargs["X_test"] = X_test
     kwargs["y_test"] = y_test
     kwargs["generate_test_set"] = generate_test_set
+    
     # Add MLRun's interface to the model:
     MLBaseMLRunInterface.add_interface(model, context, model_name, kwargs)
     return model

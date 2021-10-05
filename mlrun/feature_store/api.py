@@ -81,6 +81,7 @@ def get_offline_features(
     drop_columns: List[str] = None,
     start_time: Optional[pd.Timestamp] = None,
     end_time: Optional[pd.Timestamp] = None,
+    with_indexes: bool = False,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 
@@ -115,6 +116,7 @@ def get_offline_features(
         entity_timestamp_column must be passed when using time filtering.
     :param end_time:        datetime, high limit of time needed to be filtered. Optional.
         entity_timestamp_column must be passed when using time filtering.
+    :param with_indexes:    return vector with index columns (default False)
     """
     feature_vector = _features_to_vector(feature_vector)
 
@@ -129,6 +131,7 @@ def get_offline_features(
             timestamp_column=entity_timestamp_column,
             run_config=run_config,
             drop_columns=drop_columns,
+            with_indexes=with_indexes,
         )
 
     if (start_time or end_time) and not entity_timestamp_column:
@@ -143,6 +146,7 @@ def get_offline_features(
         drop_columns=drop_columns,
         start_time=start_time,
         end_time=end_time,
+        with_indexes=with_indexes,
     )
 
 

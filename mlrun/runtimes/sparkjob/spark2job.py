@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ...utils import update_in
+from ...utils import update_in, verify_and_update_in
 from .abstract import AbstractSparkJobSpec, AbstractSparkRuntime
 
 
@@ -23,6 +23,14 @@ class Spark2JobSpec(AbstractSparkJobSpec):
 class Spark2Runtime(AbstractSparkRuntime):
     def _enrich_job(self, job):
         update_in(job, "spec.serviceAccount", "sparkapp")
+        if "requests" in self.spec.driver_resources:
+            if "cpu" in self.spec.driver_resources["requests"]:
+                verify_and_update_in(
+                    job,
+                    "spec.driver.cores",
+                    self.spec.driver_resources["requests"]["cpu"],
+                    int,
+                )
         return
 
     def with_priority_class(self, name: str = None):

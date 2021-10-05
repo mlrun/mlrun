@@ -716,6 +716,7 @@ def _assert_db_resources_in_project(
         # User support is not really implemented or in use
         # Run tags support is not really implemented or in use
         # Marketplace sources is not a project-level table, and hence is not relevant here.
+        # Version is not a project-level table, and hence is not relevant here.
         # Features and Entities are not directly linked to project since they are sub-entity of feature-sets
         # Logs are saved as files, the DB table is not really in use
         # in follower mode the DB project tables are irrelevant
@@ -723,6 +724,7 @@ def _assert_db_resources_in_project(
             cls.__name__ == "User"
             or cls.__tablename__ == "runs_tags"
             or cls.__tablename__ == "marketplace_sources"
+            or cls.__tablename__ == "data_versions"
             or cls.__name__ == "Feature"
             or cls.__name__ == "Entity"
             or cls.__name__ == "Log"

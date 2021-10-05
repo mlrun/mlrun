@@ -120,7 +120,7 @@ def test_check_permissions():
     data_set1 = fs.FeatureSet("fs1", entities=[Entity("string")])
 
     mlrun.db.FileRunDB.verify_authorization = unittest.mock.Mock(
-        side_effect=mlrun.errors.MLRunHTTPError("")
+        side_effect=mlrun.errors.MLRunAccessDeniedError("")
     )
 
     try:
@@ -131,13 +131,13 @@ def test_check_permissions():
             timestamp_key="time_stamp",
         )
         assert False
-    except mlrun.errors.MLRunHTTPError:
+    except mlrun.errors.MLRunAccessDeniedError:
         pass
 
     try:
         fs.ingest(data_set1, data, infer_options=fs.InferOptions.default())
         assert False
-    except mlrun.errors.MLRunHTTPError:
+    except mlrun.errors.MLRunAccessDeniedError:
         pass
 
     features = ["fs1.*"]
@@ -145,23 +145,23 @@ def test_check_permissions():
     try:
         fs.get_offline_features(feature_vector, entity_timestamp_column="time_stamp")
         assert False
-    except mlrun.errors.MLRunHTTPError:
+    except mlrun.errors.MLRunAccessDeniedError:
         pass
 
     try:
         fs.get_online_feature_service(feature_vector)
         assert False
-    except mlrun.errors.MLRunHTTPError:
+    except mlrun.errors.MLRunAccessDeniedError:
         pass
 
     try:
         fs.deploy_ingestion_service(featureset=data_set1)
         assert False
-    except mlrun.errors.MLRunHTTPError:
+    except mlrun.errors.MLRunAccessDeniedError:
         pass
 
     try:
         data_set1.purge_targets()
         assert False
-    except mlrun.errors.MLRunHTTPError:
+    except mlrun.errors.MLRunAccessDeniedError:
         pass

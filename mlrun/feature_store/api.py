@@ -39,7 +39,8 @@ from .common import (
     RunConfig,
     get_feature_set_by_uri,
     get_feature_vector_by_uri,
-    verify_feature_permissions,
+    verify_feature_set_permissions,
+    verify_feature_vector_permissions,
 )
 from .feature_set import FeatureSet
 from .feature_vector import (
@@ -69,7 +70,9 @@ def _features_to_vector_and_check_permissions(features):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "feature vector name must be specified"
             )
-        verify_feature_permissions(vector, mlrun.api.schemas.AuthorizationAction.update)
+        verify_feature_vector_permissions(
+            vector, mlrun.api.schemas.AuthorizationAction.update
+        )
 
         vector.save()
     else:
@@ -273,7 +276,7 @@ def ingest(
 
     if run_config:
         # remote job execution
-        verify_feature_permissions(
+        verify_feature_set_permissions(
             featureset, mlrun.api.schemas.AuthorizationAction.update
         )
         run_config = run_config.copy() if run_config else RunConfig()
@@ -299,7 +302,7 @@ def ingest(
             overwrite,
         ) = context_to_ingestion_params(mlrun_context)
 
-        verify_feature_permissions(
+        verify_feature_set_permissions(
             featureset, mlrun.api.schemas.AuthorizationAction.update
         )
         if not source:
@@ -446,7 +449,9 @@ def preview(
         # if source is a path/url convert to DataFrame
         source = mlrun.store_manager.object(url=source).as_df()
 
-    verify_feature_permissions(featureset, mlrun.api.schemas.AuthorizationAction.update)
+    verify_feature_set_permissions(
+        featureset, mlrun.api.schemas.AuthorizationAction.update
+    )
 
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():
@@ -522,7 +527,9 @@ def deploy_ingestion_service(
     if isinstance(featureset, str):
         featureset = get_feature_set_by_uri(featureset)
 
-    verify_feature_permissions(featureset, mlrun.api.schemas.AuthorizationAction.update)
+    verify_feature_set_permissions(
+        featureset, mlrun.api.schemas.AuthorizationAction.update
+    )
 
     run_config = run_config.copy() if run_config else RunConfig()
     if isinstance(source, StreamSource) and not source.path:

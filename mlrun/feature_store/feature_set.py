@@ -42,7 +42,7 @@ from ..model import (
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import BaseStep, RootFlowStep, previous_step
 from ..utils import StorePrefix
-from .common import verify_feature_permissions
+from .common import verify_feature_set_permissions
 
 aggregates_step = "Aggregates"
 
@@ -355,7 +355,9 @@ class FeatureSet(ModelObj):
         :param target_names: List of names of targets to delete (default: delete all ingested targets)
         :param silent: Fail silently if target doesn't exist in featureset status """
 
-        verify_feature_permissions(self, mlrun.api.schemas.AuthorizationAction.delete)
+        verify_feature_set_permissions(
+            self, mlrun.api.schemas.AuthorizationAction.delete
+        )
 
         try:
             self.reload(update_spec=False)

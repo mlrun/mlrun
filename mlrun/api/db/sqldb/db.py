@@ -27,6 +27,7 @@ from mlrun.api.db.sqldb.helpers import (
 )
 from mlrun.api.db.sqldb.models import (
     Artifact,
+    DataVersion,
     Entity,
     Feature,
     FeatureSet,
@@ -2654,3 +2655,32 @@ class SQLDB(DBInterface):
             )
 
         return self._transform_marketplace_source_record_to_schema(source_record)
+
+    def get_current_data_version(
+        self, session, raise_on_not_found=True
+    ) -> typing.Optional[str]:
+        current_data_version_record = (
+            self._query(session, DataVersion)
+            .order_by(DataVersion.created.desc())
+            .limit(1)
+            .one_or_none()
+        )
+        if not current_data_version_record:
+            log_method = logger.warning if raise_on_not_found else logger.debug
+            message = "No data version found"
+            log_method(message)
+            if raise_on_not_found:
+                raise mlrun.errors.MLRunNotFoundError(message)
+        if current_data_version_record:
+            return current_data_version_record.version
+        else:
+            return None
+
+    def create_data_version(self, session, version):
+        logger.debug(
+            "Creating data version in DB", version=version,
+        )
+
+        now = datetime.now(timezone.utc)
+        data_version_record = DataVersion(version=version, created=now)
+        self._upsert(session, data_version_record)

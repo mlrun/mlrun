@@ -341,8 +341,15 @@ class BaseStoreTarget(DataTargetBase):
         return result
 
     def write_dataframe(
-        self, df, key_column=None, timestamp_key=None, **kwargs,
+        self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs,
     ) -> typing.Optional[int]:
+
+        def path_with_chunk():
+            prefix, suffix = os.path.splitext(self._target_path)
+            if chunk_id:
+                return f"{prefix}/{chunk_id:0>4}{suffix}"
+            return self._target_path
+
         if hasattr(df, "rdd"):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
@@ -353,9 +360,9 @@ class BaseStoreTarget(DataTargetBase):
             df = df.repartition(partition_size="100MB")
             try:
                 if dask_options["format"] == "parquet":
-                    df.to_parquet(self._target_path, storage_options=storage_options)
+                    df.to_parquet(path_with_chunk(), storage_options=storage_options)
                 elif dask_options["format"] == "csv":
-                    df.to_csv(self._target_path, storage_options=storage_options)
+                    df.to_csv(path_with_chunk(), storage_options=storage_options)
                 else:
                     raise NotImplementedError(
                         "Format for writing dask dataframe should be CSV or Parquet!"
@@ -363,7 +370,7 @@ class BaseStoreTarget(DataTargetBase):
             except Exception as exc:
                 raise RuntimeError(f"Failed to write Dask Dataframe for {exc}.")
         else:
-            target_path = self._target_path
+            target_path = path_with_chunk()
             fs = self._get_store().get_filesystem(False)
             if fs.protocol == "file":
                 dir = os.path.dirname(target_path)

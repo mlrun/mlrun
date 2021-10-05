@@ -136,8 +136,9 @@ class CSVSource(BaseSourceDriver):
         }
 
     def to_dataframe(self):
+        kwargs = self.attributes.get("reader_args", {})
         return mlrun.store_manager.object(url=self.path).as_df(
-            parse_dates=self._parse_dates
+            parse_dates=self._parse_dates, **kwargs
         )
 
 
@@ -217,7 +218,8 @@ class ParquetSource(BaseSourceDriver):
         }
 
     def to_dataframe(self):
-        return mlrun.store_manager.object(url=self.path).as_df(format="parquet")
+        kwargs = self.attributes.get("reader_args", {})
+        return mlrun.store_manager.object(url=self.path).as_df(format="parquet", **kwargs)
 
 
 class CustomSource(BaseSourceDriver):

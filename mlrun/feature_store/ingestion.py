@@ -54,27 +54,45 @@ def init_featureset_graph(
             return_df=return_df,
             context=server.context,
         )
+        server.init_object(namespace)
+        return graph.wait_for_completion()
 
     server.init_object(namespace)
-
-    if graph.engine != "sync":
-        return graph.wait_for_completion()
 
     if hasattr(source, "to_dataframe"):
         source = source.to_dataframe()
     elif not hasattr(source, "to_csv"):
         raise mlrun.errors.MLRunInvalidArgumentError("illegal source")
 
-    event = MockEvent(body=source)
-    data = server.run(event, get_body=True)
-    for target in targets:
-        target = get_target_driver(target, featureset)
-        size = target.write_dataframe(data)
-        target_status = target.update_resource_status("ready", size=size)
+    # if the source is a dataframe iterator we load/write it in chunks
+    chunk_id = 0
+    try:
+        chunks = iter(source)
+        chunk_id = 1
+    except TypeError:
+        chunks = iter([source])
+
+    sizes = [0] * len(chunks)
+    data_result = None
+    for chunk in chunks:
+        event = MockEvent(body=chunk)
+        data = server.run(event, get_body=True)
+        for i, target in enumerate(targets):
+            target = get_target_driver(target, featureset)
+            size = target.write_dataframe(data, chunk_id=chunk_id)
+            if size:
+                sizes[i] += size
+        chunk_id += 1
+        if not data_result:
+            # in case of multiple chunks only return the first chunk (last may be too small)
+            data_result = data
+
+    for i, target in enumerate(targets):
+        target_status = target.update_resource_status("ready", size=sizes[i])
         if verbose:
             logger.info(f"wrote target: {target_status}")
 
-    return data
+    return data_result
 
 
 def featureset_initializer(server):

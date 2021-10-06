@@ -72,20 +72,31 @@ def init_featureset_graph(
     else:
         chunks = [source]
 
+    entity_columns = list(featureset.spec.entities.keys())
+    key_fields = entity_columns if entity_columns else None
+
     sizes = [0] * len(targets)
     data_result = None
     targets = [get_target_driver(target, featureset) for target in targets]
     for chunk in chunks:
         event = MockEvent(body=chunk)
         data = server.run(event, get_body=True)
-        for i, target in enumerate(targets):
-            size = target.write_dataframe(data, chunk_id=chunk_id)
-            if size:
-                sizes[i] += size
+        if data is not None:
+            for i, target in enumerate(targets):
+                size = target.write_dataframe(
+                    data,
+                    key_column=key_fields,
+                    timestamp_key=featureset.spec.timestamp_key,
+                    chunk_id=chunk_id,
+                )
+                if size:
+                    sizes[i] += size
         chunk_id += 1
         if data_result is None:
             # in case of multiple chunks only return the first chunk (last may be too small)
             data_result = data
+
+    # todo: fire termination event if iterator
 
     for i, target in enumerate(targets):
         target_status = target.update_resource_status("ready", size=sizes[i])

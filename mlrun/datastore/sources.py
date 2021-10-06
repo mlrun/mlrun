@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
+import os
 from copy import copy
 from datetime import datetime
 from typing import Dict, List, Optional, Union
@@ -20,6 +22,7 @@ from nuclio import KafkaTrigger
 from nuclio.config import split_path
 
 import mlrun
+from mlrun.secrets import SecretsStore
 
 from ..config import config
 from ..model import DataSource
@@ -240,32 +243,70 @@ class BigQuerySource(BaseSourceDriver):
        :parameter name:  source name
        :parameter query: sql query string
        :parameter chunksize: number of rows per chunk (default single chunk)
+       :parameter key_field: the column to be used as the key for events. Can be a list of keys.
+       :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
+       :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
+            cause the job to run every 30 minutes
+       :parameter gcp_project:  google cloud project name
     """
 
+    kind = "bigquery"
     support_storey = False
 
     def __init__(
-        self, name: str = "", query: str = "", chunksize=None,
+        self,
+        name: str = "",
+        query: str = "",
+        chunksize=None,
+        key_field: str = None,
+        time_field: str = None,
+        schedule: str = None,
+        gcp_project: str = None,
     ):
         attrs = {
             "query": query,
             "chunksize": chunksize,
+            "gcp_project": gcp_project,
         }
-        super().__init__(name, attributes=attrs)
+        super().__init__(
+            name,
+            attributes=attrs,
+            key_field=key_field,
+            time_field=time_field,
+            schedule=schedule,
+        )
+        self._rows_iterator = None
+
+    def _get_credentials(self):
+        from google.oauth2 import service_account
+
+        gcp_project = self.attributes.get("gcp_project", None)
+        key = "GCS_CREDENTIALS"
+        gcp_cred_string = os.getenv(key) or os.getenv(
+            SecretsStore.k8s_env_variable_name_for_secret(key)
+        )
+        if gcp_cred_string:
+            gcp_cred_dict = json.loads(gcp_cred_string, strict=False)
+            credentials = service_account.Credentials.from_service_account_info(
+                gcp_cred_dict
+            )
+            return credentials, gcp_project or gcp_cred_dict["project_id"]
+        return None, gcp_project
 
     def to_dataframe(self):
         from google.cloud import bigquery
 
-        bqclient = bigquery.Client()
+        credentials, gcp_project = self._get_credentials()
+        bqclient = bigquery.Client(project=gcp_project, credentials=credentials)
         query_job = bqclient.query(self.attributes.get("query"))
 
         chunksize = self.attributes.get("chunksize")
         if chunksize:
-            rows = query_job.result(page_size=chunksize)
-            return rows.to_dataframe_iterable()
+            self._rows_iterator = query_job.result(page_size=chunksize)
+            return self._rows_iterator.to_dataframe_iterable()
 
-        rows = query_job.result(page_size=chunksize)
-        return rows.to_dataframe()
+        self._rows_iterator = query_job.result(page_size=chunksize)
+        return self._rows_iterator.to_dataframe()
 
     def is_iterator(self):
         return True if self.attributes.get("chunksize") else False
@@ -505,10 +546,11 @@ class KafkaSource(OnlineSource):
 # map of sources (exclude DF source which is not serializable)
 source_kind_to_driver = {
     "": BaseSourceDriver,
-    "csv": CSVSource,
-    "parquet": ParquetSource,
-    "http": HttpSource,
-    "v3ioStream": StreamSource,
-    "kafka": KafkaSource,
-    "custom": CustomSource,
+    CSVSource.kind: CSVSource,
+    ParquetSource.kind: ParquetSource,
+    HttpSource.kind: HttpSource,
+    StreamSource.kind: StreamSource,
+    KafkaSource.kind: KafkaSource,
+    CustomSource.kind: CustomSource,
+    BigQuerySource.kind: BigQuerySource,
 }

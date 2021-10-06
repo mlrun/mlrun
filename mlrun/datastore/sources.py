@@ -285,7 +285,7 @@ class BigQuerySource(BaseSourceDriver):
         gcp_cred_string = os.getenv(key) or os.getenv(
             SecretsStore.k8s_env_variable_name_for_secret(key)
         )
-        if gcp_cred_string:
+        if gcp_cred_string and not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
             gcp_cred_dict = json.loads(gcp_cred_string, strict=False)
             credentials = service_account.Credentials.from_service_account_info(
                 gcp_cred_dict

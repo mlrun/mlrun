@@ -260,8 +260,8 @@ class BigQuerySource(BaseSourceDriver):
     def __init__(
         self,
         name: str = "",
-        query: str = "",
-        table: str = "",
+        query: str = None,
+        table: str = None,
         chunksize: int = None,
         key_field: str = None,
         time_field: str = None,
@@ -340,6 +340,10 @@ class BigQuerySource(BaseSourceDriver):
         table = self.attributes.get("table")
         if table:
             options["path"] = table
+        if not query and not table:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "table or query args must be specified"
+            )
 
         df = session.read.format("bigquery").load(**options)
         if named_view:

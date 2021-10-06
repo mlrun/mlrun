@@ -17,3 +17,4 @@ adlfs>=0.7.1, <=2021.8.1
 azure-identity~=1.5
 azure-keyvault-secrets~=4.2
 bokeh~=2.3
+gcsfs~=2021.10

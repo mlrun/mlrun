@@ -59,7 +59,15 @@ class S3Store(DataStore):
     def get_storage_options(self):
         key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
         secret = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
-        return dict(anon=not (key and secret), key=key, secret=secret,)
+
+        storage_options = dict(anon=not (key and secret), key=key, secret=secret)
+
+        endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
+        if endpoint_url:
+            client_kwargs = {"endpoint_url": endpoint_url}
+            storage_options["client_kwargs"] = client_kwargs
+
+        return storage_options
 
     def upload(self, key, src_path):
         self.s3.Object(self.endpoint, self._join(key)[1:]).put(

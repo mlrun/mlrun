@@ -18,6 +18,8 @@ import warnings
 from collections import Counter
 from copy import copy
 
+import pandas as pd
+
 import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
@@ -345,7 +347,11 @@ class BaseStoreTarget(DataTargetBase):
     ) -> typing.Optional[int]:
         def path_with_chunk():
             prefix, suffix = os.path.splitext(self._target_path)
-            if chunk_id:
+            if (
+                chunk_id
+                and not self.partitioned
+                and not self.time_partitioning_granularity
+            ):
                 return f"{prefix}/{chunk_id:0>4}{suffix}"
             return self._target_path
 
@@ -375,7 +381,27 @@ class BaseStoreTarget(DataTargetBase):
                 dir = os.path.dirname(target_path)
                 if dir:
                     os.makedirs(dir, exist_ok=True)
-            self._write_dataframe(df, fs, target_path, **kwargs)
+            partition_cols = []
+            if timestamp_key and (
+                self.partitioned or self.time_partitioning_granularity
+            ):
+                time_partitioning_granularity = self.time_partitioning_granularity
+                if not time_partitioning_granularity and self.partitioned:
+                    time_partitioning_granularity = "hour"
+                for unit, fmt in [
+                    ("year", "%Y"),
+                    ("month", "%m"),
+                    ("day", "%d"),
+                    ("hour", "%H"),
+                    ("minute", "%M"),
+                ]:
+                    partition_cols.append(unit)
+                    df[unit] = getattr(pd.DatetimeIndex(df[timestamp_key]), unit)
+                    if unit == time_partitioning_granularity:
+                        break
+            self._write_dataframe(
+                df, fs, target_path, partition_cols=partition_cols, **kwargs
+            )
             try:
                 return fs.size(target_path)
             except Exception:
@@ -581,8 +607,11 @@ class ParquetTarget(BaseStoreTarget):
 
     @staticmethod
     def _write_dataframe(df, fs, target_path, **kwargs):
-        with fs.open(target_path, "wb") as fp:
-            df.to_parquet(fp, **kwargs)
+        if "partition_cols" in kwargs:
+            df.to_parquet(target_path, **kwargs)
+        else:
+            with fs.open(target_path, "wb") as fp:
+                df.to_parquet(fp, **kwargs)
 
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None

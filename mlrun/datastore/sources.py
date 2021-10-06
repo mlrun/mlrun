@@ -13,6 +13,7 @@
 # limitations under the License.
 import json
 import os
+from base64 import b64encode
 from copy import copy
 from datetime import datetime
 from typing import Dict, List, Optional, Union
@@ -242,32 +243,44 @@ class BigQuerySource(BaseSourceDriver):
 
        :parameter name:  source name
        :parameter query: sql query string
+       :parameter table: table name/path, cannot be used together with query
        :parameter chunksize: number of rows per chunk (default single chunk)
        :parameter key_field: the column to be used as the key for events. Can be a list of keys.
        :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
        :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
             cause the job to run every 30 minutes
        :parameter gcp_project:  google cloud project name
+       :parameter spark_options: additional spart read options
     """
 
     kind = "bigquery"
     support_storey = False
+    support_spark = True
 
     def __init__(
         self,
         name: str = "",
         query: str = "",
-        chunksize=None,
+        table: str = "",
+        chunksize: int = None,
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
         gcp_project: str = None,
+        spark_options: dict = None,
     ):
+        if query and table:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "cannot specify both table and query args"
+            )
         attrs = {
             "query": query,
+            "table": table,
             "chunksize": chunksize,
             "gcp_project": gcp_project,
+            "spark_options": spark_options,
         }
+        attrs = {key: value for key, value in attrs.items() if value is not None}
         super().__init__(
             name,
             attributes=attrs,
@@ -310,6 +323,28 @@ class BigQuerySource(BaseSourceDriver):
 
     def is_iterator(self):
         return True if self.attributes.get("chunksize") else False
+
+    def to_spark_df(self, session, named_view=False):
+        options = copy(self.attributes.get("spark_options", {}))
+        credentials, gcp_project = self._get_credentials()
+        if credentials:
+            options["credentials"] = b64encode(credentials.encode("utf-8")).decode(
+                "utf-8"
+            )
+        if gcp_project:
+            options["parentProject"] = gcp_project
+        query = self.attributes.get("query")
+        if query:
+            options["viewsEnabled"] = True
+            options["query"] = query
+        table = self.attributes.get("table")
+        if table:
+            options["path"] = table
+
+        df = session.read.format("bigquery").load(**options)
+        if named_view:
+            df.createOrReplaceTempView(self.name)
+        return df
 
 
 class CustomSource(BaseSourceDriver):

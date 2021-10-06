@@ -70,7 +70,11 @@ class SQLiteMigrationUtil(object):
 
     def _create_migrator(self) -> typing.Optional[sqlite3_to_mysql.SQLite3toMySQL]:
         sqlite_file = self._get_old_db_file_path()
-        if not sqlite_file or not self._mysql_dsn_data or not os.path.isfile(sqlite_file):
+        if (
+            not sqlite_file
+            or not self._mysql_dsn_data
+            or not os.path.isfile(sqlite_file)
+        ):
             return None
 
         logger.info(

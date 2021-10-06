@@ -408,7 +408,7 @@ class BaseStoreTarget(DataTargetBase):
                 return None
 
     @staticmethod
-    def _write_dataframe(df, fs, target_path, **kwargs):
+    def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
         raise NotImplementedError()
 
     def set_secrets(self, secrets):
@@ -606,12 +606,12 @@ class ParquetTarget(BaseStoreTarget):
     _legal_time_units = ["year", "month", "day", "hour", "minute", "second"]
 
     @staticmethod
-    def _write_dataframe(df, fs, target_path, **kwargs):
+    def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
         if "partition_cols" in kwargs:
-            df.to_parquet(target_path, **kwargs)
+            df.to_parquet(target_path, partition_cols=partition_cols, **kwargs)
         else:
             with fs.open(target_path, "wb") as fp:
-                df.to_parquet(fp, **kwargs)
+                df.to_parquet(fp, partition_cols=partition_cols, **kwargs)
 
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
@@ -742,7 +742,7 @@ class CSVTarget(BaseStoreTarget):
     support_storey = True
 
     @staticmethod
-    def _write_dataframe(df, fs, target_path, **kwargs):
+    def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
         mode = "wb"
         # We generally prefer to open in a binary mode so that different encodings could be used, but pandas had a bug
         # with such files until version 1.2.0, in this version they dropped support for python 3.6.

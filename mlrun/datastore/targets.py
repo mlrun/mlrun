@@ -382,10 +382,11 @@ class BaseStoreTarget(DataTargetBase):
                 if dir:
                     os.makedirs(dir, exist_ok=True)
             partition_cols = []
+            target_df = df
             if timestamp_key and (
                 self.partitioned or self.time_partitioning_granularity
             ):
-                timed_df = df.copy(deep=False)
+                target_df = df.copy(deep=False)
                 time_partitioning_granularity = self.time_partitioning_granularity
                 if not time_partitioning_granularity and self.partitioned:
                     time_partitioning_granularity = "hour"
@@ -397,13 +398,13 @@ class BaseStoreTarget(DataTargetBase):
                     ("minute", "%M"),
                 ]:
                     partition_cols.append(unit)
-                    timed_df[unit] = getattr(
-                        pd.DatetimeIndex(timed_df[timestamp_key]), unit
+                    target_df[unit] = getattr(
+                        pd.DatetimeIndex(target_df[timestamp_key]), unit
                     )
                     if unit == time_partitioning_granularity:
                         break
             self._write_dataframe(
-                timed_df, fs, target_path, partition_cols=partition_cols, **kwargs
+                target_df, fs, target_path, partition_cols=partition_cols, **kwargs
             )
             try:
                 return fs.size(target_path)

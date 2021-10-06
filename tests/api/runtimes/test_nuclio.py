@@ -23,6 +23,7 @@ from mlrun.runtimes.function import (
     validate_nuclio_version_compatibility,
 )
 from mlrun.runtimes.pod import KubeResourceSpec
+from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
 
 
@@ -367,18 +368,21 @@ class TestNuclioRuntime(TestRuntimeBase):
         for expected_env_var in expected_env_vars:
             assert expected_env_var in config["spec"]["env"]
 
-    def test_deploy_with_project_secrets(self, db: Session, client: TestClient):
-        project_secret_name = "dummy_secret_name"
+    def test_deploy_with_project_secrets(
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+    ):
         secret_keys = ["secret1", "secret2", "secret3"]
+        secrets = {key: "some-secret-value" for key in secret_keys}
 
-        expected_secrets = self._mock_project_secrets(
-            project_secret_name,
-            secret_keys,
-            encode_key_names=(self.class_name != "remote"),
-        )
+        k8s_secrets_mock.store_project_secrets(self.project, secrets)
 
         function = self._generate_runtime(self.runtime_kind)
         self._serialize_and_deploy_nuclio_function(function)
+
+        # This test runs in KubeJob as well, with different secret names encoding
+        expected_secrets = k8s_secrets_mock.get_expected_env_variables_from_secrets(
+            self.project, encode_key_names=(self.class_name != "remote")
+        )
         self._assert_deploy_called_basic_config(
             expected_class=self.class_name, expected_env_from_secrets=expected_secrets
         )

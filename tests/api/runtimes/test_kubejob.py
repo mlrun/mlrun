@@ -12,6 +12,7 @@ from mlrun.config import config as mlconf
 from mlrun.platforms import auto_mount
 from mlrun.runtimes.kubejob import KubejobRuntime
 from mlrun.runtimes.utils import generate_resources
+from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
 
 
@@ -191,14 +192,13 @@ class TestKubejobRuntime(TestRuntimeBase):
         self._assert_pod_creation_config()
         self._assert_pvc_mount_configured(pvc_name, pvc_mount_path, volume_name)
 
-    def test_run_with_k8s_secrets(self, db: Session, client: TestClient):
-        project_secret_name = "dummy_secret_name"
+    def test_run_with_k8s_secrets(self, db: Session, k8s_secrets_mock: K8sSecretsMock):
         secret_keys = ["secret1", "secret2", "secret3"]
+        secrets = {key: "some-secret-value" for key in secret_keys}
 
-        # Need to do some mocking, so code thinks that the secret contains these keys. Otherwise it will not add
-        # the env. variables to the pod spec.
-        expected_env_from_secrets = self._mock_project_secrets(
-            project_secret_name, secret_keys
+        k8s_secrets_mock.store_project_secrets(self.project, secrets)
+        expected_env_from_secrets = k8s_secrets_mock.get_expected_env_variables_from_secrets(
+            self.project
         )
 
         runtime = self._generate_runtime()

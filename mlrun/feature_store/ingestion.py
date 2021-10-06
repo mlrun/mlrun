@@ -32,7 +32,13 @@ from ..utils import logger
 
 
 def init_featureset_graph(
-    source, featureset, namespace, targets=None, return_df=True, verbose=False
+    source,
+    featureset,
+    namespace,
+    targets=None,
+    return_df=True,
+    verbose=False,
+    rows_limit=None,
 ):
     """create storey ingestion graph/DAG from feature set object"""
 
@@ -45,6 +51,7 @@ def init_featureset_graph(
     server.init_states(context=None, namespace=namespace, resource_cache=cache)
 
     if graph.engine != "sync":
+        # todo: support rows_limit it storey sources
         _add_data_steps(
             graph,
             cache,
@@ -77,8 +84,10 @@ def init_featureset_graph(
 
     sizes = [0] * len(targets)
     data_result = None
+    total_rows = 0
     targets = [get_target_driver(target, featureset) for target in targets]
     for chunk in chunks:
+        print(rows_limit)
         event = MockEvent(body=chunk)
         data = server.run(event, get_body=True)
         if data is not None:
@@ -95,6 +104,9 @@ def init_featureset_graph(
         if data_result is None:
             # in case of multiple chunks only return the first chunk (last may be too small)
             data_result = data
+        total_rows += data.shape[0]
+        if rows_limit and total_rows >= rows_limit:
+            break
 
     # todo: fire termination event if iterator
 

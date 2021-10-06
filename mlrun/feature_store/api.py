@@ -417,11 +417,12 @@ def ingest(
 def preview(
     featureset: FeatureSet,
     source,
-    entity_columns=None,
-    timestamp_key=None,
+    entity_columns: list = None,
+    timestamp_key: str = None,
     namespace=None,
     options: InferOptions = None,
-    verbose=False,
+    verbose: bool = False,
+    sample_size: int = None,
 ) -> pd.DataFrame:
     """run the ingestion pipeline with local DataFrame/file data and infer features schema and stats
 
@@ -444,6 +445,7 @@ def preview(
     :param namespace:      namespace or module containing graph classes
     :param options:        schema and stats infer options (:py:class:`~mlrun.feature_store.InferOptions`)
     :param verbose:        verbose log
+    :param sample_size:    num of rows to sample from the dataset (for large datasets)
     """
     options = options if options is not None else InferOptions.default()
     if timestamp_key is not None:
@@ -474,11 +476,22 @@ def preview(
                 entity_columns,
                 InferOptions.get_common_options(options, InferOptions.Entities),
             )
+        # reduce the size of the ingestion if we do not infer stats
+        rows_limit = (
+            0 if InferOptions.get_common_options(options, InferOptions.Stats) else 1000
+        )
         source = init_featureset_graph(
-            source, featureset, namespace, return_df=True, verbose=verbose
+            source,
+            featureset,
+            namespace,
+            return_df=True,
+            verbose=verbose,
+            rows_limit=rows_limit,
         )
 
-    df = infer_from_static_df(source, featureset, entity_columns, options)
+    df = infer_from_static_df(
+        source, featureset, entity_columns, options, sample_size=sample_size
+    )
     return df
 
 
@@ -646,11 +659,19 @@ def _post_ingestion(context, featureset, spark=None):
 
 
 def infer_from_static_df(
-    df, featureset, entity_columns=None, options: InferOptions = InferOptions.default()
+    df,
+    featureset,
+    entity_columns=None,
+    options: InferOptions = InferOptions.default(),
+    sample_size=None,
 ):
     """infer feature-set schema & stats from static dataframe (without pipeline)"""
     if hasattr(df, "to_dataframe"):
-        df = df.to_dataframe()
+        if df.is_iterator():
+            # todo: describe over multiple chunks
+            df = next(df.to_dataframe())
+        else:
+            df = df.to_dataframe()
     inferer = get_infer_interface(df)
     if InferOptions.get_common_options(options, InferOptions.schema()):
         featureset.spec.timestamp_key = inferer.infer_schema(
@@ -662,7 +683,9 @@ def infer_from_static_df(
             options=options,
         )
     if InferOptions.get_common_options(options, InferOptions.Stats):
-        featureset.status.stats = inferer.get_stats(df, options)
+        featureset.status.stats = inferer.get_stats(
+            df, options, sample_size=sample_size
+        )
     if InferOptions.get_common_options(options, InferOptions.Preview):
         featureset.status.preview = inferer.get_preview(df)
     return df

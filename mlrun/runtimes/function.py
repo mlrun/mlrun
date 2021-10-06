@@ -441,8 +441,12 @@ class RemoteRuntime(KubeResource):
         self.spec.max_replicas = shards
 
     def add_secrets_config_to_spec(self):
-        # Currently secrets are only handled in Serving runtime.
-        pass
+        # For nuclio functions, we just add the project secrets as env variables. Since there's no MLRun code
+        # to decode the secrets and special env variable names in the function, we just use the same env variable as
+        # the key name (encode_key_names=False)
+        self._add_project_k8s_secrets_to_spec(
+            None, project=self.metadata.project, encode_key_names=False
+        )
 
     def deploy(
         self,

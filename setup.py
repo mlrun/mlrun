@@ -88,7 +88,7 @@ extras_require = {
     "azure-blob-storage": ["azure-storage-blob~=12.0", "adlfs>=0.7.1, <=2021.8.1"],
     "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
     "bokeh": ["bokeh~=2.3"],
-    "google-cloud-storage": ["gcsfs~=2021.10"],
+    "google-cloud-storage": ["gcsfs~=2021.8.1"],
 }
 extras_require["complete"] = sorted(
     {

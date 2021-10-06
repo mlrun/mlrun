@@ -76,6 +76,9 @@ class BaseSourceDriver(DataSource):
         # options used in spark.read.load(**options)
         raise NotImplementedError()
 
+    def is_iterator(self):
+        return False
+
 
 class CSVSource(BaseSourceDriver):
     """
@@ -137,9 +140,15 @@ class CSVSource(BaseSourceDriver):
 
     def to_dataframe(self):
         kwargs = self.attributes.get("reader_args", {})
+        chunksize = self.attributes.get("chunksize")
+        if chunksize:
+            kwargs["chunksize"] = chunksize
         return mlrun.store_manager.object(url=self.path).as_df(
             parse_dates=self._parse_dates, **kwargs
         )
+
+    def is_iterator(self):
+        return True if self.attributes.get("chunksize") else False
 
 
 class ParquetSource(BaseSourceDriver):
@@ -219,7 +228,47 @@ class ParquetSource(BaseSourceDriver):
 
     def to_dataframe(self):
         kwargs = self.attributes.get("reader_args", {})
-        return mlrun.store_manager.object(url=self.path).as_df(format="parquet", **kwargs)
+        return mlrun.store_manager.object(url=self.path).as_df(
+            format="parquet", **kwargs
+        )
+
+
+class BigQuerySource(BaseSourceDriver):
+    """
+       Reads Google BigQuery query results as input source for a flow.
+
+       :parameter name:  source name
+       :parameter query: sql query string
+       :parameter chunksize: number of rows per chunk (default single chunk)
+    """
+
+    support_storey = False
+
+    def __init__(
+        self, name: str = "", query: str = "", chunksize=None,
+    ):
+        attrs = {
+            "query": query,
+            "chunksize": chunksize,
+        }
+        super().__init__(name, attributes=attrs)
+
+    def to_dataframe(self):
+        from google.cloud import bigquery
+
+        bqclient = bigquery.Client()
+        query_job = bqclient.query(self.attributes.get("query"))
+
+        chunksize = self.attributes.get("chunksize")
+        if chunksize:
+            rows = query_job.result(page_size=chunksize)
+            return rows.to_dataframe_iterable()
+
+        rows = query_job.result(page_size=chunksize)
+        return rows.to_dataframe()
+
+    def is_iterator(self):
+        return True if self.attributes.get("chunksize") else False
 
 
 class CustomSource(BaseSourceDriver):
@@ -256,7 +305,9 @@ class DataFrameSource:
 
     support_storey = True
 
-    def __init__(self, df, key_field=None, time_field=None, context=None):
+    def __init__(
+        self, df, key_field=None, time_field=None, context=None, iterator=False
+    ):
         self._df = df
         if isinstance(key_field, str):
             self.key_field = [key_field]
@@ -264,6 +315,7 @@ class DataFrameSource:
             self.key_field = key_field
         self.time_field = time_field
         self.context = context
+        self.iterator = iterator
 
     def to_step(self, key_field=None, time_field=None, context=None):
         import storey
@@ -277,6 +329,9 @@ class DataFrameSource:
 
     def to_dataframe(self):
         return self._df
+
+    def is_iterator(self):
+        return self.iterator
 
 
 class OnlineSource(BaseSourceDriver):

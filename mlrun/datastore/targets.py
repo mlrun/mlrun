@@ -343,7 +343,6 @@ class BaseStoreTarget(DataTargetBase):
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs,
     ) -> typing.Optional[int]:
-
         def path_with_chunk():
             prefix, suffix = os.path.splitext(self._target_path)
             if chunk_id:

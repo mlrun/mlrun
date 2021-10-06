@@ -59,31 +59,31 @@ def init_featureset_graph(
 
     server.init_object(namespace)
 
-    if hasattr(source, "to_dataframe"):
-        source = source.to_dataframe()
-    elif not hasattr(source, "to_csv"):
-        raise mlrun.errors.MLRunInvalidArgumentError("illegal source")
-
     # if the source is a dataframe iterator we load/write it in chunks
     chunk_id = 0
-    try:
-        chunks = iter(source)
-        chunk_id = 1
-    except TypeError:
-        chunks = iter([source])
+    if hasattr(source, "to_dataframe"):
+        if source.is_iterator():
+            chunk_id = 1
+            chunks = source.to_dataframe()
+        else:
+            chunks = [source.to_dataframe()]
+    elif not hasattr(source, "to_csv"):
+        raise mlrun.errors.MLRunInvalidArgumentError("illegal source")
+    else:
+        chunks = [source]
 
-    sizes = [0] * len(chunks)
+    sizes = [0] * len(targets)
     data_result = None
+    targets = [get_target_driver(target, featureset) for target in targets]
     for chunk in chunks:
         event = MockEvent(body=chunk)
         data = server.run(event, get_body=True)
         for i, target in enumerate(targets):
-            target = get_target_driver(target, featureset)
             size = target.write_dataframe(data, chunk_id=chunk_id)
             if size:
                 sizes[i] += size
         chunk_id += 1
-        if not data_result:
+        if data_result is None:
             # in case of multiple chunks only return the first chunk (last may be too small)
             data_result = data
 

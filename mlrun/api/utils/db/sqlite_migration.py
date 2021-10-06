@@ -9,6 +9,39 @@ from .mysql import MySQLUtil
 
 
 class SQLiteMigrationUtil(object):
+
+    # All tables except 'alembic_version' so the sqlite migration tree doesn't override the mysql migration tree
+    sqlite_tables = [
+        'artifacts',
+        'functions',
+        'logs',
+        'runs',
+        'schedules',
+        'users',
+        'projects',
+        'artifacts_labels',
+        'artifacts_tags',
+        'functions_labels',
+        'functions_tags',
+        'runs_labels',
+        'runs_tags',
+        'project_users',
+        'schedules_v2',
+        'schedules_v2_labels',
+        'entities',
+        'feature_sets_labels',
+        'feature_sets_tags',
+        'features',
+        'entities_labels',
+        'features_labels',
+        'feature_sets',
+        'feature_vectors',
+        'feature_vectors_labels',
+        'feature_vectors_tags',
+        'projects_labels',
+        'data_versions',
+    ]
+
     def __init__(self):
         self._mysql_dsn_data = MySQLUtil.get_mysql_dsn_data()
         self._migrator = self._create_migrator()
@@ -47,6 +80,7 @@ class SQLiteMigrationUtil(object):
 
         return sqlite3_to_mysql.SQLite3toMySQL(
             sqlite_file=sqlite_file,
+            sqlite_tables=self.sqlite_tables,
             mysql_user=self._mysql_dsn_data["username"],
             mysql_database=self._mysql_dsn_data["database"],
             mysql_host=self._mysql_dsn_data["host"],

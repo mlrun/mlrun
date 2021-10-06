@@ -607,11 +607,11 @@ class ParquetTarget(BaseStoreTarget):
 
     @staticmethod
     def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
-        if "partition_cols" in kwargs:
+        if partition_cols:
             df.to_parquet(target_path, partition_cols=partition_cols, **kwargs)
         else:
             with fs.open(target_path, "wb") as fp:
-                df.to_parquet(fp, partition_cols=partition_cols, **kwargs)
+                df.to_parquet(fp, **kwargs)
 
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None

@@ -118,6 +118,28 @@ class Member(abc.ABC):
         pass
 
     @abc.abstractmethod
+    async def get_project_summary(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
+        leader_session: typing.Optional[str] = None,
+    ) -> mlrun.api.schemas.ProjectSummary:
+        pass
+
+    @abc.abstractmethod
+    async def list_project_summaries(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        owner: str = None,
+        labels: typing.List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        leader_session: typing.Optional[str] = None,
+        names: typing.Optional[typing.List[str]] = None,
+    ) -> mlrun.api.schemas.ProjectSummariesOutput:
+        pass
+
+    @abc.abstractmethod
     def get_project_owner(
         self, db_session: sqlalchemy.orm.Session, name: str,
     ) -> mlrun.api.schemas.ProjectOwner:

@@ -99,7 +99,7 @@ class PyTorchModelServer(V2ModelServer):
         Infer the inputs through the model using MLRun's PyTorch interface and return its output. The inferred data will
         be read from the "inputs" key of the request.
 
-        :param request: The request of the model. The input to the model will be read from the "inputs" key.
+        :param request: The request to the model. The input to the model will be read from the "inputs" key.
 
         :return: The model's prediction on the given input.
         """

@@ -74,7 +74,7 @@ def test_get_project_with_pre_060_record(
 @pytest.mark.parametrize(
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
-def test_data_migration_fill_project_state(
+def test_data_migration_enrich_project_state(
     db: DBInterface, db_session: sqlalchemy.orm.Session,
 ):
     for i in range(10):
@@ -85,14 +85,14 @@ def test_data_migration_fill_project_state(
         # getting default value from the schema
         assert project.spec.desired_state == mlrun.api.schemas.ProjectState.online
         assert project.status.state is None
-    mlrun.api.initial_data._fill_project_state(db, db_session)
+    mlrun.api.initial_data._enrich_project_state(db, db_session)
     projects = db.list_projects(db_session)
     for project in projects.projects:
         assert project.spec.desired_state == mlrun.api.schemas.ProjectState.online
         assert project.status.state == project.spec.desired_state
     # verify not storing for no reason
     db.store_project = unittest.mock.Mock()
-    mlrun.api.initial_data._fill_project_state(db, db_session)
+    mlrun.api.initial_data._enrich_project_state(db, db_session)
     assert db.store_project.call_count == 0
 
 
@@ -174,6 +174,12 @@ def test_list_project_names_filter(
         deepdiff.DeepDiff(filter_names, projects_output.projects, ignore_order=True,)
         == {}
     )
+
+    projects_output = db.list_projects(
+        db_session, format_=mlrun.api.schemas.ProjectsFormat.name_only, names=[],
+    )
+
+    assert projects_output.projects == []
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon

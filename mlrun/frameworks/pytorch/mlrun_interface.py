@@ -41,12 +41,14 @@ class PyTorchMLRunInterface:
         :param context: MLRun context to use. If None, the context will be taken from 'mlrun.get_or_create_ctx()'.
         """
         # Set the context:
-        if context is None:
-            context = mlrun.get_or_create_ctx(self.DEFAULT_CONTEXT_NAME)
+        self._context = (
+            context
+            if context is not None
+            else mlrun.get_or_create_ctx(self.DEFAULT_CONTEXT_NAME)
+        )
 
         # Store the model:
         self._model = model
-        self._context = context
 
         # Prepare methods parameters:
         self._training_set = None  # type: DataLoader
@@ -64,11 +66,28 @@ class PyTorchMLRunInterface:
         self._use_horovod = None  # type: bool
 
         # Prepare inner attributes:
-        self._model_in_cuda = False
         self._hvd = None
         self._training_sampler = None  # type: DistributedSampler
         self._validation_sampler = None  # type: DistributedSampler
         self._callbacks_handler = None  # type: CallbacksHandler
+
+    @property
+    def model(self) -> Module:
+        """
+        Get the model stored in the interface.
+
+        :return: The interface model.
+        """
+        return self._model
+
+    @property
+    def context(self) -> mlrun.MLClientCtx:
+        """
+        Get the interface MLRun context.
+
+        :return: The interface MLRun context.
+        """
+        return self._context
 
     def train(
         self,
@@ -352,6 +371,7 @@ class PyTorchMLRunInterface:
             # Get the model's prediction:
             y = self._model(x)
             # Store the predictions one by one:
+            # TODO: Remove tolist() call, returning the predictions as torch.Tensor for performance.
             for prediction in y.tolist():
                 predictions.append(prediction)
 
@@ -497,12 +517,13 @@ class PyTorchMLRunInterface:
         Copy the interface objects - model, loss, optimizer and scheduler to cuda memory.
         """
         # Model:
-        if not self._model_in_cuda:
+        if not self._is_module_in_cuda(module=self._model):
             self._model = self._model.cuda()
-            self._model_in_cuda = True
 
         # Loss:
-        if self._loss_function is not None:
+        if self._loss_function is not None and not self._is_module_in_cuda(
+            module=self._loss_function
+        ):
             self._loss_function = self._loss_function.cuda()
 
         # Optimizer:
@@ -539,15 +560,22 @@ class PyTorchMLRunInterface:
         # Setup cuda:
         if self._use_cuda and torch.cuda.is_available():
             if self._use_horovod:
+                # Set the torch environment to use a specific GPU according to the horovod worker's local rank:
                 torch.cuda.set_device(self._hvd.local_rank())
+                # Log horovod worker device:
+                print(
+                    "Horovod worker #{} is using GPU:{}".format(
+                        self._hvd.rank(), self._hvd.local_rank()
+                    )
+                )
+                # Register the required multiprocessing arguments:
                 mp_data_loader_kwargs["num_workers"] = 1
                 mp_data_loader_kwargs["pin_memory"] = True
             # Move the model and the stored objects to the GPU:
             self._objects_to_cuda()
-        elif self._model_in_cuda:
-            # Move the model back to the CPU:
-            self._model = self._model.cpu()
-            self._model_in_cuda = False
+        elif self._use_horovod:
+            # Log horovod worker device:
+            print("Horovod worker #{} is using CPU".format(self._hvd.rank()))
 
         # Initialize a callbacks handler:
         if self._use_horovod:
@@ -564,7 +592,7 @@ class PyTorchMLRunInterface:
         # Prepare horovod for the run if needed:
         if self._use_horovod:
             # When supported, use 'forkserver' to spawn dataloader workers instead of 'fork' to prevent issues with
-            # Infiniband implementations that are not fork-safe
+            # Infiniband implementations that are not fork-safe:
             if (
                 mp_data_loader_kwargs.get("num_workers", 0) > 0
                 and hasattr(mp, "_supports_context")
@@ -853,7 +881,6 @@ class PyTorchMLRunInterface:
 
         # Clear the inner attributes:
         self._hvd = None
-
         self._training_sampler = None  # type: DistributedSampler
         self._validation_sampler = None  # type: DistributedSampler
         self._callbacks_handler = None  # type: CallbacksHandler
@@ -898,6 +925,15 @@ class PyTorchMLRunInterface:
         return with_sampler_data_loader
 
     @staticmethod
+    def _is_module_in_cuda(module: Module) -> bool:
+        """
+        Check whether or not the module is in CUDA memory.
+
+        :return: True if the module is in CUDA memory and False otherwise.
+        """
+        return next(module.parameters()).is_cuda
+
+    @staticmethod
     def _tensor_to_cuda(
         tensor: Union[Tensor, Dict, List, Tuple]
     ) -> Union[Tensor, Dict, List, Tuple]:
@@ -910,7 +946,7 @@ class PyTorchMLRunInterface:
 
         :return: The copied tensor in cuda memory.
         """
-        if isinstance(tensor, Tensor):
+        if isinstance(tensor, Tensor) and not tensor.is_cuda:
             tensor = tensor.cuda()
             if tensor._grad is not None:
                 tensor._grad.data = tensor._grad.data.cuda()

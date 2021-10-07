@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from mlrun.api import schemas
 from mlrun.api.db.base import DBError, DBInterface
@@ -165,6 +165,18 @@ class FileDB(DBInterface):
         return self._transform_run_db_error(
             self.db.list_projects, owner, format_, labels, state
         )
+
+    async def get_project_resources_counters(
+        self, session
+    ) -> Tuple[
+        Dict[str, int],
+        Dict[str, int],
+        Dict[str, int],
+        Dict[str, int],
+        Dict[str, int],
+        Dict[str, int],
+    ]:
+        raise NotImplementedError()
 
     def store_project(self, session, name: str, project: schemas.Project):
         raise NotImplementedError()

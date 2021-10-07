@@ -42,7 +42,7 @@ jobs:
   run-system-tests-opensource-ci:
     timeout-minutes: 60
     name: Run System Tests Open Source
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
 
     # let's not run this on every fork, change to your fork when developing
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
@@ -54,7 +54,9 @@ jobs:
       with:
         python-version: 3.7
     - name: Install automation scripts dependencies and add mlrun to dev packages
-      run: pip install -r automation/requirements.txt -r dockerfiles/test-system/requirements.txt && pip install -e .
+      run: |
+        pip install -r automation/requirements.txt -r dockerfiles/test-system/requirements.txt \
+          -r dockerfiles/mlrun-api/requirements.txt && pip install -e .
 
       # TODO: How can we avoid these duplicate lines from the enterprise system tests, up until line 120.
     - name: Install curl and jq
@@ -67,8 +69,8 @@ jobs:
       if: ${{ github.event.inputs.test_code_from_action == 'true' }}
       id: git_action_info
       run: |
-        echo "::set-output name=mlrun_hash::$(git rev-parse --short $GITHUB_SHA)"
-    - name: Extract git hash from action mlrun version
+        echo "::set-output name=mlrun_hash::$(git rev-parse --short=8 $GITHUB_SHA)"
+    - name: Extract UI git hash from action mlrun version
       if: ${{ github.event.inputs.ui_code_from_action == 'true' }}
       id: git_action_ui_info
       run: |
@@ -76,7 +78,7 @@ jobs:
           cd /tmp && \
           git clone --single-branch --branch ${{ steps.git_info.outputs.branch }} https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
           cd mlrun-ui && \
-          git rev-parse --short HEAD && \
+          git rev-parse --short=8 HEAD && \
           cd .. && \
           rm -rf mlrun-ui)"
     - name: Extract git hashes from upstream and latest version
@@ -86,14 +88,14 @@ jobs:
           cd /tmp && \
           git clone --single-branch --branch development https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
           cd mlrun-upstream && \
-          git rev-parse --short HEAD && \
+          git rev-parse --short=8 HEAD && \
           cd .. && \
           rm -rf mlrun-upstream)"
         echo "::set-output name=ui_hash::$( \
           cd /tmp && \
           git clone --single-branch --branch development https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
           cd mlrun-ui && \
-          git rev-parse --short HEAD && \
+          git rev-parse --short=8 HEAD && \
           cd .. && \
           rm -rf mlrun-ui)"
         echo "::set-output name=latest_version::$(curl -sf https://pypi.org/pypi/mlrun/json | jq -r '.info.version')"
@@ -130,16 +132,10 @@ jobs:
       with:
         version: "v3.3.4"
 
-    - name: Hotfix for minikube < 1.21
-      run: |
-        # Hotfix for minikube < 1.21.0
-        # https://serverfault.com/questions/1063166/kube-proxy-wont-start-in-minikube-because-of-permission-denied-issue-with-proc#comment1385632_1063305
-        sudo sysctl net/netfilter/nf_conntrack_max=131072
-
     - uses: manusa/actions-setup-minikube@v2.4.2
       with:
-        minikube version: "v1.15.1"
-        kubernetes version: "v1.17.9"
+        minikube version: "v1.22.0"
+        kubernetes version: "v1.19.13"
         driver: docker
         github token: ${{ github.token }}
         start args: '--addons registry'
@@ -149,21 +145,6 @@ jobs:
         helm repo add v3io-stable https://v3io.github.io/helm-charts/stable
         helm repo update
         minikube kubectl -- create namespace ${NAMESPACE}
-
-    - name: Override MLRun Registry ConfigMap
-      # TODO: remove auto mount when it's enabled by default
-      run: |
-        cat <<EOF | minikube kubectl -- apply -f -
-        apiVersion: v1
-        kind: ConfigMap
-        metadata:
-          name: mlrun-override-env
-          namespace: ${NAMESPACE}
-        data:
-          MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER: mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ steps.computed_params.outputs.mlrun_hash }}
-          MLRUN_IMAGES_REGISTRY: ${{ steps.computed_params.outputs.mlrun_docker_registry }}
-          MLRUN_STORAGE__AUTO_MOUNT_TYPE: v3io_credentials
-        EOF
 
     - name: Install MLRun Kit helm chart
       run: |
@@ -177,6 +158,8 @@ jobs:
             --set mlrun.api.image.tag=${{ steps.computed_params.outputs.mlrun_version }} \
             --set mlrun.ui.image.repository=ghcr.io/mlrun/mlrun-ui \
             --set mlrun.ui.image.tag=${{ steps.computed_params.outputs.mlrun_ui_version }} \
+            --set mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ steps.computed_params.outputs.mlrun_hash }}" \
+            --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
             v3io-stable/mlrun-kit
 
     - name: Prepare system tests env
@@ -184,6 +167,26 @@ jobs:
         echo "MLRUN_DBPATH: http://$(minikube ip):${MLRUN_API_NODE_PORT}" > tests/system/env.yml
 
     - name: Run system tests
+      timeout-minutes: 15
       run: |
         MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}" \
           make test-system-open-source
+
+    - name: Output some logs in case of failure
+      if: ${{ failure() }}
+      # add set -x to print commands before executing to make logs reading easier
+      run: |
+        set -x
+        minikube logs
+        minikube kubectl -- --namespace ${NAMESPACE} get pvc
+        minikube kubectl -- --namespace ${NAMESPACE} get pv
+        minikube kubectl -- --namespace ${NAMESPACE} get cm
+        minikube kubectl -- --namespace ${NAMESPACE} get secrets
+        minikube kubectl -- --namespace ${NAMESPACE} get pods
+        minikube kubectl -- --namespace ${NAMESPACE} get pods -o yaml
+        minikube kubectl -- --namespace ${NAMESPACE} describe pods
+        minikube kubectl -- --namespace ${NAMESPACE} get cm -o yaml
+        minikube kubectl -- --namespace ${NAMESPACE} get secrets -o yaml
+        minikube kubectl -- --namespace ${NAMESPACE} get all
+        minikube kubectl -- --namespace ${NAMESPACE} get all -o yaml
+        set +x

@@ -35,7 +35,13 @@ from ..model import DataSource, DataTargetBase
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
 from ..utils import get_caller_globals, logger
-from .common import RunConfig, get_feature_set_by_uri, get_feature_vector_by_uri
+from .common import (
+    RunConfig,
+    get_feature_set_by_uri,
+    get_feature_vector_by_uri,
+    verify_feature_set_permissions,
+    verify_feature_vector_permissions,
+)
 from .feature_set import FeatureSet
 from .feature_vector import (
     FeatureVector,
@@ -44,7 +50,6 @@ from .feature_vector import (
     OnlineVectorService,
 )
 from .ingestion import (
-    add_source_trigger,
     context_to_ingestion_params,
     init_featureset_graph,
     run_ingestion_job,
@@ -56,7 +61,7 @@ _v3iofs = None
 spark_transform_handler = "transform"
 
 
-def _features_to_vector(features):
+def _features_to_vector_and_check_permissions(features):
     if isinstance(features, str):
         vector = get_feature_vector_by_uri(features)
     elif isinstance(features, FeatureVector):
@@ -65,6 +70,10 @@ def _features_to_vector(features):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "feature vector name must be specified"
             )
+        verify_feature_vector_permissions(
+            vector, mlrun.api.schemas.AuthorizationAction.update
+        )
+
         vector.save()
     else:
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -82,6 +91,7 @@ def get_offline_features(
     drop_columns: List[str] = None,
     start_time: Optional[pd.Timestamp] = None,
     end_time: Optional[pd.Timestamp] = None,
+    with_indexes: bool = False,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 
@@ -116,8 +126,10 @@ def get_offline_features(
         entity_timestamp_column must be passed when using time filtering.
     :param end_time:        datetime, high limit of time needed to be filtered. Optional.
         entity_timestamp_column must be passed when using time filtering.
+    :param with_indexes:    return vector with index columns (default False)
     """
-    feature_vector = _features_to_vector(feature_vector)
+
+    feature_vector = _features_to_vector_and_check_permissions(feature_vector)
 
     entity_timestamp_column = (
         entity_timestamp_column or feature_vector.spec.timestamp_field
@@ -130,6 +142,7 @@ def get_offline_features(
             timestamp_column=entity_timestamp_column,
             run_config=run_config,
             drop_columns=drop_columns,
+            with_indexes=with_indexes,
         )
 
     if (start_time or end_time) and not entity_timestamp_column:
@@ -144,6 +157,7 @@ def get_offline_features(
         drop_columns=drop_columns,
         start_time=start_time,
         end_time=end_time,
+        with_indexes=with_indexes,
     )
 
 
@@ -151,6 +165,7 @@ def get_online_feature_service(
     feature_vector: Union[str, FeatureVector],
     run_config: RunConfig = None,
     fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
+    impute_policy: dict = None,
 ) -> OnlineVectorService:
     """initialize and return online feature vector service api,
     returns :py:class:`~mlrun.feature_store.OnlineVectorService`
@@ -163,13 +178,25 @@ def get_online_feature_service(
         resp = svc.get([{"ticker": "AAPL"}], as_list=True)
         print(resp)
 
+    example with imputing::
+
+        svc = get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0))
+        resp = svc.get([{"id": "C123487"}])
+
     :param feature_vector:    feature vector uri or FeatureVector object
     :param run_config:        function and/or run configuration for remote jobs/services
+    :param impute_policy:     a dict with `impute_policy` per feature, the dict key is the feature name and the dict
+                              value indicate which value will be used in case the feature is NaN/empty, the replaced
+                              value can be fixed number for constants or $mean, $max, $min, $std, $count for statistical
+                              values. "*" is used to specify the default for all features, example: `{"*": "$mean"}`
     :param fixed_window_type: determines how to query the fixed window values which were previously inserted by ingest.
     """
-    feature_vector = _features_to_vector(feature_vector)
+    feature_vector = _features_to_vector_and_check_permissions(feature_vector)
     graph, index_columns = init_feature_vector_graph(feature_vector, fixed_window_type)
-    service = OnlineVectorService(feature_vector, graph, index_columns)
+    service = OnlineVectorService(
+        feature_vector, graph, index_columns, impute_policy=impute_policy
+    )
+    service.initialize()
 
     # todo: support remote service (using remote nuclio/mlrun function if run_config)
     return service
@@ -253,6 +280,9 @@ def ingest(
 
     if run_config:
         # remote job execution
+        verify_feature_set_permissions(
+            featureset, mlrun.api.schemas.AuthorizationAction.update
+        )
         run_config = run_config.copy() if run_config else RunConfig()
         source, run_config.parameters = set_task_params(
             featureset, source, targets, run_config.parameters, infer_options, overwrite
@@ -275,6 +305,10 @@ def ingest(
             infer_options,
             overwrite,
         ) = context_to_ingestion_params(mlrun_context)
+
+        verify_feature_set_permissions(
+            featureset, mlrun.api.schemas.AuthorizationAction.update
+        )
         if not source:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "data source was not specified"
@@ -419,6 +453,10 @@ def preview(
         # if source is a path/url convert to DataFrame
         source = mlrun.store_manager.object(url=source).as_df()
 
+    verify_feature_set_permissions(
+        featureset, mlrun.api.schemas.AuthorizationAction.update
+    )
+
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():
         _, default_final_step, _ = featureset.graph.check_and_process_graph(
@@ -493,6 +531,10 @@ def deploy_ingestion_service(
     if isinstance(featureset, str):
         featureset = get_feature_set_by_uri(featureset)
 
+    verify_feature_set_permissions(
+        featureset, mlrun.api.schemas.AuthorizationAction.update
+    )
+
     run_config = run_config.copy() if run_config else RunConfig()
     if isinstance(source, StreamSource) and not source.path:
         source.path = get_default_prefix_for_target(source.kind).format(
@@ -526,7 +568,7 @@ def deploy_ingestion_service(
         "mlrun.feature_store.ingestion.featureset_initializer"
     )
     function.verbose = function.verbose or verbose
-    add_source_trigger(source, function)
+    function = source.add_nuclio_trigger(function)
 
     if run_config.local:
         return function.to_mock_server(namespace=get_caller_globals())

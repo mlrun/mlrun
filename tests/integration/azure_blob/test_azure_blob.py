@@ -48,7 +48,7 @@ def verify_auth_parameters_and_configure_env(auth_method):
     # fsspec api.  These get saved as secrets by mlrun.get_dataitem()
     # for authentication.
     if not config["env"].get("AZURE_CONTAINER"):
-        return False
+        return None
 
     for k, env_vars in AUTH_METHODS_AND_REQUIRED_PARAMS.items():
         for env_var in env_vars:
@@ -56,24 +56,24 @@ def verify_auth_parameters_and_configure_env(auth_method):
 
     test_params = AUTH_METHODS_AND_REQUIRED_PARAMS.get(auth_method)
     if not test_params:
-        return False
+        return None
 
     if auth_method.startswith("env"):
         for env_var in test_params:
             env_value = config["env"].get(env_var)
             if not env_value:
-                return False
+                return None
             os.environ[env_var] = env_value
 
         logger.info(f"Testing auth method {auth_method}")
-        return None
+        return {}
 
     elif auth_method.startswith("fsspec"):
         storage_options = {}
         for var in test_params:
             value = config["env"].get(var)
             if not value:
-                return False
+                return None
             storage_options[var] = value
         logger.info(f"Testing auth method {auth_method}")
         return storage_options
@@ -89,7 +89,7 @@ pytestmark = pytest.mark.parametrize(
         pytest.param(
             auth_method,
             marks=pytest.mark.skipif(
-                not verify_auth_parameters_and_configure_env(auth_method),
+                verify_auth_parameters_and_configure_env(auth_method) is None,
                 reason=f"Auth method {auth_method} not configured.",
             ),
         )

@@ -290,14 +290,18 @@ class BigQuerySource(BaseSourceDriver):
         )
         self._rows_iterator = None
 
-    def _get_credentials(self):
-        from google.oauth2 import service_account
-
+    def _get_credentials_string(self):
         gcp_project = self.attributes.get("gcp_project", None)
         key = "GCP_CREDENTIALS"
         gcp_cred_string = os.getenv(key) or os.getenv(
             SecretsStore.k8s_env_variable_name_for_secret(key)
         )
+        return gcp_cred_string, gcp_project
+
+    def _get_credentials(self):
+        from google.oauth2 import service_account
+
+        gcp_cred_string, gcp_project = self._get_credentials_string()
         if gcp_cred_string and not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
             gcp_cred_dict = json.loads(gcp_cred_string, strict=False)
             credentials = service_account.Credentials.from_service_account_info(
@@ -326,7 +330,7 @@ class BigQuerySource(BaseSourceDriver):
 
     def to_spark_df(self, session, named_view=False):
         options = copy(self.attributes.get("spark_options", {}))
-        credentials, gcp_project = self._get_credentials()
+        credentials, gcp_project = self._get_credentials_string()
         if credentials:
             options["credentials"] = b64encode(credentials.encode("utf-8")).decode(
                 "utf-8"

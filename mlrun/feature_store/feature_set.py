@@ -245,6 +245,8 @@ class FeatureSet(ModelObj):
         self.metadata = VersionedObjMetadata(name=name)
         self.status = None
         self._last_state = ""
+        # katya
+        self.run_uuid = None
 
     @property
     def spec(self) -> FeatureSetSpec:

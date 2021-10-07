@@ -523,17 +523,17 @@ class TestFeatureStore(TestMLRunSystem):
             path=os.path.relpath(str(self.assets_path / "testdata.csv")),
             time_field="timestamp",
         )
+        # katya - start
+        target = ParquetTarget(
+                partitioned=True,
+                key_bucketing_number=key_bucketing_number,
+                partition_cols=partition_cols,
+                time_partitioning_granularity=time_partitioning_granularity,
+            )
         measurements.set_targets(
-            targets=[
-                ParquetTarget(
-                    partitioned=True,
-                    key_bucketing_number=key_bucketing_number,
-                    partition_cols=partition_cols,
-                    time_partitioning_granularity=time_partitioning_granularity,
-                )
-            ],
-            with_defaults=False,
+            targets=[target], with_defaults=False,
         )
+        # katya - end
         resp1 = fs.ingest(measurements, source).to_dict()
 
         features = [
@@ -547,9 +547,8 @@ class TestFeatureStore(TestMLRunSystem):
         assert resp1 == resp2
 
         file_system = fsspec.filesystem("v3io")
-        kind = TargetTypes.parquet
-        path = f"{get_default_prefix_for_target(kind)}/sets/{name}-latest"
-        path = path.format(name=name, kind=kind, project=self.project_name)
+        # katya
+        path = target._target_path()
         dataset = pq.ParquetDataset(path, filesystem=file_system,)
         partitions = [key for key, _ in dataset.pieces[0].partition_keys]
 

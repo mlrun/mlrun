@@ -1154,8 +1154,11 @@ def _get_target_path(driver, resource):
     name = resource.metadata.name
     version = resource.metadata.tag
     project = resource.metadata.project or mlrun.mlconf.default_project
+    # katya
+    uuid = resource.run_uuid
     data_prefix = get_default_prefix_for_target(kind).format(
-        project=project, kind=kind, name=name
+        # katya
+        project=project, kind=kind, name=name, uuid=uuid
     )
     # todo: handle ver tag changes, may need to copy files?
     name = f"{name}-{version or 'latest'}"

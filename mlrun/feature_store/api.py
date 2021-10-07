@@ -19,6 +19,8 @@ import pandas as pd
 
 import mlrun
 import mlrun.errors
+# katya
+import uuid
 
 from ..data_types import InferOptions, get_infer_interface
 from ..datastore.sources import BaseSourceDriver, StreamSource
@@ -365,6 +367,23 @@ def ingest(
     featureset.save()
 
     targets = targets or featureset.spec.targets or get_default_targets()
+    # katya - start
+    if mlrun_context or (isinstance(source, BaseSourceDriver) and source.schedule):
+        # KKI
+        if featureset.overwrite or not featureset.run_uuid:
+            print("UUUUUUUUUUUUUU")
+            featureset.run_uuid = uuid.uuid4().hex
+        for t in targets:
+            #        print("CURRENT PATH IS  " + str(t.path))
+            t.feature_set = featureset
+
+            if t.path and not t.is_single_file():  # delete this????
+                t.path = t.path + "/" + featureset.run_uuid
+            t.name = t.name + "_" + featureset.run_uuid
+            print("Current name is " + str(t.name))
+            print("setting " + str(t.path))
+    # katya - end
+
     df = init_featureset_graph(
         source, featureset, namespace, targets=targets, return_df=return_df,
     )

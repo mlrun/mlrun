@@ -294,7 +294,7 @@ class BigQuerySource(BaseSourceDriver):
         from google.oauth2 import service_account
 
         gcp_project = self.attributes.get("gcp_project", None)
-        key = "GCS_CREDENTIALS"
+        key = "GCP_CREDENTIALS"
         gcp_cred_string = os.getenv(key) or os.getenv(
             SecretsStore.k8s_env_variable_name_for_secret(key)
         )

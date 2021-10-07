@@ -241,13 +241,25 @@ class BigQuerySource(BaseSourceDriver):
     """
        Reads Google BigQuery query results as input source for a flow.
 
+       example::
+
+            # use sql query
+            query_string = "SELECT * FROM `the-psf.pypi.downloads20210328` LIMIT 5000"
+            source = BigQuerySource("bq1", query=query_string,
+                                    gcp_project="my_project",
+                                    materialization_dataset="dataviews")
+
+            # read a table
+            source = BigQuerySource("bq2", table="the-psf.pypi.downloads20210328", gcp_project="my_project")
+
+
        :parameter name:  source name
        :parameter table: table name/path, cannot be used together with query
        :parameter query: sql query string
-       :parameter materialization_dataset: for query, The dataset where the materialized view is going to be created.
+       :parameter materialization_dataset: for query with spark, The target dataset for the materialized view.
                                            This dataset should be in same location as the view or the queried tables.
                                            must be set to a dataset where the GCP user has table creation permission
-       :parameter chunksize: number of rows per chunk (default single chunk)
+       :parameter chunksize: number of rows per chunk (default large single chunk)
        :parameter key_field: the column to be used as the key for events. Can be a list of keys.
        :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
        :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will

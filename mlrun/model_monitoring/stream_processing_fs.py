@@ -174,7 +174,7 @@ class EventStreamProcessor:
                     access_key=self.v3io_access_key,
                     infer_columns_from_data=True,
                 ))\
-            .to("storey.Map", _fn=self.process_before_parquet)\
+            .to("storey.Map", "process_before_parquet", _fn="(event)")\
 
         pq_target = ParquetTarget(path=self.parquet_path,
                         partition_cols=["$key", "$hour"],
@@ -184,19 +184,6 @@ class EventStreamProcessor:
         feature_set.set_targets(targets=[pq_target], with_defaults=False)
         return feature_set
 
-    def consume(self, event: Dict, context):
-        events = []
-        if "headers" in event and "values" in event:
-            for values in event["values"]:
-                events.append({k: v for k, v in zip(event["headers"], values)})
-        else:
-            events.append(event)
-
-        for enriched in map(enrich_even_details, events):
-            if enriched is not None:
-                context.mlrun_handler(context, enriched)
-            else:
-                pass
 
     @staticmethod
     def compute_predictions_per_second(event: dict):
@@ -658,13 +645,24 @@ def get_endpoint_record(
 
 def init_context(context):
     context.logger.info("Initializing EventStreamProcessor")
-    parameters = environ.get("MODEL_MONITORING_PARAMETERS")
-    parameters = json.loads(parameters) if parameters else {}
-    stream_processor = EventStreamProcessor(**parameters)
-    setattr(context, "stream_processor", stream_processor)
+    #parameters = environ.get("MODEL_MONITORING_PARAMETERS")
+    #parameters = json.loads(parameters) if parameters else {}
+    #stream_processor = EventStreamProcessor(**parameters)
+    #setattr(context, "stream_processor", stream_processor)
 
 
-def handler(context, event: Event):
+def handler(context, event):
     event_body = json.loads(event.body)
     context.logger.debug(event_body)
-    context.stream_processor.consume(event_body)
+    events = []
+    if "headers" in event and "values" in event:
+        for values in event["values"]:
+            events.append({k: v for k, v in zip(event["headers"], values)})
+    else:
+        events.append(event)
+
+    for enriched in map(enrich_even_details, events):
+        if enriched is not None:
+            context.mlrun_handler(context, enriched)
+        else:
+            pass

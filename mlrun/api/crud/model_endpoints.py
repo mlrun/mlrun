@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Any, Dict, List, Optional
 
 from nuclio.utils import DeployError
@@ -31,6 +32,7 @@ from mlrun.errors import (
 from mlrun.model_monitoring.helpers import (
     get_model_monitoring_stream_processing_function,
 )
+from mlrun.model_monitoring.stream_processing_fs import EventStreamProcessor
 from mlrun.runtimes import KubejobRuntime
 from mlrun.runtimes.function import deploy_nuclio_function, get_nuclio_deploy_status
 from mlrun.utils.helpers import logger
@@ -518,11 +520,13 @@ class ModelEndpoints:
         source = mlrun.datastore.sources.StreamSource(path=stream_path, name="monitoring_stream_trigger")
         run_config = fs.RunConfig(function=fn, local=False).apply(mlrun.mount_v3io())
 
-        fn.set_env("MODEL_MONITORING_ACCESS_KEY", model_monitoring_access_key)
-        fn.set_env("MLRUN_AUTH_SESSION", model_monitoring_access_key)
-        fn.set_env("MODEL_MONITORING_PARAMETERS", json.dumps({"project": project}))
+        os.environ["MODEL_MONITORING_ACCESS_KEY"] = model_monitoring_access_key
+        os.environ["MLRUN_AUTH_SESSION"] = model_monitoring_access_key
 
-        fs.deploy_ingestion_service(featureset=quotes_set,
+        stream_processor = EventStreamProcessor(project)
+        feature_set = stream_processor.create_feature_set()
+
+        fs.deploy_ingestion_service(featureset=feature_set,
                                         source=source,
                                         run_config=run_config)
 

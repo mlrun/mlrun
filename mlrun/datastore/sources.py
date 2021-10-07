@@ -242,8 +242,11 @@ class BigQuerySource(BaseSourceDriver):
        Reads Google BigQuery query results as input source for a flow.
 
        :parameter name:  source name
-       :parameter query: sql query string
        :parameter table: table name/path, cannot be used together with query
+       :parameter query: sql query string
+       :parameter materialization_dataset: for query, The dataset where the materialized view is going to be created.
+                                           This dataset should be in same location as the view or the queried tables.
+                                           must be set to a dataset where the GCP user has table creation permission
        :parameter chunksize: number of rows per chunk (default single chunk)
        :parameter key_field: the column to be used as the key for events. Can be a list of keys.
        :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
@@ -260,8 +263,9 @@ class BigQuerySource(BaseSourceDriver):
     def __init__(
         self,
         name: str = "",
-        query: str = None,
         table: str = None,
+        query: str = None,
+        materialization_dataset: str = None,
         chunksize: int = None,
         key_field: str = None,
         time_field: str = None,
@@ -279,6 +283,7 @@ class BigQuerySource(BaseSourceDriver):
             "chunksize": chunksize,
             "gcp_project": gcp_project,
             "spark_options": spark_options,
+            "materialization_dataset": materialization_dataset,
         }
         attrs = {key: value for key, value in attrs.items() if value is not None}
         super().__init__(
@@ -338,16 +343,22 @@ class BigQuerySource(BaseSourceDriver):
         if gcp_project:
             options["parentProject"] = gcp_project
         query = self.attributes.get("query")
-        if query:
-            options["viewsEnabled"] = True
-            options["query"] = query
         table = self.attributes.get("table")
-        if table:
-            options["path"] = table
+        materialization_dataset = self.attributes.get("materialization_dataset")
         if not query and not table:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "table or query args must be specified"
             )
+        if query and not materialization_dataset:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "materialization_dataset must be specified when running a query"
+            )
+        if query:
+            options["viewsEnabled"] = True
+            options["materializationDataset"] = materialization_dataset
+            options["query"] = query
+        if table:
+            options["path"] = table
 
         df = session.read.format("bigquery").load(**options)
         if named_view:

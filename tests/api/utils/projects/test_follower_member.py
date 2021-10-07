@@ -297,7 +297,7 @@ async def test_list_project_summaries(
     project = _generate_project(name="name-1")
     project_summary = mlrun.api.schemas.ProjectSummary(
         name=project.metadata.name,
-        functions_count=4,
+        files_count=4,
         feature_sets_count=5,
         models_count=6,
         runs_failed_recent_count=7,

@@ -1300,7 +1300,8 @@ class TestFeatureStore(TestMLRunSystem):
         assert "exchange" not in features, "field was not dropped"
         assert len(df) == len(stocks), "dataframe size doesnt match"
 
-    def test_sync_pipeline_chunks(self):
+    @pytest.mark.parametrize("with_graph", [True, False])
+    def test_sync_pipeline_chunks(self, with_graph):
         myset = fs.FeatureSet(
             "early_sense",
             entities=[Entity("patient_id")],
@@ -1316,7 +1317,8 @@ class TestFeatureStore(TestMLRunSystem):
 
         chunksize = 100
         source = CSVSource("mycsv", path=csv_file, attributes={"chunksize": chunksize})
-        myset.graph.to(name="s1", handler="my_func")
+        if with_graph:
+            myset.graph.to(name="s1", handler="my_func")
 
         df = fs.ingest(myset, source)
         self._logger.info(f"output df:\n{df}")

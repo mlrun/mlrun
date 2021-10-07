@@ -345,16 +345,6 @@ class BaseStoreTarget(DataTargetBase):
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs,
     ) -> typing.Optional[int]:
-        def path_with_chunk():
-            prefix, suffix = os.path.splitext(self._target_path)
-            if (
-                chunk_id
-                and not self.partitioned
-                and not self.time_partitioning_granularity
-            ):
-                return f"{prefix}/{chunk_id:0>4}{suffix}"
-            return self._target_path
-
         if hasattr(df, "rdd"):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
@@ -365,9 +355,15 @@ class BaseStoreTarget(DataTargetBase):
             df = df.repartition(partition_size="100MB")
             try:
                 if dask_options["format"] == "parquet":
-                    df.to_parquet(path_with_chunk(), storage_options=storage_options)
+                    df.to_parquet(
+                        generate_path_with_chunk(self, chunk_id),
+                        storage_options=storage_options,
+                    )
                 elif dask_options["format"] == "csv":
-                    df.to_csv(path_with_chunk(), storage_options=storage_options)
+                    df.to_csv(
+                        generate_path_with_chunk(self, chunk_id),
+                        storage_options=storage_options,
+                    )
                 else:
                     raise NotImplementedError(
                         "Format for writing dask dataframe should be CSV or Parquet!"
@@ -375,7 +371,7 @@ class BaseStoreTarget(DataTargetBase):
             except Exception as exc:
                 raise RuntimeError(f"Failed to write Dask Dataframe for {exc}.")
         else:
-            target_path = path_with_chunk()
+            target_path = generate_path_with_chunk(self, chunk_id)
             fs = self._get_store().get_filesystem(False)
             if fs.protocol == "file":
                 dir = os.path.dirname(target_path)
@@ -1203,3 +1199,10 @@ def _get_target_path(driver, resource):
     # todo: handle ver tag changes, may need to copy files?
     name = f"{name}-{version or 'latest'}"
     return f"{data_prefix}/{kind_prefix}/{name}{suffix}"
+
+
+def generate_path_with_chunk(target, chunk_id):
+    prefix, suffix = os.path.splitext(target._target_path)
+    if chunk_id and not target.partitioned and not target.time_partitioning_granularity:
+        return f"{prefix}/{chunk_id:0>4}{suffix}"
+    return target._target_path

@@ -19,6 +19,7 @@ import pandas as pd
 
 import mlrun
 import mlrun.api.schemas
+import uuid
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri
@@ -600,3 +601,16 @@ class FeatureSet(ModelObj):
         self.status = feature_set.status
         if update_spec:
             self.spec = feature_set.spec
+
+    def publish(self, tag: str):
+        """publish the feature set and lock it's metadata"""
+        # copy feature set to a new one and set run_uuid and tag.
+        published_f_set = FeatureSet(self.metadata.name, self.spec.description, self.spec.entities, self.spec.timestamp_key, self.spec.engine)
+        published_f_set.reload()
+        published_f_set.run_uuid = uuid.uuid4().hex
+        published_f_set.metadata.tag = tag
+        published_f_set.save(tag)
+
+        # update path variables for un-versioned
+        # should do ingest again?
+        return published_f_set

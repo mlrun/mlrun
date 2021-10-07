@@ -41,12 +41,17 @@ class S3Store(DataStore):
             )
         else:
             # from env variables
-            self.s3 = boto3.resource("s3", region_name=region, endpoint_url=endpoint_url)
+            self.s3 = boto3.resource(
+                "s3", region_name=region, endpoint_url=endpoint_url
+            )
             # If not using credentials, boto will still attempt to sign the requests, and will fail any operations
             # due to no credentials found. These commands disable signing and allow anonymous mode (same as
             # anon in the storage_options when working with fsspec).
             from botocore.handlers import disable_signing
-            self.s3.meta.client.meta.events.register('choose-signer.s3.*', disable_signing)
+
+            self.s3.meta.client.meta.events.register(
+                "choose-signer.s3.*", disable_signing
+            )
 
     def get_filesystem(self, silent=True):
         """return fsspec file system object, if supported"""

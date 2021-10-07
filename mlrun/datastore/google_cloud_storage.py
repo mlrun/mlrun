@@ -33,15 +33,15 @@ class GoogleCloudStorageStore(DataStore):
         # eventually we will want this to happen through a secret that is mounted as a file to the pod. For now,
         # we just read a specific env. variable, write it to a temp file and point the env variable to it.
         if "GOOGLE_APPLICATION_CREDENTIALS" not in os.environ:
-            gcs_credentials = self._get_secret_or_env("GCP_CREDENTIALS")
-            if not gcs_credentials:
+            gcp_credentials = self._get_secret_or_env("GCP_CREDENTIALS")
+            if not gcp_credentials:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "No google cloud storage credentials available"
                 )
             with tempfile.NamedTemporaryFile(
                 mode="w", suffix=".json", delete=False
             ) as cred_file:
-                cred_file.write(gcs_credentials)
+                cred_file.write(gcp_credentials)
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = cred_file.name
 
         self.get_filesystem(silent=False)

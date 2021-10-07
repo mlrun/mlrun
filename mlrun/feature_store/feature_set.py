@@ -605,7 +605,7 @@ class FeatureSet(ModelObj):
     def publish(self, tag: str):
         """publish the feature set and lock it's metadata"""
         # copy feature set to a new one and set run_uuid and tag.
-        published_f_set = FeatureSet(self.metadata.name, self.spec.description, self.spec.entities, self.spec.timestamp_key, self.spec.engine)
+        published_f_set = FeatureSet(self.metadata.name)
         published_f_set.reload()
         published_f_set.run_uuid = uuid.uuid4().hex
         published_f_set.metadata.tag = tag

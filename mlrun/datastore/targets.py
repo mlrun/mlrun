@@ -904,7 +904,9 @@ class NoSqlTarget(BaseStoreTarget):
     def as_df(self, columns=None, df_module=None):
         raise NotImplementedError()
 
-    def write_dataframe(self, df, key_column=None, timestamp_key=None, **kwargs):
+    def write_dataframe(
+        self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
+    ):
         if hasattr(df, "rdd"):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
@@ -1027,7 +1029,9 @@ class TSDBTarget(BaseStoreTarget):
     def as_df(self, columns=None, df_module=None):
         raise NotImplementedError()
 
-    def write_dataframe(self, df, key_column=None, timestamp_key=None, **kwargs):
+    def write_dataframe(
+        self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
+    ):
         access_key = self._secrets.get("V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY"))
 
         new_index = []

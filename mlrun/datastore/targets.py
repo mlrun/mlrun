@@ -18,6 +18,8 @@ import warnings
 from collections import Counter
 from copy import copy
 
+import pandas as pd
+
 import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
@@ -341,7 +343,7 @@ class BaseStoreTarget(DataTargetBase):
         return result
 
     def write_dataframe(
-        self, df, key_column=None, timestamp_key=None, **kwargs,
+        self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs,
     ) -> typing.Optional[int]:
         if hasattr(df, "rdd"):
             options = self.get_spark_options(key_column, timestamp_key)
@@ -353,9 +355,15 @@ class BaseStoreTarget(DataTargetBase):
             df = df.repartition(partition_size="100MB")
             try:
                 if dask_options["format"] == "parquet":
-                    df.to_parquet(self._target_path, storage_options=storage_options)
+                    df.to_parquet(
+                        generate_path_with_chunk(self, chunk_id),
+                        storage_options=storage_options,
+                    )
                 elif dask_options["format"] == "csv":
-                    df.to_csv(self._target_path, storage_options=storage_options)
+                    df.to_csv(
+                        generate_path_with_chunk(self, chunk_id),
+                        storage_options=storage_options,
+                    )
                 else:
                     raise NotImplementedError(
                         "Format for writing dask dataframe should be CSV or Parquet!"
@@ -363,20 +371,44 @@ class BaseStoreTarget(DataTargetBase):
             except Exception as exc:
                 raise RuntimeError(f"Failed to write Dask Dataframe for {exc}.")
         else:
-            target_path = self._target_path
+            target_path = generate_path_with_chunk(self, chunk_id)
             fs = self._get_store().get_filesystem(False)
             if fs.protocol == "file":
                 dir = os.path.dirname(target_path)
                 if dir:
                     os.makedirs(dir, exist_ok=True)
-            self._write_dataframe(df, fs, target_path, **kwargs)
+            partition_cols = []
+            target_df = df
+            if timestamp_key and (
+                self.partitioned or self.time_partitioning_granularity
+            ):
+                target_df = df.copy(deep=False)
+                time_partitioning_granularity = self.time_partitioning_granularity
+                if not time_partitioning_granularity and self.partitioned:
+                    time_partitioning_granularity = "hour"
+                for unit, fmt in [
+                    ("year", "%Y"),
+                    ("month", "%m"),
+                    ("day", "%d"),
+                    ("hour", "%H"),
+                    ("minute", "%M"),
+                ]:
+                    partition_cols.append(unit)
+                    target_df[unit] = getattr(
+                        pd.DatetimeIndex(target_df[timestamp_key]), unit
+                    )
+                    if unit == time_partitioning_granularity:
+                        break
+            self._write_dataframe(
+                target_df, fs, target_path, partition_cols=partition_cols, **kwargs
+            )
             try:
                 return fs.size(target_path)
             except Exception:
                 return None
 
     @staticmethod
-    def _write_dataframe(df, fs, target_path, **kwargs):
+    def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
         raise NotImplementedError()
 
     def set_secrets(self, secrets):
@@ -574,9 +606,12 @@ class ParquetTarget(BaseStoreTarget):
     _legal_time_units = ["year", "month", "day", "hour", "minute", "second"]
 
     @staticmethod
-    def _write_dataframe(df, fs, target_path, **kwargs):
-        with fs.open(target_path, "wb") as fp:
-            df.to_parquet(fp, **kwargs)
+    def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
+        if partition_cols:
+            df.to_parquet(target_path, partition_cols=partition_cols, **kwargs)
+        else:
+            with fs.open(target_path, "wb") as fp:
+                df.to_parquet(fp, **kwargs)
 
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
@@ -725,7 +760,7 @@ class CSVTarget(BaseStoreTarget):
     support_storey = True
 
     @staticmethod
-    def _write_dataframe(df, fs, target_path, **kwargs):
+    def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
         mode = "wb"
         # We generally prefer to open in a binary mode so that different encodings could be used, but pandas had a bug
         # with such files until version 1.2.0, in this version they dropped support for python 3.6.
@@ -883,7 +918,9 @@ class NoSqlTarget(BaseStoreTarget):
     def as_df(self, columns=None, df_module=None):
         raise NotImplementedError()
 
-    def write_dataframe(self, df, key_column=None, timestamp_key=None, **kwargs):
+    def write_dataframe(
+        self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
+    ):
         if hasattr(df, "rdd"):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
@@ -1006,7 +1043,9 @@ class TSDBTarget(BaseStoreTarget):
     def as_df(self, columns=None, df_module=None):
         raise NotImplementedError()
 
-    def write_dataframe(self, df, key_column=None, timestamp_key=None, **kwargs):
+    def write_dataframe(
+        self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
+    ):
         access_key = self._secrets.get("V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY"))
 
         new_index = []
@@ -1178,3 +1217,10 @@ def _get_target_path(driver, resource):
     # todo: handle ver tag changes, may need to copy files?
     name = f"{name}-{version or 'latest'}"
     return f"{data_prefix}/{kind_prefix}/{name}{suffix}"
+
+
+def generate_path_with_chunk(target, chunk_id):
+    prefix, suffix = os.path.splitext(target._target_path)
+    if chunk_id and not target.partitioned and not target.time_partitioning_granularity:
+        return f"{prefix}/{chunk_id:0>4}{suffix}"
+    return target._target_path

@@ -40,7 +40,8 @@ def make_dockerfile(
     dock = f"FROM {base_image}\n"
 
     if config.is_pip_ca_configured():
-        dock += f"COPY {config.httpdb.builder.pip_ca_path} {config.httpdb.builder.pip_ca_path}\n"
+        dock += f"COPY ./{pathlib.Path(config.httpdb.builder.pip_ca_path).name} {config.httpdb.builder.pip_ca_path}\n"
+        dock += f"ARG PIP_CERT={config.httpdb.builder.pip_ca_path}\n"
 
     build_args = config.get_build_args()
     for build_arg_key, build_arg_value in build_args.items():
@@ -111,8 +112,14 @@ def make_kaniko_pod(
         ]
         kpod.mount_secret(
             config.httpdb.builder.pip_ca_secret_name,
-            config.httpdb.builder.pip_ca_path,
+            str(
+                pathlib.Path(context)
+                / pathlib.Path(config.httpdb.builder.pip_ca_path).name
+            ),
             items=items,
+            # using sub_path so file will be mounted inside kaniko pod as regular file and not symlink (if it's symlink
+            # it's then not working inside the job image itself)
+            sub_path=pathlib.Path(config.httpdb.builder.pip_ca_path).name,
         )
 
     if dockertext or inline_code or requirements:

@@ -1740,6 +1740,20 @@ class TestFeatureStore(TestMLRunSystem):
             "aug": {"mykey1": "1", "mykey2": "2"},
         }
 
+    def test_publish(self):
+        name = "publish_test"
+        tag = "tag1"
+        fset = fs.FeatureSet(name, entities=[fs.Entity("ticker")])
+        published_fset = fset.publish(tag)
+        assert fset.metadata.tag is None
+
+        db = mlrun.get_run_db()
+        fset_from_db = db.get_feature_set(name, tag=tag)
+        for actual in [published_fset, fset_from_db]:
+            assert actual.metadata.name == fset.metadata.name
+            assert actual.metadata.tag == tag
+            assert actual.metadata.project == self.project_name
+
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)

@@ -1,4 +1,5 @@
 import asyncio
+import mlrun.api.utils.auth.verifier
 import pathlib
 import time
 import typing
@@ -718,6 +719,46 @@ async def test_schedule_crud_secrets_handling(
             db, project, schedule_name,
         )
         _assert_schedule_secrets(scheduler, project, schedule_name, None, None)
+
+
+@pytest.mark.asyncio
+async def test_schedule_access_key_generation(
+        db: Session,
+        scheduler: Scheduler,
+        k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+):
+    scheduler._store_schedule_credentials_in_secrets = True
+    project = config.default_project
+    schedule_name = "schedule-name"
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
+        db, project
+    )
+    cron_trigger = schemas.ScheduleCronTrigger(year="1999")
+    access_key = "generated-access-key"
+    mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = unittest.mock.Mock(return_value=access_key)
+    scheduler.create_schedule(
+        db,
+        mlrun.api.schemas.AuthInfo(),
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.job,
+        scheduled_object,
+        cron_trigger,
+    )
+    mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key.assert_called_once()
+    _assert_schedule_secrets(scheduler, project, schedule_name, None, access_key)
+
+    access_key = "generated-access-key-2"
+    mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = unittest.mock.Mock(return_value=access_key)
+    scheduler.update_schedule(
+        db,
+        mlrun.api.schemas.AuthInfo(access_key=mlrun.model.Credentials.generate_access_key),
+        project,
+        schedule_name,
+        labels={"label-key": "label-value"},
+    )
+    mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key.assert_called_once()
+    _assert_schedule_secrets(scheduler, project, schedule_name, None, access_key)
 
 
 @pytest.mark.asyncio

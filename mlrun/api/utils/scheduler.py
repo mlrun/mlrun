@@ -40,7 +40,7 @@ class Scheduler:
             or (
                 mlrun.mlconf.httpdb.scheduling.schedule_credentials_secrets_store_mode
                 == "auto"
-                and mlrun.mlconf.httpdb.authorization.mode == "opa"
+                and mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
             )
         )
 
@@ -93,6 +93,7 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
+        self._ensure_auth_info_has_access_key(auth_info, kind)
         self._store_schedule_secrets(auth_info, project, name)
         get_db().create_schedule(
             db_session,
@@ -140,7 +141,6 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
-        self._store_schedule_secrets(auth_info, project, name)
         get_db().update_schedule(
             db_session,
             project,
@@ -155,6 +155,8 @@ class Scheduler:
             db_session, db_schedule
         )
 
+        self._ensure_auth_info_has_access_key(auth_info, db_schedule.kind)
+        self._store_schedule_secrets(auth_info, project, name)
         self._update_schedule_in_scheduler(
             project,
             name,
@@ -248,6 +250,21 @@ class Scheduler:
             auth_info,
         )
         return await function(*args, **kwargs)
+
+    def _ensure_auth_info_has_access_key(
+        self, auth_info: mlrun.api.schemas.AuthInfo, kind: schemas.ScheduleKinds,
+    ):
+        if (
+            kind not in schemas.ScheduleKinds.local_kinds()
+            and self._store_schedule_credentials_in_secrets
+            and (
+                not auth_info.access_key
+                or auth_info.access_key == mlrun.model.Credentials.generate_access_key
+            )
+        ):
+            auth_info.access_key = mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key(
+                auth_info.session
+            )
 
     def _store_schedule_secrets(
         self, auth_info: mlrun.api.schemas.AuthInfo, project: str, name: str,

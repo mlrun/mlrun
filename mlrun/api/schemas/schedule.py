@@ -65,6 +65,12 @@ class ScheduleKinds(str, Enum):
     # this is mainly for testing purposes
     local_function = "local_function"
 
+    @staticmethod
+    def local_kinds():
+        return [
+            ScheduleKinds.local_function,
+        ]
+
 
 class ScheduleUpdate(BaseModel):
     scheduled_object: Optional[Any]

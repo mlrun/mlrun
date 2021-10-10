@@ -639,11 +639,12 @@ async def test_rescheduling_secrets_storing(
     name = "schedule-name"
     project = config.default_project
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
-    session = "some-user-session"
+    username = "some-username"
+    access_key = "some-user-access-key"
     cron_trigger = schemas.ScheduleCronTrigger(year="1999")
     scheduler.create_schedule(
         db,
-        mlrun.api.schemas.AuthInfo(session=session),
+        mlrun.api.schemas.AuthInfo(username=username, access_key=access_key),
         project,
         name,
         schemas.ScheduleKinds.job,
@@ -652,9 +653,13 @@ async def test_rescheduling_secrets_storing(
     )
 
     jobs = scheduler._list_schedules_from_scheduler(project)
-    assert jobs[0].args[5].session == session
+    assert jobs[0].args[5].access_key == access_key
+    assert jobs[0].args[5].username == username
     k8s_secrets_mock.assert_project_secrets(
-        project, {mlrun.api.crud.Secrets().generate_schedule_secret_key(name): session}
+        project, {
+            mlrun.api.crud.Secrets().generate_schedule_access_key_secret_key(name): access_key,
+            mlrun.api.crud.Secrets().generate_schedule_username_secret_key(name): username,
+        }
     )
 
     await scheduler.stop()
@@ -664,7 +669,8 @@ async def test_rescheduling_secrets_storing(
 
     await scheduler.start(db)
     jobs = scheduler._list_schedules_from_scheduler(project)
-    assert jobs[0].args[5].session == session
+    assert jobs[0].args[5].username == username
+    assert jobs[0].args[5].access_key == access_key
 
 
 @pytest.mark.asyncio

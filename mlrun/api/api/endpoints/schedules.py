@@ -30,6 +30,8 @@ def create_schedule(
         mlrun.api.schemas.AuthorizationAction.create,
         auth_info,
     )
+    if not auth_info.access_key:
+        auth_info.access_key = schedule.credentials.access_key
     get_scheduler().create_schedule(
         db_session,
         auth_info,
@@ -59,6 +61,8 @@ def update_schedule(
         mlrun.api.schemas.AuthorizationAction.update,
         auth_info,
     )
+    if not auth_info.access_key:
+        auth_info.access_key = schedule.credentials.access_key
     get_scheduler().update_schedule(
         db_session,
         auth_info,

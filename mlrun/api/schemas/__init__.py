@@ -6,6 +6,7 @@ from .auth import (
     AuthorizationAction,
     AuthorizationResourceTypes,
     AuthorizationVerificationInput,
+    Credentials,
     ProjectsRole,
 )
 from .background_task import (

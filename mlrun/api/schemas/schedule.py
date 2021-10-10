@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel
 
+import mlrun.api.schemas
 from mlrun.api.schemas.object import LabelRecord
 
 
@@ -101,6 +102,7 @@ class ScheduleOutput(ScheduleRecord):
     next_run_time: Optional[datetime]
     last_run: Optional[Dict]
     labels: Optional[dict]
+    credentials: mlrun.api.schemas.Credentials = mlrun.api.schemas.Credentials()
 
 
 class SchedulesOutput(BaseModel):

@@ -99,3 +99,7 @@ class AuthInfo(pydantic.BaseModel):
         if self.user_group_ids:
             member_ids.extend(self.user_group_ids)
         return member_ids
+
+
+class Credentials(pydantic.BaseModel):
+    access_key: typing.Optional[str]

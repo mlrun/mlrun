@@ -1741,7 +1741,7 @@ class TestFeatureStore(TestMLRunSystem):
         }
 
     def test_publish(self):
-        name = "publish_test"
+        name = "publish-test"
         tag = "tag1"
         fset = fs.FeatureSet(name, entities=[fs.Entity("ticker")])
         published_fset = fset.publish(tag)

@@ -78,6 +78,7 @@ def list_schedules(
     labels: str = None,
     kind: schemas.ScheduleKinds = None,
     include_last_run: bool = False,
+    include_credentials: bool = fastapi.Query(False, alias="include-credentials"),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -85,7 +86,7 @@ def list_schedules(
         project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
     )
     schedules = get_scheduler().list_schedules(
-        db_session, project, name, kind, labels, include_last_run=include_last_run,
+        db_session, project, name, kind, labels, include_last_run, include_credentials
     )
     filtered_schedules = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.schedule,
@@ -104,11 +105,12 @@ def get_schedule(
     project: str,
     name: str,
     include_last_run: bool = False,
+    include_credentials: bool = fastapi.Query(False, alias="include-credentials"),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     schedule = get_scheduler().get_schedule(
-        db_session, project, name, include_last_run=include_last_run,
+        db_session, project, name, include_last_run, include_credentials
     )
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.schedule,

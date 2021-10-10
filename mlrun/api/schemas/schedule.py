@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel
 
-import mlrun.api.schemas
+from mlrun.api.schemas.auth import Credentials
 from mlrun.api.schemas.object import LabelRecord
 
 
@@ -72,6 +72,7 @@ class ScheduleUpdate(BaseModel):
     desired_state: Optional[str]
     labels: Optional[dict]
     concurrency_limit: Optional[int]
+    credentials: Credentials = Credentials()
 
 
 # Properties to receive via API on creation
@@ -83,6 +84,7 @@ class ScheduleInput(BaseModel):
     desired_state: Optional[str]
     labels: Optional[dict]
     concurrency_limit: Optional[int]
+    credentials: Credentials = Credentials()
 
 
 # the schedule object returned from the db layer
@@ -102,7 +104,7 @@ class ScheduleOutput(ScheduleRecord):
     next_run_time: Optional[datetime]
     last_run: Optional[Dict]
     labels: Optional[dict]
-    credentials: mlrun.api.schemas.Credentials = mlrun.api.schemas.Credentials()
+    credentials: Credentials = Credentials()
 
 
 class SchedulesOutput(BaseModel):

@@ -38,6 +38,9 @@ def make_dockerfile(
 ):
     dock = f"FROM {base_image}\n"
 
+    if config.is_pip_ca_configured():
+        dock += f"COPY {config.httpdb.builder.pip_ca_path} {config.httpdb.builder.pip_ca_path}"
+
     build_args = config.get_build_args()
     for build_arg_key, build_arg_value in build_args.items():
         dock += f"ARG {build_arg_key}={build_arg_value}\n"
@@ -97,6 +100,11 @@ def make_kaniko_pod(
     if secret_name:
         items = [{"key": ".dockerconfigjson", "path": "config.json"}]
         kpod.mount_secret(secret_name, "/kaniko/.docker", items=items)
+
+    if config.is_pip_ca_configured():
+        items = [{"key": config.httpdb.builder.pip_ca_secret_key, "path": config.httpdb.builder.pip_ca_path}]
+        kpod.mount_secret(config.httpdb.builder.pip_ca_secret_name,
+                          config.httpdb.builder.pip_ca_path, items=items)
 
     if dockertext or inline_code or requirements:
         kpod.mount_empty()

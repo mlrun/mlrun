@@ -398,6 +398,7 @@ class TFKerasModelHandler(ModelHandler):
 
     def to_onnx(
         self,
+        model_name: str = None,
         input_signature: Union[List[TensorSignature], TensorSignature] = None,
         optimize: bool = True,
         output_path: str = None,
@@ -405,14 +406,15 @@ class TFKerasModelHandler(ModelHandler):
     ):
         """
         Convert the model in this handler to an ONNX model.
-
+        :param model_name:      The name to give to the converted ONNX model. If not given the default name will be the
+                                stored model name with the suffix '_onnx'.
         :param input_signature: An numpy.ndarray or tensorflow.TensorSpec that describe the input port (shape and data
                                 type). If the model has multiple inputs, a list is expected in the order of the input
                                 ports. If not provided, the method will try to extract the input signature of the model.
         :param optimize:        Whether or not to optimize the ONNX model using 'onnxoptimizer' before saving the model.
                                 Defaulted to True.
         :param output_path:     In order to save the ONNX model, pass here the output directory. The model file will be
-                                named with the model name in this handler. Defaulted to None (not saving).
+                                named with the model name given. Defaulted to None (not saving).
         :param log:             In order to log the ONNX model, pass True. If None, the model will be logged if this
                                 handler has a MLRun context set. Defaulted to None.
 
@@ -430,6 +432,9 @@ class TFKerasModelHandler(ModelHandler):
                 "ONNX conversion requires additional packages to be installed. "
                 "Please run 'pip install mlrun[tensorflow]' to install MLRun's Tensorflow package."
             )
+
+        # Set the onnx model name:
+        model_name = self._get_default_onnx_model_name(model_name=model_name)
 
         # Set the input signature:
         if input_signature is None:
@@ -449,7 +454,7 @@ class TFKerasModelHandler(ModelHandler):
 
         # Set the output path:
         if output_path is not None:
-            output_path = os.path.join(output_path, "{}.onnx".format(self._model_name))
+            output_path = os.path.join(output_path, "{}.onnx".format(model_name))
 
         # Set the logging flag:
         log = self._context is not None if log is None else log
@@ -461,7 +466,7 @@ class TFKerasModelHandler(ModelHandler):
 
         # Create a handler for the model:
         onnx_handler = ONNXModelHandler(
-            model_name=self.model_name, model=model_proto, context=self._context
+            model_name=model_name, model=model_proto, context=self._context
         )
 
         # Optimize the model if needed:

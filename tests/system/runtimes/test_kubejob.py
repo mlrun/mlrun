@@ -16,9 +16,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             project=self.project_name,
             filename=code_path,
         )
-        function.build_config(
-            base_image="mlrun/mlrun", commands=["pip install pandas"]
-        )
+        function.build_config(base_image="mlrun/mlrun", commands=["pip install pandas"])
 
         self._logger.debug("Deploying kubejob function")
         function.deploy()

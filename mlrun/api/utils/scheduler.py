@@ -276,7 +276,7 @@ class Scheduler:
             # sanity
             if not auth_info.access_key:
                 raise mlrun.errors.MLRunAccessDeniedError(
-                    "Session is required to create schedules in OPA authorization mode"
+                    "Access key is required to create schedules in OPA authorization mode"
                 )
             access_key_secret_key = mlrun.api.crud.Secrets().generate_schedule_access_key_secret_key(
                 name

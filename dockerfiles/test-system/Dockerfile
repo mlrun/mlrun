@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   make \
  && rm -rf /var/lib/apt/lists/*
 
-RUN python -m pip install --upgrade pip~=20.2.0
+RUN python -m pip install --upgrade pip~=21.2.0
 
 COPY ./dockerfiles/test-system/requirements.txt /tmp/mlrun-requirements/test-system-requirements.txt
 COPY ./dockerfiles/mlrun-api/requirements.txt /tmp/mlrun-requirements/mlrun-api-requirements.txt

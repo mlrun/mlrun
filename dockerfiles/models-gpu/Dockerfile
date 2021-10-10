@@ -49,7 +49,7 @@ RUN conda config --add channels conda-forge && \
     conda update -n base -c defaults conda && \
     conda install -n base \
         python=3.7 \
-        pip~=20.2.0 \
+        pip~=21.2.0 \
     && conda clean -aqy
 
 RUN conda install -n base cmake cython \

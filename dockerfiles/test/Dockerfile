@@ -39,7 +39,7 @@ RUN add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debia
 RUN apt update && apt-get install -y docker-ce-cli \
     && rm -rf /var/lib/apt/lists/*
 
-RUN python -m pip install --upgrade pip~=20.2.0
+RUN python -m pip install --upgrade pip~=21.2.0
 
 WORKDIR /mlrun
 

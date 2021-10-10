@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   vim \
  && rm -rf /var/lib/apt/lists/*
 
-RUN python -m pip install --upgrade pip~=20.2.0
+RUN python -m pip install --upgrade pip~=21.2.0
 
 WORKDIR /mlrun
 

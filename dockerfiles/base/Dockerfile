@@ -30,7 +30,7 @@ RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86
 
 ENV PATH /opt/conda/bin:$PATH
 
-RUN conda install python=${MLRUN_PYTHON_VERSION} pip~=20.2.0 && conda clean -aqy
+RUN conda install python=${MLRUN_PYTHON_VERSION} pip~=21.2.0 && conda clean -aqy
 
 COPY ./dockerfiles/base/requirements.txt ./base-image-requirements.txt
 COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt

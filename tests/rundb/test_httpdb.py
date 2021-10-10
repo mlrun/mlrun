@@ -92,7 +92,7 @@ def docker_fixture():
             "-f",
             "dockerfiles/mlrun-api/Dockerfile",
             "--build-arg",
-            "MLRUN_PYTHON_VERSION=3.7.9",
+            "MLRUN_PYTHON_VERSION=3.7.12",
             "--tag",
             docker_tag,
             ".",

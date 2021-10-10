@@ -11,12 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import typing
 from copy import copy
 
 import mlrun
 import mlrun.errors
+from mlrun.api.schemas import AuthorizationVerificationInput
 from mlrun.runtimes.function_reference import FunctionReference
-from mlrun.utils import StorePrefix, parse_versioned_object_uri
+from mlrun.utils import StorePrefix, mlconf, parse_versioned_object_uri
 
 from ..config import config
 
@@ -81,6 +83,15 @@ def get_feature_set_by_uri(uri, project=None):
     """get feature set object from db by uri"""
     db = mlrun.get_run_db()
     project, name, tag, uid = parse_feature_set_uri(uri, project)
+    resource = mlrun.api.schemas.AuthorizationResourceTypes.feature_set.to_resource_string(
+        project, "feature-set"
+    )
+
+    auth_input = AuthorizationVerificationInput(
+        resource=resource, action=mlrun.api.schemas.AuthorizationAction.read
+    )
+    db.verify_authorization(auth_input)
+
     return db.get_feature_set(name, project, tag, uid)
 
 
@@ -99,7 +110,45 @@ def get_feature_vector_by_uri(uri, project=None):
         uri = new_uri
 
     project, name, tag, uid = parse_versioned_object_uri(uri, default_project)
+
+    resource = mlrun.api.schemas.AuthorizationResourceTypes.feature_vector.to_resource_string(
+        project, "feature-vector"
+    )
+
+    auth_input = AuthorizationVerificationInput(
+        resource=resource, action=mlrun.api.schemas.AuthorizationAction.read
+    )
+    db.verify_authorization(auth_input)
+
     return db.get_feature_vector(name, project, tag, uid)
+
+
+def verify_feature_set_permissions(
+    resource, action: mlrun.api.schemas.AuthorizationAction
+):
+    project, _, _, _ = parse_feature_set_uri(resource.uri)
+
+    resource = mlrun.api.schemas.AuthorizationResourceTypes.feature_set.to_resource_string(
+        project, "feature-set"
+    )
+
+    db = mlrun.get_run_db()
+    auth_input = AuthorizationVerificationInput(resource=resource, action=action)
+    db.verify_authorization(auth_input)
+
+
+def verify_feature_vector_permissions(
+    resource, action: mlrun.api.schemas.AuthorizationAction
+):
+    project = resource._metadata.project or mlconf.default_project
+
+    resource = mlrun.api.schemas.AuthorizationResourceTypes.feature_vector.to_resource_string(
+        project, "feature-vector"
+    )
+
+    db = mlrun.get_run_db()
+    auth_input = AuthorizationVerificationInput(resource=resource, action=action)
+    db.verify_authorization(auth_input)
 
 
 class RunConfig:
@@ -131,6 +180,7 @@ class RunConfig:
         parameters=None,
         watch=None,
         owner=None,
+        credentials: typing.Optional[mlrun.model.Credentials] = None,
     ):
         self._function = None
         self._modifiers = []
@@ -144,6 +194,7 @@ class RunConfig:
         self.parameters = parameters or {}
         self.watch = True if watch is None else watch
         self.owner = owner
+        self.credentials = credentials
 
     @property
     def function(self):
@@ -201,6 +252,7 @@ class RunConfig:
         function.spec.image = function.spec.image or default_image
         for modifier in self._modifiers:
             function.apply(modifier)
+        function.metadata.credentials = self.credentials
         return function
 
     def copy(self):

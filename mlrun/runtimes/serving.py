@@ -108,7 +108,11 @@ class ServingSpec(NuclioSpec):
         track_models=None,
         secret_sources=None,
         default_content_type=None,
+        node_name=None,
+        node_selector=None,
+        affinity=None,
         disable_auto_mount=False,
+        priority_class_name=None,
     ):
 
         super().__init__(
@@ -134,7 +138,11 @@ class ServingSpec(NuclioSpec):
             service_account=service_account,
             readiness_timeout=readiness_timeout,
             build=build,
+            node_name=node_name,
+            node_selector=node_selector,
+            affinity=affinity,
             disable_auto_mount=disable_auto_mount,
+            priority_class_name=priority_class_name,
         )
 
         self.models = models or {}
@@ -260,6 +268,7 @@ class ServingRuntime(RemoteRuntime):
         class_name=None,
         model_url=None,
         handler=None,
+        router_step=None,
         **class_args,
     ):
         """add ml model and/or route to the function.
@@ -279,6 +288,8 @@ class ServingRuntime(RemoteRuntime):
                             (can also module.submodule.class and it will be imported automatically)
         :param model_url:   url of a remote model serving endpoint (cannot be used with model_path)
         :param handler:     for advanced users!, override default class handler name (do_event)
+        :param router_step: router step name (to determine which router we add the model to in graphs
+                            with multiple router steps)
         :param class_args:  extra kwargs to pass to the model serving class __init__
                             (can be read in the model using .get_param(key) method)
         """
@@ -287,7 +298,29 @@ class ServingRuntime(RemoteRuntime):
             graph = self.set_topology()
 
         if graph.kind != StepKinds.router:
-            raise ValueError("models can only be added under router state")
+            if router_step:
+                if router_step not in graph:
+                    raise ValueError(
+                        f"router step {router_step} not present in the graph"
+                    )
+                graph = graph[router_step]
+            else:
+                routers = [
+                    step
+                    for step in graph.steps.values()
+                    if step.kind == StepKinds.router
+                ]
+                if len(routers) == 0:
+                    raise ValueError(
+                        "graph does not contain any router, add_model can only be "
+                        "used when there is a router step"
+                    )
+                if len(routers) > 1:
+                    raise ValueError(
+                        f"found {len(routers)} routers, please specify the router_step"
+                        " you would like to add this model to"
+                    )
+                graph = routers[0]
 
         if not model_path and not model_url:
             raise ValueError("model_path or model_url must be provided")

@@ -14,6 +14,7 @@ from mlrun.api.main import app
 from mlrun.api.utils.singletons.db import initialize_db
 from mlrun.api.utils.singletons.project_member import initialize_project_member
 from mlrun.config import config
+from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
 
 
@@ -84,6 +85,21 @@ class K8sSecretsMock:
             if (secret_keys and key in secret_keys) or not secret_keys
         }
 
+    def get_expected_env_variables_from_secrets(self, project, encode_key_names=True):
+        expected_env_from_secrets = {}
+        secret_name = mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(
+            project
+        )
+        for key in self.project_secrets_map.get(project, {}):
+            env_variable_name = (
+                SecretsStore.k8s_env_variable_name_for_secret(key)
+                if encode_key_names
+                else key
+            )
+            expected_env_from_secrets[env_variable_name] = {secret_name: key}
+
+        return expected_env_from_secrets
+
     def assert_project_secrets(self, project: str, secrets: dict):
         assert (
             deepdiff.DeepDiff(
@@ -97,7 +113,6 @@ class K8sSecretsMock:
 def k8s_secrets_mock(client: TestClient) -> K8sSecretsMock:
     logger.info("Creating k8s secrets mock")
     k8s_secrets_mock = K8sSecretsMock()
-    config.namespace = "default-tenant"
 
     mlrun.api.utils.singletons.k8s.get_k8s().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
         return_value=True

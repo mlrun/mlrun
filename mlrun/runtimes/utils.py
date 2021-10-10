@@ -458,8 +458,12 @@ def enrich_function_from_dict(function, function_dict):
         "node_selector",
         "affinity",
         "priority_class_name",
+        "credentials",
     ]:
-        override_value = getattr(override_function.spec, attribute, None)
+        if attribute == "credentials":
+            override_value = getattr(override_function.metadata, attribute, None)
+        else:
+            override_value = getattr(override_function.spec, attribute, None)
         if override_value:
             if attribute == "env":
                 for env_dict in override_value:
@@ -471,11 +475,14 @@ def enrich_function_from_dict(function, function_dict):
                 # only override
                 function.spec.volume_mounts = override_value
             elif attribute == "resources":
-                # don't override it there are limits and requests but both are empty
+                # don't override if there are limits and requests but both are empty
                 if override_value.get("limits", {}) or override_value.get(
                     "requests", {}
                 ):
                     setattr(function.spec, attribute, override_value)
+            elif attribute == "credentials":
+                if any(override_value.to_dict().values()):
+                    function.metadata.credentials = override_value
             else:
                 setattr(function.spec, attribute, override_value)
     return function

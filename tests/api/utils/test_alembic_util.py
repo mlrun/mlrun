@@ -8,7 +8,7 @@ import alembic
 import alembic.config
 import pytest
 
-import mlrun.api.utils.alembic
+import mlrun.api.utils.db.alembic
 from mlrun import mlconf
 
 
@@ -24,7 +24,7 @@ def test_no_database_exists(
     mock_alembic, mock_database, mock_shutil_copy, from_scratch
 ):
     mock_database(db_file_exists=False)
-    alembic_util = mlrun.api.utils.alembic.AlembicUtil(pathlib.Path(""))
+    alembic_util = mlrun.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
     alembic_util.init_alembic(from_scratch=from_scratch)
     assert mock_alembic.stamp_calls == []
     assert mock_alembic.upgrade_calls == ["head"]
@@ -36,7 +36,7 @@ def test_database_exists_no_revision(
     mock_alembic, mock_database, mock_shutil_copy, from_scratch
 ):
     mock_database()
-    alembic_util = mlrun.api.utils.alembic.AlembicUtil(pathlib.Path(""))
+    alembic_util = mlrun.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
     alembic_util.init_alembic(from_scratch=from_scratch)
 
     # from scratch should skip stamp even if no revision exists
@@ -51,7 +51,7 @@ def test_database_exists_known_revision(
     mock_alembic, mock_database, mock_shutil_copy, mock_db_file_name, from_scratch
 ):
     mock_database(current_revision=Constants.initial_revision)
-    alembic_util = mlrun.api.utils.alembic.AlembicUtil(pathlib.Path(""))
+    alembic_util = mlrun.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
     alembic_util.init_alembic(from_scratch=from_scratch)
     assert mock_alembic.stamp_calls == []
     assert mock_alembic.upgrade_calls == ["head"]
@@ -65,7 +65,7 @@ def test_database_exists_unknown_revision_successful_downgrade(
     mock_alembic, mock_database, mock_shutil_copy, mock_db_file_name, from_scratch
 ):
     mock_database(current_revision=Constants.unknown_revision)
-    alembic_util = mlrun.api.utils.alembic.AlembicUtil(pathlib.Path(""))
+    alembic_util = mlrun.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
     alembic_util.init_alembic(from_scratch=from_scratch)
     assert mock_alembic.stamp_calls == []
     assert mock_alembic.upgrade_calls == ["head"]
@@ -95,7 +95,7 @@ def test_database_exists_unknown_revision_failed_downgrade(
     mock_database(
         current_revision=Constants.unknown_revision, db_backup_exists=False,
     )
-    alembic_util = mlrun.api.utils.alembic.AlembicUtil(pathlib.Path(""))
+    alembic_util = mlrun.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
     with pytest.raises(
         RuntimeError,
         match=f"Cannot fall back to revision {Constants.latest_revision}, "

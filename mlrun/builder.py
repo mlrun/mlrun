@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pathlib
 import tarfile
 import tempfile
 from base64 import b64decode, b64encode
@@ -105,7 +106,7 @@ def make_kaniko_pod(
         items = [
             {
                 "key": config.httpdb.builder.pip_ca_secret_key,
-                "path": config.httpdb.builder.pip_ca_path,
+                "path": pathlib.Path(config.httpdb.builder.pip_ca_path).name,
             }
         ]
         kpod.mount_secret(

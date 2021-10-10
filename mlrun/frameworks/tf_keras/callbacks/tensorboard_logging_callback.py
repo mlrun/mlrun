@@ -308,7 +308,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         # Validate input:
         if context is None and tensorboard_directory is None:
             raise ValueError(
-                "Expecting to receive a mlrun.MLClientCtx context or a path to a directory to output"
+                "Expecting to receive a mlrun.MLClientCtx context or a path to a directory to output "
                 "the logging file but None were given."
             )
 

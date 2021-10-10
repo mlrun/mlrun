@@ -156,7 +156,7 @@ class FeatureVector(ModelObj):
     :param features: list of feature to collect to this vector. format <project>/<feature_set>.<feature_name or *>
     :param label_feature: feature name to be used as label data
     :param description: vector description
-    :param with_indexes: whether to keep the entity and timestamp columns in the response """
+    :param with_indexes: whether to keep the entity and timestamp columns in the response"""
 
     kind = kind = mlrun.api.schemas.ObjectKind.feature_vector.value
     _dict_fields = ["kind", "metadata", "spec", "status"]

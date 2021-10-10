@@ -38,8 +38,8 @@ def create_schedule(
         schedule.kind,
         schedule.scheduled_object,
         schedule.cron_trigger,
-        labels=schedule.labels,
-        concurrency_limit=schedule.concurrency_limit,
+        schedule.labels,
+        schedule.concurrency_limit,
     )
     return Response(status_code=HTTPStatus.CREATED.value)
 

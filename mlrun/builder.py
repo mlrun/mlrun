@@ -39,7 +39,7 @@ def make_dockerfile(
     dock = f"FROM {base_image}\n"
 
     if config.is_pip_ca_configured():
-        dock += f"COPY {config.httpdb.builder.pip_ca_path} {config.httpdb.builder.pip_ca_path}"
+        dock += f"COPY {config.httpdb.builder.pip_ca_path} {config.httpdb.builder.pip_ca_path}\n"
 
     build_args = config.get_build_args()
     for build_arg_key, build_arg_value in build_args.items():

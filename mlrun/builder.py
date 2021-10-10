@@ -102,9 +102,17 @@ def make_kaniko_pod(
         kpod.mount_secret(secret_name, "/kaniko/.docker", items=items)
 
     if config.is_pip_ca_configured():
-        items = [{"key": config.httpdb.builder.pip_ca_secret_key, "path": config.httpdb.builder.pip_ca_path}]
-        kpod.mount_secret(config.httpdb.builder.pip_ca_secret_name,
-                          config.httpdb.builder.pip_ca_path, items=items)
+        items = [
+            {
+                "key": config.httpdb.builder.pip_ca_secret_key,
+                "path": config.httpdb.builder.pip_ca_path,
+            }
+        ]
+        kpod.mount_secret(
+            config.httpdb.builder.pip_ca_secret_name,
+            config.httpdb.builder.pip_ca_path,
+            items=items,
+        )
 
     if dockertext or inline_code or requirements:
         kpod.mount_empty()

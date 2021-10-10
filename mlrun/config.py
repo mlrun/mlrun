@@ -350,7 +350,11 @@ class Config:
 
     @staticmethod
     def is_pip_ca_configured():
-        return config.httpdb.builder.pip_ca_secret_name and config.httpdb.builder.pip_ca_secret_key and config.httpdb.builder.pip_ca_path
+        return (
+            config.httpdb.builder.pip_ca_secret_name
+            and config.httpdb.builder.pip_ca_secret_key
+            and config.httpdb.builder.pip_ca_path
+        )
 
     @staticmethod
     def get_hub_url():

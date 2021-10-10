@@ -34,16 +34,6 @@ class Scheduler:
         self._min_allowed_interval = config.httpdb.scheduling.min_allowed_interval
         self._secrets_provider = schemas.SecretProviderName.kubernetes
 
-        self._store_schedule_credentials_in_secrets = (
-            mlrun.mlconf.httpdb.scheduling.schedule_credentials_secrets_store_mode
-            == "enabled"
-            or (
-                mlrun.mlconf.httpdb.scheduling.schedule_credentials_secrets_store_mode
-                == "auto"
-                and mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
-            )
-        )
-
     async def start(self, db_session: Session):
         logger.info("Starting scheduler")
         self._scheduler.start()
@@ -256,7 +246,7 @@ class Scheduler:
     ):
         if (
             kind not in schemas.ScheduleKinds.local_kinds()
-            and self._store_schedule_credentials_in_secrets
+            and mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
             and (
                 not auth_info.access_key
                 or auth_info.access_key == mlrun.model.Credentials.generate_access_key
@@ -272,7 +262,7 @@ class Scheduler:
         # import here to avoid circular imports
         import mlrun.api.crud
 
-        if self._store_schedule_credentials_in_secrets:
+        if mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
             # sanity
             if not auth_info.access_key:
                 raise mlrun.errors.MLRunAccessDeniedError(
@@ -307,7 +297,7 @@ class Scheduler:
         # import here to avoid circular imports
         import mlrun.api.crud
 
-        if self._store_schedule_credentials_in_secrets:
+        if mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
             access_key_secret_key = mlrun.api.crud.Secrets().generate_schedule_access_key_secret_key(
                 name
             )
@@ -491,7 +481,7 @@ class Scheduler:
 
                 access_key = None
                 username = None
-                if self._store_schedule_credentials_in_secrets:
+                if mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
                     username, access_key = self._get_schedule_secrets(
                         db_schedule.project, db_schedule.name
                     )
@@ -653,7 +643,7 @@ class Scheduler:
         # Note that here we're using the "knowledge" that submit_run only requires the access key of the auth info
         if (
             not auth_info.access_key
-            and scheduler._store_schedule_credentials_in_secrets
+            and mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
         ):
             # import here to avoid circular imports
             import mlrun.api.utils.auth

@@ -247,7 +247,9 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     )
     # stop scheduler, reconfigure to store credentials and start again (upgrade)
     await scheduler.stop()
-    scheduler._store_schedule_credentials_in_secrets = True
+    mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = unittest.mock.Mock(
+        return_value=True
+    )
     await scheduler.start(db)
 
     # at this point the schedule is inside the scheduler without auth_info, so the first trigger should try to generate
@@ -636,7 +638,9 @@ async def test_rescheduling_secrets_storing(
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-    scheduler._store_schedule_credentials_in_secrets = True
+    mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = unittest.mock.Mock(
+        return_value=True
+    )
     name = "schedule-name"
     project = config.default_project
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
@@ -685,7 +689,9 @@ async def test_schedule_crud_secrets_handling(
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-    scheduler._store_schedule_credentials_in_secrets = True
+    mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = unittest.mock.Mock(
+        return_value=True
+    )
     for schedule_name in ["valid-secret-key", "invalid/secret/key"]:
         project = config.default_project
         scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
@@ -740,7 +746,9 @@ async def test_schedule_access_key_generation(
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-    scheduler._store_schedule_credentials_in_secrets = True
+    mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = unittest.mock.Mock(
+        return_value=True
+    )
     project = config.default_project
     schedule_name = "schedule-name"
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)

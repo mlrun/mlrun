@@ -128,9 +128,11 @@ def get_dtype(df, colname):
     return [dtype for name, dtype in df.dtypes if name == colname][0]
 
 
-def get_df_stats_spark(df, options, num_bins=20):
+def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
     if InferOptions.get_common_options(options, InferOptions.Index):
         df = df.select("*").withColumn("id", funcs.monotonically_increasing_id())
+
+    # todo: sample spark DF if sample_size is not None and DF is bigger than sample_size
 
     describe_df = df.toPandas().describe(
         include="all", percentiles=[], datetime_is_numeric=True

@@ -154,8 +154,9 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
             == mlrun.model.Credentials.generate_access_key
         ):
             if not auth_info.access_key:
-                auth_info.access_key = mlrun.api.utils.auth.verifier\
-                    .AuthVerifier().get_or_create_access_key(auth_info.session)
+                auth_info.access_key = mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key(
+                    auth_info.session
+                )
             function.metadata.credentials.access_key = auth_info.access_key
         if not function.metadata.credentials.access_key:
             raise mlrun.errors.MLRunInvalidArgumentError(

@@ -278,7 +278,9 @@ class Scheduler:
                 raise mlrun.errors.MLRunAccessDeniedError(
                     "Session is required to create schedules in OPA authorization mode"
                 )
-            access_key_secret_key = mlrun.api.crud.Secrets().generate_schedule_access_key_secret_key(name)
+            access_key_secret_key = mlrun.api.crud.Secrets().generate_schedule_access_key_secret_key(
+                name
+            )
             secret_key_map = (
                 mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
             )
@@ -286,14 +288,13 @@ class Scheduler:
                 access_key_secret_key: auth_info.access_key,
             }
             if auth_info.username:
-                username_secret_key = mlrun.api.crud.Secrets().generate_schedule_username_secret_key(name)
+                username_secret_key = mlrun.api.crud.Secrets().generate_schedule_username_secret_key(
+                    name
+                )
                 secrets[username_secret_key] = auth_info.username
             mlrun.api.crud.Secrets().store_secrets(
                 project,
-                schemas.SecretsData(
-                    provider=self._secrets_provider,
-                    secrets=secrets,
-                ),
+                schemas.SecretsData(provider=self._secrets_provider, secrets=secrets,),
                 allow_internal_secrets=True,
                 key_map_secret_key=secret_key_map,
             )
@@ -305,8 +306,12 @@ class Scheduler:
         import mlrun.api.crud
 
         if self._store_schedule_credentials_in_secrets:
-            access_key_secret_key = mlrun.api.crud.Secrets().generate_schedule_access_key_secret_key(name)
-            username_secret_key = mlrun.api.crud.Secrets().generate_schedule_username_secret_key(name)
+            access_key_secret_key = mlrun.api.crud.Secrets().generate_schedule_access_key_secret_key(
+                name
+            )
+            username_secret_key = mlrun.api.crud.Secrets().generate_schedule_username_secret_key(
+                name
+            )
             secret_key_map = (
                 mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
             )
@@ -328,7 +333,7 @@ class Scheduler:
             )
 
     def _get_schedule_secrets(
-            self, project: str, name: str, include_username: bool = True
+        self, project: str, name: str, include_username: bool = True
     ) -> typing.Tuple[typing.Optional[str], typing.Optional[str]]:
         # import here to avoid circular imports
         import mlrun.api.crud
@@ -336,9 +341,7 @@ class Scheduler:
         schedule_access_key_secret_key = mlrun.api.crud.Secrets().generate_schedule_access_key_secret_key(
             name
         )
-        secret_key_map = (
-            mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
-        )
+        secret_key_map = mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
         # TODO: support listing (and not only get) secrets using key map
         access_key = mlrun.api.crud.Secrets().get_secret(
             project,
@@ -486,7 +489,9 @@ class Scheduler:
                 access_key = None
                 username = None
                 if self._store_schedule_credentials_in_secrets:
-                    username, access_key = self._get_schedule_secrets(db_schedule.project, db_schedule.name)
+                    username, access_key = self._get_schedule_secrets(
+                        db_schedule.project, db_schedule.name
+                    )
                 self._create_schedule_in_scheduler(
                     db_schedule.project,
                     db_schedule.name,
@@ -494,7 +499,9 @@ class Scheduler:
                     db_schedule.scheduled_object,
                     db_schedule.cron_trigger,
                     db_schedule.concurrency_limit,
-                    mlrun.api.schemas.AuthInfo(username=username, access_key=access_key),
+                    mlrun.api.schemas.AuthInfo(
+                        username=username, access_key=access_key
+                    ),
                 )
             except Exception as exc:
                 logger.warn(
@@ -544,7 +551,9 @@ class Scheduler:
     def _enrich_schedule_with_credentials(
         self, schedule_output: schemas.ScheduleOutput
     ):
-        _, schedule_output.credentials.access_key = self._get_schedule_secrets(schedule_output.project, schedule_output.name, include_username=False)
+        _, schedule_output.credentials.access_key = self._get_schedule_secrets(
+            schedule_output.project, schedule_output.name, include_username=False
+        )
 
     def _resolve_job_function(
         self,
@@ -639,7 +648,10 @@ class Scheduler:
         # if credentials are needed but missing (will happen for schedules on upgrade from scheduler that didn't store
         # credentials to one that does store) enrich them
         # Note that here we're using the "knowledge" that submit_run only requires the access key of the auth info
-        if not auth_info.access_key and scheduler._store_schedule_credentials_in_secrets:
+        if (
+            not auth_info.access_key
+            and scheduler._store_schedule_credentials_in_secrets
+        ):
             # import here to avoid circular imports
             import mlrun.api.utils.auth
             import mlrun.api.utils.singletons.project_member
@@ -656,7 +668,9 @@ class Scheduler:
             # Update the schedule with the new auth info so we won't need to do the above again in the next run
             scheduler.update_schedule(
                 db_session,
-                mlrun.api.schemas.AuthInfo(username=project_owner.username, access_key=project_owner.session),
+                mlrun.api.schemas.AuthInfo(
+                    username=project_owner.username, access_key=project_owner.session
+                ),
                 project_name,
                 schedule_name,
             )

@@ -281,6 +281,8 @@ class Scheduler:
             access_key_secret_key = mlrun.api.crud.Secrets().generate_schedule_access_key_secret_key(
                 name
             )
+            # schedule name may be an invalid secret key, therefore we're using the key map feature of our secrets
+            # handler
             secret_key_map = (
                 mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
             )
@@ -315,6 +317,7 @@ class Scheduler:
             secret_key_map = (
                 mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
             )
+            # TODO: support delete secrets (plural and not only singular) using key map
             mlrun.api.crud.Secrets().delete_secret(
                 project,
                 self._secrets_provider,

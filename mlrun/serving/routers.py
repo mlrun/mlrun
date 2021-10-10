@@ -606,7 +606,7 @@ class VotingEnsemble(BaseModelRouter):
             return response[self.prediction_col_name]
         except KeyError:
             raise ValueError(
-                f"The given `prediction_col_name` ({self.prediction_col_name}) does not exist"
+                f"The given `prediction_col_name` ({self.prediction_col_name}) does not exist "
                 f"in the model's response ({response.keys()})"
             )
 

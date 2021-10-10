@@ -73,6 +73,14 @@ def schema_to_store(schema):
         return V3ioStore
     elif schema in ["http", "https"]:
         return HttpStore
+    elif schema in ["gcs", "gs"]:
+        try:
+            from .google_cloud_storage import GoogleCloudStorageStore
+        except ImportError:
+            raise mlrun.errors.MLRunMissingDependencyError(
+                "Google cloud storage packages are missing, use pip install mlrun[google-cloud-storage]"
+            )
+        return GoogleCloudStorageStore
     else:
         raise ValueError(f"unsupported store scheme ({schema})")
 

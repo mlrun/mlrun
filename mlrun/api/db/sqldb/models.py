@@ -423,7 +423,7 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("version", name="_versions_uc"),)
 
         id = Column(Integer, primary_key=True)
-        version = Column(String)
+        version = Column(String(255, collation=SQLCollationUtil.collation()))
         created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
 
 

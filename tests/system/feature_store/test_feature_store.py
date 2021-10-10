@@ -1300,6 +1300,39 @@ class TestFeatureStore(TestMLRunSystem):
         assert "exchange" not in features, "field was not dropped"
         assert len(df) == len(stocks), "dataframe size doesnt match"
 
+    @pytest.mark.parametrize("with_graph", [True, False])
+    def test_sync_pipeline_chunks(self, with_graph):
+        myset = fs.FeatureSet(
+            "early_sense",
+            entities=[Entity("patient_id")],
+            timestamp_key="timestamp",
+            engine="pandas",
+        )
+
+        csv_file = os.path.relpath(str(self.assets_path / "testdata.csv"))
+        original_df = pd.read_csv(csv_file)
+        original_cols = original_df.shape[1]
+        print(original_df.shape)
+        print(original_df.info())
+
+        chunksize = 100
+        source = CSVSource("mycsv", path=csv_file, attributes={"chunksize": chunksize})
+        if with_graph:
+            myset.graph.to(name="s1", handler="my_func")
+
+        df = fs.ingest(myset, source)
+        self._logger.info(f"output df:\n{df}")
+
+        features = list(myset.spec.features.keys())
+        print(len(features), features)
+        print(myset.to_yaml())
+        print(df.shape)
+        # original cols - index - timestamp cols
+        assert len(features) == original_cols - 2, "wrong num of features"
+        assert df.shape[1] == original_cols, "num of cols not as expected"
+        # returned DF is only the first chunk (size 100)
+        assert df.shape[0] == chunksize, "dataframe size doesnt match"
+
     def test_target_list_validation(self):
         targets = [ParquetTarget()]
         verify_target_list_fail(targets, with_defaults=True)

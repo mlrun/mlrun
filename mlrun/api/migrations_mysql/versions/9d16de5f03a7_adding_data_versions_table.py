@@ -20,7 +20,7 @@ def upgrade():
     op.create_table(
         "data_versions",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("version", sa.String(), nullable=True),
+        sa.Column("version", sa.String(255, collation="utf8_bin"), nullable=True),
         sa.Column("created", sa.TIMESTAMP(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("version", name="_versions_uc"),

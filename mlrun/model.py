@@ -1045,7 +1045,7 @@ class DataSource(ModelObj):
 
         self.name = name
         self.path = str(path) if path is not None else None
-        self.attributes = attributes
+        self.attributes = attributes or {}
         self.schedule = schedule
         self.key_field = key_field
         self.time_field = time_field

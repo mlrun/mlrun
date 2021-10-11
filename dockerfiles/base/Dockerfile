@@ -32,14 +32,15 @@ ENV PATH /opt/conda/bin:$PATH
 
 RUN conda install python=${MLRUN_PYTHON_VERSION} pip~=21.2.0 && conda clean -aqy
 
-COPY ./dockerfiles/base/requirements.txt ./base-image-requirements.txt
 COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
 COPY ./extras-requirements.txt ./extras-requirements.txt
 COPY ./requirements.txt ./
 RUN python -m pip install \
     -r requirements.txt \
     -r extras-requirements.txt \
-    -r mlrun-image-requirements.txt \
+    -r mlrun-image-requirements.txt
+COPY ./dockerfiles/base/requirements.txt ./base-image-requirements.txt
+RUN python -m pip install \
     -r base-image-requirements.txt
 
 ARG MLRUN_MLUTILS_GITHUB_TAG=development

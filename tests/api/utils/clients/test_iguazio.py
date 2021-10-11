@@ -174,8 +174,9 @@ def test_get_or_create_access_key_success(
     access_key_id = "some-id"
     session = "1234"
 
-    def _get_or_create_access_key_mock(request, context):
+    def _get_or_create_access_key_mock(status_code, request, context):
         _verify_request_cookie(request.headers, session)
+        context.status_code = status_code
         expected_request_body = {
             "data": {
                 "type": "access_key",
@@ -188,9 +189,22 @@ def test_get_or_create_access_key_success(
         )
         return {"data": {"id": access_key_id}}
 
+    # mock creation
     requests_mock.post(
         f"{api_url}/api/self/get_or_create_access_key",
-        json=_get_or_create_access_key_mock,
+        json=functools.partial(
+            _get_or_create_access_key_mock, http.HTTPStatus.CREATED.value
+        ),
+    )
+    returned_access_key = iguazio_client.get_or_create_access_key(session, planes)
+    assert access_key_id == returned_access_key
+
+    # mock get
+    requests_mock.post(
+        f"{api_url}/api/self/get_or_create_access_key",
+        json=functools.partial(
+            _get_or_create_access_key_mock, http.HTTPStatus.OK.value
+        ),
     )
     returned_access_key = iguazio_client.get_or_create_access_key(session, planes)
     assert access_key_id == returned_access_key

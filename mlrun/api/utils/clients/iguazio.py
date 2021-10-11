@@ -146,6 +146,8 @@ class Client(
             session,
             json=body,
         )
+        if response.status_code == http.HTTPStatus.CREATED.value:
+            logger.debug("Created access key in Iguazio", planes=planes)
         return response.json()["data"]["id"]
 
     def create_project(

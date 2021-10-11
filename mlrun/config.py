@@ -188,11 +188,6 @@ default_config = {
             "counters_cache_ttl": "2 minutes",
             # access key to be used when the leader is iguazio and polling is done from it
             "iguazio_access_key": "",
-            # the initial implementation was cache and was working great, now it's not needed because we get (read/list)
-            # from leader because of some auth restriction, we will probably go back to it at some point since it's
-            # better performance wise, so made it a mode
-            # one of: cache, none
-            "follower_projects_store_mode": "cache",
             "project_owners_cache_ttl": "30 seconds",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates

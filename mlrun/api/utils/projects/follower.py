@@ -1,6 +1,5 @@
 import typing
 
-import fastapi.concurrency
 import humanfriendly
 import sqlalchemy.orm
 
@@ -47,21 +46,7 @@ class Member(
         def is_project_exists(
             self, session, name: str, leader_session: typing.Optional[str] = None
         ):
-            if (
-                self.project_member.projects_store_mode
-                == self.project_member.ProjectsStoreMode.cache
-            ):
-                return name in self.project_member._projects
-            elif (
-                self.project_member.projects_store_mode
-                == self.project_member.ProjectsStoreMode.none
-            ):
-                projects_output = self.project_member.list_projects(
-                    session,
-                    format_=mlrun.api.schemas.ProjectsFormat.name_only,
-                    leader_session=leader_session,
-                )
-                return name in projects_output.projects
+            return name in self.project_member._projects
 
         def delete_project(
             self,
@@ -69,23 +54,11 @@ class Member(
             name: str,
             deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         ):
-            if (
-                self.project_member.projects_store_mode
-                == self.project_member.ProjectsStoreMode.cache
-            ):
-                if name in self.project_member._projects:
-                    del self.project_member._projects[name]
-            return
+            if name in self.project_member._projects:
+                del self.project_member._projects[name]
 
     def initialize(self):
         logger.info("Initializing projects follower")
-        self.projects_store_mode = (
-            mlrun.mlconf.httpdb.projects.follower_projects_store_mode
-        )
-        if self.projects_store_mode not in self.ProjectsStoreMode.all():
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Provided projects store mode is not supported. mode={self.projects_store_mode}"
-            )
         self._projects: typing.Dict[str, mlrun.api.schemas.Project] = {}
         self._projects_store_for_deletion = self.ProjectsStore(self)
         self._leader_name = mlrun.mlconf.httpdb.projects.leader
@@ -105,14 +78,12 @@ class Member(
             mlrun.mlconf.httpdb.projects.periodic_sync_interval
         )
         self._synced_until_datetime = None
-        # Only if we're storing the projects in cache, we need to maintain this cache i.e. run the periodic sync
-        if self.projects_store_mode == self.ProjectsStoreMode.cache:
-            # run one sync to start off on the right foot and fill out the cache but don't fail initialization on it
-            try:
-                self._sync_projects()
-            except Exception as exc:
-                logger.warning("Initial projects sync failed", exc=str(exc))
-            self._start_periodic_sync()
+        # run one sync to start off on the right foot and fill out the cache but don't fail initialization on it
+        try:
+            self._sync_projects()
+        except Exception as exc:
+            logger.warning("Initial projects sync failed", exc=str(exc))
+        self._start_periodic_sync()
 
     def shutdown(self):
         logger.info("Shutting down projects leader")
@@ -143,10 +114,9 @@ class Member(
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         if self._is_request_from_leader(projects_role):
-            if self.projects_store_mode == self.ProjectsStoreMode.cache:
-                if project.metadata.name in self._projects:
-                    raise mlrun.errors.MLRunConflictError("Project already exists")
-                self._projects[project.metadata.name] = project
+            if project.metadata.name in self._projects:
+                raise mlrun.errors.MLRunConflictError("Project already exists")
+            self._projects[project.metadata.name] = project
             return project, False
         else:
             return self._leader_client.create_project(
@@ -163,8 +133,7 @@ class Member(
         wait_for_completion: bool = True,
     ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
         if self._is_request_from_leader(projects_role):
-            if self.projects_store_mode == self.ProjectsStoreMode.cache:
-                self._projects[project.metadata.name] = project
+            self._projects[project.metadata.name] = project
             return project, False
         else:
             return self._leader_client.store_project(
@@ -221,27 +190,9 @@ class Member(
         name: str,
         leader_session: typing.Optional[str] = None,
     ) -> mlrun.api.schemas.Project:
-        if self.projects_store_mode == self.ProjectsStoreMode.cache:
-            if name not in self._projects:
-                raise mlrun.errors.MLRunNotFoundError(f"Project not found {name}")
-            return self._projects[name]
-        elif self.projects_store_mode == self.ProjectsStoreMode.none:
-            return self._leader_client.get_project(leader_session, name)
-
-    async def _async_get_project(
-        self,
-        db_session: sqlalchemy.orm.Session,
-        name: str,
-        leader_session: typing.Optional[str] = None,
-    ) -> mlrun.api.schemas.Project:
-        if self.projects_store_mode == self.ProjectsStoreMode.cache:
-            if name not in self._projects:
-                raise mlrun.errors.MLRunNotFoundError(f"Project not found {name}")
-            return self._projects[name]
-        elif self.projects_store_mode == self.ProjectsStoreMode.none:
-            return await fastapi.concurrency.run_in_threadpool(
-                self._leader_client.get_project, leader_session, name
-            )
+        if name not in self._projects:
+            raise mlrun.errors.MLRunNotFoundError(f"Project not found {name}")
+        return self._projects[name]
 
     def get_project_owner(
         self, db_session: sqlalchemy.orm.Session, name: str,
@@ -307,9 +258,7 @@ class Member(
         leader_session: typing.Optional[str] = None,
         names: typing.Optional[typing.List[str]] = None,
     ) -> mlrun.api.schemas.ProjectSummariesOutput:
-        projects = await self._async_list_projects(
-            leader_session, owner, labels, state, names
-        )
+        projects = self._list_projects(leader_session, owner, labels, state, names)
         project_names = list(map(lambda project: project.metadata.name, projects))
 
         # importing here to avoid circular import (db using project member using mlrun follower using db)
@@ -330,7 +279,7 @@ class Member(
         leader_session: typing.Optional[str] = None,
     ) -> mlrun.api.schemas.ProjectSummary:
         # Call get project so we'll explode if project doesn't exists
-        await self._async_get_project(db_session, name, leader_session)
+        self.get_project(db_session, name, leader_session)
 
         # importing here to avoid circular import (db using project member using mlrun follower using db)
         import mlrun.api.crud
@@ -349,31 +298,7 @@ class Member(
         state: mlrun.api.schemas.ProjectState = None,
         names: typing.Optional[typing.List[str]] = None,
     ) -> typing.List[mlrun.api.schemas.Project]:
-        projects = []
-        if self.projects_store_mode == self.ProjectsStoreMode.cache:
-            projects = list(self._projects.values())
-        elif self.projects_store_mode == self.ProjectsStoreMode.none:
-            projects, _ = self._leader_client.list_projects(leader_session)
-
-        projects = self._filter_projects(projects, owner, labels, state, names)
-        return projects
-
-    async def _async_list_projects(
-        self,
-        leader_session: typing.Optional[str] = None,
-        owner: str = None,
-        labels: typing.List[str] = None,
-        state: mlrun.api.schemas.ProjectState = None,
-        names: typing.Optional[typing.List[str]] = None,
-    ) -> typing.List[mlrun.api.schemas.Project]:
-        projects = []
-        if self.projects_store_mode == self.ProjectsStoreMode.cache:
-            projects = list(self._projects.values())
-        elif self.projects_store_mode == self.ProjectsStoreMode.none:
-            projects, _ = await fastapi.concurrency.run_in_threadpool(
-                self._leader_client.list_projects, leader_session
-            )
-
+        projects = list(self._projects.values())
         projects = self._filter_projects(projects, owner, labels, state, names)
         return projects
 

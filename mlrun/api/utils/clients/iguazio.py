@@ -134,27 +134,16 @@ class Client(
                 SessionPlanes.data,
                 SessionPlanes.control,
             ]
-
-        response = self._send_request_to_api(
-            "GET", "access_keys", "Failed getting access keys from Iguazio", session,
-        )
-        response_body = response.json()
-        for access_key in response_body.get("data", []):
-            access_key_planes = access_key.get("attributes", {}).get("planes", [])
-            if deepdiff.DeepDiff(planes, access_key_planes, ignore_order=True,) == {}:
-                return access_key["id"]
-        # If we're here we couldn't find an existing access key with the requested planes, so let's create one
         body = {
             "data": {
                 "type": "access_key",
                 "attributes": {"label": "MLRun", "planes": planes},
             }
         }
-        logger.debug("Creating access key in Iguazio", planes=planes)
         response = self._send_request_to_api(
             "POST",
-            "access_keys",
-            "Failed verifying iguazio session",
+            "self/get_or_create_access_key",
+            "Failed getting or creating iguazio access key",
             session,
             json=body,
         )

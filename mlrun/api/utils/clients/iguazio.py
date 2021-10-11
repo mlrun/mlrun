@@ -5,7 +5,6 @@ import json
 import typing
 import urllib.parse
 
-import deepdiff
 import fastapi
 import requests.adapters
 import urllib3

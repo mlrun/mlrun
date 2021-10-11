@@ -164,9 +164,9 @@ def test_get_grafana_service_url_no_urls(
 
 
 def test_get_or_create_access_key_success(
-        api_url: str,
-        iguazio_client: mlrun.api.utils.clients.iguazio.Client,
-        requests_mock: requests_mock_package.Mocker,
+    api_url: str,
+    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
 ):
     planes = [
         mlrun.api.utils.clients.iguazio.SessionPlanes.control,
@@ -182,12 +182,11 @@ def test_get_or_create_access_key_success(
                 "attributes": {"label": "MLRun", "planes": planes},
             }
         }
-        assert deepdiff.DeepDiff(expected_request_body, request.json(), ignore_order=True,) == {}
-        return {
-            "data": {
-                "id": access_key_id,
-            }
-        }
+        assert (
+            deepdiff.DeepDiff(expected_request_body, request.json(), ignore_order=True,)
+            == {}
+        )
+        return {"data": {"id": access_key_id}}
 
     requests_mock.post(
         f"{api_url}/api/self/get_or_create_access_key",

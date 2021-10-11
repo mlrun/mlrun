@@ -9,7 +9,6 @@ import sqlalchemy.orm
 import mlrun.api.api.endpoints.runtime_resources
 import mlrun.api.crud
 import mlrun.api.schemas
-import mlrun.api.utils.clients.opa
 import mlrun.api.utils.singletons.k8s
 
 
@@ -61,7 +60,7 @@ def test_list_runtimes_resources_group_by_job(
         return_value=grouped_by_project_runtime_resources_output
     )
     # allow all
-    mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
         side_effect=lambda _, resources, *args, **kwargs: resources
     )
     response = client.get(
@@ -108,7 +107,7 @@ def test_list_runtimes_resources_no_group_by(
         return_value=grouped_by_project_runtime_resources_output
     )
     # allow all
-    mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
         side_effect=lambda _, resources, *args, **kwargs: resources
     )
     response = client.get("/api/projects/*/runtime-resources",)
@@ -158,7 +157,7 @@ def test_list_runtime_resources_no_resources(
         return_value={}
     )
 
-    mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
         return_value=[]
     )
     response = client.get("/api/projects/*/runtime-resources",)
@@ -217,7 +216,7 @@ def test_list_runtime_resources_filter_by_kind(
             grouped_by_project_runtime_resources_output,
         )
     )
-    mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
         side_effect=lambda _, resources, *args, **kwargs: resources
     )
     response = client.get(
@@ -265,7 +264,7 @@ def test_delete_runtime_resources_nothing_allowed(
         return_value=grouped_by_project_runtime_resources_output
     )
 
-    mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
         return_value=[]
     )
     _assert_empty_responses_in_delete_endpoints(client)
@@ -279,7 +278,7 @@ def test_delete_runtime_resources_no_resources(
     )
 
     # allow all
-    mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
         side_effect=lambda _, resources, *args, **kwargs: resources
     )
     _assert_empty_responses_in_delete_endpoints(client)
@@ -304,7 +303,7 @@ def test_delete_runtime_resources_opa_filtering(
     )
 
     allowed_projects = [project_1, project_2]
-    mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
         return_value=allowed_projects
     )
     _mock_runtime_handlers_delete_resources(
@@ -337,7 +336,7 @@ def test_delete_runtime_resources_with_legacy_builder_pod_opa_filtering(
     )
 
     allowed_projects = []
-    mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
         return_value=allowed_projects
     )
     # no projects are allowed, but there is a non project runtime resource (the legacy builder pod)
@@ -380,7 +379,7 @@ def test_delete_runtime_resources_with_kind(
     )
 
     allowed_projects = [project_1, project_3]
-    mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
         return_value=allowed_projects
     )
     _mock_runtime_handlers_delete_resources([kind], allowed_projects)
@@ -426,7 +425,7 @@ def test_delete_runtime_resources_with_object_id(
     )
 
     # allow all
-    mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
         side_effect=lambda _, resources, *args, **kwargs: resources
     )
     _mock_runtime_handlers_delete_resources([kind], [project_1])
@@ -633,7 +632,7 @@ def _mock_opa_filter_and_assert_list_response(
     grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
     opa_filter_response,
 ):
-    mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
         return_value=opa_filter_response
     )
     response = client.get(

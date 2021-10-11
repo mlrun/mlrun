@@ -14,7 +14,6 @@
 
 __all__ = ["TaskStep", "RouterStep", "RootFlowStep"]
 
-import json
 import os
 import pathlib
 import traceback
@@ -23,16 +22,13 @@ from copy import copy, deepcopy
 from inspect import getfullargspec, signature
 from typing import Union
 
-import requests
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
-
 from ..config import config
 from ..datastore import get_stream_pusher
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj, ObjectDict
 from ..platforms.iguazio import parse_v3io_path
 from ..utils import get_class, get_function
+from .utils import _extract_input_data, _update_result_body
 
 callable_prefix = "_"
 path_splitter = "/"
@@ -67,6 +63,8 @@ _task_step_fields = [
     "full_event",
     "on_error",
     "responder",
+    "input_path",
+    "result_path",
 ]
 
 
@@ -229,6 +227,8 @@ class BaseStep(ModelObj):
         graph_shape: str = None,
         function: str = None,
         full_event: bool = None,
+        input_path: str = None,
+        result_path: str = None,
         **class_args,
     ):
         """add a step right after this step and return the new step
@@ -247,6 +247,14 @@ class BaseStep(ModelObj):
         :param graph_shape: graphviz shape name
         :param function:    function this step should run in
         :param full_event:  this step accepts the full event (not just body)
+        :param input_path:  selects the key/path in the event to use as input to the step
+                            this require that the event body will behave like a dict, example:
+                            event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means the step will
+                            receive 7 as input
+        :param result_path: selects the key/path in the event to write the results to
+                            this require that the event body will behave like a dict, example:
+                            event: {"x": 5} , result_path="y" means the output of the step will be written
+                            to event["y"] resulting in {"x": 5, "y": <result>}
         :param class_args:  class init arguments
         """
         if hasattr(self, "steps"):
@@ -265,6 +273,8 @@ class BaseStep(ModelObj):
             graph_shape=graph_shape,
             function=function,
             full_event=full_event,
+            input_path=input_path,
+            result_path=result_path,
             class_args=class_args,
         )
         step = parent._steps.update(name, step)
@@ -293,6 +303,8 @@ class TaskStep(BaseStep):
         full_event: bool = None,
         function: str = None,
         responder: bool = None,
+        input_path: str = None,
+        result_path: str = None,
     ):
         super().__init__(name, after)
         self.class_name = class_name
@@ -307,8 +319,11 @@ class TaskStep(BaseStep):
         self._class_object = None
         self.responder = responder
         self.full_event = full_event
+        self.input_path = input_path
+        self.result_path = result_path
         self.on_error = None
         self._inject_context = False
+        self._call_with_event = False
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.context = context
@@ -335,7 +350,10 @@ class TaskStep(BaseStep):
 
         if not self._class_object:
             if self.class_name == "$remote":
-                self._class_object = RemoteHttpHandler
+
+                from mlrun.serving.remote import RemoteStep
+
+                self._class_object = RemoteStep
             else:
                 self._class_object = get_class(
                     self.class_name or self._default_class, namespace
@@ -351,12 +369,11 @@ class TaskStep(BaseStep):
                     class_args[key] = arg
             class_args.update(extra_kwargs)
 
-            # add name and context only if target class can accept them
+            # add common args (name, context, ..) only if target class can accept them
             argspec = getfullargspec(self._class_object)
-            if argspec.varkw or "context" in argspec.args:
-                class_args["context"] = self.context
-            if argspec.varkw or "name" in argspec.args:
-                class_args["name"] = self.name
+            for key in ["name", "context", "input_path", "result_path"]:
+                if argspec.varkw or key in argspec.args:
+                    class_args[key] = getattr(self, key)
 
             try:
                 self._object = self._class_object(**class_args)
@@ -373,11 +390,11 @@ class TaskStep(BaseStep):
                         f"handler ({handler}) specified but doesnt exist in class {self.class_name}"
                     )
             else:
-                if hasattr(self._object, "do"):
-                    handler = "do"
-                elif hasattr(self._object, "do_event"):
+                if hasattr(self._object, "do_event"):
                     handler = "do_event"
-                    self.full_event = True
+                    self._call_with_event = True
+                elif hasattr(self._object, "do"):
+                    handler = "do"
             if handler:
                 self._handler = getattr(self._object, handler, None)
 
@@ -434,9 +451,13 @@ class TaskStep(BaseStep):
             del kwargs["context"]
 
         try:
-            if self.full_event:
+            if self.full_event or self._call_with_event:
                 return self._handler(event, *args, **kwargs)
-            event.body = self._handler(event.body, *args, **kwargs)
+
+            result = self._handler(
+                _extract_input_data(self.input_path, event.body), *args, **kwargs
+            )
+            event.body = _update_result_body(self.result_path, event.body, result)
         except Exception as exc:
             self._log_error(event, exc)
             handled = self._call_error_handler(event, exc)
@@ -462,8 +483,18 @@ class RouterStep(TaskStep):
         routes: list = None,
         name: str = None,
         function: str = None,
+        input_path: str = None,
+        result_path: str = None,
     ):
-        super().__init__(class_name, class_args, handler, name=name, function=function)
+        super().__init__(
+            class_name,
+            class_args,
+            handler,
+            name=name,
+            function=function,
+            input_path=input_path,
+            result_path=result_path,
+        )
         self._routes: ObjectDict = None
         self.routes = routes
 
@@ -721,6 +752,8 @@ class FlowStep(BaseStep):
         graph_shape=None,
         function=None,
         full_event: bool = None,
+        input_path: str = None,
+        result_path: str = None,
         **class_args,
     ):
         """add task, queue or router step/class to the flow
@@ -743,6 +776,15 @@ class FlowStep(BaseStep):
         :param before:      string or list of next step names that will run after this step
         :param graph_shape: graphviz shape name
         :param function:    function this step should run in
+        :param full_event:  this step accepts the full event (not just body)
+        :param input_path:  selects the key/path in the event to use as input to the step
+                            this require that the event body will behave like a dict, example:
+                            event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means the step will
+                            receive 7 as input
+        :param result_path: selects the key/path in the event to write the results to
+                            this require that the event body will behave like a dict, example:
+                            event: {"x": 5} , result_path="y" means the output of the step will be written
+                            to event["y"] resulting in {"x": 5, "y": <result>}
         :param class_args:  class init arguments
         """
 
@@ -753,6 +795,8 @@ class FlowStep(BaseStep):
             graph_shape=graph_shape,
             function=function,
             full_event=full_event,
+            input_path=input_path,
+            result_path=result_path,
             class_args=class_args,
         )
 
@@ -990,7 +1034,9 @@ class FlowStep(BaseStep):
                     # if regular class, wrap with storey Map
                     step._async_object = storey.Map(
                         step._handler,
-                        full_event=step.full_event,
+                        full_event=step.full_event or step._call_with_event,
+                        input_path=step.input_path,
+                        result_path=step.result_path,
                         name=step.name,
                         context=self.context,
                     )
@@ -1022,12 +1068,16 @@ class FlowStep(BaseStep):
             if step.kind == StepKinds.queue:
                 for item in step.next or []:
                     next_step = self[item]
-                    if next_step.function:
-                        if next_step.function in links:
-                            raise GraphError(
-                                f"function ({next_step.function}) cannot read from multiple queues"
-                            )
-                        links[next_step.function] = step
+                    if not next_step.function:
+                        raise GraphError(
+                            f"child function name must be specified in steps ({next_step.name}) which follow a queue"
+                        )
+
+                    if next_step.function in links:
+                        raise GraphError(
+                            f"function ({next_step.function}) cannot read from multiple queues"
+                        )
+                    links[next_step.function] = step
         return links
 
     def init_queues(self):
@@ -1125,50 +1175,6 @@ class RootFlowStep(FlowStep):
         return super().from_dict(
             struct, fields=fields, deprecated_fields={"final_state": "final_step"}
         )
-
-
-http_adapter = HTTPAdapter(
-    max_retries=Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
-)
-
-
-class RemoteHttpHandler:
-    """class for calling remote endpoints"""
-
-    def __init__(self, url):
-        self.url = url
-        self.format = "json"
-        self._session = requests.Session()
-        self._session.mount("http://", http_adapter)
-        self._session.mount("https://", http_adapter)
-
-    def do_event(self, event):
-        kwargs = {}
-        kwargs["headers"] = event.headers or {}
-        method = event.method or "POST"
-        if method != "GET":
-            if isinstance(event.body, (str, bytes)):
-                kwargs["data"] = event.body
-            else:
-                kwargs["json"] = event.body
-
-        url = self.url.strip("/") + event.path
-        try:
-            resp = self._session.request(method, url, verify=False, **kwargs)
-        except OSError as err:
-            raise OSError(f"error: cannot run function at url {url}, {err}")
-        if not resp.ok:
-            raise RuntimeError(f"bad function response {resp.text}")
-
-        data = resp.content
-        if (
-            self.format == "json"
-            or resp.headers["content-type"] == "application/json"
-            and isinstance(data, (str, bytes))
-        ):
-            data = json.loads(data)
-        event.body = data
-        return event
 
 
 classes_map = {
@@ -1310,6 +1316,8 @@ def params_to_step(
     graph_shape=None,
     function=None,
     full_event=None,
+    input_path: str = None,
+    result_path: str = None,
     class_args=None,
 ):
     """return step object from provided params or classes/objects"""
@@ -1320,7 +1328,9 @@ def params_to_step(
         cls = classes_map.get(kind, RootFlowStep)
         step = cls.from_dict(struct)
         step.function = function
-        step.full_event = full_event
+        step.full_event = full_event or step.full_event
+        step.input_path = input_path or step.input_path
+        step.result_path = result_path or step.result_path
 
     elif class_name and class_name in [">>", "$queue"]:
         if "path" not in class_args:
@@ -1336,7 +1346,14 @@ def params_to_step(
         class_name = class_name[1:]
         name = get_name(name, class_name or "router")
         step = RouterStep(
-            class_name, class_args, handler, name=name, function=function, routes=routes
+            class_name,
+            class_args,
+            handler,
+            name=name,
+            function=function,
+            routes=routes,
+            input_path=input_path,
+            result_path=result_path,
         )
 
     elif class_name or handler:
@@ -1348,6 +1365,8 @@ def params_to_step(
             name=name,
             function=function,
             full_event=full_event,
+            input_path=input_path,
+            result_path=result_path,
         )
     else:
         raise MLRunInvalidArgumentError("class_name or handler must be provided")

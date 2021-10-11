@@ -39,6 +39,7 @@ class Feature(ModelObj):
     def __init__(
         self,
         value_type: ValueType = None,
+        dims=None,
         description=None,
         aggregate=None,
         name=None,

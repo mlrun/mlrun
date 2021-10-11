@@ -20,6 +20,16 @@ from .test_nuclio import TestNuclioRuntime
 
 
 class TestServingRuntime(TestNuclioRuntime):
+    @property
+    def runtime_kind(self):
+        # enables extending classes to run the same tests with different runtime
+        return "serving"
+
+    @property
+    def class_name(self):
+        # enables extending classes to run the same tests with different class
+        return "serving"
+
     def custom_setup_after_fixtures(self):
         self._mock_nuclio_deploy_config()
         self._mock_vault_functionality()
@@ -60,7 +70,7 @@ class TestServingRuntime(TestNuclioRuntime):
         SQLDB.get_builder_status = unittest.mock.Mock(return_value=("text", "last_log"))
 
     def _create_serving_function(self):
-        function = self._generate_runtime("serving")
+        function = self._generate_runtime(self.runtime_kind)
         graph = function.set_topology("flow", exist_ok=True, engine="sync")
 
         graph.add_step(name="s1", class_name="Chain", secret="inline_secret1")
@@ -168,7 +178,7 @@ class TestServingRuntime(TestNuclioRuntime):
         function = self._create_serving_function()
 
         function.deploy(verbose=True)
-        self._assert_deploy_called_basic_config(expected_class="serving")
+        self._assert_deploy_called_basic_config(expected_class=self.class_name)
 
         self._assert_deploy_spec_has_secrets_config(
             expected_secret_sources=self._generate_expected_secret_sources()
@@ -211,7 +221,7 @@ class TestServingRuntime(TestNuclioRuntime):
 
         assert response.status_code == HTTPStatus.OK.value
 
-        self._assert_deploy_called_basic_config(expected_class="serving")
+        self._assert_deploy_called_basic_config(expected_class=self.class_name)
 
     def test_child_functions_with_secrets(self, db: Session, client: TestClient):
         function = self._create_serving_function()
@@ -241,6 +251,7 @@ class TestServingRuntime(TestNuclioRuntime):
             {
                 "function_name": f"{self.project}-{self.name}-child_function",
                 "file_name": child_function_path,
+                "parent_function": function._function_uri(),
             },
             {
                 "function_name": f"{self.project}-{self.name}",
@@ -249,7 +260,7 @@ class TestServingRuntime(TestNuclioRuntime):
         ]
 
         self._assert_deploy_called_basic_config(
-            expected_class="serving",
+            expected_class=self.class_name,
             call_count=2,
             expected_params=expected_deploy_params,
         )

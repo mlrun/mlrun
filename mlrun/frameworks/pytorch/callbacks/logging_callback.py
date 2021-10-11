@@ -5,7 +5,7 @@ from torch import Tensor
 from torch.nn import Module, Parameter
 
 import mlrun
-from mlrun.frameworks._common.loggers import Logger, TrackableType
+from mlrun.frameworks._common.loggers import Logger, LoggerMode, TrackableType
 from mlrun.frameworks.pytorch.callbacks.callback import (
     Callback,
     MetricFunctionType,
@@ -279,6 +279,7 @@ class LoggingCallback(Callback):
         """
         if self._is_training is None:
             self._is_training = False
+            self._logger.set_mode(mode=LoggerMode.EVALUATION)
 
     def on_validation_end(
         self, loss_value: MetricValueType, metric_values: List[float]
@@ -487,7 +488,7 @@ class LoggingCallback(Callback):
                 value = float(value)
             else:
                 raise ValueError(
-                    "The parameter with the following key chain: {} is a pytorch.Tensor with {} elements."
+                    "The parameter with the following key chain: {} is a pytorch.Tensor with {} elements. "
                     "PyTorch tensors are trackable only if they have 1 element."
                     "".format(key_chain, value.numel())
                 )
@@ -496,7 +497,7 @@ class LoggingCallback(Callback):
                 value = float(value)
             else:
                 raise ValueError(
-                    "The parameter with the following key chain: {} is a numpy.ndarray with {} elements."
+                    "The parameter with the following key chain: {} is a numpy.ndarray with {} elements. "
                     "numpy arrays are trackable only if they have 1 element."
                     "".format(key_chain, value.size)
                 )
@@ -507,7 +508,7 @@ class LoggingCallback(Callback):
             or isinstance(value, bool)
         ):
             raise ValueError(
-                "The parameter with the following key chain: {} is of type '{}'."
+                "The parameter with the following key chain: {} is of type '{}'. "
                 "The only trackable types are: float, int, str and bool."
                 "".format(key_chain, type(value))
             )

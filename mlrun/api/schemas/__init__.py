@@ -6,6 +6,7 @@ from .auth import (
     AuthorizationAction,
     AuthorizationResourceTypes,
     AuthorizationVerificationInput,
+    Credentials,
     ProjectsRole,
 )
 from .background_task import (
@@ -73,6 +74,7 @@ from .model_endpoints import (
     ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpointStatus,
+    ModelMonitoringStoreKinds,
 )
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 from .pipeline import PipelinesFormat, PipelinesOutput, PipelinesPagination
@@ -87,6 +89,7 @@ from .project import (
     ProjectSpec,
     ProjectState,
     ProjectStatus,
+    ProjectSummariesOutput,
     ProjectSummary,
 )
 from .runtime_resource import (

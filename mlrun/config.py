@@ -114,6 +114,7 @@ default_config = {
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
         "dsn": "sqlite:////mlrun/db/mlrun.db?check_same_thread=false",
+        "old_dsn": "",
         "debug": False,
         "user": "",
         "password": "",
@@ -123,7 +124,12 @@ default_config = {
         "real_path": "",
         "db_type": "sqldb",
         "max_workers": "",
-        "db": {"commit_retry_timeout": 30, "commit_retry_interval": 3},
+        "db": {
+            "commit_retry_timeout": 30,
+            "commit_retry_interval": 3,
+            # Whether to perform data migrations on initialization. enabled or disabled
+            "data_migrations_mode": "enabled",
+        },
         "jobs": {
             # whether to allow to run local runtimes in the API - configurable to allow the scheduler testing to work
             "allow_local_run": False,
@@ -173,15 +179,13 @@ default_config = {
             # misfire_grace_time is 1 second, we do not want jobs not being scheduled because of the delays so setting
             # it to None. the default for coalesce it True just adding it here to be explicit
             "scheduler_config": '{"job_defaults": {"misfire_grace_time": null, "coalesce": true}}',
-            # one of enabled, disabled, auto (in which it will be determined by whether the authorization mode is opa)
-            "schedule_credentials_secrets_store_mode": "auto",
         },
         "projects": {
             "leader": "mlrun",
             "followers": "",
             # This is used as the interval for the sync loop both when mlrun is leader and follower
             "periodic_sync_interval": "1 minute",
-            "counters_cache_ttl": "10 seconds",
+            "counters_cache_ttl": "2 minutes",
             # access key to be used when the leader is iguazio and polling is done from it
             "iguazio_access_key": "",
             # the initial implementation was cache and was working great, now it's not needed because we get (read/list)
@@ -202,7 +206,7 @@ default_config = {
             # pip install <requirement_specifier>, e.g. mlrun==0.5.4, mlrun~=0.5,
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
             "mlrun_version_specifier": "",
-            "kaniko_image": "gcr.io/kaniko-project/executor:v0.24.0",  # kaniko builder image
+            "kaniko_image": "gcr.io/kaniko-project/executor:v1.6.0",  # kaniko builder image
             "kaniko_init_container_image": "alpine:3.13.1",
             # additional docker build args in json encoded base64 format
             "build_args": "",
@@ -340,6 +344,16 @@ class Config:
             build_args = json.loads(build_args_json)
 
         return build_args
+
+    @staticmethod
+    def get_hub_url():
+        if not config.hub_url.endswith("function.yaml"):
+            if config.hub_url.startswith("http"):
+                return f"{config.hub_url}/{{tag}}/{{name}}/function.yaml"
+            elif config.hub_url.startswith("v3io"):
+                return f"{config.hub_url}/{{name}}/function.yaml"
+
+        return config.hub_url
 
     @staticmethod
     def get_default_function_node_selector():

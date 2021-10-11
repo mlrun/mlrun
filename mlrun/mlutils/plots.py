@@ -34,7 +34,7 @@ def feature_importances(model, header):
     """
     if not hasattr(model, "feature_importances_"):
         raise Exception(
-            "feature importances are only available for some models, if you got"
+            "feature importances are only available for some models, if you got "
             "here then please make sure to check your estimated model for a "
             "`feature_importances_` attribute before calling this method"
         )

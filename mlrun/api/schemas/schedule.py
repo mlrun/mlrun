@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel
 
+from mlrun.api.schemas.auth import Credentials
 from mlrun.api.schemas.object import LabelRecord
 
 
@@ -64,6 +65,12 @@ class ScheduleKinds(str, Enum):
     # this is mainly for testing purposes
     local_function = "local_function"
 
+    @staticmethod
+    def local_kinds():
+        return [
+            ScheduleKinds.local_function,
+        ]
+
 
 class ScheduleUpdate(BaseModel):
     scheduled_object: Optional[Any]
@@ -71,6 +78,7 @@ class ScheduleUpdate(BaseModel):
     desired_state: Optional[str]
     labels: Optional[dict]
     concurrency_limit: Optional[int]
+    credentials: Credentials = Credentials()
 
 
 # Properties to receive via API on creation
@@ -82,6 +90,7 @@ class ScheduleInput(BaseModel):
     desired_state: Optional[str]
     labels: Optional[dict]
     concurrency_limit: Optional[int]
+    credentials: Credentials = Credentials()
 
 
 # the schedule object returned from the db layer
@@ -101,6 +110,7 @@ class ScheduleOutput(ScheduleRecord):
     next_run_time: Optional[datetime]
     last_run: Optional[Dict]
     labels: Optional[dict]
+    credentials: Credentials = Credentials()
 
 
 class SchedulesOutput(BaseModel):

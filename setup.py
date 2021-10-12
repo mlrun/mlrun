@@ -87,7 +87,9 @@ extras_require = {
     # adlfs versioning changed to year.month.patch after 0.7.7
     "azure-blob-storage": ["azure-storage-blob~=12.0", "adlfs>=0.7.1, <=2021.8.1"],
     "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
-    "bokeh": ["bokeh~=2.3"],
+    # bokeh 2.4.0 requires typing-extensions>=3.10.0 but previous packages installs 3.7.4.3 which is incompatible so
+    # adding it explictly
+    "bokeh": ["typing-extensions>=3.10.0", "bokeh~=2.3"],
     "google-cloud-storage": ["gcsfs~=2021.8.1"],
 }
 extras_require["complete"] = sorted(

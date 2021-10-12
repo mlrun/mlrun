@@ -249,6 +249,8 @@ models-core: base-core ## Build models core docker image
 	docker build \
 		--file dockerfiles/models/Dockerfile \
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_BASE_IMAGE_NAME_TAGGED) \
+		--build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
+		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_CORE_MODELS_IMAGE_NAME_TAGGED) .
@@ -259,8 +261,6 @@ models: models-core ## Build models docker image
 	docker build \
 		--file dockerfiles/common/Dockerfile \
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_MODELS_IMAGE_NAME_TAGGED) \
-		--build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
-		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_MODELS_IMAGE_NAME_TAGGED) .

@@ -49,10 +49,26 @@ def _perform_schema_migrations(from_scratch: bool = False):
     dir_path = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
     alembic_config_path = dir_path / alembic_config_file_name
 
-    alembic_util = AlembicUtil(alembic_config_path)
+    alembic_util = AlembicUtil(alembic_config_path, _check_latest_data_version())
     alembic_util.init_alembic(
         from_scratch, config.httpdb.db.database_backup_mode == "enabled"
     )
+
+
+def _check_latest_data_version():
+    db_session = create_session()
+    db = mlrun.api.db.sqldb.db.SQLDB("")
+
+    try:
+        current_data_version = int(db.get_current_data_version(db_session))
+        return current_data_version == latest_data_version
+    except Exception as exc:
+        logger.info(
+            "Failed getting current data version, assuming old version", exc=exc
+        )
+        return False
+    finally:
+        close_session(db_session)
 
 
 def _perform_database_migration(from_scratch: bool = False):

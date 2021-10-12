@@ -13,10 +13,13 @@ from .mysql import MySQLUtil
 
 
 class AlembicUtil(object):
-    def __init__(self, alembic_config_path: pathlib.Path):
+    def __init__(
+        self, alembic_config_path: pathlib.Path, data_version_is_latest: bool = True
+    ):
         self._alembic_config_path = str(alembic_config_path)
         self._alembic_config = alembic.config.Config(self._alembic_config_path)
         self._alembic_output = ""
+        self._data_version_is_latest = data_version_is_latest
 
     def init_alembic(self, from_scratch: bool = False, use_backups: bool = False):
         revision_history = self._get_revision_history_list()
@@ -44,7 +47,7 @@ class AlembicUtil(object):
         # get current revision again if it changed during the last commands
         current_revision = self._get_current_revision()
         if use_backups and current_revision:
-            self._backup_revision(db_file_path, current_revision)
+            self._backup_revision(db_file_path, current_revision, latest_revision)
         logger.debug("Performing schema migrations")
         alembic.command.upgrade(self._alembic_config, "head")
 
@@ -95,8 +98,16 @@ class AlembicUtil(object):
     def _parse_revision_history(output: str) -> typing.List[str]:
         return [line.split(" ")[2].replace(",", "") for line in output.splitlines()]
 
-    def _backup_revision(self, db_file_path: str, current_version: str):
+    def _backup_revision(
+        self, db_file_path: str, current_version: str, latest_revision: str
+    ):
         if db_file_path == ":memory:":
+            return
+
+        if self._data_version_is_latest and current_version == latest_revision:
+            logger.debug(
+                "Schema version and Data version are latest, skipping backup..."
+            )
             return
 
         if "mysql" in mlconf.httpdb.dsn:

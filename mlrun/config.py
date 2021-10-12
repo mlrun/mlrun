@@ -210,6 +210,9 @@ default_config = {
             "kaniko_init_container_image": "alpine:3.13.1",
             # additional docker build args in json encoded base64 format
             "build_args": "",
+            "pip_ca_secret_name": "",
+            "pip_ca_secret_key": "",
+            "pip_ca_path": "/etc/ssl/certs/mlrun/pip-ca-certificates.crt",
         },
         "v3io_api": "",
         "v3io_framesd": "",
@@ -344,6 +347,14 @@ class Config:
             build_args = json.loads(build_args_json)
 
         return build_args
+
+    @staticmethod
+    def is_pip_ca_configured():
+        return (
+            config.httpdb.builder.pip_ca_secret_name
+            and config.httpdb.builder.pip_ca_secret_key
+            and config.httpdb.builder.pip_ca_path
+        )
 
     @staticmethod
     def get_hub_url():

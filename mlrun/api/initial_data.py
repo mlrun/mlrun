@@ -50,9 +50,7 @@ def _perform_schema_migrations(from_scratch: bool = False):
     alembic_config_path = dir_path / alembic_config_file_name
 
     alembic_util = AlembicUtil(alembic_config_path, _check_latest_data_version())
-    alembic_util.init_alembic(
-        from_scratch, config.httpdb.db.database_backup_mode == "enabled"
-    )
+    alembic_util.init_alembic(config.httpdb.db.database_backup_mode == "enabled")
 
 
 def _check_latest_data_version():

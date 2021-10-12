@@ -21,22 +21,15 @@ class AlembicUtil(object):
         self._alembic_output = ""
         self._data_version_is_latest = data_version_is_latest
 
-    def init_alembic(self, from_scratch: bool = False, use_backups: bool = False):
+    def init_alembic(self, use_backups: bool = False):
         revision_history = self._get_revision_history_list()
         latest_revision = revision_history[0]
-        initial_alembic_revision = revision_history[-1]
         db_file_path = self._get_db_file_path()
         db_path_exists = os.path.isfile(db_file_path)
         # this command for some reason creates a dummy db file so it has to be after db_path_exists
         current_revision = self._get_current_revision()
 
-        if not from_scratch and db_path_exists and not current_revision:
-
-            # if database file exists but no alembic version exists, stamp the existing
-            # database with the initial alembic version, so we can upgrade it later
-            alembic.command.stamp(self._alembic_config, initial_alembic_revision)
-
-        elif (
+        if (
             use_backups
             and db_path_exists
             and current_revision

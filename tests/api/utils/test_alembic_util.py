@@ -25,7 +25,7 @@ def test_no_database_exists(
 ):
     mock_database(db_file_exists=False)
     alembic_util = mlrun.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
-    alembic_util.init_alembic(from_scratch=from_scratch, use_backups=True)
+    alembic_util.init_alembic(use_backups=True)
     assert mock_alembic.stamp_calls == []
     assert mock_alembic.upgrade_calls == ["head"]
     mock_shutil_copy.assert_not_called()
@@ -37,7 +37,7 @@ def test_database_exists_no_revision(
 ):
     mock_database()
     alembic_util = mlrun.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
-    alembic_util.init_alembic(from_scratch=from_scratch, use_backups=True)
+    alembic_util.init_alembic(use_backups=True)
 
     # from scratch should skip stamp even if no revision exists
     expected_stamp_calls = ["revision1"] if not from_scratch else []
@@ -52,7 +52,7 @@ def test_database_exists_known_revision(
 ):
     mock_database(current_revision=Constants.initial_revision)
     alembic_util = mlrun.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
-    alembic_util.init_alembic(from_scratch=from_scratch, use_backups=True)
+    alembic_util.init_alembic(use_backups=True)
     assert mock_alembic.stamp_calls == []
     assert mock_alembic.upgrade_calls == ["head"]
     mock_shutil_copy.assert_called_once_with(
@@ -66,7 +66,7 @@ def test_database_exists_unknown_revision_successful_downgrade(
 ):
     mock_database(current_revision=Constants.unknown_revision)
     alembic_util = mlrun.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
-    alembic_util.init_alembic(from_scratch=from_scratch, use_backups=True)
+    alembic_util.init_alembic(use_backups=True)
     assert mock_alembic.stamp_calls == []
     assert mock_alembic.upgrade_calls == ["head"]
     copy_calls = [
@@ -101,7 +101,7 @@ def test_database_exists_unknown_revision_failed_downgrade(
         match=f"Cannot fall back to revision {Constants.latest_revision}, "
         f"no back up exists. Current revision: {Constants.unknown_revision}",
     ):
-        alembic_util.init_alembic(from_scratch=from_scratch, use_backups=True)
+        alembic_util.init_alembic(use_backups=True)
 
     assert mock_alembic.stamp_calls == []
     assert mock_alembic.upgrade_calls == []

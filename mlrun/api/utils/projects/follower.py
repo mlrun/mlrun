@@ -1,7 +1,7 @@
 import typing
-import mergedeep
 
 import humanfriendly
+import mergedeep
 import sqlalchemy.orm
 
 import mlrun.api.db.session
@@ -11,8 +11,8 @@ import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.clients.nuclio
 import mlrun.api.utils.periodic
 import mlrun.api.utils.projects.member
-import mlrun.api.utils.projects.remotes.nop_leader
 import mlrun.api.utils.projects.remotes.leader
+import mlrun.api.utils.projects.remotes.nop_leader
 import mlrun.config
 import mlrun.errors
 import mlrun.utils
@@ -127,7 +127,9 @@ class Member(
             )
             created_project = None
             if not is_running_in_background:
-                created_project = self.get_project(db_session, project.metadata.name, leader_session)
+                created_project = self.get_project(
+                    db_session, project.metadata.name, leader_session
+                )
             return created_project, is_running_in_background
 
     def store_project(
@@ -146,7 +148,13 @@ class Member(
             try:
                 self.get_project(db_session, name, leader_session)
             except mlrun.errors.MLRunNotFoundError:
-                return self.create_project(db_session, project, projects_role, leader_session, wait_for_completion)
+                return self.create_project(
+                    db_session,
+                    project,
+                    projects_role,
+                    leader_session,
+                    wait_for_completion,
+                )
             else:
                 self._leader_client.update_project(leader_session, name, project)
                 return self.get_project(db_session, name, leader_session), False
@@ -170,7 +178,14 @@ class Member(
             current_project_dict = current_project.dict(exclude_unset=True)
             mergedeep.merge(current_project_dict, project, strategy=strategy)
             patched_project = mlrun.api.schemas.Project(**current_project_dict)
-            return self.store_project(db_session, name, patched_project, projects_role, leader_session, wait_for_completion)
+            return self.store_project(
+                db_session,
+                name,
+                patched_project,
+                projects_role,
+                leader_session,
+                wait_for_completion,
+            )
 
     def delete_project(
         self,

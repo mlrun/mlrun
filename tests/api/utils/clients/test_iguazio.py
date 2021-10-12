@@ -619,9 +619,7 @@ def _create_project_and_assert(
         f"{api_url}/api/projects/__name__/{project.metadata.name}",
         json={"data": _build_project_response(iguazio_client, project)},
     )
-    is_running_in_background = iguazio_client.create_project(
-        session, project,
-    )
+    is_running_in_background = iguazio_client.create_project(session, project,)
     assert is_running_in_background is False
     assert mocker.call_count == num_of_calls_until_completion
 

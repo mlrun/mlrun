@@ -2,10 +2,7 @@ import abc
 import datetime
 import typing
 
-import mergedeep
-
 import mlrun.api.schemas
-from mlrun.utils import logger
 
 
 class Member(abc.ABC):
@@ -20,10 +17,7 @@ class Member(abc.ABC):
 
     @abc.abstractmethod
     def update_project(
-        self,
-        session: str,
-        name: str,
-        project: mlrun.api.schemas.Project,
+        self, session: str, name: str, project: mlrun.api.schemas.Project,
     ):
         pass
 

@@ -161,10 +161,7 @@ class Client(
         return self._create_project_in_iguazio(session, body, wait_for_completion)
 
     def update_project(
-        self,
-        session: str,
-        name: str,
-        project: mlrun.api.schemas.Project,
+        self, session: str, name: str, project: mlrun.api.schemas.Project,
     ):
         logger.debug("Updating project in Iguazio", name=name, project=project)
         body = self._transform_mlrun_project_to_iguazio_project(project)

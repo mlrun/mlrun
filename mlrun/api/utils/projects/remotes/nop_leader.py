@@ -21,16 +21,16 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
         wait_for_completion: bool = True,
     ) -> bool:
         self._update_state(project)
-        _, is_running_in_background = mlrun.api.utils.singletons.project_member.get_project_member().create_project(
+        (
+            _,
+            is_running_in_background,
+        ) = mlrun.api.utils.singletons.project_member.get_project_member().create_project(
             self.db_session, project, self._project_role
         )
         return is_running_in_background
 
     def update_project(
-        self,
-        session: str,
-        name: str,
-        project: mlrun.api.schemas.Project,
+        self, session: str, name: str, project: mlrun.api.schemas.Project,
     ):
         self._update_state(project)
         mlrun.api.utils.singletons.project_member.get_project_member().store_project(

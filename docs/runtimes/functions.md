@@ -115,9 +115,9 @@ mount for NFS storage on all functions.
 The following code demonstrates how to apply the `v3io` FUSE driver by default:
 
     # Change MLRun auto-mount configuration
-    from mlrun.config import config as mlconf
+    import mlrun.mlconf
 
-    mlconf.storage.auto_mount_type = "v3io_fuse"
+    mlrun.mlconf.storage.auto_mount_type = "v3io_fuse"
 
 Each of the auto-mount supported methods applies a specific modifier function. The supported methods are:
 * `v3io_credentials` - apply `v3io` credentials needed for `v3io` API usage. Applies the 
@@ -131,13 +131,13 @@ The modifier functions executed by auto-mount can be further configured by speci
 provided in the `storage.auto_mount_params` configuration parameters. Parameters can be passed as a string made of 
 `key=value` pairs separated by commas. For example, the following code will run a `pvc` mount with specific parameters:
 
-    mlconf.storage.auto_mount_type = "pvc"
+    mlrun.mlconf.storage.auto_mount_type = "pvc"
     pvc_params = {
         "pvc_name": "my_pvc_mount",
         "volume_name": "pvc_volume",
         "volume_mount_path": "/mnt/storage/nfs",
     }
-    mlconf.storage.auto_mount_params = ",".join(
+    mlrun.mlconf.storage.auto_mount_params = ",".join(
         [f"{key}={value}" for key, value in pvc_params.items()]
     )
 
@@ -145,7 +145,7 @@ Alternatively, the parameters can be provided as a base64-encoded JSON object, w
 parameters or strings that contain special characters:
 
     pvc_params_str = base64.b64encode(json.dumps(pvc_params).encode())
-    mlconf.storage.auto_mount_params = pvc_params_str
+    mlrun.mlconf.storage.auto_mount_params = pvc_params_str
 
 ## Specifying Function Code
 

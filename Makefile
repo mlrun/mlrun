@@ -113,7 +113,7 @@ endif
 	-type f -print0 | xargs -0 sed -i '' -e 's/:$(MLRUN_OLD_VERSION_ESCAPED)/:$(MLRUN_NEW_VERSION)/g'
 
 .PHONY: update-version-file
-update-version-file: automation ## Update the version file
+update-version-file: ## Update the version file
 	python ./automation/version/version_file.py --mlrun-version $(MLRUN_VERSION)
 
 .PHONY: build

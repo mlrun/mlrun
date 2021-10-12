@@ -155,28 +155,20 @@ class Client(
         session: str,
         project: mlrun.api.schemas.Project,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
+    ) -> bool:
         logger.debug("Creating project in Iguazio", project=project)
         body = self._transform_mlrun_project_to_iguazio_project(project)
         return self._create_project_in_iguazio(session, body, wait_for_completion)
 
-    def store_project(
+    def update_project(
         self,
         session: str,
         name: str,
         project: mlrun.api.schemas.Project,
-        wait_for_completion: bool = True,
-    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
-        logger.debug("Storing project in Iguazio", name=name, project=project)
+    ):
+        logger.debug("Updating project in Iguazio", name=name, project=project)
         body = self._transform_mlrun_project_to_iguazio_project(project)
-        try:
-            self._get_project_from_iguazio(session, name)
-        except requests.HTTPError as exc:
-            if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
-                raise
-            return self._create_project_in_iguazio(session, body, wait_for_completion)
-        else:
-            return self._put_project_to_iguazio(session, name, body), False
+        self._put_project_to_iguazio(session, name, body)
 
     def delete_project(
         self,
@@ -288,17 +280,14 @@ class Client(
 
     def _create_project_in_iguazio(
         self, session: str, body: dict, wait_for_completion: bool
-    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
-        project, job_id = self._post_project_to_iguazio(session, body)
+    ) -> bool:
+        _, job_id = self._post_project_to_iguazio(session, body)
         if wait_for_completion:
             self._wait_for_job_completion(
                 session, job_id, "Project creation job failed"
             )
-            return (
-                self._get_project_from_iguazio(session, project.metadata.name),
-                False,
-            )
-        return project, True
+            return False
+        return True
 
     def _post_project_to_iguazio(
         self, session: str, body: dict

@@ -1,4 +1,5 @@
 import typing
+import mergedeep
 
 import humanfriendly
 import sqlalchemy.orm
@@ -11,6 +12,7 @@ import mlrun.api.utils.clients.nuclio
 import mlrun.api.utils.periodic
 import mlrun.api.utils.projects.member
 import mlrun.api.utils.projects.remotes.nop_leader
+import mlrun.api.utils.projects.remotes.leader
 import mlrun.config
 import mlrun.errors
 import mlrun.utils
@@ -63,6 +65,7 @@ class Member(
         self._projects_store_for_deletion = self.ProjectsStore(self)
         self._leader_name = mlrun.mlconf.httpdb.projects.leader
         self._sync_session = None
+        self._leader_client: mlrun.api.utils.projects.remotes.leader.Member
         if self._leader_name == "iguazio":
             self._leader_client = mlrun.api.utils.clients.iguazio.Client()
             if not mlrun.mlconf.httpdb.projects.iguazio_access_key:
@@ -112,16 +115,20 @@ class Member(
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
+    ) -> typing.Tuple[typing.Optional[mlrun.api.schemas.Project], bool]:
         if self._is_request_from_leader(projects_role):
             if project.metadata.name in self._projects:
                 raise mlrun.errors.MLRunConflictError("Project already exists")
             self._projects[project.metadata.name] = project
             return project, False
         else:
-            return self._leader_client.create_project(
+            is_running_in_background = self._leader_client.create_project(
                 leader_session, project, wait_for_completion
             )
+            created_project = None
+            if not is_running_in_background:
+                created_project = self.get_project(db_session, project.metadata.name, leader_session)
+            return created_project, is_running_in_background
 
     def store_project(
         self,
@@ -131,14 +138,18 @@ class Member(
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
+    ) -> typing.Tuple[typing.Optional[mlrun.api.schemas.Project], bool]:
         if self._is_request_from_leader(projects_role):
             self._projects[project.metadata.name] = project
             return project, False
         else:
-            return self._leader_client.store_project(
-                leader_session, name, project, wait_for_completion
-            )
+            try:
+                self.get_project(db_session, name, leader_session)
+            except mlrun.errors.MLRunNotFoundError:
+                return self.create_project(db_session, project, projects_role, leader_session, wait_for_completion)
+            else:
+                self._leader_client.update_project(leader_session, name, project)
+                return self.get_project(db_session, name, leader_session), False
 
     def patch_project(
         self,
@@ -149,14 +160,17 @@ class Member(
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
+    ) -> typing.Tuple[typing.Optional[mlrun.api.schemas.Project], bool]:
         if self._is_request_from_leader(projects_role):
             # No real scenario for this to be useful currently - in iguazio patch is transformed to store request
             raise NotImplementedError("Patch operation not supported from leader")
         else:
-            return self._leader_client.patch_project(
-                leader_session, name, project, patch_mode, wait_for_completion,
-            )
+            current_project = self.get_project(db_session, name, leader_session)
+            strategy = patch_mode.to_mergedeep_strategy()
+            current_project_dict = current_project.dict(exclude_unset=True)
+            mergedeep.merge(current_project_dict, project, strategy=strategy)
+            patched_project = mlrun.api.schemas.Project(**current_project_dict)
+            return self.store_project(db_session, name, patched_project, projects_role, leader_session, wait_for_completion)
 
     def delete_project(
         self,

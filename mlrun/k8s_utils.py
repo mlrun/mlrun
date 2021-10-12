@@ -479,9 +479,11 @@ class BasePod:
     def add_annotation(self, key, value):
         self._annotations[key] = str(value)
 
-    def add_volume(self, volume: client.V1Volume, mount_path, name=None):
+    def add_volume(self, volume: client.V1Volume, mount_path, name=None, sub_path=None):
         self._mounts.append(
-            client.V1VolumeMount(name=name or volume.name, mount_path=mount_path)
+            client.V1VolumeMount(
+                name=name or volume.name, mount_path=mount_path, sub_path=sub_path
+            )
         )
         self._volumes.append(volume)
 
@@ -508,13 +510,14 @@ class BasePod:
             mount_path=path,
         )
 
-    def mount_secret(self, name, path="/secret", items=None):
+    def mount_secret(self, name, path="/secret", items=None, sub_path=None):
         self.add_volume(
             client.V1Volume(
                 name=name,
                 secret=client.V1SecretVolumeSource(secret_name=name, items=items,),
             ),
             mount_path=path,
+            sub_path=sub_path,
         )
 
     def _get_spec(self, template=False):

@@ -25,6 +25,8 @@ def init_data(from_scratch: bool = False) -> None:
 
     _perform_schema_migrations(from_scratch)
 
+    _perform_database_migration(from_scratch)
+
     db_session = create_session()
     try:
         init_db(db_session)
@@ -48,9 +50,13 @@ def _perform_schema_migrations(from_scratch: bool = False):
     alembic_config_path = dir_path / alembic_config_file_name
 
     alembic_util = AlembicUtil(alembic_config_path)
-    alembic_util.init_alembic(from_scratch=from_scratch)
+    alembic_util.init_alembic(
+        from_scratch, config.httpdb.db.database_backup_mode == "enabled"
+    )
 
-    if not from_scratch:
+
+def _perform_database_migration(from_scratch: bool = False):
+    if not from_scratch and config.httpdb.db.database_migration_mode == "enabled":
         sqlite_migration_util = SQLiteMigrationUtil()
         sqlite_migration_util.transfer()
 

@@ -1,6 +1,7 @@
 import json
 import os
 import traceback
+import pandas as pd
 from typing import Any, Dict, List, Optional
 
 from nuclio.utils import DeployError
@@ -595,11 +596,12 @@ class ModelEndpoints:
 
         fn = get_model_monitoring_stream_processing_function(project)
         fn.metadata.project = project
-
+        fn.spec.default_content_type = "application/json"
         stream_path = config.model_endpoint_monitoring.store_prefixes.default.format(
             project=project, kind="stream"
         )
-        source = mlrun.datastore.sources.StreamSource(path=stream_path, name="monitoring_stream_trigger")
+        source = mlrun.datastore.sources.StreamSource(path=stream_path, name="monitoring_stream_trigger",
+                                                      key_field='endpoint_id', time_field='timestamp')
         run_config = fs.RunConfig(function=fn, local=False).apply(mlrun.mount_v3io())
 
         os.environ["MODEL_MONITORING_ACCESS_KEY"] = model_monitoring_access_key
@@ -607,7 +609,22 @@ class ModelEndpoints:
 
         stream_processor = EventStreamProcessor(project)
         feature_set = stream_processor.create_feature_set()
-
+        sample_data = pd.DataFrame(
+            data=[['7bd1b25003815b699779bb6a8f3cfb402ff876c8', None, 0, '2021-10-07 09:43:29.557743+00:00',
+                   'model-monitor-sys-test/v2-model-server', None, '2021-10-10 11:32:09.939461+00:00', 33220, None,
+                   'sklearn_RandomForestClassifier:latest', 'ClassifierModel', None, None, None,
+                   '8560157e-30a8-4a42-84b7-316a3f2e5f71', '2021-10-10 11:32:09.939461+00:00']],
+            columns=['endpoint_id', 'entities', 'error_count', 'first_request',
+                     'function_uri', 'labels', 'last_request', 'latency', 'metrics',
+                     'model', 'model_class', 'named_features', 'named_predictions',
+                     'prediction', 'request_id', 'timestamp'])
+        fs.preview(
+            feature_set,
+            sample_data,
+            entity_columns=["endpoint_id"],
+            timestamp_key="timestamp",
+            options=fs.InferOptions.schema(),
+        )
         fs.deploy_ingestion_service(featureset=feature_set,
                                         source=source,
                                         run_config=run_config)

@@ -56,7 +56,7 @@ def _perform_schema_migrations(from_scratch: bool = False):
 
 
 def _perform_database_migration(from_scratch: bool = False):
-    if not from_scratch and config.httpdb.db.database_migrations_mode == "enabled":
+    if not from_scratch and config.httpdb.db.database_migration_mode == "enabled":
         sqlite_migration_util = SQLiteMigrationUtil()
         sqlite_migration_util.transfer()
 

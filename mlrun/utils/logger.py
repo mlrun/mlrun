@@ -164,8 +164,4 @@ def create_logger(
     # set handler
     logger_instance.set_handler("default", stream or stdout, formatter_instance)
 
-    logger_instance.info(
-        "Logger created", log_level=level, formatter_kind=formatter_kind
-    )
-
     return logger_instance

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.db.session
 import mlrun.api.schemas
-import mlrun.api.utils.auth
+import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.iguazio
 
 
@@ -17,8 +17,5 @@ def get_db_session() -> typing.Generator[Session, None, None]:
         mlrun.api.db.session.close_session(db_session)
 
 
-class AuthVerifierDep:
-    def __init__(self, request: Request):
-        self.auth_info = mlrun.api.utils.auth.AuthVerifier().authenticate_request(
-            request
-        )
+def authenticate_request(request: Request) -> mlrun.api.schemas.AuthInfo:
+    return mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request(request)

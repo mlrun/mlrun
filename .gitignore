@@ -22,4 +22,4 @@ result*.html
 tests/test_results/
 venv
 mlrun/utils/version/version.json
-mlrun/api/migrations/mlrun.db
+mlrun/api/migrations_sqlite/mlrun.db

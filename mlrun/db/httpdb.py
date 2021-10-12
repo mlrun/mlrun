@@ -799,7 +799,7 @@ class HTTPRunDB(RunDBInterface):
         kind: Optional[str] = None,
         object_id: Optional[str] = None,
         force: bool = False,
-        grace_period: int = config.runtime_resources_deletion_grace_period,
+        grace_period: int = None,
     ) -> mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput:
         """ Delete all runtime resources which are in terminal state.
 
@@ -818,6 +818,8 @@ class HTTPRunDB(RunDBInterface):
         :returns: :py:class:`~mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput` listing the runtime resources
         that were removed.
         """
+        if grace_period is None:
+            grace_period = config.runtime_resources_deletion_grace_period
 
         params = {
             "label-selector": label_selector,
@@ -843,10 +845,7 @@ class HTTPRunDB(RunDBInterface):
         return structured_dict
 
     def delete_runtimes(
-        self,
-        label_selector: str = None,
-        force: bool = False,
-        grace_period: int = config.runtime_resources_deletion_grace_period,
+        self, label_selector: str = None, force: bool = False, grace_period: int = None,
     ):
         """ Deprecated use :py:func:`~delete_runtime_resources` instead
         """
@@ -856,6 +855,8 @@ class HTTPRunDB(RunDBInterface):
             # TODO: Remove in 0.9.0
             DeprecationWarning,
         )
+        if grace_period is None:
+            grace_period = config.runtime_resources_deletion_grace_period
         params = {
             "label_selector": label_selector,
             "force": force,
@@ -869,7 +870,7 @@ class HTTPRunDB(RunDBInterface):
         kind: str,
         label_selector: str = None,
         force: bool = False,
-        grace_period: int = config.runtime_resources_deletion_grace_period,
+        grace_period: int = None,
     ):
         """ Deprecated use :py:func:`~delete_runtime_resources` (with kind filter) instead
         """
@@ -879,6 +880,9 @@ class HTTPRunDB(RunDBInterface):
             # TODO: Remove in 0.9.0
             DeprecationWarning,
         )
+
+        if grace_period is None:
+            grace_period = config.runtime_resources_deletion_grace_period
 
         params = {
             "label_selector": label_selector,
@@ -895,7 +899,7 @@ class HTTPRunDB(RunDBInterface):
         object_id: str,
         label_selector: str = None,
         force: bool = False,
-        grace_period: int = config.runtime_resources_deletion_grace_period,
+        grace_period: int = None,
     ):
         """ Deprecated use :py:func:`~delete_runtime_resources` (with kind and object_id filter) instead
         """
@@ -905,6 +909,9 @@ class HTTPRunDB(RunDBInterface):
             # TODO: Remove in 0.9.0
             DeprecationWarning,
         )
+
+        if grace_period is None:
+            grace_period = config.runtime_resources_deletion_grace_period
         params = {
             "label_selector": label_selector,
             "force": force,
@@ -2272,7 +2279,7 @@ class HTTPRunDB(RunDBInterface):
             method="PUT",
             path=path,
             body=model_endpoint.json(),
-            headers={"X-V3io-Session-Key": access_key},
+            headers={"X-V3io-Access-Key": access_key},
         )
 
     def delete_model_endpoint_record(
@@ -2294,7 +2301,7 @@ class HTTPRunDB(RunDBInterface):
 
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
         self.api_call(
-            method="DELETE", path=path, headers={"X-V3io-Session-Key": access_key},
+            method="DELETE", path=path, headers={"X-V3io-Access-Key": access_key},
         )
 
     def list_model_endpoints(
@@ -2349,7 +2356,7 @@ class HTTPRunDB(RunDBInterface):
                 "end": end,
                 "metric": metrics or [],
             },
-            headers={"X-V3io-Session-Key": access_key},
+            headers={"X-V3io-Access-Key": access_key},
         )
         return schemas.ModelEndpointList(**response.json())
 
@@ -2392,7 +2399,7 @@ class HTTPRunDB(RunDBInterface):
                 "metric": metrics or [],
                 "feature_analysis": feature_analysis,
             },
-            headers={"X-V3io-Session-Key": access_key},
+            headers={"X-V3io-Access-Key": access_key},
         )
         return schemas.ModelEndpoint(**response.json())
 
@@ -2582,7 +2589,7 @@ class HTTPRunDB(RunDBInterface):
             "POST",
             "authorization/verifications",
             error_message,
-            body=dict_to_json(authorization_verification_input),
+            body=dict_to_json(authorization_verification_input.dict()),
         )
 
 

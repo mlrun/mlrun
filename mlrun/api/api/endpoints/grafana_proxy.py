@@ -10,7 +10,7 @@ from starlette.concurrency import run_in_threadpool
 
 import mlrun.api.crud
 import mlrun.api.schemas
-import mlrun.api.utils.clients.opa
+import mlrun.api.utils.auth.verifier
 from mlrun.api.api import deps
 from mlrun.api.schemas import (
     GrafanaColumn,
@@ -31,13 +31,13 @@ router = APIRouter()
 
 @router.get("/grafana-proxy/model-endpoints", status_code=HTTPStatus.OK.value)
 def grafana_proxy_model_endpoints_check_connection(
-    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
 ):
     """
     Root of grafana proxy for the model-endpoints API, used for validating the model-endpoints data source
     connectivity.
     """
-    mlrun.api.crud.ModelEndpoints().get_access_key(auth_verifier.auth_info)
+    mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
     return Response(status_code=HTTPStatus.OK.value)
 
 
@@ -47,7 +47,7 @@ def grafana_proxy_model_endpoints_check_connection(
 )
 async def grafana_proxy_model_endpoints_query(
     request: Request,
-    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
 ) -> List[Union[GrafanaTable, GrafanaTimeSeriesTarget]]:
     """
     Query route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
@@ -65,16 +65,14 @@ async def grafana_proxy_model_endpoints_query(
     # checks again.
     target_endpoint = query_parameters["target_endpoint"]
     function = NAME_TO_QUERY_FUNCTION_DICTIONARY[target_endpoint]
-    result = await run_in_threadpool(
-        function, body, query_parameters, auth_verifier.auth_info
-    )
+    result = await run_in_threadpool(function, body, query_parameters, auth_info)
     return result
 
 
 @router.post("/grafana-proxy/model-endpoints/search", response_model=List[str])
 async def grafana_proxy_model_endpoints_search(
     request: Request,
-    auth_verifier: deps.AuthVerifierDep = Depends(deps.AuthVerifierDep),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ) -> List[str]:
     """
@@ -84,7 +82,7 @@ async def grafana_proxy_model_endpoints_search(
     This implementation requires passing target_endpoint query parameter in order to dispatch different
     model-endpoint monitoring functions.
     """
-    mlrun.api.crud.ModelEndpoints().get_access_key(auth_verifier.auth_info)
+    mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
     body = await request.json()
     query_parameters = _parse_search_parameters(body)
 
@@ -94,7 +92,7 @@ async def grafana_proxy_model_endpoints_search(
     # checks again.
     target_endpoint = query_parameters["target_endpoint"]
     function = NAME_TO_SEARCH_FUNCTION_DICTIONARY[target_endpoint]
-    result = await run_in_threadpool(function, db_session, auth_verifier.auth_info)
+    result = await run_in_threadpool(function, db_session, auth_info)
     return result
 
 
@@ -129,7 +127,7 @@ def grafana_list_endpoints(
     end = body.get("rangeRaw", {}).get("end", "now")
 
     if project:
-        mlrun.api.utils.clients.opa.Client().query_project_permissions(
+        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
             project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
         )
     endpoint_list = mlrun.api.crud.ModelEndpoints().list_endpoints(
@@ -142,7 +140,7 @@ def grafana_list_endpoints(
         start=start,
         end=end,
     )
-    allowed_endpoints = mlrun.api.utils.clients.opa.Client().filter_project_resources_by_permissions(
+    allowed_endpoints = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         endpoint_list.endpoints,
         lambda _endpoint: (_endpoint.metadata.project, _endpoint.metadata.uid,),
@@ -204,7 +202,7 @@ def grafana_individual_feature_analysis(
 ):
     endpoint_id = query_parameters.get("endpoint_id")
     project = query_parameters.get("project")
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,
@@ -266,7 +264,7 @@ def grafana_overall_feature_analysis(
 ):
     endpoint_id = query_parameters.get("endpoint_id")
     project = query_parameters.get("project")
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,
@@ -314,7 +312,7 @@ def grafana_incoming_features(
     start = body.get("rangeRaw", {}).get("from", "now-1h")
     end = body.get("rangeRaw", {}).get("to", "now")
 
-    mlrun.api.utils.clients.opa.Client().query_project_resource_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,
@@ -338,7 +336,7 @@ def grafana_incoming_features(
         return time_series
 
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
-        project=project, kind=mlrun.api.crud.ModelEndpoints().EVENTS
+        project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS
     )
     _, container, path = parse_model_endpoint_store_prefix(path)
 

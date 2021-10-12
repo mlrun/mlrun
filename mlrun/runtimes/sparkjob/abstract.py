@@ -58,9 +58,9 @@ _sparkjob_template = {
         "sparkVersion": "2.4.5",
         "restartPolicy": {
             "type": "OnFailure",
-            "onFailureRetries": 3,
+            "onFailureRetries": 0,
             "onFailureRetryInterval": 10,
-            "onSubmissionFailureRetries": 5,
+            "onSubmissionFailureRetries": 3,
             "onSubmissionFailureRetryInterval": 20,
         },
         "deps": {},
@@ -81,7 +81,6 @@ _sparkjob_template = {
             "volumeMounts": [],
             "env": [],
         },
-        "nodeSelector": {},
     },
 }
 
@@ -317,7 +316,8 @@ class AbstractSparkRuntime(KubejobRuntime):
         verify_and_update_in(
             job, "spec.executor.instances", self.spec.replicas or 1, int,
         )
-        update_in(job, "spec.nodeSelector", self.spec.node_selector or {})
+        if self.spec.node_selector:
+            update_in(job, "spec.nodeSelector", self.spec.node_selector)
 
         if not self.spec.image:
             if self.spec.use_default_image:
@@ -359,12 +359,20 @@ class AbstractSparkRuntime(KubejobRuntime):
                     str,
                 )
         if "requests" in self.spec.executor_resources:
+            verify_and_update_in(
+                job,
+                "spec.executor.cores",
+                1,  # Must be set due to CRD validations. Will be overridden by coreRequest
+                int,
+            )
             if "cpu" in self.spec.executor_resources["requests"]:
                 verify_and_update_in(
                     job,
-                    "spec.executor.cores",
-                    self.spec.executor_resources["requests"]["cpu"],
-                    int,
+                    "spec.executor.coreRequest",
+                    str(
+                        self.spec.executor_resources["requests"]["cpu"]
+                    ),  # Backwards compatibility
+                    str,
                 )
             if "memory" in self.spec.executor_resources["requests"]:
                 verify_and_update_in(
@@ -391,13 +399,7 @@ class AbstractSparkRuntime(KubejobRuntime):
                     str,
                 )
         if "requests" in self.spec.driver_resources:
-            if "cpu" in self.spec.driver_resources["requests"]:
-                verify_and_update_in(
-                    job,
-                    "spec.driver.cores",
-                    self.spec.driver_resources["requests"]["cpu"],
-                    int,
-                )
+            # CPU Requests for driver moved to child classes as spark3 supports string (i.e: "100m") and not only int
             if "memory" in self.spec.driver_resources["requests"]:
                 verify_and_update_in(
                     job,
@@ -557,9 +559,9 @@ class AbstractSparkRuntime(KubejobRuntime):
     def with_restart_policy(
         self,
         restart_type="OnFailure",
-        retries=3,
+        retries=0,
         retry_interval=10,
-        submission_retries=5,
+        submission_retries=3,
         submission_retry_interval=20,
     ):
         """set restart policy

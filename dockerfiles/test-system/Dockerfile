@@ -26,11 +26,19 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 
 RUN python -m pip install --upgrade pip~=20.2.0
 
-COPY ./dockerfiles/test-system/requirements.txt /tmp/test-system-requirements.txt
-COPY ./extras-requirements.txt /tmp
-COPY ./requirements.txt /tmp
-RUN python -m pip install -r /tmp/requirements.txt -r /tmp/extras-requirements.txt -r /tmp/test-system-requirements.txt && rm -f /tmp/*requirements.txt
+COPY ./dockerfiles/test-system/requirements.txt /tmp/mlrun-requirements/test-system-requirements.txt
+COPY ./dockerfiles/mlrun-api/requirements.txt /tmp/mlrun-requirements/mlrun-api-requirements.txt
+COPY ./extras-requirements.txt /tmp/mlrun-requirements
+COPY ./requirements.txt /tmp/mlrun-requirements
+RUN python -m pip install \
+  -r /tmp/mlrun-requirements/requirements.txt \
+  -r /tmp/mlrun-requirements/extras-requirements.txt \
+  -r /tmp/mlrun-requirements/mlrun-api-requirements.txt \
+  -r /tmp/mlrun-requirements/test-system-requirements.txt
 COPY . /tmp/mlrun
-RUN cd /tmp/mlrun && python -m pip install ".[complete]" && mv tests /tests && mv Makefile /Makefile && cd /tmp && rm -rf mlrun
+RUN cd /tmp/mlrun && python -m pip install ".[complete]" && mv tests /tests && mv Makefile /Makefile
+
+# Clean up all code used for building to simulate user env
+RUN rm -rf /tmp/mlrun-requirements && rm -rf /tmp/mlrun
 
 CMD ["make",  "test-system"]

@@ -10,7 +10,6 @@ from .object import ObjectKind, ObjectStatus
 class ProjectsFormat(str, enum.Enum):
     full = "full"
     name_only = "name_only"
-    summary = "summary"
     # internal - allowed only in follower mode, only for the leader for upgrade purposes
     leader = "leader"
 
@@ -85,11 +84,13 @@ class ProjectOwner(pydantic.BaseModel):
 
 class ProjectSummary(pydantic.BaseModel):
     name: str
-    functions_count: int
+    files_count: int
     feature_sets_count: int
     models_count: int
     runs_failed_recent_count: int
     runs_running_count: int
+    schedules_count: int
+    pipelines_running_count: int
 
 
 class IguazioProject(pydantic.BaseModel):
@@ -107,3 +108,7 @@ class ProjectsOutput(pydantic.BaseModel):
     # to add a specific classes for them. it's frustrating but couldn't find other workaround, see:
     # https://github.com/samuelcolvin/pydantic/issues/1423, https://github.com/samuelcolvin/pydantic/issues/619
     projects: typing.List[typing.Union[Project, str, ProjectSummary, IguazioProject]]
+
+
+class ProjectSummariesOutput(pydantic.BaseModel):
+    project_summaries: typing.List[ProjectSummary]

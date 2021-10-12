@@ -75,12 +75,15 @@ def infer_schema_from_df(
     return timestamp_key
 
 
-def get_df_stats(df, options, num_bins=None):
+def get_df_stats(df, options, num_bins=None, sample_size=None):
     """get per column data stats from dataframe"""
 
     results_dict = {}
     if df.empty:
         return results_dict
+    if sample_size and df.shape[0] > sample_size:
+        df = df.sample(sample_size)
+
     num_bins = num_bins or default_num_bins
     if InferOptions.get_common_options(options, InferOptions.Index) and df.index.name:
         df = df.reset_index()
@@ -121,7 +124,7 @@ def get_df_preview(df, preview_lines=20):
     length = df.shape[0]
     shortdf = df
     if length > preview_lines:
-        shortdf = df.head(preview_lines)
+        shortdf = df.sample(preview_lines)
     shortdf = shortdf.reset_index(inplace=False)
     return [shortdf.columns.values.tolist()] + shortdf.values.tolist()
 

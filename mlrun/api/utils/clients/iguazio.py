@@ -41,6 +41,18 @@ class JobStates:
         ]
 
 
+class SessionPlanes:
+    data = "data"
+    control = "control"
+
+    @staticmethod
+    def all():
+        return [
+            SessionPlanes.data,
+            SessionPlanes.control,
+        ]
+
+
 class Client(
     mlrun.api.utils.projects.remotes.leader.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
@@ -112,6 +124,31 @@ class Client(
             session,
         )
         return self._generate_auth_info_from_session_verification_response(response)
+
+    def get_or_create_access_key(
+        self, session: str, planes: typing.List[str] = None
+    ) -> str:
+        if planes is None:
+            planes = [
+                SessionPlanes.data,
+                SessionPlanes.control,
+            ]
+        body = {
+            "data": {
+                "type": "access_key",
+                "attributes": {"label": "MLRun", "planes": planes},
+            }
+        }
+        response = self._send_request_to_api(
+            "POST",
+            "self/get_or_create_access_key",
+            "Failed getting or creating iguazio access key",
+            session,
+            json=body,
+        )
+        if response.status_code == http.HTTPStatus.CREATED.value:
+            logger.debug("Created access key in Iguazio", planes=planes)
+        return response.json()["data"]["id"]
 
     def create_project(
         self,
@@ -405,7 +442,7 @@ class Client(
             user_id=response.headers.get("x-user-id"),
             user_group_ids=gids or [],
         )
-        if "data" in planes:
+        if SessionPlanes.data in planes:
             auth_info.data_session = auth_info.session
         return auth_info
 

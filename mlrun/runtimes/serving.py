@@ -18,6 +18,7 @@ from typing import List, Union
 import nuclio
 
 import mlrun
+import mlrun.api.schemas
 
 from ..model import ObjectList
 from ..secrets import SecretsStore
@@ -107,7 +108,11 @@ class ServingSpec(NuclioSpec):
         track_models=None,
         secret_sources=None,
         default_content_type=None,
+        node_name=None,
+        node_selector=None,
+        affinity=None,
         disable_auto_mount=False,
+        priority_class_name=None,
     ):
 
         super().__init__(
@@ -133,7 +138,11 @@ class ServingSpec(NuclioSpec):
             service_account=service_account,
             readiness_timeout=readiness_timeout,
             build=build,
+            node_name=node_name,
+            node_selector=node_selector,
+            affinity=affinity,
             disable_auto_mount=disable_auto_mount,
+            priority_class_name=priority_class_name,
         )
 
         self.models = models or {}
@@ -259,6 +268,7 @@ class ServingRuntime(RemoteRuntime):
         class_name=None,
         model_url=None,
         handler=None,
+        router_step=None,
         **class_args,
     ):
         """add ml model and/or route to the function.
@@ -278,6 +288,8 @@ class ServingRuntime(RemoteRuntime):
                             (can also module.submodule.class and it will be imported automatically)
         :param model_url:   url of a remote model serving endpoint (cannot be used with model_path)
         :param handler:     for advanced users!, override default class handler name (do_event)
+        :param router_step: router step name (to determine which router we add the model to in graphs
+                            with multiple router steps)
         :param class_args:  extra kwargs to pass to the model serving class __init__
                             (can be read in the model using .get_param(key) method)
         """
@@ -286,7 +298,29 @@ class ServingRuntime(RemoteRuntime):
             graph = self.set_topology()
 
         if graph.kind != StepKinds.router:
-            raise ValueError("models can only be added under router state")
+            if router_step:
+                if router_step not in graph:
+                    raise ValueError(
+                        f"router step {router_step} not present in the graph"
+                    )
+                graph = graph[router_step]
+            else:
+                routers = [
+                    step
+                    for step in graph.steps.values()
+                    if step.kind == StepKinds.router
+                ]
+                if len(routers) == 0:
+                    raise ValueError(
+                        "graph does not contain any router, add_model can only be "
+                        "used when there is a router step"
+                    )
+                if len(routers) > 1:
+                    raise ValueError(
+                        f"found {len(routers)} routers, please specify the router_step"
+                        " you would like to add this model to"
+                    )
+                graph = routers[0]
 
         if not model_path and not model_url:
             raise ValueError("model_path or model_url must be provided")
@@ -329,7 +363,6 @@ class ServingRuntime(RemoteRuntime):
         )
         self._spec.function_refs.update(function_reference, name)
         func = function_reference.to_function(self.kind)
-        func.set_env("SERVING_CURRENT_FUNCTION", function_reference.name)
         return func
 
     def _add_ref_triggers(self):
@@ -350,13 +383,21 @@ class ServingRuntime(RemoteRuntime):
         for function_ref in self._spec.function_refs.values():
             logger.info(f"deploy child function {function_ref.name} ...")
             function_object = function_ref.function_object
+            if not function_object:
+                function_object = function_ref.to_function(self.kind)
             function_object.metadata.name = function_ref.fullname(self)
             function_object.metadata.project = self.metadata.project
             function_object.metadata.tag = self.metadata.tag
-            function_object.spec.graph = self.spec.graph
-            # todo: may want to copy parent volumes to child functions
-            function_object.apply(mlrun.v3io_cred())
-            function_ref.db_uri = function_object._function_uri()
+
+            function_object.metadata.labels = function_object.metadata.labels or {}
+            function_object.metadata.labels[
+                "mlrun/parent-function"
+            ] = self._function_uri()
+            if not function_object.spec.graph:
+                # copy the current graph only if the child doesnt have a graph of his own
+                function_object.set_env("SERVING_CURRENT_FUNCTION", function_ref.name)
+                function_object.spec.graph = self.spec.graph
+
             function_object.verbose = self.verbose
             function_object.spec.secret_sources = self.spec.secret_sources
             function_object.deploy()
@@ -413,14 +454,19 @@ class ServingRuntime(RemoteRuntime):
                 self._add_azure_vault_params_to_spec(
                     self._secrets.get_azure_vault_k8s_secret()
                 )
-            k8s_secrets = self._secrets.get_k8s_secrets()
-            if k8s_secrets is not None:
-                self._add_project_k8s_secrets_to_spec(
-                    k8s_secrets, project=self.metadata.project
-                )
+            self._add_project_k8s_secrets_to_spec(
+                self._secrets.get_k8s_secrets(), project=self.metadata.project
+            )
+        else:
+            self._add_project_k8s_secrets_to_spec(None, project=self.metadata.project)
 
     def deploy(
-        self, dashboard="", project="", tag="", verbose=False,
+        self,
+        dashboard="",
+        project="",
+        tag="",
+        verbose=False,
+        auth_info: mlrun.api.schemas.AuthInfo = None,
     ):
         """deploy model serving function to a local/remote cluster
 
@@ -428,6 +474,8 @@ class ServingRuntime(RemoteRuntime):
         :param project:   optional, override function specified project name
         :param tag:       specify unique function tag (a different function service is created for every tag)
         :param verbose:   verbose logging
+        :param auth_info: The auth info to use to communicate with the Nuclio dashboard, required only when providing
+                          dashboard
         """
         load_mode = self.spec.load_mode
         if load_mode and load_mode not in ["sync", "async"]:
@@ -453,7 +501,7 @@ class ServingRuntime(RemoteRuntime):
             self._deploy_function_refs()
             logger.info(f"deploy root function {self.metadata.name} ...")
 
-        return super().deploy(dashboard, project, tag, verbose=verbose,)
+        return super().deploy(dashboard, project, tag, verbose, auth_info)
 
     def _get_runtime_env(self):
         env = super()._get_runtime_env()
@@ -480,13 +528,14 @@ class ServingRuntime(RemoteRuntime):
         return env
 
     def to_mock_server(
-        self, namespace=None, current_function="*", **kwargs
+        self, namespace=None, current_function="*", track_models=False, **kwargs
     ) -> GraphServer:
         """create mock server object for local testing/emulation
 
         :param namespace: classes search namespace, use globals() for current notebook
         :param log_level: log level (error | info | debug)
         :param current_function: specify if you want to simulate a child function, * for all functions
+        :param track_models: allow model tracking (disabled by default in the mock server)
         """
 
         server = create_graph_server(
@@ -496,7 +545,7 @@ class ServingRuntime(RemoteRuntime):
             verbose=self.verbose,
             current_function=current_function,
             graph_initializer=self.spec.graph_initializer,
-            track_models=self.spec.track_models,
+            track_models=track_models and self.spec.track_models,
             function_uri=self._function_uri(),
             secret_sources=self.spec.secret_sources,
             default_content_type=self.spec.default_content_type,

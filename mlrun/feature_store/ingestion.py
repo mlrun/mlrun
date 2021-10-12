@@ -14,15 +14,8 @@
 
 import uuid
 
-import v3io
-
 import mlrun
-from mlrun.datastore.sources import (
-    HttpSource,
-    StreamSource,
-    get_source_from_dict,
-    get_source_step,
-)
+from mlrun.datastore.sources import get_source_from_dict, get_source_step
 from mlrun.datastore.targets import (
     add_target_steps,
     get_target_driver,
@@ -32,7 +25,6 @@ from mlrun.datastore.targets import (
 
 from ..data_types import InferOptions
 from ..datastore.store_resources import ResourceCache
-from ..platforms.iguazio import parse_v3io_path, split_path
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
 from ..serving.server import MockEvent, create_graph_server
@@ -40,7 +32,13 @@ from ..utils import logger
 
 
 def init_featureset_graph(
-    source, featureset, namespace, targets=None, return_df=True, verbose=False
+    source,
+    featureset,
+    namespace,
+    targets=None,
+    return_df=True,
+    verbose=False,
+    rows_limit=None,
 ):
     """create storey ingestion graph/DAG from feature set object"""
 
@@ -53,6 +51,7 @@ def init_featureset_graph(
     server.init_states(context=None, namespace=namespace, resource_cache=cache)
 
     if graph.engine != "sync":
+        # todo: support rows_limit it storey sources
         _add_data_steps(
             graph,
             cache,
@@ -62,27 +61,61 @@ def init_featureset_graph(
             return_df=return_df,
             context=server.context,
         )
+        server.init_object(namespace)
+        return graph.wait_for_completion()
 
     server.init_object(namespace)
 
-    if graph.engine != "sync":
-        return graph.wait_for_completion()
-
+    # if the source is a dataframe iterator we load/write it in chunks
+    chunk_id = 0
     if hasattr(source, "to_dataframe"):
-        source = source.to_dataframe()
+        if source.is_iterator():
+            chunk_id = 1
+            chunks = source.to_dataframe()
+        else:
+            chunks = [source.to_dataframe()]
     elif not hasattr(source, "to_csv"):
         raise mlrun.errors.MLRunInvalidArgumentError("illegal source")
+    else:
+        chunks = [source]
 
-    event = MockEvent(body=source)
-    data = server.run(event, get_body=True)
-    for target in targets:
-        target = get_target_driver(target, featureset)
-        size = target.write_dataframe(data)
-        target_status = target.update_resource_status("ready", size=size)
+    entity_columns = list(featureset.spec.entities.keys())
+    key_fields = entity_columns if entity_columns else None
+
+    sizes = [0] * len(targets)
+    data_result = None
+    total_rows = 0
+    targets = [get_target_driver(target, featureset) for target in targets]
+    for chunk in chunks:
+        print(rows_limit)
+        event = MockEvent(body=chunk)
+        data = server.run(event, get_body=True)
+        if data is not None:
+            for i, target in enumerate(targets):
+                size = target.write_dataframe(
+                    data,
+                    key_column=key_fields,
+                    timestamp_key=featureset.spec.timestamp_key,
+                    chunk_id=chunk_id,
+                )
+                if size:
+                    sizes[i] += size
+        chunk_id += 1
+        if data_result is None:
+            # in case of multiple chunks only return the first chunk (last may be too small)
+            data_result = data
+        total_rows += data.shape[0]
+        if rows_limit and total_rows >= rows_limit:
+            break
+
+    # todo: fire termination event if iterator
+
+    for i, target in enumerate(targets):
+        target_status = target.update_resource_status("ready", size=sizes[i])
         if verbose:
             logger.info(f"wrote target: {target_status}")
 
-    return data
+    return data_result
 
 
 def featureset_initializer(server):
@@ -217,41 +250,14 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
     featureset.status.run_uri = task.metadata.uid
     featureset.save()
 
+    function.set_db_connection(featureset._get_run_db())
+
     run = function.run(
         task, schedule=schedule, local=run_config.local, watch=run_config.watch
     )
     if run_config.watch:
         featureset.reload()
     return run
-
-
-def add_source_trigger(source, function):
-    if isinstance(source, HttpSource):
-        # Http source is added automatically when creating serving function
-        return
-    if isinstance(source, StreamSource):
-        endpoint, stream_path = parse_v3io_path(source.path)
-        v3io_client = v3io.dataplane.Client(endpoint=endpoint)
-        container, stream_path = split_path(stream_path)
-        res = v3io_client.create_stream(
-            container=container,
-            path=stream_path,
-            shard_count=source.attributes["shards"],
-            retention_period_hours=source.attributes["retention_in_hours"],
-            raise_for_status=v3io.dataplane.RaiseForStatus.never,
-        )
-        res.raise_for_status([409, 204])
-        function.add_v3io_stream_trigger(
-            source.path,
-            source.name,
-            source.attributes["group"],
-            source.attributes["seek_to"],
-            source.attributes["shards"],
-        )
-    else:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Source type {type(source)} is not supported with ingestion service yet"
-        )
 
 
 _default_job_handler = """

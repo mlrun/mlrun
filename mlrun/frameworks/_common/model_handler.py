@@ -9,6 +9,7 @@ from typing import Any, Dict, List, TypeVar, Union
 
 import mlrun
 from mlrun.artifacts import Artifact, ModelArtifact
+from mlrun.features import Feature
 
 # Define a generic model type for the handler to have:
 Model = TypeVar("Model")
@@ -20,6 +21,8 @@ class ModelHandler(ABC):
     """
 
     # Constant artifact names:
+    _MODEL_FILE_ARTIFACT_NAME = "{}_model_file"
+    _WEIGHTS_FILE_ARTIFACT_NAME = "{}_weights_file"
     _CUSTOM_OBJECTS_MAP_ARTIFACT_NAME = "{}_custom_objects_map.json"
     _CUSTOM_OBJECTS_DIRECTORY_ARTIFACT_NAME = "{}_custom_objects.zip"
 
@@ -34,7 +37,8 @@ class ModelHandler(ABC):
     ):
         """
         Initialize the handler. The model can be set here so it won't require loading. Note you must provide at least
-        one of 'model' and 'model_path'.
+        one of 'model' and 'model_path'. If a model is not given, the files in the model path will be collected
+        automatically to be ready for loading.
 
         :param model_name:               The model name for saving and logging the model.
         :param model_path:               Path to the directory with the model files. Can be passed as a model object
@@ -87,18 +91,28 @@ class ModelHandler(ABC):
         # Local path to the model file:
         self._model_file = None  # type: str
 
-        # If the model path is of a model object, this will be the ModelArtifact object.
+        # If the model path is of a model object, this will be the 'ModelArtifact' object.
         self._model_artifact = None  # type: ModelArtifact
 
         # If the model path is of a store model object, this will be the extra data as DataItems ready to be downloaded.
         self._extra_data = None  # type: Union[Dict[str, Artifact], Dict[str, str]]
 
-        # Collect the relevant files of the model into the handler's parameters:
-        if model_path is not None:
-            if mlrun.datastore.is_store_uri(self._model_path):
-                self._collect_files_from_store_object()
-            else:
-                self._collect_files_from_local_path()
+        # Setup additional properties:
+        self._inputs = None  # type: List[Feature]
+        self._outputs = None  # type: List[Feature]
+
+        # Collect the relevant files of the model into the handler (only in case the model was not provided):
+        if model is None:
+            self.collect_files()
+
+    @property
+    def model_name(self) -> str:
+        """
+        Get the handled model's name.
+
+        :return: The handled model's name.
+        """
+        return self._model_name
 
     @property
     def model(self) -> Model:
@@ -110,13 +124,31 @@ class ModelHandler(ABC):
         return self._model
 
     @property
-    def model_name(self) -> str:
+    def model_file(self) -> str:
         """
-        Get the handled model's name.
+        Get the model file path given to / located by this handler.
 
-        :return: The handled model's name.
+        :return: The model file path.
         """
-        return self._model_name
+        return self._model_file
+
+    def set_inputs(self, from_sample=None, *args, **kwargs):
+        """
+        Set the inputs property of this model to be logged along with it. The method 'to_onnx' can use this property as
+        well for the conversion process.
+
+        :param from_sample: Read the inputs properties from a given input sample to the model.
+        """
+        pass
+
+    def set_outputs(self, from_sample=None, *args, **kwargs):
+        """
+        Set the outputs property of this model to be logged along with it. The method 'to_onnx' can use this property as
+        well for the conversion process.
+
+        :param from_sample: Read the inputs properties from a given input sample to the model.
+        """
+        pass
 
     def set_context(self, context: mlrun.MLClientCtx):
         """
@@ -169,10 +201,10 @@ class ModelHandler(ABC):
     @abstractmethod
     def log(
         self,
-        labels: Dict[str, Union[str, int, float]],
-        parameters: Dict[str, Union[str, int, float]],
-        extra_data: Dict[str, Any],
-        artifacts: Dict[str, Artifact],
+        labels: Dict[str, Union[str, int, float]] = None,
+        parameters: Dict[str, Union[str, int, float]] = None,
+        extra_data: Dict[str, Any] = None,
+        artifacts: Dict[str, Artifact] = None,
     ):
         """
         Log the model held by this handler into the MLRun context provided.
@@ -182,17 +214,81 @@ class ModelHandler(ABC):
         :param extra_data: Extra data to log with the model.
         :param artifacts:  Artifacts to log the model with. Will be added to the extra data.
 
-        :raise RuntimeError: In case there is no model in this handler.
-        :raise ValueError:   In case a context is missing.
+        :raise ValueError: In case a context is missing or there is no model in this handler.
         """
         if self._model is None:
-            raise RuntimeError(
+            raise ValueError(
                 "Model cannot be logged as it was not given in initialization or loaded during this run."
             )
         if self._context is None:
             raise ValueError(
                 "Cannot log model if a context was not provided during initialization."
             )
+
+    def update(
+        self,
+        labels: Dict[str, Union[str, int, float]] = None,
+        parameters: Dict[str, Union[str, int, float]] = None,
+        extra_data: Dict[str, Any] = None,
+        artifacts: Dict[str, Artifact] = None,
+    ):
+        """
+        Log the model held by this handler into the MLRun context provided.
+
+        :param labels:     Labels to update or add to the model.
+        :param parameters: Parameters to update or add to the model.
+        :param extra_data: Extra data to update or add to the model.
+        :param artifacts:  Artifacts to update or add to the model. Will be added to the extra data.
+
+        :raise ValueError: In case a context is missing or the model path in this handler is missing or not of a store
+                           object.
+        """
+        # Validate model path:
+        if self._model_path is None:
+            raise ValueError("Cannot update model if 'model_path' is not provided.")
+        elif not mlrun.datastore.is_store_uri(self._model_path):
+            raise ValueError(
+                "To update a model artifact the 'model_path' must be a store object."
+            )
+
+        # Set default values:
+        labels = {} if labels is None else labels
+        parameters = {} if parameters is None else parameters
+        extra_data = {} if extra_data is None else extra_data
+        artifacts = {} if artifacts is None else artifacts
+
+        # Update the model:
+        mlrun.artifacts.update_model(
+            model_artifact=self._model_path,
+            parameters=parameters,
+            extra_data={**artifacts, **extra_data},
+            labels=labels,
+        )
+
+    @abstractmethod
+    def to_onnx(self, *args, **kwargs):
+        """
+        Convert the model in this handler to an ONNX model.
+
+        :return: The converted ONNX model (onnx.ModelProto).
+        """
+        pass
+
+    def collect_files(self):
+        """
+        Collect the files from the given model path.
+        """
+        # Validate model path is set:
+        if self._model_path is None:
+            raise ValueError(
+                "In order to collect the model's files a model path must be provided."
+            )
+
+        # Collect by the path's type:
+        if mlrun.datastore.is_store_uri(self._model_path):
+            self._collect_files_from_store_object()
+        else:
+            self._collect_files_from_local_path()
 
     @abstractmethod
     def _collect_files_from_store_object(self):
@@ -209,6 +305,38 @@ class ModelHandler(ABC):
         for later loading the model.
         """
         pass
+
+    def _get_model_file_artifact_name(self) -> str:
+        """
+        Get the standard name for the model file artifact.
+
+        :return: The model file artifact name.
+        """
+        return self._MODEL_FILE_ARTIFACT_NAME.format(self._model_name)
+
+    def _get_weights_file_artifact_name(self) -> str:
+        """
+        Get the standard name for the weights file artifact.
+
+        :return: The weights file artifact name.
+        """
+        return self._WEIGHTS_FILE_ARTIFACT_NAME.format(self._model_name)
+
+    def _get_custom_objects_map_artifact_name(self) -> str:
+        """
+        Get the standard name for the custom objects map json artifact.
+
+        :return: The custom objects map json artifact name.
+        """
+        return self._CUSTOM_OBJECTS_MAP_ARTIFACT_NAME.format(self._model_name)
+
+    def _get_custom_objects_directory_artifact_name(self) -> str:
+        """
+        Get the standard name for the custom objects directory zip artifact.
+
+        :return: The custom objects directory zip artifact name.
+        """
+        return self._CUSTOM_OBJECTS_DIRECTORY_ARTIFACT_NAME.format(self._model_name)
 
     def _import_custom_objects(self):
         """
@@ -323,11 +451,9 @@ class ModelHandler(ABC):
 
         :raise ValueError: If both parameters were None or both parameters were provided.
         """
-        if (model_path is None and model is None) or (
-            model_path is not None and model is not None
-        ):
+        if model_path is None and model is None:
             raise ValueError(
-                "Only one of 'model' or 'model_path' must be provided to the model handler."
+                "At least one of 'model' or 'model_path' must be provided to the model handler."
             )
 
     @staticmethod

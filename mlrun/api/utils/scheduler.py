@@ -2,6 +2,7 @@ import asyncio
 import copy
 import json
 import traceback
+import typing
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -11,6 +12,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
 
+import mlrun.api.utils.auth.verifier
 import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.session import close_session, create_session
@@ -31,16 +33,6 @@ class Scheduler:
         # NOTE this cannot be less then one minute - see _validate_cron_trigger
         self._min_allowed_interval = config.httpdb.scheduling.min_allowed_interval
         self._secrets_provider = schemas.SecretProviderName.kubernetes
-
-        self._store_schedule_credentials_in_secrets = (
-            mlrun.mlconf.httpdb.scheduling.schedule_credentials_secrets_store_mode
-            == "enabled"
-            or (
-                mlrun.mlconf.httpdb.scheduling.schedule_credentials_secrets_store_mode
-                == "auto"
-                and mlrun.mlconf.httpdb.authorization.mode == "opa"
-            )
-        )
 
     async def start(self, db_session: Session):
         logger.info("Starting scheduler")
@@ -72,8 +64,10 @@ class Scheduler:
         scheduled_object: Union[Dict, Callable],
         cron_trigger: Union[str, schemas.ScheduleCronTrigger],
         labels: Dict = None,
-        concurrency_limit: int = config.httpdb.scheduling.default_concurrency_limit,
+        concurrency_limit: int = None,
     ):
+        if concurrency_limit is None:
+            concurrency_limit = config.httpdb.scheduling.default_concurrency_limit
         if isinstance(cron_trigger, str):
             cron_trigger = schemas.ScheduleCronTrigger.from_crontab(cron_trigger)
 
@@ -89,6 +83,7 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
+        self._ensure_auth_info_has_access_key(auth_info, kind)
         self._store_schedule_secrets(auth_info, project, name)
         get_db().create_schedule(
             db_session,
@@ -136,7 +131,6 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
-        self._store_schedule_secrets(auth_info, project, name)
         get_db().update_schedule(
             db_session,
             project,
@@ -151,6 +145,8 @@ class Scheduler:
             db_session, db_schedule
         )
 
+        self._ensure_auth_info_has_access_key(auth_info, db_schedule.kind)
+        self._store_schedule_secrets(auth_info, project, name)
         self._update_schedule_in_scheduler(
             project,
             name,
@@ -169,6 +165,7 @@ class Scheduler:
         kind: str = None,
         labels: str = None,
         include_last_run: bool = False,
+        include_credentials: bool = False,
     ) -> schemas.SchedulesOutput:
         logger.debug(
             "Getting schedules", project=project, name=name, labels=labels, kind=kind
@@ -177,7 +174,7 @@ class Scheduler:
         schedules = []
         for db_schedule in db_schedules:
             schedule = self._transform_and_enrich_db_schedule(
-                db_session, db_schedule, include_last_run
+                db_session, db_schedule, include_last_run, include_credentials
             )
             schedules.append(schedule)
         return schemas.SchedulesOutput(schedules=schedules)
@@ -188,11 +185,12 @@ class Scheduler:
         project: str,
         name: str,
         include_last_run: bool = False,
+        include_credentials: bool = False,
     ) -> schemas.ScheduleOutput:
         logger.debug("Getting schedule", project=project, name=name)
         db_schedule = get_db().get_schedule(db_session, project, name)
         return self._transform_and_enrich_db_schedule(
-            db_session, db_schedule, include_last_run
+            db_session, db_schedule, include_last_run, include_credentials
         )
 
     def delete_schedule(
@@ -243,28 +241,52 @@ class Scheduler:
         )
         return await function(*args, **kwargs)
 
+    def _ensure_auth_info_has_access_key(
+        self, auth_info: mlrun.api.schemas.AuthInfo, kind: schemas.ScheduleKinds,
+    ):
+        if (
+            kind not in schemas.ScheduleKinds.local_kinds()
+            and mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
+            and (
+                not auth_info.access_key
+                or auth_info.access_key == mlrun.model.Credentials.generate_access_key
+            )
+        ):
+            auth_info.access_key = mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key(
+                auth_info.session
+            )
+
     def _store_schedule_secrets(
         self, auth_info: mlrun.api.schemas.AuthInfo, project: str, name: str,
     ):
         # import here to avoid circular imports
         import mlrun.api.crud
 
-        if self._store_schedule_credentials_in_secrets:
+        if mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
             # sanity
-            if not auth_info.session:
+            if not auth_info.access_key:
                 raise mlrun.errors.MLRunAccessDeniedError(
-                    "Session is required to create schedules in OPA authorization mode"
+                    "Access key is required to create schedules in OPA authorization mode"
                 )
-            secret_key = mlrun.api.crud.Secrets().generate_schedule_secret_key(name)
+            access_key_secret_key = mlrun.api.crud.Secrets().generate_schedule_access_key_secret_key(
+                name
+            )
+            # schedule name may be an invalid secret key, therefore we're using the key map feature of our secrets
+            # handler
             secret_key_map = (
                 mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
             )
+            secrets = {
+                access_key_secret_key: auth_info.access_key,
+            }
+            if auth_info.username:
+                username_secret_key = mlrun.api.crud.Secrets().generate_schedule_username_secret_key(
+                    name
+                )
+                secrets[username_secret_key] = auth_info.username
             mlrun.api.crud.Secrets().store_secrets(
                 project,
-                schemas.SecretsData(
-                    provider=self._secrets_provider,
-                    secrets={secret_key: auth_info.session},
-                ),
+                schemas.SecretsData(provider=self._secrets_provider, secrets=secrets,),
                 allow_internal_secrets=True,
                 key_map_secret_key=secret_key_map,
             )
@@ -275,20 +297,68 @@ class Scheduler:
         # import here to avoid circular imports
         import mlrun.api.crud
 
-        if self._store_schedule_credentials_in_secrets:
-            # sanity
-            secret_key = mlrun.api.crud.Secrets().generate_schedule_secret_key(name)
+        if mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
+            access_key_secret_key = mlrun.api.crud.Secrets().generate_schedule_access_key_secret_key(
+                name
+            )
+            username_secret_key = mlrun.api.crud.Secrets().generate_schedule_username_secret_key(
+                name
+            )
             secret_key_map = (
                 mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
             )
+            # TODO: support delete secrets (plural and not only singular) using key map
             mlrun.api.crud.Secrets().delete_secret(
                 project,
                 self._secrets_provider,
-                secret_key,
+                access_key_secret_key,
                 allow_secrets_from_k8s=True,
                 allow_internal_secrets=True,
                 key_map_secret_key=secret_key_map,
             )
+            mlrun.api.crud.Secrets().delete_secret(
+                project,
+                self._secrets_provider,
+                username_secret_key,
+                allow_secrets_from_k8s=True,
+                allow_internal_secrets=True,
+                key_map_secret_key=secret_key_map,
+            )
+
+    def _get_schedule_secrets(
+        self, project: str, name: str, include_username: bool = True
+    ) -> typing.Tuple[typing.Optional[str], typing.Optional[str]]:
+        # import here to avoid circular imports
+        import mlrun.api.crud
+
+        schedule_access_key_secret_key = mlrun.api.crud.Secrets().generate_schedule_access_key_secret_key(
+            name
+        )
+        secret_key_map = mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
+        # TODO: support listing (and not only get) secrets using key map
+        access_key = mlrun.api.crud.Secrets().get_secret(
+            project,
+            self._secrets_provider,
+            schedule_access_key_secret_key,
+            allow_secrets_from_k8s=True,
+            allow_internal_secrets=True,
+            key_map_secret_key=secret_key_map,
+        )
+        username = None
+        if include_username:
+            schedule_username_secret_key = mlrun.api.crud.Secrets().generate_schedule_username_secret_key(
+                name
+            )
+            username = mlrun.api.crud.Secrets().get_secret(
+                project,
+                self._secrets_provider,
+                schedule_username_secret_key,
+                allow_secrets_from_k8s=True,
+                allow_internal_secrets=True,
+                key_map_secret_key=secret_key_map,
+            )
+
+        return username, access_key
 
     def _validate_cron_trigger(
         self,
@@ -409,21 +479,11 @@ class Scheduler:
                 # import here to avoid circular imports
                 import mlrun.api.crud
 
-                session = None
-                if self._store_schedule_credentials_in_secrets:
-                    schedule_secret_key = mlrun.api.crud.Secrets().generate_schedule_secret_key(
-                        db_schedule.name
-                    )
-                    secret_key_map = (
-                        mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
-                    )
-                    session = mlrun.api.crud.Secrets().get_secret(
-                        db_schedule.project,
-                        self._secrets_provider,
-                        schedule_secret_key,
-                        allow_secrets_from_k8s=True,
-                        allow_internal_secrets=True,
-                        key_map_secret_key=secret_key_map,
+                access_key = None
+                username = None
+                if mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
+                    username, access_key = self._get_schedule_secrets(
+                        db_schedule.project, db_schedule.name
                     )
                 self._create_schedule_in_scheduler(
                     db_schedule.project,
@@ -432,7 +492,9 @@ class Scheduler:
                     db_schedule.scheduled_object,
                     db_schedule.cron_trigger,
                     db_schedule.concurrency_limit,
-                    mlrun.api.schemas.AuthInfo(session=session),
+                    mlrun.api.schemas.AuthInfo(
+                        username=username, access_key=access_key
+                    ),
                 )
             except Exception as exc:
                 logger.warn(
@@ -447,6 +509,7 @@ class Scheduler:
         db_session: Session,
         schedule_record: schemas.ScheduleRecord,
         include_last_run: bool = False,
+        include_credentials: bool = False,
     ) -> schemas.ScheduleOutput:
         schedule_dict = schedule_record.dict()
         schedule_dict["labels"] = {
@@ -460,7 +523,10 @@ class Scheduler:
             schedule.next_run_time = job.next_run_time
 
         if include_last_run:
-            schedule = self._enrich_schedule_with_last_run(db_session, schedule)
+            self._enrich_schedule_with_last_run(db_session, schedule)
+
+        if include_credentials:
+            self._enrich_schedule_with_credentials(schedule)
 
         return schedule
 
@@ -474,7 +540,13 @@ class Scheduler:
             )
             run_data = get_db().read_run(db_session, run_uid, run_project, iteration)
             schedule_output.last_run = run_data
-        return schedule_output
+
+    def _enrich_schedule_with_credentials(
+        self, schedule_output: schemas.ScheduleOutput
+    ):
+        _, schedule_output.credentials.access_key = self._get_schedule_secrets(
+            schedule_output.project, schedule_output.name, include_username=False
+        )
 
     def _resolve_job_function(
         self,
@@ -568,8 +640,11 @@ class Scheduler:
 
         # if credentials are needed but missing (will happen for schedules on upgrade from scheduler that didn't store
         # credentials to one that does store) enrich them
-        # Note that here we're using the "knowledge" that submit_run only requires the session of the auth info
-        if not auth_info.session and scheduler._store_schedule_credentials_in_secrets:
+        # Note that here we're using the "knowledge" that submit_run only requires the access key of the auth info
+        if (
+            not auth_info.access_key
+            and mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
+        ):
             # import here to avoid circular imports
             import mlrun.api.utils.auth
             import mlrun.api.utils.singletons.project_member
@@ -586,7 +661,9 @@ class Scheduler:
             # Update the schedule with the new auth info so we won't need to do the above again in the next run
             scheduler.update_schedule(
                 db_session,
-                mlrun.api.schemas.AuthInfo(session=project_owner.session),
+                mlrun.api.schemas.AuthInfo(
+                    username=project_owner.username, access_key=project_owner.session
+                ),
                 project_name,
                 schedule_name,
             )

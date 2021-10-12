@@ -93,8 +93,3 @@ RUN python -m pip install \
 
 COPY . .
 RUN python -m pip install .[complete]
-
-ARG MLRUN_MLUTILS_GITHUB_TAG=development
-ARG MLRUN_MLUTILS_CACHE_DATE=initial
-RUN python -m pip install \
-    git+https://github.com/mlrun/mlutils.git@${MLRUN_MLUTILS_GITHUB_TAG}

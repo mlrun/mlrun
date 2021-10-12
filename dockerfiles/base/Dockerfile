@@ -42,8 +42,3 @@ RUN python -m pip install \
 COPY ./dockerfiles/base/requirements.txt ./base-image-requirements.txt
 RUN python -m pip install \
     -r base-image-requirements.txt
-
-ARG MLRUN_MLUTILS_GITHUB_TAG=development
-ARG MLRUN_MLUTILS_CACHE_DATE=initial
-RUN python -m pip install \
-    git+https://github.com/mlrun/mlutils.git@${MLRUN_MLUTILS_GITHUB_TAG}

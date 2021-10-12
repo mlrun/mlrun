@@ -129,6 +129,10 @@ default_config = {
             "commit_retry_interval": 3,
             # Whether to perform data migrations on initialization. enabled or disabled
             "data_migrations_mode": "enabled",
+            # Whether or not to perform database migration from sqlite to mysql on initialization
+            "database_migration_mode": "enabled",
+            # Whether or not to use db backups on initialization
+            "database_backup_mode": "enabled",
         },
         "jobs": {
             # whether to allow to run local runtimes in the API - configurable to allow the scheduler testing to work

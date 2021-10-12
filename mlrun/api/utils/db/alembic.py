@@ -18,7 +18,7 @@ class AlembicUtil(object):
         self._alembic_config = alembic.config.Config(self._alembic_config_path)
         self._alembic_output = ""
 
-    def init_alembic(self, from_scratch: bool = False):
+    def init_alembic(self, from_scratch: bool = False, use_backups: bool = False):
         revision_history = self._get_revision_history_list()
         latest_revision = revision_history[0]
         initial_alembic_revision = revision_history[-1]
@@ -34,7 +34,8 @@ class AlembicUtil(object):
             alembic.command.stamp(self._alembic_config, initial_alembic_revision)
 
         elif (
-            db_path_exists
+            use_backups
+            and db_path_exists
             and current_revision
             and current_revision not in revision_history
         ):
@@ -42,7 +43,7 @@ class AlembicUtil(object):
 
         # get current revision again if it changed during the last commands
         current_revision = self._get_current_revision()
-        if current_revision:
+        if use_backups and current_revision:
             self._backup_revision(db_file_path, current_revision)
         logger.debug("Performing schema migrations")
         alembic.command.upgrade(self._alembic_config, "head")

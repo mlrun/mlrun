@@ -20,7 +20,7 @@ import pandas as pd
 
 import mlrun
 import mlrun.api.schemas
-import uuid
+import time
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri
@@ -44,6 +44,11 @@ from ..model import (
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import BaseStep, RootFlowStep, previous_step
 from ..utils import StorePrefix
+
+from mlrun.errors import (
+    MLRunBadRequestError,
+    MLRunNotFoundError,
+)
 
 aggregates_step = "Aggregates"
 
@@ -247,8 +252,8 @@ class FeatureSet(ModelObj):
         self.metadata = VersionedObjMetadata(name=name)
         self.status = None
         self._last_state = ""
-        # katya
-        self.run_uuid = None
+        self._is_published = False
+        self._generate_new_run_uuid()
 
     @property
     def spec(self) -> FeatureSetSpec:
@@ -300,11 +305,14 @@ class FeatureSet(ModelObj):
         else:
             return mlrun.get_run_db()
 
+    def _generate_new_run_uuid(self):
+        self.run_uuid = round(time.time() * 1000)
+
     def get_target_path(self, name=None):
         """get the url/path for an offline or specified data target"""
         target = get_offline_target(self, name=name)
         if target:
-            return target.path
+            return target.path + "/" + self.run_uuid
 
     def set_targets(
         self,
@@ -605,13 +613,25 @@ class FeatureSet(ModelObj):
 
     def publish(self, tag: str):
         """publish the feature set and lock it's metadata"""
-        # copy feature set to a new one and set run_uuid and tag.
+
+        # check if feature set with this tag already exist
+        is_tag_exist = True
+        try:
+            self._get_run_db().get_feature_set(
+                self.metadata.name, self.metadata.project, tag
+            )
+        except MLRunNotFoundError:
+            is_tag_exist = False
+
+        if is_tag_exist:
+            raise MLRunBadRequestError(f"Cannot publish tag: '{tag}', tag already exists.")
 
         published_f_set = copy.deepcopy(self)
-        published_f_set.run_uuid = uuid.uuid4().hex
+        self._generate_new_run_uuid()
+
         published_f_set.metadata.tag = tag
         published_f_set.save(tag)
+        published_f_set._is_published = True
 
         # update path variables for un-versioned
-        # should do ingest again?
         return published_f_set

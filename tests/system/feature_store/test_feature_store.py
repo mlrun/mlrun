@@ -1745,14 +1745,21 @@ class TestFeatureStore(TestMLRunSystem):
         tag = "tag1"
         fset = fs.FeatureSet(name, entities=[fs.Entity("ticker")])
         published_fset = fset.publish(tag)
+
+        from mlrun.errors import MLRunBadRequestError
+        with pytest.raises(MLRunBadRequestError):
+            fset.publish(tag)
+
         assert fset.metadata.tag is None
 
         db = mlrun.get_run_db()
         fset_from_db = db.get_feature_set(name, tag=tag)
         for actual in [published_fset, fset_from_db]:
+            assert actual is not None
             assert actual.metadata.name == fset.metadata.name
             assert actual.metadata.tag == tag
             assert actual.metadata.project == self.project_name
+            assert actual._is_published
 
 
 def verify_purge(fset, targets):

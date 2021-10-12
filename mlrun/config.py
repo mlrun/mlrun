@@ -129,6 +129,10 @@ default_config = {
             "commit_retry_interval": 3,
             # Whether to perform data migrations on initialization. enabled or disabled
             "data_migrations_mode": "enabled",
+            # Whether or not to perform database migration from sqlite to mysql on initialization
+            "database_migration_mode": "enabled",
+            # Whether or not to use db backups on initialization
+            "database_backup_mode": "enabled",
         },
         "jobs": {
             # whether to allow to run local runtimes in the API - configurable to allow the scheduler testing to work
@@ -210,6 +214,9 @@ default_config = {
             "kaniko_init_container_image": "alpine:3.13.1",
             # additional docker build args in json encoded base64 format
             "build_args": "",
+            "pip_ca_secret_name": "",
+            "pip_ca_secret_key": "",
+            "pip_ca_path": "/etc/ssl/certs/mlrun/pip-ca-certificates.crt",
         },
         "v3io_api": "",
         "v3io_framesd": "",
@@ -344,6 +351,14 @@ class Config:
             build_args = json.loads(build_args_json)
 
         return build_args
+
+    @staticmethod
+    def is_pip_ca_configured():
+        return (
+            config.httpdb.builder.pip_ca_secret_name
+            and config.httpdb.builder.pip_ca_secret_key
+            and config.httpdb.builder.pip_ca_path
+        )
 
     @staticmethod
     def get_hub_url():

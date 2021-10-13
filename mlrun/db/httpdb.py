@@ -2240,6 +2240,15 @@ class HTTPRunDB(RunDBInterface):
                 client_version=client_version,
             )
             return
+        if (parsed_server_version.major == 0 and parsed_server_version.minor == 0) or (
+            parsed_client_version.major == 0 and parsed_client_version.minor == 0
+        ):
+            logger.warning(
+                "Server or client version is unstable. Assuming compatible",
+                server_version=server_version,
+                client_version=client_version,
+            )
+            return
         if (
             parsed_server_version.major != parsed_client_version.major
             or parsed_server_version.minor != parsed_client_version.minor

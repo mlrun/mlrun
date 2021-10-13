@@ -227,7 +227,7 @@ class FeatureSet(ModelObj):
     """Feature set object, defines a set of features and their data pipeline"""
 
     kind = mlrun.api.schemas.ObjectKind.feature_set.value
-    _dict_fields = ["kind", "metadata", "spec", "status"]
+    _dict_fields = ["kind", "metadata", "spec", "status", "_publish_time", "_run_uuid"]
 
     def __init__(
         self,
@@ -252,7 +252,7 @@ class FeatureSet(ModelObj):
         self.metadata = VersionedObjMetadata(name=name)
         self.status = None
         self._last_state = ""
-        self._is_published = False
+        self._publish_time = None
         self._generate_new_run_uuid()
 
     @property
@@ -290,6 +290,9 @@ class FeatureSet(ModelObj):
             uri += ":" + self._metadata.tag
         return uri
 
+    def get_publish_time(self):
+        return self._publish_time
+
     def _override_run_db(
         self, session,
     ):
@@ -306,13 +309,22 @@ class FeatureSet(ModelObj):
             return mlrun.get_run_db()
 
     def _generate_new_run_uuid(self):
-        self.run_uuid = round(time.time() * 1000)
+        self._run_uuid = round(time.time() * 1000)
+
+    def _get_feature_set_for_tag(self, tag):
+        tag = tag or self.metadata.tag
+        try:
+            return self._get_run_db().get_feature_set(
+                self.metadata.name, self.metadata.project, tag
+            )
+        except MLRunNotFoundError:
+            return None
 
     def get_target_path(self, name=None):
         """get the url/path for an offline or specified data target"""
         target = get_offline_target(self, name=name)
         if target:
-            return target.path + "/" + self.run_uuid
+            return target.path + "/" + self._run_uuid
 
     def set_targets(
         self,
@@ -614,24 +626,14 @@ class FeatureSet(ModelObj):
     def publish(self, tag: str):
         """publish the feature set and lock it's metadata"""
 
-        # check if feature set with this tag already exist
-        is_tag_exist = True
-        try:
-            self._get_run_db().get_feature_set(
-                self.metadata.name, self.metadata.project, tag
-            )
-        except MLRunNotFoundError:
-            is_tag_exist = False
-
-        if is_tag_exist:
-            raise MLRunBadRequestError(f"Cannot publish tag: '{tag}', tag already exists.")
+        if self._get_feature_set_for_tag(tag):
+            raise MLRunBadRequestError(f"Cannot publish tag: '{tag}', tag already published.")
 
         published_f_set = copy.deepcopy(self)
         self._generate_new_run_uuid()
 
         published_f_set.metadata.tag = tag
+        published_f_set._publish_time = round(time.time() * 1000) # publish_time
         published_f_set.save(tag)
-        published_f_set._is_published = True
 
-        # update path variables for un-versioned
         return published_f_set

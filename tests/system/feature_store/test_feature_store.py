@@ -88,7 +88,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         self._logger.info(f"stocks spec: {stocks_set.to_yaml()}")
         assert (
-            stocks_set.spec.features["name"].description == "some name"
+                stocks_set.spec.features["name"].description == "some name"
         ), "description was not set"
         assert len(df) == len(stocks), "dataframe size doesnt match"
         assert stocks_set.status.stats["exchange"], "stats not created"
@@ -163,7 +163,7 @@ class TestFeatureStore(TestMLRunSystem):
         # check that passing a dict (without list) works
         resp = svc.get({"ticker": "GOOG"})
         assert (
-            resp[0]["name"] == "Alphabet Inc" and resp[0]["exchange"] == "NASDAQ"
+                resp[0]["name"] == "Alphabet Inc" and resp[0]["exchange"] == "NASDAQ"
         ), "unexpected online result"
 
         try:
@@ -177,11 +177,11 @@ class TestFeatureStore(TestMLRunSystem):
         resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
         resp = svc.get([{"ticker": "AAPL"}])
         assert (
-            resp[0]["name"] == "Apple Inc" and resp[0]["exchange"] == "NASDAQ"
+                resp[0]["name"] == "Apple Inc" and resp[0]["exchange"] == "NASDAQ"
         ), "unexpected online result"
         resp2 = svc.get([{"ticker": "AAPL"}], as_list=True)
         assert (
-            len(resp2[0]) == features_size - 1
+                len(resp2[0]) == features_size - 1
         ), "unexpected online vector size"  # -1 label
         svc.close()
 
@@ -201,7 +201,7 @@ class TestFeatureStore(TestMLRunSystem):
             "stocks.*",
         ]
         features_size = (
-            len(features) + 1 + 1
+                len(features) + 1 + 1
         )  # (*) returns 2 features, label adds 1 feature
         self._get_offline_vector(features, features_size)
 
@@ -250,7 +250,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert default_df.index.name is None, "index column is not of default type"
         assert "time" not in default_df.columns, "'time' column shouldn't be present"
         assert (
-            "ticker" not in default_df.columns
+                "ticker" not in default_df.columns
         ), "'ticker' column shouldn't be present"
 
         # with_indexes = False, entity_timestamp_column = "time"
@@ -263,10 +263,10 @@ class TestFeatureStore(TestMLRunSystem):
         assert df_no_time.index.name is None, "index column is not of default type"
         assert "time" not in df_no_time.columns, "'time' column should not be present"
         assert (
-            "ticker" not in df_no_time.columns
+                "ticker" not in df_no_time.columns
         ), "'ticker' column shouldn't be present"
         assert (
-            "another_time" in df_no_time.columns
+                "another_time" in df_no_time.columns
         ), "'another_time' column should be present"
 
         # with_indexes = False, entity_timestamp_column = "invalid" - should return the timestamp column
@@ -278,11 +278,11 @@ class TestFeatureStore(TestMLRunSystem):
         ), "index column is not of default type"
         assert df_with_time.index.name is None, "index column is not of default type"
         assert (
-            "ticker" not in df_with_time.columns
+                "ticker" not in df_with_time.columns
         ), "'ticker' column shouldn't be present"
         assert "time" in df_with_time.columns, "'time' column should be present"
         assert (
-            "another_time" not in df_with_time.columns
+                "another_time" not in df_with_time.columns
         ), "'another_time' column should not be present"
 
         vector.spec.with_indexes = True
@@ -491,7 +491,7 @@ class TestFeatureStore(TestMLRunSystem):
             end_time="2020-12-01 17:33:16",
         )
 
-        resp = fs.ingest(measurements, source, return_df=True,)
+        resp = fs.ingest(measurements, source, return_df=True, )
         assert len(resp) == 10
 
         # start time > timestamp in source
@@ -503,14 +503,14 @@ class TestFeatureStore(TestMLRunSystem):
             end_time="2022-12-01 17:33:16",
         )
 
-        resp = fs.ingest(measurements, source, return_df=True,)
+        resp = fs.ingest(measurements, source, return_df=True, )
         assert len(resp) == 0
 
     @pytest.mark.parametrize("key_bucketing_number", [None, 0, 4])
     @pytest.mark.parametrize("partition_cols", [None, ["department"]])
     @pytest.mark.parametrize("time_partitioning_granularity", [None, "day"])
     def test_ingest_partitioned_by_key_and_time(
-        self, key_bucketing_number, partition_cols, time_partitioning_granularity
+            self, key_bucketing_number, partition_cols, time_partitioning_granularity
     ):
         name = f"measurements_{uuid.uuid4()}"
         key = "patient_id"
@@ -525,11 +525,11 @@ class TestFeatureStore(TestMLRunSystem):
         )
         # katya - start
         target = ParquetTarget(
-                partitioned=True,
-                key_bucketing_number=key_bucketing_number,
-                partition_cols=partition_cols,
-                time_partitioning_granularity=time_partitioning_granularity,
-            )
+            partitioned=True,
+            key_bucketing_number=key_bucketing_number,
+            partition_cols=partition_cols,
+            time_partitioning_granularity=time_partitioning_granularity,
+        )
         measurements.set_targets(
             targets=[target], with_defaults=False,
         )
@@ -549,7 +549,7 @@ class TestFeatureStore(TestMLRunSystem):
         file_system = fsspec.filesystem("v3io")
         # katya
         path = target._target_path()
-        dataset = pq.ParquetDataset(path, filesystem=file_system,)
+        dataset = pq.ParquetDataset(path, filesystem=file_system, )
         partitions = [key for key, _ in dataset.pieces[0].partition_keys]
 
         if key_bucketing_number is None:
@@ -560,12 +560,12 @@ class TestFeatureStore(TestMLRunSystem):
             expected_partitions = [f"hash{key_bucketing_number}_key"]
         expected_partitions += partition_cols or []
         if all(
-            value is None
-            for value in [
-                key_bucketing_number,
-                partition_cols,
-                time_partitioning_granularity,
-            ]
+                value is None
+                for value in [
+                    key_bucketing_number,
+                    partition_cols,
+                    time_partitioning_granularity,
+                ]
         ):
             time_partitioning_granularity = "hour"
         if time_partitioning_granularity:
@@ -1371,8 +1371,8 @@ class TestFeatureStore(TestMLRunSystem):
         csv_df = pd.read_csv(csv_path)
         assert (
             df1.set_index(keys="name")
-            .sort_index()
-            .equals(csv_df.set_index(keys="name").sort_index())
+                .sort_index()
+                .equals(csv_df.set_index(keys="name").sort_index())
         )
 
         parquet_path = fset.get_target_path(name="parquet")
@@ -1390,8 +1390,8 @@ class TestFeatureStore(TestMLRunSystem):
         csv_df = pd.read_csv(csv_path)
         assert (
             df1.set_index(keys="name")
-            .sort_index()
-            .equals(csv_df.set_index(keys="name").sort_index())
+                .sort_index()
+                .equals(csv_df.set_index(keys="name").sort_index())
         )
 
         parquet_path = fset.get_target_path(name="parquet")
@@ -1421,8 +1421,8 @@ class TestFeatureStore(TestMLRunSystem):
 
         assert (
             df1.set_index(keys="name")
-            .sort_index()
-            .equals(off1.to_dataframe().sort_index())
+                .sort_index()
+                .equals(off1.to_dataframe().sort_index())
         )
         assert df1.set_index(keys="name").sort_index().equals(dfout1.sort_index())
 
@@ -1432,8 +1432,8 @@ class TestFeatureStore(TestMLRunSystem):
         dfout2 = pd.read_parquet(target._target_path)
         assert (
             df2.set_index(keys="name")
-            .sort_index()
-            .equals(off2.to_dataframe().sort_index())
+                .sort_index()
+                .equals(off2.to_dataframe().sort_index())
         )
         assert df2.set_index(keys="name").sort_index().equals(dfout2.sort_index())
 
@@ -1513,7 +1513,7 @@ class TestFeatureStore(TestMLRunSystem):
         key = "patient_id"
         fset = fs.FeatureSet("purge", entities=[Entity(key)], timestamp_key="timestamp")
         path = os.path.relpath(str(self.assets_path / "testdata.csv"))
-        source = CSVSource("mycsv", path=path, time_field="timestamp",)
+        source = CSVSource("mycsv", path=path, time_field="timestamp", )
         targets = [
             CSVTarget(),
             CSVTarget(name="specified-path", path="v3io:///bigdata/csv-purge-test.csv"),
@@ -1543,7 +1543,7 @@ class TestFeatureStore(TestMLRunSystem):
             if config.v3io_api:
                 api = config.v3io_api
                 if "//" in api:
-                    api = api[api.find("//") + 2 :]
+                    api = api[api.find("//") + 2:]
                 if ":" in api:
                     api = api[: api.find(":")]
             return api
@@ -1553,7 +1553,7 @@ class TestFeatureStore(TestMLRunSystem):
             name="nosqlpurge", entities=[Entity(key)], timestamp_key="timestamp"
         )
         path = os.path.relpath(str(self.assets_path / "testdata.csv"))
-        source = CSVSource("mycsv", path=path, time_field="timestamp",)
+        source = CSVSource("mycsv", path=path, time_field="timestamp", )
         targets = [
             NoSqlTarget(
                 name="nosql", path="v3io:///bigdata/system-test-project/nosql-purge"
@@ -1742,7 +1742,7 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_publish(self):
         name = "publish-test"
-        tag = "tag1"
+        tag = "123456"
         fset = fs.FeatureSet(name, entities=[fs.Entity("ticker")])
         published_fset = fset.publish(tag)
 
@@ -1759,7 +1759,8 @@ class TestFeatureStore(TestMLRunSystem):
             assert actual.metadata.name == fset.metadata.name
             assert actual.metadata.tag == tag
             assert actual.metadata.project == self.project_name
-            assert actual._is_published
+            assert actual.get_publish_time
+            assert actual._run_uuid is not None
 
 
 def verify_purge(fset, targets):
@@ -1797,7 +1798,7 @@ def verify_target_list_fail(targets, with_defaults=None):
 
 
 def verify_ingest(
-    base_data, keys, infer=False, targets=None, infer_options=fs.InferOptions.default()
+        base_data, keys, infer=False, targets=None, infer_options=fs.InferOptions.default()
 ):
     if isinstance(keys, str):
         keys = [keys]
@@ -1819,7 +1820,7 @@ def verify_ingest(
 
 
 def prepare_feature_set(
-    name: str, entity: str, data: pd.DataFrame, timestamp_key=None, targets=None
+        name: str, entity: str, data: pd.DataFrame, timestamp_key=None, targets=None
 ):
     df_source = mlrun.datastore.sources.DataFrameSource(data, entity, timestamp_key)
 

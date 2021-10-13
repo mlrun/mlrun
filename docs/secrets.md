@@ -113,7 +113,7 @@ In terms of exposure of secret values, this method is the same as for inline or 
 
 ### Kubernetes
 MLRun can use a Kubernetes (k8s) secret to store and retrieve secret values as required. This way
-of passing secrets is currently supported by the `job` and `serving` runtimes.  The k8s provider creates a
+of passing secrets is supported for all runtimes that generate k8s pods.  The k8s provider creates a
 k8s secret per project, and can store multiple secret keys within this secret. 
 
 #### Populating the kubernetes secret
@@ -143,7 +143,8 @@ When MLRun is executed in the Iguazio platform, the secret management APIs are p
 that only users with permissions to access and modify a specific project can alter its secrets.
 
 #### Accessing the secrets
-To provide access to these secrets to an executing job, call the following:
+By default, any runtime not executed locally will automatically gain access to all the secrets of the project it 
+belongs to. To provide access to a limited subset of these secrets to an executing job, call the following:
 
 ```python
 task.with_secrets('kubernetes', ['password', 'aws_key'])

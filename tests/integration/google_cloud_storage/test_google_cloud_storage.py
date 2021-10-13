@@ -79,5 +79,5 @@ class TestGoogleCloudStorage:
         os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
         with open(config["env"].get("credentials_json_file"), "r") as f:
             credentials = f.read()
-        os.environ["GCS_CREDENTIALS"] = credentials
+        os.environ["GCP_CREDENTIALS"] = credentials
         self._perform_google_cloud_storage_tests()

@@ -83,6 +83,7 @@ class AuthInfo(pydantic.BaseModel):
     # Iguazio auth
     session: typing.Optional[str] = None
     data_session: typing.Optional[str] = None
+    access_key: typing.Optional[str] = None
     user_id: typing.Optional[str] = None
     user_group_ids: typing.List[str] = []
     projects_role: typing.Optional[ProjectsRole] = None
@@ -99,3 +100,7 @@ class AuthInfo(pydantic.BaseModel):
         if self.user_group_ids:
             member_ids.extend(self.user_group_ids)
         return member_ids
+
+
+class Credentials(pydantic.BaseModel):
+    access_key: typing.Optional[str]

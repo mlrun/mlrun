@@ -13,7 +13,16 @@
 # limitations under the License.
 
 MLRUN_VERSION ?= unstable
-MLRUN_DOCKER_TAG ?= $(MLRUN_VERSION)
+# pip requires the python version to be according to some regex (so "unstable" is not valid for example) this regex only
+# allows us to have free text (like unstable) after the +. on the contrary in a docker tag + is not a valid character
+# so we're doing best effort - if the provided version doesn't look valid (like unstable), we prefix the version for the
+# python package with 0.0.0+
+# if the provided version includes a + we replace it with - for the docker tag
+MLRUN_DOCKER_TAG ?= $(shell echo "$(MLRUN_VERSION)" | sed 's/\+/\-/g')
+MLRUN_PYTHON_PACKAGE_VERSION ?= $(MLRUN_VERSION)
+ifeq ($(shell echo "$(MLRUN_VERSION)" | grep -E "^[0-9]+\.[0-9]+\.[0-9]+.*$$"),) # empty result from egrep
+	MLRUN_PYTHON_PACKAGE_VERSION := 0.0.0+$(MLRUN_VERSION)
+endif
 MLRUN_DOCKER_REPO ?= mlrun
 # empty by default (dockerhub), can be set to something like "quay.io/".
 # This will be used to tag the images built using this makefile
@@ -114,7 +123,7 @@ endif
 
 .PHONY: update-version-file
 update-version-file: ## Update the version file
-	python ./automation/version/version_file.py --mlrun-version $(MLRUN_VERSION)
+	python ./automation/version/version_file.py --mlrun-version $(MLRUN_PYTHON_PACKAGE_VERSION)
 
 .PHONY: build
 build: docker-images package-wheel ## Build all artifacts

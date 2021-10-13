@@ -47,3 +47,29 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
 
         self._logger.debug("Deploying nuclio function")
         function.deploy()
+
+    def test_serving_with_child_function(self):
+        code_path = str(self.assets_path / "nuclio_function.py")
+        child_code_path = str(self.assets_path / "child_function.py")
+
+        self._logger.debug("Creating nuclio function")
+        function = mlrun.code_to_function(
+            name="function-with-child",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+
+        graph = function.set_topology("flow", engine="async")
+
+        graph.to(
+            ">>",
+            "q1",
+            path="v3io:///bigdata/test_nuclio/test_serving_with_child_function/",
+        ).to(name="child", class_name="Identity", function="child")
+
+        function.add_child_function("child", child_code_path, "mlrun/mlrun")
+
+        self._logger.debug("Deploying nuclio function")
+        function.deploy()

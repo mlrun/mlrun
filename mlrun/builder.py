@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pathlib
 import tarfile
 import tempfile
 from base64 import b64decode, b64encode
@@ -37,6 +38,10 @@ def make_dockerfile(
     extra="",
 ):
     dock = f"FROM {base_image}\n"
+
+    if config.is_pip_ca_configured():
+        dock += f"COPY ./{pathlib.Path(config.httpdb.builder.pip_ca_path).name} {config.httpdb.builder.pip_ca_path}\n"
+        dock += f"ARG PIP_CERT={config.httpdb.builder.pip_ca_path}\n"
 
     build_args = config.get_build_args()
     for build_arg_key, build_arg_value in build_args.items():
@@ -97,6 +102,25 @@ def make_kaniko_pod(
     if secret_name:
         items = [{"key": ".dockerconfigjson", "path": "config.json"}]
         kpod.mount_secret(secret_name, "/kaniko/.docker", items=items)
+
+    if config.is_pip_ca_configured():
+        items = [
+            {
+                "key": config.httpdb.builder.pip_ca_secret_key,
+                "path": pathlib.Path(config.httpdb.builder.pip_ca_path).name,
+            }
+        ]
+        kpod.mount_secret(
+            config.httpdb.builder.pip_ca_secret_name,
+            str(
+                pathlib.Path(context)
+                / pathlib.Path(config.httpdb.builder.pip_ca_path).name
+            ),
+            items=items,
+            # using sub_path so file will be mounted inside kaniko pod as regular file and not symlink (if it's symlink
+            # it's then not working inside the job image itself)
+            sub_path=pathlib.Path(config.httpdb.builder.pip_ca_path).name,
+        )
 
     if dockertext or inline_code or requirements:
         kpod.mount_empty()

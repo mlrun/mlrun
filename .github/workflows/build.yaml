@@ -57,7 +57,7 @@ jobs:
     - name: Set computed versions params
       id: computed_params
       run: |
-        echo "::set-output name=mlrun_version::${{ steps.git_info.outputs.latest_version }}-${{ steps.git_info.outputs.mlrun_commit_hash }}"
+        echo "::set-output name=mlrun_version::${{ steps.git_info.outputs.latest_version }}+${{ steps.git_info.outputs.mlrun_commit_hash }}"
         echo "::set-output name=mlrun_docker_repo::$( \
           input_docker_repo=${{ github.event.inputs.docker_repo }} && \
           default_docker_repo=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]') && \

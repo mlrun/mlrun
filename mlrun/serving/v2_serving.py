@@ -405,7 +405,7 @@ def _init_endpoint_record(graph_server, model: V2ModelServer):
                 ),
                 active=True,
             ),
-            status=ModelEndpointStatus(endpoint_type=EndpointType.LEAF_EP),
+            status=ModelEndpointStatus(endpoint_type=EndpointType.NODE_EP),
         )
 
         db = mlrun.get_run_db()

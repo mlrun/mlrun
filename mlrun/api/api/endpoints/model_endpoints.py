@@ -8,10 +8,8 @@ from sqlalchemy.orm import Session
 import mlrun.api.api.deps
 import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
-from mlrun.api import schemas
 from mlrun.api.schemas import ModelEndpoint, ModelEndpointList
 from mlrun.errors import MLRunConflictError
-from mlrun.utils.model_monitoring import EndpointType
 
 router = APIRouter()
 
@@ -103,12 +101,16 @@ def list_endpoints(
     start: str = Query(default="now-1h"),
     end: str = Query(default="now"),
     metrics: List[str] = Query([], alias="metric"),
+    top_level: bool = Query(False, alias="top-level"),
+    list_ids: List[str] = Query(None, alias="list-ids"),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
 ) -> ModelEndpointList:
     """
-     Returns a list of endpoints of type 'ModelEndpoint', supports filtering by model, function, tag and labels.
+     Returns a list of endpoints of type 'ModelEndpoint', supports filtering by model, function, tag,
+     labels or top level.
+     If list_ids are passed: will return ModelEndpointList of endpoints with uid in list_ids
      Labels can be used to filter on the existence of a label:
      api/projects/{project}/model-endpoints/?label=mylabel
 
@@ -120,10 +122,13 @@ def list_endpoints(
 
      Or by using a "," (comma) separator:
      api/projects/{project}/model-endpoints/?label=mylabel=1,myotherlabel=2
+     Top level: if true will return only routers and endpoint that are NOT children of any router
      """
+
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
     )
+
     endpoints = mlrun.api.crud.ModelEndpoints().list_endpoints(
         auth_info=auth_info,
         project=project,
@@ -133,6 +138,8 @@ def list_endpoints(
         metrics=metrics,
         start=start,
         end=end,
+        top_level=top_level,
+        list_ids=list_ids,
     )
     allowed_endpoints = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
@@ -140,109 +147,9 @@ def list_endpoints(
         lambda _endpoint: (_endpoint.metadata.project, _endpoint.metadata.uid,),
         auth_info,
     )
+
     endpoints.endpoints = allowed_endpoints
     return endpoints
-
-
-@router.get("/projects/{project}/model-endpoints?top-level=true", response_model=ModelEndpointList)
-def list_endpoints_top_level(
-    project: str,
-    model: Optional[str] = Query(None),
-    function: Optional[str] = Query(None),
-    start: str = Query(default="now-1h"),
-    end: str = Query(default="now"),
-    metrics: List[str] = Query([], alias="metric"),
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(
-        mlrun.api.api.deps.authenticate_request
-    ),
-) -> ModelEndpointList:
-    """
-     Returns a list of all endpoints that are not routers and are not children of any router, plus all routers
-     (i.e. it excludes only the endpoints that are children of routers), supports filtering by model, function, tag and labels.
-     Labels can be used to filter on the existence of a label:
-     api/projects/{project}/model-endpoints/?label=mylabel
-
-     """
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-        project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
-    )
-    endpoints = mlrun.api.crud.ModelEndpoints().list_endpoints(
-        auth_info=auth_info,
-        project=project,
-        model=model,
-        function=function,
-        metrics=metrics,
-        start=start,
-        end=end,
-    )
-    allowed_endpoints = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
-        endpoints.endpoints,
-        lambda _endpoint: (_endpoint.metadata.project, _endpoint.metadata.uid,),
-        auth_info,
-    )
-
-    endpoints.endpoints = []
-
-    for endpoint in allowed_endpoints:
-        if endpoint.status.endpoint_type != EndpointType.NODE_EP:
-            endpoints.endpoints.append(endpoint)
-
-    return endpoints
-
-
-@router.get("/projects/{project}/model-endpoints?router={router-uid}", response_model=ModelEndpointList)
-def get_router_endpoints_children(
-    project: str,
-    endpoint_id: str,
-    model: Optional[str] = Query(None),
-    function: Optional[str] = Query(None),
-    start: str = Query(default="now-1h"),
-    end: str = Query(default="now"),
-    metrics: List[str] = Query([], alias="metric"),
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(
-        mlrun.api.api.deps.authenticate_request
-    ),
-) -> ModelEndpointList:
-    """
-     Returns a list of all endpoints that are not routers and are not children of any router, plus all routers
-     (i.e. it excludes only the endpoints that are children of routers), supports filtering by model, function, tag and labels.
-     Labels can be used to filter on the existence of a label:
-     api/projects/{project}/model-endpoints/?label=mylabel
-
-     """
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-        project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
-    )
-
-    router = mlrun.api.crud.ModelEndpoints().get_endpoint(
-        auth_info=auth_info,
-        project=project,
-        endpoint_id=endpoint_id,
-        metrics=metrics,
-        start=start,
-        end=end,
-    )
-
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
-        project,
-        endpoint_id,
-        mlrun.api.schemas.AuthorizationAction.read,
-        auth_info,
-    )
-
-    children_endpoints = schemas.ModelEndpointList(endpoints=[])
-
-    for child_id in router.status.children_uids:
-        child = get_endpoint(project=project,
-                             endpoint_id=child_id,
-                             start=start,
-                             end=end,
-                             auth_info=auth_info)
-        children_endpoints.endpoints.append(child)
-
-    return children_endpoints
 
 
 @router.get(

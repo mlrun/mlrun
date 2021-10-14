@@ -31,9 +31,9 @@ from ..api.schemas import (
     ModelEndpointStatus,
 )
 from ..config import config
+from ..utils.model_monitoring import EndpointType
 from .utils import _extract_input_data, _update_result_body
 from .v2_serving import _ModelLogPusher
-from ..utils.model_monitoring import EndpointType
 
 
 class BaseModelRouter:
@@ -698,7 +698,7 @@ def _init_endpoint_record(graph_server, voting_ensemble: VotingEnsemble):
 
         children_uids = []
         for _, c in voting_ensemble.routes.items():
-            if hasattr(c, 'endpoint_uid'):
+            if hasattr(c, "endpoint_uid"):
                 children_uids.append(c.endpoint_uid)
 
         model_endpoint = ModelEndpoint(
@@ -712,8 +712,11 @@ def _init_endpoint_record(graph_server, voting_ensemble: VotingEnsemble):
                 ),
                 active=True,
             ),
-            status=ModelEndpointStatus(children=list(voting_ensemble.routes.keys()), endpoint_type=EndpointType.ROUTER,
-                                       children_uids=children_uids),
+            status=ModelEndpointStatus(
+                children=list(voting_ensemble.routes.keys()),
+                endpoint_type=EndpointType.ROUTER,
+                children_uids=children_uids,
+            ),
         )
         endpoint_uid = model_endpoint.metadata.uid
 
@@ -727,8 +730,10 @@ def _init_endpoint_record(graph_server, voting_ensemble: VotingEnsemble):
 
         for model_endpoint in children_uids:
             # here to update that it is a node now
-            current_endpoint = db.get_model_endpoint(project=project, endpoint_id=model_endpoint)
-            current_endpoint.status.endpoint_type = EndpointType.NODE_EP
+            current_endpoint = db.get_model_endpoint(
+                project=project, endpoint_id=model_endpoint
+            )
+            current_endpoint.status.endpoint_type = EndpointType.LEAF_EP
 
             db.create_or_patch_model_endpoint(
                 project=project,

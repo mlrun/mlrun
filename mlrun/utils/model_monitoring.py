@@ -1,5 +1,6 @@
 import hashlib
 from dataclasses import dataclass
+from enum import IntEnum
 from typing import Optional
 
 import mlrun
@@ -109,10 +110,8 @@ def set_project_model_monitoring_credentials(
         secrets={"MODEL_MONITORING_ACCESS_KEY": access_key},
     )
 
-from enum import IntEnum
-
 
 class EndpointType(IntEnum):
-    NODE_EP = 1
-    ROUTER = 2
-    LEAF_EP = 3
+    NODE_EP = 1  # end point that is not a child of a router
+    ROUTER = 2  # endpoint that is router
+    LEAF_EP = 3  # end point that is a child of a router

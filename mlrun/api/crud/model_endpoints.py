@@ -36,6 +36,7 @@ from mlrun.runtimes import KubejobRuntime
 from mlrun.runtimes.function import deploy_nuclio_function, get_nuclio_deploy_status
 from mlrun.utils.helpers import logger
 from mlrun.utils.model_monitoring import (
+    EndpointType,
     parse_model_endpoint_project_prefix,
     parse_model_endpoint_store_prefix,
 )
@@ -178,6 +179,8 @@ class ModelEndpoints:
         metrics: Optional[List[str]] = None,
         start: str = "now-1h",
         end: str = "now",
+        top_level: Optional[bool] = False,
+        list_ids: Optional[List[str]] = None,
     ) -> ModelEndpointList:
         """
         Returns a list of ModelEndpointState objects. Each object represents the current state of a model endpoint.
@@ -185,6 +188,8 @@ class ModelEndpoints:
         1) model
         2) function
         3) labels
+        4) top level
+        5) list ids
         By default, when no filters are applied, all available endpoints for the given project will be listed.
 
         In addition, this functions provides a facade for listing endpoint related metrics. This facade is time-based
@@ -200,6 +205,8 @@ class ModelEndpoints:
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
         :param start: The start time of the metrics
         :param end: The end time of the metrics
+        :param top_level: if True will return only routers and endpoint that are NOT children of any router
+        :param list_ids: will return ModelEndpointList of endpoints with uid in list_ids
         """
 
         logger.info(
@@ -211,6 +218,8 @@ class ModelEndpoints:
             metrics=metrics,
             start=start,
             end=end,
+            top_level=top_level,
+            list_ids=list_ids,
         )
 
         client = get_v3io_client(endpoint=config.v3io_api)
@@ -225,7 +234,7 @@ class ModelEndpoints:
             table_path=path,
             access_key=auth_info.data_session,
             filter_expression=self.build_kv_cursor_filter_expression(
-                project, function, model, labels
+                project, function, model, labels, top_level,
             ),
             attribute_names=["endpoint_id"],
             raise_for_status=RaiseForStatus.never,
@@ -237,8 +246,12 @@ class ModelEndpoints:
         except Exception:
             return endpoint_list
 
-        for item in items:
-            endpoint_id = item["endpoint_id"]
+        if list_ids is not None:
+            list_endpoints_to_get = list_ids
+        else:
+            list_endpoints_to_get = [item["endpoint_id"] for item in items]
+
+        for endpoint_id in list_endpoints_to_get:
             endpoint = self.get_endpoint(
                 auth_info=auth_info,
                 project=project,
@@ -697,6 +710,7 @@ class ModelEndpoints:
         function: Optional[str] = None,
         model: Optional[str] = None,
         labels: Optional[List[str]] = None,
+        top_level: Optional[bool] = False,
     ):
         if not project:
             raise MLRunInvalidArgumentError("project can't be empty")
@@ -718,6 +732,11 @@ class ModelEndpoints:
                     filter_expression.append(f"{lbl}=='{value}'")
                 else:
                     filter_expression.append(f"exists({label})")
+        if top_level:
+            filter_expression.append(
+                f"(endpoint_type=='{str(EndpointType.NODE_EP.value)}' "
+                f"OR  endpoint_type=='{str(EndpointType.ROUTER.value)}')"
+            )
 
         return " AND ".join(filter_expression)
 

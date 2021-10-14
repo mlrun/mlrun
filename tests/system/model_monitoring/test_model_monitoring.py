@@ -18,6 +18,7 @@ from mlrun.api.schemas import (
     ModelEndpointStatus,
 )
 from mlrun.errors import MLRunNotFoundError
+from mlrun.utils.model_monitoring import EndpointType
 from tests.system.base import TestMLRunSystem
 
 
@@ -247,7 +248,6 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             "router", "mlrun.serving.VotingEnsemble", name="VotingEnsemble"
         )
         serving_fn.set_tracking()
-        serving_fn.spec.image = "mlrun/mlrun:debug_997"
 
         model_names = [
             "sklearn_RandomForestClassifier",
@@ -285,14 +285,25 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             )
             sleep(uniform(0.2, 1.7))
 
-        jjj = mlrun.get_run_db().list_top_level_endpoints(self.project_name)
+        # checking top level methods
+        top_level_endpoints = mlrun.get_run_db().list_model_endpoints(
+            self.project_name, top_level=True
+        )
 
-        router_id = jjj.endpoints[0].metadata.uid
+        assert len(top_level_endpoints.endpoints) == 1
+        assert (
+            top_level_endpoints.endpoints[0].status.endpoint_type == EndpointType.ROUTER
+        )
 
-        vvv = mlrun.get_run_db().get_router_children(self.project_name, router_id)
+        children_list = top_level_endpoints.endpoints[0].status.children_uids
+        assert len(children_list) == len(model_names)
 
-        print("blabla")
-
+        endpoints_children_list = mlrun.get_run_db().list_model_endpoints(
+            self.project_name, list_ids=children_list
+        )
+        assert len(endpoints_children_list.endpoints) == len(model_names)
+        for child in endpoints_children_list.endpoints:
+            assert child.status.endpoint_type == EndpointType.LEAF_EP
 
     @staticmethod
     def _get_auth_info() -> mlrun.api.schemas.AuthInfo:

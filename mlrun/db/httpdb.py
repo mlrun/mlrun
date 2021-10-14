@@ -2379,7 +2379,7 @@ class HTTPRunDB(RunDBInterface):
                 "V3IO_ACCESS_KEY environment parameter"
             )
 
-        path = f"projects/{project}/model-endpoints"
+        path = f"projects/{project}/model-endpoints?top-level=true"
         response = self.api_call(
             method="GET",
             path=path,
@@ -2394,15 +2394,17 @@ class HTTPRunDB(RunDBInterface):
             headers={"X-V3io-Access-Key": access_key},
         )
 
-        all_endpoints = schemas.ModelEndpointList(**response.json())
+        return schemas.ModelEndpointList(**response.json())
 
-        top_level_endpoints = schemas.ModelEndpointList(endpoints=[])
+#        all_endpoints = schemas.ModelEndpointList(**response.json())
 
-        for endpoint in all_endpoints.endpoints:
-            if endpoint.status.endpoint_type != EndpointType.NODE_EP:
-                top_level_endpoints.endpoints.append(endpoint)
+#        top_level_endpoints = schemas.ModelEndpointList(endpoints=[])
 
-        return top_level_endpoints
+#        for endpoint in all_endpoints.endpoints:
+#            if endpoint.status.endpoint_type != EndpointType.NODE_EP:
+#                top_level_endpoints.endpoints.append(endpoint)
+
+#        return top_level_endpoints
 
     def get_model_endpoint(
         self,
@@ -2476,7 +2478,7 @@ class HTTPRunDB(RunDBInterface):
                 "V3IO_ACCESS_KEY environment parameter"
             )
 
-        path = f"projects/{project}/model-endpoints/{endpoint_id}"
+        path = f"projects/{project}/model-endpoints?router={endpoint_id}"
         response = self.api_call(
             method="GET",
             path=path,
@@ -2489,15 +2491,17 @@ class HTTPRunDB(RunDBInterface):
             headers={"X-V3io-Access-Key": access_key},
         )
 
-        router = schemas.ModelEndpoint(**response.json())
+        return schemas.ModelEndpointList(**response.json())
 
-        children_endpoints = schemas.ModelEndpointList(endpoints=[])
+#        router = schemas.ModelEndpoint(**response.json())
 
-        for child_id in router.status.children_uids:
-            child = self.get_model_endpoint(project, child_id, start, end, metrics, feature_analysis, access_key)
-            children_endpoints.endpoints.append(child)
+#        children_endpoints = schemas.ModelEndpointList(endpoints=[])
 
-        return children_endpoints
+#        for child_id in router.status.children_uids:
+#            child = self.get_model_endpoint(project, child_id, start, end, metrics, feature_analysis, access_key)
+#            children_endpoints.endpoints.append(child)
+
+#        return children_endpoints
 
     def create_marketplace_source(
         self, source: Union[dict, schemas.IndexedMarketplaceSource]

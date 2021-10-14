@@ -75,8 +75,15 @@ The following sections list the credentials and configuration parameters applica
 
 #### v3io
 When running in an Iguazio system, MLRun will automatically configure executed functions to use `v3io` storage, and will
-pass the needed access-key for authentication. Refer to the [auto-mount](Function_storage_auto_mount)
-section for more details.
+pass the needed parameters (such as access-key) for authentication. Refer to the 
+[auto-mount](Function_storage_auto_mount) section for more details on this process.
+
+In some cases, v3io configuration needs to be overridden. The following parameters may be configured:
+
+* `V3IO_API` - URL pointing to the v3io web-API service.
+* `V3IO_ACCESS_KEY` - access key used to authenticate with the web API.
+* `V3IO_USERNAME` - the user-name authenticating with v3io. While not strictly required when using an access-key to 
+authenticate, it is used in several use-cases, such as resolving paths to home-directory.
 
 #### S3
 * `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` - [access key](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html)

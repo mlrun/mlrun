@@ -1,10 +1,14 @@
+import os
+
+import v3io
+from v3io.dataplane import RaiseForStatus
+
 import mlrun
 import tests.system.base
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
-
     project_name = "does-not-exist-3"
 
     @staticmethod
@@ -63,13 +67,32 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
 
         graph = function.set_topology("flow", engine="async")
 
-        graph.to(
-            ">>",
-            "q1",
-            path="v3io:///bigdata/test_nuclio/test_serving_with_child_function/",
-        ).to(name="child", class_name="Identity", function="child")
+        stream_container = "bigdata"
+        stream_path = "/test_nuclio/test_serving_with_child_function/"
+
+        graph.to(">>", "q1", path=f"v3io:///{stream_container}{stream_path}").to(
+            name="child", class_name="Identity", function="child"
+        )
 
         function.add_child_function("child", child_code_path, "mlrun/mlrun")
 
-        self._logger.debug("Deploying nuclio function")
-        function.deploy()
+        v3io_client = v3io.dataplane.Client(
+            endpoint=os.environ["V3IO_API"], access_key=os.environ["V3IO_ACCESS_KEY"]
+        )
+
+        # we have to delete first, in case that the directory already exists but is not a stream
+        # (won't help if the directory has subdirectories)
+        v3io_client.delete_stream(
+            stream_container, stream_path, raise_for_status=RaiseForStatus.never
+        )
+        v3io_client.create_stream(
+            stream_container, stream_path, 1, raise_for_status=[204]
+        )
+
+        try:
+            self._logger.debug("Deploying nuclio function")
+            function.deploy()
+        finally:
+            v3io_client.delete_stream(
+                stream_container, stream_path, raise_for_status=RaiseForStatus.never
+            )

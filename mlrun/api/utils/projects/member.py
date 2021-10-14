@@ -54,7 +54,7 @@ class Member(abc.ABC):
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
+    ) -> typing.Tuple[typing.Optional[mlrun.api.schemas.Project], bool]:
         pass
 
     @abc.abstractmethod
@@ -66,7 +66,7 @@ class Member(abc.ABC):
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
+    ) -> typing.Tuple[typing.Optional[mlrun.api.schemas.Project], bool]:
         pass
 
     @abc.abstractmethod

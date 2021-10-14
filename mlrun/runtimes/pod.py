@@ -474,7 +474,9 @@ class KubeResource(BaseRuntime):
         volume_mounts = [{"name": "azure-vault-secret", "mountPath": secret_path}]
         self.spec.update_vols_and_mounts(volumes, volume_mounts)
 
-    def _add_project_k8s_secrets_to_spec(self, secrets, runobj=None, project=None):
+    def _add_project_k8s_secrets_to_spec(
+        self, secrets, runobj=None, project=None, encode_key_names=True
+    ):
         # the secrets param may be an empty dictionary (asking for all secrets of that project) -
         # it's a different case than None (not asking for project secrets at all).
         if (
@@ -490,13 +492,15 @@ class KubeResource(BaseRuntime):
 
         secret_name = self._get_k8s().get_project_secret_name(project_name)
         existing_secret_keys = (
-            self._get_k8s().get_project_secret_keys(project_name) or {}
+            self._get_k8s().get_project_secret_keys(project_name) or []
         )
 
         # If no secrets were passed or auto-adding all secrets, we need all existing keys
         if not secrets:
             secrets = {
                 key: SecretsStore.k8s_env_variable_name_for_secret(key)
+                if encode_key_names
+                else key
                 for key in existing_secret_keys
             }
 

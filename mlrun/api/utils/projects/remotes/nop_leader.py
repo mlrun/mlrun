@@ -19,21 +19,21 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
         session: str,
         project: mlrun.api.schemas.Project,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
+    ) -> bool:
         self._update_state(project)
-        return mlrun.api.utils.singletons.project_member.get_project_member().create_project(
+        (
+            _,
+            is_running_in_background,
+        ) = mlrun.api.utils.singletons.project_member.get_project_member().create_project(
             self.db_session, project, self._project_role
         )
+        return is_running_in_background
 
-    def store_project(
-        self,
-        session: str,
-        name: str,
-        project: mlrun.api.schemas.Project,
-        wait_for_completion: bool = True,
-    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
+    def update_project(
+        self, session: str, name: str, project: mlrun.api.schemas.Project,
+    ):
         self._update_state(project)
-        return mlrun.api.utils.singletons.project_member.get_project_member().store_project(
+        mlrun.api.utils.singletons.project_member.get_project_member().store_project(
             self.db_session, name, project, self._project_role
         )
 

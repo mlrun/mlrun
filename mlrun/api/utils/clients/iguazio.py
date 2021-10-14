@@ -41,6 +41,18 @@ class JobStates:
         ]
 
 
+class SessionPlanes:
+    data = "data"
+    control = "control"
+
+    @staticmethod
+    def all():
+        return [
+            SessionPlanes.data,
+            SessionPlanes.control,
+        ]
+
+
 class Client(
     mlrun.api.utils.projects.remotes.leader.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
@@ -113,33 +125,47 @@ class Client(
         )
         return self._generate_auth_info_from_session_verification_response(response)
 
+    def get_or_create_access_key(
+        self, session: str, planes: typing.List[str] = None
+    ) -> str:
+        if planes is None:
+            planes = [
+                SessionPlanes.data,
+                SessionPlanes.control,
+            ]
+        body = {
+            "data": {
+                "type": "access_key",
+                "attributes": {"label": "MLRun", "planes": planes},
+            }
+        }
+        response = self._send_request_to_api(
+            "POST",
+            "self/get_or_create_access_key",
+            "Failed getting or creating iguazio access key",
+            session,
+            json=body,
+        )
+        if response.status_code == http.HTTPStatus.CREATED.value:
+            logger.debug("Created access key in Iguazio", planes=planes)
+        return response.json()["data"]["id"]
+
     def create_project(
         self,
         session: str,
         project: mlrun.api.schemas.Project,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
+    ) -> bool:
         logger.debug("Creating project in Iguazio", project=project)
         body = self._transform_mlrun_project_to_iguazio_project(project)
         return self._create_project_in_iguazio(session, body, wait_for_completion)
 
-    def store_project(
-        self,
-        session: str,
-        name: str,
-        project: mlrun.api.schemas.Project,
-        wait_for_completion: bool = True,
-    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
-        logger.debug("Storing project in Iguazio", name=name, project=project)
+    def update_project(
+        self, session: str, name: str, project: mlrun.api.schemas.Project,
+    ):
+        logger.debug("Updating project in Iguazio", name=name, project=project)
         body = self._transform_mlrun_project_to_iguazio_project(project)
-        try:
-            self._get_project_from_iguazio(session, name)
-        except requests.HTTPError as exc:
-            if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
-                raise
-            return self._create_project_in_iguazio(session, body, wait_for_completion)
-        else:
-            return self._put_project_to_iguazio(session, name, body), False
+        self._put_project_to_iguazio(session, name, body)
 
     def delete_project(
         self,
@@ -251,17 +277,14 @@ class Client(
 
     def _create_project_in_iguazio(
         self, session: str, body: dict, wait_for_completion: bool
-    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
-        project, job_id = self._post_project_to_iguazio(session, body)
+    ) -> bool:
+        _, job_id = self._post_project_to_iguazio(session, body)
         if wait_for_completion:
             self._wait_for_job_completion(
                 session, job_id, "Project creation job failed"
             )
-            return (
-                self._get_project_from_iguazio(session, project.metadata.name),
-                False,
-            )
-        return project, True
+            return False
+        return True
 
     def _post_project_to_iguazio(
         self, session: str, body: dict
@@ -405,7 +428,7 @@ class Client(
             user_id=response.headers.get("x-user-id"),
             user_group_ids=gids or [],
         )
-        if "data" in planes:
+        if SessionPlanes.data in planes:
             auth_info.data_session = auth_info.session
         return auth_info
 

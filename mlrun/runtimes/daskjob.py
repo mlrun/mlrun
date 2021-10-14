@@ -200,6 +200,8 @@ class DaskCluster(KubejobRuntime):
 
     def _start(self, watch=True):
         if self._is_remote_api():
+            self.try_auto_mount_based_on_config()
+            self.fill_credentials()
             db = self._get_db()
             if not self.is_deployed:
                 raise RunError(

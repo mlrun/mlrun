@@ -2,7 +2,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Extra, Field
 
-from .auth import AuthorizationResourceTypes
+from .auth import AuthorizationResourceTypes, Credentials
 from .object import (
     LabelRecord,
     ObjectKind,
@@ -154,6 +154,7 @@ class FeatureSetIngestInput(BaseModel):
     source: Optional[DataSource]
     targets: Optional[List[DataTarget]]
     infer_options: Optional[int]
+    credentials: Credentials = Credentials()
 
 
 class FeatureSetIngestOutput(BaseModel):

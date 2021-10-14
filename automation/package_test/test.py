@@ -17,6 +17,7 @@ class PackageTester:
         s3_import = "import mlrun.datastore.s3"
         azure_blob_storage_import = "import mlrun.datastore.azure_blob"
         azure_key_vault_import = "import mlrun.utils.azure_vault"
+        google_cloud_storage_import = "import mlrun.datastore.google_cloud_storage"
 
         self._extras_tests_data = {
             "": {"import_test_command": f"{basic_import}"},
@@ -36,9 +37,12 @@ class PackageTester:
             "[azure-key-vault]": {
                 "import_test_command": f"{basic_import}; {azure_key_vault_import}"
             },
+            "[google-cloud-storage]": {
+                "import_test_command": f"{basic_import}; {google_cloud_storage_import}"
+            },
             "[complete]": {
                 "import_test_command": f"{basic_import}; {s3_import}; {azure_blob_storage_import}; "
-                + f"{azure_key_vault_import}",
+                + f"{azure_key_vault_import}; {google_cloud_storage_import}",
             },
         }
 

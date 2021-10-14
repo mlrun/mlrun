@@ -36,11 +36,14 @@ class LocalFeatureMerger:
         drop_columns=None,
         start_time=None,
         end_time=None,
+        with_indexes=None,
     ):
         if not drop_columns:
             drop_columns = []
         index_columns = []
-        drop_indexes = False if self.vector.spec.with_indexes else True
+        drop_indexes = (
+            False if (self.vector.spec.with_indexes or with_indexes) else True
+        )
 
         def append_drop_column(key):
             if key and key not in drop_columns:

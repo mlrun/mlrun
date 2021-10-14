@@ -5,7 +5,7 @@ from bokeh.plotting import figure
 
 import mlrun
 from mlrun.artifacts import Artifact, BokehArtifact
-from mlrun.frameworks._common.loggers.logger import Logger
+from mlrun.frameworks._common.loggers.logger import Logger, LoggerMode
 from mlrun.frameworks._common.model_handler import ModelHandler
 
 # All trackable values types:
@@ -46,16 +46,10 @@ class MLRunLogger(Logger):
         """
         super(MLRunLogger, self).__init__(context=context)
 
-        # Store the context:
-        self._log_model_labels = (
-            log_model_labels if log_model_labels is not None else {}
-        )
-        self._log_model_parameters = (
-            log_model_parameters if log_model_parameters is not None else {}
-        )
-        self._log_model_extra_data = (
-            log_model_extra_data if log_model_extra_data is not None else {}
-        )
+        # Store the attributes to log along the model:
+        self._log_model_labels = log_model_labels
+        self._log_model_parameters = log_model_parameters
+        self._log_model_extra_data = log_model_extra_data
 
         # Prepare the artifacts collection:
         self._artifacts = {}  # type: Dict[str, Artifact]
@@ -86,18 +80,31 @@ class MLRunLogger(Logger):
         # Log the collected hyperparameters and values as results to the epoch's child context:
         for static_parameter, value in self._static_hyperparameters.items():
             self._context.log_result(static_parameter, value)
-        for dynamic_parameter, values in self._dynamic_hyperparameters.items():
-            self._context.log_result(dynamic_parameter, values[-1])
-        for metric, results in self._training_summaries.items():
-            self._context.log_result("training_{}".format(metric), results[-1])
+        if self._mode == LoggerMode.TRAINING:
+            for dynamic_parameter, values in self._dynamic_hyperparameters.items():
+                self._context.log_result(dynamic_parameter, values[-1])
+            for metric, results in self._training_summaries.items():
+                self._context.log_result("training_{}".format(metric), results[-1])
         for metric, results in self._validation_summaries.items():
-            self._context.log_result("validation_{}".format(metric), results[-1])
+            self._context.log_result(
+                "evaluation_{}".format(metric)
+                if self._mode == LoggerMode.EVALUATION
+                else "validation_{}".format(metric),
+                results[-1],
+            )
 
         # Log the epochs metrics results as chart artifacts:
-        for loop, metrics_dictionary in zip(
-            ["training", "validation"],
-            [self._training_results, self._validation_results],
-        ):
+        loops = (
+            ["evaluation"]
+            if self._mode == LoggerMode.EVALUATION
+            else ["training", "validation"]
+        )
+        metrics_dictionaries = (
+            [self._validation_results]
+            if self._mode == LoggerMode.EVALUATION
+            else [self._training_results, self._validation_results]
+        )
+        for loop, metrics_dictionary in zip(loops, metrics_dictionaries,):
             for metric_name in metrics_dictionary:
                 # Create the bokeh artifact:
                 artifact = self._generate_metric_results_artifact(
@@ -120,55 +127,68 @@ class MLRunLogger(Logger):
 
     def log_run(self, model_handler: ModelHandler):
         """
-        Log the run, summarizing the validation metrics and dynamic hyperparameters across all epochs and saving the
-        model. The run log information will be the following:
+        Log the run, summarizing the validation metrics and dynamic hyperparameters across all epochs. If 'update' is
+        False, the collected logs will be updated to the model inside the given handler, otherwise the model will be
+        saved and logged as a new artifact. The run log information will be the following:
 
         * Plot artifacts:
 
           * A chart for each of the metrics epochs results summaries across all the run (training and validation).
           * A chart for each of the dynamic hyperparameters epochs values across all the run.
 
-        * Model artifact: The model will be saved and logged with all the collected artifacts of this logger.
+        * Model artifact (only in training mode): The model will be saved and logged with all the collected artifacts
+                                                  of this logger.
 
         :param model_handler: The model handler object holding the model to save and log.
         """
-        # Create chart artifacts for summaries:
-        for metric_name in self._training_summaries:
-            # Create the bokeh artifact:
-            artifact = self._generate_summary_results_artifact(
-                name=metric_name,
-                training_results=self._training_summaries[metric_name],
-                validation_results=self._validation_summaries.get(metric_name, None),
-            )
-            # Log the artifact:
-            self._context.log_artifact(
-                artifact, local_path=artifact.key,
-            )
-            # Collect it for later adding it to the model logging as extra data:
-            self._artifacts[artifact.key.split(".")[0]] = artifact
+        # If in training mode, log the summaries and hyperparameters:
+        if self._mode == LoggerMode.TRAINING:
+            # Create chart artifacts for summaries:
+            for metric_name in self._training_summaries:
+                # Create the bokeh artifact:
+                artifact = self._generate_summary_results_artifact(
+                    name=metric_name,
+                    training_results=self._training_summaries[metric_name],
+                    validation_results=self._validation_summaries.get(
+                        metric_name, None
+                    ),
+                )
+                # Log the artifact:
+                self._context.log_artifact(
+                    artifact, local_path=artifact.key,
+                )
+                # Collect it for later adding it to the model logging as extra data:
+                self._artifacts[artifact.key.split(".")[0]] = artifact
+            # Create chart artifacts for dynamic hyperparameters:
+            for parameter_name in self._dynamic_hyperparameters:
+                # Create the chart artifact:
+                artifact = self._generate_dynamic_hyperparameter_values_artifact(
+                    name=parameter_name,
+                    values=self._dynamic_hyperparameters[parameter_name],
+                )
+                # Log the artifact:
+                self._context.log_artifact(
+                    artifact, local_path=artifact.key,
+                )
+                # Collect it for later adding it to the model logging as extra data:
+                self._artifacts[artifact.key.split(".")[0]] = artifact
 
-        # Create chart artifacts for dynamic hyperparameters:
-        for parameter_name in self._dynamic_hyperparameters:
-            # Create the chart artifact:
-            artifact = self._generate_dynamic_hyperparameter_values_artifact(
-                name=parameter_name,
-                values=self._dynamic_hyperparameters[parameter_name],
-            )
-            # Log the artifact:
-            self._context.log_artifact(
-                artifact, local_path=artifact.key,
-            )
-            # Collect it for later adding it to the model logging as extra data:
-            self._artifacts[artifact.key.split(".")[0]] = artifact
-
-        # Log the model:
+        # Log or update:
         model_handler.set_context(context=self._context)
-        model_handler.log(
-            labels=self._log_model_labels,
-            parameters=self._log_model_parameters,
-            extra_data=self._log_model_extra_data,
-            artifacts=self._artifacts,
-        )
+        if self._mode == LoggerMode.EVALUATION:
+            model_handler.update(
+                labels=self._log_model_labels,
+                parameters=self._log_model_parameters,
+                extra_data=self._log_model_extra_data,
+                artifacts=self._artifacts,
+            )
+        else:
+            model_handler.log(
+                labels=self._log_model_labels,
+                parameters=self._log_model_parameters,
+                extra_data=self._log_model_extra_data,
+                artifacts=self._artifacts,
+            )
 
         # Commit:
         self._context.commit()

@@ -1,5 +1,6 @@
 import os
 
+import pytest
 import v3io
 from v3io.dataplane import RaiseForStatus
 
@@ -52,6 +53,8 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         self._logger.debug("Deploying nuclio function")
         function.deploy()
 
+    @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
+    @pytest.mark.enterprise
     def test_serving_with_child_function(self):
         code_path = str(self.assets_path / "nuclio_function.py")
         child_code_path = str(self.assets_path / "child_function.py")

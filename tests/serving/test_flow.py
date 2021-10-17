@@ -1,7 +1,7 @@
 import pytest
 
 import mlrun
-from mlrun.serving import GraphContext
+from mlrun.serving import GraphContext, V2ModelServer
 from mlrun.utils import logger
 
 from .demo_states import *  # noqa
@@ -32,6 +32,16 @@ class Mul(storey.MapClass):
 
     def do(self, event):
         return event * 2
+
+
+class ModelTestingClass(V2ModelServer):
+    def load(self):
+        print("loading")
+
+    def predict(self, request):
+        print("predict:", request)
+        resp = request["inputs"]
+        return resp
 
 
 def test_basic_flow():
@@ -189,6 +199,30 @@ def test_add_model():
     print(graph.to_yaml())
 
     assert "m1" in graph["r2"].routes, "model was not added to proper router"
+
+
+def test_multi_function():
+    # model is added to the specified router (by name)
+    fn = mlrun.new_function("tests", kind="serving")
+    graph = fn.set_topology("flow", engine="sync")
+    graph.to("Echo", "e1").to("$queue", "q1", path="").to("*", "r1", function="f2").to(
+        "Echo", "e2", function="f2"
+    )
+    fn.add_model("m1", class_name="ModelTestingClass", model_path=".")
+
+    # start from root function
+    server = fn.to_mock_server()
+    resp = server.test("/v2/models/m1/infer", body={"inputs": [5]})
+    server.wait_for_completion()
+    print(resp)
+    assert resp["outputs"] == [5], "wrong output"
+
+    # start from 2nd function
+    server = fn.to_mock_server(current_function="f2")
+    resp = server.test(body={"inputs": [5]})
+    server.wait_for_completion()
+    print(resp)
+    assert resp["outputs"] == [5], "wrong output"
 
 
 path_control_tests = {"handler": (myfunc2, None), "class": (None, "Mul")}

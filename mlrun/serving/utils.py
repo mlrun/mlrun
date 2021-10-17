@@ -1,5 +1,8 @@
 from mlrun.utils import get_in, update_in
 
+event_id_key = "MLRUN_EVENT_ID"
+event_path_key = "MLRUN_EVENT_PATH"
+
 
 def _extract_input_data(input_path, body):
     if input_path:

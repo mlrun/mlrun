@@ -118,7 +118,8 @@ class V2ModelServer:
             logger.warn("GraphServer not initialized for VotingEnsemble instance")
             return
 
-        _init_endpoint_record(server, self)
+        if not self.context.is_mock or self.context.server.track_models:
+            _init_endpoint_record(server, self)
 
     def get_param(self, key: str, default=None):
         """get param by key (specified in the model or the function)"""
@@ -196,6 +197,10 @@ class V2ModelServer:
         """main model event handler method"""
         start = now_date()
         op = event.path.strip("/")
+        if not op and event.body and isinstance(event.body, dict):
+            op = event.body.get("operation")
+        if not op and event.method != "GET":
+            op = "infer"
 
         if op == "predict" or op == "infer":
             # predict operation

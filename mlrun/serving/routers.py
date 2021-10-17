@@ -333,7 +333,8 @@ class VotingEnsemble(BaseModelRouter):
             logger.warn("GraphServer not initialized for VotingEnsemble instance")
             return
 
-        _init_endpoint_record(server, self)
+        if not self.context.is_mock or self.context.server.track_models:
+            _init_endpoint_record(server, self)
 
     def _resolve_route(self, body, urlpath):
         """Resolves the appropriate model to send the event to.

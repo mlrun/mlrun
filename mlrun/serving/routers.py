@@ -43,9 +43,9 @@ class BaseModelRouter(RouterToDict):
         context=None,
         name: str = None,
         routes=None,
-        protocol=None,
-        url_prefix=None,
-        health_prefix=None,
+        protocol: str = None,
+        url_prefix: str = None,
+        health_prefix: str = None,
         input_path: str = None,
         result_path: str = None,
         **kwargs,
@@ -217,9 +217,9 @@ class VotingEnsemble(BaseModelRouter):
         context=None,
         name: str = None,
         routes=None,
-        protocol=None,
-        url_prefix=None,
-        health_prefix=None,
+        protocol: str = None,
+        url_prefix: str = None,
+        health_prefix: str = None,
         vote_type=None,
         executor_type=None,
         prediction_col_name=None,
@@ -724,17 +724,30 @@ def _init_endpoint_record(graph_server, voting_ensemble: VotingEnsemble):
         )
 
 
+extra_doc = """
+        feature_vector_uri : str, optional
+            feature vector uri in the form: [project/]name[:tag]
+        impute_policy : dict, optional
+            value imputing (substitute NaN/Inf values with statistical or constant value), you can set 
+            the impute_policy parameter with the imputing policy, and specify which constant or statistical value 
+            will be used instead of NaN/Inf value, this can be defined per column or for all the columns ("*"). 
+            the replaced value can be fixed number for constants or $mean, $max, $min, $std, $count for statistical 
+            values. “*” is used to specify the default for all features, example: 
+            impute_policy={"*": "$mean", "age": 33}
+"""  # noqa
+
+
 class EnrichmentModelRouter(ModelRouter):
-    """model router with feature enrichment and imputing"""
+    """model router with feature enrichment and imputing""" + extra_doc
 
     def __init__(
         self,
-        context,
-        name,
+        context=None,
+        name: str = None,
         routes=None,
-        protocol=None,
-        url_prefix=None,
-        health_prefix=None,
+        protocol: str = None,
+        url_prefix: str = None,
+        health_prefix: str = None,
         feature_vector_uri: str = "",
         impute_policy: dict = {},
         **kwargs,
@@ -765,17 +778,18 @@ class EnrichmentModelRouter(ModelRouter):
 
 
 class EnrichmentVotingEnsemble(VotingEnsemble):
-    """model ensemble with feature enrichment and imputing"""
+
+    __doc__ = VotingEnsemble.__doc__ + extra_doc
 
     def __init__(
         self,
-        context,
-        name,
+        context=None,
+        name: str = None,
         routes=None,
         protocol=None,
-        url_prefix=None,
-        health_prefix=None,
-        vote_type=None,
+        url_prefix: str = None,
+        health_prefix: str = None,
+        vote_type: str = None,
         executor_type=None,
         prediction_col_name=None,
         feature_vector_uri: str = "",

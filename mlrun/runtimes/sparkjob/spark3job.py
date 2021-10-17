@@ -160,15 +160,7 @@ class Spark3Runtime(AbstractSparkRuntime):
                 job, "spec.executor.nodeSelector", self.spec.executor_node_selector
             )
         if self.spec.monitoring:
-            if self.spec.monitoring["enabled"]:
-                if self.spec.monitoring["configmap"]:
-                    self.apply(
-                        mount_cfgmap(
-                            cfgmap_name=self.spec.monitoring["configmap"],
-                            mount_path="/etc/metrics/conf/",
-                            volume_name="monitoring",
-                        )
-                    )
+            if "enabled" in self.spec.monitoring and self.spec.monitoring["enabled"]:
                 update_in(job, "spec.monitoring.exposeDriverMetrics", True)
                 update_in(job, "spec.monitoring.exposeExecutorMetrics", True)
                 if "exporter_jar" in self.spec.monitoring:
@@ -273,7 +265,10 @@ class Spark3Runtime(AbstractSparkRuntime):
         if initial_executors:
             self.spec.dynamic_allocation["initialExecutors"] = initial_executors
 
-    def with_monitoring(self, enabled=True, configmap=None, exporter_jar=None):
+    def disable_monitoring(self):
+        self.spec.monitoring["enabled"] = False
+
+    def _with_monitoring(self, enabled=True, configmap=None, exporter_jar=None):
         if enabled:
             if not configmap:
                 raise mlrun.errors.MLRunInvalidArgumentError(
@@ -282,13 +277,20 @@ class Spark3Runtime(AbstractSparkRuntime):
         self.spec.monitoring["enabled"] = enabled
         if enabled:
             if configmap:
-                self.spec.monitoring["configmap"] = configmap
+                self.apply(
+                    mount_cfgmap(
+                        cfgmap_name=configmap,
+                        mount_path="/etc/metrics/conf/",
+                        volume_name="monitoring",
+                    )
+                )
             if exporter_jar:
                 self.spec.monitoring["exporter_jar"] = exporter_jar
 
     def with_igz_spark(self):
         super().with_igz_spark()
-        self.with_monitoring(
-            configmap="spark-operator-monitoring",
-            exporter_jar="/spark/jars/jmx_prometheus_javaagent-0.16.1.jar",
-        )
+        if "enabled" not in self.spec.monitoring or self.spec.monitoring["enabled"]:
+            self._with_monitoring(
+                configmap="spark-operator-monitoring",
+                exporter_jar="/spark/jars/jmx_prometheus_javaagent-0.16.1.jar",
+            )

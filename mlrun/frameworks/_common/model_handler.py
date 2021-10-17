@@ -27,7 +27,7 @@ class ModelHandler(ABC):
     _CUSTOM_OBJECTS_DIRECTORY_ARTIFACT_NAME = "{}_custom_objects.zip"
 
     # Constant defaults:
-    _DEFAULT_ONNX_MODEL_NAME = "{}_onnx"
+    _DEFAULT_ONNX_MODEL_NAME = "onnx_{}"
 
     def __init__(
         self,
@@ -346,7 +346,7 @@ class ModelHandler(ABC):
 
     def _get_default_onnx_model_name(self, model_name: Union[str, None]):
         """
-        Check if the given model name is None and if so will generate the default ONNX model name: '<MODEL_NAME>_onnx'.
+        Check if the given model name is None and if so will generate the default ONNX model name: 'onnx_<MODEL_NAME>'.
 
         :param model_name: The model name to check.
 

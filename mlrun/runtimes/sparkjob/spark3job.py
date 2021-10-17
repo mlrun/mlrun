@@ -16,6 +16,9 @@ import typing
 
 from kubernetes import client
 
+import mlrun.errors
+
+from ...platforms.other import mount_cfgmap
 from ...utils import update_in, verify_and_update_in
 from .abstract import AbstractSparkJobSpec, AbstractSparkRuntime
 
@@ -56,6 +59,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         use_default_image=False,
         priority_class_name=None,
         dynamic_allocation=None,
+        monitoring=None,
     ):
 
         super().__init__(
@@ -94,6 +98,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         self.dynamic_allocation = dynamic_allocation or {}
         self.driver_node_selector = driver_node_selector
         self.executor_node_selector = executor_node_selector
+        self.monitoring = monitoring or {}
 
 
 class Spark3Runtime(AbstractSparkRuntime):
@@ -154,6 +159,24 @@ class Spark3Runtime(AbstractSparkRuntime):
             update_in(
                 job, "spec.executor.nodeSelector", self.spec.executor_node_selector
             )
+        if self.spec.monitoring:
+            if self.spec.monitoring["enabled"]:
+                if self.spec.monitoring["configmap"]:
+                    self.apply(
+                        mount_cfgmap(
+                            cfgmap_name=self.spec.monitoring["configmap"],
+                            mount_path="/etc/metrics/conf/",
+                            volume_name="monitoring",
+                        )
+                    )
+                update_in(job, "spec.monitoring.exposeDriverMetrics", True)
+                update_in(job, "spec.monitoring.exposeExecutorMetrics", True)
+                if "exporter_jar" in self.spec.monitoring:
+                    update_in(
+                        job,
+                        "spec.monitoring.prometheus.jmxExporterJar",
+                        self.spec.monitoring["exporter_jar"],
+                    )
         return
 
     def _get_spark_version(self):
@@ -166,6 +189,7 @@ class Spark3Runtime(AbstractSparkRuntime):
                 "local:///spark/v3io-libs/v3io-spark3-streaming_2.12.jar",
                 "local:///spark/v3io-libs/v3io-spark3-object-dataframe_2.12.jar",
                 "local:///igz/java/libs/scala-library-2.12.14.jar",
+                "local:///spark/jars/jmx_prometheus_javaagent-0.16.1.jar",
             ],
             "files": ["local:///igz/java/libs/v3io-pyspark.zip"],
         }
@@ -248,3 +272,23 @@ class Spark3Runtime(AbstractSparkRuntime):
             self.spec.dynamic_allocation["maxExecutors"] = max_executors
         if initial_executors:
             self.spec.dynamic_allocation["initialExecutors"] = initial_executors
+
+    def with_monitoring(self, enabled=True, configmap=None, exporter_jar=None):
+        if enabled:
+            if not configmap:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Configmap cannot be empty when monitoring is enabled"
+                )
+        self.spec.monitoring["enabled"] = enabled
+        if enabled:
+            if configmap:
+                self.spec.monitoring["configmap"] = configmap
+            if exporter_jar:
+                self.spec.monitoring["exporter_jar"] = exporter_jar
+
+    def with_igz_spark(self):
+        super().with_igz_spark()
+        self.with_monitoring(
+            configmap="spark-operator-monitoring",
+            exporter_jar="/spark/jars/jmx_prometheus_javaagent-0.16.1.jar",
+        )

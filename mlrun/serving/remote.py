@@ -22,16 +22,6 @@ http_adapter = HTTPAdapter(
     max_retries=Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
 )
 
-_fields = [
-    "url",
-    "subpath",
-    "method",
-    "headers",
-    "return_json",
-    "url_expression",
-    "body_expression",
-]
-
 
 class RemoteStep(StepToDict, storey.SendToHttp):
     """class for calling remote endpoints

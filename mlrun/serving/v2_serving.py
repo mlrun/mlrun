@@ -27,8 +27,10 @@ from mlrun.artifacts import ModelArtifact  # noqa: F401
 from mlrun.config import config
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
 
+from .utils import StepToDict
 
-class V2ModelServer:
+
+class V2ModelServer(StepToDict):
     """base model serving class (v2), using similar API to KFServing v2 and Triton
 
     The class is initialized automatically by the model server and can run locally
@@ -63,12 +65,12 @@ class V2ModelServer:
 
     def __init__(
         self,
-        context,
-        name: str,
+        context=None,
+        name: str = None,
         model_path: str = None,
         model=None,
         protocol=None,
-        **class_args,
+        **kwargs,
     ):
         self.name = name
         self.version = ""
@@ -80,9 +82,12 @@ class V2ModelServer:
         self.protocol = protocol or "v2"
         self.model_path = model_path
         self.model_spec: mlrun.artifacts.ModelArtifact = None
-        self._params = class_args
+        self._kwargs = kwargs  # for to_dict()
+        self._params = kwargs
         self._model_logger = (
-            _ModelLogPusher(self, context) if context.stream.enabled else None
+            _ModelLogPusher(self, context)
+            if context and context.stream.enabled
+            else None
         )
 
         self.metrics = {}

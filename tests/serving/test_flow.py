@@ -281,3 +281,30 @@ def test_path_control_routers():
     server.wait_for_completion()
     # expect avg of (5*10) and (5*20) = 75
     assert resp["y"]["outputs"] == [75], "wrong output"
+
+
+def test_to_dict():
+    from mlrun.serving.remote import RemoteStep
+
+    rs = RemoteStep(
+        name="remote_echo",
+        url="/url",
+        method="GET",
+        input_path="req",
+        result_path="resp",
+    )
+
+    assert rs.to_dict() == {
+        "name": "remote_echo",
+        "class_args": {"method": "GET", "return_json": True, "url": "/url"},
+        "class_name": "mlrun.serving.remote.RemoteStep",
+        "input_path": "req",
+        "result_path": "resp",
+    }, "unexpected serialization"
+
+    ms = V2ModelServer(name="ms", model_path="./xx", multiplier=7)
+    assert ms.to_dict() == {
+        "class_args": {"model_path": "./xx", "multiplier": 7, "protocol": "v2"},
+        "class_name": "mlrun.serving.v2_serving.V2ModelServer",
+        "name": "ms",
+    }, "unexpected serialization"

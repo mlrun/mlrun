@@ -11,6 +11,7 @@ from urllib3.util.retry import Retry
 import mlrun
 
 from .utils import (
+    StepToDict,
     _extract_input_data,
     _update_result_body,
     event_id_key,
@@ -21,8 +22,18 @@ http_adapter = HTTPAdapter(
     max_retries=Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
 )
 
+_fields = [
+    "url",
+    "subpath",
+    "method",
+    "headers",
+    "return_json",
+    "url_expression",
+    "body_expression",
+]
 
-class RemoteStep(storey.SendToHttp):
+
+class RemoteStep(StepToDict, storey.SendToHttp):
     """class for calling remote endpoints
     """
 
@@ -176,30 +187,8 @@ class RemoteStep(storey.SendToHttp):
             data = json.loads(data)
         return data
 
-    def to_dict(self):
-        args = {
-            key: getattr(self, key)
-            for key in [
-                "url",
-                "subpath",
-                "method",
-                "headers",
-                "return_json",
-                "url_expression",
-                "body_expression",
-            ]
-            if getattr(self, key) is not None
-        }
-        return {
-            "class_name": f"{__name__}.{self.__class__.__name__}",
-            "name": self.name or self.__class__.__name__,
-            "class_args": args,
-            "input_path": self._input_path,
-            "result_path": self._result_path,
-        }
 
-
-class BatchHttpRequests(_ConcurrentJobExecution):
+class BatchHttpRequests(StepToDict, _ConcurrentJobExecution):
     """class for calling remote endpoints in parallel
     """
 
@@ -354,25 +343,3 @@ class BatchHttpRequests(_ConcurrentJobExecution):
         ) and isinstance(data, (str, bytes)):
             data = json.loads(data)
         return data
-
-    def to_dict(self):
-        args = {
-            key: getattr(self, key)
-            for key in [
-                "url",
-                "subpath",
-                "method",
-                "headers",
-                "return_json",
-                "url_expression",
-                "body_expression",
-            ]
-            if getattr(self, key) is not None
-        }
-        return {
-            "class_name": f"{__name__}.{self.__class__.__name__}",
-            "name": self.name or self.__class__.__name__,
-            "class_args": args,
-            "input_path": self._input_path,
-            "result_path": self._result_path,
-        }

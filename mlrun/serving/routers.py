@@ -31,17 +31,17 @@ from ..api.schemas import (
     ModelEndpointStatus,
 )
 from ..config import config
-from .utils import _extract_input_data, _update_result_body
+from .utils import RouterToDict, _extract_input_data, _update_result_body
 from .v2_serving import _ModelLogPusher
 
 
-class BaseModelRouter:
+class BaseModelRouter(RouterToDict):
     """base model router class"""
 
     def __init__(
         self,
-        context,
-        name,
+        context=None,
+        name: str = None,
         routes=None,
         protocol=None,
         url_prefix=None,
@@ -80,7 +80,7 @@ class BaseModelRouter:
 
         except Exception as exc:
             #  if images convert to bytes
-            content_type = getattr(event, "content_type") or ""
+            content_type = getattr(event, "content_type", "") or ""
             if content_type.startswith("image/"):
                 sample = BytesIO(event.body)
                 parsed_event[self.inputs_key] = [sample]
@@ -214,8 +214,8 @@ class OperationTypes(str, Enum):
 class VotingEnsemble(BaseModelRouter):
     def __init__(
         self,
-        context,
-        name,
+        context=None,
+        name: str = None,
         routes=None,
         protocol=None,
         url_prefix=None,
@@ -318,7 +318,9 @@ class VotingEnsemble(BaseModelRouter):
         self.vote_flag = True if self.vote_type is not None else False
         self.executor_type = executor_type
         self._model_logger = (
-            _ModelLogPusher(self, context) if context.stream.enabled else None
+            _ModelLogPusher(self, context)
+            if context and context.stream.enabled
+            else None
         )
         self.version = kwargs.get("version", "v1")
         self.log_router = True

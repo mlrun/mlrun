@@ -779,7 +779,7 @@ class EnrichmentModelRouter(ModelRouter):
 
 class EnrichmentVotingEnsemble(VotingEnsemble):
 
-    __doc__ = VotingEnsemble.__doc__ + extra_doc
+    __doc__ = extra_doc  # todo: edit doc strings
 
     def __init__(
         self,

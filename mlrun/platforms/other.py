@@ -125,7 +125,7 @@ def mount_cfgmap(cfgmap_name, mount_path, volume_name="cfgmap", items=None):
     def _mount_cfgmap(task):
         from kubernetes import client as k8s_client
 
-        vol = k8s_client.V1ConfigMapVolumeSource(cfgmap_name=cfgmap_name, items=items)
+        vol = k8s_client.V1ConfigMapVolumeSource(name=cfgmap_name, items=items)
         return task.add_volume(
             k8s_client.V1Volume(name=volume_name, config_map=vol)
         ).add_volume_mount(

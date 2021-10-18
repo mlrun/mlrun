@@ -35,7 +35,13 @@ from ..model import DataSource, DataTargetBase
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
 from ..utils import get_caller_globals, logger
-from .common import RunConfig, get_feature_set_by_uri, get_feature_vector_by_uri
+from .common import (
+    RunConfig,
+    get_feature_set_by_uri,
+    get_feature_vector_by_uri,
+    verify_feature_set_permissions,
+    verify_feature_vector_permissions,
+)
 from .feature_set import FeatureSet
 from .feature_vector import (
     FeatureVector,
@@ -55,7 +61,7 @@ _v3iofs = None
 spark_transform_handler = "transform"
 
 
-def _features_to_vector(features):
+def _features_to_vector_and_check_permissions(features):
     if isinstance(features, str):
         vector = get_feature_vector_by_uri(features)
     elif isinstance(features, FeatureVector):
@@ -64,6 +70,10 @@ def _features_to_vector(features):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "feature vector name must be specified"
             )
+        verify_feature_vector_permissions(
+            vector, mlrun.api.schemas.AuthorizationAction.update
+        )
+
         vector.save()
     else:
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -81,6 +91,7 @@ def get_offline_features(
     drop_columns: List[str] = None,
     start_time: Optional[pd.Timestamp] = None,
     end_time: Optional[pd.Timestamp] = None,
+    with_indexes: bool = False,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 
@@ -115,8 +126,10 @@ def get_offline_features(
         entity_timestamp_column must be passed when using time filtering.
     :param end_time:        datetime, high limit of time needed to be filtered. Optional.
         entity_timestamp_column must be passed when using time filtering.
+    :param with_indexes:    return vector with index columns (default False)
     """
-    feature_vector = _features_to_vector(feature_vector)
+
+    feature_vector = _features_to_vector_and_check_permissions(feature_vector)
 
     entity_timestamp_column = (
         entity_timestamp_column or feature_vector.spec.timestamp_field
@@ -129,6 +142,7 @@ def get_offline_features(
             timestamp_column=entity_timestamp_column,
             run_config=run_config,
             drop_columns=drop_columns,
+            with_indexes=with_indexes,
         )
 
     if (start_time or end_time) and not entity_timestamp_column:
@@ -143,6 +157,7 @@ def get_offline_features(
         drop_columns=drop_columns,
         start_time=start_time,
         end_time=end_time,
+        with_indexes=with_indexes,
     )
 
 
@@ -176,7 +191,7 @@ def get_online_feature_service(
                               values. "*" is used to specify the default for all features, example: `{"*": "$mean"}`
     :param fixed_window_type: determines how to query the fixed window values which were previously inserted by ingest.
     """
-    feature_vector = _features_to_vector(feature_vector)
+    feature_vector = _features_to_vector_and_check_permissions(feature_vector)
     graph, index_columns = init_feature_vector_graph(feature_vector, fixed_window_type)
     service = OnlineVectorService(
         feature_vector, graph, index_columns, impute_policy=impute_policy
@@ -265,6 +280,9 @@ def ingest(
 
     if run_config:
         # remote job execution
+        verify_feature_set_permissions(
+            featureset, mlrun.api.schemas.AuthorizationAction.update
+        )
         run_config = run_config.copy() if run_config else RunConfig()
         source, run_config.parameters = set_task_params(
             featureset, source, targets, run_config.parameters, infer_options, overwrite
@@ -287,6 +305,10 @@ def ingest(
             infer_options,
             overwrite,
         ) = context_to_ingestion_params(mlrun_context)
+
+        verify_feature_set_permissions(
+            featureset, mlrun.api.schemas.AuthorizationAction.update
+        )
         if not source:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "data source was not specified"
@@ -395,11 +417,12 @@ def ingest(
 def preview(
     featureset: FeatureSet,
     source,
-    entity_columns=None,
-    timestamp_key=None,
+    entity_columns: list = None,
+    timestamp_key: str = None,
     namespace=None,
     options: InferOptions = None,
-    verbose=False,
+    verbose: bool = False,
+    sample_size: int = None,
 ) -> pd.DataFrame:
     """run the ingestion pipeline with local DataFrame/file data and infer features schema and stats
 
@@ -422,6 +445,7 @@ def preview(
     :param namespace:      namespace or module containing graph classes
     :param options:        schema and stats infer options (:py:class:`~mlrun.feature_store.InferOptions`)
     :param verbose:        verbose log
+    :param sample_size:    num of rows to sample from the dataset (for large datasets)
     """
     options = options if options is not None else InferOptions.default()
     if timestamp_key is not None:
@@ -430,6 +454,10 @@ def preview(
     if isinstance(source, str):
         # if source is a path/url convert to DataFrame
         source = mlrun.store_manager.object(url=source).as_df()
+
+    verify_feature_set_permissions(
+        featureset, mlrun.api.schemas.AuthorizationAction.update
+    )
 
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():
@@ -448,11 +476,22 @@ def preview(
                 entity_columns,
                 InferOptions.get_common_options(options, InferOptions.Entities),
             )
+        # reduce the size of the ingestion if we do not infer stats
+        rows_limit = (
+            0 if InferOptions.get_common_options(options, InferOptions.Stats) else 1000
+        )
         source = init_featureset_graph(
-            source, featureset, namespace, return_df=True, verbose=verbose
+            source,
+            featureset,
+            namespace,
+            return_df=True,
+            verbose=verbose,
+            rows_limit=rows_limit,
         )
 
-    df = infer_from_static_df(source, featureset, entity_columns, options)
+    df = infer_from_static_df(
+        source, featureset, entity_columns, options, sample_size=sample_size
+    )
     return df
 
 
@@ -504,6 +543,10 @@ def deploy_ingestion_service(
     """
     if isinstance(featureset, str):
         featureset = get_feature_set_by_uri(featureset)
+
+    verify_feature_set_permissions(
+        featureset, mlrun.api.schemas.AuthorizationAction.update
+    )
 
     run_config = run_config.copy() if run_config else RunConfig()
     if isinstance(source, StreamSource) and not source.path:
@@ -597,6 +640,32 @@ def _ingest_with_spark(
             logger.info(
                 f"writing to target {target.name}, spark options {spark_options}"
             )
+
+            # If partitioning by time, add the necessary columns
+            if timestamp_key and "partitionBy" in spark_options:
+                from pyspark.sql.functions import (
+                    dayofmonth,
+                    hour,
+                    minute,
+                    month,
+                    second,
+                    year,
+                )
+
+                time_unit_to_op = {
+                    "year": year,
+                    "month": month,
+                    "day": dayofmonth,
+                    "hour": hour,
+                    "minute": minute,
+                    "second": second,
+                }
+                timestamp_col = df[timestamp_key]
+                for partition in spark_options["partitionBy"]:
+                    if partition not in df.columns and partition in time_unit_to_op:
+                        op = time_unit_to_op[partition]
+                        df = df.withColumn(partition, op(timestamp_col))
+
             df.write.mode("overwrite").save(**spark_options)
             target.set_resource(featureset)
             target.update_resource_status("ready")
@@ -616,11 +685,19 @@ def _post_ingestion(context, featureset, spark=None):
 
 
 def infer_from_static_df(
-    df, featureset, entity_columns=None, options: InferOptions = InferOptions.default()
+    df,
+    featureset,
+    entity_columns=None,
+    options: InferOptions = InferOptions.default(),
+    sample_size=None,
 ):
     """infer feature-set schema & stats from static dataframe (without pipeline)"""
     if hasattr(df, "to_dataframe"):
-        df = df.to_dataframe()
+        if df.is_iterator():
+            # todo: describe over multiple chunks
+            df = next(df.to_dataframe())
+        else:
+            df = df.to_dataframe()
     inferer = get_infer_interface(df)
     if InferOptions.get_common_options(options, InferOptions.schema()):
         featureset.spec.timestamp_key = inferer.infer_schema(
@@ -632,7 +709,9 @@ def infer_from_static_df(
             options=options,
         )
     if InferOptions.get_common_options(options, InferOptions.Stats):
-        featureset.status.stats = inferer.get_stats(df, options)
+        featureset.status.stats = inferer.get_stats(
+            df, options, sample_size=sample_size
+        )
     if InferOptions.get_common_options(options, InferOptions.Preview):
         featureset.status.preview = inferer.get_preview(df)
     return df

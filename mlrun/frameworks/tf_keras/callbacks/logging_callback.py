@@ -415,7 +415,7 @@ class LoggingCallback(Callback):
                 value = float(value)
             else:
                 raise ValueError(
-                    "The parameter with the following key chain: {} is a tensorflow.Tensor with {} elements."
+                    "The parameter with the following key chain: {} is a tensorflow.Tensor with {} elements. "
                     "Tensorflow tensors are trackable only if they have 1 element."
                     "".format(key_chain, value.numel())
                 )
@@ -424,7 +424,7 @@ class LoggingCallback(Callback):
                 value = float(value)
             else:
                 raise ValueError(
-                    "The parameter with the following key chain: {} is a numpy.ndarray with {} elements."
+                    "The parameter with the following key chain: {} is a numpy.ndarray with {} elements. "
                     "numpy arrays are trackable only if they have 1 element."
                     "".format(key_chain, value.size)
                 )
@@ -435,7 +435,7 @@ class LoggingCallback(Callback):
             or isinstance(value, bool)
         ):
             raise ValueError(
-                "The parameter with the following key chain: {} is of type '{}'."
+                "The parameter with the following key chain: {} is of type '{}'. "
                 "The only trackable types are: float, int, str and bool."
                 "".format(key_chain, type(value))
             )

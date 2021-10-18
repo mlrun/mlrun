@@ -129,6 +129,10 @@ default_config = {
             "commit_retry_interval": 3,
             # Whether to perform data migrations on initialization. enabled or disabled
             "data_migrations_mode": "enabled",
+            # Whether or not to perform database migration from sqlite to mysql on initialization
+            "database_migration_mode": "enabled",
+            # Whether or not to use db backups on initialization
+            "database_backup_mode": "enabled",
         },
         "jobs": {
             # whether to allow to run local runtimes in the API - configurable to allow the scheduler testing to work
@@ -179,8 +183,6 @@ default_config = {
             # misfire_grace_time is 1 second, we do not want jobs not being scheduled because of the delays so setting
             # it to None. the default for coalesce it True just adding it here to be explicit
             "scheduler_config": '{"job_defaults": {"misfire_grace_time": null, "coalesce": true}}',
-            # one of enabled, disabled, auto (in which it will be determined by whether the authorization mode is opa)
-            "schedule_credentials_secrets_store_mode": "auto",
         },
         "projects": {
             "leader": "mlrun",
@@ -190,11 +192,6 @@ default_config = {
             "counters_cache_ttl": "2 minutes",
             # access key to be used when the leader is iguazio and polling is done from it
             "iguazio_access_key": "",
-            # the initial implementation was cache and was working great, now it's not needed because we get (read/list)
-            # from leader because of some auth restriction, we will probably go back to it at some point since it's
-            # better performance wise, so made it a mode
-            # one of: cache, none
-            "follower_projects_store_mode": "cache",
             "project_owners_cache_ttl": "30 seconds",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
@@ -208,10 +205,13 @@ default_config = {
             # pip install <requirement_specifier>, e.g. mlrun==0.5.4, mlrun~=0.5,
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
             "mlrun_version_specifier": "",
-            "kaniko_image": "gcr.io/kaniko-project/executor:v0.24.0",  # kaniko builder image
+            "kaniko_image": "gcr.io/kaniko-project/executor:v1.6.0",  # kaniko builder image
             "kaniko_init_container_image": "alpine:3.13.1",
             # additional docker build args in json encoded base64 format
             "build_args": "",
+            "pip_ca_secret_name": "",
+            "pip_ca_secret_key": "",
+            "pip_ca_path": "/etc/ssl/certs/mlrun/pip-ca-certificates.crt",
         },
         "v3io_api": "",
         "v3io_framesd": "",
@@ -346,6 +346,14 @@ class Config:
             build_args = json.loads(build_args_json)
 
         return build_args
+
+    @staticmethod
+    def is_pip_ca_configured():
+        return (
+            config.httpdb.builder.pip_ca_secret_name
+            and config.httpdb.builder.pip_ca_secret_key
+            and config.httpdb.builder.pip_ca_path
+        )
 
     @staticmethod
     def get_hub_url():

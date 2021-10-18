@@ -254,6 +254,7 @@ class PyTorchModelHandler(ModelHandler):
 
     def to_onnx(
         self,
+        model_name: str = None,
         input_sample: Union[torch.Tensor, Dict[str, torch.Tensor]] = None,
         input_layers_names: List[str] = None,
         output_layers_names: List[str] = None,
@@ -265,6 +266,8 @@ class PyTorchModelHandler(ModelHandler):
         Convert the model in this handler to an ONNX model. The layer names are optional, they do not change the
         semantics of the model, it is only for readability.
 
+        :param model_name:          The name to give to the converted ONNX model. If not given the default name will be
+                                    the stored model name with the suffix '_onnx'.
         :param input_sample:        A torch.Tensor with the shape and data type of the expected input to the model. It
                                     is optional but recommended.
         :param input_layers_names:  List of names to assign to the input nodes of the graph in order. All of the other
@@ -274,7 +277,7 @@ class PyTorchModelHandler(ModelHandler):
         :param optimize:            Whether or not to optimize the ONNX model using 'onnxoptimizer' before saving the
                                     model. Defaulted to True.
         :param output_path:         In order to save the ONNX model, pass here the output directory. The model file will
-                                    be named with the model name in this handler. Defaulted to None (not saving).
+                                    be named with the model name given. Defaulted to None (not saving).
         :param log:                 In order to log the ONNX model, pass True. If None, the model will be logged if this
                                     handler has a MLRun context set. Defaulted to None.
 
@@ -289,12 +292,15 @@ class PyTorchModelHandler(ModelHandler):
                 "Please run 'pip install mlrun[pytorch]' to install MLRun's PyTorch package."
             )
 
+        # Set the onnx model name:
+        model_name = self._get_default_onnx_model_name(model_name=model_name)
+
         # Set the input signature:
         # TODO: Read the input signature parsing in case its None (from the PyTorchModelHandler - IOLogging).
 
         # Set the output path:
         if output_path is not None:
-            output_path = os.path.join(output_path, "{}.onnx".format(self._model_name))
+            output_path = os.path.join(output_path, "{}.onnx".format(model_name))
 
         # Set the logging flag:
         log = self._context is not None if log is None else log
@@ -310,7 +316,7 @@ class PyTorchModelHandler(ModelHandler):
 
         # Create a handler for the model:
         onnx_handler = ONNXModelHandler(
-            model_name=self.model_name, model_path=output_path, context=self._context
+            model_name=model_name, model_path=output_path, context=self._context
         )
         onnx_handler.load()
 

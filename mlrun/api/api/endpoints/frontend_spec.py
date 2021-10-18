@@ -61,5 +61,9 @@ def _resolve_feature_flags() -> mlrun.api.schemas.FeatureFlags:
     project_membership = mlrun.api.schemas.ProjectMembershipFeatureFlag.disabled
     if mlrun.mlconf.httpdb.authorization.mode == "opa":
         project_membership = mlrun.api.schemas.ProjectMembershipFeatureFlag.enabled
-    authentication = mlrun.api.schemas.AuthenticationFeatureFlag(mlrun.mlconf.httpdb.authentication.mode)
-    return mlrun.api.schemas.FeatureFlags(project_membership=project_membership, authentication=authentication)
+    authentication = mlrun.api.schemas.AuthenticationFeatureFlag(
+        mlrun.mlconf.httpdb.authentication.mode
+    )
+    return mlrun.api.schemas.FeatureFlags(
+        project_membership=project_membership, authentication=authentication
+    )

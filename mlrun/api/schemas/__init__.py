@@ -48,7 +48,12 @@ from .feature_store import (
     FeatureVectorsOutput,
     FeatureVectorsTagsOutput,
 )
-from .frontend_spec import FeatureFlags, FrontendSpec, ProjectMembershipFeatureFlag, AuthenticationFeatureFlag
+from .frontend_spec import (
+    AuthenticationFeatureFlag,
+    FeatureFlags,
+    FrontendSpec,
+    ProjectMembershipFeatureFlag,
+)
 from .function import FunctionState
 from .marketplace import (
     IndexedMarketplaceSource,

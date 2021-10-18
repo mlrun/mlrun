@@ -34,8 +34,8 @@ def test_get_frontend_spec(
         == mlrun.api.schemas.ProjectMembershipFeatureFlag.disabled
     )
     assert (
-            frontend_spec.feature_flags.authentication
-            == mlrun.api.schemas.AuthenticationFeatureFlag.none
+        frontend_spec.feature_flags.authentication
+        == mlrun.api.schemas.AuthenticationFeatureFlag.none
     )
     assert frontend_spec.default_function_image_by_kind is not None
     assert frontend_spec.function_deployment_mlrun_command is not None

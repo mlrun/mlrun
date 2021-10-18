@@ -396,12 +396,12 @@ class TaskStep(BaseStep):
                 elif hasattr(self._object, "do"):
                     handler = "do"
                 else:
-                    klass = type(self._object)
-                    module = klass.__module__
+                    class_ = type(self._object)
+                    module = class_.__module__
                     if module == "storey" or module.startswith("storey."):
                         err_msg = "storey steps can only be used with async engine"
                     else:
-                        full_name = f"{module}.{klass.__qualname__}"
+                        full_name = f"{module}.{class_.__qualname__}"
                         err_msg = (
                             f"failed to set handler: object of type {full_name} "
                             f"does not have a do_event or do method"

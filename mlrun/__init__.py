@@ -154,7 +154,9 @@ def get_sample_path(subpath=""):
     """
     return the url of a sample dataset or model
     """
-    samples_path = environ.get("SAMPLE_DATA_SOURCE_URL_PREFIX", mlconf.default_samples_path)
+    samples_path = environ.get(
+        "SAMPLE_DATA_SOURCE_URL_PREFIX", mlconf.default_samples_path
+    )
     if subpath:
         samples_path = path.join(samples_path, subpath.lstrip("/"))
     return samples_path

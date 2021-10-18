@@ -251,7 +251,7 @@ class TestServingRuntime(TestNuclioRuntime):
             {
                 "function_name": f"{self.project}-{self.name}-child_function",
                 "file_name": child_function_path,
-                "parent_function": function._function_uri(),
+                "parent_function": function.metadata.name,
             },
             {
                 "function_name": f"{self.project}-{self.name}",

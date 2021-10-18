@@ -2,9 +2,9 @@ import collections
 import datetime
 import os
 import pathlib
-import sqlite3
 import typing
 
+import sqlalchemy.exc
 import sqlalchemy.orm
 
 import mlrun.api.db.sqldb.db
@@ -62,7 +62,7 @@ def _is_latest_data_version():
     current_data_version = 1
     try:
         current_data_version = int(db.get_current_data_version(db_session))
-    except sqlite3.OperationalError as exc:
+    except sqlalchemy.exc.OperationalError as exc:
         logger.info(
             "Failed getting current data version, assuming old version", exc=exc
         )

@@ -46,7 +46,7 @@ class Member(
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
+    ) -> typing.Tuple[typing.Optional[mlrun.api.schemas.Project], bool]:
         self._enrich_and_validate_before_creation(project)
         self._run_on_all_followers(True, "create_project", db_session, project)
         return self.get_project(db_session, project.metadata.name), False
@@ -59,7 +59,7 @@ class Member(
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
+    ) -> typing.Tuple[typing.Optional[mlrun.api.schemas.Project], bool]:
         self._enrich_project(project)
         mlrun.projects.ProjectMetadata.validate_project_name(name)
         self._validate_body_and_path_names_matches(name, project)

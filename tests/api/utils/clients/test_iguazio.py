@@ -450,105 +450,13 @@ def test_create_project_without_wait(
             _verify_creation, iguazio_client, project, session, job_id
         ),
     )
-    created_project, is_running_in_background = iguazio_client.create_project(
+    is_running_in_background = iguazio_client.create_project(
         session, project, wait_for_completion=False
     )
     assert is_running_in_background is True
-    exclude = {"status": {"state"}}
-    assert (
-        deepdiff.DeepDiff(
-            project.dict(exclude=exclude),
-            created_project.dict(exclude=exclude),
-            ignore_order=True,
-        )
-        == {}
-    )
-    assert created_project.status.state == mlrun.api.schemas.ProjectState.creating
 
 
-def test_store_project_creation(
-    api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
-    requests_mock: requests_mock_package.Mocker,
-):
-    project = _generate_project()
-    session = "1234"
-    job_id = "1d4c9d25-9c5c-4a34-b052-c1d3665fec5e"
-
-    # mock project not found so store will create - then successful response which used to get the created project
-    requests_mock.get(
-        f"{api_url}/api/projects/__name__/{project.metadata.name}",
-        response_list=[
-            {"status_code": http.HTTPStatus.NOT_FOUND.value},
-            {"json": {"data": _build_project_response(iguazio_client, project)}},
-        ],
-    )
-    requests_mock.post(
-        f"{api_url}/api/projects",
-        json=functools.partial(
-            _verify_creation, iguazio_client, project, session, job_id
-        ),
-    )
-    mocker, num_of_calls_until_completion = _mock_job_progress(
-        api_url, requests_mock, session, job_id
-    )
-    created_project, is_running_in_background = iguazio_client.store_project(
-        session, project.metadata.name, project
-    )
-    assert is_running_in_background is False
-    assert mocker.call_count == num_of_calls_until_completion
-    exclude = {"status": {"state"}}
-    assert (
-        deepdiff.DeepDiff(
-            project.dict(exclude=exclude),
-            created_project.dict(exclude=exclude),
-            ignore_order=True,
-        )
-        == {}
-    )
-    assert created_project.status.state == project.spec.desired_state
-
-
-def test_store_project_creation_without_wait(
-    api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
-    requests_mock: requests_mock_package.Mocker,
-):
-    project = _generate_project()
-    session = "1234"
-    job_id = "1d4c9d25-9c5c-4a34-b052-c1d3665fec5e"
-
-    # mock project not found so store will create - then successful response which used to get the created project
-    requests_mock.get(
-        f"{api_url}/api/projects/__name__/{project.metadata.name}",
-        response_list=[
-            {"status_code": http.HTTPStatus.NOT_FOUND.value},
-            {"json": {"data": _build_project_response(iguazio_client, project)}},
-        ],
-    )
-    requests_mock.post(
-        f"{api_url}/api/projects",
-        json=functools.partial(
-            _verify_creation, iguazio_client, project, session, job_id
-        ),
-    )
-    created_project, is_running_in_background = iguazio_client.store_project(
-        session, project.metadata.name, project, wait_for_completion=False
-    )
-    assert is_running_in_background is True
-    exclude = {"status": {"state"}}
-    assert (
-        deepdiff.DeepDiff(
-            project.dict(exclude=exclude),
-            created_project.dict(exclude=exclude),
-            ignore_order=True,
-        )
-        == {}
-    )
-    assert created_project.status.state == mlrun.api.schemas.ProjectState.creating
-
-
-def test_store_project_update(
+def test_update_project(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
@@ -562,76 +470,13 @@ def test_store_project_update(
         _verify_project_request_headers(request.headers, session)
         return {"data": _build_project_response(iguazio_client, project)}
 
-    empty_project = _generate_project(description="", labels={}, annotations={})
-    # mock project response so store will update
-    requests_mock.get(
-        f"{api_url}/api/projects/__name__/{project.metadata.name}",
-        json={"data": _build_project_response(iguazio_client, empty_project)},
-    )
     requests_mock.put(
         f"{api_url}/api/projects/__name__/{project.metadata.name}",
         json=verify_store_update,
     )
-    updated_project, is_running_in_background = iguazio_client.store_project(
+    iguazio_client.update_project(
         session, project.metadata.name, project,
     )
-    assert is_running_in_background is False
-    exclude = {"status": {"state"}}
-    assert (
-        deepdiff.DeepDiff(
-            project.dict(exclude=exclude),
-            updated_project.dict(exclude=exclude),
-            ignore_order=True,
-        )
-        == {}
-    )
-    assert updated_project.status.state == project.spec.desired_state
-
-
-def test_patch_project(
-    api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
-    requests_mock: requests_mock_package.Mocker,
-):
-    project = _generate_project()
-    session = "1234"
-    patched_description = "new desc"
-
-    def verify_patch(request, context):
-        patched_project = _generate_project(
-            description=patched_description, created=project.metadata.created
-        )
-        _assert_project_creation(iguazio_client, request.json(), patched_project)
-        context.status_code = http.HTTPStatus.OK.value
-        _verify_project_request_headers(request.headers, session)
-        return {"data": _build_project_response(iguazio_client, patched_project)}
-
-    # mock project response on get (patch does get first)
-    requests_mock.get(
-        f"{api_url}/api/projects/__name__/{project.metadata.name}",
-        json={"data": _build_project_response(iguazio_client, project)},
-    )
-    requests_mock.put(
-        f"{api_url}/api/projects/__name__/{project.metadata.name}", json=verify_patch,
-    )
-    patched_project, is_running_in_background = iguazio_client.patch_project(
-        session,
-        project.metadata.name,
-        {"spec": {"description": patched_description}},
-        wait_for_completion=True,
-    )
-    assert is_running_in_background is False
-    exclude = {"status": {"state"}, "spec": {"description"}}
-    assert (
-        deepdiff.DeepDiff(
-            project.dict(exclude=exclude),
-            patched_project.dict(exclude=exclude),
-            ignore_order=True,
-        )
-        == {}
-    )
-    assert patched_project.status.state == project.spec.desired_state
-    assert patched_project.spec.description == patched_description
 
 
 def test_delete_project(
@@ -774,22 +619,9 @@ def _create_project_and_assert(
         f"{api_url}/api/projects/__name__/{project.metadata.name}",
         json={"data": _build_project_response(iguazio_client, project)},
     )
-    created_project, is_running_in_background = iguazio_client.create_project(
-        session, project,
-    )
+    is_running_in_background = iguazio_client.create_project(session, project,)
     assert is_running_in_background is False
     assert mocker.call_count == num_of_calls_until_completion
-    exclude = {"metadata": {"created"}, "status": {"state"}}
-    assert (
-        deepdiff.DeepDiff(
-            project.dict(exclude=exclude),
-            created_project.dict(exclude=exclude),
-            ignore_order=True,
-        )
-        == {}
-    )
-    assert created_project.metadata.created is not None
-    assert created_project.status.state == project.spec.desired_state
 
 
 def _verify_deletion(project_name, session, job_id, request, context):

@@ -5,10 +5,11 @@ from http import HTTPStatus
 
 import deepdiff
 import nuclio
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from mlrun import mlconf
+from mlrun import MLRunInvalidArgumentError, mlconf
 from mlrun.db import SQLDB
 from mlrun.runtimes.function import NuclioStatus, deploy_nuclio_function
 
@@ -207,6 +208,17 @@ class TestServingRuntime(TestNuclioRuntime):
         ]
 
         assert deepdiff.DeepDiff(resp, expected_response) == {}
+
+    def test_mock_bad_step(self, db: Session, client: TestClient):
+        function = self._generate_runtime(self.runtime_kind)
+        graph = function.set_topology("flow", exist_ok=True, engine="sync")
+
+        graph.add_step(
+            name="extend", class_name="storey.Extend", _fn='({"tag": "something"})'
+        )
+
+        with pytest.raises(MLRunInvalidArgumentError):
+            function.to_mock_server()
 
     def test_serving_with_secrets_remote_build(self, db: Session, client: TestClient):
         function = self._create_serving_function()

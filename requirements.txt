@@ -38,10 +38,6 @@ importlib-resources~=5.0; python_version < '3.7'
 # 1.6.0 introduced some bug and we were just about to release a version TODO: find the root cause for the problems
 alembic~=1.4,<1.6.0
 mergedeep~=1.3
-# we don't really need flake8 here (it should be only in dev-requirements.txt) but v3io-frames has it as a depdendency,
-# without any version sepcifier, which resolves to 4.0.1, which has requirement of importlib-metadata<4.3 which
-# conflicts with most of our packages that has this same requirement without any version specifier that therefore
-# resolves to 4.8.1
 # 3.2 iguazio system uses 0.9.x - limiting to only patch changes
 v3io-frames~=0.9.6
 semver~=2.13

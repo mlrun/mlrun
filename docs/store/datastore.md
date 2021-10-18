@@ -65,7 +65,7 @@ remote_run = func.run(name='aws_test', inputs={'source_url': source_url})
 
 # Using project-secrets (recommended) - project secrets are automatically mounted to project functions
 secrets = {"AWS_ACCESS_KEY_ID": "<access key ID>", "AWS_SECRET_ACCESS_KEY": "<access key>"}
-db = mlrun.db.get_run_db().connect()
+db = mlrun.get_run_db()
 db.create_project_secrets(project=project_name, provider="kubernetes", secrets=secrets)
 
 remote_run = func.run(name='aws_test', inputs={'source_url': source_url})

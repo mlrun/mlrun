@@ -58,6 +58,7 @@ handle the orchestration and monitoring of the distributed task.
 
 <img src="../_static/images/runtime-scaling.png" alt="runtime-scaling" width="400"/>
 
+(Function_storage_auto_mount)=
 ## Applying storage configurations to functions
 
 In the vast majority of cases, an MLRun function requires access to storage. This storage

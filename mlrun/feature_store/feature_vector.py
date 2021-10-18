@@ -346,6 +346,7 @@ class OnlineVectorService:
         if not self.impute_policy:
             return
 
+        impute_policy = copy(self.impute_policy)
         vector = self.vector
         feature_stats = vector.get_stats_table()
         self._impute_values = {}
@@ -354,18 +355,18 @@ class OnlineVectorService:
         if vector.status.label_column in feature_keys:
             feature_keys.remove(vector.status.label_column)
 
-        if "*" in self.impute_policy:
-            value = self.impute_policy["*"]
-            del self.impute_policy["*"]
+        if "*" in impute_policy:
+            value = impute_policy["*"]
+            del impute_policy["*"]
 
             for name in feature_keys:
-                if name not in self.impute_policy:
+                if name not in impute_policy:
                     if isinstance(value, str) and value.startswith("$"):
                         self._impute_values[name] = feature_stats.loc[name, value[1:]]
                     else:
                         self._impute_values[name] = value
 
-        for name, value in self.impute_policy.items():
+        for name, value in impute_policy.items():
             if name not in feature_keys:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"feature {name} in impute_policy but not in feature vector"

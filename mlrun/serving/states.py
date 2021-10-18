@@ -523,7 +523,15 @@ class RouterStep(TaskStep):
     def routes(self, routes: dict):
         self._routes = ObjectDict.from_dict(classes_map, routes, "task")
 
-    def add_route(self, key, route=None, class_name=None, handler=None, **class_args):
+    def add_route(
+        self,
+        key,
+        route=None,
+        class_name=None,
+        handler=None,
+        function=None,
+        **class_args,
+    ):
         """add child route step or class to the router
 
         :param key:        unique name (and route path) for the child step
@@ -537,6 +545,7 @@ class RouterStep(TaskStep):
             raise MLRunInvalidArgumentError("route or class_name must be specified")
         if not route:
             route = TaskStep(class_name, class_args, handler=handler)
+        route.function = function or route.function
         route = self._routes.update(key, route)
         route.set_parent(self)
         return route
@@ -558,6 +567,10 @@ class RouterStep(TaskStep):
         )
 
         for route in self._routes.values():
+            if self.function and not route.function:
+                # if the router runs on a child function and the
+                # model function is not specified use the router function
+                route.function = self.function
             route.set_parent(self)
             route.init_object(context, namespace, mode, reset=reset)
 
@@ -1010,10 +1023,6 @@ class FlowStep(BaseStep):
 
     def _build_async_flow(self):
         """initialize and build the async/storey DAG"""
-        try:
-            import storey
-        except ImportError:
-            raise GraphError("storey package is not installed, use pip install storey")
 
         def process_step(state, step, root):
             if not state._is_local_function(self.context):
@@ -1024,41 +1033,11 @@ class FlowStep(BaseStep):
                     next_step = step.to(next_state.async_object)
                     process_step(next_state, next_step, root)
 
-        for step in self._steps.values():
-            if hasattr(step, "async_object") and step._is_local_function(self.context):
-                if step.kind == StepKinds.queue:
-                    skip_stream = self.context.is_mock and step.next
-                    if step.path and not skip_stream:
-                        stream_path = step.path
-                        endpoint = None
-                        if "://" in stream_path:
-                            endpoint, stream_path = parse_v3io_path(step.path)
-                            stream_path = stream_path.strip("/")
-                        step._async_object = storey.StreamTarget(
-                            storey.V3ioDriver(endpoint), stream_path
-                        )
-                    else:
-                        step._async_object = storey.Map(lambda x: x)
+        default_source, self._wait_for_result = _init_async_objects(
+            self.context, self._steps.values()
+        )
 
-                elif not step.async_object or not hasattr(
-                    step.async_object, "_outlets"
-                ):
-                    # if regular class, wrap with storey Map
-                    step._async_object = storey.Map(
-                        step._handler,
-                        full_event=step.full_event or step._call_with_event,
-                        input_path=step.input_path,
-                        result_path=step.result_path,
-                        name=step.name,
-                        context=self.context,
-                    )
-                if not step.next and hasattr(step, "responder") and step.responder:
-                    # if responder step (return result), add Complete()
-                    step.async_object.to(storey.Complete(full_event=True))
-                    self._wait_for_result = True
-
-        # todo: allow source array (e.g. data->json loads..)
-        source = self._source or storey.SyncEmitSource()
+        source = self._source or default_source
         for next_state in self._start_steps:
             next_step = source.to(next_state.async_object)
             process_step(next_state, next_step, self)
@@ -1386,3 +1365,46 @@ def params_to_step(
     if graph_shape:
         step.shape = graph_shape
     return name, step
+
+
+def _init_async_objects(context, steps):
+    try:
+        import storey
+    except ImportError:
+        raise GraphError("storey package is not installed, use pip install storey")
+
+    wait_for_result = False
+
+    for step in steps:
+        if hasattr(step, "async_object") and step._is_local_function(context):
+            if step.kind == StepKinds.queue:
+                skip_stream = context.is_mock and step.next
+                if step.path and not skip_stream:
+                    stream_path = step.path
+                    endpoint = None
+                    if "://" in stream_path:
+                        endpoint, stream_path = parse_v3io_path(step.path)
+                        stream_path = stream_path.strip("/")
+                    step._async_object = storey.StreamTarget(
+                        storey.V3ioDriver(endpoint), stream_path
+                    )
+                else:
+                    step._async_object = storey.Map(lambda x: x)
+
+            elif not step.async_object or not hasattr(step.async_object, "_outlets"):
+                # if regular class, wrap with storey Map
+                step._async_object = storey.Map(
+                    step._handler,
+                    full_event=step.full_event or step._call_with_event,
+                    input_path=step.input_path,
+                    result_path=step.result_path,
+                    name=step.name,
+                    context=context,
+                )
+            if not step.next and hasattr(step, "responder") and step.responder:
+                # if responder step (return result), add Complete()
+                step.async_object.to(storey.Complete(full_event=True))
+                wait_for_result = True
+
+    default_source = storey.SyncEmitSource()
+    return default_source, wait_for_result

@@ -1,6 +1,7 @@
 import pytest
 
 import mlrun
+from mlrun.serving.utils import event_id_key, event_path_key
 
 
 def echo(event):
@@ -13,7 +14,7 @@ tests_map = [
     ({"method": "GET"}, {"body": {"x": 5}}, {"get": "ok"}),
     (
         {"method": "POST", "subpath": "data", "return_json": False},
-        {"body": b"req text"},
+        {"path": "/datapath", "body": b"req text", "event_id": "123"},
         b"my str",
     ),
     ({"method": "POST", "subpath": "json"}, {"body": {"x": 5}}, {"post": "ok"}),
@@ -38,8 +39,14 @@ def _new_server(url, engine, method="POST", **kwargs):
 def test_remote_step(httpserver, engine):
     httpserver.expect_request("/", method="GET").respond_with_json({"get": "ok"})
     httpserver.expect_request("/foo", method="GET").respond_with_json({"foo": "ok"})
+
+    # verify the remote step added headers for the event path and id
+    expected_headers = {
+        event_id_key: "123",
+        event_path_key: "/datapath",
+    }
     httpserver.expect_request(
-        "/data", method="POST", data="req text"
+        "/data", method="POST", data="req text", headers=expected_headers
     ).respond_with_data("my str")
     httpserver.expect_request("/json", method="POST", json={"x": 5}).respond_with_json(
         {"post": "ok"}

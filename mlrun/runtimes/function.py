@@ -764,7 +764,7 @@ class RemoteRuntime(KubeResource):
         except OSError as err:
             raise OSError(f"error: cannot run function at url {path}, {err}")
         if not resp.ok:
-            raise RuntimeError(f"bad function response {resp.text}")
+            raise RuntimeError(f"bad function response {resp.status_code}: {resp.text}")
 
         data = resp.content
         if resp.headers["content-type"] == "application/json":

@@ -2,6 +2,7 @@ import collections
 import datetime
 import os
 import pathlib
+import sqlite3
 import typing
 
 import sqlalchemy.orm
@@ -57,16 +58,18 @@ def _is_latest_data_version():
     db_session = create_session()
     db = mlrun.api.db.sqldb.db.SQLDB("")
 
+    # by default, assume data version is 1
+    current_data_version = 1
     try:
         current_data_version = int(db.get_current_data_version(db_session))
-        return current_data_version == latest_data_version
-    except Exception as exc:
+    except sqlite3.OperationalError as exc:
         logger.info(
             "Failed getting current data version, assuming old version", exc=exc
         )
-        return False
     finally:
         close_session(db_session)
+
+    return current_data_version == latest_data_version
 
 
 def _perform_database_migration(from_scratch: bool = False):

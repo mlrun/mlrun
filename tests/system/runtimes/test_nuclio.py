@@ -57,14 +57,9 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
-    project_name = "does-not-exist-4"
+    project_name = "nuclio-stream-project"
     stream_container = "bigdata"
     stream_path = "/test_nuclio/test_serving_with_child_function/"
-
-    @staticmethod
-    def _skip_set_environment():
-        # Skip to make sure project ensured in Nuclio function deployment flow
-        return True
 
     def custom_teardown(self):
         v3io_client = v3io.dataplane.Client(

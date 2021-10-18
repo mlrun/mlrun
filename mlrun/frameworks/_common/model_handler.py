@@ -26,9 +26,12 @@ class ModelHandler(ABC):
     _CUSTOM_OBJECTS_MAP_ARTIFACT_NAME = "{}_custom_objects_map.json"
     _CUSTOM_OBJECTS_DIRECTORY_ARTIFACT_NAME = "{}_custom_objects.zip"
 
+    # Constant defaults:
+    _DEFAULT_ONNX_MODEL_NAME = "onnx_{}"
+
     def __init__(
         self,
-        model_name,
+        model_name: str,
         model_path: str = None,
         model: Model = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
@@ -266,9 +269,12 @@ class ModelHandler(ABC):
         )
 
     @abstractmethod
-    def to_onnx(self, *args, **kwargs):
+    def to_onnx(self, model_name: str = None, *args, **kwargs):
         """
         Convert the model in this handler to an ONNX model.
+
+        :param model_name: The name to give to the converted ONNX model. If not given the default name will be the
+                           stored model name with the suffix '_onnx'.
 
         :return: The converted ONNX model (onnx.ModelProto).
         """
@@ -337,6 +343,20 @@ class ModelHandler(ABC):
         :return: The custom objects directory zip artifact name.
         """
         return self._CUSTOM_OBJECTS_DIRECTORY_ARTIFACT_NAME.format(self._model_name)
+
+    def _get_default_onnx_model_name(self, model_name: Union[str, None]):
+        """
+        Check if the given model name is None and if so will generate the default ONNX model name: 'onnx_<MODEL_NAME>'.
+
+        :param model_name: The model name to check.
+
+        :return: The given model name if its not None or the default ONNX model name.
+        """
+        return (
+            self._DEFAULT_ONNX_MODEL_NAME.format(self._model_name)
+            if model_name is None
+            else model_name
+        )
 
     def _import_custom_objects(self):
         """

@@ -18,7 +18,7 @@ import mlrun
 import mlrun.feature_store as fs
 import tests.conftest
 from mlrun.config import config
-from mlrun.data_types.data_types import ValueType
+from mlrun.data_types.data_types import InferOptions, ValueType
 from mlrun.datastore.sources import (
     CSVSource,
     DataFrameSource,
@@ -398,7 +398,7 @@ class TestFeatureStore(TestMLRunSystem):
             "mycsv", path=os.path.relpath(str(self.assets_path / "testdata.csv"))
         )
         path = str(self.results_path / _generate_random_name())
-        target = ParquetTarget(path=path)
+        target = ParquetTarget(path=path, flush_after_seconds=10)
 
         fset = fs.FeatureSet(
             name="test", entities=[Entity("patient_id")], timestamp_key="timestamp"
@@ -1745,6 +1745,18 @@ class TestFeatureStore(TestMLRunSystem):
         resp = svc.get([{"ticker": "AAPL"}])
         svc.close()
         assert resp[0]["bid"] == 300
+
+    def test_get_offline_from_feature_set_with_no_schema(self):
+        myset = FeatureSet("fset2", entities=[Entity("ticker")])
+        fs.ingest(myset, quotes, infer_options=InferOptions.Null)
+        features = ["fset2.*"]
+        vector = fs.FeatureVector("QVMytLdP", features, with_indexes=True)
+
+        try:
+            fs.get_offline_features(vector)
+            assert False
+        except mlrun.errors.MLRunInvalidArgumentError:
+            pass
 
     def test_join_with_table(self):
         table_url = "v3io:///bigdata/system-test-project/nosql/test_join_with_table"

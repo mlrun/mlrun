@@ -16,9 +16,6 @@ import typing
 
 from kubernetes import client
 
-import mlrun.errors
-
-from ...platforms.other import mount_cfgmap
 from ...utils import update_in, verify_and_update_in
 from .abstract import AbstractSparkJobSpec, AbstractSparkRuntime
 
@@ -268,22 +265,9 @@ class Spark3Runtime(AbstractSparkRuntime):
     def disable_monitoring(self):
         self.spec.monitoring["enabled"] = False
 
-    def _with_monitoring(self, enabled=True, configmap=None, exporter_jar=None):
-        if enabled:
-            if not configmap:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Configmap cannot be empty when monitoring is enabled"
-                )
+    def _with_monitoring(self, enabled=True, exporter_jar=None):
         self.spec.monitoring["enabled"] = enabled
         if enabled:
-            if configmap:
-                self.apply(
-                    mount_cfgmap(
-                        cfgmap_name=configmap,
-                        mount_path="/etc/metrics/conf/",
-                        volume_name="monitoring",
-                    )
-                )
             if exporter_jar:
                 self.spec.monitoring["exporter_jar"] = exporter_jar
 
@@ -291,6 +275,5 @@ class Spark3Runtime(AbstractSparkRuntime):
         super().with_igz_spark()
         if "enabled" not in self.spec.monitoring or self.spec.monitoring["enabled"]:
             self._with_monitoring(
-                configmap="spark-operator-monitoring",
                 exporter_jar="/spark/jars/jmx_prometheus_javaagent-0.16.1.jar",
             )

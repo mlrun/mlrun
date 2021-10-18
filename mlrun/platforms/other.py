@@ -133,3 +133,26 @@ def mount_cfgmap(cfgmap_name, mount_path, volume_name="cfgmap", items=None):
         )
 
     return _mount_cfgmap
+
+
+def mount_hostpath(host_path, mount_path, volume_name="hostpath"):
+    """Modifier function to mount kubernetes configmap as files(s)
+
+    :param host_path:  host path
+    :param mount_path:   path to mount inside the container
+    :param volume_name:  unique volume name
+    """
+
+    def _mount_hostpath(task):
+        from kubernetes import client as k8s_client
+
+        return task.add_volume(
+            k8s_client.V1Volume(
+                name=volume_name,
+                host_path=k8s_client.V1HostPathVolumeSource(path=host_path, type=""),
+            )
+        ).add_volume_mount(
+            k8s_client.V1VolumeMount(mount_path=mount_path, name=volume_name)
+        )
+
+    return _mount_hostpath

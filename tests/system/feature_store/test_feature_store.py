@@ -1839,7 +1839,7 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_publish(self):
         name = "publish-test"
-        tag = f"tag--{time.time()}"
+        tag = f"tag-{time.time()}"
         fset = fs.FeatureSet(name, entities=[fs.Entity("ticker")])
         published_fset = fset.publish(tag)
 
@@ -1851,7 +1851,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         db = mlrun.get_run_db()
         fset_from_db = db.get_feature_set(name, tag=tag)
-        assert fset_from_db.get_publish_time() == published_fset.get_publish_time()
+        assert fset_from_db.get_publish_time == published_fset.get_publish_time
         for actual in [published_fset, fset_from_db]:
             assert actual is not None
             assert actual.metadata.name == fset.metadata.name

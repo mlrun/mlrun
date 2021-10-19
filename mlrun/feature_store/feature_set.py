@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
-import datetime
+from datetime import datetime, timezone
 import warnings
 from typing import List
 
@@ -219,7 +219,7 @@ class FeatureSetStatus(ModelObj):
         self._targets.update(target)
 
     def update_last_written_for_target(
-        self, target_path: str, last_written: datetime.datetime
+        self, target_path: str, last_written: datetime
     ):
         for target in self._targets:
             if target.path == target_path or target.path.rstrip("/") == target_path:
@@ -640,7 +640,7 @@ class FeatureSet(ModelObj):
         self._generate_new_run_uuid()
 
         published_feature_set.metadata.tag = tag
-        published_feature_set.status.publish_time = round(time.time() * 1000)  # publish_time
+        published_feature_set.status.publish_time = datetime.now(timezone.utc)  # publish_time
         published_feature_set.save(tag)
 
         return PublishedFeatureSet(published_feature_set)

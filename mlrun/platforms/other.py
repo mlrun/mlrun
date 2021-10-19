@@ -15,6 +15,7 @@
 # this file is based on the code from kubeflow pipelines git
 import os
 
+from mlrun.config import config
 from mlrun.errors import MLRunInvalidArgumentError
 
 from .iguazio import mount_v3io
@@ -76,6 +77,12 @@ def auto_mount(pvc_name="", volume_mount_path="", volume_name=None):
         return mount_pvc(volume_name=volume_name or "pvc",)
     if "V3IO_ACCESS_KEY" in os.environ:
         return mount_v3io(name=volume_name or "v3io")
+
+    # In the case of MLRun-kit when working remotely, no env variables will be defined but auto-mount
+    # parameters may still be declared - use them in that case.
+    if config.storage.auto_mount_type == "pvc":
+        return mount_pvc(**config.get_storage_auto_mount_params())
+
     raise ValueError("failed to auto mount, need to set env vars")
 
 

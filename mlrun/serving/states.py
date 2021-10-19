@@ -371,7 +371,7 @@ class TaskStep(BaseStep):
 
             # add common args (name, context, ..) only if target class can accept them
             argspec = getfullargspec(self._class_object)
-            for key in ["name", "context", "input_path", "result_path"]:
+            for key in ["name", "context", "input_path", "result_path", "full_event"]:
                 if argspec.varkw or key in argspec.args:
                     class_args[key] = getattr(self, key)
 

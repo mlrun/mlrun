@@ -267,9 +267,12 @@ def build_image(
     )
 
     if to_mount:
-        kpod.mount_v3io(remote=source, mount_path="/context",
-                        access_key=auth_info.data_session or auth_info.access_key,
-                        user=auth_info.username)
+        kpod.mount_v3io(
+            remote=source,
+            mount_path="/context",
+            access_key=auth_info.data_session or auth_info.access_key,
+            user=auth_info.username,
+        )
 
     k8s = get_k8s_helper()
     kpod.namespace = k8s.resolve_namespace(namespace)

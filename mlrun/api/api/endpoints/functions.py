@@ -460,6 +460,7 @@ def _build_function(
             ready = False
         else:
             ready = build_runtime(
+                auth_info,
                 fn,
                 with_mlrun,
                 mlrun_version_specifier,

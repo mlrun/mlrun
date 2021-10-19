@@ -162,6 +162,7 @@ def upload_tarball(source_dir, target, secrets=None):
 
 
 def build_image(
+    auth_info: mlrun.api.schemas.AuthInfo,
     project: str,
     dest,
     commands=None,
@@ -266,8 +267,12 @@ def build_image(
     )
 
     if to_mount:
-        # todo: support different mounters
-        kpod.mount_v3io(remote=source, mount_path="/context")
+        kpod.mount_v3io(
+            remote=source,
+            mount_path="/context",
+            access_key=auth_info.data_session or auth_info.access_key,
+            user=auth_info.username,
+        )
 
     k8s = get_k8s_helper()
     kpod.namespace = k8s.resolve_namespace(namespace)
@@ -297,6 +302,7 @@ def resolve_mlrun_install_command(mlrun_version_specifier=None):
 
 
 def build_runtime(
+    auth_info: mlrun.api.schemas.AuthInfo,
     runtime,
     with_mlrun,
     mlrun_version_specifier,
@@ -351,6 +357,7 @@ def build_runtime(
     base_image = enrich_image_url(build.base_image or config.default_base_image)
 
     status = build_image(
+        auth_info,
         project,
         build.image,
         base_image=base_image,

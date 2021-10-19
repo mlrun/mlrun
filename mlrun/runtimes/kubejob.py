@@ -19,6 +19,7 @@ from kubernetes import client
 from kubernetes.client.rest import ApiException
 
 import mlrun.errors
+import mlrun.api.schemas
 from mlrun.runtimes.base import BaseRuntimeHandler
 
 from ..builder import build_runtime
@@ -165,7 +166,7 @@ class KubejobRuntime(KubeResource):
         else:
             self.save(versioned=False)
             ready = build_runtime(
-                self, with_mlrun, mlrun_version_specifier, skip_deployed, watch
+                mlrun.api.schemas.AuthInfo(), self, with_mlrun, mlrun_version_specifier, skip_deployed, watch
             )
             self.save(versioned=False)
 

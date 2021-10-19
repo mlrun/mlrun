@@ -112,3 +112,54 @@ def mount_secret(secret_name, mount_path, volume_name="secret", items=None):
         )
 
     return _mount_secret
+
+
+def mount_configmap(configmap_name, mount_path, volume_name="configmap", items=None):
+    """Modifier function to mount kubernetes configmap as files(s)
+
+    :param configmap_name:  k8s configmap name
+    :param mount_path:      path to mount inside the container
+    :param volume_name:     unique volume name
+    :param items:           If unspecified, each key-value pair in the Data field
+                            of the referenced Configmap will be projected into the
+                            volume as a file whose name is the key and content is
+                            the value.
+                            If specified, the listed keys will be projected into
+                            the specified paths, and unlisted keys will not be
+                            present.
+    """
+
+    def _mount_configmap(task):
+        from kubernetes import client as k8s_client
+
+        vol = k8s_client.V1ConfigMapVolumeSource(name=configmap_name, items=items)
+        return task.add_volume(
+            k8s_client.V1Volume(name=volume_name, config_map=vol)
+        ).add_volume_mount(
+            k8s_client.V1VolumeMount(mount_path=mount_path, name=volume_name)
+        )
+
+    return _mount_configmap
+
+
+def mount_hostpath(host_path, mount_path, volume_name="hostpath"):
+    """Modifier function to mount kubernetes configmap as files(s)
+
+    :param host_path:  host path
+    :param mount_path:   path to mount inside the container
+    :param volume_name:  unique volume name
+    """
+
+    def _mount_hostpath(task):
+        from kubernetes import client as k8s_client
+
+        return task.add_volume(
+            k8s_client.V1Volume(
+                name=volume_name,
+                host_path=k8s_client.V1HostPathVolumeSource(path=host_path, type=""),
+            )
+        ).add_volume_mount(
+            k8s_client.V1VolumeMount(mount_path=mount_path, name=volume_name)
+        )
+
+    return _mount_hostpath

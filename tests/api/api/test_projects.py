@@ -41,7 +41,6 @@ from mlrun.api.db.sqldb.models import (
 def project_member_mode(request, db: Session) -> str:
     if request.param == "follower":
         mlrun.config.config.httpdb.projects.leader = "nop"
-        mlrun.config.config.httpdb.projects.follower_projects_store_mode = "cache"
         mlrun.api.utils.singletons.project_member.initialize_project_member()
         mlrun.api.utils.singletons.project_member.get_project_member()._leader_client.db_session = (
             db
@@ -191,9 +190,11 @@ def test_list_and_get_project_summaries(
     response = client.post("/api/projects", json=project.dict())
     assert response.status_code == HTTPStatus.CREATED.value
 
-    # create functions for the project
-    functions_count = 5
-    _create_functions(client, project_name, functions_count)
+    # create files for the project
+    files_count = 5
+    _create_artifacts(
+        client, project_name, files_count, mlrun.artifacts.ChartArtifact.kind
+    )
 
     # create feature sets for the project
     feature_sets_count = 9
@@ -270,7 +271,7 @@ def test_list_and_get_project_summaries(
         elif project_summary.name == project_name:
             _assert_project_summary(
                 project_summary,
-                functions_count,
+                files_count,
                 feature_sets_count,
                 models_count,
                 recent_failed_runs_count + recent_aborted_runs_count,
@@ -286,7 +287,7 @@ def test_list_and_get_project_summaries(
     project_summary = mlrun.api.schemas.ProjectSummary(**response.json())
     _assert_project_summary(
         project_summary,
-        functions_count,
+        files_count,
         feature_sets_count,
         models_count,
         recent_failed_runs_count + recent_aborted_runs_count,
@@ -716,6 +717,7 @@ def _assert_db_resources_in_project(
         # User support is not really implemented or in use
         # Run tags support is not really implemented or in use
         # Marketplace sources is not a project-level table, and hence is not relevant here.
+        # Version is not a project-level table, and hence is not relevant here.
         # Features and Entities are not directly linked to project since they are sub-entity of feature-sets
         # Logs are saved as files, the DB table is not really in use
         # in follower mode the DB project tables are irrelevant
@@ -723,6 +725,7 @@ def _assert_db_resources_in_project(
             cls.__name__ == "User"
             or cls.__tablename__ == "runs_tags"
             or cls.__tablename__ == "marketplace_sources"
+            or cls.__tablename__ == "data_versions"
             or cls.__name__ == "Feature"
             or cls.__name__ == "Entity"
             or cls.__name__ == "Log"
@@ -850,7 +853,7 @@ def _assert_project_response(
 
 def _assert_project_summary(
     project_summary: mlrun.api.schemas.ProjectSummary,
-    functions_count: int,
+    files_count: int,
     feature_sets_count: int,
     models_count: int,
     runs_failed_recent_count: int,
@@ -858,7 +861,7 @@ def _assert_project_summary(
     schedules_count: int,
     pipelines_running_count: int,
 ):
-    assert project_summary.functions_count == functions_count
+    assert project_summary.files_count == files_count
     assert project_summary.feature_sets_count == feature_sets_count
     assert project_summary.models_count == models_count
     assert project_summary.runs_failed_recent_count == runs_failed_recent_count

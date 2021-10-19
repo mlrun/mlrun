@@ -1,9 +1,19 @@
+from enum import Enum
 from typing import Dict, List, Union
 
 import mlrun
 
 # All trackable values types:
 TrackableType = Union[str, bool, float, int]
+
+
+class LoggerMode(Enum):
+    """
+    The logger's mode, can be training or validation.
+    """
+
+    TRAINING = "Training"
+    EVALUATION = "Evaluation"
 
 
 class Logger:
@@ -19,6 +29,9 @@ class Logger:
         """
         # Save the context:
         self._context = context
+
+        # Setup the logger's mode (defaulted to Training):
+        self._mode = LoggerMode.TRAINING
 
         # Setup the results dictionaries - a dictionary of metrics for all the iteration results by their epochs:
         # [Metric: str] -> [Epoch: int] -> [Iteration: int] -> [value: float]
@@ -51,6 +64,15 @@ class Logger:
         :return: The logger's context.
         """
         return self._context
+
+    @property
+    def mode(self) -> LoggerMode:
+        """
+        Get the logger's mode.
+
+        :return: The logger's mode. One of Logger.LoggerMode.
+        """
+        return self._mode
 
     @property
     def training_results(self) -> Dict[str, List[List[float]]]:
@@ -140,6 +162,14 @@ class Logger:
         :return: The overall validation iterations.
         """
         return self._validation_iterations
+
+    def set_mode(self, mode: LoggerMode):
+        """
+        Set the logger's mode.
+
+        :param mode: The mode to set. One of Logger.LoggerMode.
+        """
+        self._mode = mode
 
     def log_epoch(self):
         """

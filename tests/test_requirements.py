@@ -79,20 +79,24 @@ def test_requirement_specifiers_convention():
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "kfp": {"~=1.0.1"},
-        "botocore": {">=1.20.49,<1.20.50"},
-        "aiobotocore": {"<=1.3.1"},
-        "s3fs": {">=0.5.0, <=0.6.0"},
+        "botocore": {">=1.20.106,<1.20.107"},
+        "aiobotocore": {"~=1.4.0"},
+        "typing-extensions": {">=3.10.0"},
         # Black is not stable yet and does not have a release that is not beta, so can't be used with ~=
         "black": {"<=19.10b0"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},
         "python-dotenv": {""},
-        # These 3 are not semver so can't be used with ~=
+        # These are not semver
         "opencv-contrib-python": {">=4.2.0.34"},
         "pyhive": {" @ git+https://github.com/v3io/PyHive.git@v0.6.999"},
         "v3io-generator": {
             " @ git+https://github.com/v3io/data-science.git#subdirectory=generator"
         },
+        "fsspec": {"~=2021.8.1"},
+        "adlfs": {"~=2021.8.1"},
+        "s3fs": {"~=2021.8.1"},
+        "gcsfs": {"~=2021.8.1"},
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that
         # TODO: make test smart enough to understand that
         "urllib3": {">=1.25.4, <1.27"},
@@ -105,7 +109,7 @@ def test_requirement_specifiers_convention():
         "orjson": {">=3,<3.4"},
         "alembic": {"~=1.4,<1.6.0"},
         "distributed": {">=2.23, <3"},
-        "boto3": {"~=1.9, <1.17.50"},
+        "boto3": {"~=1.9, <1.17.107"},
         "azure-storage-blob": {"~=12.0, <12.7.0"},
         "dask-ml": {"~=1.4,<1.9.0"},
     }
@@ -216,7 +220,7 @@ def _parse_requirement_specifiers_list(
         assert (
             match is not None
         ), f"Requirement specifier did not matched regex. {requirement_specifier}"
-        requirement_specifiers_map[match.groupdict()["requirementName"]].add(
+        requirement_specifiers_map[match.groupdict()["requirementName"].lower()].add(
             match.groupdict()["requirementSpecifier"]
         )
     return requirement_specifiers_map

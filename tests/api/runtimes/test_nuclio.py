@@ -4,6 +4,7 @@ import os
 import unittest.mock
 
 import deepdiff
+import kubernetes
 import nuclio
 import pytest
 from fastapi.testclient import TestClient
@@ -22,6 +23,7 @@ from mlrun.runtimes.function import (
     validate_nuclio_version_compatibility,
 )
 from mlrun.runtimes.pod import KubeResourceSpec
+from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
 
 
@@ -117,6 +119,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         call_count=1,
         expected_params=[],
         expected_labels=None,
+        expected_env_from_secrets=None,
     ):
         if expected_labels is None:
             expected_labels = {}
@@ -159,6 +162,10 @@ class TestNuclioRuntime(TestRuntimeBase):
             assert spec_source_code.startswith(original_source_code)
 
             assert build_info["baseImage"] == self.image_name
+
+            if expected_env_from_secrets:
+                env_vars = deploy_config["spec"]["env"]
+                self._assert_pod_env_from_secrets(env_vars, expected_env_from_secrets)
 
     def _assert_triggers(self, http_trigger=None, v3io_trigger=None):
         args, _ = nuclio.deploy.deploy_config.call_args
@@ -328,6 +335,57 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
         ingresses = resolve_function_ingresses(config["spec"])
         assert ingresses == []
+
+    def test_nuclio_config_spec_env(self, db: Session, client: TestClient):
+        function = self._generate_runtime(self.runtime_kind)
+
+        name = "env1"
+        secret = "shh"
+        secret_key = "open sesame"
+        function.set_env_from_secret(name, secret=secret, secret_key=secret_key)
+
+        name2 = "env2"
+        value2 = "value2"
+        function.set_env(name2, value2)
+
+        expected_env_vars = [
+            {
+                "name": name,
+                "valueFrom": {"secretKeyRef": {"key": secret_key, "name": secret}},
+            },
+            {"name": name2, "value": value2},
+        ]
+
+        function_name, project_name, config = compile_function_config(function)
+        for expected_env_var in expected_env_vars:
+            assert expected_env_var in config["spec"]["env"]
+        assert isinstance(function.spec.env[0], kubernetes.client.V1EnvVar)
+        assert isinstance(function.spec.env[1], kubernetes.client.V1EnvVar)
+
+        # simulating sending to API - serialization through dict
+        function = function.from_dict(function.to_dict())
+        function_name, project_name, config = compile_function_config(function)
+        for expected_env_var in expected_env_vars:
+            assert expected_env_var in config["spec"]["env"]
+
+    def test_deploy_with_project_secrets(
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+    ):
+        secret_keys = ["secret1", "secret2", "secret3"]
+        secrets = {key: "some-secret-value" for key in secret_keys}
+
+        k8s_secrets_mock.store_project_secrets(self.project, secrets)
+
+        function = self._generate_runtime(self.runtime_kind)
+        self._serialize_and_deploy_nuclio_function(function)
+
+        # This test runs in KubeJob as well, with different secret names encoding
+        expected_secrets = k8s_secrets_mock.get_expected_env_variables_from_secrets(
+            self.project, encode_key_names=(self.class_name != "remote")
+        )
+        self._assert_deploy_called_basic_config(
+            expected_class=self.class_name, expected_env_from_secrets=expected_secrets
+        )
 
     def test_deploy_basic_function(self, db: Session, client: TestClient):
         function = self._generate_runtime(self.runtime_kind)

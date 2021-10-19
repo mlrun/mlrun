@@ -9,8 +9,16 @@ class ProjectMembershipFeatureFlag(str, enum.Enum):
     disabled = "disabled"
 
 
+class AuthenticationFeatureFlag(str, enum.Enum):
+    none = "none"
+    basic = "basic"
+    bearer = "bearer"
+    iguazio = "iguazio"
+
+
 class FeatureFlags(pydantic.BaseModel):
     project_membership: ProjectMembershipFeatureFlag
+    authentication: AuthenticationFeatureFlag
 
 
 class FrontendSpec(pydantic.BaseModel):

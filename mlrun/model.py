@@ -1181,6 +1181,7 @@ class VersionedObjMetadata(ModelObj):
         labels: Dict[str, str] = None,
         annotations: Dict[str, str] = None,
         updated=None,
+        run_uuid=None,
     ):
         self.name = name
         self.tag = tag
@@ -1189,3 +1190,4 @@ class VersionedObjMetadata(ModelObj):
         self.labels = labels or {}
         self.annotations = annotations or {}
         self.updated = updated
+        self.run_uuid = run_uuid

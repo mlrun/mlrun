@@ -195,6 +195,7 @@ class FeatureSetStatus(ModelObj):
         preview=None,
         function_uri=None,
         run_uri=None,
+        publish_time=None,
     ):
         self.state = state or "created"
         self._targets: ObjectList = None
@@ -203,6 +204,7 @@ class FeatureSetStatus(ModelObj):
         self.preview = preview or []
         self.function_uri = function_uri
         self.run_uri = run_uri
+        self.publish_time = publish_time
 
     @property
     def targets(self) -> List[DataTarget]:
@@ -228,7 +230,7 @@ class FeatureSet(ModelObj):
     """Feature set object, defines a set of features and their data pipeline"""
 
     kind = mlrun.api.schemas.ObjectKind.feature_set.value
-    _dict_fields = ["kind", "metadata", "spec", "status", "_publish_time", "_run_uuid"]
+    _dict_fields = ["kind", "metadata", "spec", "status"]
 
     def __init__(
         self,
@@ -253,7 +255,6 @@ class FeatureSet(ModelObj):
         self.metadata = VersionedObjMetadata(name=name)
         self.status = None
         self._last_state = ""
-        self._publish_time = None
         self._generate_new_run_uuid()
 
     @property
@@ -293,7 +294,7 @@ class FeatureSet(ModelObj):
 
     @property
     def get_publish_time(self):
-        return self._publish_time
+        return self.status.publish_time
 
     def _override_run_db(
         self, session,
@@ -311,7 +312,7 @@ class FeatureSet(ModelObj):
             return mlrun.get_run_db()
 
     def _generate_new_run_uuid(self):
-        self._run_uuid = round(time.time() * 1000)
+        self.metadata.run_uuid = round(time.time() * 1000)
 
     def _get_feature_set_for_tag(self, tag):
         tag = tag or self.metadata.tag
@@ -326,7 +327,7 @@ class FeatureSet(ModelObj):
         """get the url/path for an offline or specified data target"""
         target = get_offline_target(self, name=name)
         if target:
-            return target.path + "/" + self._run_uuid
+            return target.path + "/" + self.metadata.run_uuid
 
     def set_targets(
             self,
@@ -639,7 +640,7 @@ class FeatureSet(ModelObj):
         self._generate_new_run_uuid()
 
         published_feature_set.metadata.tag = tag
-        published_feature_set._publish_time = round(time.time() * 1000)  # publish_time
+        published_feature_set.status.publish_time = round(time.time() * 1000)  # publish_time
         published_feature_set.save(tag)
 
         return PublishedFeatureSet(published_feature_set)

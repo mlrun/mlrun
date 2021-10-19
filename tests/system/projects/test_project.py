@@ -182,6 +182,7 @@ class TestProject(TestMLRunSystem):
         state = pipeline["run"]["status"]
         assert state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
         self._delete_test_project(name)
+        self._delete_test_project(project2.metadata.name)
 
     def test_inline_pipeline(self):
         name = "pipe5"
@@ -257,3 +258,4 @@ class TestProject(TestMLRunSystem):
         out = exec_project(args, projects_dir)
         print("OUT:\n", out)
         assert out.find("pipeline run finished, state=Succeeded"), "pipeline failed"
+        self._delete_test_project(name)

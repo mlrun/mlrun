@@ -127,6 +127,15 @@ feature_vector = 'store://feature-vectors/{project}/{feature_vector_name}'
 svc = fstore.get_online_feature_service(feature_vector)
 ```
 
+The online feature service support value imputing (substitute NaN/Inf values with statistical or constant value), you 
+can set the `impute_policy` parameter with the imputing policy, and specify which constant or statistical value will be used
+instead of NaN/Inf value, this can be defined per column or for all the columns (`"*"`).
+the replaced value can be fixed number for constants or $mean, $max, $min, $std, $count for statistical values.
+"*" is used to specify the default for all features, example: 
+
+    svc = fstore.get_online_feature_service(feature_vector, impute_policy={"*": "$mean", "age": 33})
+
+
 To use the online feature service we will need to supply him with a list of entities we would like to get the feature vectors for.
 The service will return us the feature vectors as a dictionary of `{<feature-name>: <feature-value>}` or simply a list of values as numpy arrays.
 
@@ -139,5 +148,10 @@ entities = [{<feature-vector-entity-column-name>: <entity>}]
 # Get the feature vectors from the service
 svc.get(entities)
 ```
+
+The `entities` can be a list of dictionaries as shown in the example, or a list of list where the values in the internal 
+list correspond to the entity values (e.g. `entities = [["Joe"], ["Mike"]]`). the `.get()` method returns a dict by default
+, if we want to return an ordered list of values we set the `as_list` parameter to `True`, list input is required by many ML 
+frameworks and this eliminates additional glue logic.  
 
 You can see a full example of using the online feature service inside a serving function in [part 3 of our end-to-end demo](./end-to-end-demo/03-deploy-serving-model.ipynb).

@@ -205,7 +205,9 @@ def test_delete_secret_verifications(
     project = "project-name"
     provider = mlrun.api.schemas.SecretProviderName.kubernetes
     key_map_secret_key = mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
-    internal_key = mlrun.api.crud.Secrets().generate_schedule_secret_key("some-name")
+    internal_key = mlrun.api.crud.Secrets().generate_schedule_access_key_secret_key(
+        "some-name"
+    )
 
     # verifications check
     # internal key without allow

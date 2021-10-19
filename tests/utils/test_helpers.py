@@ -68,6 +68,10 @@ def test_run_name_regex():
 
 
 def test_extend_hub_uri():
+    hub_urls = [
+        "https://raw.githubusercontent.com/mlrun/functions/{tag}/{name}/function.yaml",
+        "https://raw.githubusercontent.com/mlrun/functions",
+    ]
     cases = [
         {
             "input_uri": "http://no-hub-prefix",
@@ -92,11 +96,13 @@ def test_extend_hub_uri():
             "ml",
         },
     ]
-    for case in cases:
-        input_uri = case["input_uri"]
-        expected_output = case["expected_output"]
-        output, _ = extend_hub_uri_if_needed(input_uri)
-        assert expected_output == output
+    for hub_url in hub_urls:
+        mlrun.mlconf.hub_url = hub_url
+        for case in cases:
+            input_uri = case["input_uri"]
+            expected_output = case["expected_output"]
+            output, _ = extend_hub_uri_if_needed(input_uri)
+            assert expected_output == output
 
 
 def test_enrich_image():

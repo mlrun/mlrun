@@ -1,6 +1,8 @@
+import pytest
 import typing
 import unittest.mock
 
+import sqlalchemy.exc
 import sqlalchemy.orm
 
 import mlrun
@@ -73,6 +75,37 @@ def test_perform_data_migrations_from_zero_version():
     assert db.get_current_data_version(db_session, raise_on_not_found=True) == str(
         mlrun.api.initial_data.latest_data_version
     )
+
+
+def test_resolve_current_data_version_version_exists():
+    db, db_session = _initialize_db_without_migrations()
+
+    db.create_data_version(db_session, "1")
+    assert mlrun.api.initial_data._resolve_current_data_version(db, db_session) == 1
+
+
+@pytest.mark.parametrize("table_exists", [True, False])
+def test_resolve_current_data_version_before_and_after_projects(table_exists):
+    db, db_session = _initialize_db_without_migrations()
+
+    original_latest_data_version = mlrun.api.initial_data.latest_data_version
+    mlrun.api.initial_data.latest_data_version = 3
+
+    if not table_exists:
+        # simulating table doesn't exist in DB
+        db.get_current_data_version = unittest.mock.Mock()
+        db.get_current_data_version.side_effect = sqlalchemy.exc.OperationalError("no such table", None, None)
+
+    assert mlrun.api.initial_data._resolve_current_data_version(db, db_session) == 3
+    # fill db
+    db.create_project(
+        db_session,
+        mlrun.api.schemas.Project(
+            metadata=mlrun.api.schemas.ProjectMetadata(name="project-name"),
+        ),
+    )
+    assert mlrun.api.initial_data._resolve_current_data_version(db, db_session) == 1
+    mlrun.api.initial_data.latest_data_version = original_latest_data_version
 
 
 def _initialize_db_without_migrations() -> typing.Tuple[

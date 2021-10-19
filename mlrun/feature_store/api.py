@@ -355,12 +355,10 @@ def ingest(
         featureset.purge_targets(target_names=purge_target_names, silent=True)
     else:
         for target in purge_targets:
-            overwrite_supported_targets = [TargetTypes.parquet, TargetTypes.nosql]
-            if target.kind not in overwrite_supported_targets:
+            overwrite_not_supported_targets = [TargetTypes.csv]
+            if target.kind in overwrite_not_supported_targets:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Only some targets ({0}) support overwrite=False ingestion".format(
-                        ",".join(overwrite_supported_targets)
-                    )
+                    f"{type(target.kind)} target does not support overwrite=False ingestion"
                 )
             if hasattr(target, "is_single_file") and target.is_single_file():
                 raise mlrun.errors.MLRunInvalidArgumentError(

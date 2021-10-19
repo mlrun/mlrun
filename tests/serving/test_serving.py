@@ -340,7 +340,25 @@ def test_function():
     logger.info(f"flow: {graph.to_yaml()}")
     resp = server.test("/v2/models/my/infer", testdata)
     # expected: source (5) * multiplier (100)
-    assert resp["outputs"] == 5 * 100, f"wrong health response {resp}"
+    assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
 
     dummy_stream = server.context.stream.output_stream
     assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
+
+
+def test_serving_no_router():
+    fn = mlrun.new_function("tests", kind="serving")
+    graph = fn.set_topology("flow", engine="sync")
+    graph.to("ModelTestingClass", "my2", model_path=".", multiplier=100).respond()
+
+    server = fn.to_mock_server()
+
+    resp = server.test("/", method="GET")
+    assert resp["name"] == "my2", f"wrong get response {resp}"
+
+    resp = server.test("/ready", method="GET")
+    assert resp.status_code == 200, f"wrong health response {resp}"
+
+    resp = server.test("/", testdata)
+    # expected: source (5) * multiplier (100)
+    assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"

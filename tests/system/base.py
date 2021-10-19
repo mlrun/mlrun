@@ -71,8 +71,6 @@ class TestMLRunSystem:
             f"Tearing down test {self.__class__.__name__}::{method.__name__}"
         )
 
-        self.custom_teardown()
-
         self._logger.debug("Removing test data from database")
         if self._should_clean_resources():
             fsets = self._run_db.list_feature_sets()
@@ -81,7 +79,11 @@ class TestMLRunSystem:
                     fset.purge_targets()
 
         self._delete_test_project()
+
+        self.custom_teardown()
+
         self._teardown_env()
+
         self._logger.info(
             f"Finished tearing down test {self.__class__.__name__}::{method.__name__}"
         )

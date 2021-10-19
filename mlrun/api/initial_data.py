@@ -340,7 +340,7 @@ def _resolve_current_data_version(
     except (sqlalchemy.exc.OperationalError, mlrun.errors.MLRunNotFoundError) as exc:
         try:
             projects = db.list_projects(db_session)
-        except sqlalchemy.exc.OperationalError as exc:
+        except sqlalchemy.exc.OperationalError:
             projects = None
 
         # heuristic - if there are no projects it's a new DB - data version is latest

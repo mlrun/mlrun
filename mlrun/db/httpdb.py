@@ -14,9 +14,9 @@
 
 import http
 import os
-import traceback
 import tempfile
 import time
+import traceback
 import warnings
 from datetime import datetime
 from os import path, remove
@@ -300,9 +300,11 @@ class HTTPRunDB(RunDBInterface):
             )
 
         except Exception as exc:
-            logger.warning("Failed syncing config from server",
-                           exc=str(exc),
-                           traceback=traceback.format_exc())
+            logger.warning(
+                "Failed syncing config from server",
+                exc=str(exc),
+                traceback=traceback.format_exc(),
+            )
         return self
 
     def store_log(self, uid, project="", body=None, append=False):
@@ -2243,18 +2245,14 @@ class HTTPRunDB(RunDBInterface):
                 client_version=client_version,
             )
             return True
-        if (
-            parsed_server_version.major != parsed_client_version.major
-        ):
+        if parsed_server_version.major != parsed_client_version.major:
             logger.warning(
                 "Server and client versions are incompatible",
                 parsed_server_version=parsed_server_version,
                 parsed_client_version=parsed_client_version,
             )
             return False
-        if (
-                parsed_server_version.minor != parsed_client_version.minor
-        ):
+        if parsed_server_version.minor != parsed_client_version.minor:
             logger.info(
                 "Server and client versions are not the same",
                 parsed_server_version=parsed_server_version,

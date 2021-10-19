@@ -357,11 +357,7 @@ def test_version_compatibility_validation():
         {"server_version": "unstable", "client_version": "0.6.1", "compatible": True},
         {"server_version": "0.5.3", "client_version": "0.5.1", "compatible": True},
         {"server_version": "0.6.0-rc1", "client_version": "0.6.1", "compatible": True},
-        {
-            "server_version": "0.6.0-rc1",
-            "client_version": "0.5.4",
-            "compatible": True,
-        },
+        {"server_version": "0.6.0-rc1", "client_version": "0.5.4", "compatible": True},
         {"server_version": "0.6.3", "client_version": "0.4.8", "compatible": True},
         {"server_version": "1.0.0", "client_version": "0.5.0", "compatible": False},
         {"server_version": "0.5.0", "client_version": "1.0.0", "compatible": False},

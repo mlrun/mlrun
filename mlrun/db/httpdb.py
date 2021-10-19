@@ -16,6 +16,7 @@ import http
 import os
 import tempfile
 import time
+import traceback
 import warnings
 from datetime import datetime
 from os import path, remove
@@ -298,8 +299,12 @@ class HTTPRunDB(RunDBInterface):
                 or config.spark_operator_version
             )
 
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(
+                "Failed syncing config from server",
+                exc=str(exc),
+                traceback=traceback.format_exc(),
+            )
         return self
 
     def store_log(self, uid, project="", body=None, append=False):
@@ -2228,7 +2233,7 @@ class HTTPRunDB(RunDBInterface):
         )
 
     @staticmethod
-    def _validate_version_compatibility(server_version, client_version):
+    def _validate_version_compatibility(server_version, client_version) -> bool:
         try:
             parsed_server_version = semver.VersionInfo.parse(server_version)
             parsed_client_version = semver.VersionInfo.parse(client_version)
@@ -2239,18 +2244,21 @@ class HTTPRunDB(RunDBInterface):
                 server_version=server_version,
                 client_version=client_version,
             )
-            return
-        if (
-            parsed_server_version.major != parsed_client_version.major
-            or parsed_server_version.minor != parsed_client_version.minor
-        ):
-            message = "Server and client versions are incompatible"
+            return True
+        if parsed_server_version.major != parsed_client_version.major:
             logger.warning(
-                message,
+                "Server and client versions are incompatible",
                 parsed_server_version=parsed_server_version,
                 parsed_client_version=parsed_client_version,
             )
-            raise mlrun.errors.MLRunIncompatibleVersionError(message)
+            return False
+        if parsed_server_version.minor != parsed_client_version.minor:
+            logger.info(
+                "Server and client versions are not the same",
+                parsed_server_version=parsed_server_version,
+                parsed_client_version=parsed_client_version,
+            )
+        return True
 
     def create_or_patch_model_endpoint(
         self,

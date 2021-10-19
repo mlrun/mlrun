@@ -58,7 +58,7 @@ class StepToDict:
                     args[key] = value
 
         mod_name = self.__class__.__module__
-        class_path = {self.__class__.__qualname__}
+        class_path = self.__class__.__qualname__
         if mod_name not in ["__main__", "builtins"]:
             class_path = f"{mod_name}.{class_path}"
         struct = {
@@ -72,7 +72,7 @@ class StepToDict:
             struct["input_path"] = self._input_path
         if hasattr(self, "_result_path"):
             struct["result_path"] = self._result_path
-        if hasattr(self, "_full_event"):
+        if hasattr(self, "_full_event") and self._full_event:
             struct["full_event"] = self._full_event
         return struct
 

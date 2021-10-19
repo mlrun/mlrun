@@ -1,8 +1,8 @@
-import inflection
 import os
 import pathlib
 
 import deepdiff
+import inflection
 import pytest
 
 import mlrun
@@ -138,7 +138,8 @@ def test_user_project():
         os.environ["V3IO_USERNAME"] = username
         project = mlrun.new_project(project_name, user_project=True)
         assert (
-            project.metadata.name == f"{project_name}-{inflection.dasherize(username.lower())}"
+            project.metadata.name
+            == f"{project_name}-{inflection.dasherize(username.lower())}"
         ), "project name doesnt include user name"
     if original_username is not None:
         os.environ["V3IO_USERNAME"] = original_username

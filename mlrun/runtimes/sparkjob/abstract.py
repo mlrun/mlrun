@@ -14,7 +14,7 @@
 
 import typing
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Optional, Tuple
 
 from kubernetes import client
@@ -628,7 +628,7 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         if in_terminal_state:
             completion_time = datetime.fromisoformat(
                 crd_object.get("status", {})
-                .get("terminationTime")
+                .get("terminationTime", datetime.now(timezone.utc))
                 .replace("Z", "+00:00")
             )
         return in_terminal_state, completion_time, desired_run_state

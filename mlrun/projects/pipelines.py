@@ -111,7 +111,6 @@ class FunctionsDict:
         enriched_function = enrich_function_object(
             self.project, function, self._decorator
         )
-        key = key or enriched_function.metadata.name
         self._functions[key] = enriched_function  # update the cache
         return self._functions[key]
 

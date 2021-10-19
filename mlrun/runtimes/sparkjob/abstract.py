@@ -626,7 +626,7 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         )
         completion_time = None
         if in_terminal_state:
-            if "terminationTime" in crd_object.get("status", {}):
+            if crd_object.get("status", {}).get("terminationTime"):
                 completion_time = datetime.fromisoformat(
                     crd_object.get("status", {})
                     .get("terminationTime")

@@ -290,6 +290,7 @@ class FeatureSet(ModelObj):
             uri += ":" + self._metadata.tag
         return uri
 
+    @property
     def get_publish_time(self):
         return self._publish_time
 
@@ -327,11 +328,11 @@ class FeatureSet(ModelObj):
             return target.path + "/" + self._run_uuid
 
     def set_targets(
-        self,
-        targets=None,
-        with_defaults=True,
-        default_final_step=None,
-        default_final_state=None,
+            self,
+            targets=None,
+            with_defaults=True,
+            default_final_step=None,
+            default_final_state=None,
     ):
         """set the desired target list or defaults
 
@@ -572,13 +573,13 @@ class FeatureSet(ModelObj):
         return graph.plot(filename, format, targets=targets, **kw)
 
     def to_dataframe(
-        self,
-        columns=None,
-        df_module=None,
-        target_name=None,
-        start_time=None,
-        end_time=None,
-        time_column=None,
+            self,
+            columns=None,
+            df_module=None,
+            target_name=None,
+            start_time=None,
+            end_time=None,
+            time_column=None,
     ):
         """return featureset (offline) data as dataframe"""
         entities = list(self.spec.entities.keys())
@@ -629,11 +630,70 @@ class FeatureSet(ModelObj):
         if self._get_feature_set_for_tag(tag):
             raise MLRunBadRequestError(f"Cannot publish tag: '{tag}', tag already published.")
 
-        published_f_set = copy.deepcopy(self)
+        published_feature_set = copy.deepcopy(self)
         self._generate_new_run_uuid()
 
-        published_f_set.metadata.tag = tag
-        published_f_set._publish_time = round(time.time() * 1000) # publish_time
-        published_f_set.save(tag)
+        published_feature_set.metadata.tag = tag
+        published_feature_set._publish_time = round(time.time() * 1000)  # publish_time
+        published_feature_set.save(tag)
 
-        return published_f_set
+        return PublishedFeatureSet(published_feature_set)
+
+
+class ReadOnlyModelObj(ModelObj):
+    def __init__(self, obj, obj_type):
+        if isinstance(obj, obj_type):
+            self.__dict__.update(obj.__dict__)
+        else:
+            raise RuntimeError(f'Cannot create {self.__class__} from object of type: {type(obj)}')
+
+    def __setattr__(self, key, value):
+        raise AttributeError('Cannot change attributes on a read only object.')
+
+    def __delattr__(self, key):
+        raise AttributeError('Cannot delete attributes on a read only object.')
+
+
+class SemiReadOnlyModelObj(ReadOnlyModelObj):
+    _editable_fields_list = None
+
+    def __init__(self, obj, obj_type, editable_fields_list: List[str]):
+        super().__init__(obj, obj_type)
+        self.__dict__["_editable_fields_list"] = editable_fields_list
+
+    def __setattr__(self, key, value):
+        if key not in self._editable_fields_list:
+            raise AttributeError('Cannot change attributes on a read only object.')
+        self.__dict__[key] = value
+
+    def __delattr__(self, key):
+        raise AttributeError('Cannot delete attributes on a read only object.')
+
+
+class PublishedFeatureSetSpec(FeatureSetSpec, ReadOnlyModelObj):
+    def __init__(self, spec):
+        ReadOnlyModelObj.__init__(self, spec, FeatureSetSpec)
+
+
+class PublishedFeatureSetStatus(FeatureSetStatus, SemiReadOnlyModelObj):
+    def __init__(self, status, editable_fields_list: List[str]):
+        SemiReadOnlyModelObj.__init__(self, status, FeatureSetStatus, editable_fields_list)
+
+    def update_target(self, target: DataTarget):
+        raise AttributeError('Cannot execute update_target on a read only object.')
+
+
+class PublishedFeatureSetMetaData(VersionedObjMetadata, ReadOnlyModelObj):
+    def __init__(self, metadata):
+        ReadOnlyModelObj.__init__(self, metadata, VersionedObjMetadata)
+
+
+class PublishedFeatureSet(ReadOnlyModelObj, FeatureSet):
+    """ read only feature set with protected attributes. """
+    _dict_fields = FeatureSet._dict_fields
+
+    def __init__(self, feature_set):
+        super().__init__(feature_set, FeatureSet)
+        self.__dict__['_spec'] = PublishedFeatureSetSpec(feature_set.spec)
+        self.__dict__['_metadata'] = PublishedFeatureSetMetaData(feature_set.metadata)
+        self.__dict__['_status'] = PublishedFeatureSetStatus(feature_set.status, ["state"])

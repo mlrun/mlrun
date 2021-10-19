@@ -2,6 +2,7 @@ import os
 import pathlib
 import random
 import string
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from time import sleep
@@ -1742,7 +1743,7 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_publish(self):
         name = "publish-test"
-        tag = "123456"
+        tag = f"tag--{time.time()}"
         fset = fs.FeatureSet(name, entities=[fs.Entity("ticker")])
         published_fset = fset.publish(tag)
 
@@ -1754,6 +1755,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         db = mlrun.get_run_db()
         fset_from_db = db.get_feature_set(name, tag=tag)
+        assert fset_from_db.get_publish_time() == published_fset.get_publish_time()
         for actual in [published_fset, fset_from_db]:
             assert actual is not None
             assert actual.metadata.name == fset.metadata.name
@@ -1761,6 +1763,65 @@ class TestFeatureStore(TestMLRunSystem):
             assert actual.metadata.project == self.project_name
             assert actual.get_publish_time
             assert actual._run_uuid is not None
+
+    def test_published_feature_set_apis(self):
+        from mlrun.errors import MLRunBadRequestError
+        expected_error = AttributeError
+        name = "readonly"
+        timestamp_key = "time"
+        tag = f"ro-tag-{time.time()}"
+        fset = fs.FeatureSet(name, entities=[fs.Entity("ticker")], timestamp_key=timestamp_key)
+        fs.ingest(fset,
+                  quotes,
+                  targets=[ParquetTarget()]
+                  )
+        published_fset = fset.publish(tag)
+        assert published_fset.metadata.name == name
+        assert published_fset.metadata.tag == tag
+        assert published_fset.spec.timestamp_key == timestamp_key
+        assert published_fset.status.state == "created"
+        with pytest.raises(expected_error):
+            published_fset.spec = fset.spec
+        with pytest.raises(expected_error):
+            published_fset.spec.timestamp_key = "other"
+        with pytest.raises(expected_error):
+            published_fset.metadata = fset.metadata
+        with pytest.raises(expected_error):
+            published_fset.metadata.tag = "other"
+        with pytest.raises(expected_error):
+            published_fset.status = fset.status
+        with pytest.raises(expected_error):
+            published_fset.status.stats = {"other"}
+        published_fset.status.state = "other"
+        assert published_fset.status.state == "other"
+
+        # Test disabled methods for published feature set:
+        with pytest.raises(expected_error):
+            from mlrun.model import DataTarget
+            published_fset.status.update_target(DataTarget(name="temp"))
+        # with pytest.raises(expected_error):
+        #     published_fset.set_targets()    # TODO - this doesn't fail because of use in update() on a list object
+        # with pytest.raises(expected_error):
+        #     published_fset.add_entity(fs.Entity("entity"))
+        # with pytest.raises(expected_error):
+        #     published_fset.add_feature(Feature())
+        # with pytest.raises(expected_error):
+        #     published_fset.add_aggregation("aggr", "ticker", "sum", "1h")
+        with pytest.raises(MLRunBadRequestError):
+            published_fset.publish(tag)
+        with pytest.raises(expected_error):
+            published_fset.publish("already-published")
+
+        # Test enabled methods for published feature set:
+        published_fset.status.update_last_written_for_target("path", datetime.now())
+        published_fset.plot()
+        fset.to_dict()
+        published_fset.to_dict()
+        published_fset.save()
+        published_fset.to_dataframe()
+
+        # TODO - decide what to do with:
+        # published_fset.purge_targets() - should be enabled from ingest but disabled from outside
 
 
 def verify_purge(fset, targets):

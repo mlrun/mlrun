@@ -372,7 +372,7 @@ def ingest(
         # KKI
         if featureset.overwrite or not featureset.run_uuid:
             print("UUUUUUUUUUUUUU")
-            featureset.run_uuid = uuid.uuid4().hex
+            featureset._generate_new_run_uuid()
         for t in targets:
             #        print("CURRENT PATH IS  " + str(t.path))
             t.feature_set = featureset

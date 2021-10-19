@@ -1,4 +1,4 @@
-import getpass
+import inflection
 import os
 import pathlib
 
@@ -132,11 +132,16 @@ def test_get_set_params():
 
 def test_user_project():
     project_name = "project-name"
-    user = os.environ.get("V3IO_USERNAME") or getpass.getuser()
-    project = mlrun.new_project(project_name, user_project=True)
-    assert (
-        project.metadata.name == f"{project_name}-{user}"
-    ), "project name doesnt include user name"
+    original_username = os.environ.get("V3IO_USERNAME")
+    usernames = ["valid-username", "require_Normalization"]
+    for username in usernames:
+        os.environ["V3IO_USERNAME"] = username
+        project = mlrun.new_project(project_name, user_project=True)
+        assert (
+            project.metadata.name == f"{project_name}-{inflection.dasherize(username.lower())}"
+        ), "project name doesnt include user name"
+    if original_username is not None:
+        os.environ["V3IO_USERNAME"] = original_username
 
 
 def test_build_project_from_minimal_dict():

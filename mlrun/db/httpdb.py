@@ -297,6 +297,10 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("spark_operator_version")
                 or config.spark_operator_version
             )
+            config.default_tensorboard_logs_path = (
+                config.default_tensorboard_logs_path
+                or server_cfg.get("default_tensorboard_logs_path")
+            )
 
         except Exception:
             pass

@@ -298,21 +298,14 @@ class TensorboardLoggingCallback(LoggingCallback):
         :param auto_log:                Whether or not to enable auto logging for logging the context parameters and
                                         trying to track common static and dynamic hyperparameters such as learning rate.
 
-        :raise ValueError: In case both 'context' and 'tensorboard_directory' parameters were not given or the
-                           'update_frequency' was incorrect.
+        :raise MLRunInvalidArgumentError: In case both 'context' and 'tensorboard_directory' parameters were not given
+                                          or the 'update_frequency' was incorrect.
         """
         super(TensorboardLoggingCallback, self).__init__(
             dynamic_hyperparameters=dynamic_hyperparameters,
             static_hyperparameters=static_hyperparameters,
             auto_log=auto_log,
         )
-
-        # Validate input:
-        if context is None and tensorboard_directory is None:
-            raise ValueError(
-                "Expecting to receive a mlrun.MLClientCtx context or a path to a directory to output "
-                "the logging file but None were given."
-            )
 
         # Replace the logger with a TensorboardLogger:
         del self._logger

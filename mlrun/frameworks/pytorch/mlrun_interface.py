@@ -419,7 +419,7 @@ class PyTorchMLRunInterface:
         :param use_horovod:              Whether or not to use horovod - a distributed training framework. Defaulted to
                                          None, meaning it will be read from context if available and if not - False.
 
-        :raise ValueError: In case one of the given parameters is invalid.
+        :raise MLRunInvalidArgumentError: In case one of the given parameters is invalid.
         """
         # Parse and validate input:
         # # Metric functions:
@@ -430,12 +430,12 @@ class PyTorchMLRunInterface:
             if training_iterations is None:
                 training_iterations = len(training_set)
             elif training_iterations < 1:
-                raise ValueError(
+                raise mlrun.errors.MLRunInvalidArgumentError(
                     "The 'training_iterations' parameter must be bigger or equal to one, received: {}"
                     "".format(training_iterations)
                 )
             elif training_iterations > len(training_set):
-                raise ValueError(
+                raise mlrun.errors.MLRunInvalidArgumentError(
                     "The 'training_iterations' cannot be bigger than the given training dataset. The size of "
                     "the given training set is {} yet the received iterations parameter is {}."
                     "".format(len(training_set), training_iterations)
@@ -445,19 +445,19 @@ class PyTorchMLRunInterface:
             if validation_iterations is None:
                 validation_iterations = len(validation_set)
             elif validation_iterations < 1:
-                raise ValueError(
+                raise mlrun.errors.MLRunInvalidArgumentError(
                     "The 'validation_iterations' parameter must be bigger or equal to one, "
                     "received: {}".format(validation_iterations)
                 )
             elif validation_iterations > len(validation_set):
-                raise ValueError(
+                raise mlrun.errors.MLRunInvalidArgumentError(
                     "The 'validation_iterations' cannot be bigger than the given validation dataset. The "
                     "size of the given validation set is {} yet the received iterations parameter is {}."
                     "".format(len(validation_set), validation_iterations)
                 )
         # # Epochs:
         if epochs < 1:
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "The 'epochs' parameter must be bigger or equal to one, received: {}".format(
                     epochs
                 )
@@ -469,7 +469,7 @@ class PyTorchMLRunInterface:
             elif scheduler_step_frequency == "batch":
                 scheduler_step_frequency = 1
             else:
-                raise ValueError(
+                raise mlrun.errors.MLRunInvalidArgumentError(
                     "The scheduler step frequency parameter can be passed as a string of two values: "
                     "'epoch' or 'batch', but the value given was: '{}'".format(
                         scheduler_step_frequency
@@ -477,7 +477,7 @@ class PyTorchMLRunInterface:
                 )
         elif isinstance(scheduler_step_frequency, float):
             if scheduler_step_frequency < 0.0 or scheduler_step_frequency > 1.0:
-                raise ValueError(
+                raise mlrun.errors.MLRunInvalidArgumentError(
                     "The scheduler step frequency parameter can be passed as a float with value between "
                     "0.0 to 1.0, but the value given was: '{}'".format(
                         scheduler_step_frequency

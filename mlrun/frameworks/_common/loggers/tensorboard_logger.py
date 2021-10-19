@@ -76,14 +76,14 @@ class TensorboardLogger(Logger):
                                       update. Notice that writing to tensorboard too frequently may cause the training
                                       to be slower. Defaulted to 'epoch'.
 
-        :raise ValueError: If the `update_frequency` is illegal or if `tensorboard_directory` and `context` were not
-                           given.
+        :raise MLRunInvalidArgumentError: If the `update_frequency` is illegal or if `tensorboard_directory` and
+                                          `context` were not given.
         """
         super(TensorboardLogger, self).__init__(context=context)
 
         # Validate the context and tensorboard directory combination:
         if tensorboard_directory is None and context is None:
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "If context is not provided, the `tensorboard_directory` must be provided."
             )
 
@@ -94,7 +94,7 @@ class TensorboardLogger(Logger):
             (isinstance(update_frequency, str) and update_frequency == "epoch")
             or (isinstance(update_frequency, int) and update_frequency > 0)
         ):
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "The update frequency parameter is expected to be euqal to 'epoch', 'batch' or a positive "
                 "integer, received: {}".format(update_frequency)
             )

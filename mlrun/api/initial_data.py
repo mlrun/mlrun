@@ -62,8 +62,10 @@ def _is_latest_data_version():
     db_session = create_session()
     db = mlrun.api.db.sqldb.db.SQLDB("")
 
-    current_data_version = _get_current_data_version(db, db_session)
-    close_session(db_session)
+    try:
+        current_data_version = _resolve_current_data_version(db, db_session)
+    finally:
+        close_session(db_session)
 
     return current_data_version == latest_data_version
 
@@ -323,15 +325,14 @@ def _add_data_version(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     if db.get_current_data_version(db_session, raise_on_not_found=False) is None:
-        data_version = _get_current_data_version(db, db_session)
+        data_version = _resolve_current_data_version(db, db_session)
         logger.info(
-            "No data version, setting data version",
-            data_version=data_version,
+            "No data version, setting data version", data_version=data_version,
         )
         db.create_data_version(db_session, data_version)
 
 
-def _get_current_data_version(
+def _resolve_current_data_version(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     try:

@@ -14,7 +14,7 @@
 
 import typing
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Dict, Optional, Tuple
 
 from kubernetes import client
@@ -626,11 +626,18 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         )
         completion_time = None
         if in_terminal_state:
-            completion_time = datetime.fromisoformat(
-                crd_object.get("status", {})
-                .get("terminationTime", datetime.now(timezone.utc))
-                .replace("Z", "+00:00")
-            )
+            if "terminationTime" in crd_object.get("status", {}):
+                completion_time = datetime.fromisoformat(
+                    crd_object.get("status", {})
+                    .get("terminationTime")
+                    .replace("Z", "+00:00")
+                )
+            else:
+                completion_time = datetime.fromisoformat(
+                    crd_object.get("status", {})
+                    .get("lastSubmissionAttemptTime")
+                    .replace("Z", "+00:00")
+                )
         return in_terminal_state, completion_time, desired_run_state
 
     def _update_ui_url(

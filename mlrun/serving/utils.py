@@ -37,7 +37,14 @@ class StepToDict:
         if exclude:
             fields = [field for field in fields if field not in exclude]
 
-        meta_keys = ["context", "name", "input_path", "result_path", "kwargs"]
+        meta_keys = [
+            "context",
+            "name",
+            "input_path",
+            "result_path",
+            "full_event",
+            "kwargs",
+        ]
         args = {
             key: getattr(self, key)
             for key in fields
@@ -51,8 +58,11 @@ class StepToDict:
                     args[key] = value
 
         mod_name = self.__class__.__module__
+        class_path = {self.__class__.__qualname__}
+        if mod_name not in ["__main__", "builtins"]:
+            class_path = f"{mod_name}.{class_path}"
         struct = {
-            "class_name": f"{mod_name}.{self.__class__.__qualname__}",
+            "class_name": class_path,
             "name": self.name or self.__class__.__name__,
             "class_args": args,
         }
@@ -62,6 +72,8 @@ class StepToDict:
             struct["input_path"] = self._input_path
         if hasattr(self, "_result_path"):
             struct["result_path"] = self._result_path
+        if hasattr(self, "_full_event"):
+            struct["full_event"] = self._full_event
         return struct
 
 

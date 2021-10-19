@@ -395,18 +395,6 @@ class TaskStep(BaseStep):
                     self._call_with_event = True
                 elif hasattr(self._object, "do"):
                     handler = "do"
-                else:
-                    class_ = type(self._object)
-                    module = class_.__module__
-                    if module == "storey" or module.startswith("storey."):
-                        err_msg = "storey steps can only be used with async engine"
-                    else:
-                        full_name = f"{module}.{class_.__qualname__}"
-                        err_msg = (
-                            f"failed to set handler: object of type {full_name} "
-                            f"does not have a do_event or do method"
-                        )
-                    raise MLRunInvalidArgumentError(err_msg)
             if handler:
                 self._handler = getattr(self._object, handler, None)
 
@@ -465,6 +453,11 @@ class TaskStep(BaseStep):
         try:
             if self.full_event or self._call_with_event:
                 return self._handler(event, *args, **kwargs)
+
+            if self._handler is None:
+                raise MLRunInvalidArgumentError(
+                    f"step {self.name} does not have a handler"
+                )
 
             result = self._handler(
                 _extract_input_data(self.input_path, event.body), *args, **kwargs

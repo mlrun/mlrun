@@ -15,6 +15,7 @@ import getpass
 import pathlib
 import shutil
 import typing
+import inflection
 import warnings
 from os import environ, makedirs, path
 
@@ -336,8 +337,11 @@ def _add_username_to_project_name_if_needed(name, user_project):
     if user_project:
         if not name:
             raise ValueError("user_project must be specified together with name")
-        user = environ.get("V3IO_USERNAME") or getpass.getuser()
-        name = f"{name}-{user}"
+        username = environ.get("V3IO_USERNAME") or getpass.getuser()
+        normalized_username = inflection.dasherize(username.lower())
+        if username != normalized_username:
+            logger.info("Username was normalized to match the required pattern for project name", username=username, normalized_username=normalized_username)
+        name = f"{name}-{normalized_username}"
     return name
 
 

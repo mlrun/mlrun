@@ -110,6 +110,11 @@ class FeatureSetSpec(ModelObj):
 
     @entities.setter
     def entities(self, entities: List[Entity]):
+        if entities:
+            # if the entity is a string, convert it to Entity class
+            for i, entity in enumerate(entities):
+                if isinstance(entity, str):
+                    entities[i] = Entity(entity)
         self._entities = ObjectList.from_list(Entity, entities)
 
     @property

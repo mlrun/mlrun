@@ -95,7 +95,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert stocks_set.status.stats["exchange"], "stats not created"
 
     def _ingest_quotes_featureset(self):
-        quotes_set = FeatureSet("stock-quotes", entities=[Entity("ticker")])
+        quotes_set = FeatureSet("stock-quotes", entities=["ticker"])
 
         flow = quotes_set.graph
         flow.to("MyMap", multiplier=3).to(
@@ -300,7 +300,7 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_feature_set_db(self):
         name = "stocks_test"
-        stocks_set = fs.FeatureSet(name, entities=[Entity("ticker", ValueType.STRING)])
+        stocks_set = fs.FeatureSet(name, entities=["ticker"])
         fs.preview(
             stocks_set, stocks,
         )

@@ -3,12 +3,15 @@ from typing import Any, Dict, List
 import pandas as pd
 from storey import MapClass
 
+from mlrun.serving.utils import StepToDict
+
 this_path = "mlrun.feature_store.steps"
 
 
-class FeaturesetValidator(MapClass):
+class FeaturesetValidator(StepToDict, MapClass):
     def __init__(self, featureset=None, columns=None, name=None, **kwargs):
-        super().__init__(full_event=True, **kwargs)
+        kwargs["full_event"] = True
+        super().__init__(**kwargs)
         self._validators = {}
         self.featureset = featureset or "."
         self.columns = columns
@@ -36,15 +39,8 @@ class FeaturesetValidator(MapClass):
                     )
         return event
 
-    def to_dict(self):
-        return {
-            "class_name": this_path + ".FeaturesetValidator",
-            "name": self.name or "FeaturesetValidator",
-            "class_args": {"featureset": self.featureset, "columns": self.columns},
-        }
 
-
-class MapValues(MapClass):
+class MapValues(StepToDict, MapClass):
     def __init__(
         self,
         mapping: Dict[str, Dict[str, Any]],
@@ -88,19 +84,8 @@ class MapValues(MapClass):
 
         return mapped_values
 
-    def to_dict(self):
-        return {
-            "class_name": this_path + ".MapValues",
-            "name": self.name or "MapValues",
-            "class_args": {
-                "mapping": self.mapping,
-                "with_original_features": self.with_original_features,
-                "suffix": self.suffix,
-            },
-        }
 
-
-class Imputer(MapClass):
+class Imputer(StepToDict, MapClass):
     def __init__(
         self,
         method: str = "avg",
@@ -123,17 +108,6 @@ class Imputer(MapClass):
             feature: self._impute(feature, val) for feature, val in event.items()
         }
         return imputed_values
-
-    def to_dict(self):
-        return {
-            "class_name": this_path + ".Imputer",
-            "name": self.name or "Imputer",
-            "class_args": {
-                "mapping": self.mapping,
-                "method": self.method,
-                "default_value": self.default_value,
-            },
-        }
 
 
 class OneHotEncoder(MapClass):
@@ -159,13 +133,6 @@ class OneHotEncoder(MapClass):
         for feature, val in event.items():
             encoded_values.update(self._encode(feature, val))
         return encoded_values
-
-    def to_dict(self):
-        return {
-            "class_name": this_path + ".OneHotEncoder",
-            "name": self.name or "OneHotEncoder",
-            "class_args": {"mapping": self.mapping},
-        }
 
 
 class DateExtractor(MapClass):
@@ -258,10 +225,3 @@ class DateExtractor(MapClass):
             # Add to event
             event[self._get_key_name(part, self.timestamp_col)] = extracted_part
         return event
-
-    def to_dict(self):
-        return {
-            "class_name": this_path + ".DateExtractor",
-            "name": self.name or "DateExtractor",
-            "class_args": {"parts": self.parts, "timestamp_col": self.timestamp_col},
-        }

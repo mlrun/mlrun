@@ -266,6 +266,7 @@ class BaseStoreTarget(DataTargetBase):
     is_offline = False
     support_spark = False
     support_storey = False
+    support_append = False
 
     def __init__(
         self,
@@ -543,6 +544,7 @@ class ParquetTarget(BaseStoreTarget):
     support_spark = True
     support_storey = True
     support_dask = True
+    support_append = True
 
     def __init__(
         self,
@@ -835,6 +837,7 @@ class NoSqlTarget(BaseStoreTarget):
     is_online = True
     support_spark = True
     support_storey = True
+    support_append = True
 
     def get_table_object(self):
         from storey import Table, V3ioDriver
@@ -946,6 +949,7 @@ class StreamTarget(BaseStoreTarget):
     is_online = False
     support_spark = False
     support_storey = True
+    support_append = True
 
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
@@ -996,6 +1000,7 @@ class TSDBTarget(BaseStoreTarget):
     is_online = False
     support_spark = False
     support_storey = True
+    support_append = True
 
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None

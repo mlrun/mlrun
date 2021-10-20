@@ -24,7 +24,6 @@ from ..data_types import InferOptions, get_infer_interface
 from ..datastore.sources import BaseSourceDriver, StreamSource
 from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
-    TargetTypes,
     get_default_prefix_for_target,
     get_default_targets,
     get_target_driver,
@@ -355,8 +354,7 @@ def ingest(
         featureset.purge_targets(target_names=purge_target_names, silent=True)
     else:
         for target in purge_targets:
-            overwrite_not_supported_targets = [TargetTypes.csv]
-            if target.kind in overwrite_not_supported_targets:
+            if not target.support_append:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"{type(target.kind)} target does not support overwrite=False ingestion"
                 )

@@ -59,8 +59,8 @@ class PyTorchModelHandler(ModelHandler):
         :param model:                    Model to handle or None in case a loading parameters were supplied.
         :param context:                  MLRun context to work with for logging the model.
 
-        :raise ValueError: If the provided model path is of a local model files but the model class name was not
-                           provided (=None).
+        :raise MLRunInvalidArgumentError: If the provided model path is of a local model files but the model class name
+                                          was not provided (=None).
         """
         # Will hold the model's weights .pt file:
         self._weights_file = None  # type: str
@@ -138,8 +138,9 @@ class PyTorchModelHandler(ModelHandler):
 
         :return The saved model artifacts dictionary if context is available and None otherwise.
 
-        :raise RuntimeError: In case there is no model initialized in this handler.
-        :raise ValueError:   If an output path was not given, yet a context was not provided in initialization.
+        :raise MLRunRuntimeError:         In case there is no model initialized in this handler.
+        :raise MLRunInvalidArgumentError: If an output path was not given, yet a context was not provided in
+                                          initialization.
         """
         super(PyTorchModelHandler, self).save(output_path=output_path)
 
@@ -177,13 +178,13 @@ class PyTorchModelHandler(ModelHandler):
                            model path is of a local directory, the checkpoint will be searched in it by the provided
                            name to this parameter.
 
-        :raise ValueError: If the model's class is not in the custom objects map.
+        :raise MLRunInvalidArgumentError: If the model's class is not in the custom objects map.
         """
         super(PyTorchModelHandler, self).load()
 
         # Validate the model's class is in the custom objects map:
         if self._model_class_name not in self._custom_objects:
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "The model class '{}' was not found in the given custom objects map. The custom objects map must "
                 "include the model's class name in its values. Usually the model class should appear last in the "
                 "map dictionary as it is imported from the top to the bottom.".format(
@@ -212,7 +213,7 @@ class PyTorchModelHandler(ModelHandler):
         :param extra_data: Extra data to log with the model.
         :param artifacts:  Artifacts to log the model with. Will be added to the extra data.
 
-        :raise ValueError: In case a context is missing or there is no model in this handler.
+        :raise MLRunInvalidArgumentError: In case a context is missing or there is no model in this handler.
         """
         super(PyTorchModelHandler, self).log(
             labels=labels,
@@ -282,12 +283,14 @@ class PyTorchModelHandler(ModelHandler):
                                     handler has a MLRun context set. Defaulted to None.
 
         :return: The converted ONNX model (onnx.ModelProto).
+
+        :raise MLRunMissingDependencyError: If some of the ONNX packages are missing.
         """
         # Import onnx related modules:
         try:
             from mlrun.frameworks.onnx import ONNXModelHandler
         except ModuleNotFoundError:
-            raise ModuleNotFoundError(
+            raise mlrun.errors.MLRunMissingDependencyError(
                 "ONNX conversion requires additional packages to be installed. "
                 "Please run 'pip install mlrun[pytorch]' to install MLRun's PyTorch package."
             )
@@ -359,11 +362,12 @@ class PyTorchModelHandler(ModelHandler):
         If the model path given is of a local path, search for the needed model files and collect them into this handler
         for later loading the model.
 
-        :raise ValueError: If the provided model class name from the user was None.
+        :raise MLRunInvalidArgumentError: If the provided model class name from the user was None.
+        :raise MLRunNotFoundError:        If the weights '.pt' file was not found.
         """
         # Read the model class provided:
         if self._model_class_name is None:
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "The model class name must be provided when loading the model from local path. Otherwise, the handler "
                 "will not be able to load the model."
             )
@@ -378,7 +382,7 @@ class PyTorchModelHandler(ModelHandler):
             self._model_path, "{}.pt".format(self._model_name)
         )
         if not os.path.exists(self._weights_file):
-            raise FileNotFoundError(
+            raise mlrun.errors.MLRunNotFoundError(
                 "The model weights file '{}.pt' was not found within the given 'model_path': "
                 "'{}'".format(self._model_name, self._model_path)
             )

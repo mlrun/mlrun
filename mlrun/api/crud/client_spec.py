@@ -56,7 +56,9 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             spark_operator_version=self._get_config_value_if_not_default(
                 "spark_operator_version"
             ),
-            default_tensorboard_logs_path=config.default_tensorboard_logs_path,
+            default_tensorboard_logs_path=self._get_config_value_if_not_default(
+                "default_tensorboard_logs_path"
+            ),
         )
 
     def _get_config_value_if_not_default(self, config_key):

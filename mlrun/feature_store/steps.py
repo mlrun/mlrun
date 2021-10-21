@@ -110,7 +110,7 @@ class Imputer(StepToDict, MapClass):
         return imputed_values
 
 
-class OneHotEncoder(MapClass):
+class OneHotEncoder(StepToDict, MapClass):
     def __init__(self, mapping: Dict[str, Dict[str, Any]], **kwargs):
         super().__init__(**kwargs)
         self.mapping = mapping
@@ -135,7 +135,7 @@ class OneHotEncoder(MapClass):
         return encoded_values
 
 
-class DateExtractor(MapClass):
+class DateExtractor(StepToDict, MapClass):
     """Date Extractor allows you to extract a date-time component
         from a timestamp feature to a new feature.
 

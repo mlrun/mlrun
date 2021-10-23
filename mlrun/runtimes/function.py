@@ -877,17 +877,17 @@ class RemoteRuntime(KubeResource):
                         num_errors += 1
                     results.append(resp)
 
+                    run_results = get_in(resp, "status.results", {})
+                    stop = generator.eval_stop_condition(run_results)
+                    if stop:
+                        logger.info(
+                            f"reached early stop condition ({generator.options.stop_condition}), stopping iterations!"
+                        )
+                        break
+
                 if num_errors > generator.max_errors:
                     logger.error("max errors reached, stopping iterations!")
                     stop = True
-                    break
-
-                run_results = resp["status"].get("results", {})
-                stop = generator.eval_stop_condition(run_results)
-                if stop:
-                    logger.info(
-                        f"reached early stop condition ({generator.options.stop_condition}), stopping iterations!"
-                    )
                     break
 
         if stop:

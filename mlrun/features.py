@@ -75,9 +75,7 @@ class Feature(ModelObj):
         self.default = default
         self.labels = labels or {}
         self.aggregate = aggregate
-        self.feature_set = (
-            None  # used to link the feature to its parent feature set (inside vector.status)
-        )
+        self.feature_set = None  # used to link the feature to its parent feature set (inside vector.status)
         self._validator = validator
 
     @property

@@ -712,10 +712,11 @@ class ParquetTarget(BaseStoreTarget):
                 and not self.partition_cols
             ):
                 time_partitioning_granularity = "hour"
-            for unit in self._legal_time_units:
-                partition_cols.append(unit)
-                if unit == time_partitioning_granularity:
-                    break
+            if time_partitioning_granularity:
+                for unit in self._legal_time_units:
+                    partition_cols.append(unit)
+                    if unit == time_partitioning_granularity:
+                        break
         result = {
             "path": store_path_to_spark(self._target_path),
             "format": "parquet",

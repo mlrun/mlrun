@@ -849,6 +849,7 @@ class RemoteRuntime(KubeResource):
 
         async with ClientSession() as session:
             for task in tasks:
+                # TODO: store run using async calls to improve performance
                 self.store_run(task)
                 task.spec.secret_sources = secrets or []
                 resp = submit(session, url, task, semaphore, headers=headers)
@@ -859,6 +860,7 @@ class RemoteRuntime(KubeResource):
 
                 if status != 200:
                     err_message = f"failed to access {url} - {resp}"
+                    # TODO: store logs using async calls to improve performance
                     log_std(
                         self._db_conn,
                         task,
@@ -866,6 +868,7 @@ class RemoteRuntime(KubeResource):
                         err_message,
                         silent=True,
                     )
+                    # TODO: update run using async calls to improve performance
                     results.append(self._update_run_state(task=task, err=err_message))
                     num_errors += 1
                 else:

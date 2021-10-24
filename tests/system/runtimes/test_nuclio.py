@@ -101,13 +101,8 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
 class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
     project_name = "nuclio-mlrun-jobs"
 
-    @staticmethod
-    def _skip_set_environment():
-        # Skip to make sure project ensured in Nuclio function deployment flow
-        return True
-
     def _deploy_function(self, replicas=1):
-        filename = f"{examples_path}/handler.py"
+        filename = str(self.assets_path / "handler.py")
         fn = mlrun.code_to_function(
             filename=filename,
             name="nuclio-mlrun",
@@ -133,13 +128,15 @@ class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
     def test_hyper_run(self):
         fn = self._deploy_function(2)
 
-        hp = mlrun.model.HyperParamOptions(
+        hyper_param_options = mlrun.model.HyperParamOptions(
             parallel_runs=4, selector="max.accuracy", max_errors=1,
         )
 
         p1 = [4, 2, 5, 8, 9, 6, 1, 11, 1, 1, 2, 1, 1]
         run_result = fn.run(
-            params={"p2": "xx"}, hyperparams={"p1": p1}, hyper_param_options=hp,
+            params={"p2": "xx"},
+            hyperparams={"p1": p1},
+            hyper_param_options=hyper_param_options,
         )
         print(run_result.to_yaml())
         assert run_result.state() == "completed", "wrong state"
@@ -147,7 +144,7 @@ class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
         assert run_result.output("accuracy") == 22, "unexpected results"
 
         # test early stop
-        hp = mlrun.model.HyperParamOptions(
+        hyper_param_options = mlrun.model.HyperParamOptions(
             parallel_runs=1,
             selector="max.accuracy",
             max_errors=1,
@@ -155,7 +152,9 @@ class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
         )
 
         run_result = fn.run(
-            params={"p2": "xx"}, hyperparams={"p1": p1}, hyper_param_options=hp,
+            params={"p2": "xx"},
+            hyperparams={"p1": p1},
+            hyper_param_options=hyper_param_options,
         )
         print(run_result.to_yaml())
         assert run_result.state() == "completed", "wrong state"

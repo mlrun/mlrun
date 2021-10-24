@@ -159,6 +159,7 @@ def build_function(
     base_image=None,
     commands: list = None,
     secret_name="",
+    requirements: Union[str, List[str]] = None,
     mlrun_version_specifier=None,
     builder_env: dict = None,
     project_object=None,
@@ -172,11 +173,20 @@ def build_function(
     :param base_image:      base image name/path (commands and source code will be added to it)
     :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
     :param secret_name:     k8s secret for accessing the docker registry
+    :param requirements:    list of python packages or pip requirements file path, defaults to None
     :param mlrun_version_specifier:  which mlrun package version to include (if not current)
     :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
                             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
     """
     engine, function = _get_engine_and_function(function, project_object)
+    if requirements:
+        function.with_requirements(requirements)
+        if commands and function.spec.build.commands:
+            # merge requirements with commands
+            for command in function.spec.build.commands:
+                if command not in commands:
+                    commands.append(command)
+
     if function.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
         raise mlrun.errors.MLRunInvalidArgumentError(
             "cannot build use deploy_function()"

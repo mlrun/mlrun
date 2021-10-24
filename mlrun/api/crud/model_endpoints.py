@@ -643,7 +643,7 @@ class ModelEndpoints:
         fn.set_env("MODEL_MONITORING_ACCESS_KEY", model_monitoring_access_key)
 
         # Needs to be a member of the project and have access to project data path
-        fn.set_env("MLRUN_AUTH_SESSION", model_monitoring_access_key)
+        fn.metadata.credentials.access_key = model_monitoring_access_key
 
         function_uri = fn.save(versioned=True)
         function_uri = function_uri.replace("db://", "")

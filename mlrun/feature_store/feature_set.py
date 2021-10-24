@@ -13,7 +13,7 @@
 # limitations under the License.
 import datetime
 import warnings
-from typing import List
+from typing import Dict, List, Optional, Union
 
 import pandas as pd
 
@@ -89,7 +89,7 @@ class FeatureSetSpec(ModelObj):
 
         self.owner = owner
         self.description = description
-        self.entities: List[Entity] = entities or []
+        self.entities: List[Union[Entity, str]] = entities or []
         self.features: List[Feature] = features or []
         self.partition_keys = partition_keys or []
         self.timestamp_key = timestamp_key
@@ -109,7 +109,12 @@ class FeatureSetSpec(ModelObj):
         return self._entities
 
     @entities.setter
-    def entities(self, entities: List[Entity]):
+    def entities(self, entities: List[Union[Entity, str]]):
+        if entities:
+            # if the entity is a string, convert it to Entity class
+            for i, entity in enumerate(entities):
+                if isinstance(entity, str):
+                    entities[i] = Entity(entity)
         self._entities = ObjectList.from_list(Entity, entities)
 
     @property
@@ -225,11 +230,11 @@ class FeatureSet(ModelObj):
 
     def __init__(
         self,
-        name=None,
-        description=None,
-        entities=None,
-        timestamp_key=None,
-        engine=None,
+        name: str = None,
+        description: str = None,
+        entities: List[Union[Entity, str]] = None,
+        timestamp_key: str = None,
+        engine: str = None,
     ):
         self._spec: FeatureSetSpec = None
         self._metadata = None
@@ -400,8 +405,21 @@ class FeatureSet(ModelObj):
         source = self.spec.source
         return source is not None and source.path is not None and source.path != "None"
 
-    def add_entity(self, entity, name=None):
-        """add/set an entity"""
+    def add_entity(
+        self,
+        name: str,
+        value_type: mlrun.data_types.ValueType = None,
+        description: str = None,
+        labels: Optional[Dict[str, str]] = None,
+    ):
+        """add/set an entity (dataset index)
+
+        :param name:        entity name
+        :param value_type:  type of the entity (default to ValueType.STRING)
+        :param description: description of the entity
+        :param labels:      label tags dict
+        """
+        entity = Entity(name, value_type, description=description, labels=labels)
         self._spec.entities.update(entity, name)
 
     def add_feature(self, feature, name=None):

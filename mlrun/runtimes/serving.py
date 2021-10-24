@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+from copy import deepcopy
 from typing import List, Union
 
 import nuclio
@@ -27,8 +28,8 @@ from ..serving.states import (
     RootFlowStep,
     RouterStep,
     StepKinds,
+    TaskStep,
     graph_root_setter,
-    new_model_endpoint,
     new_remote_endpoint,
 )
 from ..utils import get_caller_globals, logger
@@ -269,6 +270,7 @@ class ServingRuntime(RemoteRuntime):
         model_url=None,
         handler=None,
         router_step=None,
+        child_function=None,
         **class_args,
     ):
         """add ml model and/or route to the function.
@@ -290,6 +292,7 @@ class ServingRuntime(RemoteRuntime):
         :param handler:     for advanced users!, override default class handler name (do_event)
         :param router_step: router step name (to determine which router we add the model to in graphs
                             with multiple router steps)
+        :param child_function: child function name, when the model runs in a child function
         :param class_args:  extra kwargs to pass to the model serving class __init__
                             (can be read in the model using .get_param(key) method)
         """
@@ -337,7 +340,11 @@ class ServingRuntime(RemoteRuntime):
         if model_url:
             state = new_remote_endpoint(model_url, **class_args)
         else:
-            state = new_model_endpoint(class_name, model_path, handler, **class_args)
+            class_args = deepcopy(class_args)
+            class_args["model_path"] = model_path
+            state = TaskStep(
+                class_name, class_args, handler=handler, function=child_function
+            )
 
         return graph.add_route(key, state)
 

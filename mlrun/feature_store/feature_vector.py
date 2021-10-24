@@ -181,7 +181,7 @@ class FeatureVector(ModelObj):
 
         :param name:           List of names of targets to delete (default: delete all ingested targets)
         :param features:       list of feature to collect to this vector.
-                               format <project>/<feature_set>.<feature_name or *>
+                               format [<project>/]<feature_set>.<feature_name or *> [as <alias>]
         :param label_feature:  feature name to be used as label data
         :param description:    text description of the vector
         :param with_indexes:   whether to keep the entity and timestamp columns in the response
@@ -299,7 +299,7 @@ class FeatureVector(ModelObj):
             if alias in processed_features.keys():
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"feature name/alias {alias} already specified,"
-                    " use another alias (feature-set:name[@alias])"
+                    " use another alias (feature-set.name [as alias])"
                 )
             feature = feature_set_object[name]
             processed_features[alias or name] = (feature_set_object, feature)
@@ -342,7 +342,7 @@ class FeatureVector(ModelObj):
                     self.status.stats[field_name] = feature_set.status.stats[name]
                 if name in feature_set.spec.features.keys():
                     feature = feature_set.spec.features[name].copy()
-                    feature.feature_set = feature_set.fullname
+                    feature.origin = f"{feature_set.fullname}.{name}"
                     self.status.features[field_name] = feature
 
         self.status.index_keys = index_keys
@@ -480,7 +480,7 @@ class OnlineVectorService:
 
             if as_list and data:
                 data = [
-                    data[key] if key in data else None
+                    data.get(key, None)
                     for key in self.vector.status.features.keys()
                     if key != self.vector.status.label_column
                 ]

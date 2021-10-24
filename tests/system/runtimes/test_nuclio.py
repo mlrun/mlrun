@@ -6,7 +6,6 @@ from v3io.dataplane import RaiseForStatus
 
 import mlrun
 import tests.system.base
-from tests.conftest import examples_path
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured

@@ -129,7 +129,7 @@ class TFKerasModelHandler(ModelHandler):
                                          from tensorflow version >= 2.4.0. Using this setting will increase the model
                                          saving size.
 
-        :raise ValueError: In case the input was incorrect:
+        :raise MLRunInvalidArgumentError: In case the input was incorrect:
                            * Model format is unrecognized.
                            * There was no model or model directory supplied.
                            * 'save_traces' parameter was miss-used.
@@ -140,7 +140,7 @@ class TFKerasModelHandler(ModelHandler):
             TFKerasModelHandler.ModelFormats.H5,
             TFKerasModelHandler.ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS,
         ]:
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "Unrecognized model format: '{}'. Please use one of the class members of "
                 "'TFKerasModelHandler.ModelFormats'".format(model_format)
             )
@@ -148,12 +148,12 @@ class TFKerasModelHandler(ModelHandler):
         # Validate 'save_traces':
         if save_traces:
             if float(tf.__version__.rsplit(".", 1)[0]) < 2.4:
-                raise ValueError(
+                raise mlrun.errors.MLRunInvalidArgumentError(
                     "The 'save_traces' parameter can be true only for tensorflow versions >= 2.4. Current "
                     "version is {}".format(tf.__version__)
                 )
             if model_format != TFKerasModelHandler.ModelFormats.SAVED_MODEL:
-                raise ValueError(
+                raise mlrun.errors.MLRunInvalidArgumentError(
                     "The 'save_traces' parameter is valid only for the 'SavedModel' format."
                 )
 
@@ -350,7 +350,7 @@ class TFKerasModelHandler(ModelHandler):
         :param extra_data: Extra data to log with the model.
         :param artifacts:  Artifacts to log the model with. Will be added to the extra data.
 
-        :raise ValueError: In case a context is missing or there is no model in this handler.
+        :raise MLRunInvalidArgumentError: In case a context is missing or there is no model in this handler.
         """
         super(TFKerasModelHandler, self).log(
             labels=labels,
@@ -398,6 +398,7 @@ class TFKerasModelHandler(ModelHandler):
 
     def to_onnx(
         self,
+        model_name: str = None,
         input_signature: Union[List[TensorSignature], TensorSignature] = None,
         optimize: bool = True,
         output_path: str = None,
@@ -405,20 +406,22 @@ class TFKerasModelHandler(ModelHandler):
     ):
         """
         Convert the model in this handler to an ONNX model.
-
+        :param model_name:      The name to give to the converted ONNX model. If not given the default name will be the
+                                stored model name with the suffix '_onnx'.
         :param input_signature: An numpy.ndarray or tensorflow.TensorSpec that describe the input port (shape and data
                                 type). If the model has multiple inputs, a list is expected in the order of the input
                                 ports. If not provided, the method will try to extract the input signature of the model.
         :param optimize:        Whether or not to optimize the ONNX model using 'onnxoptimizer' before saving the model.
                                 Defaulted to True.
         :param output_path:     In order to save the ONNX model, pass here the output directory. The model file will be
-                                named with the model name in this handler. Defaulted to None (not saving).
+                                named with the model name given. Defaulted to None (not saving).
         :param log:             In order to log the ONNX model, pass True. If None, the model will be logged if this
                                 handler has a MLRun context set. Defaulted to None.
 
         :return: The converted ONNX model (onnx.ModelProto).
 
-        :raise ModuleNotFoundError: If the onnx modules are missing in the interpreter.
+        :raise MLRunMissingDependencyError: If the onnx modules are missing in the interpreter.
+        :raise MLRunRuntimeError:           If the input signatures couldn't be dicvoered automatically.
         """
         # Import onnx related modules:
         try:
@@ -426,10 +429,13 @@ class TFKerasModelHandler(ModelHandler):
 
             from mlrun.frameworks.onnx import ONNXModelHandler
         except ModuleNotFoundError:
-            raise ModuleNotFoundError(
+            raise mlrun.errors.MLRunMissingDependencyError(
                 "ONNX conversion requires additional packages to be installed. "
                 "Please run 'pip install mlrun[tensorflow]' to install MLRun's Tensorflow package."
             )
+
+        # Set the onnx model name:
+        model_name = self._get_default_onnx_model_name(model_name=model_name)
 
         # Set the input signature:
         if input_signature is None:
@@ -439,7 +445,7 @@ class TFKerasModelHandler(ModelHandler):
                     input_layer.type_spec for input_layer in self._model.inputs
                 ]
             except Exception as e:
-                raise RuntimeError(
+                raise mlrun.errors.MLRunRuntimeError(
                     "Tried to figure out the model's input signature to convert it to ONNX but failed with the "
                     "following message: {}".format(e)
                 )
@@ -449,7 +455,7 @@ class TFKerasModelHandler(ModelHandler):
 
         # Set the output path:
         if output_path is not None:
-            output_path = os.path.join(output_path, "{}.onnx".format(self._model_name))
+            output_path = os.path.join(output_path, "{}.onnx".format(model_name))
 
         # Set the logging flag:
         log = self._context is not None if log is None else log
@@ -461,7 +467,7 @@ class TFKerasModelHandler(ModelHandler):
 
         # Create a handler for the model:
         onnx_handler = ONNXModelHandler(
-            model_name=self.model_name, model=model_proto, context=self._context
+            model_name=model_name, model=model_proto, context=self._context
         )
 
         # Optimize the model if needed:
@@ -537,6 +543,8 @@ class TFKerasModelHandler(ModelHandler):
         """
         If the model path given is of a local path, search for the needed model files and collect them into this handler
         for later loading the model.
+
+        :raise MLRunNotFoundError: If any of the required files are missing.
         """
         # ModelFormats.H5 - Get the h5 model file:
         if self._model_format == TFKerasModelHandler.ModelFormats.H5:
@@ -544,7 +552,7 @@ class TFKerasModelHandler(ModelHandler):
                 self._model_path, "{}.h5".format(self._model_name)
             )
             if not os.path.exists(self._model_file):
-                raise FileNotFoundError(
+                raise mlrun.errors.MLRunNotFoundError(
                     "The model file '{}.h5' was not found within the given 'model_path': "
                     "'{}'".format(self._model_name, self._model_path)
                 )
@@ -566,7 +574,7 @@ class TFKerasModelHandler(ModelHandler):
                 # Look for the SavedModel directory:
                 self._model_file = os.path.join(self._model_path, self._model_name)
                 if not os.path.exists(self._model_file):
-                    raise FileNotFoundError(
+                    raise mlrun.errors.MLRunNotFoundError(
                         "There is no SavedModel zip archive '{}' or a SavedModel directory named '{}' the given "
                         "'model_path': '{}'".format(
                             "{}.zip".format(self._model_name),
@@ -580,14 +588,14 @@ class TFKerasModelHandler(ModelHandler):
             # Locate the model architecture json file:
             self._model_file = "{}.json".format(self._model_name)
             if not os.path.exists(os.path.join(self._model_path, self._model_file)):
-                raise FileNotFoundError(
+                raise mlrun.errors.MLRunNotFoundError(
                     "The model architecture file '{}' is missing in the given 'model_path': "
                     "'{}'".format(self._model_file, self._model_path)
                 )
             # Locate the model weights h5 file:
             self._weights_file = "{}.h5".format(self._model_name)
             if not os.path.exists(os.path.join(self._model_path, self._weights_file)):
-                raise FileNotFoundError(
+                raise mlrun.errors.MLRunNotFoundError(
                     "The model weights file '{}' is missing in the given 'model_path': "
                     "'{}'".format(self._weights_file, self._model_path)
                 )
@@ -636,7 +644,7 @@ class TFKerasModelHandler(ModelHandler):
 
         :return: The created Feature.
 
-        :raise ValueError: In case the given sample type cannot be read.
+        :raise MLRunInvalidArgumentError: In case the given sample type cannot be read.
         """
         if isinstance(sample, np.ndarray):
             # From 'np.ndarray':
@@ -645,6 +653,6 @@ class TFKerasModelHandler(ModelHandler):
             return Feature(value_type=sample.dtype.name, dims=list(sample.shape))
 
         # Unsupported type:
-        raise ValueError(
+        raise mlrun.errors.MLRunInvalidArgumentError(
             "The sample type given '{}' is not supported.".format(type(sample))
         )

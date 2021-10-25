@@ -357,13 +357,10 @@ def test_version_compatibility_validation():
         {"server_version": "unstable", "client_version": "0.6.1", "compatible": True},
         {"server_version": "0.5.3", "client_version": "0.5.1", "compatible": True},
         {"server_version": "0.6.0-rc1", "client_version": "0.6.1", "compatible": True},
-        {
-            "server_version": "0.6.0-rc1",
-            "client_version": "0.5.4",
-            "compatible": False,
-        },
-        {"server_version": "0.6.3", "client_version": "0.4.8", "compatible": False},
+        {"server_version": "0.6.0-rc1", "client_version": "0.5.4", "compatible": True},
+        {"server_version": "0.6.3", "client_version": "0.4.8", "compatible": True},
         {"server_version": "1.0.0", "client_version": "0.5.0", "compatible": False},
+        {"server_version": "0.5.0", "client_version": "1.0.0", "compatible": False},
         {
             "server_version": "0.7.1",
             "client_version": "0.0.0+unstable",
@@ -376,15 +373,9 @@ def test_version_compatibility_validation():
         },
     ]
     for case in cases:
-        if not case["compatible"]:
-            with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
-                HTTPRunDB._validate_version_compatibility(
-                    case["server_version"], case["client_version"]
-                )
-        else:
-            HTTPRunDB._validate_version_compatibility(
-                case["server_version"], case["client_version"]
-            )
+        assert case["compatible"] == HTTPRunDB._validate_version_compatibility(
+            case["server_version"], case["client_version"]
+        )
 
 
 def _create_feature_set(name):

@@ -134,7 +134,7 @@ def calc_hash(func, tag=""):
     return hashkey
 
 
-def log_std(db, runobj, out, err="", skip=False, show=True):
+def log_std(db, runobj, out, err="", skip=False, show=True, silent=False):
     if out:
         iteration = runobj.metadata.iteration
         if iteration:
@@ -149,7 +149,8 @@ def log_std(db, runobj, out, err="", skip=False, show=True):
     if err:
         logger.error(f"exec error - {err}")
         print(err, file=stderr)
-        raise RunError(err)
+        if not silent:
+            raise RunError(err)
 
 
 class AsyncLogWriter:

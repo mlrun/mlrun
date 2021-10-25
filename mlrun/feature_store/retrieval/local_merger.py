@@ -36,11 +36,14 @@ class LocalFeatureMerger:
         drop_columns=None,
         start_time=None,
         end_time=None,
+        with_indexes=None,
     ):
         if not drop_columns:
             drop_columns = []
         index_columns = []
-        drop_indexes = False if self.vector.spec.with_indexes else True
+        drop_indexes = (
+            False if (self.vector.spec.with_indexes or with_indexes) else True
+        )
 
         def append_drop_column(key):
             if key and key not in drop_columns:
@@ -56,6 +59,10 @@ class LocalFeatureMerger:
         if entity_timestamp_column and drop_indexes:
             drop_columns.append(entity_timestamp_column)
         feature_set_objects, feature_set_fields = self.vector.parse_features()
+        if len(feature_set_fields) == 0:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "No features in vector. Make sure to infer the schema on all the feature sets first"
+            )
         self.vector.save()
 
         # load dataframes

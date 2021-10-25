@@ -216,6 +216,7 @@ class NuclioStatus(FunctionStatus):
 
 class RemoteRuntime(KubeResource):
     kind = "remote"
+    _is_nested = False
 
     @property
     def spec(self) -> NuclioSpec:
@@ -441,8 +442,12 @@ class RemoteRuntime(KubeResource):
         self.spec.max_replicas = shards
 
     def add_secrets_config_to_spec(self):
-        # Currently secrets are only handled in Serving runtime.
-        pass
+        # For nuclio functions, we just add the project secrets as env variables. Since there's no MLRun code
+        # to decode the secrets and special env variable names in the function, we just use the same env variable as
+        # the key name (encode_key_names=False)
+        self._add_project_k8s_secrets_to_spec(
+            None, project=self.metadata.project, encode_key_names=False
+        )
 
     def deploy(
         self,
@@ -760,7 +765,7 @@ class RemoteRuntime(KubeResource):
         except OSError as err:
             raise OSError(f"error: cannot run function at url {path}, {err}")
         if not resp.ok:
-            raise RuntimeError(f"bad function response {resp.text}")
+            raise RuntimeError(f"bad function response {resp.status_code}: {resp.text}")
 
         data = resp.content
         if resp.headers["content-type"] == "application/json":
@@ -821,7 +826,7 @@ class RemoteRuntime(KubeResource):
             command = f"{command}/{runobj.spec.handler_name}"
         loop = asyncio.get_event_loop()
         future = asyncio.ensure_future(
-            self._invoke_async(tasks, command, headers, secrets)
+            self._invoke_async(tasks, command, headers, secrets, generator=generator)
         )
 
         loop.run_until_complete(future)
@@ -834,26 +839,63 @@ class RemoteRuntime(KubeResource):
         self._store_run_dict(rundict)
         return rundict
 
-    async def _invoke_async(self, runs, url, headers, secrets):
+    async def _invoke_async(self, tasks, url, headers, secrets, generator):
         results = RunList()
-        tasks = []
+        runs = []
+        num_errors = 0
+        stop = False
+        parallel_runs = generator.options.parallel_runs or 1
+        semaphore = asyncio.Semaphore(parallel_runs)
 
         async with ClientSession() as session:
-            for run in runs:
-                self.store_run(run)
-                run.spec.secret_sources = secrets or []
-                tasks.append(asyncio.ensure_future(submit(session, url, run, headers),))
+            for task in tasks:
+                # TODO: store run using async calls to improve performance
+                self.store_run(task)
+                task.spec.secret_sources = secrets or []
+                resp = submit(session, url, task, semaphore, headers=headers)
+                runs.append(asyncio.ensure_future(resp,))
 
-            for status, resp, logs, run in await asyncio.gather(*tasks):
+            for result in asyncio.as_completed(runs):
+                status, resp, logs, task = await result
 
                 if status != 200:
-                    logger.error(f"failed to access {url} - {resp}")
+                    err_message = f"failed to access {url} - {resp}"
+                    # TODO: store logs using async calls to improve performance
+                    log_std(
+                        self._db_conn,
+                        task,
+                        parse_logs(logs) if logs else None,
+                        err_message,
+                        silent=True,
+                    )
+                    # TODO: update run using async calls to improve performance
+                    results.append(self._update_run_state(task=task, err=err_message))
+                    num_errors += 1
                 else:
-                    results.append(self._update_state(json.loads(resp)))
+                    if logs:
+                        log_std(self._db_conn, task, parse_logs(logs))
+                    resp = self._update_run_state(json.loads(resp))
+                    state = get_in(resp, "status.state", "")
+                    if state == "error":
+                        num_errors += 1
+                    results.append(resp)
 
-                if logs:
-                    log_std(self._db_conn, run, parse_logs(logs))
+                    run_results = get_in(resp, "status.results", {})
+                    stop = generator.eval_stop_condition(run_results)
+                    if stop:
+                        logger.info(
+                            f"reached early stop condition ({generator.options.stop_condition}), stopping iterations!"
+                        )
+                        break
 
+                if num_errors > generator.max_errors:
+                    logger.error("max errors reached, stopping iterations!")
+                    stop = True
+                    break
+
+        if stop:
+            for task in runs:
+                task.cancel()
         return results
 
     def _resolve_invocation_url(self, path, force_external_address):
@@ -896,11 +938,12 @@ def parse_logs(logs):
     return lines
 
 
-async def submit(session, url, run, headers=None):
-    async with session.put(url, json=run.to_dict(), headers=headers) as response:
-        text = await response.text()
-        logs = response.headers.get("X-Nuclio-Logs", None)
-        return response.status, text, logs, run
+async def submit(session, url, run, semaphore, headers=None):
+    async with semaphore:
+        async with session.put(url, json=run.to_dict(), headers=headers) as response:
+            text = await response.text()
+            logs = response.headers.get("X-Nuclio-Logs", None)
+            return response.status, text, logs, run
 
 
 def fake_nuclio_context(body, headers=None):

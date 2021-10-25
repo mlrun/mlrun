@@ -27,6 +27,7 @@ from mlrun.api.db.sqldb.helpers import (
 )
 from mlrun.api.db.sqldb.models import (
     Artifact,
+    DataVersion,
     Entity,
     Feature,
     FeatureSet,
@@ -863,7 +864,7 @@ class SQLDB(DBInterface):
     ]:
         results = await asyncio.gather(
             fastapi.concurrency.run_in_threadpool(
-                self._calculate_functions_counters, session
+                self._calculate_files_counters, session
             ),
             fastapi.concurrency.run_in_threadpool(
                 self._calculate_schedules_counters, session
@@ -879,14 +880,14 @@ class SQLDB(DBInterface):
             ),
         )
         (
-            project_to_function_count,
+            project_to_files_count,
             project_to_schedule_count,
             project_to_feature_set_count,
             project_to_models_count,
             (project_to_recent_failed_runs_count, project_to_running_runs_count,),
         ) = results
         return (
-            project_to_function_count,
+            project_to_files_count,
             project_to_schedule_count,
             project_to_feature_set_count,
             project_to_models_count,
@@ -941,6 +942,21 @@ class SQLDB(DBInterface):
         for model_artifact in model_artifacts:
             project_to_models_count[model_artifact.project] += 1
         return project_to_models_count
+
+    def _calculate_files_counters(self, session) -> Dict[str, int]:
+        import mlrun.artifacts
+
+        # The category filter is applied post the query to the DB (manually in python code), so counting should be that
+        # way as well, therefore we're doing it here, and can't do it with sql as the above
+        # We're using the "latest" which gives us only one version of each artifact key, which is what we want to
+        # count (artifact count, not artifact versions count)
+        file_artifacts = self._find_artifacts(
+            session, None, "latest", category=mlrun.api.schemas.ArtifactCategories.other
+        )
+        project_to_files_count = collections.defaultdict(int)
+        for file_artifact in file_artifacts:
+            project_to_files_count[file_artifact.project] += 1
+        return project_to_files_count
 
     def _calculate_runs_counters(
         self, session
@@ -2654,3 +2670,32 @@ class SQLDB(DBInterface):
             )
 
         return self._transform_marketplace_source_record_to_schema(source_record)
+
+    def get_current_data_version(
+        self, session, raise_on_not_found=True
+    ) -> typing.Optional[str]:
+        current_data_version_record = (
+            self._query(session, DataVersion)
+            .order_by(DataVersion.created.desc())
+            .limit(1)
+            .one_or_none()
+        )
+        if not current_data_version_record:
+            log_method = logger.warning if raise_on_not_found else logger.debug
+            message = "No data version found"
+            log_method(message)
+            if raise_on_not_found:
+                raise mlrun.errors.MLRunNotFoundError(message)
+        if current_data_version_record:
+            return current_data_version_record.version
+        else:
+            return None
+
+    def create_data_version(self, session, version):
+        logger.debug(
+            "Creating data version in DB", version=version,
+        )
+
+        now = datetime.now(timezone.utc)
+        data_version_record = DataVersion(version=version, created=now)
+        self._upsert(session, data_version_record)

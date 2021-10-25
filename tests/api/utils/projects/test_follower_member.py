@@ -24,7 +24,6 @@ async def projects_follower() -> typing.Generator[
     logger.info("Creating projects follower")
     mlrun.config.config.httpdb.projects.leader = "nop"
     mlrun.config.config.httpdb.projects.periodic_sync_interval = "0 seconds"
-    mlrun.config.config.httpdb.projects.follower_projects_store_mode = "cache"
     mlrun.api.utils.singletons.project_member.initialize_project_member()
     projects_follower = mlrun.api.utils.singletons.project_member.get_project_member()
     yield projects_follower
@@ -297,7 +296,7 @@ async def test_list_project_summaries(
     project = _generate_project(name="name-1")
     project_summary = mlrun.api.schemas.ProjectSummary(
         name=project.metadata.name,
-        functions_count=4,
+        files_count=4,
         feature_sets_count=5,
         models_count=6,
         runs_failed_recent_count=7,

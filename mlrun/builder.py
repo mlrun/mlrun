@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pathlib
 import tarfile
 import tempfile
 from base64 import b64decode, b64encode
@@ -37,6 +38,10 @@ def make_dockerfile(
     extra="",
 ):
     dock = f"FROM {base_image}\n"
+
+    if config.is_pip_ca_configured():
+        dock += f"COPY ./{pathlib.Path(config.httpdb.builder.pip_ca_path).name} {config.httpdb.builder.pip_ca_path}\n"
+        dock += f"ARG PIP_CERT={config.httpdb.builder.pip_ca_path}\n"
 
     build_args = config.get_build_args()
     for build_arg_key, build_arg_value in build_args.items():
@@ -98,6 +103,25 @@ def make_kaniko_pod(
         items = [{"key": ".dockerconfigjson", "path": "config.json"}]
         kpod.mount_secret(secret_name, "/kaniko/.docker", items=items)
 
+    if config.is_pip_ca_configured():
+        items = [
+            {
+                "key": config.httpdb.builder.pip_ca_secret_key,
+                "path": pathlib.Path(config.httpdb.builder.pip_ca_path).name,
+            }
+        ]
+        kpod.mount_secret(
+            config.httpdb.builder.pip_ca_secret_name,
+            str(
+                pathlib.Path(context)
+                / pathlib.Path(config.httpdb.builder.pip_ca_path).name
+            ),
+            items=items,
+            # using sub_path so file will be mounted inside kaniko pod as regular file and not symlink (if it's symlink
+            # it's then not working inside the job image itself)
+            sub_path=pathlib.Path(config.httpdb.builder.pip_ca_path).name,
+        )
+
     if dockertext or inline_code or requirements:
         kpod.mount_empty()
         commands = []
@@ -138,6 +162,7 @@ def upload_tarball(source_dir, target, secrets=None):
 
 
 def build_image(
+    auth_info: mlrun.api.schemas.AuthInfo,
     project: str,
     dest,
     commands=None,
@@ -242,8 +267,12 @@ def build_image(
     )
 
     if to_mount:
-        # todo: support different mounters
-        kpod.mount_v3io(remote=source, mount_path="/context")
+        kpod.mount_v3io(
+            remote=source,
+            mount_path="/context",
+            access_key=auth_info.data_session or auth_info.access_key,
+            user=auth_info.username,
+        )
 
     k8s = get_k8s_helper()
     kpod.namespace = k8s.resolve_namespace(namespace)
@@ -273,6 +302,7 @@ def resolve_mlrun_install_command(mlrun_version_specifier=None):
 
 
 def build_runtime(
+    auth_info: mlrun.api.schemas.AuthInfo,
     runtime,
     with_mlrun,
     mlrun_version_specifier,
@@ -327,6 +357,7 @@ def build_runtime(
     base_image = enrich_image_url(build.base_image or config.default_base_image)
 
     status = build_image(
+        auth_info,
         project,
         build.image,
         base_image=base_image,

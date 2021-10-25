@@ -13,7 +13,7 @@
 # limitations under the License.
 import datetime
 import warnings
-from typing import List
+from typing import Dict, List, Optional, Union
 
 import pandas as pd
 
@@ -42,6 +42,7 @@ from ..model import (
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import BaseStep, RootFlowStep, previous_step
 from ..utils import StorePrefix
+from .common import verify_feature_set_permissions
 
 aggregates_step = "Aggregates"
 
@@ -88,7 +89,7 @@ class FeatureSetSpec(ModelObj):
 
         self.owner = owner
         self.description = description
-        self.entities: List[Entity] = entities or []
+        self.entities: List[Union[Entity, str]] = entities or []
         self.features: List[Feature] = features or []
         self.partition_keys = partition_keys or []
         self.timestamp_key = timestamp_key
@@ -108,7 +109,12 @@ class FeatureSetSpec(ModelObj):
         return self._entities
 
     @entities.setter
-    def entities(self, entities: List[Entity]):
+    def entities(self, entities: List[Union[Entity, str]]):
+        if entities:
+            # if the entity is a string, convert it to Entity class
+            for i, entity in enumerate(entities):
+                if isinstance(entity, str):
+                    entities[i] = Entity(entity)
         self._entities = ObjectList.from_list(Entity, entities)
 
     @property
@@ -224,12 +230,26 @@ class FeatureSet(ModelObj):
 
     def __init__(
         self,
-        name=None,
-        description=None,
-        entities=None,
-        timestamp_key=None,
-        engine=None,
+        name: str = None,
+        description: str = None,
+        entities: List[Union[Entity, str]] = None,
+        timestamp_key: str = None,
+        engine: str = None,
     ):
+        """Feature set object, defines a set of features and their data pipeline
+
+        example::
+
+            import mlrun.feature_store as fstore
+            ticks = fstore.FeatureSet("ticks", entities=["stock"], timestamp_key="timestamp")
+            fstore.ingest(ticks, df)
+
+        :param name:          name of the feature set
+        :param description:   text description
+        :param entities:      list of entity (index key) names or :py:class:`~mlrun.features.FeatureSet.Entity`
+        :param timestamp_key: timestamp column name
+        :param engine:        name of the processing engine (storey, pandas, or spark), defaults to storey
+        """
         self._spec: FeatureSetSpec = None
         self._metadata = None
         self._status = None
@@ -273,13 +293,17 @@ class FeatureSet(ModelObj):
     @property
     def uri(self):
         """fully qualified feature set uri"""
-        uri = (
+        return get_store_uri(StorePrefix.FeatureSet, self.fullname)
+
+    @property
+    def fullname(self):
+        """full name in the form project/name[:tag]"""
+        fullname = (
             f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
         )
-        uri = get_store_uri(StorePrefix.FeatureSet, uri)
         if self._metadata.tag:
-            uri += ":" + self._metadata.tag
-        return uri
+            fullname += ":" + self._metadata.tag
+        return fullname
 
     def _override_run_db(
         self, session,
@@ -354,6 +378,10 @@ class FeatureSet(ModelObj):
         :param target_names: List of names of targets to delete (default: delete all ingested targets)
         :param silent: Fail silently if target doesn't exist in featureset status """
 
+        verify_feature_set_permissions(
+            self, mlrun.api.schemas.AuthorizationAction.delete
+        )
+
         try:
             self.reload(update_spec=False)
         except mlrun.errors.MLRunNotFoundError:
@@ -395,8 +423,21 @@ class FeatureSet(ModelObj):
         source = self.spec.source
         return source is not None and source.path is not None and source.path != "None"
 
-    def add_entity(self, entity, name=None):
-        """add/set an entity"""
+    def add_entity(
+        self,
+        name: str,
+        value_type: mlrun.data_types.ValueType = None,
+        description: str = None,
+        labels: Optional[Dict[str, str]] = None,
+    ):
+        """add/set an entity (dataset index)
+
+        :param name:        entity name
+        :param value_type:  type of the entity (default to ValueType.STRING)
+        :param description: description of the entity
+        :param labels:      label tags dict
+        """
+        entity = Entity(name, value_type, description=description, labels=labels)
         self._spec.entities.update(entity, name)
 
     def add_feature(self, feature, name=None):

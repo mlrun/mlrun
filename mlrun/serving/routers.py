@@ -31,21 +31,21 @@ from ..api.schemas import (
     ModelEndpointStatus,
 )
 from ..config import config
-from .utils import _extract_input_data, _update_result_body
+from .utils import RouterToDict, _extract_input_data, _update_result_body
 from .v2_serving import _ModelLogPusher
 
 
-class BaseModelRouter:
+class BaseModelRouter(RouterToDict):
     """base model router class"""
 
     def __init__(
         self,
-        context,
-        name,
+        context=None,
+        name: str = None,
         routes=None,
-        protocol=None,
-        url_prefix=None,
-        health_prefix=None,
+        protocol: str = None,
+        url_prefix: str = None,
+        health_prefix: str = None,
         input_path: str = None,
         result_path: str = None,
         **kwargs,
@@ -80,7 +80,7 @@ class BaseModelRouter:
 
         except Exception as exc:
             #  if images convert to bytes
-            content_type = getattr(event, "content_type") or ""
+            content_type = getattr(event, "content_type", "") or ""
             if content_type.startswith("image/"):
                 sample = BytesIO(event.body)
                 parsed_event[self.inputs_key] = [sample]
@@ -214,12 +214,12 @@ class OperationTypes(str, Enum):
 class VotingEnsemble(BaseModelRouter):
     def __init__(
         self,
-        context,
-        name,
+        context=None,
+        name: str = None,
         routes=None,
-        protocol=None,
-        url_prefix=None,
-        health_prefix=None,
+        protocol: str = None,
+        url_prefix: str = None,
+        health_prefix: str = None,
         vote_type=None,
         executor_type=None,
         prediction_col_name=None,
@@ -318,7 +318,9 @@ class VotingEnsemble(BaseModelRouter):
         self.vote_flag = True if self.vote_type is not None else False
         self.executor_type = executor_type
         self._model_logger = (
-            _ModelLogPusher(self, context) if context.stream.enabled else None
+            _ModelLogPusher(self, context)
+            if context and context.stream.enabled
+            else None
         )
         self.version = kwargs.get("version", "v1")
         self.log_router = True
@@ -333,7 +335,8 @@ class VotingEnsemble(BaseModelRouter):
             logger.warn("GraphServer not initialized for VotingEnsemble instance")
             return
 
-        _init_endpoint_record(server, self)
+        if not self.context.is_mock or self.context.server.track_models:
+            _init_endpoint_record(server, self)
 
     def _resolve_route(self, body, urlpath):
         """Resolves the appropriate model to send the event to.
@@ -606,7 +609,7 @@ class VotingEnsemble(BaseModelRouter):
             return response[self.prediction_col_name]
         except KeyError:
             raise ValueError(
-                f"The given `prediction_col_name` ({self.prediction_col_name}) does not exist"
+                f"The given `prediction_col_name` ({self.prediction_col_name}) does not exist "
                 f"in the model's response ({response.keys()})"
             )
 
@@ -721,17 +724,30 @@ def _init_endpoint_record(graph_server, voting_ensemble: VotingEnsemble):
         )
 
 
+extra_doc = """
+        feature_vector_uri : str, optional
+            feature vector uri in the form: [project/]name[:tag]
+        impute_policy : dict, optional
+            value imputing (substitute NaN/Inf values with statistical or constant value), you can set 
+            the impute_policy parameter with the imputing policy, and specify which constant or statistical value 
+            will be used instead of NaN/Inf value, this can be defined per column or for all the columns ("*"). 
+            the replaced value can be fixed number for constants or $mean, $max, $min, $std, $count for statistical 
+            values. “*” is used to specify the default for all features, example: 
+            impute_policy={"*": "$mean", "age": 33}
+"""  # noqa
+
+
 class EnrichmentModelRouter(ModelRouter):
-    """model router with feature enrichment and imputing"""
+    """model router with feature enrichment and imputing""" + extra_doc
 
     def __init__(
         self,
-        context,
-        name,
+        context=None,
+        name: str = None,
         routes=None,
-        protocol=None,
-        url_prefix=None,
-        health_prefix=None,
+        protocol: str = None,
+        url_prefix: str = None,
+        health_prefix: str = None,
         feature_vector_uri: str = "",
         impute_policy: dict = {},
         **kwargs,
@@ -762,17 +778,18 @@ class EnrichmentModelRouter(ModelRouter):
 
 
 class EnrichmentVotingEnsemble(VotingEnsemble):
-    """model ensemble with feature enrichment and imputing"""
+
+    __doc__ = extra_doc  # todo: edit doc strings
 
     def __init__(
         self,
-        context,
-        name,
+        context=None,
+        name: str = None,
         routes=None,
         protocol=None,
-        url_prefix=None,
-        health_prefix=None,
-        vote_type=None,
+        url_prefix: str = None,
+        health_prefix: str = None,
+        vote_type: str = None,
         executor_type=None,
         prediction_col_name=None,
         feature_vector_uri: str = "",

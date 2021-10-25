@@ -18,7 +18,7 @@ import mlrun
 import mlrun.feature_store as fs
 import tests.conftest
 from mlrun.config import config
-from mlrun.data_types.data_types import ValueType
+from mlrun.data_types.data_types import InferOptions, ValueType
 from mlrun.datastore.sources import (
     CSVSource,
     DataFrameSource,
@@ -95,7 +95,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert stocks_set.status.stats["exchange"], "stats not created"
 
     def _ingest_quotes_featureset(self):
-        quotes_set = FeatureSet("stock-quotes", entities=[Entity("ticker")])
+        quotes_set = FeatureSet("stock-quotes", entities=["ticker"])
 
         flow = quotes_set.graph
         flow.to("MyMap", multiplier=3).to(
@@ -300,7 +300,7 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_feature_set_db(self):
         name = "stocks_test"
-        stocks_set = fs.FeatureSet(name, entities=[Entity("ticker", ValueType.STRING)])
+        stocks_set = fs.FeatureSet(name, entities=["ticker"])
         fs.preview(
             stocks_set, stocks,
         )
@@ -545,8 +545,9 @@ class TestFeatureStore(TestMLRunSystem):
             f"{name}.*",
         ]
         vector = fs.FeatureVector("myvector", features)
-        vector.spec.with_indexes = True
-        resp2 = fs.get_offline_features(vector, entity_timestamp_column="timestamp")
+        resp2 = fs.get_offline_features(
+            vector, entity_timestamp_column="timestamp", with_indexes=True
+        )
         resp2 = resp2.to_dataframe().to_dict()
 
         assert resp1 == resp2
@@ -620,8 +621,7 @@ class TestFeatureStore(TestMLRunSystem):
             f"{name}.*",
         ]
         vector = fs.FeatureVector("myvector", features)
-        vector.spec.with_indexes = True
-        resp2 = fs.get_offline_features(vector)
+        resp2 = fs.get_offline_features(vector, with_indexes=True)
         resp2 = resp2.to_dataframe()
         assert resp2.to_dict() == {
             "my_string": {"mykey1": "hello"},
@@ -1300,6 +1300,39 @@ class TestFeatureStore(TestMLRunSystem):
         assert "exchange" not in features, "field was not dropped"
         assert len(df) == len(stocks), "dataframe size doesnt match"
 
+    @pytest.mark.parametrize("with_graph", [True, False])
+    def test_sync_pipeline_chunks(self, with_graph):
+        myset = fs.FeatureSet(
+            "early_sense",
+            entities=[Entity("patient_id")],
+            timestamp_key="timestamp",
+            engine="pandas",
+        )
+
+        csv_file = os.path.relpath(str(self.assets_path / "testdata.csv"))
+        original_df = pd.read_csv(csv_file)
+        original_cols = original_df.shape[1]
+        print(original_df.shape)
+        print(original_df.info())
+
+        chunksize = 100
+        source = CSVSource("mycsv", path=csv_file, attributes={"chunksize": chunksize})
+        if with_graph:
+            myset.graph.to(name="s1", handler="my_func")
+
+        df = fs.ingest(myset, source)
+        self._logger.info(f"output df:\n{df}")
+
+        features = list(myset.spec.features.keys())
+        print(len(features), features)
+        print(myset.to_yaml())
+        print(df.shape)
+        # original cols - index - timestamp cols
+        assert len(features) == original_cols - 2, "wrong num of features"
+        assert df.shape[1] == original_cols, "num of cols not as expected"
+        # returned DF is only the first chunk (size 100)
+        assert df.shape[0] == chunksize, "dataframe size doesnt match"
+
     def test_target_list_validation(self):
         targets = [ParquetTarget()]
         verify_target_list_fail(targets, with_defaults=True)
@@ -1713,6 +1746,18 @@ class TestFeatureStore(TestMLRunSystem):
         svc.close()
         assert resp[0]["bid"] == 300
 
+    def test_get_offline_from_feature_set_with_no_schema(self):
+        myset = FeatureSet("fset2", entities=[Entity("ticker")])
+        fs.ingest(myset, quotes, infer_options=InferOptions.Null)
+        features = ["fset2.*"]
+        vector = fs.FeatureVector("QVMytLdP", features, with_indexes=True)
+
+        try:
+            fs.get_offline_features(vector)
+            assert False
+        except mlrun.errors.MLRunInvalidArgumentError:
+            pass
+
     def test_join_with_table(self):
         table_url = "v3io:///bigdata/system-test-project/nosql/test_join_with_table"
 
@@ -1772,7 +1817,7 @@ class TestFeatureStore(TestMLRunSystem):
         data_set2 = fs.FeatureSet("imp2", entities=[Entity("name")])
         fs.ingest(data_set2, data2, infer_options=fs.InferOptions.default())
 
-        features = ["imp1.datas_avg_1h", "imp1.datas_max_1h", "imp2.data2"]
+        features = ["imp2.data2", "imp1.datas_max_1h", "imp1.datas_avg_1h"]
 
         # create vector and online service with imputing policy
         vector = fs.FeatureVector("vectori", features)
@@ -1785,6 +1830,18 @@ class TestFeatureStore(TestMLRunSystem):
         assert resp[0]["data2"] == 1
         assert resp[0]["datas_max_1h"] == 60
         assert resp[0]["datas_avg_1h"] == 30
+
+        # test as list
+        resp = svc.get([{"name": "ab"}], as_list=True)
+        assert resp == [[1, 60, 30]]
+
+        # test with missing key
+        resp = svc.get([{"name": "xx"}])
+        assert resp == [None]
+
+        # test with missing key, as list
+        resp = svc.get([{"name": "xx"}], as_list=True)
+        assert resp == [None]
 
         resp = svc.get([{"name": "cd"}])
         assert resp[0]["data2"] == 4

@@ -44,14 +44,9 @@ def infer_schema_from_df_spark(
 
 def get_df_preview_spark(df, preview_lines=20):
     """capture preview data from spark df"""
-    length = df.count()
-    shortdf = df
-    if length > preview_lines:
-        shortdf = df.limit(preview_lines)
+    df = df.limit(preview_lines)
 
-    values = [
-        shortdf.select(funcs.collect_list(val)).first()[0] for val in shortdf.columns
-    ]
+    values = [df.select(funcs.collect_list(val)).first()[0] for val in df.columns]
     preview = [df.columns]
     for row in list(zip(*values)):
         preview.append(list(row))
@@ -128,15 +123,16 @@ def get_dtype(df, colname):
     return [dtype for name, dtype in df.dtypes if name == colname][0]
 
 
-def get_df_stats_spark(df, options, num_bins=20):
+def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
     if InferOptions.get_common_options(options, InferOptions.Index):
         df = df.select("*").withColumn("id", funcs.monotonically_increasing_id())
 
-    describe_df = df.toPandas().describe(
-        include="all", percentiles=[], datetime_is_numeric=True
-    )
+    # todo: sample spark DF if sample_size is not None and DF is bigger than sample_size
+
+    summary_df = df.summary().toPandas()
+    summary_df.set_index(["summary"], drop=True, inplace=True)
     results_dict = {}
-    for col, values in describe_df.items():
+    for col, values in summary_df.items():
         stats_dict = {}
         for stat, val in values.dropna().items():
             if stat != "50%":

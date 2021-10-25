@@ -29,6 +29,7 @@ class S3Store(DataStore):
 
         access_key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
         secret_key = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
+        endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
 
         if access_key or secret_key:
             self.s3 = boto3.resource(
@@ -36,10 +37,21 @@ class S3Store(DataStore):
                 region_name=region,
                 aws_access_key_id=access_key,
                 aws_secret_access_key=secret_key,
+                endpoint_url=endpoint_url,
             )
         else:
             # from env variables
-            self.s3 = boto3.resource("s3", region_name=region)
+            self.s3 = boto3.resource(
+                "s3", region_name=region, endpoint_url=endpoint_url
+            )
+            # If not using credentials, boto will still attempt to sign the requests, and will fail any operations
+            # due to no credentials found. These commands disable signing and allow anonymous mode (same as
+            # anon in the storage_options when working with fsspec).
+            from botocore.handlers import disable_signing
+
+            self.s3.meta.client.meta.events.register(
+                "choose-signer.s3.*", disable_signing
+            )
 
     def get_filesystem(self, silent=True):
         """return fsspec file system object, if supported"""
@@ -59,7 +71,15 @@ class S3Store(DataStore):
     def get_storage_options(self):
         key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
         secret = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
-        return dict(anon=not (key and secret), key=key, secret=secret,)
+
+        storage_options = dict(anon=not (key and secret), key=key, secret=secret)
+
+        endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
+        if endpoint_url:
+            client_kwargs = {"endpoint_url": endpoint_url}
+            storage_options["client_kwargs"] = client_kwargs
+
+        return storage_options
 
     def upload(self, key, src_path):
         self.s3.Object(self.endpoint, self._join(key)[1:]).put(

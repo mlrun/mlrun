@@ -33,6 +33,7 @@ from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj
 from ..utils import create_logger, get_caller_globals, parse_versioned_object_uri
 from .states import RootFlowStep, RouterStep, get_function, graph_root_setter
+from .utils import event_id_key, event_path_key
 
 
 class _StreamContext:
@@ -178,12 +179,13 @@ class GraphServer(ModelObj):
 
     def test(
         self,
-        path="/",
-        body=None,
-        method="",
-        content_type=None,
-        silent=False,
-        get_body=True,
+        path: str = "/",
+        body: Union[str, bytes, dict] = None,
+        method: str = "",
+        content_type: str = None,
+        silent: bool = False,
+        get_body: bool = True,
+        event_id: str = None,
     ):
         """invoke a test event into the server to simulate/test server behavior
 
@@ -199,13 +201,18 @@ class GraphServer(ModelObj):
         :param content_type:  optional, http mime type
         :param silent:     don't raise on error responses (when not 20X)
         :param get_body:   return the body as py object (vs serialize response into json)
+        :param event_id:   specify the unique event ID (by default a random value will be generated)
         """
         if not self.graph:
             raise MLRunInvalidArgumentError(
                 "no models or steps were set, use function.set_topology() and add steps"
             )
         event = MockEvent(
-            body=body, path=path, method=method, content_type=content_type
+            body=body,
+            path=path,
+            method=method,
+            content_type=content_type,
+            event_id=event_id,
         )
         resp = self.run(event, get_body=get_body)
         if hasattr(resp, "status_code") and resp.status_code >= 300 and not silent:
@@ -216,6 +223,12 @@ class GraphServer(ModelObj):
         server_context = self.context
         context = context or server_context
         event.content_type = event.content_type or self.default_content_type or ""
+        if event.headers:
+            if event_id_key in event.headers:
+                event.id = event.headers.get(event_id_key)
+            if event_path_key in event.headers:
+                event.path = event.headers.get(event_path_key)
+
         if isinstance(event.body, (str, bytes)) and (
             not event.content_type or event.content_type in ["json", "application/json"]
         ):
@@ -286,7 +299,7 @@ def v2_serving_init(context, namespace=None):
     serving_handler = server.init_object(namespace or get_caller_globals())
     # set the handler hook to point to our handler
     setattr(context, "mlrun_handler", serving_handler)
-    setattr(context, "server", server)
+    setattr(context, "_server", server)
     context.logger.info(f"serving was initialized, verbose={server.verbose}")
     if server.verbose:
         context.logger.info(server.to_yaml())
@@ -294,14 +307,14 @@ def v2_serving_init(context, namespace=None):
 
 def v2_serving_handler(context, event, get_body=False):
     """hook for nuclio handler()"""
-    if not context.server.http_trigger:
+    if not context._server.http_trigger:
         event.path = "/"  # fix the issue that non http returns "Unsupported"
-    return context.server.run(event, context, get_body)
+    return context._server.run(event, context, get_body)
 
 
 async def v2_serving_async_handler(context, event, get_body=False):
     """hook for nuclio handler()"""
-    return await context.server.run(event, context, get_body)
+    return await context._server.run(event, context, get_body)
 
 
 def create_graph_server(
@@ -332,9 +345,15 @@ class MockEvent(object):
     """mock basic nuclio event object"""
 
     def __init__(
-        self, body=None, content_type=None, headers=None, method=None, path=None
+        self,
+        body=None,
+        content_type=None,
+        headers=None,
+        method=None,
+        path=None,
+        event_id=None,
     ):
-        self.id = uuid.uuid4().hex
+        self.id = event_id or uuid.uuid4().hex
         self.key = ""
         self.body = body
         self.time = None
@@ -391,6 +410,10 @@ class GraphContext:
         self.get_store_resource = None
         self.get_table = None
         self.is_mock = False
+
+    @property
+    def server(self):
+        return self._server
 
     def push_error(self, event, message, source=None, **kwargs):
         if self.verbose:

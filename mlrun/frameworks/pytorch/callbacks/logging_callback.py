@@ -5,7 +5,7 @@ from torch import Tensor
 from torch.nn import Module, Parameter
 
 import mlrun
-from mlrun.frameworks._common.loggers import Logger, TrackableType
+from mlrun.frameworks._common.loggers import Logger, LoggerMode, TrackableType
 from mlrun.frameworks.pytorch.callbacks.callback import (
     Callback,
     MetricFunctionType,
@@ -279,6 +279,7 @@ class LoggingCallback(Callback):
         """
         if self._is_training is None:
             self._is_training = False
+            self._logger.set_mode(mode=LoggerMode.EVALUATION)
 
     def on_validation_end(
         self, loss_value: MetricValueType, metric_values: List[float]
@@ -448,7 +449,7 @@ class LoggingCallback(Callback):
         :raise TypeError:  In case the source is 'HyperparametersKeys.CUSTOM' but the given value is not callable.
         :raise KeyError:   In case the one of the keys in the key chain is incorrect.
         :raise IndexError: In case the one of the keys in the key chain is incorrect.
-        :raise ValueError: In case the value is not trackable.
+        :raise MLRunInvalidArgumentError: In case the value is not trackable.
         """
         # Get the value using the provided key chain:
         if source == HyperparametersKeys.CUSTOM:
@@ -486,8 +487,8 @@ class LoggingCallback(Callback):
             if value.numel() == 1:
                 value = float(value)
             else:
-                raise ValueError(
-                    "The parameter with the following key chain: {} is a pytorch.Tensor with {} elements."
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "The parameter with the following key chain: {} is a pytorch.Tensor with {} elements. "
                     "PyTorch tensors are trackable only if they have 1 element."
                     "".format(key_chain, value.numel())
                 )
@@ -495,8 +496,8 @@ class LoggingCallback(Callback):
             if value.size == 1:
                 value = float(value)
             else:
-                raise ValueError(
-                    "The parameter with the following key chain: {} is a numpy.ndarray with {} elements."
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "The parameter with the following key chain: {} is a numpy.ndarray with {} elements. "
                     "numpy arrays are trackable only if they have 1 element."
                     "".format(key_chain, value.size)
                 )
@@ -506,8 +507,8 @@ class LoggingCallback(Callback):
             or isinstance(value, str)
             or isinstance(value, bool)
         ):
-            raise ValueError(
-                "The parameter with the following key chain: {} is of type '{}'."
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "The parameter with the following key chain: {} is of type '{}'. "
                 "The only trackable types are: float, int, str and bool."
                 "".format(key_chain, type(value))
             )

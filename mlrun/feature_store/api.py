@@ -28,6 +28,7 @@ from ..datastore.targets import (
     get_default_targets,
     get_target_driver,
     validate_target_list,
+    kind_to_driver,
 )
 from ..db import RunDBError
 from ..model import DataSource, DataTargetBase
@@ -354,9 +355,9 @@ def ingest(
         featureset.purge_targets(target_names=purge_target_names, silent=True)
     else:
         for target in purge_targets:
-            if not target.support_append:
+            if not kind_to_driver[target.kind].support_append:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"{type(target.kind)} target does not support overwrite=False ingestion"
+                    f"{target.kind} target does not support overwrite=False ingestion"
                 )
             if hasattr(target, "is_single_file") and target.is_single_file():
                 raise mlrun.errors.MLRunInvalidArgumentError(

@@ -179,7 +179,7 @@ jobs:
       run: |
         set -x
         minikube logs
-        minikube kubectl -- --namespace ${NAMESPACE} logs -l app.kubernetes.io/component=api,app.kubernetes.io/name=mlrun
+        minikube kubectl -- --namespace ${NAMESPACE} logs -l app.kubernetes.io/component=api,app.kubernetes.io/name=mlrun --tail=-1
         minikube kubectl -- --namespace ${NAMESPACE} get all
         minikube kubectl -- --namespace ${NAMESPACE} get all -o yaml
         minikube kubectl -- --namespace ${NAMESPACE} describe pods

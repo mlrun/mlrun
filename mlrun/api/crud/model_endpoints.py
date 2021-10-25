@@ -11,6 +11,7 @@ from v3io_frames.errors import CreateError
 
 import mlrun.api.api.utils
 import mlrun.datastore.store_resources
+from mlrun.api.api.endpoints.functions import _build_function
 from mlrun.api.api.utils import _submit_run, get_run_db_instance
 from mlrun.api.schemas import (
     Features,
@@ -33,7 +34,7 @@ from mlrun.model_monitoring.helpers import (
     get_model_monitoring_stream_processing_function,
 )
 from mlrun.runtimes import KubejobRuntime
-from mlrun.runtimes.function import deploy_nuclio_function, get_nuclio_deploy_status
+from mlrun.runtimes.function import get_nuclio_deploy_status
 from mlrun.utils.helpers import logger
 from mlrun.utils.model_monitoring import (
     parse_model_endpoint_project_prefix,
@@ -384,6 +385,7 @@ class ModelEndpoints:
         self.deploy_model_monitoring_stream_processing(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
+            db_session=db_session,
             auto_info=auth_info,
         )
         self.deploy_model_monitoring_batch_processing(
@@ -572,6 +574,7 @@ class ModelEndpoints:
     def deploy_model_monitoring_stream_processing(
         project: str,
         model_monitoring_access_key: str,
+        db_session,
         auto_info: mlrun.api.schemas.AuthInfo,
     ):
         logger.info(
@@ -602,11 +605,12 @@ class ModelEndpoints:
         )
 
         fn.set_env("MODEL_MONITORING_ACCESS_KEY", model_monitoring_access_key)
-        fn.set_env("MLRUN_AUTH_SESSION", model_monitoring_access_key)
+        fn.metadata.credentials.access_key = model_monitoring_access_key
         fn.set_env("MODEL_MONITORING_PARAMETERS", json.dumps({"project": project}))
 
         fn.apply(mlrun.mount_v3io())
-        deploy_nuclio_function(fn, auth_info=auto_info)
+
+        _build_function(db_session=db_session, auth_info=auto_info, function=fn)
 
     @staticmethod
     def deploy_model_monitoring_batch_processing(

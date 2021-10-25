@@ -1,4 +1,4 @@
-@Library('pipelinex@development') _
+@Library('pipelinex@ML-1206_enable_skip_mlrunui') _
 import com.iguazio.pipelinex.DockerRepo
 
 workDir = '/home/jenkins'
@@ -7,6 +7,14 @@ gitProject = 'mlrun'
 gitProjectUser = 'mlrun'
 gitProjectUI = 'ui'
 dockerTag = env.TAG_NAME.replaceFirst(/^v/, '')
+
+properties_args = [
+    parameters([
+        booleanParam(defaultValue: true, description: '', name: 'release_mlrun_ui'),
+    ]),
+]
+
+properties(properties_args)
 
 podTemplate(
     label: podLabel,
@@ -76,7 +84,7 @@ podTemplate(
                 }
 
                 container('jnlp') {
-                    common.conditional_stage('Create mlrun/ui release', "${env.TAG_NAME}" != "unstable") {
+                    common.conditional_stage('Create mlrun/ui release', ("${env.TAG_NAME}" != "unstable") && params.release_mlrun_ui) {
                         def mlrun_github_client = new Githubc(gitProjectUser, gitProject, GIT_TOKEN, env.TAG_NAME, this)
                         def ui_github_client = new Githubc(gitProjectUser, gitProjectUI, GIT_TOKEN, this)
                         def source_branch = mlrun_github_client.getReleasecommittish()

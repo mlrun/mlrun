@@ -24,7 +24,6 @@ MLRUN_NO_CACHE ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 MLRUN_PYTHON_VERSION ?= 3.7.9
 MLRUN_LEGACY_ML_PYTHON_VERSION ?= 3.6.12
-MLRUN_MLUTILS_GITHUB_TAG ?= development
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
 # 1. docker pull the same image with the given tag (cache image) before the build
@@ -186,7 +185,6 @@ base-core: pull-cache update-version-file ## Build base core docker image
 	docker build \
 		--file dockerfiles/base/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
-		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_CORE_BASE_IMAGE_NAME_TAGGED) .
@@ -219,7 +217,6 @@ base-legacy-core: pull-cache update-version-file ## Build base legacy core docke
 	docker build \
 		--file dockerfiles/base/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_LEGACY_ML_PYTHON_VERSION) \
-		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_CORE_LEGACY_BASE_IMAGE_NAME_TAGGED) .
@@ -320,7 +317,6 @@ models-gpu: update-version-file ## Build models-gpu docker image
 	$(MLRUN_MODELS_GPU_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/models-gpu/Dockerfile \
-		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		--build-arg CUDA_VER=$(MLRUN_CUDA_VERSION) \
 		--build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
 		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
@@ -347,7 +343,6 @@ models-gpu-legacy: update-version-file ## Build models-gpu legacy docker image
 	$(MLRUN_LEGACY_MODELS_GPU_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/models-gpu/$(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)/Dockerfile \
-		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		$(MLRUN_LEGACY_MODELS_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME_TAGGED) .

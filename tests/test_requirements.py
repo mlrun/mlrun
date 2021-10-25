@@ -81,7 +81,7 @@ def test_requirement_specifiers_convention():
         "kfp": {"~=1.0.1"},
         "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
-        "typing-extensions": {">=3.10.0"},
+        "bokeh": {"~=2.3.0"},
         # Black is not stable yet and does not have a release that is not beta, so can't be used with ~=
         "black": {"<=19.10b0"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers

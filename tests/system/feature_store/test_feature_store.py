@@ -1817,7 +1817,7 @@ class TestFeatureStore(TestMLRunSystem):
         data_set2 = fs.FeatureSet("imp2", entities=[Entity("name")])
         fs.ingest(data_set2, data2, infer_options=fs.InferOptions.default())
 
-        features = ["imp1.datas_avg_1h", "imp1.datas_max_1h", "imp2.data2"]
+        features = ["imp2.data2", "imp1.datas_max_1h", "imp1.datas_avg_1h"]
 
         # create vector and online service with imputing policy
         vector = fs.FeatureVector("vectori", features)
@@ -1830,6 +1830,18 @@ class TestFeatureStore(TestMLRunSystem):
         assert resp[0]["data2"] == 1
         assert resp[0]["datas_max_1h"] == 60
         assert resp[0]["datas_avg_1h"] == 30
+
+        # test as list
+        resp = svc.get([{"name": "ab"}], as_list=True)
+        assert resp == [[1, 60, 30]]
+
+        # test with missing key
+        resp = svc.get([{"name": "xx"}])
+        assert resp == [None]
+
+        # test with missing key, as list
+        resp = svc.get([{"name": "xx"}], as_list=True)
+        assert resp == [None]
 
         resp = svc.get([{"name": "cd"}])
         assert resp[0]["data2"] == 4

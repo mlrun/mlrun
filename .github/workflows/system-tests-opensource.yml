@@ -160,7 +160,8 @@ jobs:
             --set mlrun.ui.image.repository=ghcr.io/mlrun/mlrun-ui \
             --set mlrun.ui.image.tag=${{ steps.computed_params.outputs.mlrun_ui_version }} \
             --set mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ steps.computed_params.outputs.mlrun_hash }}" \
-            --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
+            --set mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ steps.computed_params.outputs.mlrun_hash }}" \
+            --set mlrun.api.extraEnvKeyValue.MLRUN_RUNTIMES_CLEANUP_INTERVAL="0" \
             v3io-stable/mlrun-kit
 
     - name: Prepare system tests env

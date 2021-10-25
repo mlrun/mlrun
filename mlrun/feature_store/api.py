@@ -27,8 +27,8 @@ from ..datastore.targets import (
     get_default_prefix_for_target,
     get_default_targets,
     get_target_driver,
-    validate_target_list,
     kind_to_driver,
+    validate_target_list,
 )
 from ..db import RunDBError
 from ..model import DataSource, DataTargetBase

@@ -153,6 +153,7 @@ jobs:
             --debug \
             --wait \
             --set global.registry.url=localhost:5000 \
+            --set global.registry.secretName="" \
             --set global.externalHostAddress=$(minikube ip) \
             --set mlrun.api.image.repository=${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api \
             --set mlrun.api.image.tag=${{ steps.computed_params.outputs.mlrun_version }} \

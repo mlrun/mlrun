@@ -190,4 +190,5 @@ jobs:
         minikube kubectl -- --namespace ${NAMESPACE} get secrets -o yaml
         minikube kubectl -- --namespace ${NAMESPACE} get all
         minikube kubectl -- --namespace ${NAMESPACE} get all -o yaml
+        minikube kubectl -- --namespace ${NAMESPACE} logs -l app.kubernetes.io/component=api,app.kubernetes.io/instance=mlrun
         set +x

@@ -136,7 +136,7 @@ jobs:
         kubernetes version: "v1.20.11"
         driver: docker
         github token: ${{ github.token }}
-        start args: '--addons=registry --insecure-registry="10.1.0.0/24"'
+        start args: '--addons=registry --insecure-registry="$(minikube ip):5000"'
 
     - name: Get mlrun kit charts and create namespace
       run: |

@@ -195,7 +195,6 @@ class FeatureSetStatus(ModelObj):
         preview=None,
         function_uri=None,
         run_uri=None,
-        publish_time=None,
     ):
         self.state = state or "created"
         self._targets: ObjectList = None
@@ -204,7 +203,6 @@ class FeatureSetStatus(ModelObj):
         self.preview = preview or []
         self.function_uri = function_uri
         self.run_uri = run_uri
-        self.publish_time = publish_time
 
     @property
     def targets(self) -> List[DataTarget]:
@@ -255,7 +253,6 @@ class FeatureSet(ModelObj):
         self.metadata = VersionedObjMetadata(name=name)
         self.status = None
         self._last_state = ""
-        self._generate_new_run_uuid()
 
     @property
     def spec(self) -> FeatureSetSpec:
@@ -294,7 +291,7 @@ class FeatureSet(ModelObj):
 
     @property
     def get_publish_time(self):
-        return self.status.publish_time
+        return self.metadata.publish_time
 
     def _override_run_db(
         self, session,
@@ -311,9 +308,6 @@ class FeatureSet(ModelObj):
         else:
             return mlrun.get_run_db()
 
-    def _generate_new_run_uuid(self):
-        self.metadata.run_uuid = round(time.time() * 1000)
-
     def _get_feature_set_for_tag(self, tag):
         tag = tag or self.metadata.tag
         try:
@@ -327,7 +321,7 @@ class FeatureSet(ModelObj):
         """get the url/path for an offline or specified data target"""
         target = get_offline_target(self, name=name)
         if target:
-            return target.path + "/" + self.metadata.run_uuid
+            return target.get_path()
 
     def set_targets(
             self,
@@ -633,73 +627,79 @@ class FeatureSet(ModelObj):
     def publish(self, tag: str):
         """publish the feature set and lock it's metadata"""
 
+        if self.get_publish_time:
+            raise MLRunBadRequestError(f"Feature set was already published (published on: {self.get_publish_time}).")
+
         if self._get_feature_set_for_tag(tag):
-            raise MLRunBadRequestError(f"Cannot publish tag: '{tag}', tag already published.")
+            raise MLRunBadRequestError(f"Cannot publish tag: '{tag}', tag already exists.")
 
         published_feature_set = copy.deepcopy(self)
-        self._generate_new_run_uuid()
 
         published_feature_set.metadata.tag = tag
-        published_feature_set.status.publish_time = datetime.now(timezone.utc)  # publish_time
+        published_feature_set.metadata.publish_time = datetime.now(timezone.utc)
         published_feature_set.save(tag)
 
-        return PublishedFeatureSet(published_feature_set)
+        self.status.targets = []
 
+        return published_feature_set
+        # in case of use of read only publish set
+        # return PublishedFeatureSet(published_feature_set)
 
-class ReadOnlyModelObj(ModelObj):
-    def __init__(self, obj, obj_type):
-        if isinstance(obj, obj_type):
-            self.__dict__.update(obj.__dict__)
-        else:
-            raise RuntimeError(f'Cannot create {self.__class__} from object of type: {type(obj)}')
-
-    def __setattr__(self, key, value):
-        raise AttributeError('Cannot change attributes on a read only object.')
-
-    def __delattr__(self, key):
-        raise AttributeError('Cannot delete attributes on a read only object.')
-
-
-class SemiReadOnlyModelObj(ReadOnlyModelObj):
-    _editable_fields_list = None
-
-    def __init__(self, obj, obj_type, editable_fields_list: List[str]):
-        super().__init__(obj, obj_type)
-        self.__dict__["_editable_fields_list"] = editable_fields_list
-
-    def __setattr__(self, key, value):
-        if key not in self._editable_fields_list:
-            raise AttributeError('Cannot change attributes on a read only object.')
-        self.__dict__[key] = value
-
-    def __delattr__(self, key):
-        raise AttributeError('Cannot delete attributes on a read only object.')
-
-
-class PublishedFeatureSetSpec(FeatureSetSpec, ReadOnlyModelObj):
-    def __init__(self, spec):
-        ReadOnlyModelObj.__init__(self, spec, FeatureSetSpec)
-
-
-class PublishedFeatureSetStatus(FeatureSetStatus, SemiReadOnlyModelObj):
-    def __init__(self, status, editable_fields_list: List[str]):
-        SemiReadOnlyModelObj.__init__(self, status, FeatureSetStatus, editable_fields_list)
-
-    def update_target(self, target: DataTarget):
-        raise AttributeError('Cannot execute update_target on a read only object.')
-
-
-class PublishedFeatureSetMetaData(VersionedObjMetadata, ReadOnlyModelObj):
-    def __init__(self, metadata):
-        ReadOnlyModelObj.__init__(self, metadata, VersionedObjMetadata)
-
-
-class PublishedFeatureSet(ReadOnlyModelObj, FeatureSet):
-    """ read only feature set with protected attributes. """
-    _dict_fields = FeatureSet._dict_fields
-
-    def __init__(self, feature_set):
-        super().__init__(feature_set, FeatureSet)
-        self.__dict__['_spec'] = PublishedFeatureSetSpec(feature_set.spec)
-        self.__dict__['_metadata'] = PublishedFeatureSetMetaData(feature_set.metadata)
-        self.__dict__['_status'] = PublishedFeatureSetStatus(feature_set.status, ["state"])
+# TODO - see if needed, if not - remove all below code
+# class ReadOnlyModelObj(ModelObj):
+#     def __init__(self, obj, obj_type):
+#         if isinstance(obj, obj_type):
+#             self.__dict__.update(obj.__dict__)
+#         else:
+#             raise RuntimeError(f'Cannot create {self.__class__} from object of type: {type(obj)}')
+#
+#     def __setattr__(self, key, value):
+#         raise AttributeError('Cannot change attributes on a read only object.')
+#
+#     def __delattr__(self, key):
+#         raise AttributeError('Cannot delete attributes on a read only object.')
+#
+#
+# class SemiReadOnlyModelObj(ReadOnlyModelObj):
+#     _editable_fields_list = None
+#
+#     def __init__(self, obj, obj_type, editable_fields_list: List[str]):
+#         super().__init__(obj, obj_type)
+#         self.__dict__["_editable_fields_list"] = editable_fields_list
+#
+#     def __setattr__(self, key, value):
+#         if key not in self._editable_fields_list:
+#             raise AttributeError('Cannot change attributes on a read only object.')
+#         self.__dict__[key] = value
+#
+#     def __delattr__(self, key):
+#         raise AttributeError('Cannot delete attributes on a read only object.')
+#
+#
+# class PublishedFeatureSetSpec(FeatureSetSpec, ReadOnlyModelObj):
+#     def __init__(self, spec):
+#         ReadOnlyModelObj.__init__(self, spec, FeatureSetSpec)
+#
+#
+# class PublishedFeatureSetStatus(FeatureSetStatus, SemiReadOnlyModelObj):
+#     def __init__(self, status, editable_fields_list: List[str]):
+#         SemiReadOnlyModelObj.__init__(self, status, FeatureSetStatus, editable_fields_list)
+#
+#     def update_target(self, target: DataTarget):
+#         raise AttributeError('Cannot execute update_target on a read only object.')
+#
+#
+# class PublishedFeatureSetMetaData(VersionedObjMetadata, ReadOnlyModelObj):
+#     def __init__(self, metadata):
+#         ReadOnlyModelObj.__init__(self, metadata, VersionedObjMetadata)
+#
+#
+# class PublishedFeatureSet(ReadOnlyModelObj, FeatureSet):
+#     """ read only feature set with protected attributes. """
+#     _dict_fields = FeatureSet._dict_fields
+#
+#     def __init__(self, feature_set):
+#         super().__init__(feature_set, FeatureSet)
+#         self.__dict__['_spec'] = PublishedFeatureSetSpec(feature_set.spec)
+#         self.__dict__['_metadata'] = PublishedFeatureSetMetaData(feature_set.metadata)
+#         self.__dict__['_status'] = PublishedFeatureSetStatus(feature_set.status, ["state"])

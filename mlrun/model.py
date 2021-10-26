@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import inspect
+import random
 import re
 import time
 import warnings
@@ -1076,6 +1077,7 @@ class DataTargetBase(ModelObj):
         "time_partitioning_granularity",
         "max_events",
         "flush_after_seconds",
+        "run_uuid",
     ]
 
     # TODO - remove once "after_state" is fully deprecated
@@ -1084,6 +1086,16 @@ class DataTargetBase(ModelObj):
         return super().from_dict(
             struct, fields=fields, deprecated_fields={"after_state": "after_step"}
         )
+
+    @staticmethod
+    def generate_target_run_uuid():
+        return f"{round(time.time() * 1000)}_{random.randint(0, 999)}"
+
+    def get_path(self):
+        # TODO - see if need to check self.is_single_file()
+        if self.path and self.run_uuid:
+            return self.path + "/" + self.run_uuid
+        return self.path
 
     def __init__(
         self,
@@ -1120,6 +1132,7 @@ class DataTargetBase(ModelObj):
         self.time_partitioning_granularity = time_partitioning_granularity
         self.max_events = max_events
         self.flush_after_seconds = flush_after_seconds
+        self.run_uuid = None
 
 
 class FeatureSetProducer(ModelObj):
@@ -1181,7 +1194,7 @@ class VersionedObjMetadata(ModelObj):
         labels: Dict[str, str] = None,
         annotations: Dict[str, str] = None,
         updated=None,
-        run_uuid=None,
+        publish_time=None,
     ):
         self.name = name
         self.tag = tag
@@ -1190,4 +1203,4 @@ class VersionedObjMetadata(ModelObj):
         self.labels = labels or {}
         self.annotations = annotations or {}
         self.updated = updated
-        self.run_uuid = run_uuid
+        self.publish_time = publish_time

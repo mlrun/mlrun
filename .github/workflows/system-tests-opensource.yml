@@ -136,7 +136,7 @@ jobs:
         kubernetes version: "v1.20.11"
         driver: docker
         github token: ${{ github.token }}
-        start args: '--addons=registry'
+        start args: '--addons=registry --insecure-registry="10.1.0.0/24"'
 
     - name: Get mlrun kit charts and create namespace
       run: |
@@ -150,7 +150,7 @@ jobs:
             install mlrun-kit \
             --debug \
             --wait \
-            --set global.registry.url="http://$(minikube ip):5000" \
+            --set global.registry.url=$(minikube ip):5000 \
             --set global.registry.secretName="" \
             --set global.externalHostAddress=$(minikube ip) \
             --set mlrun.api.image.repository=${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api \

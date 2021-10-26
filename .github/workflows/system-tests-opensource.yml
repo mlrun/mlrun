@@ -125,12 +125,6 @@ jobs:
         echo "::set-output name=mlrun_system_tests_clean_resources::$( \
           input_system_tests_clean_resources=${{ github.event.inputs.clean_resources_in_teardown }} && \
           echo ${input_system_tests_clean_resources:-true})"
-    - name: Wait for existing runs to complete
-      uses: softprops/turnstyle@v1
-      with:
-        poll-interval-seconds: 20s
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - uses: azure/setup-helm@v1
       with:

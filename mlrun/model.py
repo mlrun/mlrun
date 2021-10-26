@@ -1159,6 +1159,7 @@ class DataTarget(DataTargetBase):
         "updated",
         "size",
         "last_written",
+        "run_uuid",
     ]
 
     def __init__(

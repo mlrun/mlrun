@@ -136,7 +136,9 @@ jobs:
         kubernetes version: "v1.20.11"
         driver: docker
         github token: ${{ github.token }}
-        start args: '--addons=registry --insecure-registry="$(minikube ip):5000"'
+        # I couldn't find a way to configure the IP (https://github.com/kubernetes/minikube/issues/951)
+        # but this seems to work
+        start args: '--addons=registry --insecure-registry="192.168.49.2:5000"'
 
     - name: Get mlrun kit charts and create namespace
       run: |
@@ -176,6 +178,7 @@ jobs:
       # add set -x to print commands before executing to make logs reading easier
       run: |
         set -x
+        minikube ip
         minikube logs
         minikube kubectl -- --namespace ${NAMESPACE} logs -l app.kubernetes.io/component=api,app.kubernetes.io/name=mlrun --tail=-1
         minikube kubectl -- --namespace ${NAMESPACE} get all

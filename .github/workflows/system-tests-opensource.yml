@@ -138,7 +138,7 @@ jobs:
         kubernetes version: "v1.20.11"
         driver: docker
         github token: ${{ github.token }}
-        start args: '--addons registry'
+        start args: '--addons=registry --insecure-registry="10.1.0.0/24"'
 
     - name: Post minikube setup
       run: |

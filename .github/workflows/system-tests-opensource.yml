@@ -156,7 +156,7 @@ jobs:
             install mlrun-kit \
             --debug \
             --wait \
-            --set global.registry.url=$(minikube ip):5000 \
+            --set global.registry.url="http://$(minikube ip):5000" \
             --set global.registry.secretName="" \
             --set global.externalHostAddress=$(minikube ip) \
             --set mlrun.api.image.repository=${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api \

@@ -282,6 +282,8 @@ class BaseStoreTarget(DataTargetBase):
         max_events: typing.Optional[int] = None,
         flush_after_seconds: typing.Optional[int] = None,
     ):
+        super().__init__(self.kind, name, path, attributes, after_step, partitioned, key_bucketing_number, partition_cols,
+                         time_partitioning_granularity, max_events, flush_after_seconds, after_state)
         if after_state:
             warnings.warn(
                 "The after_state parameter is deprecated. Use after_step instead",
@@ -438,6 +440,7 @@ class BaseStoreTarget(DataTargetBase):
         driver.flush_after_seconds = spec.flush_after_seconds
 
         driver._resource = resource
+        driver.run_uuid = spec.run_uuid
         return driver
 
     def get_table_object(self):
@@ -447,7 +450,7 @@ class BaseStoreTarget(DataTargetBase):
     @property
     def _target_path(self):
         """return the actual/computed target path"""
-        return self.path or _get_target_path(self, self._resource)
+        return self.get_path() or _get_target_path(self, self._resource)
 
     def update_resource_status(self, status="", producer=None, size=None):
         """update the data target status"""
@@ -455,6 +458,7 @@ class BaseStoreTarget(DataTargetBase):
             self.kind, self.name, self._target_path
         )
         target = self._target
+        target.run_uuid = self.run_uuid
         target.status = status or target.status or "created"
         target.updated = now_date().isoformat()
         target.size = size
@@ -1195,6 +1199,8 @@ kind_to_driver = {
 
 def _get_target_path(driver, resource):
     """return the default target path given the resource and target kind"""
+    from mlrun.model import DataTargetBase
+
     kind = driver.kind
     suffix = driver.suffix
     if not suffix:
@@ -1211,7 +1217,7 @@ def _get_target_path(driver, resource):
     name = resource.metadata.name
     version = resource.metadata.tag
     project = resource.metadata.project or mlrun.mlconf.default_project
-    uuid = resource._run_uuid
+    uuid = driver.run_uuid or DataTargetBase.generate_target_run_uuid()
     data_prefix = get_default_prefix_for_target(kind).format(
         project=project, kind=kind, name=name, uuid=uuid
     )

@@ -142,13 +142,7 @@ jobs:
         kubernetes version: "v1.20.11"
         driver: docker
         github token: ${{ github.token }}
-        start args: '--addons=registry --insecure-registry="10.1.0.0/24"'
-
-    - name: Post minikube setup
-      run: |
-        # redirect $(minikube ip):5000 -> localhost:5000
-        docker run --rm --detach --network=host alpine ash -c "apk add socat && socat TCP-LISTEN:5000,reuseaddr,fork TCP:$(minikube ip):5000"
-        minikube kubectl -- config view --flatten > kubeconfig_flatten
+        start args: '--addons=registry'
 
     - name: Get mlrun kit charts and create namespace
       run: |
@@ -162,7 +156,7 @@ jobs:
             install mlrun-kit \
             --debug \
             --wait \
-            --set global.registry.url=localhost:5000 \
+            --set global.registry.url=$(minikube ip):5000 \
             --set global.registry.secretName="" \
             --set global.externalHostAddress=$(minikube ip) \
             --set mlrun.api.image.repository=${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api \

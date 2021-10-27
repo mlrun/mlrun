@@ -507,18 +507,6 @@ class FeatureSet(ModelObj):
             )
             step_name = step_name or state_name
 
-        if isinstance(windows, list):
-            unit = None
-            for window in windows:
-                if not unit:
-                    unit = window[-1]
-                else:
-                    if window[-1] != unit:
-                        raise mlrun.errors.MLRunInvalidArgumentError(
-                            "List of windows is supported only for the same unit of time, e.g [1h, 5h].\n"
-                            "For additional windows create another aggregation"
-                        )
-
         if isinstance(windows, str):
             windows = [windows]
         if isinstance(operations, str):

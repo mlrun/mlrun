@@ -63,7 +63,8 @@ fsspec~=2021.8.1
 v3iofs~=0.1.7
 # 3.4 and above failed builidng in some images - see https://github.com/pyca/cryptography/issues/5771
 cryptography~=3.0, <3.4
-storey~=0.8.5; python_version >= '3.7'
+git+https://github.com/dinal/storey.git@sample_fix#egg=storey
+#storey~=0.8.5; python_version >= '3.7'
 deepdiff~=5.0
 pymysql~=1.0
 inflection~=0.5.0

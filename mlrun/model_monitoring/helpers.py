@@ -11,6 +11,6 @@ def get_model_monitoring_stream_processing_function(project: str):
         name="model-monitoring-stream",
         project=project,
         filename=str(STREAM_PROCESSING_FUNCTION_PATH),
-        kind="serving",
+        kind="nuclio",
         image="mlrun/mlrun",
     )

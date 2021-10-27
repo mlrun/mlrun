@@ -150,7 +150,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
 
     @pytest.mark.timeout(270)
     def test_basic_model_monitoring(self):
-        simulation_time = 10  # 90 seconds
+        simulation_time = 90  # 90 seconds
         # Deploy Model Servers
         project = mlrun.get_run_db().get_project(self.project_name)
         project.set_model_monitoring_credentials(os.environ.get("V3IO_ACCESS_KEY"))
@@ -192,7 +192,6 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         )
 
         # Deploy the function
-        #serving_fn.spec.image = "mlrun/mlrun:monitoring"
         serving_fn.deploy()
 
         # Simulating Requests

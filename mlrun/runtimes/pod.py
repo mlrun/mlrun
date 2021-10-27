@@ -298,9 +298,11 @@ class KubeResource(BaseRuntime):
         )
         return self._set_env(name, value_from=value_from)
 
-    def set_env(self, name, value):
+    def set_env(self, name, value=None, value_from=None):
         """set pod environment var from value"""
-        return self._set_env(name, value=str(value))
+        if value is not None:
+            return self._set_env(name, value=str(value))
+        return self._set_env(name, value_from=value_from)
 
     def is_env_exists(self, name):
         """Check whether there is an environment variable define for the given key"""

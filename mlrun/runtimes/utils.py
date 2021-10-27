@@ -473,7 +473,7 @@ def enrich_function_from_dict(function, function_dict):
                     else:
                         if (
                             env_dict.get("valueFrom") is None
-                            and env_dict.get("valueFrom") is None
+                            and env_dict.get("value_from") is None
                         ):
                             raise mlrun.errors.MLRunInvalidArgumentError(
                                 "One of value, value_from valueFrom must be set"

@@ -471,17 +471,8 @@ def enrich_function_from_dict(function, function_dict):
                     if env_dict.get("value") is not None:
                         function.set_env(env_dict["name"], env_dict["value"])
                     else:
-                        if (
-                            env_dict.get("valueFrom") is None
-                            and env_dict.get("value_from") is None
-                        ):
-                            raise mlrun.errors.MLRunInvalidArgumentError(
-                                "One of value, value_from valueFrom must be set"
-                            )
                         function.set_env(
-                            env_dict["name"],
-                            value_from=env_dict.get("value_from")
-                            or env_dict.get("valueFrom"),
+                            env_dict["name"], value_from=env_dict["valueFrom"],
                         )
             elif attribute == "volumes":
                 function.spec.update_vols_and_mounts(override_value, [])

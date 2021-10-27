@@ -77,19 +77,17 @@ extras_require = {
     # conflicts with s3fs 2021.8.1 that has aiobotocore~=1.4.0
     # which so far (1.4.1) has botocore>=1.20.106,<1.20.107
     # boto3 1.17.106 has botocore>=1.20.106,<1.21.0, so we must add botocore explicitly
-    # s3fs versioning changed to year.month.patch after 0.6.0
     "s3": [
         "boto3~=1.9, <1.17.107",
         "botocore>=1.20.106,<1.20.107",
         "aiobotocore~=1.4.0",
-        "s3fs>=0.5.0, <=2021.8.1",
+        "s3fs~=2021.8.1",
     ],
-    # adlfs versioning changed to year.month.patch after 0.7.7
-    "azure-blob-storage": ["azure-storage-blob~=12.0", "adlfs>=0.7.1, <=2021.8.1"],
+    "azure-blob-storage": ["azure-storage-blob~=12.0", "adlfs~=2021.8.1"],
     "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
-    # bokeh 2.4.0 requires typing-extensions>=3.10.0 but previous packages installs 3.7.4.3 which is incompatible so
-    # adding it explictly
-    "bokeh": ["typing-extensions>=3.10.0", "bokeh~=2.3"],
+    # bokeh 2.4.0 requires typing-extensions>=3.10.0 but all tensorflow versions that compatible with our
+    # tensorflow~=2.4.1 requirement requiring typing-extensions~=3.7.4 so limiting to 2.3.x
+    "bokeh": ["bokeh~=2.3.0"],
     "google-cloud-storage": ["gcsfs~=2021.8.1"],
 }
 extras_require["complete"] = sorted(

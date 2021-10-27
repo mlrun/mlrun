@@ -626,11 +626,18 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         )
         completion_time = None
         if in_terminal_state:
-            completion_time = datetime.fromisoformat(
-                crd_object.get("status", {})
-                .get("terminationTime")
-                .replace("Z", "+00:00")
-            )
+            if crd_object.get("status", {}).get("terminationTime"):
+                completion_time = datetime.fromisoformat(
+                    crd_object.get("status", {})
+                    .get("terminationTime")
+                    .replace("Z", "+00:00")
+                )
+            else:
+                completion_time = datetime.fromisoformat(
+                    crd_object.get("status", {})
+                    .get("lastSubmissionAttemptTime")
+                    .replace("Z", "+00:00")
+                )
         return in_terminal_state, completion_time, desired_run_state
 
     def _update_ui_url(

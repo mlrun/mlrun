@@ -37,7 +37,7 @@ from mlrun.model_monitoring.helpers import (
 )
 from mlrun.model_monitoring.stream_processing_fs import EventStreamProcessor
 from mlrun.runtimes import KubejobRuntime
-from mlrun.runtimes.function import deploy_nuclio_function, get_nuclio_deploy_status
+from mlrun.runtimes.function import get_nuclio_deploy_status
 from mlrun.utils.helpers import logger
 from mlrun.utils.model_monitoring import (
     parse_model_endpoint_project_prefix,
@@ -388,6 +388,7 @@ class ModelEndpoints:
         self.deploy_model_monitoring_stream_processing(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
+            db_session=db_session,
             auto_info=auth_info,
         )
         self.deploy_model_monitoring_batch_processing(
@@ -576,6 +577,7 @@ class ModelEndpoints:
     def deploy_model_monitoring_stream_processing(
         project: str,
         model_monitoring_access_key: str,
+        db_session,
         auto_info: mlrun.api.schemas.AuthInfo,
     ):
         logger.info(
@@ -604,8 +606,11 @@ class ModelEndpoints:
                                                       key_field='endpoint_id', time_field='timestamp')
         run_config = fs.RunConfig(function=fn, local=False).apply(mlrun.mount_v3io())
 
-        os.environ["MODEL_MONITORING_ACCESS_KEY"] = model_monitoring_access_key
-        os.environ["MLRUN_AUTH_SESSION"] = model_monitoring_access_key
+        fn.set_env("MODEL_MONITORING_ACCESS_KEY", model_monitoring_access_key)
+        fn.metadata.credentials.access_key = model_monitoring_access_key
+        fn.set_env("MODEL_MONITORING_PARAMETERS", json.dumps({"project": project}))
+
+        fn.apply(mlrun.mount_v3io())
 
         stream_processor = EventStreamProcessor(project)
         feature_set = stream_processor.create_feature_set()
@@ -664,7 +669,7 @@ class ModelEndpoints:
         fn.set_env("MODEL_MONITORING_ACCESS_KEY", model_monitoring_access_key)
 
         # Needs to be a member of the project and have access to project data path
-        fn.set_env("MLRUN_AUTH_SESSION", model_monitoring_access_key)
+        fn.metadata.credentials.access_key = model_monitoring_access_key
 
         function_uri = fn.save(versioned=True)
         function_uri = function_uri.replace("db://", "")

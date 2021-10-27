@@ -26,9 +26,12 @@ class ModelHandler(ABC):
     _CUSTOM_OBJECTS_MAP_ARTIFACT_NAME = "{}_custom_objects_map.json"
     _CUSTOM_OBJECTS_DIRECTORY_ARTIFACT_NAME = "{}_custom_objects.zip"
 
+    # Constant defaults:
+    _DEFAULT_ONNX_MODEL_NAME = "onnx_{}"
+
     def __init__(
         self,
-        model_name,
+        model_name: str,
         model_path: str = None,
         model: Model = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
@@ -68,7 +71,7 @@ class ModelHandler(ABC):
                                          model.
         :param context:                  MLRun context to work with for logging the model.
 
-        :raise ValueError: In case one of the given parameters are invalid.
+        :raise MLRunInvalidArgumentError: In case one of the given parameters are invalid.
         """
         # Validate input:
         self._validate_model_parameters(model=model, model_path=model_path)
@@ -170,15 +173,16 @@ class ModelHandler(ABC):
 
         :return The saved model artifacts dictionary if context is available and None otherwise.
 
-        :raise RuntimeError: In case there is no model initialized in this handler.
-        :raise ValueError:   If an output path was not given, yet a context was not provided in initialization.
+        :raise MLRunRuntimeError:         In case there is no model initialized in this handler.
+        :raise MLRunInvalidArgumentError: If an output path was not given, yet a context was not provided in
+                                          initialization.
         """
         if self._model is None:
-            raise RuntimeError(
+            raise mlrun.errors.MLRunRuntimeError(
                 "Model cannot be save as it was not given in initialization or loaded during this run."
             )
         if output_path is None and self._context is None:
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "An output path was not given and a context was not provided during the initialization of "
                 "this model handler. To save the model, one of the two parameters must be supplied."
             )
@@ -214,14 +218,14 @@ class ModelHandler(ABC):
         :param extra_data: Extra data to log with the model.
         :param artifacts:  Artifacts to log the model with. Will be added to the extra data.
 
-        :raise ValueError: In case a context is missing or there is no model in this handler.
+        :raise MLRunInvalidArgumentError: In case a context is missing or there is no model in this handler.
         """
         if self._model is None:
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "Model cannot be logged as it was not given in initialization or loaded during this run."
             )
         if self._context is None:
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "Cannot log model if a context was not provided during initialization."
             )
 
@@ -240,14 +244,16 @@ class ModelHandler(ABC):
         :param extra_data: Extra data to update or add to the model.
         :param artifacts:  Artifacts to update or add to the model. Will be added to the extra data.
 
-        :raise ValueError: In case a context is missing or the model path in this handler is missing or not of a store
-                           object.
+        :raise MLRunInvalidArgumentError: In case a context is missing or the model path in this handler is missing or
+                                          not of a store object.
         """
         # Validate model path:
         if self._model_path is None:
-            raise ValueError("Cannot update model if 'model_path' is not provided.")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Cannot update model if 'model_path' is not provided."
+            )
         elif not mlrun.datastore.is_store_uri(self._model_path):
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "To update a model artifact the 'model_path' must be a store object."
             )
 
@@ -266,9 +272,12 @@ class ModelHandler(ABC):
         )
 
     @abstractmethod
-    def to_onnx(self, *args, **kwargs):
+    def to_onnx(self, model_name: str = None, *args, **kwargs):
         """
         Convert the model in this handler to an ONNX model.
+
+        :param model_name: The name to give to the converted ONNX model. If not given the default name will be the
+                           stored model name with the suffix '_onnx'.
 
         :return: The converted ONNX model (onnx.ModelProto).
         """
@@ -277,10 +286,12 @@ class ModelHandler(ABC):
     def collect_files(self):
         """
         Collect the files from the given model path.
+
+        :raise MLRunInvalidArgumentError: In case the model path was not provided.
         """
         # Validate model path is set:
         if self._model_path is None:
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "In order to collect the model's files a model path must be provided."
             )
 
@@ -337,6 +348,20 @@ class ModelHandler(ABC):
         :return: The custom objects directory zip artifact name.
         """
         return self._CUSTOM_OBJECTS_DIRECTORY_ARTIFACT_NAME.format(self._model_name)
+
+    def _get_default_onnx_model_name(self, model_name: Union[str, None]):
+        """
+        Check if the given model name is None and if so will generate the default ONNX model name: 'onnx_<MODEL_NAME>'.
+
+        :param model_name: The model name to check.
+
+        :return: The given model name if its not None or the default ONNX model name.
+        """
+        return (
+            self._DEFAULT_ONNX_MODEL_NAME.format(self._model_name)
+            if model_name is None
+            else model_name
+        )
 
     def _import_custom_objects(self):
         """
@@ -449,10 +474,10 @@ class ModelHandler(ABC):
                            following format: 'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'
         :param model:      Model to handle or None in case a loading parameters were supplied.
 
-        :raise ValueError: If both parameters were None or both parameters were provided.
+        :raise MLRunInvalidArgumentError: If both parameters were None or both parameters were provided.
         """
         if model_path is None and model is None:
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "At least one of 'model' or 'model_path' must be provided to the model handler."
             )
 
@@ -482,14 +507,14 @@ class ModelHandler(ABC):
                                          objects. Can be passed as a zip file as well (will be extracted during the run
                                          before loading the model).
 
-        :raise ValueError: If one of the parameters is not None but the other is or if the paths were of incorrect file
-                           formats.
+        :raise MLRunInvalidArgumentError: If one of the parameters is not None but the other is or if the paths were of
+                                          incorrect file formats.
         """
         # Validate that if one is provided (not None), both are provided:
         if (custom_objects_map is not None and custom_objects_directory is None) or (
             custom_objects_map is None and custom_objects_directory is not None
         ):
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "Either 'custom_objects_map' or 'custom_objects_directory' are None. Custom objects must be supplied "
                 "with the custom object map dictionary (or json) and the directory with all the python files."
             )
@@ -501,7 +526,7 @@ class ModelHandler(ABC):
                     custom_objects_map.endswith(".json")
                     and os.path.exists(custom_objects_map)
                 ):
-                    raise ValueError(
+                    raise mlrun.errors.MLRunInvalidArgumentError(
                         "The 'custom_objects_map' is either not found or not a dictionary or a path to a json file. "
                         "received: '{}'".format(custom_objects_map)
                     )
@@ -512,7 +537,7 @@ class ModelHandler(ABC):
                 os.path.isdir(custom_objects_directory)
                 or custom_objects_directory.endswith(".zip")
             ):
-                raise ValueError(
+                raise mlrun.errors.MLRunInvalidArgumentError(
                     "The 'custom_objects_directory' is either not found or not a directory / zip file, "
                     "received: '{}'".format(custom_objects_directory)
                 )

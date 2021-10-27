@@ -11,11 +11,10 @@
 boto3~=1.9, <1.17.107
 botocore>=1.20.106,<1.20.107
 aiobotocore~=1.4.0
-s3fs>=0.5.0, <=2021.8.1
+s3fs~=2021.8.1
 azure-storage-blob~=12.0
-adlfs>=0.7.1, <=2021.8.1
+adlfs~=2021.8.1
 azure-identity~=1.5
 azure-keyvault-secrets~=4.2
-typing-extensions>=3.10.0
-bokeh~=2.3
+bokeh~=2.3.0
 gcsfs~=2021.8.1

@@ -15,6 +15,7 @@
 # this file is based on the code from kubeflow pipelines git
 import os
 
+from mlrun.config import config
 from mlrun.errors import MLRunInvalidArgumentError
 
 from .iguazio import mount_v3io
@@ -76,6 +77,12 @@ def auto_mount(pvc_name="", volume_mount_path="", volume_name=None):
         return mount_pvc(volume_name=volume_name or "pvc",)
     if "V3IO_ACCESS_KEY" in os.environ:
         return mount_v3io(name=volume_name or "v3io")
+
+    # In the case of MLRun-kit when working remotely, no env variables will be defined but auto-mount
+    # parameters may still be declared - use them in that case.
+    if config.storage.auto_mount_type == "pvc":
+        return mount_pvc(**config.get_storage_auto_mount_params())
+
     raise ValueError("failed to auto mount, need to set env vars")
 
 
@@ -105,3 +112,54 @@ def mount_secret(secret_name, mount_path, volume_name="secret", items=None):
         )
 
     return _mount_secret
+
+
+def mount_configmap(configmap_name, mount_path, volume_name="configmap", items=None):
+    """Modifier function to mount kubernetes configmap as files(s)
+
+    :param configmap_name:  k8s configmap name
+    :param mount_path:      path to mount inside the container
+    :param volume_name:     unique volume name
+    :param items:           If unspecified, each key-value pair in the Data field
+                            of the referenced Configmap will be projected into the
+                            volume as a file whose name is the key and content is
+                            the value.
+                            If specified, the listed keys will be projected into
+                            the specified paths, and unlisted keys will not be
+                            present.
+    """
+
+    def _mount_configmap(task):
+        from kubernetes import client as k8s_client
+
+        vol = k8s_client.V1ConfigMapVolumeSource(name=configmap_name, items=items)
+        return task.add_volume(
+            k8s_client.V1Volume(name=volume_name, config_map=vol)
+        ).add_volume_mount(
+            k8s_client.V1VolumeMount(mount_path=mount_path, name=volume_name)
+        )
+
+    return _mount_configmap
+
+
+def mount_hostpath(host_path, mount_path, volume_name="hostpath"):
+    """Modifier function to mount kubernetes configmap as files(s)
+
+    :param host_path:  host path
+    :param mount_path:   path to mount inside the container
+    :param volume_name:  unique volume name
+    """
+
+    def _mount_hostpath(task):
+        from kubernetes import client as k8s_client
+
+        return task.add_volume(
+            k8s_client.V1Volume(
+                name=volume_name,
+                host_path=k8s_client.V1HostPathVolumeSource(path=host_path, type=""),
+            )
+        ).add_volume_mount(
+            k8s_client.V1VolumeMount(mount_path=mount_path, name=volume_name)
+        )
+
+    return _mount_hostpath

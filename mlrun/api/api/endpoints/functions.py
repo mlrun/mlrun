@@ -405,9 +405,9 @@ def _build_function(
     db_session,
     auth_info: mlrun.api.schemas.AuthInfo,
     function,
-    with_mlrun,
-    skip_deployed,
-    mlrun_version_specifier,
+    with_mlrun=True,
+    skip_deployed=False,
+    mlrun_version_specifier=None,
     builder_env=None,
 ):
     fn = None
@@ -460,6 +460,7 @@ def _build_function(
             ready = False
         else:
             ready = build_runtime(
+                auth_info,
                 fn,
                 with_mlrun,
                 mlrun_version_specifier,

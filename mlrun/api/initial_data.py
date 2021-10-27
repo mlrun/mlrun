@@ -4,6 +4,7 @@ import os
 import pathlib
 import typing
 
+import sqlalchemy.exc
 import sqlalchemy.orm
 
 import mlrun.api.db.sqldb.db
@@ -23,7 +24,9 @@ from .utils.db.sqlite_migration import SQLiteMigrationUtil
 def init_data(from_scratch: bool = False) -> None:
     logger.info("Creating initial data")
 
-    _perform_schema_migrations(from_scratch)
+    _perform_schema_migrations()
+
+    _perform_database_migration(from_scratch)
 
     db_session = create_session()
     try:
@@ -35,10 +38,14 @@ def init_data(from_scratch: bool = False) -> None:
     logger.info("Initial data created")
 
 
+# If the data_table version doesn't exist, we can assume the data version is 1.
+# This is because data version 1 points to to a data migration which was added back in 0.6.0, and
+# upgrading from a version earlier than 0.6.0 to v>=0.8.0 is not supported.
+data_version_prior_to_table_addition = 1
 latest_data_version = 1
 
 
-def _perform_schema_migrations(from_scratch: bool = False):
+def _perform_schema_migrations():
     alembic_config_file_name = "alembic.ini"
     if MySQLUtil.get_mysql_dsn_data():
         alembic_config_file_name = "alembic_mysql.ini"
@@ -47,10 +54,24 @@ def _perform_schema_migrations(from_scratch: bool = False):
     dir_path = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
     alembic_config_path = dir_path / alembic_config_file_name
 
-    alembic_util = AlembicUtil(alembic_config_path)
-    alembic_util.init_alembic(from_scratch=from_scratch)
+    alembic_util = AlembicUtil(alembic_config_path, _is_latest_data_version())
+    alembic_util.init_alembic(config.httpdb.db.database_backup_mode == "enabled")
 
-    if not from_scratch:
+
+def _is_latest_data_version():
+    db_session = create_session()
+    db = mlrun.api.db.sqldb.db.SQLDB("")
+
+    try:
+        current_data_version = _resolve_current_data_version(db, db_session)
+    finally:
+        close_session(db_session)
+
+    return current_data_version == latest_data_version
+
+
+def _perform_database_migration(from_scratch: bool = False):
+    if not from_scratch and config.httpdb.db.database_migration_mode == "enabled":
         sqlite_migration_util = SQLiteMigrationUtil()
         sqlite_migration_util.transfer()
 
@@ -304,20 +325,48 @@ def _add_data_version(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     if db.get_current_data_version(db_session, raise_on_not_found=False) is None:
-        projects = db.list_projects(db_session)
+        data_version = _resolve_current_data_version(db, db_session)
+        logger.info(
+            "No data version, setting data version", data_version=data_version,
+        )
+        db.create_data_version(db_session, data_version)
+
+
+def _resolve_current_data_version(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    try:
+        return int(db.get_current_data_version(db_session))
+    except (sqlalchemy.exc.OperationalError, mlrun.errors.MLRunNotFoundError) as exc:
+        try:
+            projects = db.list_projects(db_session)
+        except sqlalchemy.exc.OperationalError:
+            projects = None
+
         # heuristic - if there are no projects it's a new DB - data version is latest
-        if not projects.projects:
+        if not projects or not projects.projects:
             logger.info(
-                "Setting data version to latest",
+                "No projects in DB, assuming latest data version",
+                exc=exc,
                 latest_data_version=latest_data_version,
             )
-            db.create_data_version(db_session, str(latest_data_version))
-        else:
-            # This code was added to 0.8.0
-            # The latest data migration added before adding this was added back in 0.6.0
-            # Upgrading from a version earlier than 0.6.0 to v>=0.8.0 is not supported
-            logger.info("Setting data version to 1")
-            db.create_data_version(db_session, str(1))
+            return latest_data_version
+        elif "no such table" in str(exc):
+            logger.info(
+                "Data version table does not exist, assuming prior version",
+                exc=exc,
+                data_version_prior_to_table_addition=data_version_prior_to_table_addition,
+            )
+            return data_version_prior_to_table_addition
+        elif isinstance(exc, mlrun.errors.MLRunNotFoundError):
+            logger.info(
+                "Data version table exist without version, assuming prior version",
+                exc=exc,
+                data_version_prior_to_table_addition=data_version_prior_to_table_addition,
+            )
+            return data_version_prior_to_table_addition
+
+        raise exc
 
 
 def main() -> None:

@@ -393,6 +393,8 @@ class _ModelLogPusher:
 def _init_endpoint_record(graph_server, model: V2ModelServer):
     logger.info("Initializing endpoint records")
 
+    uid = None
+
     try:
         project, uri, tag, hash_key = parse_versioned_object_uri(
             graph_server.function_uri
@@ -425,7 +427,8 @@ def _init_endpoint_record(graph_server, model: V2ModelServer):
             endpoint_id=model_endpoint.metadata.uid,
             model_endpoint=model_endpoint,
         )
+        uid = model_endpoint.metadata.uid
     except Exception as e:
         logger.error("Failed to create endpoint record", exc=e)
 
-    return model_endpoint.metadata.uid
+    return uid

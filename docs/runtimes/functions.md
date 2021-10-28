@@ -380,4 +380,5 @@ mlrun_jobs
 dask-overview
 horovod
 spark-operator
+mlrun_code_annotations
 ```

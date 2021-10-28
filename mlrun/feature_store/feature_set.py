@@ -321,7 +321,7 @@ class FeatureSet(ModelObj):
         """get the url/path for an offline or specified data target"""
         target = get_offline_target(self, name=name)
         if target:
-            return target.get_path()
+            return target.get_path().absolute_path()
 
     def set_targets(
             self,

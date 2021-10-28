@@ -1013,6 +1013,33 @@ def new_task(
     return run
 
 
+class PathObject:
+
+    _run_uuid_place_holder = "{run_uuid}"
+
+    def __init__(
+        self,
+        base_path=None,
+        run_uuid=None,
+    ):
+        self.base_path = base_path
+        self.run_uuid = run_uuid
+        self.full_path_template = self.base_path
+        if self._run_uuid_place_holder not in self.full_path_template:
+            if self.full_path_template[-1] != "/":
+                self.full_path_template = self.full_path_template + "/"
+            self.full_path_template = self.full_path_template + self._run_uuid_place_holder
+
+    def templated_path(self):
+        return self.full_path_template
+
+    def absolute_path(self):
+        return self.full_path_template.format(
+            run_uuid=self.run_uuid
+        )
+
+
+
 class DataSource(ModelObj):
     """online or offline data source spec"""
 
@@ -1092,10 +1119,14 @@ class DataTargetBase(ModelObj):
         return f"{round(time.time() * 1000)}_{random.randint(0, 999)}"
 
     def get_path(self):
-        # TODO - see if need to check self.is_single_file()
-        if self.path and self.run_uuid:
-            return self.path + "/" + self.run_uuid
-        return self.path
+        # # TODO - see if need to check self.is_single_file()
+        # if self.path and self.run_uuid:
+        #     if self.path[-1] != "/":
+        #         return self.path + "/" + self.run_uuid
+        #     else:
+        #         return self.path + self.run_uuid
+        # return self.path
+        return PathObject(self.path, self.run_uuid) if self.path else None
 
     def __init__(
         self,

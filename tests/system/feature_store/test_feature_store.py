@@ -1457,7 +1457,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         target = ParquetTarget()
         off1 = fs.get_offline_features(fvec, target=target)
-        dfout1 = pd.read_parquet(target._target_path)
+        dfout1 = pd.read_parquet(target._target_path.absolute_path())
 
         assert (
             df1.set_index(keys="name")
@@ -1469,7 +1469,7 @@ class TestFeatureStore(TestMLRunSystem):
         df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
         fs.ingest(fset, df2)
         off2 = fs.get_offline_features(fvec, target=target)
-        dfout2 = pd.read_parquet(target._target_path)
+        dfout2 = pd.read_parquet(target._target_path.absolute_path())
         assert (
             df2.set_index(keys="name")
             .sort_index()
@@ -1840,10 +1840,16 @@ class TestFeatureStore(TestMLRunSystem):
     def test_publish(self):
         name = "publish-test"
         tag = f"tag-{time.time()}"
+        saved_tag = "saved_tag"
         fset = fs.FeatureSet(name, entities=[fs.Entity("ticker")])
-        published_fset = fset.publish(tag)
+        fset.save(tag=saved_tag)
 
         from mlrun.errors import MLRunBadRequestError
+        with pytest.raises(MLRunBadRequestError):
+            fset.publish(saved_tag)
+
+        published_fset = fset.publish(tag)
+
         with pytest.raises(MLRunBadRequestError):
             fset.publish(tag)
 
@@ -1851,14 +1857,84 @@ class TestFeatureStore(TestMLRunSystem):
 
         db = mlrun.get_run_db()
         fset_from_db = db.get_feature_set(name, tag=tag)
-        assert fset_from_db.get_publish_time == published_fset.get_publish_time
+        assert fset_from_db.get_publish_time == str(published_fset.get_publish_time)
+        assert fset.get_publish_time is None
         for actual in [published_fset, fset_from_db]:
             assert actual is not None
             assert actual.metadata.name == fset.metadata.name
             assert actual.metadata.tag == tag
             assert actual.metadata.project == self.project_name
-            assert actual.get_publish_time
-            assert actual._run_uuid is not None
+
+    def test_targets_on_feature_set_publish(self):
+
+        base_target_path = "v3io:///bigdata/system-test-project/publish_parquet_"
+        target_path_template = base_target_path + "{name}/{run_uuid}"
+        name = "targets-publish-test"
+        tag = f"tag-{time.time()}"
+        fset = fs.FeatureSet(name, entities=[fs.Entity("ticker")], engine="pandas")
+
+        def validate_target_path(target):
+            assert target.get_path().absolute_path() == target_path_template.format(name=target.name, run_uuid=target.run_uuid)
+
+        def validate_targets(feature_set, expected_targets_names: set):
+            assert feature_set.status.targets
+            assert len(feature_set.status.targets) == len(expected_targets_names)
+            name_to_run_id = dict({})
+            for t in feature_set.status.targets:
+                assert t.name in expected_targets_names
+                validate_target_path(t)
+                expected_targets_names.remove(t.name)
+                expected_run_id = name_to_run_id.get(t.name[0])
+                if not expected_run_id:
+                    assert t.run_uuid is not None
+                    name_to_run_id[t.name[0]] = t.run_uuid
+                else:
+                    assert expected_run_id == t.run_uuid
+
+        other_targets = [
+            ParquetTarget(name="o1", path=f"{base_target_path}o1/"),
+            CSVTarget(name="o2", path=f"{base_target_path}o2/")
+        ]
+        fset_targets = [
+            ParquetTarget(name="t1", path=f"{base_target_path}t1/"),
+            ParquetTarget(name="t2", path=f"{base_target_path}t2/")
+        ]
+
+        # ingest to targets
+        fs.ingest(fset, quotes, other_targets)
+        validate_targets(fset, {"o1", "o2"})
+
+        # set targets on feature set
+        fset.set_targets(fset_targets, with_defaults=False)
+
+        # ingest on feature set's targets
+        fs.ingest(fset, quotes)
+
+        # check both kind of targets are save under status (with different run_uuid)
+        validate_targets(fset, {"o1", "o2", "t1", "t2"})
+
+        # validate same run uuid when overwrite=False
+        run_uuid_before = [t.run_uuid for t in fset.status.targets if t.name == "t1"]
+        fs.ingest(fset, quotes, overwrite=False)
+        assert run_uuid_before == [t.run_uuid for t in fset.status.targets if t.name == "t1"]
+        assert run_uuid_before == [t.run_uuid for t in fset.status.targets if t.name == "t2"]
+        validate_targets(fset, {"o1", "o2", "t1", "t2"})
+
+        # validate different run uuid
+        fs.ingest(fset, quotes, overwrite=True)
+        assert run_uuid_before != [t.run_uuid for t in fset.status.targets if t.name == "t1"]
+        assert run_uuid_before != [t.run_uuid for t in fset.status.targets if t.name == "t2"]
+        validate_targets(fset, {"o1", "o2", "t1", "t2"})
+
+        # after publish check that status contains the targets on published and removed on un-versioned
+        published_fset = fset.publish(tag)
+        assert not fset.status.targets
+        validate_targets(published_fset, {"o1", "o2", "t1", "t2"})
+
+        # also check that targets exists under status in fset_from_db
+        db = mlrun.get_run_db()
+        fset_from_db = db.get_feature_set(name, tag=tag)
+        validate_targets(fset_from_db, {"o1", "o2", "t1", "t2"})
 
     def test_published_feature_set_apis(self):
         from mlrun.errors import MLRunBadRequestError
@@ -1928,14 +2004,14 @@ def verify_purge(fset, targets):
     for target in targets:
         driver = get_target_driver(target_spec=target, resource=fset)
         filesystem = driver._get_store().get_filesystem(False)
-        assert filesystem.exists(driver._target_path)
+        assert filesystem.exists(driver._target_path.absolute_path())
 
     fset.purge_targets(target_names=target_names)
 
     for target in targets:
         driver = get_target_driver(target_spec=target, resource=fset)
         filesystem = driver._get_store().get_filesystem(False)
-        assert not filesystem.exists(driver._target_path)
+        assert not filesystem.exists(driver._target_path.absolute_path())
 
     fset.reload(update_spec=False)
     assert set(fset.status.targets.keys()) == set(orig_status_targets) - set(

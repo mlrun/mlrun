@@ -402,22 +402,15 @@ def ingest(
     featureset.save()
 
     targets = targets or featureset.spec.targets or get_default_targets()
-    # katya - start
-    if mlrun_context or (isinstance(source, BaseSourceDriver) and source.schedule):
-        # KKI
-        if featureset.overwrite or not featureset.run_uuid:
-            print("UUUUUUUUUUUUUU")
-            featureset._generate_new_run_uuid()
-        for t in targets:
-            #        print("CURRENT PATH IS  " + str(t.path))
-            t.feature_set = featureset
 
-            if t.path and not t.is_single_file():  # delete this????
-                t.path = t.path + "/" + featureset.run_uuid
-            t.name = t.name + "_" + featureset.run_uuid
-            print("Current name is " + str(t.name))
-            print("setting " + str(t.path))
-    # katya - end
+    from mlrun.model import DataTargetBase
+    run_uuid = DataTargetBase.generate_target_run_uuid()
+    for t in targets:
+        # t.is_single_file()
+        t.feature_set = featureset
+
+        if not t.run_uuid or overwrite:
+            t.run_uuid = run_uuid
 
     df = init_featureset_graph(
         source, featureset, namespace, targets=targets, return_df=return_df,

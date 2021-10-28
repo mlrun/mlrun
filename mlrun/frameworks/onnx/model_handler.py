@@ -34,7 +34,7 @@ class ONNXModelHandler(ModelHandler):
         :param model:      Model to handle or None in case a loading parameters were supplied.
         :param context:    MLRun context to work with for logging the model.
 
-        :raise ValueError: There was no model or model directory supplied.
+        :raise MLRunInvalidArgumentError: There was no model or model directory supplied.
         """
         # Setup the base handler class:
         super(ONNXModelHandler, self).__init__(
@@ -109,7 +109,7 @@ class ONNXModelHandler(ModelHandler):
         :param extra_data: Extra data to log with the model.
         :param artifacts:  Artifacts to log the model with. Will be added to the extra data.
 
-        :raise ValueError: In case a context is missing or there is no model in this handler.
+        :raise MLRunInvalidArgumentError: In case a context is missing or there is no model in this handler.
         """
         super(ONNXModelHandler, self).log(
             labels=labels,
@@ -189,12 +189,14 @@ class ONNXModelHandler(ModelHandler):
         """
         If the model path given is of a local path, search for the needed model files and collect them into this handler
         for later loading the model.
+
+        :raise MLRunNotFoundError: If the onnx file was not found.
         """
         self._model_file = os.path.join(
             self._model_path, "{}.onnx".format(self._model_name)
         )
         if not os.path.exists(self._model_file):
-            raise FileNotFoundError(
+            raise mlrun.errors.MLRunNotFoundError(
                 "The model file '{}.onnx' was not found within the given 'model_path': "
                 "'{}'".format(self._model_name, self._model_path)
             )

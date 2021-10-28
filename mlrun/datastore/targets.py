@@ -266,6 +266,7 @@ class BaseStoreTarget(DataTargetBase):
     is_offline = False
     support_spark = False
     support_storey = False
+    support_append = False
 
     def __init__(
         self,
@@ -547,6 +548,7 @@ class ParquetTarget(BaseStoreTarget):
     support_spark = True
     support_storey = True
     support_dask = True
+    support_append = True
 
     def __init__(
         self,
@@ -714,10 +716,11 @@ class ParquetTarget(BaseStoreTarget):
                 and not self.partition_cols
             ):
                 time_partitioning_granularity = "hour"
-            for unit in self._legal_time_units:
-                partition_cols.append(unit)
-                if unit == time_partitioning_granularity:
-                    break
+            if time_partitioning_granularity:
+                for unit in self._legal_time_units:
+                    partition_cols.append(unit)
+                    if unit == time_partitioning_granularity:
+                        break
         result = {
             "path": store_path_to_spark(self._target_path.absolute_path()),
             "format": "parquet",
@@ -839,6 +842,7 @@ class NoSqlTarget(BaseStoreTarget):
     is_online = True
     support_spark = True
     support_storey = True
+    support_append = True
 
     def get_table_object(self):
         from storey import Table, V3ioDriver
@@ -950,6 +954,7 @@ class StreamTarget(BaseStoreTarget):
     is_online = False
     support_spark = False
     support_storey = True
+    support_append = True
 
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
@@ -1000,6 +1005,7 @@ class TSDBTarget(BaseStoreTarget):
     is_online = False
     support_spark = False
     support_storey = True
+    support_append = True
 
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None

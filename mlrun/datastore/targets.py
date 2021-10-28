@@ -1205,8 +1205,6 @@ kind_to_driver = {
 
 def _get_target_path(driver, resource):
     """return the default target path given the resource and target kind"""
-    from mlrun.model import DataTargetBase
-
     kind = driver.kind
     suffix = driver.suffix
     if not suffix:

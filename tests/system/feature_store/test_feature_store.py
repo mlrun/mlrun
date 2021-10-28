@@ -529,7 +529,7 @@ class TestFeatureStore(TestMLRunSystem):
             path=os.path.relpath(str(self.assets_path / "testdata.csv")),
             time_field="timestamp",
         )
-        # katya - start
+
         target = ParquetTarget(
             partitioned=True,
             key_bucketing_number=key_bucketing_number,
@@ -539,7 +539,7 @@ class TestFeatureStore(TestMLRunSystem):
         measurements.set_targets(
             targets=[target], with_defaults=False,
         )
-        # katya - end
+
         resp1 = fs.ingest(measurements, source).to_dict()
 
         features = [

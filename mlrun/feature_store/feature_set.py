@@ -347,11 +347,11 @@ class FeatureSet(ModelObj):
             return target.get_path().absolute_path()
 
     def set_targets(
-            self,
-            targets=None,
-            with_defaults=True,
-            default_final_step=None,
-            default_final_state=None,
+        self,
+        targets=None,
+        with_defaults=True,
+        default_final_step=None,
+        default_final_state=None,
     ):
         """set the desired target list or defaults
 
@@ -609,13 +609,13 @@ class FeatureSet(ModelObj):
         return graph.plot(filename, format, targets=targets, **kw)
 
     def to_dataframe(
-            self,
-            columns=None,
-            df_module=None,
-            target_name=None,
-            start_time=None,
-            end_time=None,
-            time_column=None,
+        self,
+        columns=None,
+        df_module=None,
+        target_name=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
     ):
         """return featureset (offline) data as dataframe"""
         entities = list(self.spec.entities.keys())

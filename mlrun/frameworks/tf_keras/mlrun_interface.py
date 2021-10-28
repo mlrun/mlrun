@@ -261,7 +261,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
                  [1] = The 'experimental_run_tf_function' parameter for 'compile' kwargs or 'None' if horovod should not
                        be used.
 
-        :raise ValueError: In case the optimizer was passed as a string.
+        :raise MLRunInvalidArgumentError: In case the optimizer was passed as a string.
         """
         # Check if needed to run with horovod:
         if self._hvd is None:
@@ -269,7 +269,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
 
         # Validate the optimizer input:
         if isinstance(optimizer, str):
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "When using horovod, the compile method is expecting an initialized optimizer instance and not a "
                 "string."
             )
@@ -332,7 +332,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
                  [2] = Steps per epoch or None if not given.
                  [3] = Validation steps or None if not given.
 
-        :raise ValueError: If horovod is being used but the 'steps_per_epoch' parameter were not given.
+        :raise MLRunInvalidArgumentError: If horovod is being used but the 'steps_per_epoch' parameter were not given.
         """
         # Check if needed to run with horovod:
         if self._hvd is None:
@@ -340,7 +340,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
 
         # Validate steps provided for horovod:
         if steps_per_epoch is None:
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "When using Horovod, the parameter 'steps_per_epoch' must be provided to the 'fit' method in order to "
                 "split the steps between the workers."
             )
@@ -389,7 +389,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
                  [0] = Callbacks list.
                  [1] = Steps.
 
-        :raise ValueError: If horovod is being used but the 'steps' parameter were not given.
+        :raise MLRunInvalidArgumentError: If horovod is being used but the 'steps' parameter were not given.
         """
         # Remove the 'auto_log' callback 'TensorboardLoggingCallback' (only relevant for training):
         callbacks = [
@@ -404,7 +404,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
 
         # Validate steps provided for horovod:
         if steps is None:
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "When using Horovod, the parameter 'steps' must be provided to the 'evaluate' method in order to "
                 "split the steps between the workers."
             )
@@ -462,6 +462,8 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
         :param y: The 'y' parameter from the 'fit' / 'evaluate' methods.
 
         :return: A tuple of input and ground truth samples.
+
+        :raise MLRunInvalidArgumentError: If the dataset type is not supported.
         """
         if y is None:
             if hasattr(x, "element_spec"):
@@ -472,7 +474,9 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
             elif isinstance(x, Iterator) or isinstance(x, Generator):
                 input_sample, output_sample = next(x)
             else:
-                raise ValueError("Unsupported dataset type: '{}'".format(type(x)))
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Unsupported dataset type: '{}'".format(type(x))
+                )
         else:
             input_sample = x[0]
             output_sample = y[0]

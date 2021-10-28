@@ -32,7 +32,6 @@ from ..api.schemas import (
 )
 from ..config import config
 from ..utils.model_monitoring import EndpointType
-from .utils import _extract_input_data, _update_result_body
 from .utils import RouterToDict, _extract_input_data, _update_result_body
 from .v2_serving import _ModelLogPusher
 

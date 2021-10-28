@@ -18,9 +18,9 @@ from mlrun.api.schemas import (
     ModelEndpointStatus,
 )
 from mlrun.errors import MLRunNotFoundError
-from mlrun.utils.model_monitoring import EndpointType
 from mlrun.model import BaseMetadata
 from mlrun.runtimes import BaseRuntime
+from mlrun.utils.model_monitoring import EndpointType
 from tests.system.base import TestMLRunSystem
 
 

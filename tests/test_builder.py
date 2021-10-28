@@ -1,7 +1,8 @@
-import mlrun
-import mlrun.builder
-import mlrun.api.schemas
 import unittest.mock
+
+import mlrun
+import mlrun.api.schemas
+import mlrun.builder
 
 
 def test_build_runtime_use_base_image_when_no_build():

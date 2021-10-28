@@ -107,8 +107,12 @@ class FunctionsDict:
     def _functions(self):
         return self.project.spec._function_objects
 
-    def _enrich(self, function):
-        return enrich_function_object(self.project, function, self._decorator)
+    def enrich(self, function, key):
+        enriched_function = enrich_function_object(
+            self.project, function, self._decorator
+        )
+        self._functions[key] = enriched_function  # update the cache
+        return self._functions[key]
 
     def load_or_set_function(self, key, default=None) -> mlrun.runtimes.BaseRuntime:
         try:
@@ -118,8 +122,7 @@ class FunctionsDict:
                 raise e
             function = default
 
-        self._functions[key] = self._enrich(function)
-        return self._functions[key]
+        return self.enrich(function, key)
 
     def get(self, key, default=None) -> mlrun.runtimes.BaseRuntime:
         return self.load_or_set_function(key, default)
@@ -131,13 +134,15 @@ class FunctionsDict:
         self._functions[key] = val
 
     def values(self):
-        return self._functions.values()
+        return [self.enrich(function, key) for key, function in self._functions.items()]
 
     def keys(self):
         return self._functions.keys()
 
     def items(self):
-        return self._functions.items()
+        return {
+            key: self.enrich(function, key) for key, function in self._functions.items()
+        }
 
     def __len__(self):
         return len(self._functions)
@@ -183,10 +188,6 @@ class _PipelineContext:
                 "pipeline context is not initialized, must be used inside a pipeline"
             )
         return False
-
-    def enrich_function(self, function) -> mlrun.runtimes.BaseRuntime:
-        self.is_initialized(raise_exception=True)
-        return self.functions._enrich(function)
 
 
 pipeline_context = _PipelineContext()

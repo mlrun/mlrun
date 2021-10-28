@@ -33,11 +33,6 @@ class TensorboardLogger(Logger):
     * Model architecture graph.
     """
 
-    # The default tensorboard directory to be used with a given context:
-    _DEFAULT_TENSORBOARD_DIRECTORY = os.path.join(
-        os.sep, "User", ".tensorboard", "{{project}}"
-    )
-
     class _Sections:
         """
         Tensorboard split his plots to sections via a path like name <SECTION>/<PLOT_NAME>. These are the sections used
@@ -68,21 +63,29 @@ class TensorboardLogger(Logger):
         :param context:               A MLRun context to use for logging into the user's tensorboard directory. The
                                       context parameters can be logged as static hyperparameters as well.
         :param tensorboard_directory: If context is not given, or if wished to set the directory even with context,
-                                      this will be the output for the event logs of tensorboard. If not given, the
-                                      'tensorboard_dir' parameter will be tried to be taken from the provided context.
-                                      If not found in the context, the default tensorboard output directory will be:
+                                      this will be the output for the event logs of tensorboard. If not given, context
+                                      must be provided as the default tensorboard output directory will be:
                                       /User/.tensorboard/<PROJECT_NAME> or if working on local, the set artifacts path.
         :param run_name:              This experiment run name. Each run name will be indexed at the end of the name so
                                       each experiment will be numbered automatically. If a context was given, the
                                       context's uid will be added instead of an index. If a run name was not given the
-                                      current time in the following format: 'YYYY-mm-dd_HH:MM:SS'.
+                                      current time stamp will be used.
         :param update_frequency:      Per how many iterations (batches) the callback should write the tracked values to
                                       tensorboard. Can be passed as a string equal to 'epoch' for per epoch and 'batch'
                                       for per single batch, or as an integer specifying per how many iterations to
                                       update. Notice that writing to tensorboard too frequently may cause the training
                                       to be slower. Defaulted to 'epoch'.
+
+        :raise MLRunInvalidArgumentError: If the `update_frequency` is illegal or if `tensorboard_directory` and
+                                          `context` were not given.
         """
         super(TensorboardLogger, self).__init__(context=context)
+
+        # Validate the context and tensorboard directory combination:
+        if tensorboard_directory is None and context is None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "If context is not provided, the `tensorboard_directory` must be provided."
+            )
 
         # Validate the update frequency:
         if isinstance(update_frequency, str) and update_frequency == "batch":
@@ -91,7 +94,7 @@ class TensorboardLogger(Logger):
             (isinstance(update_frequency, str) and update_frequency == "epoch")
             or (isinstance(update_frequency, int) and update_frequency > 0)
         ):
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "The update frequency parameter is expected to be euqal to 'epoch', 'batch' or a positive "
                 "integer, received: {}".format(update_frequency)
             )
@@ -409,45 +412,52 @@ class TensorboardLogger(Logger):
 
     def _create_output_path(self):
         """
-        Create the output path, indexing the given run name as needed.
+        Create the output path, indexing the given run name as needed. The output path will be:
+        /self._tensorboard_directory/self._run_name_<index>.
         """
-        # If a run name was not given, take the current timestamp as the run name in the format 'YYYY-mm-dd_HH:MM:SS':
+        # Set the default run name if it was not given:
+        default_run_name = False
         if self._run_name is None:
+            default_run_name = True
             self._run_name = (
-                str(datetime.now()).split(".")[0].replace(" ", "_")
-                if (self._context is None or self._context.name == "")
+                (
+                    str(datetime.now())
+                    .replace(" ", "_")
+                    .replace(":", "-")
+                    .replace(".", "-")
+                )
+                if self._context is None
                 else "{}-{}".format(self._context.name, self._context.uid)
             )
 
-        # Check if a context is available:
-        if self._tensorboard_directory is not None:
-            # Create the main tensorboard directory:
+        # If the tensorboard directory is not provided, set it to the default:
+        if self._tensorboard_directory is None:
+            # Use the default tensorboard logs directory:
+            self._tensorboard_directory = mlrun.mlconf.default_tensorboard_logs_path.replace(
+                "{{project}}", self._context.project
+            )
+            # Try to create the directory, if not succeeded (writing error) change to the artifacts path:
+            try:
+                os.makedirs(self._tensorboard_directory, exist_ok=True)
+            except OSError:
+                self._tensorboard_directory = self._context.artifact_path
+
+        # Check if the run name needs to be indexed (if its not using context uid or time stamp):
+        if not default_run_name:
+            # Create the main tensorboard directory for searching in it:
             os.makedirs(self._tensorboard_directory, exist_ok=True)
             # Index the run name according to the tensorboard directory content:
-            index = 1
-            for run_directory in sorted(os.listdir(self._tensorboard_directory)):
-                existing_run = run_directory.rsplit(
-                    "_", 1
-                )  # type: List[str] # [0] = name, [1] = index
-                if self._run_name == existing_run[0]:
-                    index += 1
+            index = len(
+                [
+                    run_directory
+                    for run_directory in sorted(os.listdir(self._tensorboard_directory))
+                    if self._run_name == run_directory
+                    or self._run_name == run_directory.rsplit("_", 1)[0]
+                ]
+            )
             # Check if need to index the name:
-            if index > 1:
-                self._run_name = "{}_{}".format(self._run_name, index)
-        else:
-            # Try to get the 'tensorboard_dir' parameter:
-            if "tensorboard_dir" in self._context.parameters:
-                self._tensorboard_directory = self._context.get_param("tensorboard_dir")
-            if self._tensorboard_directory is None:
-                # The parameter was not given, set the directory to the default value:
-                self._tensorboard_directory = self._DEFAULT_TENSORBOARD_DIRECTORY.replace(
-                    "{{project}}", self._context.project
-                )
-                try:
-                    os.makedirs(self._tensorboard_directory, exist_ok=True)
-                except OSError:
-                    # The tensorboard default directory is not writable, change to the artifact path:
-                    self._tensorboard_directory = self._context.artifact_path
+            if index > 0:
+                self._run_name = "{}_{}".format(self._run_name, index + 1)
 
         # Create the output path:
         self._output_path = os.path.join(self._tensorboard_directory, self._run_name)

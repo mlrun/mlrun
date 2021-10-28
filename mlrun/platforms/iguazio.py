@@ -339,7 +339,7 @@ def v3io_to_vol(name, remote="~/", access_key="", user="", secret=None):
     remote = str(remote)
 
     if remote.startswith("~/"):
-        user = environ.get("V3IO_USERNAME", user)
+        user = user or environ.get("V3IO_USERNAME")
         if not user:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 'user name/env must be specified when using "~" in path'

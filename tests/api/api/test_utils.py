@@ -59,6 +59,15 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
                 "env": [
                     {"name": "OVERRIDE_ENV_VAR_KEY", "value": "new-env-var-value"},
                     {"name": "NEW_ENV_VAR_KEY", "value": "env-var-value"},
+                    {
+                        "name": "CURRENT_NODE_IP",
+                        "valueFrom": {
+                            "fieldRef": {
+                                "apiVersion": "v1",
+                                "fieldPath": "status.hostIP",
+                            }
+                        },
+                    },
                 ],
                 "resources": {
                     "limits": {"cpu": "250m", "memory": "64Mi", "nvidia.com/gpu": "2"},
@@ -535,6 +544,7 @@ def _assert_env_vars(parsed_function_object, submit_job_body, original_function)
     0: old env var from original function (the first one there)
     1: env var that was in original function but was overridden with body (the first one in the body)
     2: new env var from the body (the second in the body)
+    3: new env var (with valueFrom) from the body (the third in the body)
     """
     assert (
         original_function["spec"]["env"][0]["name"]
@@ -569,4 +579,13 @@ def _assert_env_vars(parsed_function_object, submit_job_body, original_function)
     assert (
         submit_job_body["function"]["spec"]["env"][1]["value"]
         == parsed_function_object.spec.env[2].value
+    )
+
+    assert (
+        submit_job_body["function"]["spec"]["env"][2]["name"]
+        == parsed_function_object.spec.env[3].name
+    )
+    assert (
+        submit_job_body["function"]["spec"]["env"][2]["valueFrom"]
+        == parsed_function_object.spec.env[3].value_from
     )

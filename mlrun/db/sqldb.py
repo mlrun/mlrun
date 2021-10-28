@@ -700,4 +700,6 @@ class SQLDB(RunDBInterface):
         self,
         authorization_verification_input: mlrun.api.schemas.AuthorizationVerificationInput,
     ):
-        raise NotImplementedError()
+        # on server side authorization is done in endpoint anyway, so for server side we can "pass" on check
+        # done from ingest()
+        pass

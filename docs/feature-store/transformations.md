@@ -179,9 +179,8 @@ When using a local Spark session, the `ingest` API would wait for its completion
 ```python
 import mlrun
 from mlrun.datastore.sources import CSVSource
-from mlrun.datastore.targets import CSVTarget
-from mlrun import code_to_function
 import mlrun.feature_store as fstore
+from pyspark.sql import SparkSession
 
 mlrun.set_environment(project="stocks")
 feature_set = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")], engine="spark")
@@ -220,7 +219,6 @@ def my_spark_func(df, context=None):
 ```
 ```python
 from mlrun.datastore.sources import CSVSource
-from mlrun.datastore.targets import CSVTarget
 from mlrun import code_to_function
 import mlrun.feature_store as fstore
 
@@ -241,6 +239,8 @@ fstore.ingest(feature_set, source, run_config=fstore.RunConfig(), spark_context=
 For Spark to work with S3, it requires several properties to be set. The following example writes a
 feature set to S3 in the parquet format:
 ```python
+from pyspark import SparkConf
+
 target = ParquetTarget(
     path="s3:///my-s3-bucket/some/path",
     partitioned=False,

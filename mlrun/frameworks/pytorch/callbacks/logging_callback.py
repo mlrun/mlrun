@@ -449,7 +449,7 @@ class LoggingCallback(Callback):
         :raise TypeError:  In case the source is 'HyperparametersKeys.CUSTOM' but the given value is not callable.
         :raise KeyError:   In case the one of the keys in the key chain is incorrect.
         :raise IndexError: In case the one of the keys in the key chain is incorrect.
-        :raise ValueError: In case the value is not trackable.
+        :raise MLRunInvalidArgumentError: In case the value is not trackable.
         """
         # Get the value using the provided key chain:
         if source == HyperparametersKeys.CUSTOM:
@@ -487,7 +487,7 @@ class LoggingCallback(Callback):
             if value.numel() == 1:
                 value = float(value)
             else:
-                raise ValueError(
+                raise mlrun.errors.MLRunInvalidArgumentError(
                     "The parameter with the following key chain: {} is a pytorch.Tensor with {} elements. "
                     "PyTorch tensors are trackable only if they have 1 element."
                     "".format(key_chain, value.numel())
@@ -496,7 +496,7 @@ class LoggingCallback(Callback):
             if value.size == 1:
                 value = float(value)
             else:
-                raise ValueError(
+                raise mlrun.errors.MLRunInvalidArgumentError(
                     "The parameter with the following key chain: {} is a numpy.ndarray with {} elements. "
                     "numpy arrays are trackable only if they have 1 element."
                     "".format(key_chain, value.size)
@@ -507,7 +507,7 @@ class LoggingCallback(Callback):
             or isinstance(value, str)
             or isinstance(value, bool)
         ):
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "The parameter with the following key chain: {} is of type '{}'. "
                 "The only trackable types are: float, int, str and bool."
                 "".format(key_chain, type(value))

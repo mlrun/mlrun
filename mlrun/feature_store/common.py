@@ -124,23 +124,23 @@ def get_feature_vector_by_uri(uri, project=None):
 
 
 def verify_feature_set_permissions(
-    resource, action: mlrun.api.schemas.AuthorizationAction
+    feature_set, action: mlrun.api.schemas.AuthorizationAction
 ):
-    project, _, _, _ = parse_feature_set_uri(resource.uri)
+    project, _, _, _ = parse_feature_set_uri(feature_set.uri)
 
     resource = mlrun.api.schemas.AuthorizationResourceTypes.feature_set.to_resource_string(
         project, "feature-set"
     )
+    db = feature_set._get_run_db()
 
-    db = mlrun.get_run_db()
     auth_input = AuthorizationVerificationInput(resource=resource, action=action)
     db.verify_authorization(auth_input)
 
 
 def verify_feature_vector_permissions(
-    resource, action: mlrun.api.schemas.AuthorizationAction
+    feature_vector, action: mlrun.api.schemas.AuthorizationAction
 ):
-    project = resource._metadata.project or mlconf.default_project
+    project = feature_vector._metadata.project or mlconf.default_project
 
     resource = mlrun.api.schemas.AuthorizationResourceTypes.feature_vector.to_resource_string(
         project, "feature-vector"

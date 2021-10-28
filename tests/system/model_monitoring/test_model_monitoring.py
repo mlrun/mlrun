@@ -19,6 +19,8 @@ from mlrun.api.schemas import (
 )
 from mlrun.errors import MLRunNotFoundError
 from mlrun.utils.model_monitoring import EndpointType
+from mlrun.model import BaseMetadata
+from mlrun.runtimes import BaseRuntime
 from tests.system.base import TestMLRunSystem
 
 
@@ -274,6 +276,13 @@ class TestModelMonitoringAPI(TestMLRunSystem):
 
         # Enable model monitoring
         serving_fn.deploy()
+
+        # checking that stream processing and batch monitoring were successfully deployed
+        mlrun.get_run_db().get_schedule(self.project_name, "model-monitoring-batch")
+        metadta = BaseMetadata(
+            name="model-monitoring-stream", project=self.project_name, tag=""
+        )
+        mlrun.get_run_db().get_builder_status(BaseRuntime(metadata=metadta))
 
         iris_data = iris["data"].tolist()
 

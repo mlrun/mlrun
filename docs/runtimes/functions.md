@@ -375,10 +375,10 @@ common function methods:
 ```{toctree}
 :maxdepth: 2
 
+mlrun_code_annotations
 code-archive
 mlrun_jobs
 dask-overview
 horovod
 spark-operator
-mlrun_code_annotations
 ```

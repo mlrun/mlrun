@@ -1,6 +1,7 @@
 """
 Description:
-__init__ function of LightGBM-autologger. Will be extended and contain multiple LightGBM-specific functions.
+__init__ function of LightGBM-autologger. Will be extended
+and contain multiple LightGBM-specific functions.
 """
 
 from typing import Union
@@ -11,7 +12,8 @@ import pandas as pd
 from mlrun.frameworks._common.pkl_model_server import PickleModelServer
 from mlrun.frameworks.mlbase.mlrun_interface import MLBaseMLRunInterface
 
-# Temporary placeholder, LGBMModelServer may deviate from PickleModelServer in upcoming versions.
+# Temporary placeholder, LGBMModelServer may
+# deviate from PickleModelServer in upcoming versions.
 LGBMModelServer = PickleModelServer
 
 
@@ -25,22 +27,25 @@ def apply_mlrun(
     **kwargs
 ):
     """
-    Wrap the given model with MLRun model, saving the model's attributes and methods while giving it mlrun's additional
-    features.
-
+    Wrap the given model with MLRun model, saving the model's
+    attributes and methods while giving it mlrun's additional features.
     examples::
         model = LGBMClassifier()
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+        X_train, X_test, y_train, y_test = train_test_split(X, y,
+                                            test_size=0.2)
         model = apply_mlrun(model, context, X_test=X_test, y_test=y_test)
         model.fit(X_train, y_train)
+    :param model:               The model which will have the fit()
+                                function wrapped
 
-    :param model:               The model which will have the fit() function wrapped
-    :param context:             MLRun context to work with. If no context is given it will be retrieved via 'mlrun.get_or_create_ctx(None)'
+    :param context:             MLRun context to work with. If no context
+                                is given it will be retrieved via
+                                'mlrun.get_or_create_ctx(None)'
+
     :param X_test:              X_test dataset
     :param y_test:              y_test dataset
     :param model_name:          The model artifact name (Optional)
-    :param generate_test_set:   Generates a test_set dataset artifact (Optional)
-
+    :param generate_test_set:   Generates a test_set dataset artifact
     :return:                    The model with MLRun's interface.
     """
     if context is None:

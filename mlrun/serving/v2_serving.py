@@ -89,7 +89,7 @@ class V2ModelServer(StepToDict):
         """
         self.name = name
         self.version = ""
-        if ":" in name:
+        if name and ":" in name:
             self.name, self.version = name.split(":", 1)
         self.context = context
         self.ready = False

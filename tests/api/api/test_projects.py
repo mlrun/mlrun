@@ -41,7 +41,6 @@ from mlrun.api.db.sqldb.models import (
 def project_member_mode(request, db: Session) -> str:
     if request.param == "follower":
         mlrun.config.config.httpdb.projects.leader = "nop"
-        mlrun.config.config.httpdb.projects.follower_projects_store_mode = "cache"
         mlrun.api.utils.singletons.project_member.initialize_project_member()
         mlrun.api.utils.singletons.project_member.get_project_member()._leader_client.db_session = (
             db

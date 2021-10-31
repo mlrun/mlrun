@@ -33,6 +33,10 @@ def test_get_frontend_spec(
         frontend_spec.feature_flags.project_membership
         == mlrun.api.schemas.ProjectMembershipFeatureFlag.disabled
     )
+    assert (
+        frontend_spec.feature_flags.authentication
+        == mlrun.api.schemas.AuthenticationFeatureFlag.none
+    )
     assert frontend_spec.default_function_image_by_kind is not None
     assert frontend_spec.function_deployment_mlrun_command is not None
     # fields UI expects to be in the template
@@ -83,6 +87,21 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
     )
 
     response = client.get("/api/frontend-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
+    frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
+    assert (
+        frontend_spec.jobs_dashboard_url
+        == f"{grafana_url}/d/mlrun-jobs-monitoring/mlrun-jobs-monitoring?orgId=1"
+        f"&var-groupBy={{filter_name}}&var-filter={{filter_value}}"
+    )
+    mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url.assert_called_once()
+
+    # now one time with the 3.0 iguazio auth way
+    mlrun.mlconf.httpdb.authentication.mode = "none"
+    mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url.reset_mock()
+    response = client.get(
+        "/api/frontend-spec", cookies={"session": "some-session-cookie"}
+    )
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
     assert (

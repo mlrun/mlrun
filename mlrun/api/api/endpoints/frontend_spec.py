@@ -21,10 +21,15 @@ def get_frontend_spec(
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
+    # In Iguazio 3.0 auth is turned off, but for this endpoint specifically the session is a must, so getting it from
+    # the cookie like it was before
+    # TODO: remove when Iguazio 3.0 is no longer relevant
+    session: typing.Optional[str] = fastapi.Cookie(None),
 ):
     jobs_dashboard_url = None
-    if auth_info.session:
-        jobs_dashboard_url = _resolve_jobs_dashboard_url(auth_info.session)
+    session = auth_info.session or session
+    if session:
+        jobs_dashboard_url = _resolve_jobs_dashboard_url(session)
     feature_flags = _resolve_feature_flags()
     registry, repository = mlrun.utils.helpers.get_parsed_docker_registry()
     repository = mlrun.utils.helpers.get_docker_repository_or_default(repository)
@@ -61,4 +66,9 @@ def _resolve_feature_flags() -> mlrun.api.schemas.FeatureFlags:
     project_membership = mlrun.api.schemas.ProjectMembershipFeatureFlag.disabled
     if mlrun.mlconf.httpdb.authorization.mode == "opa":
         project_membership = mlrun.api.schemas.ProjectMembershipFeatureFlag.enabled
-    return mlrun.api.schemas.FeatureFlags(project_membership=project_membership)
+    authentication = mlrun.api.schemas.AuthenticationFeatureFlag(
+        mlrun.mlconf.httpdb.authentication.mode
+    )
+    return mlrun.api.schemas.FeatureFlags(
+        project_membership=project_membership, authentication=authentication
+    )

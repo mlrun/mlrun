@@ -79,15 +79,19 @@ class TestAutoMount:
         auto_mount_type = AutoMountType(mlconf.storage.auto_mount_type)
         assert auto_mount_type == AutoMountType.auto
 
-    def test_run_with_automount_pvc(self, rundb_mock):
+    @staticmethod
+    def _setup_pvc_mount():
         mlconf.storage.auto_mount_type = "pvc"
-        # Verify that extra parameters get filtered out
-        pvc_params = {
+        return {
             "pvc_name": "test_pvc",
             "volume_name": "test_volume",
             "volume_mount_path": "/mnt/test/path",
-            "invalid_param": "blublu",
         }
+
+    def test_run_with_automount_pvc(self, rundb_mock):
+        pvc_params = self._setup_pvc_mount()
+        # Verify that extra parameters get filtered out
+        pvc_params["invalid_param"] = "blublu"
 
         # Try with a simple string
         pvc_params_str = ",".join(
@@ -125,3 +129,23 @@ class TestAutoMount:
 
         with pytest.raises(TypeError):
             mlconf.get_storage_auto_mount_params()
+
+    def test_auto_mount_function_with_pvc_config(self, rundb_mock):
+        os.environ.pop("V3IO_ACCESS_KEY", None)
+        os.environ.pop("V3IO_USERNAME", None)
+
+        pvc_params = self._setup_pvc_mount()
+        pvc_params_str = base64.b64encode(json.dumps(pvc_params).encode())
+        mlconf.storage.auto_mount_params = pvc_params_str
+
+        runtime = self._generate_runtime()
+        runtime.apply(mlrun.auto_mount())
+        assert runtime.spec.disable_auto_mount
+
+        self._execute_run(runtime)
+        rundb_mock.assert_pvc_mount_configured(pvc_params)
+
+        # This won't work if mount type is not pvc
+        mlconf.storage.auto_mount_type = "auto"
+        with pytest.raises(ValueError):
+            runtime.apply(mlrun.auto_mount())

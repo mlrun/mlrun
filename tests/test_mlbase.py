@@ -37,7 +37,7 @@ def run_mlbase_xgboost_regression(context):
     model.fit(X_train, y_train)
 
 def run_mlbase_lgbm_classification(context):
-    model = LGBMClassifier()
+    model = lgb.LGBMClassifier()
     X_train, X_test, y_train, y_test = get_dataset()
     model = apply_mlrun(model, context, X_train=X_train,
                         y_train=y_train, X_test=X_test, y_test=y_test)
@@ -54,7 +54,7 @@ def test_run_mlbase_xgboost_regression():
     assert 'confusion matrix' not in (xgb_run.artifact('model').meta.to_dict()['extra_data'])
     assert (xgb_run.artifact('model').meta.to_dict()['model_file']) == 'XGBRegressor.pkl'
     
-def test_run_mlbase_lgbm_regression():
+def test_run_mlbase_lgbm_classification():
     lgbm_run = new_function().run(handler=run_mlbase_lgbm_classification)
     assert (lgbm_run.artifact('model').meta.to_dict()['metrics']['accuracy']) > 0
     assert (lgbm_run.artifact('model').meta.to_dict()['model_file']) == 'LGBMClassifier.pkl'

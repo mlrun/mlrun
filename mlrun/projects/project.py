@@ -226,7 +226,11 @@ def load_project(
         project.spec.origin_url = url or project.spec.origin_url
     project.spec.repo = repo
     if repo:
-        project.spec.branch = repo.active_branch.name
+        try:
+            # handle cases where active_branch is not set (e.g. in Gitlab CI)
+            project.spec.branch = repo.active_branch.name
+        except Exception:
+            pass
     project.register_artifacts()
     mlrun.mlconf.default_project = project.metadata.name
     pipeline_context.set(project)

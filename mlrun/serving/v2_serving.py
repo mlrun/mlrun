@@ -27,49 +27,66 @@ from mlrun.artifacts import ModelArtifact  # noqa: F401
 from mlrun.config import config
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
 
+from .utils import StepToDict
 
-class V2ModelServer:
-    """base model serving class (v2), using similar API to KFServing v2 and Triton
 
-    The class is initialized automatically by the model server and can run locally
-    as part of a nuclio serverless function, or as part of a real-time pipeline
-    default model url is: /v2/models/<model>[/versions/<ver>]/operation
-
-    You need to implement two mandatory methods:
-      load()     - download the model file(s) and load the model into memory
-      predict()  - accept request payload and return prediction/inference results
-
-    you can override additional methods : preprocess, validate, postprocess, explain
-    you can add custom api endpoint by adding method op_xx(event), will be invoked by
-    calling the <model-url>/xx (operation = xx)
-
-    Example
-    -------
-    defining a class::
-
-        class MyClass(V2ModelServer):
-            def load(self):
-                # load and initialize the model and/or other elements
-                model_file, extra_data = self.get_model(suffix='.pkl')
-                self.model = load(open(model_file, "rb"))
-
-            def predict(self, request):
-                events = np.array(request['inputs'])
-                dmatrix = xgb.DMatrix(events)
-                result: xgb.DMatrix = self.model.predict(dmatrix)
-                return {"outputs": result.tolist()}
-
-    """
+class V2ModelServer(StepToDict):
+    """base model serving class (v2), using similar API to KFServing v2 and Triton"""
 
     def __init__(
         self,
-        context,
-        name: str,
+        context=None,
+        name: str = None,
         model_path: str = None,
         model=None,
         protocol=None,
-        **class_args,
+        **kwargs,
     ):
+        """base model serving class (v2), using similar API to KFServing v2 and Triton
+
+        The class is initialized automatically by the model server and can run locally
+        as part of a nuclio serverless function, or as part of a real-time pipeline
+        default model url is: /v2/models/<model>[/versions/<ver>]/operation
+
+        You need to implement two mandatory methods:
+          load()     - download the model file(s) and load the model into memory
+          predict()  - accept request payload and return prediction/inference results
+
+        you can override additional methods : preprocess, validate, postprocess, explain
+        you can add custom api endpoint by adding method op_xx(event), will be invoked by
+        calling the <model-url>/xx (operation = xx)
+
+        model server classes are subclassed (subclass implements the `load()` and `predict()` methods)
+        the subclass can be added to a serving graph or to a model router
+
+        defining a sub class::
+
+            class MyClass(V2ModelServer):
+                def load(self):
+                    # load and initialize the model and/or other elements
+                    model_file, extra_data = self.get_model(suffix='.pkl')
+                    self.model = load(open(model_file, "rb"))
+
+                def predict(self, request):
+                    events = np.array(request['inputs'])
+                    dmatrix = xgb.DMatrix(events)
+                    result: xgb.DMatrix = self.model.predict(dmatrix)
+                    return {"outputs": result.tolist()}
+
+        usage example::
+
+            # adding a model to a serving graph using the subclass MyClass
+            # MyClass will be initialized with the name "my", the model_path, and an arg called my_param
+            graph = fn.set_topology("router")
+            fn.add_model("my", class_name="MyClass", model_path="<model-uri>>", my_param=5)
+
+        :param context:    for internal use (passed in init)
+        :param name:       step name
+        :param model_path: model file/dir or artifact path
+        :param model:      model object (for local testing)
+        :param protocol:   serving API protocol (default "v2")
+        :param kwargs:     extra arguments (can be accessed using self.get_param(key))
+        """
         self.name = name
         self.version = ""
         if ":" in name:
@@ -80,9 +97,12 @@ class V2ModelServer:
         self.protocol = protocol or "v2"
         self.model_path = model_path
         self.model_spec: mlrun.artifacts.ModelArtifact = None
-        self._params = class_args
+        self._kwargs = kwargs  # for to_dict()
+        self._params = kwargs
         self._model_logger = (
-            _ModelLogPusher(self, context) if context.stream.enabled else None
+            _ModelLogPusher(self, context)
+            if context and context.stream.enabled
+            else None
         )
 
         self.metrics = {}
@@ -118,7 +138,8 @@ class V2ModelServer:
             logger.warn("GraphServer not initialized for VotingEnsemble instance")
             return
 
-        _init_endpoint_record(server, self)
+        if not self.context.is_mock or self.context.server.track_models:
+            _init_endpoint_record(server, self)
 
     def get_param(self, key: str, default=None):
         """get param by key (specified in the model or the function)"""
@@ -196,6 +217,10 @@ class V2ModelServer:
         """main model event handler method"""
         start = now_date()
         op = event.path.strip("/")
+        if not op and event.body and isinstance(event.body, dict):
+            op = event.body.get("operation")
+        if not op and event.method != "GET":
+            op = "infer"
 
         if op == "predict" or op == "infer":
             # predict operation

@@ -31,25 +31,42 @@ from ..api.schemas import (
     ModelEndpointStatus,
 )
 from ..config import config
-from .utils import _extract_input_data, _update_result_body
+from .utils import RouterToDict, _extract_input_data, _update_result_body
 from .v2_serving import _ModelLogPusher
 
 
-class BaseModelRouter:
+class BaseModelRouter(RouterToDict):
     """base model router class"""
 
     def __init__(
         self,
-        context,
-        name,
+        context=None,
+        name: str = None,
         routes=None,
-        protocol=None,
-        url_prefix=None,
-        health_prefix=None,
+        protocol: str = None,
+        url_prefix: str = None,
+        health_prefix: str = None,
         input_path: str = None,
         result_path: str = None,
         **kwargs,
     ):
+        """Model Serving Router, route between child models
+
+        :param context:       for internal use (passed in init)
+        :param name:          step name
+        :param routes:        for internal use (routes passed in init)
+        :param protocol:      serving API protocol (default "v2")
+        :param url_prefix:    url prefix for the router (default /v2/models)
+        :param health_prefix: health api url prefix (default /v2/health)
+        :param input_path:    when specified selects the key/path in the event to use as body
+                              this require that the event body will behave like a dict, example:
+                              event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means request body will be 7
+        :param result_path:   selects the key/path in the event to write the results to
+                              this require that the event body will behave like a dict, example:
+                              event: {"x": 5} , result_path="resp" means the returned response will be written
+                              to event["y"] resulting in {"x": 5, "resp": <result>}
+        :param kwargs:        extra arguments
+        """
         self.name = name
         self.context = context
         self.routes = routes
@@ -80,7 +97,7 @@ class BaseModelRouter:
 
         except Exception as exc:
             #  if images convert to bytes
-            content_type = getattr(event, "content_type") or ""
+            content_type = getattr(event, "content_type", "") or ""
             if content_type.startswith("image/"):
                 sample = BytesIO(event.body)
                 parsed_event[self.inputs_key] = [sample]
@@ -214,12 +231,12 @@ class OperationTypes(str, Enum):
 class VotingEnsemble(BaseModelRouter):
     def __init__(
         self,
-        context,
-        name,
+        context=None,
+        name: str = None,
         routes=None,
-        protocol=None,
-        url_prefix=None,
-        health_prefix=None,
+        protocol: str = None,
+        url_prefix: str = None,
+        health_prefix: str = None,
         vote_type=None,
         executor_type=None,
         prediction_col_name=None,
@@ -249,25 +266,23 @@ class VotingEnsemble(BaseModelRouter):
         predictions will appear with model name as the given VotingEnsemble name
         or "VotingEnsemble" by default.
 
-        Example
-        -------
-        ```
-        # Define a serving function
-        # Note: You can point the function to a file containing you own Router or Classifier Model class
-        #       this basic class supports sklearn based models (with `<model>.predict()` api)
-        fn = mlrun.code_to_function(name='ensemble',
-                                    kind='serving',
-                                    filename='https://raw.githubusercontent.com/mlrun/functions/master/v2_model_server/v2-model-server.py'
-                                    image='mlrun/ml-models')
+        Example::
 
-        # Set the router class
-        # You can set your own classes by simply changing the `class_name`
-        fn.set_topology(class_name='mlrun.serving.routers.VotingEnsemble')
+            # Define a serving function
+            # Note: You can point the function to a file containing you own Router or Classifier Model class
+            #       this basic class supports sklearn based models (with `<model>.predict()` api)
+            fn = mlrun.code_to_function(name='ensemble',
+                                        kind='serving',
+                                        filename='model-server.py'
+                                        image='mlrun/ml-models')
 
-        # Add models
-        fn.add_model(<model_name>, <model_path>, <model_class_name>)
-        fn.add_model(<model_name>, <model_path>, <model_class_name>)
-        ```
+            # Set the router class
+            # You can set your own classes by simply changing the `class_name`
+            fn.set_topology(class_name='mlrun.serving.routers.VotingEnsemble')
+
+            # Add models
+            fn.add_model(<model_name>, <model_path>, <model_class_name>)
+            fn.add_model(<model_name>, <model_path>, <model_class_name>)
 
         How to extend the VotingEnsemble
         --------------------------------
@@ -281,34 +296,31 @@ class VotingEnsemble(BaseModelRouter):
         `max_vote()` or `mean_vote()` which calculates the actual prediction result and returns it
         as the VotingEnsemble's prediction.
 
-        Parameters
-        ----------
-        context : mlrun.MLClientCtx
-            MLRun context, Injected by mlrun.
-        name : str
-            Router name, as will be referenced for logging or routes.
-        routes : [type], optional
-            [description], by default None
-        protocol : str, optional
-            Protocol, by default `v2`
-        url_prefix : str, optional
-            Route prefix for the URI, will enforce all incoming requests
-            to begin with `<url_prefix>`. by default `/{self.protocol}/models`
-        health_prefix : str, optional
-            Router function health request prefix, by default `/{self.protocol}/health`
-        vote_type : str, optional
-            Voting type to be used (from `VotingTypes`).
-            by default will try to self-deduct upon the first event:
-                - float prediction type: regression
-                - int prediction type: classification
-        executor_type : str, optional
-            Parallelism mechanism, out of `ParallelRunnerModes`, by default `threads`
-        prediction_col_name: str, optional
-            The dict key for the predictions column in the model's responses output.
-            Example: If the model returns
-                    {id: <id>, model_name: <name>, outputs: {..., prediction: [<predictions>], ...}}
-                    the prediction_col_name should be `prediction`.
-            by default, `prediction`
+
+        :param context:       for internal use (passed in init)
+        :param name:          step name
+        :param routes:        for internal use (routes passed in init)
+        :param protocol:      serving API protocol (default "v2")
+        :param url_prefix:    url prefix for the router (default /v2/models)
+        :param health_prefix: health api url prefix (default /v2/health)
+        :param input_path:    when specified selects the key/path in the event to use as body
+                              this require that the event body will behave like a dict, example:
+                              event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means request body will be 7
+        :param result_path:   selects the key/path in the event to write the results to
+                              this require that the event body will behave like a dict, example:
+                              event: {"x": 5} , result_path="resp" means the returned response will be written
+                              to event["y"] resulting in {"x": 5, "resp": <result>}
+        :param vote_type:     Voting type to be used (from `VotingTypes`).
+                              by default will try to self-deduct upon the first event:
+                                - float prediction type: regression
+                                - int prediction type: classification
+        :param executor_type: Parallelism mechanism, out of `ParallelRunnerModes`, by default `threads`
+        :param prediction_col_name: The dict key for the predictions column in the model's responses output.
+                              Example: If the model returns
+                                       {id: <id>, model_name: <name>, outputs: {..., prediction: [<predictions>], ...}}
+                                       the prediction_col_name should be `prediction`.
+                              by default, `prediction`
+        :param kwargs:        extra arguments
         """
         super().__init__(
             context, name, routes, protocol, url_prefix, health_prefix, **kwargs
@@ -318,7 +330,9 @@ class VotingEnsemble(BaseModelRouter):
         self.vote_flag = True if self.vote_type is not None else False
         self.executor_type = executor_type
         self._model_logger = (
-            _ModelLogPusher(self, context) if context.stream.enabled else None
+            _ModelLogPusher(self, context)
+            if context and context.stream.enabled
+            else None
         )
         self.version = kwargs.get("version", "v1")
         self.log_router = True
@@ -333,7 +347,8 @@ class VotingEnsemble(BaseModelRouter):
             logger.warn("GraphServer not initialized for VotingEnsemble instance")
             return
 
-        _init_endpoint_record(server, self)
+        if not self.context.is_mock or self.context.server.track_models:
+            _init_endpoint_record(server, self)
 
     def _resolve_route(self, body, urlpath):
         """Resolves the appropriate model to send the event to.
@@ -726,16 +741,47 @@ class EnrichmentModelRouter(ModelRouter):
 
     def __init__(
         self,
-        context,
-        name,
+        context=None,
+        name: str = None,
         routes=None,
-        protocol=None,
-        url_prefix=None,
-        health_prefix=None,
+        protocol: str = None,
+        url_prefix: str = None,
+        health_prefix: str = None,
         feature_vector_uri: str = "",
         impute_policy: dict = {},
         **kwargs,
     ):
+        """Model router with feature enrichment (from the feature store)
+
+        The `EnrichmentModelRouter` class enrich the incoming event with real-time features
+        read from a feature vector (in MLRun feature store) and forwards the enriched event to the child models
+
+        The feature vector is specified using the `feature_vector_uri`, in addition an imputing policy
+        can be specified to substitute None/NaN values with pre defines constant or stats.
+
+        :param feature_vector_uri :  feature vector uri in the form: [project/]name[:tag]
+        :param impute_policy : value imputing (substitute NaN/Inf values with statistical or constant value),
+                              you can set the `impute_policy` parameter with the imputing policy, and specify which
+                              constant or statistical value will be used instead of NaN/Inf value, this can be defined
+                              per column or for all the columns ("*"). the replaced value can be fixed number for
+                              constants or $mean, $max, $min, $std, $count for statistical values.
+                              “*” is used to specify the default for all features, example:
+                              impute_policy={"*": "$mean", "age": 33}
+        :param context:       for internal use (passed in init)
+        :param name:          step name
+        :param routes:        for internal use (routes passed in init)
+        :param protocol:      serving API protocol (default "v2")
+        :param url_prefix:    url prefix for the router (default /v2/models)
+        :param health_prefix: health api url prefix (default /v2/health)
+        :param input_path:    when specified selects the key/path in the event to use as body
+                              this require that the event body will behave like a dict, example:
+                              event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means request body will be 7
+        :param result_path:   selects the key/path in the event to write the results to
+                              this require that the event body will behave like a dict, example:
+                              event: {"x": 5} , result_path="resp" means the returned response will be written
+                              to event["y"] resulting in {"x": 5, "resp": <result>}
+        :param kwargs:        extra arguments
+        """
         super().__init__(
             context, name, routes, protocol, url_prefix, health_prefix, **kwargs,
         )
@@ -762,23 +808,113 @@ class EnrichmentModelRouter(ModelRouter):
 
 
 class EnrichmentVotingEnsemble(VotingEnsemble):
-    """model ensemble with feature enrichment and imputing"""
+    """Voting Ensemble with feature enrichment (from the feature store)"""
 
     def __init__(
         self,
-        context,
-        name,
+        context=None,
+        name: str = None,
         routes=None,
         protocol=None,
-        url_prefix=None,
-        health_prefix=None,
-        vote_type=None,
+        url_prefix: str = None,
+        health_prefix: str = None,
+        vote_type: str = None,
         executor_type=None,
         prediction_col_name=None,
         feature_vector_uri: str = "",
         impute_policy: dict = {},
         **kwargs,
     ):
+        """Voting Ensemble with feature enrichment (from the feature store)
+
+        The `EnrichmentVotingEnsemble` class enables to enrich the incoming event with real-time features
+        read from a feature vector (in MLRun feature store) and apply prediction logic on top of
+        the different added models.
+
+        You can use it by calling:
+        - <prefix>/<model>[/versions/<ver>]/operation
+            Sends the event to the specific <model>[/versions/<ver>]
+        - <prefix>/operation
+            Sends the event to all models and applies `vote(self, event)`
+
+        The `VotingEnsemble` applies the following logic:
+        Incoming Event -> Feature enrichment -> Send to model/s ->
+        Apply all model/s logic (Preprocessing -> Prediction -> Postprocessing) ->
+        Router Voting logic -> Router Postprocessing -> Response
+
+        The feature vector is specified using the `feature_vector_uri`, in addition an imputing policy
+        can be specified to substitute None/NaN values with pre defines constant or stats.
+
+        * When enabling model tracking via `set_tracking()` the ensemble logic
+        predictions will appear with model name as the given VotingEnsemble name
+        or "VotingEnsemble" by default.
+
+        Example::
+
+            # Define a serving function
+            # Note: You can point the function to a file containing you own Router or Classifier Model class
+            #       this basic class supports sklearn based models (with `<model>.predict()` api)
+            fn = mlrun.code_to_function(name='ensemble',
+                                        kind='serving',
+                                        filename='model-server.py'
+                                        image='mlrun/ml-models')
+
+            # Set the router class
+            # You can set your own classes by simply changing the `class_name`
+            fn.set_topology(class_name='mlrun.serving.routers.EnrichmentVotingEnsemble',
+                            feature_vector_uri="transactions-fraud",
+                            impute_policy={"*": "$mean"})
+
+            # Add models
+            fn.add_model(<model_name>, <model_path>, <model_class_name>)
+            fn.add_model(<model_name>, <model_path>, <model_class_name>)
+
+        How to extend the VotingEnsemble
+        --------------------------------
+        The VotingEnsemble applies its logic using the `logic(predictions)` function.
+        The `logic()` function receives an array of (# samples, # predictors) which you
+        can then use to apply whatever logic you may need.
+
+        If we use this `VotingEnsemble` as an example, the `logic()` function tries to figure
+        out whether you are trying to do a **classification** or a **regression** prediction by
+        the prediction type or by the given `vote_type` parameter.  Then we apply the appropriate
+        `max_vote()` or `mean_vote()` which calculates the actual prediction result and returns it
+        as the VotingEnsemble's prediction.
+
+
+        :param context:       for internal use (passed in init)
+        :param name:          step name
+        :param routes:        for internal use (routes passed in init)
+        :param protocol:      serving API protocol (default "v2")
+        :param url_prefix:    url prefix for the router (default /v2/models)
+        :param health_prefix: health api url prefix (default /v2/health)
+        :param feature_vector_uri :  feature vector uri in the form: [project/]name[:tag]
+        :param impute_policy : value imputing (substitute NaN/Inf values with statistical or constant value),
+                              you can set the `impute_policy` parameter with the imputing policy, and specify which
+                              constant or statistical value will be used instead of NaN/Inf value, this can be defined
+                              per column or for all the columns ("*").
+                              the replaced value can be fixed number for constants or $mean, $max, $min, $std, $count
+                              for statistical values. “*” is used to specify the default for all features, example:
+                              impute_policy={"*": "$mean", "age": 33}
+        :param input_path:    when specified selects the key/path in the event to use as body
+                              this require that the event body will behave like a dict, example:
+                              event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means request body will be 7
+        :param result_path:   selects the key/path in the event to write the results to
+                              this require that the event body will behave like a dict, example:
+                              event: {"x": 5} , result_path="resp" means the returned response will be written
+                              to event["y"] resulting in {"x": 5, "resp": <result>}
+        :param vote_type:     Voting type to be used (from `VotingTypes`).
+                              by default will try to self-deduct upon the first event:
+                                - float prediction type: regression
+                                - int prediction type: classification
+        :param executor_type: Parallelism mechanism, out of `ParallelRunnerModes`, by default `threads`
+        :param prediction_col_name: The dict key for the predictions column in the model's responses output.
+                              Example: If the model returns
+                                       {id: <id>, model_name: <name>, outputs: {..., prediction: [<predictions>], ...}}
+                                       the prediction_col_name should be `prediction`.
+                              by default, `prediction`
+        :param kwargs:        extra arguments
+        """
         super().__init__(
             context,
             name,

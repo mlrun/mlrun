@@ -65,7 +65,7 @@ def test_run_mlbase_xgboost_regression():
         xgb_run.artifact("model").meta.to_dict()["model_file"]
     ) == "XGBRegressor.pkl"
 
-
+@pytest.mark.skip(reason="no way of currently testing this")
 def test_run_mlbase_lgbm_classification():
     lgbm_run = new_function().run(handler=run_mlbase_lgbm_classification)
     assert (lgbm_run.artifact("model").meta.to_dict()["metrics"]["accuracy"]) > 0

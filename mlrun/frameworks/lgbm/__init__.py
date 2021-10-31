@@ -37,11 +37,9 @@ def apply_mlrun(
         model.fit(X_train, y_train)
     :param model:               The model which will have the fit()
                                 function wrapped
-
     :param context:             MLRun context to work with. If no context
                                 is given it will be retrieved via
                                 'mlrun.get_or_create_ctx(None)'
-
     :param X_test:              X_test dataset
     :param y_test:              y_test dataset
     :param model_name:          The model artifact name (Optional)

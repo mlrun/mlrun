@@ -1,6 +1,6 @@
-import lightgbm as lgb
 import pandas as pd
 import xgboost as xgb
+import pytest
 from mlrun import new_function
 from mlrun.frameworks.sklearn import apply_mlrun
 from sklearn.datasets import load_boston, load_iris
@@ -24,7 +24,8 @@ def run_mlbase_sklearn_classification(context):
     model = LogisticRegression()
     X_train, X_test, y_train, y_test = get_dataset()
     model = apply_mlrun(
-        model, context, X_train=X_train, y_train=y_train, X_test=X_test, y_test=y_test
+        model, context, X_train=X_train,
+        y_train=y_train, X_test=X_test, y_test=y_test
     )
     model.fit(X_train, y_train)
 
@@ -33,7 +34,8 @@ def run_mlbase_xgboost_regression(context):
     model = xgb.XGBRegressor()
     X_train, X_test, y_train, y_test = get_dataset(classification=False)
     model = apply_mlrun(
-        model, context, X_train=X_train, y_train=y_train, X_test=X_test, y_test=y_test
+        model, context, X_train=X_train,
+        y_train=y_train, X_test=X_test, y_test=y_test
     )
     model.fit(X_train, y_train)
 
@@ -42,7 +44,8 @@ def run_mlbase_lgbm_classification(context):
     model = lgb.LGBMClassifier()
     X_train, X_test, y_train, y_test = get_dataset()
     model = apply_mlrun(
-        model, context, X_train=X_train, y_train=y_train, X_test=X_test, y_test=y_test
+        model, context, X_train=X_train,
+        y_train=y_train, X_test=X_test, y_test=y_test
     )
     model.fit(X_train, y_train)
 
@@ -64,6 +67,7 @@ def test_run_mlbase_xgboost_regression():
     assert (
         xgb_run.artifact("model").meta.to_dict()["model_file"]
     ) == "XGBRegressor.pkl"
+
 
 @pytest.mark.skip(reason="no way of currently testing this")
 def test_run_mlbase_lgbm_classification():

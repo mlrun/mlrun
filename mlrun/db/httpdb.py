@@ -2372,7 +2372,7 @@ class HTTPRunDB(RunDBInterface):
                 "end": end,
                 "metric": metrics or [],
                 "top-level": top_level,
-                "uids": uids,
+                "uid": uids,
             },
             headers={"X-V3io-Access-Key": access_key},
         )

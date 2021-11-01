@@ -6,9 +6,10 @@ and contain multiple LightGBM-specific functions.
 
 from typing import Union
 
-import mlrun
 import numpy as np
 import pandas as pd
+
+import mlrun
 from mlrun.frameworks._common.pkl_model_server import PickleModelServer
 from mlrun.frameworks.mlbase.mlrun_interface import MLBaseMLRunInterface
 

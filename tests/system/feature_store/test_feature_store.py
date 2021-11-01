@@ -556,7 +556,7 @@ class TestFeatureStore(TestMLRunSystem):
         file_system = fsspec.filesystem("v3io")
         kind = TargetTypes.parquet
         path = f"{get_default_prefix_for_target(kind)}/sets/{name}-latest"
-        path = path.format(name=name, kind=kind, project=self.project_name)
+        path = path.format(name=name, kind=kind, project=self.project_name, run_uuid="run_uuid")
         dataset = pq.ParquetDataset(path, filesystem=file_system,)
         partitions = [key for key, _ in dataset.pieces[0].partition_keys]
 
@@ -1881,6 +1881,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         db = mlrun.get_run_db()
         fset_from_db = db.get_feature_set(name, tag=tag)
+        assert published_fset.get_publish_time is not None
         assert fset_from_db.get_publish_time == str(published_fset.get_publish_time)
         assert fset.get_publish_time is None
         for actual in [published_fset, fset_from_db]:

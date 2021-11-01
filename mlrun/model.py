@@ -1039,7 +1039,6 @@ class PathObject:
         )
 
 
-
 class DataSource(ModelObj):
     """online or offline data source spec"""
 

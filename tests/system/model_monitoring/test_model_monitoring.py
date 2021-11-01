@@ -308,7 +308,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         assert len(children_list) == len(model_names)
 
         endpoints_children_list = mlrun.get_run_db().list_model_endpoints(
-            self.project_name, list_ids=children_list
+            self.project_name, uids=children_list
         )
         assert len(endpoints_children_list.endpoints) == len(model_names)
         for child in endpoints_children_list.endpoints:

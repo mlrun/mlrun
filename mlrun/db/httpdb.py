@@ -2326,8 +2326,8 @@ class HTTPRunDB(RunDBInterface):
         end: str = "now",
         metrics: Optional[List[str]] = None,
         access_key: Optional[str] = None,
-        top_level: Optional[bool] = False,
-        list_ids: Optional[List[str]] = None,
+        top_level: bool = False,
+        uids: Optional[List[str]] = None,
     ) -> schemas.ModelEndpointList:
         """
         Returns a list of ModelEndpointState objects. Each object represents the current state of a model endpoint.
@@ -2350,6 +2350,8 @@ class HTTPRunDB(RunDBInterface):
         :param start: The start time of the metrics
         :param end: The end time of the metrics
         :param access_key: V3IO access key, when None, will be look for in environ
+        :param top_level: if true will return only routers and endpoint that are NOT children of any router
+        :param uids: if passed will return ModelEndpointList of endpoints with uid in uids
         """
         access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
         if not access_key:
@@ -2370,7 +2372,7 @@ class HTTPRunDB(RunDBInterface):
                 "end": end,
                 "metric": metrics or [],
                 "top-level": top_level,
-                "list-ids": list_ids,
+                "uids": uids,
             },
             headers={"X-V3io-Access-Key": access_key},
         )

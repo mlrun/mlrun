@@ -102,7 +102,7 @@ def list_endpoints(
     end: str = Query(default="now"),
     metrics: List[str] = Query([], alias="metric"),
     top_level: bool = Query(False, alias="top-level"),
-    list_ids: List[str] = Query(None, alias="list-ids"),
+    uids: List[str] = Query(None, alias="uid"),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
@@ -110,7 +110,7 @@ def list_endpoints(
     """
      Returns a list of endpoints of type 'ModelEndpoint', supports filtering by model, function, tag,
      labels or top level.
-     If list_ids are passed: will return ModelEndpointList of endpoints with uid in list_ids
+     If uids are passed: will return ModelEndpointList of endpoints with uid in uids
      Labels can be used to filter on the existence of a label:
      api/projects/{project}/model-endpoints/?label=mylabel
 
@@ -139,7 +139,7 @@ def list_endpoints(
         start=start,
         end=end,
         top_level=top_level,
-        list_ids=list_ids,
+        uids=uids,
     )
     allowed_endpoints = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,

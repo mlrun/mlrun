@@ -181,7 +181,7 @@ class ModelEndpoints:
         start: str = "now-1h",
         end: str = "now",
         top_level: Optional[bool] = False,
-        list_ids: Optional[List[str]] = None,
+        uids: Optional[List[str]] = None,
     ) -> ModelEndpointList:
         """
         Returns a list of ModelEndpointState objects. Each object represents the current state of a model endpoint.
@@ -190,7 +190,7 @@ class ModelEndpoints:
         2) function
         3) labels
         4) top level
-        5) list ids
+        5) uids
         By default, when no filters are applied, all available endpoints for the given project will be listed.
 
         In addition, this functions provides a facade for listing endpoint related metrics. This facade is time-based
@@ -207,7 +207,7 @@ class ModelEndpoints:
         :param start: The start time of the metrics
         :param end: The end time of the metrics
         :param top_level: if True will return only routers and endpoint that are NOT children of any router
-        :param list_ids: will return ModelEndpointList of endpoints with uid in list_ids
+        :param uids: will return ModelEndpointList of endpoints with uid in uids
         """
 
         logger.info(
@@ -220,39 +220,37 @@ class ModelEndpoints:
             start=start,
             end=end,
             top_level=top_level,
-            list_ids=list_ids,
-        )
-
-        client = get_v3io_client(endpoint=config.v3io_api)
-
-        path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS
-        )
-        _, container, path = parse_model_endpoint_store_prefix(path)
-
-        cursor = client.kv.new_cursor(
-            container=container,
-            table_path=path,
-            access_key=auth_info.data_session,
-            filter_expression=self.build_kv_cursor_filter_expression(
-                project, function, model, labels, top_level,
-            ),
-            attribute_names=["endpoint_id"],
-            raise_for_status=RaiseForStatus.never,
+            uids=uids,
         )
 
         endpoint_list = ModelEndpointList(endpoints=[])
-        try:
-            items = cursor.all()
-        except Exception:
-            return endpoint_list
 
-        if list_ids is not None:
-            list_endpoints_to_get = list_ids
-        else:
-            list_endpoints_to_get = [item["endpoint_id"] for item in items]
+        if uids is None:
+            client = get_v3io_client(endpoint=config.v3io_api)
 
-        for endpoint_id in list_endpoints_to_get:
+            path = config.model_endpoint_monitoring.store_prefixes.default.format(
+                project=project,
+                kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
+            )
+            _, container, path = parse_model_endpoint_store_prefix(path)
+            cursor = client.kv.new_cursor(
+                container=container,
+                table_path=path,
+                access_key=auth_info.data_session,
+                filter_expression=self.build_kv_cursor_filter_expression(
+                    project, function, model, labels, top_level,
+                ),
+                attribute_names=["endpoint_id"],
+                raise_for_status=RaiseForStatus.never,
+            )
+            try:
+                items = cursor.all()
+            except Exception:
+                return endpoint_list
+
+            uids = [item["endpoint_id"] for item in items]
+
+        for endpoint_id in uids:
             endpoint = self.get_endpoint(
                 auth_info=auth_info,
                 project=project,

@@ -4,7 +4,12 @@ from typing import List
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
+
+try:
+    import seaborn as sns
+except ModuleNotFoundError:
+    pass
+
 from scikitplot.metrics import plot_calibration_curve
 from scipy import interp
 from sklearn import metrics

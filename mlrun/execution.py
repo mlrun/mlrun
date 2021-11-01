@@ -100,6 +100,7 @@ class MLClientCtx(object):
         self._iteration_results = None
         self._children = []
         self._parent = None
+        self._handler = None
 
     def __enter__(self):
         return self
@@ -260,6 +261,7 @@ class MLClientCtx(object):
             self._log_level = spec.get("log_level", self._log_level)
             self._function = spec.get("function", self._function)
             self._parameters = spec.get("parameters", self._parameters)
+            self._handler = spec.get("handler", self._handler)
             if not self._iteration:
                 self._hyperparams = spec.get("hyperparams", self._hyperparams)
                 self._hyper_param_options = spec.get(
@@ -850,6 +852,7 @@ class MLClientCtx(object):
                 "function": self._function,
                 "log_level": self._log_level,
                 "parameters": self._parameters,
+                "handler": self._handler,
                 "outputs": self._outputs,
                 run_keys.output_path: self.artifact_path,
                 run_keys.inputs: {k: v.artifact_url for k, v in self._inputs.items()},

@@ -1,0 +1,13 @@
+# please keep this to a minimum - defaults are good
+[tool.black]
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | \venv
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3

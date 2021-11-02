@@ -1,11 +1,11 @@
 import inspect
-import typing
+
 import pytest
 
 import mlrun
-import mlrun.runtimes.pod
 import mlrun.runtimes.mpijob.abstract
 import mlrun.runtimes.mpijob.v1
+import mlrun.runtimes.pod
 
 
 def test_runtimes_inheritance():
@@ -30,10 +30,19 @@ def test_runtimes_inheritance():
                     break
                 if class_ in checked_classes:
                     continue
-                class_kwargs = list(inspect.signature(class_.__init__).parameters.keys())
-                base_class_kwargs = list(inspect.signature(base_class.__init__).parameters.keys())
+                class_kwargs = list(
+                    inspect.signature(class_.__init__).parameters.keys()
+                )
+                base_class_kwargs = list(
+                    inspect.signature(base_class.__init__).parameters.keys()
+                )
                 if not set(base_class_kwargs).issubset(class_kwargs):
-                    invalid_classes[inheriting_class] = list(set(base_class_kwargs) - set(base_class_kwargs).intersection(class_kwargs))
+                    invalid_classes[inheriting_class] = list(
+                        set(base_class_kwargs)
+                        - set(base_class_kwargs).intersection(class_kwargs)
+                    )
                 checked_classes.add(inheriting_class)
     if invalid_classes:
-        pytest.fail(f"Found classes that are not accepting all of their parent classes kwargs: {invalid_classes}")
+        pytest.fail(
+            f"Found classes that are not accepting all of their parent classes kwargs: {invalid_classes}"
+        )

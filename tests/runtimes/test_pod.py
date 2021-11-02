@@ -10,7 +10,7 @@ import mlrun.runtimes.pod
 
 def test_runtimes_inheritance():
     classes_map = {
-        mlrun.runtimes.pod.KubeResourceSpec: [
+        mlrun.runtimes.base.FunctionSpec: [
             mlrun.runtimes.daskjob.DaskSpec,
             mlrun.runtimes.function.NuclioSpec,
             mlrun.runtimes.serving.ServingSpec,

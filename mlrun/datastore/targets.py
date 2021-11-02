@@ -215,7 +215,7 @@ offline_lookup_order = [TargetTypes.parquet, TargetTypes.csv]
 online_lookup_order = [TargetTypes.nosql]
 
 
-def get_offline_target(featureset, start_time=None, name=None):
+def get_offline_target(featureset, name=None):
     """return an optimal offline feature set target"""
     # todo: take status, start_time and lookup order into account
     offline_targets = [

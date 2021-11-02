@@ -10,21 +10,11 @@ from sklearn.model_selection import train_test_split
 from mlrun import new_function
 from mlrun.frameworks.sklearn import apply_mlrun
 
-try:
-    import lightgbm as lgb
-except ModuleNotFoundError:
-    pass
-
-try:
-    import xgboost as xgb
-except ModuleNotFoundError:
-    pass
-
 
 def _is_installed(lib) -> bool:
     reqs = subprocess.check_output([sys.executable, "-m", "pip", "freeze"])
     installed_packages = [r.decode().split("==")[0] for r in reqs.split()]
-    return lib in installed_packages
+    return lib not in installed_packages
 
 
 def get_dataset(classification=True):
@@ -49,21 +39,41 @@ def run_mlbase_sklearn_classification(context):
 
 
 def run_mlbase_xgboost_regression(context):
-    model = xgb.XGBRegressor()
-    X_train, X_test, y_train, y_test = get_dataset(classification=False)
-    model = apply_mlrun(
-        model, context, X_train=X_train, y_train=y_train, X_test=X_test, y_test=y_test
-    )
-    model.fit(X_train, y_train)
+    try:
+        import xgboost as xgb
+
+        model = xgb.XGBRegressor()
+        X_train, X_test, y_train, y_test = get_dataset(classification=False)
+        model = apply_mlrun(
+            model,
+            context,
+            X_train=X_train,
+            y_train=y_train,
+            X_test=X_test,
+            y_test=y_test,
+        )
+        model.fit(X_train, y_train)
+    except ModuleNotFoundError:
+        pass
 
 
 def run_mlbase_lgbm_classification(context):
-    model = lgb.LGBMClassifier()
-    X_train, X_test, y_train, y_test = get_dataset()
-    model = apply_mlrun(
-        model, context, X_train=X_train, y_train=y_train, X_test=X_test, y_test=y_test
-    )
-    model.fit(X_train, y_train)
+    try:
+        import lightgbm as lgb
+
+        model = lgb.LGBMClassifier()
+        X_train, X_test, y_train, y_test = get_dataset()
+        model = apply_mlrun(
+            model,
+            context,
+            X_train=X_train,
+            y_train=y_train,
+            X_test=X_test,
+            y_test=y_test,
+        )
+        model.fit(X_train, y_train)
+    except ModuleNotFoundError:
+        pass
 
 
 def test_run_mlbase_sklearn_classification():

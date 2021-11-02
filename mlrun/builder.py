@@ -327,12 +327,13 @@ def build_runtime(
         if any([image in build.base_image for image in mlrun_images]):
             with_mlrun = False
     if not build.source and not build.commands and not build.extra and not with_mlrun:
-        if build.base_image:
-            runtime.spec.image = build.base_image
-        elif runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict():
-            runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[
-                runtime.kind
-            ]
+        if not runtime.spec.image:
+            if build.base_image:
+                runtime.spec.image = build.base_image
+            elif runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict():
+                runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[
+                    runtime.kind
+                ]
         if not runtime.spec.image:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "The deployment was not successful because no image was specified or there are missing build parameters"

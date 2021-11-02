@@ -24,6 +24,19 @@ def test_runtimes_inheritance():
             mlrun.runtimes.daskjob.DaskStatus,
             mlrun.runtimes.function.NuclioStatus,
         ],
+        mlrun.runtimes.base.BaseRuntime: [
+            mlrun.runtimes.local.HandlerRuntime,
+            mlrun.runtimes.local.BaseRuntime,
+            mlrun.runtimes.function.RemoteRuntime,
+            mlrun.runtimes.serving.ServingRuntime,
+            mlrun.runtimes.kubejob.KubejobRuntime,
+            mlrun.runtimes.daskjob.DaskCluster,
+            mlrun.runtimes.mpijob.v1.MpiRuntimeV1,
+            mlrun.runtimes.mpijob.v1alpha1.MpiRuntimeV1Alpha1,
+            mlrun.runtimes.remotesparkjob.RemoteSparkRuntime,
+            mlrun.runtimes.sparkjob.spark2job.Spark2Runtime,
+            mlrun.runtimes.sparkjob.spark3job.Spark3Runtime,
+        ],
     }
     checked_classes = set()
     invalid_classes = {}

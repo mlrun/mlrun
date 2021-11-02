@@ -126,6 +126,9 @@ class NuclioSpec(KubeResourceSpec):
         affinity=None,
         disable_auto_mount=False,
         priority_class_name=None,
+        pythonpath=None,
+        workdir=None,
+        image_pull_secret=None,
     ):
 
         super().__init__(
@@ -149,6 +152,9 @@ class NuclioSpec(KubeResourceSpec):
             affinity=affinity,
             disable_auto_mount=disable_auto_mount,
             priority_class_name=priority_class_name,
+            pythonpath=pythonpath,
+            workdir=workdir,
+            image_pull_secret=image_pull_secret,
         )
 
         self.base_spec = base_spec or ""

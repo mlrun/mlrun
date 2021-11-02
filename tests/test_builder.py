@@ -1,5 +1,3 @@
-import unittest.mock
-
 import mlrun
 import mlrun.api.schemas
 import mlrun.builder
@@ -24,7 +22,9 @@ def test_build_runtime_use_base_image_when_no_build():
 
 def test_build_runtime_use_image_when_no_build():
     image = "mlrun/ml-models"
-    fn = mlrun.new_function("some-function", "some-project", "some-tag", image=image, kind="job")
+    fn = mlrun.new_function(
+        "some-function", "some-project", "some-tag", image=image, kind="job"
+    )
     assert fn.spec.image == image
     ready = mlrun.builder.build_runtime(
         mlrun.api.schemas.AuthInfo(),

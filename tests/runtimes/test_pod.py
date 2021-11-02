@@ -19,7 +19,11 @@ def test_runtimes_inheritance():
             mlrun.runtimes.remotesparkjob.RemoteSparkSpec,
             mlrun.runtimes.sparkjob.spark2job.Spark2JobSpec,
             mlrun.runtimes.sparkjob.spark3job.Spark3JobSpec,
-        ]
+        ],
+        mlrun.runtimes.base.FunctionStatus: [
+            mlrun.runtimes.daskjob.DaskStatus,
+            mlrun.runtimes.function.NuclioStatus,
+        ],
     }
     checked_classes = set()
     invalid_classes = {}

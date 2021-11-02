@@ -205,8 +205,9 @@ class NuclioStatus(FunctionStatus):
         address=None,
         internal_invocation_urls=None,
         external_invocation_urls=None,
+        build_pod=None,
     ):
-        super().__init__(state)
+        super().__init__(state, build_pod)
 
         self.nuclio_name = nuclio_name
 

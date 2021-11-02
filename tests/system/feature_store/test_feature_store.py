@@ -406,9 +406,11 @@ class TestFeatureStore(TestMLRunSystem):
         )
         fs.ingest(fset, source, targets=[target])
 
-        list_files = os.listdir(path)
-        assert len(list_files) == 1 and not os.path.isdir(path + "/" + list_files[0])
-        os.remove(path + "/" + list_files[0])
+        path_with_runid = path + "/" + fset.status.targets[0].run_uuid
+
+        list_files = os.listdir(path_with_runid)
+        assert len(list_files) == 1 and not os.path.isdir(path_with_runid + "/" + list_files[0])
+        os.remove(path_with_runid + "/" + list_files[0])
 
     def test_ingest_with_timestamp(self):
         key = "patient_id"
@@ -556,7 +558,7 @@ class TestFeatureStore(TestMLRunSystem):
         file_system = fsspec.filesystem("v3io")
         kind = TargetTypes.parquet
         path = f"{get_default_prefix_for_target(kind)}/sets/{name}-latest"
-        path = path.format(name=name, kind=kind, project=self.project_name, run_uuid="run_uuid")
+        path = path.format(name=name, kind=kind, project=self.project_name, run_uuid=measurements.status.targets[0].run_uuid)
         dataset = pq.ParquetDataset(path, filesystem=file_system,)
         partitions = [key for key, _ in dataset.pieces[0].partition_keys]
 

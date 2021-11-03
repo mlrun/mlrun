@@ -606,7 +606,7 @@ def _ingest_with_spark(
     infer_options: InferOptions = InferOptions.default(),
     mlrun_context=None,
     namespace=None,
-    overwrite=None
+    overwrite=None,
 ):
     try:
         if spark is None or spark is True:
@@ -647,7 +647,9 @@ def _ingest_with_spark(
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Paths for spark ingest must contain schema, i.e v3io, s3, az"
                 )
-            spark_options = target.get_spark_options(key_columns, timestamp_key, overwrite)
+            spark_options = target.get_spark_options(
+                key_columns, timestamp_key, overwrite
+            )
             logger.info(
                 f"writing to target {target.name}, spark options {spark_options}"
             )

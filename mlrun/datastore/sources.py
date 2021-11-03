@@ -73,9 +73,14 @@ class BaseSourceDriver(DataSource):
             df = session.read.load(**self.get_spark_options())
 
             if self.start_time or self.end_time:
-                self.start_time = datetime.min if self.start_time is None else self.start_time
+                self.start_time = (
+                    datetime.min if self.start_time is None else self.start_time
+                )
                 self.end_time = datetime.max if self.end_time is None else self.end_time
-                df = df.filter((df[self.time_field] >= self.start_time) & (df[self.time_field] < self.end_time))
+                df = df.filter(
+                    (df[self.time_field] >= self.start_time)
+                    & (df[self.time_field] < self.end_time)
+                )
 
             if named_view:
                 df.createOrReplaceTempView(self.name)

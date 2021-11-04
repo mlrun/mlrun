@@ -511,7 +511,7 @@ class BaseStoreTarget(DataTargetBase):
             time_column=time_column,
         )
 
-    def get_spark_options(self, key_column=None, timestamp_key=None):
+    def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         # options used in spark.read.load(**options)
         raise NotImplementedError()
 
@@ -707,7 +707,7 @@ class ParquetTarget(BaseStoreTarget):
             **self.attributes,
         )
 
-    def get_spark_options(self, key_column=None, timestamp_key=None):
+    def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         partition_cols = []
         if timestamp_key:
             time_partitioning_granularity = self.time_partitioning_granularity
@@ -816,7 +816,7 @@ class CSVTarget(BaseStoreTarget):
             **self.attributes,
         )
 
-    def get_spark_options(self, key_column=None, timestamp_key=None):
+    def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         return {
             "path": store_path_to_spark(self._target_path.absolute_path()),
             "format": "csv",
@@ -909,7 +909,7 @@ class NoSqlTarget(BaseStoreTarget):
             **self.attributes,
         )
 
-    def get_spark_options(self, key_column=None, timestamp_key=None):
+    def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         spark_options = {
             "path": store_path_to_spark(self._target_path.absolute_path()),
             "format": "io.iguaz.v3io.spark.sql.kv",
@@ -924,6 +924,8 @@ class NoSqlTarget(BaseStoreTarget):
                 spark_options["sorting-key"] = key_column[1]
         else:
             spark_options["key"] = key_column
+        if not overwrite:
+            spark_options["columnUpdate"] = True
         return spark_options
 
     def get_dask_options(self):

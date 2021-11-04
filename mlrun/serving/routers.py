@@ -31,6 +31,7 @@ from ..api.schemas import (
     ModelEndpointStatus,
 )
 from ..config import config
+from ..utils.model_monitoring import EndpointType
 from .utils import RouterToDict, _extract_input_data, _update_result_body
 from .v2_serving import _ModelLogPusher
 
@@ -338,6 +339,7 @@ class VotingEnsemble(BaseModelRouter):
         self.log_router = True
         self.prediction_col_name = prediction_col_name or "prediction"
         self.format_response_with_col_name_flag = False
+        self.model_endpoint_uid = None
 
     def post_init(self, mode="sync"):
         server = getattr(self.context, "_server", None) or getattr(
@@ -348,7 +350,7 @@ class VotingEnsemble(BaseModelRouter):
             return
 
         if not self.context.is_mock or self.context.server.track_models:
-            _init_endpoint_record(server, self)
+            self.model_endpoint_uid = _init_endpoint_record(server, self)
 
     def _resolve_route(self, body, urlpath):
         """Resolves the appropriate model to send the event to.
@@ -697,6 +699,8 @@ class VotingEnsemble(BaseModelRouter):
 def _init_endpoint_record(graph_server, voting_ensemble: VotingEnsemble):
     logger.info("Initializing endpoint records")
 
+    endpoint_uid = None
+
     try:
         project, uri, tag, hash_key = parse_versioned_object_uri(
             graph_server.function_uri
@@ -706,6 +710,11 @@ def _init_endpoint_record(graph_server, voting_ensemble: VotingEnsemble):
             versioned_model_name = f"{voting_ensemble.name}:{voting_ensemble.version}"
         else:
             versioned_model_name = f"{voting_ensemble.name}:latest"
+
+        children_uids = []
+        for _, c in voting_ensemble.routes.items():
+            if hasattr(c, "endpoint_uid"):
+                children_uids.append(c.endpoint_uid)
 
         model_endpoint = ModelEndpoint(
             metadata=ModelEndpointMetadata(project=project),
@@ -718,8 +727,13 @@ def _init_endpoint_record(graph_server, voting_ensemble: VotingEnsemble):
                 ),
                 active=True,
             ),
-            status=ModelEndpointStatus(children=list(voting_ensemble.routes.keys())),
+            status=ModelEndpointStatus(
+                children=list(voting_ensemble.routes.keys()),
+                endpoint_type=EndpointType.ROUTER,
+                children_uids=children_uids,
+            ),
         )
+        endpoint_uid = model_endpoint.metadata.uid
 
         db = mlrun.get_run_db()
 
@@ -728,12 +742,27 @@ def _init_endpoint_record(graph_server, voting_ensemble: VotingEnsemble):
             endpoint_id=model_endpoint.metadata.uid,
             model_endpoint=model_endpoint,
         )
+
+        for model_endpoint in children_uids:
+            # here to update that it is a node now
+            current_endpoint = db.get_model_endpoint(
+                project=project, endpoint_id=model_endpoint
+            )
+            current_endpoint.status.endpoint_type = EndpointType.LEAF_EP
+
+            db.create_or_patch_model_endpoint(
+                project=project,
+                endpoint_id=model_endpoint,
+                model_endpoint=current_endpoint,
+            )
+
     except Exception as exc:
         logger.warning(
             "Failed creating model endpoint record",
             exc=exc,
             traceback=traceback.format_exc(),
         )
+    return endpoint_uid
 
 
 class EnrichmentModelRouter(ModelRouter):

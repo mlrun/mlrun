@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from pydantic.main import Extra
 
 from mlrun.api.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
-from mlrun.utils.model_monitoring import create_model_endpoint_id
+from mlrun.utils.model_monitoring import EndpointType, create_model_endpoint_id
 
 
 class ModelMonitoringStoreKinds:
@@ -96,6 +96,8 @@ class ModelEndpointStatus(ObjectStatus):
     metrics: Optional[Dict[str, Metric]]
     features: Optional[List[Features]]
     children: Optional[List[str]]
+    children_uids: Optional[List[str]]
+    endpoint_type: Optional[EndpointType]
 
     class Config:
         extra = Extra.allow

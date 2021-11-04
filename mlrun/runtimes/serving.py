@@ -115,6 +115,10 @@ class ServingSpec(NuclioSpec):
         affinity=None,
         disable_auto_mount=False,
         priority_class_name=None,
+        default_handler=None,
+        pythonpath=None,
+        workdir=None,
+        image_pull_secret=None,
     ):
 
         super().__init__(
@@ -145,6 +149,10 @@ class ServingSpec(NuclioSpec):
             affinity=affinity,
             disable_auto_mount=disable_auto_mount,
             priority_class_name=priority_class_name,
+            default_handler=default_handler,
+            pythonpath=pythonpath,
+            workdir=workdir,
+            image_pull_secret=image_pull_secret,
         )
 
         self.models = models or {}

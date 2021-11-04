@@ -84,6 +84,9 @@ class DaskSpec(KubeResourceSpec):
         scheduler_resources=None,
         worker_resources=None,
         priority_class_name=None,
+        disable_auto_mount=False,
+        pythonpath=None,
+        workdir=None,
     ):
 
         super().__init__(
@@ -107,6 +110,9 @@ class DaskSpec(KubeResourceSpec):
             node_selector=node_selector,
             affinity=affinity,
             priority_class_name=priority_class_name,
+            disable_auto_mount=disable_auto_mount,
+            pythonpath=pythonpath,
+            workdir=workdir,
         )
         self.args = args
 

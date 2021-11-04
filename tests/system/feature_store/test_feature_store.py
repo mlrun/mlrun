@@ -104,10 +104,24 @@ class TestFeatureStore(TestMLRunSystem):
             FeaturesetValidator()
         )
 
-        quotes_set.add_aggregation("asks1", "ask", ["sum", "max"], "1h", "10m")
-        quotes_set.add_aggregation("asks2", "ask", ["sum", "max"], "5h", "10m")
-        quotes_set.add_aggregation("bids", "bid", ["min", "max"], "1h", "10m")
+        quotes_set.add_feature_aggregation(
+            "ask", ["sum", "max"], "1h", "10m", name="asks1"
+        )
+        try:
+            # same name
+            quotes_set.add_feature_aggregation(
+                "ask", ["sum", "max"], "5h", "10m", name="asks1"
+            )
+            assert False
+        except mlrun.errors.MLRunInvalidArgumentError:
+            pass
 
+        quotes_set.add_feature_aggregation(
+            "ask", ["sum", "max"], "5h", "10m", name="asks2"
+        )
+        quotes_set.add_feature_aggregation(
+            column="bid", operations=["min", "max"], windows="1h", period="10m"
+        )
         df = fs.preview(
             quotes_set,
             quotes,
@@ -761,12 +775,12 @@ class TestFeatureStore(TestMLRunSystem):
             name, entities=[Entity("first_name"), Entity("last_name")]
         )
 
-        data_set.add_aggregation(
-            name="bids",
+        data_set.add_feature_aggregation(
             column="bid",
             operations=["sum", "max"],
             windows="1h",
             period="10m",
+            name="bids",
         )
         fs.preview(
             data_set,
@@ -910,12 +924,12 @@ class TestFeatureStore(TestMLRunSystem):
         # write to kv
         data_set = fs.FeatureSet(name, entities=[Entity("first_name")])
 
-        data_set.add_aggregation(
-            name="bids",
+        data_set.add_feature_aggregation(
             column="bid",
             operations=["sum", "max"],
             windows="1h",
             period="10m",
+            name="bids",
         )
 
         fs.ingest(data_set, data, return_df=True)
@@ -1168,8 +1182,8 @@ class TestFeatureStore(TestMLRunSystem):
             name, timestamp_key="time", entities=[Entity("first_name")]
         )
 
-        data_set.add_aggregation(
-            name="bids", column="bid", operations=["sum", "max"], windows="24h",
+        data_set.add_feature_aggregation(
+            column="bid", operations=["sum", "max"], windows="24h", name="bids",
         )
 
         fs.ingest(data_set, data, return_df=True)
@@ -1381,8 +1395,8 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_post_aggregation_step(self):
         quotes_set = fs.FeatureSet("post-aggregation", entities=[fs.Entity("ticker")])
-        agg_step = quotes_set.add_aggregation(
-            "asks", "ask", ["sum", "max"], "1h", "10m"
+        agg_step = quotes_set.add_feature_aggregation(
+            "ask", ["sum", "max"], "1h", "10m"
         )
         agg_step.to("MyMap", "somemap1", field="multi1", multiplier=3)
 
@@ -1807,8 +1821,8 @@ class TestFeatureStore(TestMLRunSystem):
         data_set1 = fs.FeatureSet(
             "imp1", entities=[Entity("name")], timestamp_key="time_stamp"
         )
-        data_set1.add_aggregation(
-            "datas", "data", ["avg", "max"], "1h",
+        data_set1.add_feature_aggregation(
+            "data", ["avg", "max"], "1h",
         )
         fs.ingest(data_set1, data, infer_options=fs.InferOptions.default())
 
@@ -1817,19 +1831,19 @@ class TestFeatureStore(TestMLRunSystem):
         data_set2 = fs.FeatureSet("imp2", entities=[Entity("name")])
         fs.ingest(data_set2, data2, infer_options=fs.InferOptions.default())
 
-        features = ["imp2.data2", "imp1.datas_max_1h", "imp1.datas_avg_1h"]
+        features = ["imp2.data2", "imp1.data_max_1h", "imp1.data_avg_1h"]
 
         # create vector and online service with imputing policy
         vector = fs.FeatureVector("vectori", features)
         svc = fs.get_online_feature_service(
-            vector, impute_policy={"*": "$max", "datas_avg_1h": "$mean", "data2": 4}
+            vector, impute_policy={"*": "$max", "data_avg_1h": "$mean", "data2": 4}
         )
         print(svc.vector.status.to_yaml())
 
         resp = svc.get([{"name": "ab"}])
         assert resp[0]["data2"] == 1
-        assert resp[0]["datas_max_1h"] == 60
-        assert resp[0]["datas_avg_1h"] == 30
+        assert resp[0]["data_max_1h"] == 60
+        assert resp[0]["data_avg_1h"] == 30
 
         # test as list
         resp = svc.get([{"name": "ab"}], as_list=True)
@@ -1845,20 +1859,20 @@ class TestFeatureStore(TestMLRunSystem):
 
         resp = svc.get([{"name": "cd"}])
         assert resp[0]["data2"] == 4
-        assert resp[0]["datas_max_1h"] == 60
-        assert resp[0]["datas_avg_1h"] == 30
+        assert resp[0]["data_max_1h"] == 60
+        assert resp[0]["data_avg_1h"] == 30
 
         resp = svc.get([{"name": "ef"}])
         assert resp[0]["data2"] == 4
-        assert resp[0]["datas_max_1h"] == 60
-        assert resp[0]["datas_avg_1h"] == 30
+        assert resp[0]["data_max_1h"] == 60
+        assert resp[0]["data_avg_1h"] == 30
 
         # check without impute
         vector = fs.FeatureVector("vectori2", features)
         svc = fs.get_online_feature_service(vector)
         resp = svc.get([{"name": "cd"}])
         assert np.isnan(resp[0]["data2"])
-        assert np.isnan(resp[0]["datas_avg_1h"])
+        assert np.isnan(resp[0]["data_avg_1h"])
 
 
 def verify_purge(fset, targets):

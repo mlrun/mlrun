@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime
+import uuid
 import warnings
 from typing import Dict, List, Optional, Union
 
@@ -265,6 +266,7 @@ class FeatureSet(ModelObj):
         self.metadata = VersionedObjMetadata(name=name)
         self.status = None
         self._last_state = ""
+        self._aggregation_names = set()
 
     @property
     def spec(self) -> FeatureSetSpec:
@@ -453,52 +455,35 @@ class FeatureSet(ModelObj):
         """feature set transformation graph/DAG"""
         return self.spec.graph
 
-    def add_aggregation(
+    def _verify_aggr_unique(self, name):
+        if name not in self._aggregation_names:
+            self._aggregation_names.add(name)
+            return True
+        return False
+
+    def _add_aggregation(
         self,
-        name,
         column,
         operations,
         windows,
+        name=None,
         period=None,
         step_name=None,
         after=None,
         before=None,
         state_name=None,
     ):
-        """add feature aggregation rule
-
-        example::
-
-            myset.add_aggregation("asks", "ask", ["sum", "max"], "1h", "10m")
-
-        :param name:       aggregation name/prefix
-        :param column:     name of column/field aggregate
-        :param operations: aggregation operations, e.g. ['sum', 'std']
-        :param windows:    time windows, can be a single window, e.g. '1h', '1d',
-                            or a list of same unit windows e.g ['1h', '6h']
-                            windows are transformed to fixed windows or
-                            sliding windows depending whether period parameter
-                            provided.
-
-                            - Sliding window is fixed-size overlapping windows
-                              that slides with time.
-                              The window size determines the size of the sliding window
-                              and the period determines the step size to slide.
-                              Period must be integral divisor of the window size.
-                              If the period is not provided then fixed windows is used.
-
-                            - Fixed window is fixed-size, non-overlapping, gap-less window.
-                              The window is referred to as a tumbling window.
-                              In this case, each record on an in-application stream belongs
-                              to a specific window. It is processed only once
-                              (when the query processes the window to which the record belongs).
-
-        :param period:     optional, sliding window granularity, e.g. '10m'
-        :param step_name: optional, graph step name
-        :param state_name: *Deprecated* - use step_name instead
-        :param after:      optional, after which graph step it runs
-        :param before:     optional, comes before graph step
-        """
+        if not name:
+            name = column
+            aggregation_name = name + "_" + str(uuid.uuid4())[:8]
+            self._aggregation_names.add(aggregation_name)
+        else:
+            if self._verify_aggr_unique(name):
+                aggregation_name = name
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"{name} already exists in this feature set"
+                )
         if state_name:
             warnings.warn(
                 "The state_name parameter is deprecated. Use step_name instead",
@@ -525,7 +510,7 @@ class FeatureSet(ModelObj):
             operations = [operations]
 
         aggregation = FeatureAggregation(
-            name, column, operations, windows, period
+            aggregation_name, column, operations, windows, period
         ).to_dict()
 
         def upsert_feature(name):
@@ -558,6 +543,94 @@ class FeatureSet(ModelObj):
                 upsert_feature(f"{name}_{operation}_{window}")
 
         return step
+
+    def add_feature_aggregation(
+        self,
+        column,
+        operations,
+        windows,
+        period=None,
+        name=None,
+        step_name=None,
+        after=None,
+        before=None,
+        state_name=None,
+    ):
+        """add feature aggregation rule
+
+        example::
+
+            myset.add_aggregation(column="ask", operations=["sum", "max"], windows="1h", period="10m")
+
+        :param column:     name of column/field aggregate
+        :param operations: aggregation operations, e.g. ['sum', 'std']
+        :param windows:    time windows, can be a single window, e.g. '1h', '1d',
+                            or a list of same unit windows e.g ['1h', '6h']
+                            windows are transformed to fixed windows or
+                            sliding windows depending whether period parameter
+                            provided.
+
+                            - Sliding window is fixed-size overlapping windows
+                              that slides with time.
+                              The window size determines the size of the sliding window
+                              and the period determines the step size to slide.
+                              Period must be integral divisor of the window size.
+                              If the period is not provided then fixed windows is used.
+
+                            - Fixed window is fixed-size, non-overlapping, gap-less window.
+                              The window is referred to as a tumbling window.
+                              In this case, each record on an in-application stream belongs
+                              to a specific window. It is processed only once
+                              (when the query processes the window to which the record belongs).
+
+        :param period:     optional, sliding window granularity, e.g. '10m'
+        :param name:       optional, aggregation name/prefix. Must be unique per feature set.If not passed,
+                           name will be column
+        :param step_name: optional, graph step name
+        :param state_name: *Deprecated* - use step_name instead
+        :param after:      optional, after which graph step it runs
+        :param before:     optional, comes before graph step
+        """
+        return self._add_aggregation(
+            column=column,
+            operations=operations,
+            windows=windows,
+            name=name,
+            period=period,
+            step_name=step_name,
+            after=after,
+            before=before,
+            state_name=state_name,
+        )
+
+    def add_aggregation(
+        self,
+        name: Optional[str],
+        column,
+        operations,
+        windows,
+        period=None,
+        step_name=None,
+        after=None,
+        before=None,
+        state_name=None,
+    ):
+        warnings.warn(
+            "This method is deprecated. Use add_feature_aggregation instead",
+            # TODO: In 0.9.0 do changes in examples & demos In 0.11 remove
+            PendingDeprecationWarning,
+        )
+        return self._add_aggregation(
+            column=column,
+            operations=operations,
+            windows=windows,
+            period=period,
+            name=name,
+            step_name=step_name,
+            after=after,
+            before=before,
+            state_name=state_name,
+        )
 
     def get_stats_table(self):
         """get feature statistics table (as dataframe)"""

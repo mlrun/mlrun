@@ -1021,14 +1021,16 @@ class PathObject:
         self,
         base_path=None,
         run_uuid=None,
+        is_single_file=False,
     ):
         self.base_path = base_path
         self.run_uuid = run_uuid
         self.full_path_template = self.base_path
-        if self._run_uuid_place_holder not in self.full_path_template:
-            if self.full_path_template[-1] != "/":
-                self.full_path_template = self.full_path_template + "/"
-            self.full_path_template = self.full_path_template + self._run_uuid_place_holder
+        if not is_single_file:
+            if self._run_uuid_place_holder not in self.full_path_template:
+                if self.full_path_template[-1] != "/":
+                    self.full_path_template = self.full_path_template + "/"
+                self.full_path_template = self.full_path_template + self._run_uuid_place_holder
 
     def templated_path(self):
         return self.full_path_template
@@ -1113,19 +1115,15 @@ class DataTargetBase(ModelObj):
             struct, fields=fields, deprecated_fields={"after_state": "after_step"}
         )
 
-    @staticmethod
-    def generate_target_run_uuid():
-        return f"{round(time.time() * 1000)}_{random.randint(0, 999)}"
+    def generate_target_run_uuid(self):
+        self.run_uuid = f"{round(time.time() * 1000)}_{random.randint(0, 999)}"
 
     def get_path(self):
-        # # TODO - see if need to check self.is_single_file()
-        # if self.path and self.run_uuid:
-        #     if self.path[-1] != "/":
-        #         return self.path + "/" + self.run_uuid
-        #     else:
-        #         return self.path + self.run_uuid
-        # return self.path
-        return PathObject(self.path, self.run_uuid) if self.path else None
+        if self.path:
+            is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
+            return PathObject(self.path, self.run_uuid, is_single_file)
+        else:
+            return None
 
     def __init__(
         self,

@@ -402,6 +402,39 @@ class FeatureSet(ModelObj):
             self, mlrun.api.schemas.AuthorizationAction.delete
         )
 
+        purge_targets = self._reload_and_get_targets(target_names=target_names, silent=silent)
+
+        if purge_targets:
+            purge_target_names = list(purge_targets.keys())
+            for target_name in purge_target_names:
+                target = purge_targets[target_name]
+                driver = get_target_driver(target_spec=target, resource=self)
+                try:
+                    driver.purge()
+                except FileNotFoundError:
+                    pass
+                del self.status.targets[target_name]
+            self.save()
+
+    def update_targets_run_uuid(self, targets: List[DataTargetBase], silent: bool = False, overwrite: bool = None):
+        ingestion_target_names = [
+            t if isinstance(t, str) else t.name for t in targets
+        ]
+        ingestion_targets = self._reload_and_get_targets(target_names=ingestion_target_names, silent=silent)
+
+        result_targets = []
+        for target in targets:
+            if target.name in ingestion_targets.keys():
+                driver = get_target_driver(target_spec=target, resource=self)
+                if overwrite:
+                    driver.generate_target_run_uuid()
+            else:
+                driver = get_target_driver(target_spec=target.to_dict(), resource=self)
+                driver.generate_target_run_uuid()
+            result_targets.append(driver)
+        return result_targets
+
+    def _reload_and_get_targets(self, target_names: List[str] = None, silent: bool = False):
         try:
             self.reload(update_spec=False)
         except mlrun.errors.MLRunNotFoundError:
@@ -412,10 +445,10 @@ class FeatureSet(ModelObj):
                 raise
 
         if target_names:
-            purge_targets = ObjectList(DataTarget)
+            targets = ObjectList(DataTarget)
             for target_name in target_names:
                 try:
-                    purge_targets[target_name] = self.status.targets[target_name]
+                    targets[target_name] = self.status.targets[target_name]
                 except KeyError:
                     if silent:
                         pass
@@ -426,17 +459,9 @@ class FeatureSet(ModelObj):
                             )
                         )
         else:
-            purge_targets = self.status.targets
-        purge_target_names = list(purge_targets.keys())
-        for target_name in purge_target_names:
-            target = purge_targets[target_name]
-            driver = get_target_driver(target_spec=target, resource=self)
-            try:
-                driver.purge()
-            except FileNotFoundError:
-                pass
-            del self.status.targets[target_name]
-        self.save()
+            targets = self.status.targets
+
+        return targets
 
     def has_valid_source(self):
         """check if object's spec has a valid (non empty) source definition"""

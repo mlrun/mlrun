@@ -339,7 +339,7 @@ def ingest(
 
     namespace = namespace or get_caller_globals()
 
-    purge_targets = targets or featureset.spec.targets or get_default_targets()
+    targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
 
     if overwrite is None:
         if isinstance(source, BaseSourceDriver) and source.schedule:
@@ -348,13 +348,18 @@ def ingest(
             overwrite = True
 
     if overwrite:
-        validate_target_list(targets=purge_targets)
+        validate_target_list(targets=targets_to_ingest)
         purge_target_names = [
-            t if isinstance(t, str) else t.name for t in purge_targets
+            t if isinstance(t, str) else t.name for t in targets_to_ingest
         ]
         featureset.purge_targets(target_names=purge_target_names, silent=True)
     else:
-        for target in purge_targets:
+        targets_to_ingest = featureset.update_targets_run_uuid(
+            targets=targets_to_ingest,
+            silent=True,
+            overwrite=overwrite,
+        )
+        for target in targets_to_ingest:
             if not kind_to_driver[target.kind].support_append:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"{target.kind} target does not support overwrite=False ingestion"
@@ -397,15 +402,6 @@ def ingest(
     featureset.save()
 
     targets = targets or featureset.spec.targets or get_default_targets()
-
-    from mlrun.model import DataTargetBase
-    run_uuid = DataTargetBase.generate_target_run_uuid()
-    for t in targets:
-        # t.is_single_file()
-        t.feature_set = featureset
-
-        if not t.run_uuid or overwrite:
-            t.run_uuid = run_uuid
 
     df = init_featureset_graph(
         source, featureset, namespace, targets=targets, return_df=return_df,

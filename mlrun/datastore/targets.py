@@ -451,7 +451,8 @@ class BaseStoreTarget(DataTargetBase):
     @property
     def _target_path(self):
         """return the actual/computed target path"""
-        return self.get_path() or PathObject(_get_target_path(self, self._resource), self.run_uuid)
+        is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
+        return self.get_path() or PathObject(_get_target_path(self, self._resource), self.run_uuid, is_single_file)
 
     def update_resource_status(self, status="", producer=None, size=None):
         """update the data target status"""
@@ -834,6 +835,11 @@ class CSVTarget(BaseStoreTarget):
         df = super().as_df(columns=columns, df_module=df_module, entities=entities)
         df.set_index(keys=entities, inplace=True)
         return df
+
+    def is_single_file(self):
+        if self.path:
+            return self.path.endswith(".csv")
+        return False
 
 
 class NoSqlTarget(BaseStoreTarget):

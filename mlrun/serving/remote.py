@@ -1,6 +1,5 @@
 import asyncio
 import json
-from concurrent.futures import CancelledError
 
 import aiohttp
 import requests
@@ -10,6 +9,7 @@ from storey.flow import _ConcurrentJobExecution
 from urllib3.util.retry import Retry
 
 import mlrun
+from mlrun.utils import logger
 
 from .utils import (
     StepToDict,
@@ -24,7 +24,7 @@ default_backoff_factor = 1
 
 
 def get_http_adapter(retries, backoff_factor):
-    if retries:
+    if retries != 0:
         retry = Retry(
             total=retries or default_retries,
             backoff_factor=backoff_factor or default_backoff_factor,
@@ -139,9 +139,13 @@ class RemoteStep(storey.SendToHttp):
         kwargs = {}
         if self._timeout:
             kwargs["timeout"] = aiohttp.ClientTimeout(total=self._timeout)
-        return await self._client_session.request(
-            method, url, headers=headers, data=body, ssl=False, **kwargs
-        )
+        try:
+            return await self._client_session.request(
+                method, url, headers=headers, data=body, ssl=False, **kwargs
+            )
+        except asyncio.TimeoutError as exc:
+            logger.error(f"http request to {url} timed out in RemoteStep {self.name}")
+            raise exc
 
     async def _handle_completed(self, event, response):
         response_body = await response.read()
@@ -175,8 +179,12 @@ class RemoteStep(storey.SendToHttp):
                 data=body,
                 timeout=self._timeout,
             )
+        except requests.exceptions.ReadTimeout as err:
+            raise requests.exceptions.ReadTimeout(
+                f"http request to {url} timed out in RemoteStep {self.name}, {err}"
+            )
         except OSError as err:
-            raise OSError(f"error: cannot invoke url: {url}, {err}")
+            raise OSError(f"cannot invoke url: {url}, {err}")
         if not resp.ok:
             raise RuntimeError(f"bad http response {resp.status_code}: {resp.text}")
 

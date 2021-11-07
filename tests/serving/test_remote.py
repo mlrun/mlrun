@@ -1,4 +1,7 @@
+import time
+
 import pytest
+from werkzeug.wrappers import Request, Response
 
 import mlrun
 from mlrun.serving.utils import event_id_key, event_path_key
@@ -150,3 +153,65 @@ def test_remote_advance(httpserver, engine):
     server.wait_for_completion()
     print(resp)
     assert resp == {"req": {"url": "/dog", "data": {"x": 5}}, "resp": {"post": "ok"}}
+
+
+def sleeping(request: Request):
+    print("\nDATA:\n", request.data)
+    time.sleep(2)  # this should be greater than the client's timeout parameter
+    return Response("Ok", status=200)
+
+
+@pytest.mark.parametrize("engine", ["sync", "async"])
+def test_timeout(httpserver, engine):
+    httpserver.expect_request("/data", method="POST").respond_with_handler(sleeping)
+    url = httpserver.url_for("/data")
+    server = _new_server(url, engine, timeout=1, return_json=False)
+
+    try:
+        resp = server.test(body=b"tst", method="POST")
+        print(resp)
+        assert False, "did not time out"
+    except Exception as exc:
+        is_timeout = (
+            ("timed out" in str(exc))
+            or ("CancelledError" in str(exc))
+            or ("TimeoutError" in str(exc))
+        )
+        if not is_timeout:
+            raise exc
+
+    try:
+        server.wait_for_completion()
+    except Exception:
+        # handle potential exceptions due to canceled events
+        pass
+
+
+class RetryTester:
+    def __init__(self):
+        self.retries = 0
+
+    def handler(self, request: Request):
+        self.retries += 1
+        print(f"retries={self.retries}")
+        return Response(str(self.retries), status=500)
+
+
+@pytest.mark.parametrize("engine", ["sync"])
+@pytest.mark.parametrize("retries", [0, 2])
+def test_retry(httpserver, engine, retries):
+    tester = RetryTester()
+    method = "PUT"
+    httpserver.expect_request("/data", method=method).respond_with_handler(
+        tester.handler
+    )
+    url = httpserver.url_for("/data")
+    server = _new_server(url, engine, method=method, return_json=False, retries=retries)
+
+    try:
+        server.test(body=b"tst", method=method)
+        assert False, "did not fail the request"
+    except Exception:
+        pass
+
+    assert tester.retries == retries + 1, "did not get expected number of retries"

@@ -152,6 +152,7 @@ setup(
         "mlrun.frameworks.mlbase",
         "mlrun.frameworks.sklearn",
         "mlrun.frameworks.xgboost",
+        "mlrun.frameworks.lgbm",
         "mlrun.mlutils",
         "mlrun.model_monitoring",
         "mlrun.platforms",

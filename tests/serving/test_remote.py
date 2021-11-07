@@ -67,6 +67,39 @@ def test_remote_step(httpserver, engine):
     assert resp == {"foo": "ok"}
 
 
+@pytest.mark.parametrize("engine", ["async"])
+def test_remote_step_bad_status_code(httpserver, engine):
+    httpserver.expect_request("/", method="GET").respond_with_json({"get": "ok"})
+    httpserver.expect_request("/foo", method="GET").respond_with_json({}, status=400)
+
+    # verify the remote step added headers for the event path and id
+    expected_headers = {
+        event_id_key: "123",
+        event_path_key: "/datapath",
+    }
+    httpserver.expect_request(
+        "/data", method="POST", data="req text", headers=expected_headers
+    ).respond_with_data("my str")
+    httpserver.expect_request("/json", method="POST", json={"x": 5}).respond_with_json(
+        {"post": "ok"}
+    )
+    url = httpserver.url_for("/")
+
+    for params, request, expected in tests_map:
+        print(f"test params: {params}")
+        server = _new_server(url, engine, **params)
+        resp = server.test(**request)
+        server.wait_for_completion()
+        assert resp == expected
+
+    # test with url generated with expression (from the event)
+    server = _new_server(None, engine, method="GET", url_expression="event['myurl']")
+    with pytest.raises(RuntimeError):
+        server.test(body={"myurl": httpserver.url_for("/foo")})
+    with pytest.raises(ValueError):
+        server.wait_for_completion()
+
+
 @pytest.mark.parametrize("engine", ["sync", "async"])
 def test_remote_class(httpserver, engine):
     from mlrun.serving.remote import RemoteStep

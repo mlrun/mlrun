@@ -145,6 +145,12 @@ class RemoteStep(storey.SendToHttp):
 
     async def _handle_completed(self, event, response):
         response_body = await response.read()
+        if response.status >= 400:
+            raise ValueError(
+                f"For event {event}, RemoteStep {self.name} got an unexpected response "
+                f"status {response.status}: {response_body}"
+            )
+
         body = self._get_data(response_body, response.headers)
 
         new_event = self._user_fn_output_to_event(event, body)
@@ -172,7 +178,7 @@ class RemoteStep(storey.SendToHttp):
         except OSError as err:
             raise OSError(f"error: cannot invoke url: {url}, {err}")
         if not resp.ok:
-            raise RuntimeError(f"bad http response {resp.text}")
+            raise RuntimeError(f"bad http response {resp.status_code}: {resp.text}")
 
         result = self._get_data(resp.content, resp.headers)
         event.body = _update_result_body(self._result_path, event.body, result)

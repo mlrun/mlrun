@@ -1,6 +1,9 @@
+import unittest.mock
+
 import pytest
 
 import mlrun.errors
+import mlrun.utils.version
 from mlrun.config import config
 from mlrun.datastore.store_resources import parse_store_uri
 from mlrun.utils import logger
@@ -218,16 +221,29 @@ def test_enrich_image():
             "expected_output": "mlrun/mlrun:0.5.3",
             "images_to_enrich_registry": "mlrun/mlrun:0.5.2",
         },
+        {
+            "image": "mlrun/mlrun",
+            "expected_output": "ghcr.io/mlrun/mlrun:0.0.0-unstable",
+            "images_tag": None,
+            "version": "0.0.0+unstable",
+        },
     ]
-    config.images_tag = "0.5.2-unstable-adsf76s"
+    default_images_to_enrich_registry = config.images_to_enrich_registry
     for case in cases:
+        config.images_tag = case.get("images_tag", "0.5.2-unstable-adsf76s")
         config.images_registry = case.get("images_registry", "ghcr.io/")
-        if case.get("images_to_enrich_registry") is not None:
-            config.images_to_enrich_registry = case["images_to_enrich_registry"]
+        config.images_to_enrich_registry = case.get(
+            "images_to_enrich_registry", default_images_to_enrich_registry
+        )
+        if case.get("version") is not None:
+            mlrun.utils.version.Version().get = unittest.mock.Mock(
+                return_value={"version": case["version"]}
+            )
+        config.images_tag = case.get("images_tag", "0.5.2-unstable-adsf76s")
         image = case["image"]
         expected_output = case["expected_output"]
         output = enrich_image_url(image)
-        assert expected_output == output
+        assert output == expected_output
 
 
 def test_get_parsed_docker_registry():

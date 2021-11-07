@@ -39,9 +39,6 @@ def run_mlbase_sklearn_classification(context):
 
 
 def run_mlbase_xgboost_regression(context):
-    try:
-        import xgboost as xgb
-
         model = xgb.XGBRegressor()
         X_train, X_test, y_train, y_test = get_dataset(classification=False)
         model = apply_mlrun(
@@ -53,14 +50,9 @@ def run_mlbase_xgboost_regression(context):
             y_test=y_test,
         )
         model.fit(X_train, y_train)
-    except ModuleNotFoundError:
-        pass
 
-
+        
 def run_mlbase_lgbm_classification(context):
-    try:
-        import lightgbm as lgb
-
         model = lgb.LGBMClassifier()
         X_train, X_test, y_train, y_test = get_dataset()
         model = apply_mlrun(
@@ -72,8 +64,6 @@ def run_mlbase_lgbm_classification(context):
             y_test=y_test,
         )
         model.fit(X_train, y_train)
-    except ModuleNotFoundError:
-        pass
 
 
 def test_run_mlbase_sklearn_classification():

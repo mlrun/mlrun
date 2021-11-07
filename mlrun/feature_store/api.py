@@ -353,6 +353,11 @@ def ingest(
             t if isinstance(t, str) else t.name for t in targets_to_ingest
         ]
         featureset.purge_targets(target_names=purge_target_names, silent=True)
+
+        from mlrun.model import DataTargetBase
+        run_uuid = DataTargetBase.generate_target_run_uuid()
+        for t in targets_to_ingest:
+            t.run_uuid = run_uuid
     else:
         targets_to_ingest = featureset.update_targets_run_uuid(
             targets=targets_to_ingest,
@@ -402,10 +407,8 @@ def ingest(
     return_df = return_df or infer_stats != InferOptions.Null
     featureset.save()
 
-    targets = targets or featureset.spec.targets or get_default_targets()
-
     df = init_featureset_graph(
-        source, featureset, namespace, targets=targets, return_df=return_df,
+        source, featureset, namespace, targets=targets_to_ingest, return_df=return_df,
     )
     if not InferOptions.get_common_options(
         infer_stats, InferOptions.Index

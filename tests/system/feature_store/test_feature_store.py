@@ -1769,7 +1769,8 @@ class TestFeatureStore(TestMLRunSystem):
             name="test_join_with_table_fset", entities=[fs.Entity("name")]
         )
         fs.ingest(fset, df, targets=[NoSqlTarget(path=table_url)])
-
+        run_uuid = fset.status.targets[0].run_uuid
+        table_url = f"{table_url}/{run_uuid}"
         df = pd.DataFrame(
             {
                 "key": ["mykey1", "mykey2", "mykey3"],

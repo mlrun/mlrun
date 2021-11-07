@@ -20,7 +20,6 @@ import pandas as pd
 
 import mlrun
 import mlrun.api.schemas
-import time
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri
@@ -405,12 +404,14 @@ class FeatureSet(ModelObj):
         purge_targets = self._reload_and_get_targets(target_names=target_names, silent=silent)
 
         if purge_targets:
+            run_uuid = DataTargetBase.generate_target_run_uuid()
             purge_target_names = list(purge_targets.keys())
             for target_name in purge_target_names:
                 target = purge_targets[target_name]
                 driver = get_target_driver(target_spec=target, resource=self)
                 try:
                     driver.purge()
+                    driver.run_uuid = run_uuid
                 except FileNotFoundError:
                     pass
                 del self.status.targets[target_name]
@@ -423,14 +424,15 @@ class FeatureSet(ModelObj):
         ingestion_targets = self._reload_and_get_targets(target_names=ingestion_target_names, silent=silent)
 
         result_targets = []
+        run_uuid = DataTargetBase.generate_target_run_uuid()
         for target in targets:
             if target.name in ingestion_targets.keys():
-                driver = get_target_driver(target_spec=target, resource=self)
+                driver = get_target_driver(target_spec=ingestion_targets[target.name], resource=self)
                 if overwrite:
-                    driver.generate_target_run_uuid()
+                    driver.run_uuid = run_uuid
             else:
                 driver = get_target_driver(target_spec=target.to_dict(), resource=self)
-                driver.generate_target_run_uuid()
+                driver.run_uuid = run_uuid
             result_targets.append(driver)
         return result_targets
 

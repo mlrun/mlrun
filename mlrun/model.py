@@ -1115,8 +1115,9 @@ class DataTargetBase(ModelObj):
             struct, fields=fields, deprecated_fields={"after_state": "after_step"}
         )
 
-    def generate_target_run_uuid(self):
-        self.run_uuid = f"{round(time.time() * 1000)}_{random.randint(0, 999)}"
+    @staticmethod
+    def generate_target_run_uuid():
+        return f"{round(time.time() * 1000)}_{random.randint(0, 999)}"
 
     def get_path(self):
         if self.path:

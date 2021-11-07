@@ -84,7 +84,7 @@ def test_run_mlbase_sklearn_classification():
     ) == "LogisticRegression.pkl"
 
 
-@pytest.mark.skipif(_is_installed("xgboost"), reason="missing packages")
+@pytest.mark.skipif(_is_installed("xgboost"), reason="xgboost package missing")
 def test_run_mlbase_xgboost_regression():
     xgb_run = new_function().run(handler=run_mlbase_xgboost_regression)
     assert (xgb_run.artifact("model").meta.to_dict()["metrics"]["accuracy"]) > 0

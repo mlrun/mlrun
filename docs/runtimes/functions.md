@@ -157,6 +157,7 @@ In MLRun code can be provided in several ways:
 
 the first option is great for small and single file functions or for using code derived from notebooks, we use mlrun 
 {py:func}`~mlrun.code_to_function` method to create functions from code files or notebooks.
+For more on how to create functions from notebook code, see [converting notebook code to a function](./mlrun_code_annotations.ipynb).
 
     # create a function from py or notebook (ipynb) file, specify the default function handler
     my_func = mlrun.code_to_function(name='prep_data', filename="./prep_data.py", 
@@ -375,6 +376,7 @@ common function methods:
 ```{toctree}
 :maxdepth: 2
 
+mlrun_code_annotations
 code-archive
 mlrun_jobs
 dask-overview

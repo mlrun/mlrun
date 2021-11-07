@@ -289,7 +289,7 @@ def resolve_mlrun_install_command(mlrun_version_specifier=None):
     if not mlrun_version_specifier:
         if config.httpdb.builder.mlrun_version_specifier:
             mlrun_version_specifier = config.httpdb.builder.mlrun_version_specifier
-        elif config.version == "unstable":
+        elif config.version in ["unstable", "0.0.0+unstable"]:
             mlrun_version_specifier = (
                 f"{config.package_path}[complete] @ git+"
                 f"https://github.com/mlrun/mlrun@development"

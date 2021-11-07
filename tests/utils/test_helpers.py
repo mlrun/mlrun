@@ -1,9 +1,9 @@
 import unittest.mock
-import mlrun.utils.version
 
 import pytest
 
 import mlrun.errors
+import mlrun.utils.version
 from mlrun.config import config
 from mlrun.datastore.store_resources import parse_store_uri
 from mlrun.utils import logger
@@ -232,9 +232,13 @@ def test_enrich_image():
     for case in cases:
         config.images_tag = case.get("images_tag", "0.5.2-unstable-adsf76s")
         config.images_registry = case.get("images_registry", "ghcr.io/")
-        config.images_to_enrich_registry = case.get("images_to_enrich_registry", default_images_to_enrich_registry)
+        config.images_to_enrich_registry = case.get(
+            "images_to_enrich_registry", default_images_to_enrich_registry
+        )
         if case.get("version") is not None:
-            mlrun.utils.version.Version().get = unittest.mock.Mock(return_value={"version": case["version"]})
+            mlrun.utils.version.Version().get = unittest.mock.Mock(
+                return_value={"version": case["version"]}
+            )
         config.images_tag = case.get("images_tag", "0.5.2-unstable-adsf76s")
         image = case["image"]
         expected_output = case["expected_output"]

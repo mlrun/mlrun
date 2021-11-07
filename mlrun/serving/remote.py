@@ -1,5 +1,6 @@
 import asyncio
 import json
+from concurrent.futures import CancelledError
 
 import aiohttp
 import requests
@@ -18,12 +19,23 @@ from .utils import (
     event_path_key,
 )
 
-http_adapter = HTTPAdapter(
-    max_retries=Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
-)
+default_retries = 5
+default_backoff_factor = 1
 
 
-class RemoteStep(StepToDict, storey.SendToHttp):
+def get_http_adapter(retries, backoff_factor):
+    if retries:
+        retry = Retry(
+            total=retries or default_retries,
+            backoff_factor=backoff_factor or default_backoff_factor,
+            status_forcelist=[500, 502, 503, 504],
+        )
+    else:
+        retry = Retry(0, read=False)
+    return HTTPAdapter(max_retries=retry)
+
+
+class RemoteStep(storey.SendToHttp):
     """class for calling remote endpoints
     """
 
@@ -38,6 +50,9 @@ class RemoteStep(StepToDict, storey.SendToHttp):
         return_json: bool = True,
         input_path: str = None,
         result_path: str = None,
+        retries=None,
+        backoff_factor=None,
+        timeout=None,
         **kwargs,
     ):
         """class for calling remote endpoints
@@ -68,7 +83,18 @@ class RemoteStep(StepToDict, storey.SendToHttp):
                             this require that the event body will behave like a dict, example:
                             event: {"x": 5} , result_path="resp" means the returned response will be written
                             to event["y"] resulting in {"x": 5, "resp": <result>}
+        :param retries:     number of retries (in exponential backoff)
+        :param backoff_factor:
+        :param timeout:     (optional) How long to wait for the server to send data before giving up, as a float
         """
+        # init retry args for storey
+        if retries:
+            kwargs["retries"] = retries
+        if backoff_factor:
+            kwargs["backoff_factor"] = backoff_factor
+        super().__init__(
+            None, None, input_path=input_path, result_path=result_path, **kwargs
+        )
         self.url = url
         self.url_expression = url_expression
         self.body_expression = body_expression
@@ -76,16 +102,16 @@ class RemoteStep(StepToDict, storey.SendToHttp):
         self.method = method
         self.return_json = return_json
         self.subpath = subpath
-        super().__init__(
-            None, None, input_path=input_path, result_path=result_path, **kwargs
-        )
+
+        self._retries = retries
+        self._backoff_factor = backoff_factor
+        self._timeout = timeout
 
         self._append_event_path = False
         self._endpoint = ""
         self._session = None
         self._url_function_handler = None
         self._body_function_handler = None
-        self._full_event = False
 
     def post_init(self, mode="sync"):
         self._endpoint = self.url
@@ -110,22 +136,25 @@ class RemoteStep(StepToDict, storey.SendToHttp):
         # async implementation (with storey)
         body = self._get_event_or_body(event)
         method, url, headers, body = self._generate_request(event, body)
+        kwargs = {}
+        if self._timeout:
+            kwargs["timeout"] = aiohttp.ClientTimeout(total=self._timeout)
         return await self._client_session.request(
-            method, url, headers=headers, data=body, ssl=False
+            method, url, headers=headers, data=body, ssl=False, **kwargs
         )
 
     async def _handle_completed(self, event, response):
         response_body = await response.read()
         body = self._get_data(response_body, response.headers)
 
-        if body is not None:
-            new_event = self._user_fn_output_to_event(event, body)
-            await self._do_downstream(new_event)
+        new_event = self._user_fn_output_to_event(event, body)
+        await self._do_downstream(new_event)
 
     def do_event(self, event):
         # sync implementation (without storey)
         if not self._session:
             self._session = requests.Session()
+            http_adapter = get_http_adapter(self._retries, self._backoff_factor)
             self._session.mount("http://", http_adapter)
             self._session.mount("https://", http_adapter)
 
@@ -133,7 +162,12 @@ class RemoteStep(StepToDict, storey.SendToHttp):
         method, url, headers, body = self._generate_request(event, body)
         try:
             resp = self._session.request(
-                method, url, verify=False, headers=headers, data=body
+                method,
+                url,
+                verify=False,
+                headers=headers,
+                data=body,
+                timeout=self._timeout,
             )
         except OSError as err:
             raise OSError(f"error: cannot invoke url: {url}, {err}")

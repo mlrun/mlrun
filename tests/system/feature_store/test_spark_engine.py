@@ -60,7 +60,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             sj.deploy(with_mlrun=False)
             get_run_db().delete_function(name=sj.metadata.name)
 
-    def test_featureset_column_types(self):
+    def test_basic_remote_spark_ingest(self):
         key = "patient_id"
         measurements = fs.FeatureSet(
             "measurements",
@@ -69,7 +69,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             engine="spark",
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
-        resp = fs.ingest(
+        fs.ingest(
             measurements,
             source,
             return_df=True,

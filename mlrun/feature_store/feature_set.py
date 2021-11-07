@@ -236,6 +236,20 @@ class FeatureSet(ModelObj):
         timestamp_key: str = None,
         engine: str = None,
     ):
+        """Feature set object, defines a set of features and their data pipeline
+
+        example::
+
+            import mlrun.feature_store as fstore
+            ticks = fstore.FeatureSet("ticks", entities=["stock"], timestamp_key="timestamp")
+            fstore.ingest(ticks, df)
+
+        :param name:          name of the feature set
+        :param description:   text description
+        :param entities:      list of entity (index key) names or :py:class:`~mlrun.features.FeatureSet.Entity`
+        :param timestamp_key: timestamp column name
+        :param engine:        name of the processing engine (storey, pandas, or spark), defaults to storey
+        """
         self._spec: FeatureSetSpec = None
         self._metadata = None
         self._status = None
@@ -279,13 +293,17 @@ class FeatureSet(ModelObj):
     @property
     def uri(self):
         """fully qualified feature set uri"""
-        uri = (
+        return get_store_uri(StorePrefix.FeatureSet, self.fullname)
+
+    @property
+    def fullname(self):
+        """full name in the form project/name[:tag]"""
+        fullname = (
             f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
         )
-        uri = get_store_uri(StorePrefix.FeatureSet, uri)
         if self._metadata.tag:
-            uri += ":" + self._metadata.tag
-        return uri
+            fullname += ":" + self._metadata.tag
+        return fullname
 
     def _override_run_db(
         self, session,

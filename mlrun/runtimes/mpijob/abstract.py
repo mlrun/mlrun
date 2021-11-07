@@ -52,6 +52,8 @@ class MPIResourceSpec(KubeResourceSpec):
         node_selector=None,
         affinity=None,
         priority_class_name=None,
+        disable_auto_mount=False,
+        pythonpath=None,
     ):
         super().__init__(
             command=command,
@@ -75,6 +77,8 @@ class MPIResourceSpec(KubeResourceSpec):
             node_selector=node_selector,
             affinity=affinity,
             priority_class_name=priority_class_name,
+            disable_auto_mount=disable_auto_mount,
+            pythonpath=pythonpath,
         )
         self.mpi_args = mpi_args or [
             "-x",

@@ -18,6 +18,9 @@ from mlrun.api.schemas import (
     ModelEndpointStatus,
 )
 from mlrun.errors import MLRunNotFoundError
+from mlrun.model import BaseMetadata
+from mlrun.runtimes import BaseRuntime
+from mlrun.utils.model_monitoring import EndpointType
 from tests.system.base import TestMLRunSystem
 
 
@@ -25,7 +28,7 @@ from tests.system.base import TestMLRunSystem
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestModelMonitoringAPI(TestMLRunSystem):
-    project_name = "model-monitor-sys-test"
+    project_name = "model-monitor-sys-test4"
 
     def test_clear_endpoint(self):
         endpoint = self._mock_random_endpoint()
@@ -274,6 +277,13 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         # Enable model monitoring
         serving_fn.deploy()
 
+        # checking that stream processing and batch monitoring were successfully deployed
+        mlrun.get_run_db().get_schedule(self.project_name, "model-monitoring-batch")
+        metadta = BaseMetadata(
+            name="model-monitoring-stream", project=self.project_name, tag=""
+        )
+        mlrun.get_run_db().get_builder_status(BaseRuntime(metadata=metadta))
+
         iris_data = iris["data"].tolist()
 
         t_end = monotonic() + simulation_time
@@ -283,6 +293,26 @@ class TestModelMonitoringAPI(TestMLRunSystem):
                 "v2/models/VotingEnsemble/infer", json.dumps({"inputs": [data_point]})
             )
             sleep(uniform(0.2, 1.7))
+
+        # checking top level methods
+        top_level_endpoints = mlrun.get_run_db().list_model_endpoints(
+            self.project_name, top_level=True
+        )
+
+        assert len(top_level_endpoints.endpoints) == 1
+        assert (
+            top_level_endpoints.endpoints[0].status.endpoint_type == EndpointType.ROUTER
+        )
+
+        children_list = top_level_endpoints.endpoints[0].status.children_uids
+        assert len(children_list) == len(model_names)
+
+        endpoints_children_list = mlrun.get_run_db().list_model_endpoints(
+            self.project_name, uids=children_list
+        )
+        assert len(endpoints_children_list.endpoints) == len(model_names)
+        for child in endpoints_children_list.endpoints:
+            assert child.status.endpoint_type == EndpointType.LEAF_EP
 
     @staticmethod
     def _get_auth_info() -> mlrun.api.schemas.AuthInfo:

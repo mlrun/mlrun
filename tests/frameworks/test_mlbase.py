@@ -39,31 +39,25 @@ def run_mlbase_sklearn_classification(context):
 
 
 def run_mlbase_xgboost_regression(context):
-        model = xgb.XGBRegressor()
-        X_train, X_test, y_train, y_test = get_dataset(classification=False)
-        model = apply_mlrun(
-            model,
-            context,
-            X_train=X_train,
-            y_train=y_train,
-            X_test=X_test,
-            y_test=y_test,
-        )
-        model.fit(X_train, y_train)
+    import xgboost as xgb
 
-        
+    model = xgb.XGBRegressor()
+    X_train, X_test, y_train, y_test = get_dataset(classification=False)
+    model = apply_mlrun(
+        model, context, X_train=X_train, y_train=y_train, X_test=X_test, y_test=y_test,
+    )
+    model.fit(X_train, y_train)
+
+
 def run_mlbase_lgbm_classification(context):
-        model = lgb.LGBMClassifier()
-        X_train, X_test, y_train, y_test = get_dataset()
-        model = apply_mlrun(
-            model,
-            context,
-            X_train=X_train,
-            y_train=y_train,
-            X_test=X_test,
-            y_test=y_test,
-        )
-        model.fit(X_train, y_train)
+    import lightgbm as lgb
+
+    model = lgb.LGBMClassifier()
+    X_train, X_test, y_train, y_test = get_dataset()
+    model = apply_mlrun(
+        model, context, X_train=X_train, y_train=y_train, X_test=X_test, y_test=y_test,
+    )
+    model.fit(X_train, y_train)
 
 
 def test_run_mlbase_sklearn_classification():

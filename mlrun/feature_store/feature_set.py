@@ -524,7 +524,6 @@ class FeatureSet(ModelObj):
         ).to_dict()
 
         def upsert_feature(name):
-            print("bbbbbbbbb upserting" + str(name))
             if name in self.spec.features:
                 self.spec.features[name].aggregate = True
             else:

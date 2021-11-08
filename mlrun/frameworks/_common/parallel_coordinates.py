@@ -2,13 +2,14 @@ import numpy as np
 import pandas as pd
 import plotly
 import plotly.graph_objects as go
-import plotly.offline as py
+from IPython.core.display import HTML, display
 from pandas.api.types import is_numeric_dtype, is_string_dtype
 
 
 def gen_bool_list(output_df: pd.DataFrame, col: str):
     """
-    Plotly requires a bool list for every column in order to determine what should be ploted (True) and what shouldn't (False).
+    Plotly requires a bool list for every column in order to determine what should be
+    ploted (True) and what shouldn't (False).
 
     :param output_df: Result of the hyperparameter run as a Dataframe
     :param col: name of the col for which a bool list will be generated
@@ -83,6 +84,9 @@ def gen_dimensions(df: pd.DataFrame, col: str):
     if is_numeric_dtype(df[col]):
         dimension["range"] = [min(df[col]), max(df[col])]
         dimension["values"] = df[col]
+
+        if col == "iter":
+            dimension["tickvals"] = (np.arange(1, max(df[col] + 1))).tolist()
 
     elif is_string_dtype(df[col]):
         dimension["range"] = [0, len(df[col])]
@@ -181,7 +185,10 @@ def split_dataframe(source_df: pd.DataFrame, hide_identical: bool, exclude: list
 
 
 def plot_parallel_coordinates(
-    source_df: pd.DataFrame, hide_identical: bool = True, exclude: list = []
+    source_df: pd.DataFrame,
+    hide_identical: bool = True,
+    exclude: list = [],
+    display_plot=True,
 ):
     """
     Plots the output of the hyperparameter run in a Parallel Coordinate format using the Plotly library.
@@ -189,6 +196,7 @@ def plot_parallel_coordinates(
     :param source_df: Result of the hyperparameter run as a Dataframe
     :param hide_identical: Ignores parameters that remain the same throughout iterations
     :param exclude: User-provided list of parameters to be excluded from the graph
+    :param display_plot:
 
     :returns plot:
     """
@@ -205,6 +213,9 @@ def plot_parallel_coordinates(
     fig = go.Figure(data=gen_plot_data(source_df, param_df, output_df), layout=layout)
 
     # Creating an html rendering of the plot
-    plotly.offline.plot(fig)
+    plot_as_html = plotly.offline.plot(fig)
 
-    return py.iplot(fig)
+    if display_plot:
+        display(HTML(plot_as_html))
+
+    return plot_as_html

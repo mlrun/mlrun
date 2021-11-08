@@ -378,6 +378,7 @@ def ingest(
             infer_options=infer_options,
             mlrun_context=mlrun_context,
             namespace=namespace,
+            overwrite=overwrite,
         )
 
     if isinstance(source, str):
@@ -406,6 +407,18 @@ def ingest(
         infer_stats += InferOptions.Index
 
     infer_from_static_df(df, featureset, options=infer_stats)
+
+    if isinstance(source, DataSource):
+        for target in featureset.status.targets:
+            if (
+                target.last_written == datetime.min
+                and source.schedule
+                and source.start_time
+            ):
+                # datetime.min is a special case that indicated that nothing was written in storey. we need the fix so
+                # in the next scheduled run, we will have the same start time
+                target.last_written = source.start_time
+
     _post_ingestion(mlrun_context, featureset, spark_context)
 
     return df
@@ -593,6 +606,7 @@ def _ingest_with_spark(
     infer_options: InferOptions = InferOptions.default(),
     mlrun_context=None,
     namespace=None,
+    overwrite=None,
 ):
     try:
         if spark is None or spark is True:
@@ -633,7 +647,9 @@ def _ingest_with_spark(
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Paths for spark ingest must contain schema, i.e v3io, s3, az"
                 )
-            spark_options = target.get_spark_options(key_columns, timestamp_key)
+            spark_options = target.get_spark_options(
+                key_columns, timestamp_key, overwrite
+            )
             logger.info(
                 f"writing to target {target.name}, spark options {spark_options}"
             )
@@ -662,10 +678,16 @@ def _ingest_with_spark(
                     if partition not in df.columns and partition in time_unit_to_op:
                         op = time_unit_to_op[partition]
                         df = df.withColumn(partition, op(timestamp_col))
-
-            df.write.mode("overwrite").save(**spark_options)
+            if overwrite:
+                df.write.mode("overwrite").save(**spark_options)
+            else:
+                df.write.mode("append").save(**spark_options)
             target.set_resource(featureset)
             target.update_resource_status("ready")
+        max_time = df.agg({timestamp_key: "max"}).collect()[0][0]
+        for target in featureset.status.targets:
+            featureset.status.update_last_written_for_target(target.path, max_time)
+
         _post_ingestion(mlrun_context, featureset, spark)
     finally:
         if spark:

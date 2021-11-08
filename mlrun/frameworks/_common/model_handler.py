@@ -135,6 +135,16 @@ class ModelHandler(ABC):
         """
         return self._model_file
 
+    def set_model_name(self, model_name: str):
+        """
+        Set the handled model name. The 'save' and 'log' methods will use the new name for the files and logs. Keep in
+        mind that changing the model's name before calling 'load' will fail as now the handler won't look for the
+        correct files.
+
+        :param model_name: The new model name to use.
+        """
+        self._model_name = model_name
+
     def set_inputs(self, from_sample=None, *args, **kwargs):
         """
         Set the inputs property of this model to be logged along with it. The method 'to_onnx' can use this property as

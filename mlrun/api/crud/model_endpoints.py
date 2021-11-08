@@ -37,6 +37,7 @@ from mlrun.runtimes import KubejobRuntime
 from mlrun.runtimes.function import get_nuclio_deploy_status
 from mlrun.utils.helpers import logger
 from mlrun.utils.model_monitoring import (
+    EndpointType,
     parse_model_endpoint_project_prefix,
     parse_model_endpoint_store_prefix,
 )
@@ -179,6 +180,8 @@ class ModelEndpoints:
         metrics: Optional[List[str]] = None,
         start: str = "now-1h",
         end: str = "now",
+        top_level: Optional[bool] = False,
+        uids: Optional[List[str]] = None,
     ) -> ModelEndpointList:
         """
         Returns a list of ModelEndpointState objects. Each object represents the current state of a model endpoint.
@@ -186,6 +189,8 @@ class ModelEndpoints:
         1) model
         2) function
         3) labels
+        4) top level
+        5) uids
         By default, when no filters are applied, all available endpoints for the given project will be listed.
 
         In addition, this functions provides a facade for listing endpoint related metrics. This facade is time-based
@@ -201,6 +206,8 @@ class ModelEndpoints:
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
         :param start: The start time of the metrics
         :param end: The end time of the metrics
+        :param top_level: if True will return only routers and endpoint that are NOT children of any router
+        :param uids: will return ModelEndpointList of endpoints with uid in uids
         """
 
         logger.info(
@@ -212,34 +219,38 @@ class ModelEndpoints:
             metrics=metrics,
             start=start,
             end=end,
-        )
-
-        client = get_v3io_client(endpoint=config.v3io_api)
-
-        path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS
-        )
-        _, container, path = parse_model_endpoint_store_prefix(path)
-
-        cursor = client.kv.new_cursor(
-            container=container,
-            table_path=path,
-            access_key=auth_info.data_session,
-            filter_expression=self.build_kv_cursor_filter_expression(
-                project, function, model, labels
-            ),
-            attribute_names=["endpoint_id"],
-            raise_for_status=RaiseForStatus.never,
+            top_level=top_level,
+            uids=uids,
         )
 
         endpoint_list = ModelEndpointList(endpoints=[])
-        try:
-            items = cursor.all()
-        except Exception:
-            return endpoint_list
 
-        for item in items:
-            endpoint_id = item["endpoint_id"]
+        if uids is None:
+            client = get_v3io_client(endpoint=config.v3io_api)
+
+            path = config.model_endpoint_monitoring.store_prefixes.default.format(
+                project=project,
+                kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
+            )
+            _, container, path = parse_model_endpoint_store_prefix(path)
+            cursor = client.kv.new_cursor(
+                container=container,
+                table_path=path,
+                access_key=auth_info.data_session,
+                filter_expression=self.build_kv_cursor_filter_expression(
+                    project, function, model, labels, top_level,
+                ),
+                attribute_names=["endpoint_id"],
+                raise_for_status=RaiseForStatus.never,
+            )
+            try:
+                items = cursor.all()
+            except Exception:
+                return endpoint_list
+
+            uids = [item["endpoint_id"] for item in items]
+
+        for endpoint_id in uids:
             endpoint = self.get_endpoint(
                 auth_info=auth_info,
                 project=project,
@@ -320,6 +331,12 @@ class ModelEndpoints:
         monitor_configuration = endpoint.get("monitor_configuration")
         monitor_configuration = self._json_loads_if_not_none(monitor_configuration)
 
+        endpoint_type = endpoint.get("endpoint_type")
+        endpoint_type = self._json_loads_if_not_none(endpoint_type)
+
+        children_uids = endpoint.get("children_uids")
+        children_uids = self._json_loads_if_not_none(children_uids)
+
         endpoint = ModelEndpoint(
             metadata=ModelEndpointMetadata(
                 project=endpoint.get("project"),
@@ -348,6 +365,8 @@ class ModelEndpoints:
                 accuracy=endpoint.get("accuracy") or None,
                 error_count=endpoint.get("error_count") or None,
                 drift_status=endpoint.get("drift_status") or None,
+                endpoint_type=endpoint_type or None,
+                children_uids=children_uids or None,
             ),
         )
 
@@ -415,6 +434,8 @@ class ModelEndpoints:
         current_stats = endpoint.status.current_stats or {}
         children = endpoint.status.children or []
         monitor_configuration = endpoint.spec.monitor_configuration or {}
+        endpoint_type = endpoint.status.endpoint_type or None
+        children_uids = endpoint.status.children_uids or []
 
         client = get_v3io_client(endpoint=config.v3io_api)
         function = client.kv.update if update else client.kv.put
@@ -447,6 +468,8 @@ class ModelEndpoints:
                 "children": json.dumps(children),
                 "label_names": json.dumps(label_names),
                 "monitor_configuration": json.dumps(monitor_configuration),
+                "endpoint_type": json.dumps(endpoint_type),
+                "children_uids": json.dumps(children_uids),
                 **searchable_labels,
             },
         )
@@ -688,6 +711,7 @@ class ModelEndpoints:
         function: Optional[str] = None,
         model: Optional[str] = None,
         labels: Optional[List[str]] = None,
+        top_level: Optional[bool] = False,
     ):
         if not project:
             raise MLRunInvalidArgumentError("project can't be empty")
@@ -709,6 +733,11 @@ class ModelEndpoints:
                     filter_expression.append(f"{lbl}=='{value}'")
                 else:
                     filter_expression.append(f"exists({label})")
+        if top_level:
+            filter_expression.append(
+                f"(endpoint_type=='{str(EndpointType.NODE_EP.value)}' "
+                f"OR  endpoint_type=='{str(EndpointType.ROUTER.value)}')"
+            )
 
         return " AND ".join(filter_expression)
 

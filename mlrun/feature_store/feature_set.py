@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime
-import uuid
 import warnings
 from typing import Dict, List, Optional, Union
 
@@ -474,7 +473,9 @@ class FeatureSet(ModelObj):
                     f"Aggregation with name {name} already exists but for different column {current_aggr['column']}. "
                     f"Please provide name for the aggregation"
                 )
-            current_aggr["operations"] = current_aggr["operations"] + new_aggregation["operations"]
+            current_aggr["operations"] = (
+                current_aggr["operations"] + new_aggregation["operations"]
+            )
             return False
         self._aggregations[name] = new_aggregation
         return True
@@ -573,7 +574,8 @@ class FeatureSet(ModelObj):
 
             myset.add_aggregation(column="ask", operations=["sum", "max"], windows="1h", period="10m")
 
-        :param column:     name of column/field aggregate
+        :param column:     name of column/field aggregate. If several aggregations are added for the same column,
+                            either they must have the same windows/period or a "name" must be provided
         :param operations: aggregation operations, e.g. ['sum', 'std']
         :param windows:    time windows, can be a single window, e.g. '1h', '1d',
                             or a list of same unit windows e.g ['1h', '6h']
@@ -627,7 +629,7 @@ class FeatureSet(ModelObj):
         state_name=None,
     ):
         warnings.warn(
-            "This method is deprecated. Use add_feature_aggregation instead",
+            "This method is deprecated. Use add_feature_aggregation instead (name parameter is optional)",
             # TODO: In 0.9.0 do changes in examples & demos In 0.11 remove
             PendingDeprecationWarning,
         )

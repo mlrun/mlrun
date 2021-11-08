@@ -473,9 +473,10 @@ class FeatureSet(ModelObj):
                     f"Aggregation with name {name} already exists but for different column {current_aggr['column']}. "
                     f"Please provide name for the aggregation"
                 )
-            current_aggr["operations"] = (
-                current_aggr["operations"] + new_aggregation["operations"]
+            current_aggr["operations"] = list(
+                set(current_aggr["operations"] + new_aggregation["operations"])
             )
+
             return False
         self._aggregations[name] = new_aggregation
         return True
@@ -617,7 +618,7 @@ class FeatureSet(ModelObj):
 
     def add_aggregation(
         self,
-        name: Optional[str],
+        name,
         column,
         operations,
         windows,

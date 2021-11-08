@@ -266,7 +266,7 @@ class FeatureSet(ModelObj):
         self.metadata = VersionedObjMetadata(name=name)
         self.status = None
         self._last_state = ""
-        self._aggregation_names = set()
+        self._aggregations = {}
 
     @property
     def spec(self) -> FeatureSetSpec:
@@ -455,11 +455,29 @@ class FeatureSet(ModelObj):
         """feature set transformation graph/DAG"""
         return self.spec.graph
 
-    def _verify_aggr_unique(self, name):
-        if name not in self._aggregation_names:
-            self._aggregation_names.add(name)
-            return True
-        return False
+    def _add_agregation_to_existing(self, new_aggregation):
+        name = new_aggregation["name"]
+        if name in self._aggregations:
+            current_aggr = self._aggregations[name]
+            if current_aggr["windows"] != new_aggregation["windows"]:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Aggregation with name {name} already exists but with window {current_aggr['windows']}. "
+                    f"Please provide name for the aggregation"
+                )
+            if current_aggr["period"] != new_aggregation["period"]:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Aggregation with name {name} already exists but with period {current_aggr['period']}. "
+                    f"Please provide name for the aggregation"
+                )
+            if current_aggr["column"] != new_aggregation["column"]:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Aggregation with name {name} already exists but for different column {current_aggr['column']}. "
+                    f"Please provide name for the aggregation"
+                )
+            current_aggr["operations"] = current_aggr["operations"] + new_aggregation["operations"]
+            return False
+        self._aggregations[name] = new_aggregation
+        return True
 
     def _add_aggregation(
         self,
@@ -473,17 +491,8 @@ class FeatureSet(ModelObj):
         before=None,
         state_name=None,
     ):
-        if not name:
-            name = column
-            aggregation_name = name + "_" + str(uuid.uuid4())[:8]
-            self._aggregation_names.add(aggregation_name)
-        else:
-            if self._verify_aggr_unique(name):
-                aggregation_name = name
-            else:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"{name} already exists in this feature set"
-                )
+        name = name or column
+
         if state_name:
             warnings.warn(
                 "The state_name parameter is deprecated. Use step_name instead",
@@ -510,10 +519,11 @@ class FeatureSet(ModelObj):
             operations = [operations]
 
         aggregation = FeatureAggregation(
-            aggregation_name, column, operations, windows, period
+            name, column, operations, windows, period
         ).to_dict()
 
         def upsert_feature(name):
+            print("bbbbbbbbb upserting" + str(name))
             if name in self.spec.features:
                 self.spec.features[name].aggregate = True
             else:
@@ -523,9 +533,10 @@ class FeatureSet(ModelObj):
         graph = self.spec.graph
         if step_name in graph.steps:
             step = graph.steps[step_name]
-            aggregations = step.class_args.get("aggregates", [])
-            aggregations.append(aggregation)
-            step.class_args["aggregates"] = aggregations
+            if self._add_agregation_to_existing(aggregation):
+                aggregations = step.class_args.get("aggregates", [])
+                aggregations.append(aggregation)
+                step.class_args["aggregates"] = aggregations
         else:
             class_args = {}
             step = graph.add_step(

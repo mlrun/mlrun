@@ -105,23 +105,37 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         quotes_set.add_feature_aggregation(
-            "ask", ["sum", "max"], "1h", "10m", name="asks1"
+            "ask", ["sum", "max"], "1h", "10m", name="asks1")
+
+        quotes_set.add_feature_aggregation(
+            "ask", ["sum", "max"], "5h", "10m", name="asks2"
         )
+        quotes_set.add_feature_aggregation(
+            column="bid", operations=["min"], windows="1h", period="10m"
+        )
+
         try:
-            # same name
+            # no name parameter, different window
             quotes_set.add_feature_aggregation(
-                "ask", ["sum", "max"], "5h", "10m", name="asks1"
+                "bid", ["max"], "5h", "10m"
+            )
+            assert False
+        except mlrun.errors.MLRunInvalidArgumentError:
+            pass
+
+        try:
+            # no name parameter, different period
+            quotes_set.add_feature_aggregation(
+                "bid", ["max"], "1h", "5m"
             )
             assert False
         except mlrun.errors.MLRunInvalidArgumentError:
             pass
 
         quotes_set.add_feature_aggregation(
-            "ask", ["sum", "max"], "5h", "10m", name="asks2"
+            column="bid", operations=["max"], windows="1h", period="10m"
         )
-        quotes_set.add_feature_aggregation(
-            column="bid", operations=["min", "max"], windows="1h", period="10m"
-        )
+
         df = fs.preview(
             quotes_set,
             quotes,
@@ -780,8 +794,8 @@ class TestFeatureStore(TestMLRunSystem):
             operations=["sum", "max"],
             windows="1h",
             period="10m",
-            name="bids",
         )
+
         fs.preview(
             data_set,
             data,  # source
@@ -793,17 +807,18 @@ class TestFeatureStore(TestMLRunSystem):
         data_set.plot(
             str(self.results_path / "pipe.png"), rankdir="LR", with_targets=True
         )
+
         fs.ingest(data_set, data, return_df=True)
 
         features = [
-            f"{name}.bids_sum_1h",
+            f"{name}.bid_sum_1h"
         ]
 
         vector = fs.FeatureVector("my-vec", features)
         svc = fs.get_online_feature_service(vector)
 
         resp = svc.get([{"first_name": "yosi", "last_name": "levi"}])
-        assert resp[0]["bids_sum_1h"] == 37.0
+        assert resp[0]["bid_sum_1h"] == 37.0
 
         svc.close()
 

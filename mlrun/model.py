@@ -1018,10 +1018,7 @@ class PathObject:
     _run_uuid_place_holder = "{run_uuid}"
 
     def __init__(
-        self,
-        base_path=None,
-        run_uuid=None,
-        is_single_file=False,
+        self, base_path=None, run_uuid=None, is_single_file=False,
     ):
         self.base_path = base_path
         self.run_uuid = run_uuid
@@ -1030,15 +1027,15 @@ class PathObject:
             if self._run_uuid_place_holder not in self.full_path_template:
                 if self.full_path_template[-1] != "/":
                     self.full_path_template = self.full_path_template + "/"
-                self.full_path_template = self.full_path_template + self._run_uuid_place_holder
+                self.full_path_template = (
+                    self.full_path_template + self._run_uuid_place_holder
+                )
 
     def templated_path(self):
         return self.full_path_template
 
     def absolute_path(self):
-        return self.full_path_template.format(
-            run_uuid=self.run_uuid
-        )
+        return self.full_path_template.format(run_uuid=self.run_uuid)
 
 
 class DataSource(ModelObj):

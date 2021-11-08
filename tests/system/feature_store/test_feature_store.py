@@ -409,7 +409,9 @@ class TestFeatureStore(TestMLRunSystem):
         path_with_runid = path + "/" + fset.status.targets[0].run_uuid
 
         list_files = os.listdir(path_with_runid)
-        assert len(list_files) == 1 and not os.path.isdir(path_with_runid + "/" + list_files[0])
+        assert len(list_files) == 1 and not os.path.isdir(
+            path_with_runid + "/" + list_files[0]
+        )
         os.remove(path_with_runid + "/" + list_files[0])
 
     def test_ingest_with_timestamp(self):
@@ -558,7 +560,12 @@ class TestFeatureStore(TestMLRunSystem):
         file_system = fsspec.filesystem("v3io")
         kind = TargetTypes.parquet
         path = f"{get_default_prefix_for_target(kind)}/sets/{name}-latest"
-        path = path.format(name=name, kind=kind, project=self.project_name, run_uuid=measurements.status.targets[0].run_uuid)
+        path = path.format(
+            name=name,
+            kind=kind,
+            project=self.project_name,
+            run_uuid=measurements.status.targets[0].run_uuid,
+        )
         dataset = pq.ParquetDataset(path, filesystem=file_system,)
         partitions = [key for key, _ in dataset.pieces[0].partition_keys]
 
@@ -1872,6 +1879,7 @@ class TestFeatureStore(TestMLRunSystem):
         fset.save(tag=saved_tag)
 
         from mlrun.errors import MLRunBadRequestError
+
         with pytest.raises(MLRunBadRequestError):
             fset.publish(saved_tag)
 
@@ -1902,7 +1910,9 @@ class TestFeatureStore(TestMLRunSystem):
         fset = fs.FeatureSet(name, entities=[fs.Entity("ticker")], engine="pandas")
 
         def validate_target_path(target):
-            assert target.get_path().absolute_path() == target_path_template.format(name=target.name, run_uuid=target.run_uuid)
+            assert target.get_path().absolute_path() == target_path_template.format(
+                name=target.name, run_uuid=target.run_uuid
+            )
 
         def validate_targets(feature_set, expected_targets_names: set):
             assert feature_set.status.targets
@@ -1921,11 +1931,11 @@ class TestFeatureStore(TestMLRunSystem):
 
         other_targets = [
             ParquetTarget(name="o1", path=f"{base_target_path}o1/"),
-            CSVTarget(name="o2", path=f"{base_target_path}o2/")
+            CSVTarget(name="o2", path=f"{base_target_path}o2/"),
         ]
         fset_targets = [
             ParquetTarget(name="t1", path=f"{base_target_path}t1/"),
-            ParquetTarget(name="t2", path=f"{base_target_path}t2/")
+            ParquetTarget(name="t2", path=f"{base_target_path}t2/"),
         ]
 
         # ingest to targets
@@ -1944,14 +1954,22 @@ class TestFeatureStore(TestMLRunSystem):
         # validate same run uuid when overwrite=False
         run_uuid_before = [t.run_uuid for t in fset.status.targets if t.name == "t1"]
         fs.ingest(fset, quotes, overwrite=False)
-        assert run_uuid_before == [t.run_uuid for t in fset.status.targets if t.name == "t1"]
-        assert run_uuid_before == [t.run_uuid for t in fset.status.targets if t.name == "t2"]
+        assert run_uuid_before == [
+            t.run_uuid for t in fset.status.targets if t.name == "t1"
+        ]
+        assert run_uuid_before == [
+            t.run_uuid for t in fset.status.targets if t.name == "t2"
+        ]
         validate_targets(fset, {"o1", "o2", "t1", "t2"})
 
         # validate different run uuid
         fs.ingest(fset, quotes, overwrite=True)
-        assert run_uuid_before != [t.run_uuid for t in fset.status.targets if t.name == "t1"]
-        assert run_uuid_before != [t.run_uuid for t in fset.status.targets if t.name == "t2"]
+        assert run_uuid_before != [
+            t.run_uuid for t in fset.status.targets if t.name == "t1"
+        ]
+        assert run_uuid_before != [
+            t.run_uuid for t in fset.status.targets if t.name == "t2"
+        ]
         validate_targets(fset, {"o1", "o2", "t1", "t2"})
 
         # after publish check that status contains the targets on published and removed on un-versioned
@@ -1966,15 +1984,15 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_published_feature_set_apis(self):
         from mlrun.errors import MLRunBadRequestError
+
         expected_error = AttributeError
         name = "readonly"
         timestamp_key = "time"
         tag = f"ro-tag-{time.time()}"
-        fset = fs.FeatureSet(name, entities=[fs.Entity("ticker")], timestamp_key=timestamp_key)
-        fs.ingest(fset,
-                  quotes,
-                  targets=[ParquetTarget()]
-                  )
+        fset = fs.FeatureSet(
+            name, entities=[fs.Entity("ticker")], timestamp_key=timestamp_key
+        )
+        fs.ingest(fset, quotes, targets=[ParquetTarget()])
         published_fset = fset.publish(tag)
         assert published_fset.metadata.name == name
         assert published_fset.metadata.tag == tag
@@ -1998,6 +2016,7 @@ class TestFeatureStore(TestMLRunSystem):
         # Test disabled methods for published feature set:
         with pytest.raises(expected_error):
             from mlrun.model import DataTarget
+
             published_fset.status.update_target(DataTarget(name="temp"))
         # with pytest.raises(expected_error):
         #     published_fset.set_targets()    # TODO - this doesn't fail because of use in update() on a list object

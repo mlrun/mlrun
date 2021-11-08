@@ -12,14 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
-from datetime import datetime, timezone
 import warnings
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Union
 
 import pandas as pd
 
 import mlrun
 import mlrun.api.schemas
+from mlrun.errors import MLRunBadRequestError, MLRunNotFoundError
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri
@@ -44,11 +45,6 @@ from ..runtimes.function_reference import FunctionReference
 from ..serving.states import BaseStep, RootFlowStep, previous_step
 from ..utils import StorePrefix
 from .common import verify_feature_set_permissions
-
-from mlrun.errors import (
-    MLRunBadRequestError,
-    MLRunNotFoundError,
-)
 
 aggregates_step = "Aggregates"
 
@@ -220,9 +216,7 @@ class FeatureSetStatus(ModelObj):
     def update_target(self, target: DataTarget):
         self._targets.update(target)
 
-    def update_last_written_for_target(
-        self, target_path: str, last_written: datetime
-    ):
+    def update_last_written_for_target(self, target_path: str, last_written: datetime):
         for target in self._targets:
             if target.path == target_path or target.path.rstrip("/") == target_path:
                 target.last_written = last_written
@@ -401,7 +395,9 @@ class FeatureSet(ModelObj):
             self, mlrun.api.schemas.AuthorizationAction.delete
         )
 
-        purge_targets = self._reload_and_get_targets(target_names=target_names, silent=silent)
+        purge_targets = self._reload_and_get_targets(
+            target_names=target_names, silent=silent
+        )
 
         if purge_targets:
             run_uuid = DataTargetBase.generate_target_run_uuid()
@@ -417,17 +413,24 @@ class FeatureSet(ModelObj):
                 del self.status.targets[target_name]
             self.save()
 
-    def update_targets_run_uuid(self, targets: List[DataTargetBase], silent: bool = False, overwrite: bool = None):
-        ingestion_target_names = [
-            t if isinstance(t, str) else t.name for t in targets
-        ]
-        ingestion_targets = self._reload_and_get_targets(target_names=ingestion_target_names, silent=silent)
+    def update_targets_run_uuid(
+        self,
+        targets: List[DataTargetBase],
+        silent: bool = False,
+        overwrite: bool = None,
+    ):
+        ingestion_target_names = [t if isinstance(t, str) else t.name for t in targets]
+        ingestion_targets = self._reload_and_get_targets(
+            target_names=ingestion_target_names, silent=silent
+        )
 
         result_targets = []
         run_uuid = DataTargetBase.generate_target_run_uuid()
         for target in targets:
             if target.name in ingestion_targets.keys():
-                driver = get_target_driver(target_spec=ingestion_targets[target.name], resource=self)
+                driver = get_target_driver(
+                    target_spec=ingestion_targets[target.name], resource=self
+                )
                 if overwrite:
                     driver.run_uuid = run_uuid
             else:
@@ -436,7 +439,9 @@ class FeatureSet(ModelObj):
             result_targets.append(driver)
         return result_targets
 
-    def _reload_and_get_targets(self, target_names: List[str] = None, silent: bool = False):
+    def _reload_and_get_targets(
+        self, target_names: List[str] = None, silent: bool = False
+    ):
         try:
             self.reload(update_spec=False)
         except mlrun.errors.MLRunNotFoundError:
@@ -691,10 +696,14 @@ class FeatureSet(ModelObj):
         """publish the feature set and lock it's metadata"""
 
         if self.get_publish_time:
-            raise MLRunBadRequestError(f"Feature set was already published (published on: {self.get_publish_time}).")
+            raise MLRunBadRequestError(
+                f"Feature set was already published (published on: {self.get_publish_time})."
+            )
 
         if self._get_feature_set_for_tag(tag):
-            raise MLRunBadRequestError(f"Cannot publish tag: '{tag}', tag already exists.")
+            raise MLRunBadRequestError(
+                f"Cannot publish tag: '{tag}', tag already exists."
+            )
 
         published_feature_set = copy.deepcopy(self)
 
@@ -707,6 +716,7 @@ class FeatureSet(ModelObj):
         return published_feature_set
         # in case of use of read only publish set
         # return PublishedFeatureSet(published_feature_set)
+
 
 # TODO - see if needed, if not - remove all below code
 # class ReadOnlyModelObj(ModelObj):

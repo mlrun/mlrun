@@ -355,14 +355,13 @@ def ingest(
         featureset.purge_targets(target_names=purge_target_names, silent=True)
 
         from mlrun.model import DataTargetBase
+
         run_uuid = DataTargetBase.generate_target_run_uuid()
         for t in targets_to_ingest:
             t.run_uuid = run_uuid
     else:
         targets_to_ingest = featureset.update_targets_run_uuid(
-            targets=targets_to_ingest,
-            silent=True,
-            overwrite=overwrite,
+            targets=targets_to_ingest, silent=True, overwrite=overwrite,
         )
         for target in targets_to_ingest:
             if not kind_to_driver[target.kind].support_append:

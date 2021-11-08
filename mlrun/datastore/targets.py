@@ -283,8 +283,20 @@ class BaseStoreTarget(DataTargetBase):
         max_events: typing.Optional[int] = None,
         flush_after_seconds: typing.Optional[int] = None,
     ):
-        super().__init__(self.kind, name, path, attributes, after_step, partitioned, key_bucketing_number, partition_cols,
-                         time_partitioning_granularity, max_events, flush_after_seconds, after_state)
+        super().__init__(
+            self.kind,
+            name,
+            path,
+            attributes,
+            after_step,
+            partitioned,
+            key_bucketing_number,
+            partition_cols,
+            time_partitioning_granularity,
+            max_events,
+            flush_after_seconds,
+            after_state,
+        )
         if after_state:
             warnings.warn(
                 "The after_state parameter is deprecated. Use after_step instead",
@@ -310,7 +322,9 @@ class BaseStoreTarget(DataTargetBase):
         self._secrets = {}
 
     def _get_store(self):
-        store, _ = mlrun.store_manager.get_or_create_store(self._target_path.absolute_path())
+        store, _ = mlrun.store_manager.get_or_create_store(
+            self._target_path.absolute_path()
+        )
         return store
 
     def _get_column_list(self, features, timestamp_key, key_columns, with_type=False):
@@ -452,7 +466,9 @@ class BaseStoreTarget(DataTargetBase):
     def _target_path(self):
         """return the actual/computed target path"""
         is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
-        return self.get_path() or PathObject(_get_target_path(self, self._resource), self.run_uuid, is_single_file)
+        return self.get_path() or PathObject(
+            _get_target_path(self, self._resource), self.run_uuid, is_single_file
+        )
 
     def update_resource_status(self, status="", producer=None, size=None):
         """update the data target status"""

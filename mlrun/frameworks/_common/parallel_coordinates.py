@@ -1,37 +1,21 @@
+import numpy as np
 import pandas as pd
 import plotly
 import plotly.graph_objects as go
+import plotly.offline as py
 from pandas.api.types import is_numeric_dtype, is_string_dtype
 
 
-def create_index_list(df, column):
-    values = list(df[column])
-    index_list = []
-    for val in values:
-        index_list.append(values.index(val))
-    return index_list
+def gen_bool_list(output_df: pd.DataFrame, col: str):
+    """
+    Plotly requires a bool list for every column in order to determine what should be ploted (True) and what shouldn't (False).
 
+    :param output_df: Result of the hyperparameter run as a Dataframe
+    :param col: name of the col for which a bool list will be generated
 
-def gen_dimensions(df, column):
-    dimension = {}
+    :returns bool_list:
+    """
 
-    if is_numeric_dtype(df[column]):
-        dimension["range"] = [min(df[column]), max(df[column])]
-        dimension["values"] = df[column]
-
-    elif is_string_dtype(df[column]):
-        dimension["range"] = [0, len(df[column])]
-        dimension["values"] = create_index_list(df, column)
-        dimension["tickvals"] = create_index_list(df, column)
-        dimension["ticktext"] = list(df[column])
-
-    # Axis name
-    dimension["label"] = column
-
-    return dimension
-
-
-def gen_bool_list(output_df, col):
     bool_list = []
     for i in output_df.columns:
         if col == i:
@@ -41,34 +25,15 @@ def gen_bool_list(output_df, col):
     return bool_list
 
 
-def gen_plot_data(all_df, param_df, output_df):
+def gen_dropdown_buttons(output_df: pd.DataFrame):
+    """
+    Uses each col name of the output dataframe to generate an equivalent dropdown button for plotting.
 
-    data = []
-    for output in output_df.columns:
+    :param output_df: Dataframe containg the output (columns with 'output.') of the hyperparameter run
 
-        # Creating Axes and Dimensions
-        dimensions = [(gen_dimensions(param_df, col)) for col in param_df.columns]
-        dimensions.insert(0, gen_dimensions(all_df, "iter"))
-        dimensions.append(gen_dimensions(output_df, output))
+    :returns buttons:
+    """
 
-        # Plot Visibility on Dropdown
-        visibility = True if output == output_df.columns[0] else False
-
-        # Appending to list
-        data.append(
-            go.Parcoords(
-                line=dict(
-                    color=all_df["iter"],
-                    colorscale=[[0, "purple"], [0.5, "lightseagreen"], [1, "gold"]],
-                ),
-                dimensions=dimensions,
-                visible=visibility,
-            )
-        )
-    return data
-
-
-def gen_dropdown_buttons(output_df):
     buttons = []
 
     for col in output_df.columns:
@@ -83,31 +48,163 @@ def gen_dropdown_buttons(output_df):
     return buttons
 
 
-def plot_parallel_coordinates(all_df, param_df, output_df):
-    updatemenus = list(
-        [dict(active=0, showactive=True, buttons=gen_dropdown_buttons(output_df))]
-    )
+def drop_exclusions(source_df: pd.DataFrame, exclude: list):
+    """
+    Ensures the param will be excluded if the user forgot to write 'param.' before the col name.
 
-    layout = dict(showlegend=True, updatemenus=updatemenus)
+    :param source_df: Result of the hyperparameter run as a Dataframe
+    :param exclude: User-provided list of parameters to be excluded from the graph
 
-    fig = go.Figure(data=gen_plot_data(all_df, param_df, output_df), layout=layout)
+    :returns source_df:
+    """
 
-    # py.iplot(fig)
+    for col in exclude:
+        if col not in source_df.columns and f"param.{col}" in source_df.columns:
+            source_df = source_df.drop(columns=[f"param.{col}"])
 
-    return plotly.offline.plot(fig)
+        elif col in source_df.columns:
+            source_df = source_df.drop(columns=[col])
+
+    return source_df
 
 
-def gen_dataframes(run, exclude=["param.label_column", "param.sample"]):
+def gen_dimensions(df: pd.DataFrame, col: str):
+    """
+    Computes the plotting dimensions of each parameter/output col according to its type.
 
-    # Create dataframe from GridSearch
-    all_df = pd.DataFrame(
-        run["status"]["iterations"][1:], columns=run["status"]["iterations"][0]
-    )
+    :param df: Dataframe containing the data to be plotted
+    :param col: Column name for which its dimensions will be computed
+
+    :returns dimension:
+    """
+
+    dimension = {}
+
+    if is_numeric_dtype(df[col]):
+        dimension["range"] = [min(df[col]), max(df[col])]
+        dimension["values"] = df[col]
+
+    elif is_string_dtype(df[col]):
+        dimension["range"] = [0, len(df[col])]
+        dimension["values"] = [(list(df[col]).index(val)) for val in list(df[col])]
+        dimension["tickvals"] = [(list(df[col]).index(val)) for val in list(df[col])]
+        dimension["ticktext"] = list(df[col])
+
+    if col == "iter":
+        dimension["tickvals"] = (np.arange(1, max(df[col] + 1))).tolist()
+
+    # Axis name
+    dimension["label"] = col
+
+    return dimension
+
+
+def gen_plot_data(
+    source_df: pd.DataFrame, param_df: pd.DataFrame, output_df: pd.DataFrame
+):
+    """
+    Creates a list composed of the data to be plotted as a Parallel Coordinate, this includes
+    the dimensions, dropdown buttons, and visibility of plots.
+
+    :param source_df: Result of the hyperparameter run as a Dataframe.
+    :param param_df: Dataframe of parameters from the hyperparameter run.
+    :param output_df: Dataframe of outputs from the hyperparameter run.
+
+    :returns data:
+    """
+
+    data = []
+
+    for output in output_df.columns:
+        # Creating Axes and Dimensions
+        dimensions = [(gen_dimensions(param_df, col)) for col in param_df.columns]
+        dimensions.insert(0, gen_dimensions(source_df, "iter"))
+        dimensions.append(gen_dimensions(output_df, output))
+
+        # Plot Visibility on Dropdown
+        visibility = True if output == output_df.columns[0] else False
+
+        # Appending to list
+        data.append(
+            go.Parcoords(
+                line=dict(color=source_df["iter"], colorscale="viridis"),
+                dimensions=dimensions,
+                visible=visibility,
+            )
+        )
+    return data
+
+
+def drop_identical(source_df: pd.DataFrame):
+    """
+  Drop columns with identical values throughout iterations (no variance).
+
+  :param source_df: Result of the hyperparameter run as a Dataframe
+
+  :return source_df:
+  """
+
+    for col in (source_df.filter(like="param.")).columns:
+        if source_df[col].nunique() == 1:
+            source_df = source_df.drop(columns=[col])
+
+    return source_df
+
+
+def split_dataframe(source_df: pd.DataFrame, hide_identical: bool, exclude: list):
+    """
+    Splits the original hyperparameter dataframe into a params dataframe and result dataframe.
+
+    :param source_df: Result of the hyperparameter run as a Dataframe
+    :param hide_identical: Ignores parameters that remain the same throughout iterations
+    :param exclude: User-provided list of parameters to be excluded from the graph
+
+    :returns param_df:
+    :returns output_df:
+    """
 
     # Drop unwanted columns
-    all_df = all_df.drop(columns=exclude)
+    source_df = drop_exclusions(source_df, exclude)
+
+    # Drop identical columns
+    if hide_identical:
+        source_df = drop_identical(source_df)
 
     # Create param and output dataframes
-    param_df = all_df.filter(like="param.")
-    output_df = all_df.filter(like="output.")
-    return all_df, param_df, output_df
+    param_df = source_df.filter(like="param.")
+    param_df.columns = param_df.columns.str.replace("param.", "")
+
+    output_df = source_df.filter(like="output.")
+    output_df.columns = output_df.columns.str.replace("output.", "")
+
+    return param_df, output_df
+
+
+def plot_parallel_coordinates(
+    source_df: pd.DataFrame, hide_identical: bool = True, exclude: list = []
+):
+    """
+    Plots the output of the hyperparameter run in a Parallel Coordinate format using the Plotly library.
+
+    :param source_df: Result of the hyperparameter run as a Dataframe
+    :param hide_identical: Ignores parameters that remain the same throughout iterations
+    :param exclude: User-provided list of parameters to be excluded from the graph
+
+    :returns plot:
+    """
+
+    param_df, output_df = split_dataframe(source_df, hide_identical, exclude)
+
+    layout = dict(
+        showlegend=True,
+        updatemenus=list(
+            [dict(active=0, showactive=True, buttons=gen_dropdown_buttons(output_df))]
+        ),
+    )
+
+    fig = go.Figure(data=gen_plot_data(source_df, param_df, output_df), layout=layout)
+
+    # Creating an html rendering of the plot
+    plotly.offline.plot(fig)
+
+    return py.iplot(fig)

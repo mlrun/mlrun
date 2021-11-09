@@ -128,6 +128,7 @@ def featureset_initializer(server):
     _add_data_steps(
         graph, cache, featureset, targets=targets, source=source,
     )
+    print(f"BBBB BBBB fset init Test: \n {featureset.to_dict()}")
     featureset.save()
     server.graph = graph
 
@@ -248,6 +249,7 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
     # set run UID and save in the feature set status (linking the features et to the job)
     task.metadata.uid = uuid.uuid4().hex
     featureset.status.run_uri = task.metadata.uid
+    print(f"BBBB BBBB 7 run ingestion job Test: \n {featureset.to_dict()}")
     featureset.save()
 
     function.set_db_connection(featureset._get_run_db())

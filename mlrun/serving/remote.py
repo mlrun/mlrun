@@ -12,7 +12,6 @@ import mlrun
 from mlrun.utils import logger
 
 from .utils import (
-    StepToDict,
     _extract_input_data,
     _update_result_body,
     event_id_key,
@@ -241,7 +240,7 @@ class RemoteStep(storey.SendToHttp):
         return data
 
 
-class BatchHttpRequests(StepToDict, _ConcurrentJobExecution):
+class BatchHttpRequests(_ConcurrentJobExecution):
     """class for calling remote endpoints in parallel
     """
 
@@ -315,7 +314,7 @@ class BatchHttpRequests(StepToDict, _ConcurrentJobExecution):
         self.headers = headers
         self.method = method
         self.return_json = return_json
-        self.subpath = subpath or ""
+        self.subpath = subpath
         super().__init__(input_path=input_path, result_path=result_path, **kwargs)
 
         self.timeout = timeout

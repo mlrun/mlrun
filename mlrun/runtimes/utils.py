@@ -134,7 +134,7 @@ def calc_hash(func, tag=""):
     return hashkey
 
 
-def log_std(db, runobj, out, err="", skip=False, show=True):
+def log_std(db, runobj, out, err="", skip=False, show=True, silent=False):
     if out:
         iteration = runobj.metadata.iteration
         if iteration:
@@ -149,7 +149,8 @@ def log_std(db, runobj, out, err="", skip=False, show=True):
     if err:
         logger.error(f"exec error - {err}")
         print(err, file=stderr)
-        raise RunError(err)
+        if not silent:
+            raise RunError(err)
 
 
 class AsyncLogWriter:
@@ -467,7 +468,12 @@ def enrich_function_from_dict(function, function_dict):
         if override_value:
             if attribute == "env":
                 for env_dict in override_value:
-                    function.set_env(env_dict["name"], env_dict["value"])
+                    if env_dict.get("value") is not None:
+                        function.set_env(env_dict["name"], env_dict["value"])
+                    else:
+                        function.set_env(
+                            env_dict["name"], value_from=env_dict["valueFrom"],
+                        )
             elif attribute == "volumes":
                 function.spec.update_vols_and_mounts(override_value, [])
             elif attribute == "volume_mounts":

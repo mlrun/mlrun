@@ -563,7 +563,9 @@ def new_pipe_meta(artifact_path=None, ttl=None, *args):
 
 def enrich_image_url(image_url: str) -> str:
     image_url = image_url.strip()
-    tag = config.images_tag or mlrun.utils.version.Version().get()["version"]
+    tag = config.images_tag or mlrun.utils.version.Version().get()["version"].replace(
+        "+", "-"
+    )
     registry = config.images_registry
 
     # it's an mlrun image if the repository is mlrun

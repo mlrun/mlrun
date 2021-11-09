@@ -121,6 +121,10 @@ class AbstractSparkJobSpec(KubeResourceSpec):
         node_selector=None,
         use_default_image=False,
         priority_class_name=None,
+        disable_auto_mount=False,
+        pythonpath=None,
+        node_name=None,
+        affinity=None,
     ):
 
         super().__init__(
@@ -143,6 +147,10 @@ class AbstractSparkJobSpec(KubeResourceSpec):
             build=build,
             node_selector=node_selector,
             priority_class_name=priority_class_name,
+            disable_auto_mount=disable_auto_mount,
+            pythonpath=pythonpath,
+            node_name=node_name,
+            affinity=affinity,
         )
 
         self.driver_resources = driver_resources or {}

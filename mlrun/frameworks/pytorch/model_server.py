@@ -110,8 +110,8 @@ class PyTorchModelServer(V2ModelServer):
         inputs = request["inputs"]
 
         # Parse the inputs:
-        if isinstance(inputs, np.ndarray):
-            inputs = torch.from_numpy(inputs)
+        if isinstance(inputs[0], np.ndarray):
+            inputs = torch.from_numpy(np.stack(inputs))
 
         # Predict:
         predictions = self._pytorch_interface.predict(

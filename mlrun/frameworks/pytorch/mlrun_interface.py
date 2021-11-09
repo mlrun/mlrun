@@ -337,13 +337,16 @@ class PyTorchMLRunInterface:
             )
 
     def predict(
-        self, inputs: List[Tensor], use_cuda: bool = True, batch_size: int = -1
+        self,
+        inputs: Union[Tensor, List[Tensor]],
+        use_cuda: bool = True,
+        batch_size: int = -1,
     ) -> Tensor:
         """
         Run prediction on the given data. Batched data can be predicted as well.
 
-        :param inputs:     The inputs to infer through the model and get its predictions. The list should contain only
-                           torch.Tensor items.
+        :param inputs:     The inputs to infer through the model and get its predictions. Expecting a torch.Tensor or a
+                           list of torch.Tensors.
         :param use_cuda:   Whether or not to use cuda. Only relevant if cuda is available. Defaulted to True.
         :param batch_size: Batch size to use for prediction. If equals to -1, the entire inputs will be inferred at once
                            (batch size will be equal to the amount of inputs). Defaulted to -1.
@@ -359,7 +362,7 @@ class PyTorchMLRunInterface:
 
         # Initialize a data loader for the given inputs:
         data_loader = DataLoader(
-            TensorDataset(torch.stack(inputs)),
+            TensorDataset(torch.stack(inputs) if isinstance(inputs, list) else inputs),
             batch_size=batch_size if batch_size != -1 else len(inputs),
         )
 

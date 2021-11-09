@@ -412,7 +412,6 @@ class FeatureSet(ModelObj):
                 except FileNotFoundError:
                     pass
                 del self.status.targets[target_name]
-            print(f"BBBB BBBB purge Test: \n {self.to_dict()}")
 
             self.save()
 
@@ -682,12 +681,7 @@ class FeatureSet(ModelObj):
             "features", []
         )  # bypass DB bug
         print(f"BBBB BBBB Test: \n {as_dict}")
-        try:
-            raise MLRunNotFoundError("")
-        except Exception as ex:
-            print(f"BBBB {ex}")
-            print("BBBB" + str(traceback.extract_stack()))
-            traceback.print_stack()
+        traceback.print_stack()
         db.store_feature_set(as_dict, tag=tag, versioned=versioned)
 
     def reload(self, update_spec=True):

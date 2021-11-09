@@ -284,7 +284,6 @@ def ingest(
             featureset, mlrun.api.schemas.AuthorizationAction.update
         )
         run_config = run_config.copy() if run_config else RunConfig()
-        print(f"BBBB BBBB run_config Test: \n {featureset.to_dict()}")
         source, run_config.parameters = _set_task_params(
             featureset, source, targets, run_config.parameters, infer_options, overwrite
         )
@@ -528,7 +527,6 @@ def _run_ingestion_job(
         featureset = get_feature_set_by_uri(featureset)
 
     run_config = run_config.copy() if run_config else RunConfig()
-    print(f"BBBB BBBB run ingestion job Test: \n {featureset.to_dict()}")
     source, run_config.parameters = _set_task_params(
         featureset, source, targets, run_config.parameters, infer_options
     )
@@ -578,7 +576,6 @@ def deploy_ingestion_service(
             name=featureset.metadata.name,
             run_uuid="{run_uuid}",
         )
-    print(f"BBBB BBBB deploy ingestion service Test: \n {featureset.to_dict()}")
     source, run_config.parameters = _set_task_params(
         featureset, source, targets, run_config.parameters
     )
@@ -702,7 +699,6 @@ def _ingest_with_spark(
         for target in featureset.status.targets:
             featureset.status.update_last_written_for_target(target.path, max_time)
 
-        print(f"BBBB BBBB ingest with spark Test: \n {featureset.to_dict()}")
         _post_ingestion(mlrun_context, featureset, spark)
     finally:
         if spark:

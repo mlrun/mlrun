@@ -253,6 +253,7 @@ def get_target_driver(target_spec, resource=None):
     if isinstance(target_spec, dict):
         target_spec = DataTargetBase.from_dict(target_spec)
     driver_class = kind_to_driver[target_spec.kind]
+    print(f"BBBB target {target_spec}")
     return driver_class.from_spec(target_spec, resource)
 
 

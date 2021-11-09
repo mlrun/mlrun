@@ -434,11 +434,11 @@ class GraphContext:
             return self._server._secrets.get(key)
         return None
 
-    def get_remote_endpoint(self, name, external=False):
+    def get_remote_endpoint(self, name, external=True):
         """return the remote nuclio/serving function http(s) endpoint given its name
 
         :param name: the function name/uri in the form [project/]function-name[:tag]
-        :param external: return the external url (returns the in-cluster url by default)
+        :param external: return the external url (returns the external url by default)
         """
         if "://" in name:
             return name

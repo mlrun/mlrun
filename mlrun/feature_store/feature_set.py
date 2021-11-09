@@ -20,6 +20,7 @@ import pandas as pd
 
 import mlrun
 import mlrun.api.schemas
+import traceback
 from mlrun.errors import MLRunBadRequestError, MLRunNotFoundError
 
 from ..config import config as mlconf
@@ -685,6 +686,7 @@ class FeatureSet(ModelObj):
             raise MLRunNotFoundError("")
         except Exception as ex:
             print(f"BBBB {ex}")
+            traceback.print_exc()
         db.store_feature_set(as_dict, tag=tag, versioned=versioned)
 
     def reload(self, update_spec=True):

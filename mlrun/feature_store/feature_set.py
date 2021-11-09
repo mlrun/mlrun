@@ -411,6 +411,8 @@ class FeatureSet(ModelObj):
                 except FileNotFoundError:
                     pass
                 del self.status.targets[target_name]
+            print(f"BBBB BBBB purge Test: \n {self.to_dict()}")
+
             self.save()
 
     def update_targets_run_uuid(
@@ -678,7 +680,7 @@ class FeatureSet(ModelObj):
         as_dict["spec"]["features"] = as_dict["spec"].get(
             "features", []
         )  # bypass DB bug
-        print(f"BBBBBBBB Test: \n {as_dict}")
+        print(f"BBBB BBBB Test: \n {as_dict}")
         db.store_feature_set(as_dict, tag=tag, versioned=versioned)
 
     def reload(self, update_spec=True):

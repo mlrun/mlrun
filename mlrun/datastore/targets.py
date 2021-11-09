@@ -1249,7 +1249,7 @@ def _get_target_path(driver, resource):
         project=project, kind=kind, name=name, run_uuid="{run_uuid}"
     )
     # todo: handle ver tag changes, may need to copy files?
-    name = f"{name}-{version or 'latest'}"
+    name = f"{name}"
     return f"{data_prefix}/{kind_prefix}/{name}{suffix}"
 
 

@@ -559,7 +559,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         file_system = fsspec.filesystem("v3io")
         kind = TargetTypes.parquet
-        path = f"{get_default_prefix_for_target(kind)}/sets/{name}-latest"
+        path = f"{get_default_prefix_for_target(kind)}/sets/{name}"
         path = path.format(
             name=name,
             kind=kind,
@@ -1982,6 +1982,7 @@ class TestFeatureStore(TestMLRunSystem):
         fset_from_db = db.get_feature_set(name, tag=tag)
         validate_targets(fset_from_db, {"o1", "o2", "t1", "t2"})
 
+    @pytest.mark.skip("wait for full publish implementation")
     def test_published_feature_set_apis(self):
         from mlrun.errors import MLRunBadRequestError
 

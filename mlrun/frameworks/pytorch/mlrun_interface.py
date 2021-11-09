@@ -354,6 +354,9 @@ class PyTorchMLRunInterface:
         if use_cuda and torch.cuda.is_available():
             self._objects_to_cuda()
 
+        # Set model to evaluate mode:
+        self._model.eval()
+
         # Initialize a data loader for the given inputs:
         data_loader = DataLoader(
             TensorDataset(torch.stack(inputs)),

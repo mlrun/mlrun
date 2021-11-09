@@ -191,7 +191,7 @@ def plot_parallel_coordinates(
     hide_identical: bool = True,
     exclude: list = [],
     display_plot=True,
-):
+) -> str:
     """
     Plots the output of the hyperparameter run in a Parallel Coordinate format using the Plotly library.
 

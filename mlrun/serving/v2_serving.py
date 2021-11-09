@@ -26,42 +26,13 @@ from mlrun.api.schemas import (
 from mlrun.artifacts import ModelArtifact  # noqa: F401
 from mlrun.config import config
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
+from mlrun.utils.model_monitoring import EndpointType
 
 from .utils import StepToDict
 
 
 class V2ModelServer(StepToDict):
-    """base model serving class (v2), using similar API to KFServing v2 and Triton
-
-    The class is initialized automatically by the model server and can run locally
-    as part of a nuclio serverless function, or as part of a real-time pipeline
-    default model url is: /v2/models/<model>[/versions/<ver>]/operation
-
-    You need to implement two mandatory methods:
-      load()     - download the model file(s) and load the model into memory
-      predict()  - accept request payload and return prediction/inference results
-
-    you can override additional methods : preprocess, validate, postprocess, explain
-    you can add custom api endpoint by adding method op_xx(event), will be invoked by
-    calling the <model-url>/xx (operation = xx)
-
-    Example
-    -------
-    defining a class::
-
-        class MyClass(V2ModelServer):
-            def load(self):
-                # load and initialize the model and/or other elements
-                model_file, extra_data = self.get_model(suffix='.pkl')
-                self.model = load(open(model_file, "rb"))
-
-            def predict(self, request):
-                events = np.array(request['inputs'])
-                dmatrix = xgb.DMatrix(events)
-                result: xgb.DMatrix = self.model.predict(dmatrix)
-                return {"outputs": result.tolist()}
-
-    """
+    """base model serving class (v2), using similar API to KFServing v2 and Triton"""
 
     def __init__(
         self,
@@ -72,9 +43,54 @@ class V2ModelServer(StepToDict):
         protocol=None,
         **kwargs,
     ):
+        """base model serving class (v2), using similar API to KFServing v2 and Triton
+
+        The class is initialized automatically by the model server and can run locally
+        as part of a nuclio serverless function, or as part of a real-time pipeline
+        default model url is: /v2/models/<model>[/versions/<ver>]/operation
+
+        You need to implement two mandatory methods:
+          load()     - download the model file(s) and load the model into memory
+          predict()  - accept request payload and return prediction/inference results
+
+        you can override additional methods : preprocess, validate, postprocess, explain
+        you can add custom api endpoint by adding method op_xx(event), will be invoked by
+        calling the <model-url>/xx (operation = xx)
+
+        model server classes are subclassed (subclass implements the `load()` and `predict()` methods)
+        the subclass can be added to a serving graph or to a model router
+
+        defining a sub class::
+
+            class MyClass(V2ModelServer):
+                def load(self):
+                    # load and initialize the model and/or other elements
+                    model_file, extra_data = self.get_model(suffix='.pkl')
+                    self.model = load(open(model_file, "rb"))
+
+                def predict(self, request):
+                    events = np.array(request['inputs'])
+                    dmatrix = xgb.DMatrix(events)
+                    result: xgb.DMatrix = self.model.predict(dmatrix)
+                    return {"outputs": result.tolist()}
+
+        usage example::
+
+            # adding a model to a serving graph using the subclass MyClass
+            # MyClass will be initialized with the name "my", the model_path, and an arg called my_param
+            graph = fn.set_topology("router")
+            fn.add_model("my", class_name="MyClass", model_path="<model-uri>>", my_param=5)
+
+        :param context:    for internal use (passed in init)
+        :param name:       step name
+        :param model_path: model file/dir or artifact path
+        :param model:      model object (for local testing)
+        :param protocol:   serving API protocol (default "v2")
+        :param kwargs:     extra arguments (can be accessed using self.get_param(key))
+        """
         self.name = name
         self.version = ""
-        if ":" in name:
+        if name and ":" in name:
             self.name, self.version = name.split(":", 1)
         self.context = context
         self.ready = False
@@ -95,6 +111,7 @@ class V2ModelServer(StepToDict):
         if model:
             self.model = model
             self.ready = True
+        self.model_endpoint_uid = None
 
     def _load_and_update_state(self):
         try:
@@ -124,7 +141,7 @@ class V2ModelServer(StepToDict):
             return
 
         if not self.context.is_mock or self.context.server.track_models:
-            _init_endpoint_record(server, self)
+            self.model_endpoint_uid = _init_endpoint_record(server, self)
 
     def get_param(self, key: str, default=None):
         """get param by key (specified in the model or the function)"""
@@ -390,6 +407,9 @@ class _ModelLogPusher:
 
 def _init_endpoint_record(graph_server, model: V2ModelServer):
     logger.info("Initializing endpoint records")
+
+    uid = None
+
     try:
         project, uri, tag, hash_key = parse_versioned_object_uri(
             graph_server.function_uri
@@ -412,7 +432,7 @@ def _init_endpoint_record(graph_server, model: V2ModelServer):
                 ),
                 active=True,
             ),
-            status=ModelEndpointStatus(),
+            status=ModelEndpointStatus(endpoint_type=EndpointType.NODE_EP),
         )
 
         db = mlrun.get_run_db()
@@ -422,5 +442,8 @@ def _init_endpoint_record(graph_server, model: V2ModelServer):
             endpoint_id=model_endpoint.metadata.uid,
             model_endpoint=model_endpoint,
         )
+        uid = model_endpoint.metadata.uid
     except Exception as e:
         logger.error("Failed to create endpoint record", exc=e)
+
+    return uid

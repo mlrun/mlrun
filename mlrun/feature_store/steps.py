@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 
 import pandas as pd
 from storey import MapClass
@@ -9,7 +9,16 @@ this_path = "mlrun.feature_store.steps"
 
 
 class FeaturesetValidator(StepToDict, MapClass):
+    """Validate feature values according to the feature set validation policy"""
+
     def __init__(self, featureset=None, columns=None, name=None, **kwargs):
+        """Validate feature values according to the feature set validation policy
+
+        :param featureset: feature set uri (or "." for current feature set pipeline)
+        :param columns:    names of the columns/fields to validate
+        :param name:       step name
+        :param kwargs:     optional kwargs (for storey)
+        """
         kwargs["full_event"] = True
         super().__init__(**kwargs)
         self._validators = {}
@@ -41,6 +50,8 @@ class FeaturesetValidator(StepToDict, MapClass):
 
 
 class MapValues(StepToDict, MapClass):
+    """Map column values to new values"""
+
     def __init__(
         self,
         mapping: Dict[str, Dict[str, Any]],
@@ -48,6 +59,18 @@ class MapValues(StepToDict, MapClass):
         suffix: str = "mapped",
         **kwargs,
     ):
+        """Map column values to new values
+
+        example::
+
+            # replace the value "U" with '0' in the age column
+            graph.to(MapValues(mapping={'age': {'U': '0'}}, with_original_features=True))
+
+        :param mapping: a dict with entry per column and the associated old/new values map
+        :param with_original_features: set to True to keep the original features
+        :param suffix: the suffix added to the column name <column>_<suffix> (default is "mapped")
+        :param kwargs: optional kwargs (for storey)
+        """
         super().__init__(**kwargs)
         self.mapping = mapping
         self.with_original_features = with_original_features
@@ -93,6 +116,13 @@ class Imputer(StepToDict, MapClass):
         mapping: Dict[str, Dict[str, Any]] = None,
         **kwargs,
     ):
+        """Replace None values with default values
+
+        :param method:        for future use
+        :param default_value: default value if not specified per column
+        :param mapping:       a dict of per column deffault value
+        :param kwargs:        optional kwargs (for storey)
+        """
         super().__init__(**kwargs)
         self.mapping = mapping
         self.method = method
@@ -112,6 +142,17 @@ class Imputer(StepToDict, MapClass):
 
 class OneHotEncoder(StepToDict, MapClass):
     def __init__(self, mapping: Dict[str, Dict[str, Any]], **kwargs):
+        """Create new binary fields, one per category (one hot encoded)
+
+        example::
+
+            mapping = {'category': ['food', 'health', 'transportation'],
+                       'gender': ['male', 'female']}
+            graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
+
+        :param mapping: a dict of per column categories (to map to binary fields)
+        :param kwargs:  optional kwargs (for storey)
+        """
         super().__init__(**kwargs)
         self.mapping = mapping
 
@@ -136,69 +177,66 @@ class OneHotEncoder(StepToDict, MapClass):
 
 
 class DateExtractor(StepToDict, MapClass):
-    """Date Extractor allows you to extract a date-time component
-        from a timestamp feature to a new feature.
+    """Date Extractor allows you to extract a date-time component"""
+
+    def __init__(
+        self,
+        parts: Union[Dict[str, str], List[str]],
+        timestamp_col: str = None,
+        **kwargs,
+    ):
+        """Date Extractor extract a date-time component into new columns
 
         The extracted date part will appear as `<timestamp_col>_<date_part>` feature.
 
-        Parameters
-        ----------
-        parts : Union[Dict[str, str], List[str]]
-            The pandas style date-time parts you want to extract.
+        Supports part values:
 
-            Supports:
-            asm8                    Return numpy datetime64 format in nanoseconds.
-            day_of_week             Return day of the week.
-            day_of_year             Return the day of the year.
-            dayofweek               Return day of the week.
-            dayofyear               Return the day of the year.
-            days_in_month           Return the number of days in the month.
-            daysinmonth             Return the number of days in the month.
-            freqstr                 Return the total number of days in the month.
-            is_leap_year            Return True if year is a leap year.
-            is_month_end            Return True if date is last day of month.
-            is_month_start          Return True if date is first day of month.
-            is_quarter_end          Return True if date is last day of the quarter.
-            is_quarter_start        Return True if date is first day of the quarter.
-            is_year_end             Return True if date is last day of the year.
-            is_year_start           Return True if date is first day of the year.
-            quarter                 Return the quarter of the year.
-            tz                      Alias for tzinfo.
-            week                    Return the week number of the year.
-            weekofyear              Return the week number of the year.
+        * asm8:              Return numpy datetime64 format in nanoseconds.
+        * day_of_week:       Return day of the week.
+        * day_of_year:       Return the day of the year.
+        * dayofweek:         Return day of the week.
+        * dayofyear:         Return the day of the year.
+        * days_in_month:     Return the number of days in the month.
+        * daysinmonth:       Return the number of days in the month.
+        * freqstr:           Return the total number of days in the month.
+        * is_leap_year:      Return True if year is a leap year.
+        * is_month_end:      Return True if date is last day of month.
+        * is_month_start:    Return True if date is first day of month.
+        * is_quarter_end:    Return True if date is last day of the quarter.
+        * is_quarter_start:  Return True if date is first day of the quarter.
+        * is_year_end:       Return True if date is last day of the year.
+        * is_year_start:     Return True if date is first day of the year.
+        * quarter:           Return the quarter of the year.
+        * tz:                Alias for tzinfo.
+        * week:              Return the week number of the year.
+        * weekofyear:        Return the week number of the year.
 
-        timestamp_col : str, optional
-            The name of the column containing the timestamps to extract from,
-            by default "timestamp"
+        example::
 
-        Examples
-        --------
-        (taken from the fraud-detection end-to-end feature store demo)
-        ```
-        # Define the Transactions FeatureSet
-        transaction_set = fs.FeatureSet("transactions",
-                                        entities=[fs.Entity("source")],
-                                        timestamp_key='timestamp',
-                                        description="transactions feature set")
+            # (taken from the fraud-detection end-to-end feature store demo)
+            # Define the Transactions FeatureSet
+            transaction_set = fs.FeatureSet("transactions",
+                                            entities=[fs.Entity("source")],
+                                            timestamp_key='timestamp',
+                                            description="transactions feature set")
 
-        # Get FeatureSet computation graph
-        transaction_graph = transaction_set.graph
+            # Get FeatureSet computation graph
+            transaction_graph = transaction_set.graph
 
-        # Add the custom `DateExtractor` step
-        # to the computation graph
-        transaction_graph\
-            .to(
-                class_name='DateExtractor',
-                name='Extract Dates',
-                parts = ['hour', 'day_of_week'],
-                timestamp_col = 'timestamp',
-            )
-        ```
+            # Add the custom `DateExtractor` step
+            # to the computation graph
+            transaction_graph\
+                .to(
+                    class_name='DateExtractor',
+                    name='Extract Dates',
+                    parts = ['hour', 'day_of_week'],
+                    timestamp_col = 'timestamp',
+                )
+
+        :param parts: list of pandas style date-time parts you want to extract.
+        :param timestamp_col: The name of the column containing the timestamps to extract from,
+                              by default "timestamp"
         """
-
-    def __init__(
-        self, parts: List[str], timestamp_col: str = None, **kwargs,
-    ):
         super().__init__(**kwargs)
         self.timestamp_col = timestamp_col
         self.parts = parts

@@ -13,4 +13,5 @@ graphviz~=0.16.0
 nuclio-sdk~=0.3.0
 isort~=5.7
 # needed for mlutils tests
-scikit-learn~=0.23.0
+scikit-learn~=1.0; python_version >= '3.7'
+scikit-learn~=0.23.0; python_version < '3.7'

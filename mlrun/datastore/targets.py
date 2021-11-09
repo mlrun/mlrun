@@ -482,6 +482,10 @@ class BaseStoreTarget(DataTargetBase):
         target.updated = now_date().isoformat()
         target.size = size
         target.producer = producer or target.producer
+        old_target = self._resource.status[target.name]
+        if old_target:
+            old_target = get_target_driver(old_target)
+            target.run_uuid = old_target.run_uuid
         self._resource.status.update_target(target)
         return target
 

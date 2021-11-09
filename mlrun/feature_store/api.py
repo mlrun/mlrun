@@ -569,12 +569,13 @@ def deploy_ingestion_service(
     )
 
     run_config = run_config.copy() if run_config else RunConfig()
+    run_uuid = featureset.status.targets[0].run_uuid
     if isinstance(source, StreamSource) and not source.path:
         source.path = get_default_prefix_for_target(source.kind).format(
             project=featureset.metadata.project,
             kind=source.kind,
             name=featureset.metadata.name,
-            run_uuid="{run_uuid}",
+            run_uuid=run_uuid,
         )
     source, run_config.parameters = _set_task_params(
         featureset, source, targets, run_config.parameters

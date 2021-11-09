@@ -681,6 +681,10 @@ class FeatureSet(ModelObj):
             "features", []
         )  # bypass DB bug
         print(f"BBBB BBBB Test: \n {as_dict}")
+        try:
+            raise MLRunNotFoundError("")
+        except Exception as ex:
+            print(f"BBBB {ex}")
         db.store_feature_set(as_dict, tag=tag, versioned=versioned)
 
     def reload(self, update_spec=True):

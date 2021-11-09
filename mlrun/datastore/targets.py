@@ -1243,7 +1243,6 @@ def _get_target_path(driver, resource):
         else "vectors"
     )
     name = resource.metadata.name
-    version = resource.metadata.tag
     project = resource.metadata.project or mlrun.mlconf.default_project
     data_prefix = get_default_prefix_for_target(kind).format(
         project=project, kind=kind, name=name, run_uuid="{run_uuid}"

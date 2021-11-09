@@ -338,7 +338,7 @@ class PyTorchMLRunInterface:
 
     def predict(
         self, inputs: List[Tensor], use_cuda: bool = True, batch_size: int = -1
-    ) -> list:
+    ) -> Tensor:
         """
         Run prediction on the given data. Batched data can be predicted as well.
 
@@ -361,19 +361,21 @@ class PyTorchMLRunInterface:
         )
 
         # Start the inference:
-        predictions = []
-        for data in data_loader:
-            # Read the batched input:
-            x = data[0]
-            # Move the input tensor to cuda if needed:
-            if use_cuda and torch.cuda.is_available():
-                x = self._tensor_to_cuda(tensor=x)
-            # Get the model's prediction:
-            y = self._model(x)
-            # Store the predictions one by one:
-            # TODO: Remove tolist() call, returning the predictions as torch.Tensor for performance.
-            for prediction in y.tolist():
-                predictions.append(prediction)
+        with torch.no_grad():
+            predictions = None  # type: Tensor
+            for data in data_loader:
+                # Read the batched input:
+                x = data[0]
+                # Move the input tensor to cuda if needed:
+                if use_cuda and torch.cuda.is_available():
+                    x = self._tensor_to_cuda(tensor=x)
+                # Get the model's prediction:
+                y = self._model(x)
+                # Store the predictions one by one:
+                if predictions is None:
+                    predictions = y
+                else:
+                    predictions = torch.cat((predictions, y))
 
         return predictions
 

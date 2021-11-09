@@ -14,7 +14,7 @@ def gen_bool_list(output_df: pd.DataFrame, col: str) -> list:
     :param output_df: Result of the hyperparameter run as a Dataframe
     :param col: name of the col for which a bool list will be generated
 
-    :returns bool_list: list of boolean corresponding to each column in out output df
+    :returns bool_list: list of boolean corresponding to each column in out output df.
     """
 
     bool_list = []
@@ -32,7 +32,7 @@ def gen_dropdown_buttons(output_df: pd.DataFrame) -> list:
 
     :param output_df: Dataframe containg the output (columns with 'output.') of the hyperparameter run
 
-    :returns buttons: list of dropdown buttons with their equivalent plot visibilty
+    :returns buttons: list of dropdown buttons with their equivalent plot visibilty.
     """
 
     buttons = []
@@ -76,7 +76,7 @@ def gen_dimensions(df: pd.DataFrame, col: str) -> dict:
     :param df: Dataframe containing the data to be plotted
     :param col: Column name for which its dimensions will be computed
 
-    :returns dimension: Dimensions and instructions required to plot a parameter
+    :returns dimension: Dimensions and instructions required to plot a parameter.
     """
 
     dimension = {}
@@ -114,7 +114,7 @@ def gen_plot_data(
     :param param_df: Dataframe of parameters from the hyperparameter run
     :param output_df: Dataframe of outputs from the hyperparameter run
 
-    :returns data: list of information plotly requires to plot Parallel Coordinates
+    :returns data: list of information plotly requires to plot Parallel Coordinates.
     """
 
     data = []
@@ -145,7 +145,7 @@ def drop_identical(source_df: pd.DataFrame) -> pd.DataFrame:
 
   :param source_df: Result of the hyperparameter run as a Dataframe
 
-  :return source_df: Our source_df without identical-values parameters
+  :return source_df: Our source_df without identical-values parameters.
   """
 
     for col in (source_df.filter(like="param.")).columns:
@@ -163,8 +163,8 @@ def split_dataframe(source_df: pd.DataFrame, hide_identical: bool, exclude: list
     :param hide_identical: Ignores parameters that remain the same throughout iterations
     :param exclude: User-provided list of parameters to be excluded from the graph
 
-    :returns param_df: Dataframe of parameters from the hyperparameter run
-    :returns output_df: Dataframe of outputs from the hyperparameter run
+    :returns param_df: Dataframe of parameters from the hyperparameter run.
+    :returns output_df: Dataframe of outputs from the hyperparameter run.
     """
 
     # Drop unwanted columns
@@ -203,7 +203,7 @@ def plot_parallel_coordinates(
     :param display_plot: Allows the user to display the plot within the notebook
 
 
-    :returns plot_as_html: The Parallel Coordinate plot in HTML format
+    :returns plot_as_html: The Parallel Coordinate plot in HTML format.
     """
 
     if source_df and param_df is None and output_df is None:

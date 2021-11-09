@@ -126,7 +126,9 @@ def featureset_initializer(server):
     featureset, source, targets, _, _ = context_to_ingestion_params(context)
 
     print(f"BBBB 1 {featureset}")
-
+    targets = featureset.update_targets_run_uuid(
+        targets=targets, silent=True,
+    )
     graph = featureset.spec.graph.copy()
     _add_data_steps(
         graph, cache, featureset, targets=targets, source=source,

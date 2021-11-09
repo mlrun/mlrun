@@ -37,50 +37,6 @@ podTemplate(
                     stage("git clone") {
                         checkout scm
                     }
-                    stage("build ${gitProject}/api in dood") {
-                        println(common.shellc("MLRUN_VERSION=${dockerTag} make api"))
-                    }
-                    dockerx.images_push_multi_registries(["${gitProject}/mlrun-api:${dockerTag}"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
-
-                    stage("build ${gitProject}/mlrun in dood") {
-                        println(common.shellc("MLRUN_VERSION=${dockerTag} make mlrun"))
-                    }
-                    dockerx.images_push_multi_registries(["${gitProject}/mlrun:${dockerTag}"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
-
-                    stage("build ${gitProject}/jupyter in dood") {
-                        println(common.shellc("MLRUN_VERSION=${dockerTag} make jupyter"))
-                    }
-                    dockerx.images_push_multi_registries(["${gitProject}/jupyter:${dockerTag}"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
-
-                    stage("build ${gitProject}/base in dood") {
-                        println(common.shellc("MLRUN_VERSION=${dockerTag} make base"))
-                    }
-                    dockerx.images_push_multi_registries(["${gitProject}/ml-base:${dockerTag}"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
-
-                    stage("build ${gitProject}/base-legacy in dood") {
-                        println(common.shellc("MLRUN_VERSION=${dockerTag} make base-legacy"))
-                    }
-                    dockerx.images_push_multi_registries(["${gitProject}/ml-base:${dockerTag}-py36"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
-
-                    stage("build ${gitProject}/models in dood") {
-                        println(common.shellc("MLRUN_VERSION=${dockerTag} make models"))
-                    }
-                    dockerx.images_push_multi_registries(["${gitProject}/ml-models:${dockerTag}"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
-
-                    stage("build ${gitProject}/models-legacy in dood") {
-                        println(common.shellc("MLRUN_VERSION=${dockerTag} make models-legacy"))
-                    }
-                    dockerx.images_push_multi_registries(["${gitProject}/ml-models:${dockerTag}-py36"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
-
-                    stage("build ${gitProject}/models-gpu in dood") {
-                        println(common.shellc("MLRUN_VERSION=${dockerTag} make models-gpu"))
-                    }
-                    dockerx.images_push_multi_registries(["${gitProject}/ml-models-gpu:${dockerTag}"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
-
-                    stage("build ${gitProject}/models-gpu-legacy in dood") {
-                        println(common.shellc("MLRUN_VERSION=${dockerTag} make models-gpu-legacy"))
-                    }
-                    dockerx.images_push_multi_registries(["${gitProject}/ml-models-gpu:${dockerTag}-py36"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
                 }
 
                 container('jnlp') {
@@ -100,19 +56,6 @@ podTemplate(
                     }
                 }
 
-                common.conditional_stage('Upload to PyPi', "${env.TAG_NAME}" != "unstable") {
-                    container('python37') {
-                        withCredentials([
-                            usernamePassword(
-                                credentialsId: 'iguazio-prod-pypi-credentials',
-                                passwordVariable: 'TWINE_PASSWORD',
-                                usernameVariable: 'TWINE_USERNAME'
-                            )]) {
-                                println(common.shellc("pip install twine"))
-                                println(common.shellc("MLRUN_VERSION=${dockerTag} make publish-package"))
-                        }
-                    }
-                }
             }
         }
     }

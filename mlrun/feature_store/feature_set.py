@@ -686,7 +686,8 @@ class FeatureSet(ModelObj):
             raise MLRunNotFoundError("")
         except Exception as ex:
             print(f"BBBB {ex}")
-            traceback.print_exc()
+            print("BBBB" + str(traceback.extract_stack()))
+            traceback.print_stack()
         db.store_feature_set(as_dict, tag=tag, versioned=versioned)
 
     def reload(self, update_spec=True):

@@ -15,6 +15,7 @@
 import asyncio
 import json
 import typing
+import traceback
 from datetime import datetime
 from os import getenv
 from time import sleep
@@ -434,6 +435,8 @@ class RemoteRuntime(KubeResource):
             endpoint, stream_path = parse_v3io_path(stream_path, suffix="")
         container, path = split_path(stream_path)
         shards = shards or 1
+        print(f"BBBB stream path {stream_path}")
+        traceback.print_stack()
         self.add_trigger(
             name,
             V3IOStreamTrigger(

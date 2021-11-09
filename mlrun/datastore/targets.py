@@ -483,7 +483,7 @@ class BaseStoreTarget(DataTargetBase):
         target.size = size
         target.producer = producer or target.producer
 
-        if self._resource["status"]:
+        if self._resource.has_attr() and self._resource["status"]:
             old_target = self._resource["status"][target.name]
             if old_target:
                 old_target = get_target_driver(old_target)

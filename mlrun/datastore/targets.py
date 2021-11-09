@@ -483,11 +483,15 @@ class BaseStoreTarget(DataTargetBase):
         target.size = size
         target.producer = producer or target.producer
 
-        if hasattr(self._resource, "status") and self._resource["status"]:
-            old_target = self._resource["status"][target.name]
-            if old_target:
-                old_target = get_target_driver(old_target)
-                target.run_uuid = old_target.run_uuid
+        if hasattr(self._resource, "status"):
+            if self._resource.status.targets:
+                try:
+                    old_target = self._resource.status.targets[target.name]
+                    if old_target:
+                        old_target = get_target_driver(old_target)
+                        target.run_uuid = old_target.run_uuid
+                except KeyError:
+                    pass
 
         self._resource.status.update_target(target)
         return target

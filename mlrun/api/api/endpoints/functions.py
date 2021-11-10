@@ -18,7 +18,8 @@ import mlrun.api.utils.background_tasks
 import mlrun.api.utils.singletons.project_member
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise
-from mlrun.api.schemas import SecretsData
+from mlrun.api.crud.secrets import Secrets
+from mlrun.api.schemas import SecretProviderName, SecretsData
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
@@ -617,16 +618,16 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
     logger.info(
         "Getting project secret", project_name=project_name, namespace=config.namespace
     )
-    secret_manager = mlrun.api.crud.Secrets()
-    provider = mlrun.api.schemas.SecretProviderName.kubernetes
-    secret_value = secret_manager.get_secret(
+
+    provider = SecretProviderName.kubernetes
+    secret_value = Secrets().get_secret(
         project_name, provider, secret_key, allow_secrets_from_k8s=True,
     )
     user_provided_key = secret_value is not None
-    internal_key_name = secret_manager.generate_model_monitoring_secret_key(secret_key)
+    internal_key_name = Secrets().generate_model_monitoring_secret_key(secret_key)
 
     if not user_provided_key:
-        secret_value = secret_manager.get_secret(
+        secret_value = Secrets().get_secret(
             project_name,
             provider,
             internal_key_name,
@@ -651,8 +652,8 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
                 )
 
     secrets = SecretsData(provider=provider, secrets={internal_key_name: secret_value})
-    secret_manager.store_secrets(project_name, secrets, allow_internal_secrets=True)
+    Secrets().store_secrets(project_name, secrets, allow_internal_secrets=True)
     if user_provided_key:
-        secret_manager.delete_secret(project_name, provider, secret_key)
+        Secrets().delete_secret(project_name, provider, secret_key)
 
     return secret_value

@@ -195,8 +195,9 @@ class LoggingCallback(Callback):
         )
         # # Metrics:
         for metric_function in self._objects[self._ObjectKeys.METRIC_FUNCTIONS]:
-            metric_name = self._get_metric_name(metric_function=metric_function)
-            self._logger.log_metric(metric_name=metric_name)
+            self._logger.log_metric(
+                metric_name=self._get_metric_name(metric_function=metric_function)
+            )
 
         # Setup the hyperparameters dictionaries:
         if self._auto_log:

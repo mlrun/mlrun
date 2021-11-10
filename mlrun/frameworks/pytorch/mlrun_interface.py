@@ -252,6 +252,9 @@ class PyTorchMLRunInterface:
         # Beginning of run callbacks:
         self._callbacks_handler.on_run_begin()
 
+        # Beginning of a epoch callbacks (Only one epoch in evaluation):
+        self._callbacks_handler.on_epoch_begin(epoch=1)
+
         # Evaluate:
         self._callbacks_handler.on_validation_begin()
         loss_value, metric_values = self._validate(is_evaluation=True)
@@ -281,6 +284,9 @@ class PyTorchMLRunInterface:
         self._callbacks_handler.on_validation_end(
             loss_value=loss_value, metric_values=metric_values
         )
+
+        # End of a epoch callbacks:
+        self._callbacks_handler.on_epoch_end(epoch=1)
         print()
 
         # End of run callbacks:

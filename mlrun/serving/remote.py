@@ -153,9 +153,8 @@ class RemoteStep(storey.SendToHttp):
                 method, url, headers=headers, data=body, ssl=False, **kwargs
             )
             if resp.status >= 500:
-                raise RuntimeError(
-                    f"bad http response {resp.status}: {await resp.text()}"
-                )
+                text = await resp.text()
+                raise RuntimeError(f"bad http response {resp.status}: {text}")
             return resp
         except asyncio.TimeoutError as exc:
             logger.error(f"http request to {url} timed out in RemoteStep {self.name}")
@@ -402,9 +401,8 @@ class BatchHttpRequests(_ConcurrentJobExecution):
             method, url, headers=headers, data=body, ssl=False, **self._request_args
         ) as future:
             if future.status >= 500:
-                raise RuntimeError(
-                    f"bad http response {future.status}: {await future.text()}"
-                )
+                text = await future.text()
+                raise RuntimeError(f"bad http response {future.status}: {text}")
             return await future.read(), future.headers
 
     async def _submit_with_retries(self, method, url, headers, body):

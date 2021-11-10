@@ -32,8 +32,8 @@ def version():
         # When installing un-released version (e.g. by doing
         # pip install git+https://github.com/mlrun/mlrun@development)
         # it won't have a version file, so adding some sane default
-        logger.warning("Failed resolving version. Ignoring and using unstable")
-        return "unstable"
+        logger.warning("Failed resolving version. Ignoring and using 0.0.0+unstable")
+        return "0.0.0+unstable"
 
 
 def is_ignored(line):
@@ -152,6 +152,7 @@ setup(
         "mlrun.frameworks.mlbase",
         "mlrun.frameworks.sklearn",
         "mlrun.frameworks.xgboost",
+        "mlrun.frameworks.lgbm",
         "mlrun.mlutils",
         "mlrun.model_monitoring",
         "mlrun.platforms",

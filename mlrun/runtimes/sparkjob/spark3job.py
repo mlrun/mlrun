@@ -57,6 +57,10 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         priority_class_name=None,
         dynamic_allocation=None,
         monitoring=None,
+        disable_auto_mount=False,
+        pythonpath=None,
+        node_name=None,
+        affinity=None,
     ):
 
         super().__init__(
@@ -79,6 +83,10 @@ class Spark3JobSpec(AbstractSparkJobSpec):
             build=build,
             node_selector=node_selector,
             priority_class_name=priority_class_name,
+            disable_auto_mount=disable_auto_mount,
+            pythonpath=pythonpath,
+            node_name=node_name,
+            affinity=affinity,
         )
 
         self.driver_resources = driver_resources or {}

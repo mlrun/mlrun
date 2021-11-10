@@ -81,6 +81,7 @@ def test_requirement_specifiers_convention():
         "kfp": {"~=1.0.1"},
         "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
+        "aiohttp": {">=3.6,<3.8"},
         "bokeh": {"~=2.3.0"},
         # Black is not stable yet and does not have a release that is not beta, so can't be used with ~=
         "black": {"<=19.10b0"},
@@ -112,6 +113,7 @@ def test_requirement_specifiers_convention():
         "boto3": {"~=1.9, <1.17.107"},
         "azure-storage-blob": {"~=12.0, <12.7.0"},
         "dask-ml": {"~=1.4,<1.9.0"},
+        "pyarrow": {">=1,<4"},
     }
 
     for (ignored_requirement_name, ignored_specifiers,) in ignored_invalid_map.items():
@@ -138,6 +140,10 @@ def test_requirement_specifiers_inconsistencies():
     ignored_inconsistencies_map = {
         # It's ok we have 2 different versions cause they are for different python versions
         "pandas": {"~=1.2; python_version >= '3.7'", "~=1.0; python_version < '3.7'"},
+        "scikit-learn": {
+            "~=1.0; python_version >= '3.7'",
+            "~=0.23.0; python_version < '3.7'",
+        },
         # The empty specifier is from tests/runtimes/assets/requirements.txt which is there specifically to test the
         # scenario of requirements without version specifiers
         "python-dotenv": {"", "~=0.17.0"},

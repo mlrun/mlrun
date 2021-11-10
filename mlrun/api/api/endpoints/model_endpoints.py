@@ -101,12 +101,16 @@ def list_endpoints(
     start: str = Query(default="now-1h"),
     end: str = Query(default="now"),
     metrics: List[str] = Query([], alias="metric"),
+    top_level: bool = Query(False, alias="top-level"),
+    uids: List[str] = Query(None, alias="uid"),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
 ) -> ModelEndpointList:
     """
-     Returns a list of endpoints of type 'ModelEndpoint', supports filtering by model, function, tag and labels.
+     Returns a list of endpoints of type 'ModelEndpoint', supports filtering by model, function, tag,
+     labels or top level.
+     If uids are passed: will return ModelEndpointList of endpoints with uid in uids
      Labels can be used to filter on the existence of a label:
      api/projects/{project}/model-endpoints/?label=mylabel
 
@@ -118,10 +122,13 @@ def list_endpoints(
 
      Or by using a "," (comma) separator:
      api/projects/{project}/model-endpoints/?label=mylabel=1,myotherlabel=2
+     Top level: if true will return only routers and endpoint that are NOT children of any router
      """
+
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
     )
+
     endpoints = mlrun.api.crud.ModelEndpoints().list_endpoints(
         auth_info=auth_info,
         project=project,
@@ -131,6 +138,8 @@ def list_endpoints(
         metrics=metrics,
         start=start,
         end=end,
+        top_level=top_level,
+        uids=uids,
     )
     allowed_endpoints = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
@@ -138,6 +147,7 @@ def list_endpoints(
         lambda _endpoint: (_endpoint.metadata.project, _endpoint.metadata.uid,),
         auth_info,
     )
+
     endpoints.endpoints = allowed_endpoints
     return endpoints
 

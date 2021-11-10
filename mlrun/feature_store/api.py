@@ -134,7 +134,9 @@ def get_offline_features(
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
 
-    feature_vector = _features_to_vector_and_check_permissions(feature_vector, update_stats)
+    feature_vector = _features_to_vector_and_check_permissions(
+        feature_vector, update_stats
+    )
 
     entity_timestamp_column = (
         entity_timestamp_column or feature_vector.spec.timestamp_field

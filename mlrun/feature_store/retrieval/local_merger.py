@@ -59,7 +59,9 @@ class LocalFeatureMerger:
 
         if entity_timestamp_column and drop_indexes:
             drop_columns.append(entity_timestamp_column)
-        feature_set_objects, feature_set_fields = self.vector.parse_features(update_stats=update_stats)
+        feature_set_objects, feature_set_fields = self.vector.parse_features(
+            update_stats=update_stats
+        )
         if len(feature_set_fields) == 0:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "No features in vector. Make sure to infer the schema on all the feature sets first"

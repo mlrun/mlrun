@@ -16,7 +16,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     spark_service = ""
     pq_source = "testdata.parquet"
     spark_image_deployed = (
-        False  # Set to True if you want to avoid the image building phase
+        True  # Set to True if you want to avoid the image building phase
     )
     test_branch = ""  # For testing specific branche. e.g.: "https://github.com/mlrun/mlrun.git@development"
 
@@ -40,16 +40,17 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         from mlrun.run import new_function
         from mlrun.runtimes import RemoteSparkRuntime
 
-        if not self.spark_image_deployed:
-            self._init_env_from_file()
+        self._init_env_from_file()
 
-            store, _ = store_manager.get_or_create_store(
-                self.get_remote_pq_source_path()
-            )
-            store.upload(
-                self.get_remote_pq_source_path(without_prefix=True),
-                self.get_local_pq_source_path(),
-            )
+        store, _ = store_manager.get_or_create_store(
+            self.get_remote_pq_source_path()
+        )
+        store.upload(
+            self.get_remote_pq_source_path(without_prefix=True),
+            self.get_local_pq_source_path(),
+        )
+
+        if not self.spark_image_deployed:
             if not self.test_branch:
                 RemoteSparkRuntime.deploy_default_image()
             else:
@@ -80,3 +81,4 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_context=self.spark_service,
             run_config=fs.RunConfig(local=False),
         )
+        print (5)

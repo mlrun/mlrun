@@ -323,6 +323,10 @@ def run(
         print("Run:")
         pprint(runobj.to_dict())
 
+    if kind in ["spark"]:
+        print(f"{kind} runtime - skipping execution")
+        return
+
     try:
         fn = new_function(runtime=runtime, kfp=kfp, mode=mode, source=source)
         if workdir:

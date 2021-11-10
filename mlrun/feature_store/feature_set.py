@@ -680,8 +680,6 @@ class FeatureSet(ModelObj):
         as_dict["spec"]["features"] = as_dict["spec"].get(
             "features", []
         )  # bypass DB bug
-        print(f"BBBB BBBB Test: \n {as_dict}")
-        traceback.print_stack()
         db.store_feature_set(as_dict, tag=tag, versioned=versioned)
 
     def reload(self, update_spec=True):

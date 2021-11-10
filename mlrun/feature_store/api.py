@@ -404,7 +404,6 @@ def ingest(
         infer_options, InferOptions.all_stats()
     )
     return_df = return_df or infer_stats != InferOptions.Null
-    print(f"BBBB BBBB1 ingest Test: \n {featureset.to_dict()}")
     featureset.save()
 
     df = init_featureset_graph(
@@ -428,7 +427,6 @@ def ingest(
                 # in the next scheduled run, we will have the same start time
                 target.last_written = source.start_time
 
-    print(f"BBBB BBBB2 ingest post Test: \n {featureset.to_dict()}")
     _post_ingestion(mlrun_context, featureset, spark_context)
 
     return df

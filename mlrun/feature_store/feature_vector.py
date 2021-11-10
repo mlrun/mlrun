@@ -278,13 +278,16 @@ class FeatureVector(ModelObj):
         if update_spec:
             self.spec = from_db.spec
 
-    def parse_features(self, offline=True):
+    def parse_features(self, offline=True, update_stats=False):
         """parse and validate feature list (from vector) and add metadata from feature sets
 
         :returns
             feature_set_objects: cache of used feature set objects
             feature_set_fields:  list of field (name, alias) per featureset
         """
+        if not offline:
+            # stats should be updated for online and for offline when update_stats is True
+            update_stats = True
         processed_features = {}  # dict of name to (featureset, feature object)
         feature_set_objects = {}
         index_keys = []
@@ -338,7 +341,7 @@ class FeatureVector(ModelObj):
                     index_keys.append(key)
             for name, alias in fields:
                 field_name = alias or name
-                if name in feature_set.status.stats:
+                if name in feature_set.status.stats and update_stats:
                     self.status.stats[field_name] = feature_set.status.stats[name]
                 if name in feature_set.spec.features.keys():
                     feature = feature_set.spec.features[name].copy()

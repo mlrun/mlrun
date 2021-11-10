@@ -61,9 +61,9 @@ _v3iofs = None
 spark_transform_handler = "transform"
 
 
-def _features_to_vector_and_check_permissions(features):
+def _features_to_vector_and_check_permissions(features, update_stats):
     if isinstance(features, str):
-        vector = get_feature_vector_by_uri(features)
+        vector = get_feature_vector_by_uri(features, update=update_stats)
     elif isinstance(features, FeatureVector):
         vector = features
         if not vector.metadata.name:
@@ -92,6 +92,7 @@ def get_offline_features(
     start_time: Optional[pd.Timestamp] = None,
     end_time: Optional[pd.Timestamp] = None,
     with_indexes: bool = False,
+    update_stats: bool = False,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 
@@ -127,9 +128,13 @@ def get_offline_features(
     :param end_time:        datetime, high limit of time needed to be filtered. Optional.
         entity_timestamp_column must be passed when using time filtering.
     :param with_indexes:    return vector with index columns (default False)
+    :param update_stats:    when set to True, requires Update permissions. when set to False requires Read permissions.
+        relevant only when passing feature vector uri and not FeatureVector object. Default is False.
     """
+    if isinstance(feature_vector, FeatureVector):
+        update_stats = True
 
-    feature_vector = _features_to_vector_and_check_permissions(feature_vector)
+    feature_vector = _features_to_vector_and_check_permissions(feature_vector, update_stats)
 
     entity_timestamp_column = (
         entity_timestamp_column or feature_vector.spec.timestamp_field
@@ -158,6 +163,7 @@ def get_offline_features(
         start_time=start_time,
         end_time=end_time,
         with_indexes=with_indexes,
+        update_stats=update_stats,
     )
 
 
@@ -191,7 +197,7 @@ def get_online_feature_service(
                               values. "*" is used to specify the default for all features, example: `{"*": "$mean"}`
     :param fixed_window_type: determines how to query the fixed window values which were previously inserted by ingest.
     """
-    feature_vector = _features_to_vector_and_check_permissions(feature_vector)
+    feature_vector = _features_to_vector_and_check_permissions(feature_vector, True)
     graph, index_columns = init_feature_vector_graph(feature_vector, fixed_window_type)
     service = OnlineVectorService(
         feature_vector, graph, index_columns, impute_policy=impute_policy

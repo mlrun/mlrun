@@ -18,6 +18,7 @@ import mlrun.api.utils.background_tasks
 import mlrun.api.utils.singletons.project_member
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise
+from mlrun.api.schemas import SecretsData
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
@@ -430,15 +431,11 @@ def _build_function(
                     if fn.spec.track_models:
                         logger.info("Tracking enabled, initializing model monitoring")
                         _init_serving_function_stream_args(fn=fn)
-                        model_monitoring_access_key = _get_project_secret(
-                            fn.metadata.project, "MODEL_MONITORING_ACCESS_KEY"
+                        model_monitoring_access_key = _process_model_monitoring_secret(
+                            db_session,
+                            fn.metadata.project,
+                            "MODEL_MONITORING_ACCESS_KEY",
                         )
-                        # TODO: if model monitoring is not defined we should try to grab the project owner access key
-                        #  as well
-                        if not model_monitoring_access_key:
-                            raise MLRunRuntimeError(
-                                "MODEL_MONITORING_ACCESS_KEY not found in project secrets"
-                            )
 
                         _create_model_monitoring_stream(project=fn.metadata.project)
                         mlrun.api.crud.ModelEndpoints().deploy_monitoring_functions(
@@ -616,14 +613,46 @@ def _get_function_env_var(fn: ServingRuntime, var_name: str):
     return None
 
 
-def _get_project_secret(project_name: str, secret_key: str):
+def _process_model_monitoring_secret(db_session, project_name: str, secret_key: str):
     logger.info(
         "Getting project secret", project_name=project_name, namespace=config.namespace
     )
-    secret_value = mlrun.api.crud.Secrets().get_secret(
-        project_name,
-        mlrun.api.schemas.SecretProviderName.kubernetes,
-        secret_key,
-        allow_secrets_from_k8s=True,
+    secret_manager = mlrun.api.crud.Secrets()
+    provider = mlrun.api.schemas.SecretProviderName.kubernetes
+    secret_value = secret_manager.get_secret(
+        project_name, provider, secret_key, allow_secrets_from_k8s=True,
     )
+    user_provided_key = secret_value is not None
+    internal_key_name = secret_manager.generate_model_monitoring_secret_key(secret_key)
+
+    if not user_provided_key:
+        secret_value = secret_manager.get_secret(
+            project_name,
+            provider,
+            internal_key_name,
+            allow_secrets_from_k8s=True,
+            allow_internal_secrets=True,
+        )
+        if not secret_value:
+            import mlrun.api.utils.singletons.project_member
+
+            logger.info(
+                "Trying to fill model monitoring access-key from project owner",
+                project_name=project_name,
+            )
+
+            project_owner = mlrun.api.utils.singletons.project_member.get_project_member().get_project_owner(
+                db_session, project_name
+            )
+            secret_value = project_owner.session
+            if not secret_value:
+                raise MLRunRuntimeError(
+                    f"No model monitoring access key. Failed to generate one for owner of project {project_name}",
+                )
+
+    secrets = SecretsData(provider=provider, secrets={internal_key_name: secret_value})
+    secret_manager.store_secrets(project_name, secrets, allow_internal_secrets=True)
+    if user_provided_key:
+        secret_manager.delete_secret(project_name, provider, secret_key)
+
     return secret_value

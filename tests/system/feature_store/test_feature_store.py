@@ -1712,7 +1712,8 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_stream_source(self):
         # create feature set, ingest sample data and deploy nuclio function with stream source
-        myset = FeatureSet("fset2", entities=[Entity("ticker")])
+        fset_name = "stream_fset"
+        myset = FeatureSet("%s" % fset_name, entities=[Entity("ticker")])
         fs.ingest(myset, quotes)
         run_uuid = myset.status.targets[0].run_uuid
         source = StreamSource(key_field="ticker", time_field="time")
@@ -1735,7 +1736,7 @@ class TestFeatureStore(TestMLRunSystem):
             featureset=myset, source=source, run_config=run_config
         )
         # push records to stream
-        stream_path = f"v3io:///projects/{function.metadata.project}/FeatureStore/fset2/v3ioStream"
+        stream_path = f"v3io:///projects/{function.metadata.project}/FeatureStore/{fset_name}/v3ioStream"
         events_pusher = mlrun.datastore.get_stream_pusher(stream_path)
         client = mlrun.platforms.V3ioStreamClient(stream_path, seek_to="EARLIEST")
         events_pusher.push(
@@ -1750,7 +1751,7 @@ class TestFeatureStore(TestMLRunSystem):
         resp = client.get_records()
         assert len(resp) != 0
         # read from online service updated data
-        vector = fs.FeatureVector("my-vec", ["fset2.*"])
+        vector = fs.FeatureVector("my-vec", [f"{fset_name}.*"])
         svc = fs.get_online_feature_service(vector)
         sleep(5)
         resp = svc.get([{"ticker": "AAPL"}])

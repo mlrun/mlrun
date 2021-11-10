@@ -575,8 +575,7 @@ def deploy_ingestion_service(
             kind=source.kind,
             name=featureset.metadata.name,
             run_uuid="{run_uuid}",
-        )
-        source.path.replace("/{run_uuid}/", "/")
+        ).replace("/{run_uuid}/", "/")
     source, run_config.parameters = _set_task_params(
         featureset, source, targets, run_config.parameters
     )

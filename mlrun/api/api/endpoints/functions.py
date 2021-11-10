@@ -637,19 +637,21 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
         if not secret_value:
             import mlrun.api.utils.singletons.project_member
 
-            logger.info(
-                "Trying to fill model monitoring access-key from project owner",
-                project_name=project_name,
-            )
-
             project_owner = mlrun.api.utils.singletons.project_member.get_project_member().get_project_owner(
                 db_session, project_name
             )
+
             secret_value = project_owner.session
             if not secret_value:
                 raise MLRunRuntimeError(
                     f"No model monitoring access key. Failed to generate one for owner of project {project_name}",
                 )
+
+            logger.info(
+                "Filling model monitoring access-key from project owner",
+                project_name=project_name,
+                project_owner=project_owner.username,
+            )
 
     secrets = SecretsData(provider=provider, secrets={internal_key_name: secret_value})
     Secrets().store_secrets(project_name, secrets, allow_internal_secrets=True)

@@ -127,6 +127,7 @@ def train(
             tensorboard_directory=tensorboard_directory,
             mlrun_callback_kwargs=mlrun_callback_kwargs,
             tensorboard_callback_kwargs=tensorboard_callback_kwargs,
+            is_training=True,
         )
         # Add the logging callbacks with the provided parameters:
         interface.add_auto_logging_callbacks(
@@ -185,8 +186,7 @@ def evaluate(
     :param use_cuda:                 Whether or not to use cuda. Only relevant if cuda is available. Defaulted to True.
     :param use_horovod:              Whether or not to use horovod - a distributed training framework. Defaulted to
                                      False.
-    :param auto_log:                 Whether or not to apply auto-logging (to both MLRun and Tensorboard). Defaulted to
-                                     True.
+    :param auto_log:                 Whether or not to apply auto-logging to MLRun. Defaulted to True.
     :param model_name:               The model name to use for storing the model artifact. If not given, the model's
                                      class name will be used.
     :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key is
@@ -228,6 +228,7 @@ def evaluate(
             tensorboard_directory=None,
             mlrun_callback_kwargs=mlrun_callback_kwargs,
             tensorboard_callback_kwargs=None,
+            is_training=False,
         )
         # Add the logging callbacks with the provided parameters:
         interface.add_auto_logging_callbacks(
@@ -254,9 +255,10 @@ def _parse_callbacks_kwargs(
     tensorboard_directory: Union[str, None],
     mlrun_callback_kwargs: Union[Dict[str, Any], None],
     tensorboard_callback_kwargs: Union[Dict[str, Any], None],
+    is_training: bool,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """
-    Parse the given custom objects parameters into the MLRun callback kwargs.
+    Parse the given parameters into the MLRun and Tensorboard callbacks kwargs.
     :param model_name:                  The model name to use for storing the model artifact. If not given, the model's
                                         class name will be used.
     :param model_path:                  The model's store object path. Mandatory for evaluation (to know which model to
@@ -282,26 +284,33 @@ def _parse_callbacks_kwargs(
                                         this will be the output for the event logs of tensorboard. If not given, the
                                         'tensorboard_dir' parameter will be tried to be taken from the provided context.
                                         If not found in the context, the default tensorboard output directory will be:
-                                        /User/.tensorboard/<PROJECT_NAME> or if working on local, the set artifacts
-                                        path.
+                                        /User/.tensorboard/<PROJECT_NAME> or if working on local, the artifacts path.
     :param mlrun_callback_kwargs:       Key word arguments for the MLRun callback. For further information see the
-                                        documentation of the class 'MLRunLoggingCallback'. Note that both 'context',
+                                        documentation of the class 'MLRunLoggingCallback'. Note that the 'context',
                                         'custom_objects' and 'auto_log' parameters are already given here.
     :param tensorboard_callback_kwargs: Key word arguments for the tensorboard callback. For further information see
                                         the documentation of the class 'TensorboardLoggingCallback'. Note that both
                                         'context' and 'auto_log' parameters are already given here.
+    :param is_training:                 Whether to validate the arguments as part of a training session or evaluation
+                                        session.
 
     :return: Tuple of the callbacks kwargs:
              [0] = MLRun's kwargs.
              [1] = Tensorboard kwargs.
 
-    :raise ValueError: If one of the custom objects parameter given is None.
+    :raise MLRunInvalidArgumentError: In case of a training session: if one or more of the custom objects parameters
+                                      were not given. In case of an evaluation session, if the model path was not given.
     """
     # Validate the custom objects parameters were provided:
-    if custom_objects_map is None or custom_objects_directory is None:
-        raise ValueError(
-            "The custom objects parameters: 'custom_objects_map' and 'custom_objects_directory' are mandatory for "
-            "auto logging. Without them the model will not be able to be saved and logged"
+    if is_training:
+        if custom_objects_map is None or custom_objects_directory is None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Both custom objects parameters: 'custom_objects_map' and 'custom_objects_directory' are mandatory for "
+                "auto logging. Without them the model will not be able to be saved and logged"
+            )
+    elif model_path is None:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "To evaluate the model and log it, the store path of the model ('model_path' parameter) must be provided."
         )
 
     # Set the kwargs dictionaries defaults:

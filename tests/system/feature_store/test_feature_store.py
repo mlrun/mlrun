@@ -1735,7 +1735,7 @@ class TestFeatureStore(TestMLRunSystem):
             featureset=myset, source=source, run_config=run_config
         )
         # push records to stream
-        stream_path = f"v3io:///projects/{function.metadata.project}/FeatureStore/fset2/{run_uuid}/v3ioStream"
+        stream_path = f"v3io:///projects/{function.metadata.project}/FeatureStore/fset2/v3ioStream"
         events_pusher = mlrun.datastore.get_stream_pusher(stream_path)
         client = mlrun.platforms.V3ioStreamClient(stream_path, seek_to="EARLIEST")
         events_pusher.push(

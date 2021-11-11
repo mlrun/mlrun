@@ -30,15 +30,7 @@ def get_http_adapter(retries, backoff_factor):
             if backoff_factor is None
             else backoff_factor,
             status_forcelist=[500, 502, 503, 504],
-            method_whitelist=[
-                "HEAD",
-                "GET",
-                "PUT",
-                "POST",
-                "DELETE",
-                "OPTIONS",
-                "TRACE",
-            ],
+            method_whitelist=False,
         )
     else:
         retry = Retry(0, read=False)

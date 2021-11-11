@@ -162,12 +162,14 @@ def _timed_out_handler(request: Request):
 
 @pytest.mark.parametrize("engine", ["async", "sync"])
 def test_timeout(httpserver, engine):
-    httpserver.expect_request("/data", method="POST").respond_with_handler(_timed_out_handler)
+    httpserver.expect_request("/data", method="POST").respond_with_handler(
+        _timed_out_handler
+    )
     url = httpserver.url_for("/data")
     server = _new_server(url, engine, timeout=1, retries=0, return_json=False)
 
     try:
-        resp = server.test(body=b"tst", method="POST")
+        server.test(body=b"tst", method="POST")
         assert False, "did not time out"
     except Exception as exc:
         is_timeout = (

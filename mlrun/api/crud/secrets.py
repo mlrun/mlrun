@@ -29,7 +29,7 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
         return f"{self.key_map_secrets_key_prefix}schedules"
 
     def generate_model_monitoring_secret_key(self, key):
-        return f"{self.internal_secrets_key_prefix}models.{key}"
+        return f"{self.internal_secrets_key_prefix}model-monitoring.{key}"
 
     @staticmethod
     def validate_secret_key_regex(key: str, raise_on_failure: bool = True) -> bool:

@@ -152,24 +152,22 @@ def test_remote_advance(httpserver, engine):
     server = function.to_mock_server()
     resp = server.test(body={"req": {"url": "/dog", "data": {"x": 5}}})
     server.wait_for_completion()
-    print(resp)
     assert resp == {"req": {"url": "/dog", "data": {"x": 5}}, "resp": {"post": "ok"}}
 
 
-def _sleeping(request: Request):
+def _timed_out_handler(request: Request):
     time.sleep(2)  # this should be greater than the client's timeout parameter
     return Response(request.data, status=200)
 
 
 @pytest.mark.parametrize("engine", ["async", "sync"])
 def test_timeout(httpserver, engine):
-    httpserver.expect_request("/data", method="POST").respond_with_handler(_sleeping)
+    httpserver.expect_request("/data", method="POST").respond_with_handler(_timed_out_handler)
     url = httpserver.url_for("/data")
     server = _new_server(url, engine, timeout=1, retries=0, return_json=False)
 
     try:
         resp = server.test(body=b"tst", method="POST")
-        print(resp)
         assert False, "did not time out"
     except Exception as exc:
         is_timeout = (
@@ -193,12 +191,9 @@ class RetryTester:
         self.ok_after = ok_after
 
     def handler(self, request: Request):
-        print(request.path)
         retries = self.retries_dict.get(request.path, 0)
         self.retries_dict[request.path] = retries + 1
-        print(f"retries={retries}")
         if self.ok_after and retries >= self.ok_after:
-            print("resp ok!")
             return Response(request.data, status=200)
         return Response("Failed", status=500)
 
@@ -247,7 +242,7 @@ def test_retry(httpserver, engine):
     ), "did not get expected number of retries"
 
 
-def _echo(request: Request):
+def _echo_handler(request: Request):
     return Response(request.data, status=200)
 
 
@@ -256,7 +251,7 @@ def test_parallel_remote(httpserver):
     from mlrun.serving.remote import BatchHttpRequests
 
     httpserver.expect_request(re.compile("^/.*"), method="POST").respond_with_handler(
-        _echo
+        _echo_handler
     )
     url = httpserver.url_for("/")
 

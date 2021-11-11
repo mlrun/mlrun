@@ -588,9 +588,9 @@
               "actual_max": 3,
               "actual_mean": 2,
               "actual_min": 1,
-              "expected_max": 4,
+              "expected_max": 6,
               "expected_mean": 5,
-              "expected_min": 6,
+              "expected_min": 4,
               "feature_name": 0
             },
             "renameByName": {

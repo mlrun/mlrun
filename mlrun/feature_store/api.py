@@ -116,7 +116,8 @@ def get_offline_features(
         print(vector.get_stats_table())
         resp.to_parquet("./out.parquet")
 
-    :param feature_vector: feature vector uri or FeatureVector object
+    :param feature_vector: feature vector uri or FeatureVector object. passing feature vector obj requires update
+                            permissions
     :param entity_rows:    dataframe with entity rows to join with
     :param target:         where to write the results to
     :param drop_columns:   list of columns to drop from the final result
@@ -128,8 +129,7 @@ def get_offline_features(
     :param end_time:        datetime, high limit of time needed to be filtered. Optional.
         entity_timestamp_column must be passed when using time filtering.
     :param with_indexes:    return vector with index columns (default False)
-    :param update_stats:    when set to True, requires Update permissions. when set to False requires Read permissions.
-        relevant only when passing feature vector uri and not FeatureVector object. Default is False.
+    :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True

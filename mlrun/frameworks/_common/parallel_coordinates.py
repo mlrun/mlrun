@@ -1,9 +1,13 @@
+import datetime
+
 import numpy as np
 import pandas as pd
 import plotly
 import plotly.graph_objects as go
 from IPython.core.display import HTML, display
 from pandas.api.types import is_numeric_dtype, is_string_dtype
+
+import mlrun
 
 
 def gen_bool_list(output_df: pd.DataFrame, col: str) -> list:
@@ -131,10 +135,10 @@ def gen_plot_data(
 
 def drop_identical(source_df: pd.DataFrame) -> pd.DataFrame:
     """
-  Drop columns with identical values throughout iterations (no variance).
-  :param source_df: Result of the hyperparameter run as a Dataframe
-  :return source_df: Our source_df without identical-values parameters.
-  """
+    Drop columns with identical values throughout iterations (no variance).
+    :param source_df: Result of the hyperparameter run as a Dataframe
+    :return source_df: Our source_df without identical-values parameters.
+    """
 
     for col in (source_df.filter(like="param.")).columns:
         if source_df[col].nunique() == 1:
@@ -143,9 +147,7 @@ def drop_identical(source_df: pd.DataFrame) -> pd.DataFrame:
     return source_df
 
 
-def split_dataframe(
-    source_df: pd.DataFrame, hide_identical: bool, exclude: list
-) -> pd.DataFrame:
+def split_dataframe(source_df: pd.DataFrame) -> pd.DataFrame:
     """
     Splits the original hyperparameter dataframe into a params dataframe and result dataframe.
     :param source_df: Result of the hyperparameter run as a Dataframe
@@ -155,30 +157,100 @@ def split_dataframe(
     :returns output_df: Dataframe of outputs from the hyperparameter run.
     """
 
-    # Drop unwanted columns
-    source_df = drop_exclusions(source_df, exclude)
-
-    # Drop identical columns
-    if hide_identical:
-        source_df = drop_identical(source_df)
-
     # Create param and output dataframes
     param_df = source_df.filter(like="param.")
-    param_df.columns = param_df.columns.str.replace("param.", "")
-
     output_df = source_df.filter(like="output.")
+    return param_df, output_df
+
+
+def clean_col_names(param_df: pd.DataFrame, output_df: pd.DataFrame) -> pd.DataFrame:
+    """
+
+    :param param_df:
+    :param output_df:
+    :return:
+    """
+    param_df.columns = param_df.columns.str.replace("param.", "")
     output_df.columns = output_df.columns.str.replace("output.", "")
+    return param_df, output_df
+
+
+def get_runs(
+    name=None,
+    uid=None,
+    project=None,
+    labels=None,
+    state=None,
+    sort=True,
+    last=0,
+    iter=False,
+    start_time_from: datetime = None,
+    start_time_to: datetime = None,
+    last_update_time_from: datetime = None,
+    last_update_time_to: datetime = None,
+) -> pd.DataFrame:
+    """
+
+    :param name:
+    :param uid:
+    :param project:
+    :param labels:
+    :param state:
+    :param sort:
+    :param last:
+    :param iter:
+    :param start_time_from:
+    :param start_time_to:
+    :param last_update_time_from:
+    :param last_update_time_to:
+    :return:
+    """
+
+    runs_df = (
+        mlrun.get_run_db()
+        .list_runs(
+            name,
+            uid,
+            project,
+            labels,
+            state,
+            sort,
+            last,
+            iter,
+            start_time_from,
+            start_time_to,
+            last_update_time_from,
+            last_update_time_to,
+        )
+        .to_df()
+    )
+
+    # Remove empty param runs
+    runs_df = runs_df[(runs_df["parameters"].str.len() >= 1)]
+
+    # Remove empty output runs
+    runs_df = runs_df[(runs_df["results"].str.len() >= 1)]
+
+    # Create param dataframe and add prefix
+    param_list = [p for p in runs_df["parameters"]]
+    param_df = pd.DataFrame(param_list).add_prefix("param.")
+
+    # Create output dataframe and add prefix
+    output_list = [o for o in runs_df["results"]]
+    output_df = pd.DataFrame(output_list).add_prefix("output.")
 
     return param_df, output_df
 
 
 def plot_parallel_coordinates(
-    source_df: pd.DataFrame = None,
-    param_df: pd.DataFrame = None,
-    output_df: pd.DataFrame = None,
+    source_df: pd.DataFrame = pd.DataFrame(),
+    param_df: pd.DataFrame = pd.DataFrame(),
+    output_df: pd.DataFrame = pd.DataFrame(),
     hide_identical: bool = True,
-    exclude: list = [],
+    exclude: list = ["label_column", "labels"],
     display_plot=True,
+    run_name=None,
+    project_name=None,
 ) -> str:
     """
     Plots the output of the hyperparameter run in a Parallel Coordinate format using the Plotly library.
@@ -191,11 +263,26 @@ def plot_parallel_coordinates(
     :returns plot_as_html: The Parallel Coordinate plot in HTML format.
     """
 
-    if source_df and param_df is None and output_df is None:
-        param_df, output_df = split_dataframe(source_df, hide_identical, exclude)
+    if run_name or project_name:
+        param_df, output_df = get_runs(project=project_name, name=run_name)
 
-    elif param_df and output_df and source_df is None:
+    # users passes param_df and output_df
+    if source_df.empty and param_df.empty is False and output_df.empty is False:
         source_df = pd.concat([param_df, output_df], axis=1, join="inner")
+        source_df["iter"] = range(1, 1 + len(param_df))
+
+    elif source_df.empty is False and param_df.empty and output_df.empty:
+        param_df, output_df = split_dataframe(source_df)
+
+    param_df, output_df = clean_col_names(param_df, output_df)
+
+    # Drop unwanted columns
+    param_df = drop_exclusions(param_df, exclude)
+    output_df = drop_exclusions(output_df, exclude)
+
+    # Drop identical columns
+    if hide_identical:
+        param_df = drop_identical(param_df)
 
     layout = dict(
         showlegend=True,
@@ -212,4 +299,5 @@ def plot_parallel_coordinates(
     if display_plot:
         display(HTML(plot_as_html))
 
-    return plot_as_html
+    return HTML(plot_as_html)
+

@@ -204,8 +204,12 @@ def get_online_feature_service(
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
-    feature_vector = _features_to_vector_and_check_permissions(feature_vector, update_stats)
-    graph, index_columns = init_feature_vector_graph(feature_vector, fixed_window_type, update_stats=update_stats)
+    feature_vector = _features_to_vector_and_check_permissions(
+        feature_vector, update_stats
+    )
+    graph, index_columns = init_feature_vector_graph(
+        feature_vector, fixed_window_type, update_stats=update_stats
+    )
     service = OnlineVectorService(
         feature_vector, graph, index_columns, impute_policy=impute_policy
     )

@@ -597,9 +597,9 @@
               "actual_max": "Actual Max",
               "actual_mean": "Actual Mean",
               "actual_min": "Actual Min",
-              "expected_max": "Expected Min",
+              "expected_max": "Expected Max",
               "expected_mean": "Expected Mean",
-              "expected_min": "Expected Max",
+              "expected_min": "Expected Min",
               "feature_name": "Feature"
             }
           }

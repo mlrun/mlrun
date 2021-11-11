@@ -25,7 +25,7 @@ numpy>=1.16.5, <1.20.0
 pandas~=1.2; python_version >= '3.7'
 pandas~=1.0; python_version < '3.7'
 # used as a the engine for parquet files by pandas
-pyarrow~=1.0
+pyarrow>=1,<4
 pyyaml~=5.1
 requests~=2.22
 sqlalchemy~=1.3

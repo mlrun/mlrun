@@ -10,9 +10,11 @@ from v3io_frames import frames_pb2
 from v3io_frames.errors import CreateError
 
 import mlrun.api.api.utils
+import mlrun.api.utils.singletons.k8s
 import mlrun.datastore.store_resources
 from mlrun.api.api.endpoints.functions import _build_function
 from mlrun.api.api.utils import _submit_run, get_run_db_instance
+from mlrun.api.crud.secrets import Secrets
 from mlrun.api.schemas import (
     Features,
     Metric,
@@ -626,7 +628,13 @@ class ModelEndpoints:
             stream_path=stream_path, name="monitoring_stream_trigger"
         )
 
-        fn.set_env("MODEL_MONITORING_ACCESS_KEY", model_monitoring_access_key)
+        fn.set_env_from_secret(
+            "MODEL_MONITORING_ACCESS_KEY",
+            mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
+            Secrets().generate_model_monitoring_secret_key(
+                "MODEL_MONITORING_ACCESS_KEY"
+            ),
+        )
         fn.metadata.credentials.access_key = model_monitoring_access_key
         fn.set_env("MODEL_MONITORING_PARAMETERS", json.dumps({"project": project}))
 
@@ -666,7 +674,13 @@ class ModelEndpoints:
 
         fn.apply(mlrun.mount_v3io())
 
-        fn.set_env("MODEL_MONITORING_ACCESS_KEY", model_monitoring_access_key)
+        fn.set_env_from_secret(
+            "MODEL_MONITORING_ACCESS_KEY",
+            mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
+            Secrets().generate_model_monitoring_secret_key(
+                "MODEL_MONITORING_ACCESS_KEY"
+            ),
+        )
 
         # Needs to be a member of the project and have access to project data path
         fn.metadata.credentials.access_key = model_monitoring_access_key

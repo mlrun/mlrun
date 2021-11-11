@@ -104,9 +104,12 @@ class CSVSource(BaseSourceDriver):
         :parameter key_field: the CSV field to be used as the key for events. May be an int (field index) or string
             (field name) if with_header is True. Defaults to None (no key). Can be a list of keys.
         :parameter time_field: the CSV field to be parsed as the timestamp for events. May be an int (field index) or
-            string (field name) if with_header is True. Defaults to None (no timestamp field).
+            string (field name) if with_header is True. Defaults to None (no timestamp field). The field will be parsed
+            from isoformat (ISO-8601 as defined in datetime.fromisoformat()). In case the format is not isoformat,
+            timestamp_format (as defined in datetime.strptime()) should be passed in attributes.
         :parameter schedule: string to configure scheduling of the ingestion job.
-        :parameter attributes: additional parameters to pass to storey.
+        :parameter attributes: additional parameters to pass to storey. For example:
+            attributes={"timestamp_format": '%Y%m%d%H'}
         :parameter parse_dates: Optional. List of columns (names or integers, other than time_field) that will be
             attempted to parse as date column.
         """

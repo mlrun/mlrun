@@ -15,7 +15,6 @@
 import asyncio
 import json
 import typing
-import traceback
 from datetime import datetime
 from os import getenv
 from time import sleep

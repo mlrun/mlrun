@@ -20,7 +20,6 @@ import pandas as pd
 
 import mlrun
 import mlrun.api.schemas
-import traceback
 from mlrun.errors import MLRunBadRequestError, MLRunNotFoundError
 
 from ..config import config as mlconf

@@ -1712,10 +1712,9 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_stream_source(self):
         # create feature set, ingest sample data and deploy nuclio function with stream source
-        fset_name = "stream_fset"
+        fset_name = "stream_test"
         myset = FeatureSet("%s" % fset_name, entities=[Entity("ticker")])
         fs.ingest(myset, quotes)
-        run_uuid = myset.status.targets[0].run_uuid
         source = StreamSource(key_field="ticker", time_field="time")
         filename = str(
             pathlib.Path(tests.conftest.tests_root_directory)

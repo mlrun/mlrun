@@ -26,7 +26,9 @@ def get_http_adapter(retries, backoff_factor):
     if retries != 0:
         retry = Retry(
             total=retries or default_retries,
-            backoff_factor=backoff_factor or default_backoff_factor,
+            backoff_factor=default_backoff_factor
+            if backoff_factor is None
+            else backoff_factor,
             status_forcelist=[500, 502, 503, 504],
             method_whitelist=[
                 "HEAD",
@@ -93,7 +95,7 @@ class RemoteStep(storey.SendToHttp):
                             to event["y"] resulting in {"x": 5, "resp": <result>}
         :param retries:     number of retries (in exponential backoff)
         :param backoff_factor: A backoff factor in secounds to apply between attempts after the second try
-        :param timeout:     (optional) How long to wait for the server to send data before giving up, float in seconds
+        :param timeout:     How long to wait for the server to send data before giving up, float in seconds
         """
         # init retry args for storey
         retries = default_retries if retries is None else retries
@@ -301,7 +303,7 @@ class BatchHttpRequests(_ConcurrentJobExecution):
                             to event["y"] resulting in {"x": 5, "resp": <result>}
         :param retries:     number of retries (in exponential backoff)
         :param backoff_factor: A backoff factor in secounds to apply between attempts after the second try
-        :param timeout:     (optional) How long to wait for the server to send data before giving up, float in seconds
+        :param timeout:     How long to wait for the server to send data before giving up, float in seconds
         """
         if url and url_expression:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -420,9 +422,12 @@ class BatchHttpRequests(_ConcurrentJobExecution):
                     )
                 if attempts_left <= 0:
                     raise ex
-                backoff_value = (self.backoff_factor or default_backoff_factor) * (
-                    2 ** (times_attempted - 1)
+                backoff_factor = (
+                    default_backoff_factor
+                    if self.backoff_factor is None
+                    else self.backoff_factor
                 )
+                backoff_value = (backoff_factor) * (2 ** (times_attempted - 1))
                 backoff_value = min(self._BACKOFF_MAX, backoff_value)
                 if backoff_value >= 0:
                     await asyncio.sleep(backoff_value)

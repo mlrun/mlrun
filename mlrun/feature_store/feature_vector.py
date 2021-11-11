@@ -285,9 +285,6 @@ class FeatureVector(ModelObj):
             feature_set_objects: cache of used feature set objects
             feature_set_fields:  list of field (name, alias) per featureset
         """
-        if not offline:
-            # stats should be updated for online and for offline when update_stats is True
-            update_stats = True
         processed_features = {}  # dict of name to (featureset, feature object)
         feature_set_objects = {}
         index_keys = []

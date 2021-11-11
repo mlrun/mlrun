@@ -174,6 +174,7 @@ def get_online_feature_service(
     run_config: RunConfig = None,
     fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
     impute_policy: dict = None,
+    update_stats: bool = False,
 ) -> OnlineVectorService:
     """initialize and return online feature vector service api,
     returns :py:class:`~mlrun.feature_store.OnlineVectorService`
@@ -191,16 +192,20 @@ def get_online_feature_service(
         svc = get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0))
         resp = svc.get([{"id": "C123487"}])
 
-    :param feature_vector:    feature vector uri or FeatureVector object
+    :param feature_vector:    feature vector uri or FeatureVector object. passing feature vector obj requires update
+                              permissions
     :param run_config:        function and/or run configuration for remote jobs/services
     :param impute_policy:     a dict with `impute_policy` per feature, the dict key is the feature name and the dict
                               value indicate which value will be used in case the feature is NaN/empty, the replaced
                               value can be fixed number for constants or $mean, $max, $min, $std, $count for statistical
                               values. "*" is used to specify the default for all features, example: `{"*": "$mean"}`
-    :param fixed_window_type: determines how to query the fixed window values which were previously inserted by ingest.
+    :param fixed_window_type: determines how to query the fixed window values which were previously inserted by ingest
+    :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
     """
-    feature_vector = _features_to_vector_and_check_permissions(feature_vector, True)
-    graph, index_columns = init_feature_vector_graph(feature_vector, fixed_window_type)
+    if isinstance(feature_vector, FeatureVector):
+        update_stats = True
+    feature_vector = _features_to_vector_and_check_permissions(feature_vector, update_stats)
+    graph, index_columns = init_feature_vector_graph(feature_vector, fixed_window_type, update_stats=update_stats)
     service = OnlineVectorService(
         feature_vector, graph, index_columns, impute_policy=impute_policy
     )

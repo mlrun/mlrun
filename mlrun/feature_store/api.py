@@ -573,6 +573,7 @@ def deploy_ingestion_service(
             kind=source.kind,
             name=featureset.metadata.name
         )
+    print(f"BBBB sourcepath: {source.path}")
     source, run_config.parameters = _set_task_params(
         featureset, source, targets, run_config.parameters
     )

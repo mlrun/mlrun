@@ -131,6 +131,7 @@ def featureset_initializer(server):
         graph, cache, featureset, targets=targets, source=source,
     )
     featureset.save()
+    print(f"BBBB featureset {featureset}")
     server.graph = graph
 
 

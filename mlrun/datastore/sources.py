@@ -494,6 +494,7 @@ class OnlineSource(BaseSourceDriver):
         return source_class(
             key_field=self.key_field or key_field,
             time_field=self.time_field or time_field,
+            context=context,
             full_event=True,
         )
 

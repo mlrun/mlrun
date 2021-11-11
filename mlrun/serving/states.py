@@ -1401,5 +1401,5 @@ def _init_async_objects(context, steps):
                 step.async_object.to(storey.Complete(full_event=True))
                 wait_for_result = True
 
-    default_source = storey.SyncEmitSource()
+    default_source = storey.SyncEmitSource(context=context)
     return default_source, wait_for_result

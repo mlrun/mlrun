@@ -24,7 +24,7 @@ from ..data_types import InferOptions, get_infer_interface
 from ..datastore.sources import BaseSourceDriver, StreamSource
 from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
-    get_default_prefix_for_target,
+    get_default_prefix_for_source,
     get_default_targets,
     get_target_driver,
     kind_to_driver,
@@ -568,12 +568,11 @@ def deploy_ingestion_service(
 
     run_config = run_config.copy() if run_config else RunConfig()
     if isinstance(source, StreamSource) and not source.path:
-        source.path = get_default_prefix_for_target(source.kind).format(
+        source.path = get_default_prefix_for_source(source.kind).format(
             project=featureset.metadata.project,
             kind=source.kind,
-            name=featureset.metadata.name,
-            run_uuid="{run_uuid}",
-        ).replace("/{run_uuid}/", "/")
+            name=featureset.metadata.name
+        )
     source, run_config.parameters = _set_task_params(
         featureset, source, targets, run_config.parameters
     )

@@ -75,6 +75,10 @@ def get_default_prefix_for_target(kind):
     return data_prefix
 
 
+def get_default_prefix_for_source(kind):
+    return get_default_prefix_for_target(kind).replace("/{run_uuid}/", "/")
+
+
 def validate_target_list(targets):
     """Check that no target overrides another target in the list (name/path)"""
 

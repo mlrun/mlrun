@@ -8,7 +8,7 @@ USER $NB_UID
 
 ENV PIP_NO_CACHE_DIR=1
 
-RUN python -m pip install --upgrade pip~=20.2.0
+RUN python -m pip install --upgrade pip~=21.2.0
 
 WORKDIR $HOME
 

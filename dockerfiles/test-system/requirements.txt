@@ -1,4 +1,5 @@
 pytest~=5.4
 matplotlib~=3.0
 graphviz~=0.16.0
-scikit-learn~=0.23.0
+scikit-learn~=1.0; python_version >= '3.7'
+scikit-learn~=0.23.0; python_version < '3.7'

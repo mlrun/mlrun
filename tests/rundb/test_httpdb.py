@@ -92,7 +92,7 @@ def docker_fixture():
             "-f",
             "dockerfiles/mlrun-api/Dockerfile",
             "--build-arg",
-            "MLRUN_PYTHON_VERSION=3.7.9",
+            "MLRUN_PYTHON_VERSION=3.7.11",
             "--tag",
             docker_tag,
             ".",
@@ -361,6 +361,16 @@ def test_version_compatibility_validation():
         {"server_version": "0.6.3", "client_version": "0.4.8", "compatible": True},
         {"server_version": "1.0.0", "client_version": "0.5.0", "compatible": False},
         {"server_version": "0.5.0", "client_version": "1.0.0", "compatible": False},
+        {
+            "server_version": "0.7.1",
+            "client_version": "0.0.0+unstable",
+            "compatible": True,
+        },
+        {
+            "server_version": "0.0.0+unstable",
+            "client_version": "0.7.1",
+            "compatible": True,
+        },
     ]
     for case in cases:
         assert case["compatible"] == HTTPRunDB._validate_version_compatibility(

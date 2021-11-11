@@ -85,12 +85,17 @@ class K8sSecretsMock:
             if (secret_keys and key in secret_keys) or not secret_keys
         }
 
-    def get_expected_env_variables_from_secrets(self, project, encode_key_names=True):
+    def get_expected_env_variables_from_secrets(
+        self, project, encode_key_names=True, include_internal=False
+    ):
         expected_env_from_secrets = {}
         secret_name = mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(
             project
         )
         for key in self.project_secrets_map.get(project, {}):
+            if key.startswith("mlrun.") and not include_internal:
+                continue
+
             env_variable_name = (
                 SecretsStore.k8s_env_variable_name_for_secret(key)
                 if encode_key_names

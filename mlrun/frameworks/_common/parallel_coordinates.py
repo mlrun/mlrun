@@ -1,4 +1,5 @@
 import datetime
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -8,6 +9,8 @@ from IPython.core.display import HTML, display
 from pandas.api.types import is_numeric_dtype, is_string_dtype
 
 import mlrun
+
+warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
 def gen_bool_list(output_df: pd.DataFrame, col: str) -> list:
@@ -133,18 +136,17 @@ def gen_plot_data(
     return data
 
 
-def drop_identical(source_df: pd.DataFrame) -> pd.DataFrame:
+def drop_identical(df: pd.DataFrame) -> pd.DataFrame:
     """
     Drop columns with identical values throughout iterations (no variance).
-    :param source_df: Result of the hyperparameter run as a Dataframe
-    :return source_df: Our source_df without identical-values parameters.
+    :param df: Result of the hyperparameter run as a Dataframe
+    :returns df: Our source_df without identical-values parameters.
     """
 
-    for col in (source_df.filter(like="param.")).columns:
-        if source_df[col].nunique() == 1:
-            source_df = source_df.drop(columns=[col])
-
-    return source_df
+    for col in df.columns:
+        if df[col].nunique() == 1:
+            df = df.drop(columns=[col])
+    return df
 
 
 def split_dataframe(source_df: pd.DataFrame) -> pd.DataFrame:
@@ -168,59 +170,43 @@ def clean_col_names(param_df: pd.DataFrame, output_df: pd.DataFrame) -> pd.DataF
 
     :param param_df:
     :param output_df:
-    :return:
+    :returns:
     """
     param_df.columns = param_df.columns.str.replace("param.", "")
     output_df.columns = output_df.columns.str.replace("output.", "")
     return param_df, output_df
 
 
-def get_runs(
-    name=None,
-    uid=None,
-    project=None,
+def compare_runs(
+    run_name=None,
+    project_name=None,
     labels=None,
-    state=None,
-    sort=True,
-    last=0,
     iter=False,
     start_time_from: datetime = None,
-    start_time_to: datetime = None,
-    last_update_time_from: datetime = None,
-    last_update_time_to: datetime = None,
+    hide_identical: bool = True,
+    exclude: list = ["label_column", "labels"],
+    show=None,
+    **kwargs,
 ) -> pd.DataFrame:
     """
 
-    :param name:
-    :param uid:
-    :param project:
+    :param run_name:
+    :param project_name:
     :param labels:
-    :param state:
-    :param sort:
-    :param last:
     :param iter:
     :param start_time_from:
-    :param start_time_to:
-    :param last_update_time_from:
-    :param last_update_time_to:
     :return:
     """
 
     runs_df = (
         mlrun.get_run_db()
         .list_runs(
-            name,
-            uid,
-            project,
-            labels,
-            state,
-            sort,
-            last,
-            iter,
-            start_time_from,
-            start_time_to,
-            last_update_time_from,
-            last_update_time_to,
+            labels=labels,
+            iter=iter,
+            start_time_from=start_time_from,
+            name=run_name,
+            project=project_name,
+            **kwargs,
         )
         .to_df()
     )
@@ -239,7 +225,13 @@ def get_runs(
     output_list = [o for o in runs_df["results"]]
     output_df = pd.DataFrame(output_list).add_prefix("output.")
 
-    return param_df, output_df
+    return plot_parallel_coordinates(
+        param_df=param_df,
+        output_df=output_df,
+        hide_identical=hide_identical,
+        exclude=exclude,
+        show=show,
+    )
 
 
 def plot_parallel_coordinates(
@@ -248,9 +240,7 @@ def plot_parallel_coordinates(
     output_df: pd.DataFrame = pd.DataFrame(),
     hide_identical: bool = True,
     exclude: list = ["label_column", "labels"],
-    display_plot=True,
-    run_name=None,
-    project_name=None,
+    show=None,
 ) -> str:
     """
     Plots the output of the hyperparameter run in a Parallel Coordinate format using the Plotly library.
@@ -262,9 +252,6 @@ def plot_parallel_coordinates(
     :param display_plot: Allows the user to display the plot within the notebook
     :returns plot_as_html: The Parallel Coordinate plot in HTML format.
     """
-
-    if run_name or project_name:
-        param_df, output_df = get_runs(project=project_name, name=run_name)
 
     # users passes param_df and output_df
     if source_df.empty and param_df.empty is False and output_df.empty is False:
@@ -286,18 +273,45 @@ def plot_parallel_coordinates(
 
     layout = dict(
         showlegend=True,
-        updatemenus=list(
-            [dict(active=0, showactive=True, buttons=gen_dropdown_buttons(output_df))]
-        ),
+        updatemenus=[
+            dict(
+                active=0,
+                xanchor="left",
+                x=0.7,
+                yanchor="bottom",
+                y=1.3,
+                bgcolor="#ffffff",
+                showactive=True,
+                buttons=gen_dropdown_buttons(output_df),
+            )
+        ],
     )
 
+    # Generate plotly figure with dropdown
     fig = go.Figure(data=gen_plot_data(source_df, param_df, output_df), layout=layout)
 
+    # workaround to remove dropdown button opacity
+    fig.update_layout(autosize=True, margin=dict(l=50, r=50, b=50, t=50, pad=4))
+
+    # Add annotation to dropdown
+    fig.update_layout(
+        annotations=[
+            dict(
+                text="output metric:",
+                x=0.7,
+                xref="paper",
+                y=1.4,
+                yref="paper",
+                align="right",
+                showarrow=False,
+            ),
+        ]
+    )
+
     # Creating an html rendering of the plot
-    plot_as_html = plotly.offline.plot(fig)
+    plot_as_html = fig.to_html()
 
-    if display_plot:
+    if show or (show is None and mlrun.utils.is_ipython):
         display(HTML(plot_as_html))
-
-    return HTML(plot_as_html)
-
+    else:
+        return plot_as_html

@@ -258,7 +258,7 @@ def plot_parallel_coordinates(
     if source_df.empty and param_df.empty is False and output_df.empty is False:
         source_df = pd.concat([param_df, output_df], axis=1, join="inner")
         source_df["iter"] = range(1, 1 + len(param_df))
-        
+
     # User passes source_df without param/output
     elif source_df.empty is False and param_df.empty and output_df.empty:
         param_df, output_df = split_dataframe(source_df)

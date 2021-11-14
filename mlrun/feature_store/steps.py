@@ -5,8 +5,6 @@ from storey import MapClass
 
 from mlrun.serving.utils import StepToDict
 
-this_path = "mlrun.feature_store.steps"
-
 
 class FeaturesetValidator(StepToDict, MapClass):
     """Validate feature values according to the feature set validation policy"""

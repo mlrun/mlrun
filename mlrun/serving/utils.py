@@ -68,9 +68,9 @@ class StepToDict:
         }
         if hasattr(self, "_STEP_KIND"):
             struct["kind"] = self._STEP_KIND
-        if hasattr(self, "_input_path"):
+        if hasattr(self, "_input_path") and self._input_path is not None:
             struct["input_path"] = self._input_path
-        if hasattr(self, "_result_path"):
+        if hasattr(self, "_result_path") and self._result_path is not None:
             struct["result_path"] = self._result_path
         if hasattr(self, "_full_event") and self._full_event:
             struct["full_event"] = self._full_event

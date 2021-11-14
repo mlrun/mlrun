@@ -37,16 +37,14 @@ def gen_dropdown_buttons(output_df: pd.DataFrame) -> list:
     :returns buttons: list of dropdown buttons with their equivalent plot visibilty.
     """
 
-    buttons = []
-
-    for col in output_df.columns:
-        buttons.append(
-            dict(
-                label=col,
-                method="update",
-                args=[{"visible": gen_bool_list(output_df, col)}],
-            )
+    buttons = [
+        dict(
+            label=col,
+            method="update",
+            args=[{"visible": gen_bool_list(output_df, col)}],
         )
+        for col in output_df.columns
+    ]
 
     return buttons
 

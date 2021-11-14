@@ -3,7 +3,6 @@ import warnings
 
 import numpy as np
 import pandas as pd
-import plotly
 import plotly.graph_objects as go
 from IPython.core.display import HTML, display
 from pandas.api.types import is_numeric_dtype, is_string_dtype
@@ -139,8 +138,8 @@ def gen_plot_data(
 def drop_identical(df: pd.DataFrame) -> pd.DataFrame:
     """
     Drop columns with identical values throughout iterations (no variance).
-    :param df: Result of the hyperparameter run as a Dataframe
-    :returns df: Our source_df without identical-values parameters.
+    :param df: a hyperparameter run as a Dataframe
+    :returns df: Our Dataframe without identical-values.
     """
 
     for col in df.columns:
@@ -153,8 +152,7 @@ def split_dataframe(source_df: pd.DataFrame) -> pd.DataFrame:
     """
     Splits the original hyperparameter dataframe into a params dataframe and result dataframe.
     :param source_df: Result of the hyperparameter run as a Dataframe
-    :param hide_identical: Ignores parameters that remain the same throughout iterations
-    :param exclude: User-provided list of parameters to be excluded from the graph
+
     :returns param_df: Dataframe of parameters from the hyperparameter run.
     :returns output_df: Dataframe of outputs from the hyperparameter run.
     """
@@ -165,16 +163,15 @@ def split_dataframe(source_df: pd.DataFrame) -> pd.DataFrame:
     return param_df, output_df
 
 
-def clean_col_names(param_df: pd.DataFrame, output_df: pd.DataFrame) -> pd.DataFrame:
+def clean_col_names(df: pd.DataFrame, to_replace: str) -> pd.DataFrame:
     """
-
-    :param param_df:
-    :param output_df:
-    :returns:
+    Remove prefix of a column name within a Dataframe.
+    :param df: the Dataframe containing the column names without prefix
+    :param to_replace: the prefix to remove
+    :returns: a cleaned dataframe.
     """
-    param_df.columns = param_df.columns.str.replace("param.", "")
-    output_df.columns = output_df.columns.str.replace("output.", "")
-    return param_df, output_df
+    df.columns = df.columns.str.replace(to_replace, "")
+    return df
 
 
 def compare_runs(
@@ -189,13 +186,19 @@ def compare_runs(
     **kwargs,
 ) -> pd.DataFrame:
     """
+    Get the runs or project runs, creates param/output dataframe for each experiment and send the
+    data to be plotted as parallel coordinates.
 
-    :param run_name:
-    :param project_name:
-    :param labels:
-    :param iter:
-    :param start_time_from:
-    :return:
+    :param run_name: Name of the run to retrieve
+    :param project_name: Project that the runs belongs to
+    :param labels: List runs that have a specific label assigned. Currently only a single label filter can be
+            applied, otherwise result will be empty.
+    :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
+    :param start_time_from: Filter by run start time in ``[start_time_from, start_time_to]``.
+    :param hide_identical: Ignores parameters that remain the same throughout iterations
+    :param exclude: User-provided list of parameters to be excluded from the graph
+    :param show: Allows the user to display the plot within the notebook
+    :returns: param/output dataframes to be plotted
     """
 
     runs_df = (
@@ -249,7 +252,7 @@ def plot_parallel_coordinates(
     :param output_df: Dataframe of outputs from the hyperparameter run
     :param hide_identical: Ignores parameters that remain the same throughout iterations
     :param exclude: User-provided list of parameters to be excluded from the graph
-    :param display_plot: Allows the user to display the plot within the notebook
+    :param show: Allows the user to display the plot within the notebook
     :returns plot_as_html: The Parallel Coordinate plot in HTML format.
     """
 
@@ -261,7 +264,9 @@ def plot_parallel_coordinates(
     elif source_df.empty is False and param_df.empty and output_df.empty:
         param_df, output_df = split_dataframe(source_df)
 
-    param_df, output_df = clean_col_names(param_df, output_df)
+    # Remove 'output.' and 'param.' from columns str
+    param_df = clean_col_names(param_df, to_replace="param.")
+    output_df = clean_col_names(output_df, to_replace="output.")
 
     # Drop unwanted columns
     param_df = drop_exclusions(param_df, exclude)
@@ -271,6 +276,7 @@ def plot_parallel_coordinates(
     if hide_identical:
         param_df = drop_identical(param_df)
 
+    # Set position of dropdown buttons
     layout = dict(
         showlegend=True,
         updatemenus=[
@@ -290,7 +296,7 @@ def plot_parallel_coordinates(
     # Generate plotly figure with dropdown
     fig = go.Figure(data=gen_plot_data(source_df, param_df, output_df), layout=layout)
 
-    # workaround to remove dropdown button opacity
+    # Workaround to remove dropdown button opacity
     fig.update_layout(autosize=True, margin=dict(l=50, r=50, b=50, t=50, pad=4))
 
     # Add annotation to dropdown

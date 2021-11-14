@@ -248,7 +248,7 @@ class GraphServer(ModelObj):
         try:
             response = self.graph.run(event, **(extra_args or {}))
         except Exception as exc:
-            message = str(exc)
+            message = f"{exc.__class__.__name__}: {exc}"
             if server_context.verbose:
                 message += "\n" + str(traceback.format_exc())
             context.logger.error(f"run error, {traceback.format_exc()}")
@@ -434,11 +434,11 @@ class GraphContext:
             return self._server._secrets.get(key)
         return None
 
-    def get_remote_endpoint(self, name, external=False):
+    def get_remote_endpoint(self, name, external=True):
         """return the remote nuclio/serving function http(s) endpoint given its name
 
         :param name: the function name/uri in the form [project/]function-name[:tag]
-        :param external: return the external url (returns the in-cluster url by default)
+        :param external: return the external url (returns the external url by default)
         """
         if "://" in name:
             return name

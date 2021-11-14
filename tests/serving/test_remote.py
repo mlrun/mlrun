@@ -1,4 +1,8 @@
+import re
+import time
+
 import pytest
+from werkzeug.wrappers import Request, Response
 
 import mlrun
 from mlrun.serving.utils import event_id_key, event_path_key
@@ -148,5 +152,166 @@ def test_remote_advance(httpserver, engine):
     server = function.to_mock_server()
     resp = server.test(body={"req": {"url": "/dog", "data": {"x": 5}}})
     server.wait_for_completion()
-    print(resp)
     assert resp == {"req": {"url": "/dog", "data": {"x": 5}}, "resp": {"post": "ok"}}
+
+
+def _timed_out_handler(request: Request):
+    time.sleep(2)  # this should be greater than the client's timeout parameter
+    return Response(request.data, status=200)
+
+
+@pytest.mark.parametrize("engine", ["async", "sync"])
+def test_timeout(httpserver, engine):
+    httpserver.expect_request("/data", method="POST").respond_with_handler(
+        _timed_out_handler
+    )
+    url = httpserver.url_for("/data")
+    server = _new_server(url, engine, timeout=1, retries=0, return_json=False)
+
+    try:
+        server.test(body=b"tst", method="POST")
+        assert False, "did not time out"
+    except Exception as exc:
+        is_timeout = (
+            ("timed out" in str(exc))
+            or ("CancelledError" in str(exc))
+            or ("TimeoutError" in str(exc))
+        )
+        if not is_timeout:
+            raise exc
+
+    try:
+        server.wait_for_completion()
+    except Exception:
+        # ignore the delayed errors
+        pass
+
+
+class RetryTester:
+    def __init__(self, ok_after=0):
+        self.retries_dict = {}
+        self.ok_after = ok_after
+
+    def handler(self, request: Request):
+        retries = self.retries_dict.get(request.path, 0)
+        self.retries_dict[request.path] = retries + 1
+        if self.ok_after and retries >= self.ok_after:
+            return Response(request.data, status=200)
+        return Response("Failed", status=500)
+
+
+@pytest.mark.parametrize("engine", ["sync", "async"])
+def test_failure(httpserver, engine):
+    tester = RetryTester()
+    method = "POST"
+    httpserver.expect_request("/data", method=method).respond_with_handler(
+        tester.handler
+    )
+    url = httpserver.url_for("/data")
+    server = _new_server(url, engine, method=method, return_json=False, retries=0)
+
+    try:
+        server.test(body=b"tst", method=method)
+        assert False, "did not fail the request"
+    except RuntimeError:
+        pass
+
+    assert tester.retries_dict["/data"] == 1, "did not get expected number of retries"
+    try:
+        server.wait_for_completion()
+    except RuntimeError:
+        # ignore the delayed errors
+        pass
+
+
+@pytest.mark.parametrize("engine", ["sync", "async"])
+def test_retry(httpserver, engine):
+    # test with one failure/retry and 2nd try succeed
+    retries = 1
+    tester = RetryTester(retries)
+    method = "POST"
+    httpserver.expect_request("/data", method=method).respond_with_handler(
+        tester.handler
+    )
+    url = httpserver.url_for("/data")
+    server = _new_server(url, engine, method=method, return_json=False, retries=retries)
+    try:
+        server.test(body=b"tst", method=method)
+    finally:
+        server.wait_for_completion()
+    assert (
+        tester.retries_dict["/data"] == retries + 1
+    ), "did not get expected number of retries"
+
+
+def _echo_handler(request: Request):
+    return Response(request.data, status=200)
+
+
+def test_parallel_remote(httpserver):
+    # test calling multiple http clients
+    from mlrun.serving.remote import BatchHttpRequests
+
+    httpserver.expect_request(re.compile("^/.*"), method="POST").respond_with_handler(
+        _echo_handler
+    )
+    url = httpserver.url_for("/")
+
+    function = mlrun.new_function("test2", kind="serving")
+    flow = function.set_topology("flow", engine="async")
+    flow.to(
+        BatchHttpRequests(
+            url_expression="event['url']",
+            body_expression="event['data']",
+            method="POST",
+            input_path="req",
+            result_path="resp",
+        )
+    ).respond()
+
+    server = function.to_mock_server()
+    items = list(range(2))
+    request = [{"url": f"{url}{i}", "data": i} for i in items]
+    try:
+        resp = server.test(body={"req": request})
+    finally:
+        server.wait_for_completion()
+    assert resp["resp"] == items, "unexpected response"
+
+
+def test_parallel_remote_retry(httpserver):
+    # test calling multiple http clients with failure and one retry
+    from mlrun.serving.remote import BatchHttpRequests
+
+    retries = 1
+    tester = RetryTester(retries)
+    httpserver.expect_request(re.compile("^/.*"), method="POST").respond_with_handler(
+        tester.handler
+    )
+    url = httpserver.url_for("/")
+
+    function = mlrun.new_function("test2", kind="serving")
+    flow = function.set_topology("flow", engine="async")
+    flow.to(
+        BatchHttpRequests(
+            url_expression="event['url']",
+            body_expression="event['data']",
+            method="POST",
+            input_path="req",
+            result_path="resp",
+            retries=1,
+        )
+    ).respond()
+
+    server = function.to_mock_server()
+    items = list(range(2))
+    request = [{"url": f"{url}{i}", "data": i} for i in items]
+    try:
+        resp = server.test(body={"req": request})
+    finally:
+        server.wait_for_completion()
+    assert resp["resp"] == items, "unexpected response"
+    assert tester.retries_dict == {
+        "/1": retries + 1,
+        "/0": retries + 1,
+    }, "didnt retry properly"

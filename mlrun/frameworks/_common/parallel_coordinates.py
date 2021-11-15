@@ -188,7 +188,7 @@ def compare_runs(
     hide_identical: bool = True,
     exclude: list = ["label_column", "labels"],
     show=None,
-    colorscale: str = "viridis",
+    colorscale: str = "Blues",
     **kwargs,
 ) -> str:
     """

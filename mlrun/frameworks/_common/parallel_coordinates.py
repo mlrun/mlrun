@@ -192,6 +192,7 @@ def compare_runs(
 
     :param run_name: Name of the run to retrieve
     :param project_name: Project that the runs belongs to
+    :param runs_list: Run list object
     :param labels: List runs that have a specific label assigned. Currently only a single label filter can be
             applied, otherwise result will be empty.
     :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
@@ -255,8 +256,8 @@ def plot_parallel_coordinates(
     output_df: pd.DataFrame = pd.DataFrame(),
     hide_identical: bool = True,
     exclude: list = ["label_column", "labels"],
-    show=None,
-    run_plot=False,
+    show: bool = None,
+    run_plot: bool = False,
 ) -> str:
     """
     Plots the output of the hyperparameter run in a Parallel Coordinate format using the Plotly library.
@@ -266,6 +267,7 @@ def plot_parallel_coordinates(
     :param hide_identical: Ignores parameters that remain the same throughout iterations
     :param exclude: User-provided list of parameters to be excluded from the graph
     :param show: Allows the user to display the plot within the notebook
+    :param run_plot: Flag used if the data sources from runs or iterations
     :returns plot_as_html: The Parallel Coordinate plot in HTML format.
     """
 

@@ -270,6 +270,10 @@ class EventStreamProcessor:
             after="MapFeatureNames",
             _fn="(event)",
         )
+        storage_options = dict(
+            v3io_access_key=self.model_monitoring_access_key, v3io_api=self.v3io_api
+        )
+
         pq_target = ParquetTarget(
             path=self.parquet_path,
             after_step="ProcessBeforeParquet",
@@ -277,6 +281,8 @@ class EventStreamProcessor:
             time_partitioning_granularity="hour",
             max_events=self.parquet_batching_max_events,
             flush_after_seconds=self.parquet_batching_timeout_secs,
+            storage_options=storage_options,
+            attributes={"infer_columns_from_data": True},
         )
 
         feature_set.set_targets(
@@ -371,6 +377,7 @@ class ProcessBeforeParquet(MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
+        logger.info("ProcessBeforeParquet1", event=event)
         for key in [UNPACKED_LABELS, FEATURES]:
             event.pop(key, None)
         value = event.get("entities")
@@ -379,6 +386,7 @@ class ProcessBeforeParquet(MapClass):
         for key in [LABELS, METRICS, ENTITIES]:
             if not event.get(key):
                 event[key] = None
+        logger.info("ProcessBeforeParquet2", event=event)
         return event
 
 
@@ -409,7 +417,9 @@ class ProcessEndpointEvent(MapClass):
         # Validate event fields
         model_class = event.get("model_class") or event.get("class")
         timestamp = event.get("when")
-        request_id = event.get("request", {}).get("id")
+        request_id = event.get("request", {}).get("id") or event.get("resp", {}).get(
+            "id"
+        )
         latency = event.get("microsec")
         features = event.get("request", {}).get("inputs")
         predictions = event.get("resp", {}).get("outputs")
@@ -478,7 +488,7 @@ class ProcessEndpointEvent(MapClass):
         if all(isinstance(x, int) or isinstance(x, float) for x in field):
             return True
         logger.error(
-            f"Expected event field is missing: {field} [Event -> {''.join(dict_path)}]"
+            f"Expected event field is missing: {field} [Event -> {','.join(dict_path)}]"
         )
         return False
 
@@ -547,7 +557,7 @@ def is_not_none(field: Any, dict_path: List[str]):
     if field is not None:
         return True
     logger.error(
-        f"Expected event field is missing: {field} [Event -> {''.join(dict_path)}]"
+        f"Expected event field is missing: {field} [Event -> {','.join(dict_path)}]"
     )
     return False
 
@@ -673,6 +683,7 @@ class MapFeatureNames(MapClass):
         event[NAMED_PREDICTIONS] = {
             name: prediction for name, prediction in zip(label_columns, prediction)
         }
+        logger.info("Mapped event", event=event)
         return event
 
 
@@ -791,6 +802,8 @@ def handler(context, event):
                 context.fset,
                 pd.DataFrame({k: [v] for k, v in enriched.items()}),
                 infer_options=options,
+                return_df=False,
+                overwrite=False,
             )
         else:
             pass

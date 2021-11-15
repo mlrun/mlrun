@@ -1076,6 +1076,7 @@ class DataTargetBase(ModelObj):
         "time_partitioning_granularity",
         "max_events",
         "flush_after_seconds",
+        "storage_options",
     ]
 
     # TODO - remove once "after_state" is fully deprecated
@@ -1099,6 +1100,7 @@ class DataTargetBase(ModelObj):
         max_events: Optional[int] = None,
         flush_after_seconds: Optional[int] = None,
         after_state=None,
+        storage_options: Dict[str, str] = None,
     ):
         if after_state:
             warnings.warn(
@@ -1120,6 +1122,7 @@ class DataTargetBase(ModelObj):
         self.time_partitioning_granularity = time_partitioning_granularity
         self.max_events = max_events
         self.flush_after_seconds = flush_after_seconds
+        self.storage_options = storage_options
 
 
 class FeatureSetProducer(ModelObj):

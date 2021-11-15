@@ -330,6 +330,9 @@ def run(
         print(f"url_file = {url_file}")
         print("File:")
         with open(url_file, "r") as fp:
+            import os
+
+            print(os.path.realpath(fp.name))
             print(fp.read())
         return
 

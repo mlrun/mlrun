@@ -28,7 +28,7 @@ from mlrun.config import config
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
 from mlrun.utils.model_monitoring import EndpointType
 
-from .utils import StepToDict
+from .utils import StepToDict, _extract_input_data, _update_result_body
 
 
 class V2ModelServer(StepToDict):
@@ -41,6 +41,8 @@ class V2ModelServer(StepToDict):
         model_path: str = None,
         model=None,
         protocol=None,
+        input_path: str = None,
+        result_path: str = None,
         **kwargs,
     ):
         """base model serving class (v2), using similar API to KFServing v2 and Triton
@@ -86,6 +88,13 @@ class V2ModelServer(StepToDict):
         :param model_path: model file/dir or artifact path
         :param model:      model object (for local testing)
         :param protocol:   serving API protocol (default "v2")
+        :param input_path:    when specified selects the key/path in the event to use as body
+                              this require that the event body will behave like a dict, example:
+                              event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means request body will be 7
+        :param result_path:   selects the key/path in the event to write the results to
+                              this require that the event body will behave like a dict, example:
+                              event: {"x": 5} , result_path="resp" means the returned response will be written
+                              to event["y"] resulting in {"x": 5, "resp": <result>}
         :param kwargs:     extra arguments (can be accessed using self.get_param(key))
         """
         self.name = name
@@ -98,6 +107,8 @@ class V2ModelServer(StepToDict):
         self.protocol = protocol or "v2"
         self.model_path = model_path
         self.model_spec: mlrun.artifacts.ModelArtifact = None
+        self._input_path = input_path
+        self._result_path = result_path
         self._kwargs = kwargs  # for to_dict()
         self._params = kwargs
         self._model_logger = (
@@ -208,34 +219,37 @@ class V2ModelServer(StepToDict):
                 return
         raise RuntimeError(f"model {self.name} is not ready {self.error}")
 
-    def _pre_event_processing_actions(self, event, op):
+    def _pre_event_processing_actions(self, event, event_body, op):
         self._check_readiness(event)
-        request = self.preprocess(event.body, op)
-        if "id" not in request:
-            request["id"] = event.id
+        request = self.preprocess(event_body, op)
         return self.validate(request, op)
 
     def do_event(self, event, *args, **kwargs):
         """main model event handler method"""
         start = now_date()
+        original_body = event.body
+        event_body = _extract_input_data(self._input_path, event.body)
+        event_id = event.id
         op = event.path.strip("/")
-        if not op and event.body and isinstance(event.body, dict):
-            op = event.body.get("operation")
+        if event_body and isinstance(event_body, dict):
+            op = op or event_body.get("operation")
+            event_id = event_body.get("id", event_id)
         if not op and event.method != "GET":
             op = "infer"
 
         if op == "predict" or op == "infer":
             # predict operation
-            request = self._pre_event_processing_actions(event, op)
+            request = self._pre_event_processing_actions(event, event_body, op)
             try:
                 outputs = self.predict(request)
             except Exception as exc:
+                request["id"] = event_id
                 if self._model_logger:
                     self._model_logger.push(start, request, op=op, error=exc)
                 raise exc
 
             response = {
-                "id": request["id"],
+                "id": event_id,
                 "model_name": self.name,
                 "outputs": outputs,
             }
@@ -256,29 +270,33 @@ class V2ModelServer(StepToDict):
         elif op == "" and event.method == "GET":
             # get model metadata operation
             setattr(event, "terminated", True)
-            event.body = {
+            event_body = {
                 "name": self.name,
                 "version": self.version,
                 "inputs": [],
                 "outputs": [],
             }
             if self.model_spec:
-                event.body["inputs"] = self.model_spec.inputs
-                event.body["outputs"] = self.model_spec.outputs
+                event_body["inputs"] = self.model_spec.inputs
+                event_body["outputs"] = self.model_spec.outputs
+            event.body = _update_result_body(
+                self._result_path, original_body, event_body
+            )
             return event
 
         elif op == "explain":
             # explain operation
-            request = self._pre_event_processing_actions(event, op)
+            request = self._pre_event_processing_actions(event, event_body, op)
             try:
                 outputs = self.explain(request)
             except Exception as exc:
+                request["id"] = event_id
                 if self._model_logger:
                     self._model_logger.push(start, request, op=op, error=exc)
                 raise exc
 
             response = {
-                "id": request["id"],
+                "id": event_id,
                 "model_name": self.name,
                 "outputs": outputs,
             }
@@ -288,7 +306,7 @@ class V2ModelServer(StepToDict):
         elif hasattr(self, "op_" + op):
             # custom operation (child methods starting with "op_")
             response = getattr(self, "op_" + op)(event)
-            event.body = response
+            event.body = _update_result_body(self._result_path, original_body, response)
             return event
 
         else:
@@ -297,7 +315,7 @@ class V2ModelServer(StepToDict):
         response = self.postprocess(response)
         if self._model_logger:
             self._model_logger.push(start, request, response, op)
-        event.body = response
+        event.body = _update_result_body(self._result_path, original_body, response)
         return event
 
     def validate(self, request, operation):

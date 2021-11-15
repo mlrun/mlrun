@@ -368,3 +368,25 @@ def test_serving_no_router():
     resp = server.test("/", testdata)
     # expected: source (5) * multiplier (100)
     assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
+
+
+def test_model_chained():
+    fn = mlrun.new_function("demo", kind="serving")
+    graph = fn.set_topology("flow", engine="async")
+    graph.to(
+        ModelTestingClass(name="m1", model_path=".", multiplier=2),
+        result_path="m1",
+        input_path="req",
+    ).to(
+        ModelTestingClass(
+            name="m2", model_path=".", result_path="m2", multiplier=3, input_path="req"
+        )
+    ).respond()
+    server = fn.to_mock_server()
+
+    resp = server.test(body={"req": {"inputs": [5]}})
+    server.wait_for_completion()
+    assert list(resp.keys()) == ["req", "m1", "m2"], "unexpected keys in resp"
+    assert (
+        resp["m1"]["outputs"] == 5 * 2 and resp["m2"]["outputs"] == 5 * 3
+    ), "unexpected model results"

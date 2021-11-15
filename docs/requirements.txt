@@ -5,6 +5,6 @@ docutils==0.16
 sphinx_rtd_theme~=0.5.0
 myst-nb==0.10.0
 #pydata_sphinx_theme==0.4.3
+sphinx_book_theme==0.0.42
 sphinx-copybutton~=0.3.0
 sphinx-togglebutton~=0.2.2
-sphinx-togglebutton

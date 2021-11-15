@@ -323,7 +323,7 @@ def run(
         print("Run:")
         pprint(runobj.to_dict())
 
-    if kind in ["spark"]:
+    if get_in(runtime, "kind", "") in ["spark"]:
         print(f"{kind} runtime - skipping execution")
         return
 

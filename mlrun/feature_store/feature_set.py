@@ -265,6 +265,7 @@ class FeatureSet(ModelObj):
         self.metadata = VersionedObjMetadata(name=name)
         self.status = None
         self._last_state = ""
+        self._aggregations = {}
 
     @property
     def spec(self) -> FeatureSetSpec:
@@ -453,13 +454,40 @@ class FeatureSet(ModelObj):
         """feature set transformation graph/DAG"""
         return self.spec.graph
 
+    def _add_agregation_to_existing(self, new_aggregation):
+        name = new_aggregation["name"]
+        if name in self._aggregations:
+            current_aggr = self._aggregations[name]
+            if current_aggr["windows"] != new_aggregation["windows"]:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Aggregation with name {name} already exists but with window {current_aggr['windows']}. "
+                    f"Please provide name for the aggregation"
+                )
+            if current_aggr["period"] != new_aggregation["period"]:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Aggregation with name {name} already exists but with period {current_aggr['period']}. "
+                    f"Please provide name for the aggregation"
+                )
+            if current_aggr["column"] != new_aggregation["column"]:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Aggregation with name {name} already exists but for different column {current_aggr['column']}. "
+                    f"Please provide name for the aggregation"
+                )
+            current_aggr["operations"] = list(
+                set(current_aggr["operations"] + new_aggregation["operations"])
+            )
+
+            return False
+        self._aggregations[name] = new_aggregation
+        return True
+
     def add_aggregation(
         self,
-        name,
         column,
         operations,
         windows,
         period=None,
+        name=None,
         step_name=None,
         after=None,
         before=None,
@@ -471,7 +499,6 @@ class FeatureSet(ModelObj):
 
             myset.add_aggregation("asks", "ask", ["sum", "max"], "1h", "10m")
 
-        :param name:       aggregation name/prefix
         :param column:     name of column/field aggregate
         :param operations: aggregation operations, e.g. ['sum', 'std']
         :param windows:    time windows, can be a single window, e.g. '1h', '1d',
@@ -494,11 +521,17 @@ class FeatureSet(ModelObj):
                               (when the query processes the window to which the record belongs).
 
         :param period:     optional, sliding window granularity, e.g. '10m'
+        :param name:       optional, aggregation name/prefix. Must be unique per feature set.If not passed,
+                           name will be column
         :param step_name: optional, graph step name
         :param state_name: *Deprecated* - use step_name instead
         :param after:      optional, after which graph step it runs
         :param before:     optional, comes before graph step
         """
+        if isinstance(operations, str):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "operations is not list. Note that 'name' parameter is optional"
+            )
         if state_name:
             warnings.warn(
                 "The state_name parameter is deprecated. Use step_name instead",
@@ -506,6 +539,8 @@ class FeatureSet(ModelObj):
                 PendingDeprecationWarning,
             )
             step_name = step_name or state_name
+
+        name = name or column
 
         if isinstance(windows, list):
             unit = None
@@ -538,9 +573,10 @@ class FeatureSet(ModelObj):
         graph = self.spec.graph
         if step_name in graph.steps:
             step = graph.steps[step_name]
-            aggregations = step.class_args.get("aggregates", [])
-            aggregations.append(aggregation)
-            step.class_args["aggregates"] = aggregations
+            if self._add_agregation_to_existing(aggregation):
+                aggregations = step.class_args.get("aggregates", [])
+                aggregations.append(aggregation)
+                step.class_args["aggregates"] = aggregations
         else:
             class_args = {}
             step = graph.add_step(

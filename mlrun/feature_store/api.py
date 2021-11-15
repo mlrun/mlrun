@@ -439,8 +439,8 @@ def preview(
     example::
 
         quotes_set = FeatureSet("stock-quotes", entities=[Entity("ticker")])
-        quotes_set.add_aggregation("asks", "ask", ["sum", "max"], ["1h", "5h"], "10m")
-        quotes_set.add_aggregation("bids", "bid", ["min", "max"], ["1h"], "10m")
+        quotes_set.add_aggregation("ask", ["sum", "max"], ["1h", "5h"], "10m")
+        quotes_set.add_aggregation("bid", ["min", "max"], ["1h"], "10m")
         df = preview(
             quotes_set,
             quotes_df,

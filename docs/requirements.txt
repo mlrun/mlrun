@@ -1,6 +1,6 @@
 numpydoc~=0.9.0
 recommonmark~=0.7.0
-sphinx>=3,<5
+sphinx>=3,<4
 docutils>=0.15,<0.18
 sphinx_rtd_theme==1.0.0
 sphinx-copybutton

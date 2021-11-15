@@ -1,10 +1,9 @@
 numpydoc~=0.9.0
 recommonmark~=0.7.0
-sphinx==4.2.0
-docutils~=0.17.1
+sphinx>=3,<5
+docutils>=0.15,<0.18
 sphinx_rtd_theme==1.0.0
-sphinx-copybutton~=0.3.0
-sphinx-togglebutton~=0.2.2
-myst-nb~=0.13.0
-sphinx-book-theme~=0.1.0
-
+sphinx-copybutton
+sphinx-togglebutton
+myst-nb~=0.13.1
+sphinx_book_theme~=0.1.4

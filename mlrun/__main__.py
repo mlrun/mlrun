@@ -283,6 +283,8 @@ def run(
             url = f"{url_file} {url_args}".strip()
         with open(url_file, "w") as fp:
             fp.write(code)
+            if get_in(runtime, "kind", "") in ["spark"]:
+                fp.write(f"\n{handler}\n")
 
     if url:
         if not name and not runtime:

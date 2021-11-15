@@ -152,7 +152,7 @@ def drop_identical(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def split_dataframe(source_df: pd.DataFrame) -> pd.DataFrame:
+def split_dataframe(source_df: pd.DataFrame) -> [pd.DataFrame, pd.DataFrame]:
     """
     Splits the original hyperparameter dataframe into a params dataframe and result dataframe.
     :param source_df: Result of the hyperparameter run as a Dataframe
@@ -190,7 +190,7 @@ def compare_runs(
     show=None,
     colorscale: str = "viridis",
     **kwargs,
-) -> pd.DataFrame:
+) -> str:
     """
     Get the runs or project runs, creates param/output dataframe for each experiment and send the
     data to be plotted as parallel coordinates.
@@ -205,6 +205,7 @@ def compare_runs(
     :param hide_identical: Ignores parameters that remain the same throughout iterations
     :param exclude: User-provided list of parameters to be excluded from the graph
     :param show: Allows the user to display the plot within the notebook
+    :param colorscale: colors used for the lines in the parallel coordinate plot
     :returns: param/output dataframes to be plotted
     """
 
@@ -252,7 +253,7 @@ def compare_runs(
         exclude=exclude,
         show=show,
         run_plot=True,
-        colorscale="Blues",
+        colorscale=colorscale,
     )
 
 
@@ -275,6 +276,7 @@ def plot_parallel_coordinates(
     :param exclude: User-provided list of parameters to be excluded from the graph
     :param show: Allows the user to display the plot within the notebook
     :param run_plot: Flag used if the data sources from runs or iterations
+    :param colorscale: colors used for the lines in the parallel coordinate plot
     :returns plot_as_html: The Parallel Coordinate plot in HTML format.
     """
 

@@ -270,8 +270,13 @@ class EventStreamProcessor:
             after="MapFeatureNames",
             _fn="(event)",
         )
+        storage_options = {
+            "v3io_api": self.v3io_api,
+            "v3io_access_key": self.model_monitoring_access_key,
+        },
         pq_target = ParquetTarget(
             path=self.parquet_path,
+            attributes=dict("storage_options", storage_options),
             after_step="ProcessBeforeParquet",
             key_bucketing_number=0,
             time_partitioning_granularity="hour",

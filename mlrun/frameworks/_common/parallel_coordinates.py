@@ -81,9 +81,6 @@ def gen_dimensions(df: pd.DataFrame, col: str) -> dict:
         dimension["range"] = [min(df[col]), max(df[col])]
         dimension["values"] = df[col]
 
-        if col == "iter":
-            dimension["tickvals"] = (np.arange(1, max(df[col] + 1))).tolist()
-
     elif is_string_dtype(df[col]):
         dimension["range"] = [0, len(df[col])]
         dimension["values"] = [(list(df[col]).index(val)) for val in list(df[col])]
@@ -113,10 +110,15 @@ def gen_plot_data(
 
     data = []
 
+    if "iter" in source_df.columns:
+        index_col = "iter"
+    elif "run" in source_df.columns:
+        index_col = "run"
+
     for output in output_df.columns:
         # Creating Axes and Dimensions
         dimensions = [(gen_dimensions(param_df, col)) for col in param_df.columns]
-        dimensions.insert(0, gen_dimensions(source_df, "iter"))
+        dimensions.insert(0, gen_dimensions(source_df, index_col))
         dimensions.append(gen_dimensions(output_df, output))
 
         # Plot Visibility on Dropdown
@@ -125,7 +127,7 @@ def gen_plot_data(
         # Appending to list
         data.append(
             go.Parcoords(
-                line=dict(color=source_df["iter"], colorscale="viridis"),
+                line=dict(color=source_df[index_col], colorscale="viridis"),
                 dimensions=dimensions,
                 visible=visibility,
             )
@@ -175,6 +177,7 @@ def clean_col_names(df: pd.DataFrame, to_replace: str) -> pd.DataFrame:
 def compare_runs(
     run_name=None,
     project_name=None,
+    runs_list=None,
     labels=None,
     iter=False,
     start_time_from: datetime = None,
@@ -199,18 +202,28 @@ def compare_runs(
     :returns: param/output dataframes to be plotted
     """
 
-    runs_df = (
-        mlrun.get_run_db()
-        .list_runs(
-            labels=labels,
-            iter=iter,
-            start_time_from=start_time_from,
-            name=run_name,
-            project=project_name,
-            **kwargs,
+    if runs_list is True:
+        # Run list object
+        runs_df = mlrun.lists.RunList(runs_list).to_df()
+
+    elif runs_list is True and (run_name or project_name):
+        raise Exception(
+            "a list of runs and a project_name/run_name cannot both be passed"
         )
-        .to_df()
-    )
+
+    else:
+        runs_df = (
+            mlrun.get_run_db()
+            .list_runs(
+                labels=labels,
+                iter=iter,
+                start_time_from=start_time_from,
+                name=run_name,
+                project=project_name,
+                **kwargs,
+            )
+            .to_df()
+        )
 
     # Remove empty param runs
     runs_df = runs_df[(runs_df["parameters"].str.len() >= 1)]
@@ -232,6 +245,7 @@ def compare_runs(
         hide_identical=hide_identical,
         exclude=exclude,
         show=show,
+        run_plot=True,
     )
 
 
@@ -242,6 +256,7 @@ def plot_parallel_coordinates(
     hide_identical: bool = True,
     exclude: list = ["label_column", "labels"],
     show=None,
+    run_plot=False,
 ) -> str:
     """
     Plots the output of the hyperparameter run in a Parallel Coordinate format using the Plotly library.
@@ -254,12 +269,14 @@ def plot_parallel_coordinates(
     :returns plot_as_html: The Parallel Coordinate plot in HTML format.
     """
 
-    # Users passes param_df and output_df
+    # users passes param_df and output_df
     if source_df.empty and param_df.empty is False and output_df.empty is False:
         source_df = pd.concat([param_df, output_df], axis=1, join="inner")
-        source_df["iter"] = range(1, 1 + len(param_df))
+        if run_plot is True:
+            source_df["run"] = range(1, 1 + len(param_df))
+        else:
+            source_df["iter"] = range(1, 1 + len(param_df))
 
-    # User passes source_df without param/output
     elif source_df.empty is False and param_df.empty and output_df.empty:
         param_df, output_df = split_dataframe(source_df)
 
@@ -282,7 +299,7 @@ def plot_parallel_coordinates(
             dict(
                 active=0,
                 xanchor="left",
-                x=0.7,
+                x=0.10,
                 yanchor="bottom",
                 y=1.3,
                 bgcolor="#ffffff",
@@ -303,7 +320,7 @@ def plot_parallel_coordinates(
         annotations=[
             dict(
                 text="output metric:",
-                x=0.7,
+                x=0.0,
                 xref="paper",
                 y=1.4,
                 yref="paper",

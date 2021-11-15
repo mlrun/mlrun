@@ -475,6 +475,7 @@ class ProcessEndpointEvent(MapClass):
     def is_list_of_numerics(
         self, field: List[Union[int, float, dict, list]], dict_path: List[str]
     ):
+        print("is_list_of_numerics field " + str(field) + " dict_path " + ''.join(dict_path))
         if all(isinstance(x, int) or isinstance(x, float) for x in field):
             return True
         logger.error(
@@ -544,6 +545,7 @@ def enrich_even_details(event) -> Optional[dict]:
 
 
 def is_not_none(field: Any, dict_path: List[str]):
+    print("is_not_none field "+str(field)+" dict_path "+''.join(dict_path))
     if field is not None:
         return True
     logger.error(

@@ -327,6 +327,10 @@ def run(
 
     if get_in(runtime, "kind", "") in ["spark"]:
         print(f"{kind} runtime - skipping execution")
+        print(f"url_file = {url_file}")
+        print("File:")
+        with open(url_file, "r") as fp:
+            print(fp.read())
         return
 
     try:

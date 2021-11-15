@@ -409,7 +409,9 @@ class ProcessEndpointEvent(MapClass):
         # Validate event fields
         model_class = event.get("model_class") or event.get("class")
         timestamp = event.get("when")
-        request_id = event.get("request", {}).get("id")
+        request_id = event.get("request", {}).get("id") or event.get("resp", {}).get(
+            "id"
+        )
         latency = event.get("microsec")
         features = event.get("request", {}).get("inputs")
         predictions = event.get("resp", {}).get("outputs")
@@ -475,11 +477,10 @@ class ProcessEndpointEvent(MapClass):
     def is_list_of_numerics(
         self, field: List[Union[int, float, dict, list]], dict_path: List[str]
     ):
-        print("is_list_of_numerics field " + str(field) + " dict_path " + ''.join(dict_path))
         if all(isinstance(x, int) or isinstance(x, float) for x in field):
             return True
         logger.error(
-            f"Expected event field is missing: {field} [Event -> {''.join(dict_path)}]"
+            f"Expected event field is missing: {field} [Event -> {','.join(dict_path)}]"
         )
         return False
 
@@ -545,11 +546,10 @@ def enrich_even_details(event) -> Optional[dict]:
 
 
 def is_not_none(field: Any, dict_path: List[str]):
-    print("is_not_none field "+str(field)+" dict_path "+''.join(dict_path))
     if field is not None:
         return True
     logger.error(
-        f"Expected event field is missing: {field} [Event -> {''.join(dict_path)}]"
+        f"Expected event field is missing: {field} [Event -> {','.join(dict_path)}]"
     )
     return False
 

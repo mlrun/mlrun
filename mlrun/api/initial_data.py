@@ -337,10 +337,10 @@ def _resolve_current_data_version(
 ):
     try:
         return int(db.get_current_data_version(db_session))
-    except (sqlalchemy.exc.OperationalError, mlrun.errors.MLRunNotFoundError) as exc:
+    except (sqlalchemy.exc.ProgrammingError, sqlalchemy.exc.OperationalError, mlrun.errors.MLRunNotFoundError) as exc:
         try:
             projects = db.list_projects(db_session)
-        except sqlalchemy.exc.OperationalError:
+        except (sqlalchemy.exc.ProgrammingError, sqlalchemy.exc.OperationalError):
             projects = None
 
         # heuristic - if there are no projects it's a new DB - data version is latest
@@ -351,7 +351,7 @@ def _resolve_current_data_version(
                 latest_data_version=latest_data_version,
             )
             return latest_data_version
-        elif "no such table" in str(exc):
+        elif "no such table" in str(exc) or ("Table" in str(exc) and "doesn't exist" in str(exc)):
             logger.info(
                 "Data version table does not exist, assuming prior version",
                 exc=exc,

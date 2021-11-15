@@ -97,7 +97,10 @@ def gen_dimensions(df: pd.DataFrame, col: str) -> dict:
 
 
 def gen_plot_data(
-    source_df: pd.DataFrame, param_df: pd.DataFrame, output_df: pd.DataFrame
+    source_df: pd.DataFrame,
+    param_df: pd.DataFrame,
+    output_df: pd.DataFrame,
+    colorscale: str,
 ) -> list:
     """
     Creates a list composed of the data to be plotted as a Parallel Coordinate, this includes
@@ -105,6 +108,7 @@ def gen_plot_data(
     :param source_df: Result of the hyperparameter run as a Dataframe
     :param param_df: Dataframe of parameters from the hyperparameter run
     :param output_df: Dataframe of outputs from the hyperparameter run
+    :param colorscale: colors used for the lines in the parallel coordinate plot
     :returns data: list of information plotly requires to plot Parallel Coordinates.
     """
 
@@ -127,7 +131,7 @@ def gen_plot_data(
         # Appending to list
         data.append(
             go.Parcoords(
-                line=dict(color=source_df[index_col], colorscale="viridis"),
+                line=dict(color=source_df[index_col], colorscale=colorscale),
                 dimensions=dimensions,
                 visible=visibility,
             )
@@ -184,6 +188,7 @@ def compare_runs(
     hide_identical: bool = True,
     exclude: list = ["label_column", "labels"],
     show=None,
+    colorscale: str = "viridis",
     **kwargs,
 ) -> pd.DataFrame:
     """
@@ -247,6 +252,7 @@ def compare_runs(
         exclude=exclude,
         show=show,
         run_plot=True,
+        colorscale="Blues",
     )
 
 
@@ -258,6 +264,7 @@ def plot_parallel_coordinates(
     exclude: list = ["label_column", "labels"],
     show: bool = None,
     run_plot: bool = False,
+    colorscale: str = "viridis",
 ) -> str:
     """
     Plots the output of the hyperparameter run in a Parallel Coordinate format using the Plotly library.
@@ -312,7 +319,9 @@ def plot_parallel_coordinates(
     )
 
     # Generate plotly figure with dropdown
-    fig = go.Figure(data=gen_plot_data(source_df, param_df, output_df), layout=layout)
+    fig = go.Figure(
+        data=gen_plot_data(source_df, param_df, output_df, colorscale), layout=layout
+    )
 
     # Workaround to remove dropdown button opacity
     fig.update_layout(autosize=True, margin=dict(l=50, r=50, b=50, t=50, pad=4))

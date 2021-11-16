@@ -477,9 +477,8 @@ class FeatureSet(ModelObj):
                 set(current_aggr["operations"] + new_aggregation["operations"])
             )
 
-            return False
+            return
         self._aggregations[name] = new_aggregation
-        return True
 
     def add_aggregation(
         self,
@@ -497,7 +496,7 @@ class FeatureSet(ModelObj):
 
         example::
 
-            myset.add_aggregation("asks", "ask", ["sum", "max"], "1h", "10m")
+            myset.add_aggregation("ask", ["sum", "max"], "1h", "10m", name="asks")
 
         :param column:     name of column/field aggregate
         :param operations: aggregation operations, e.g. ['sum', 'std']
@@ -519,10 +518,9 @@ class FeatureSet(ModelObj):
                               In this case, each record on an in-application stream belongs
                               to a specific window. It is processed only once
                               (when the query processes the window to which the record belongs).
-
         :param period:     optional, sliding window granularity, e.g. '10m'
         :param name:       optional, aggregation name/prefix. Must be unique per feature set.If not passed,
-                           name will be column
+                            the column will be used as name.
         :param step_name: optional, graph step name
         :param state_name: *Deprecated* - use step_name instead
         :param after:      optional, after which graph step it runs
@@ -530,7 +528,7 @@ class FeatureSet(ModelObj):
         """
         if isinstance(operations, str):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "operations is not list. Note that 'name' parameter is optional"
+                "Invalid parameters provided - operations must be a list."
             )
         if state_name:
             warnings.warn(
@@ -573,12 +571,11 @@ class FeatureSet(ModelObj):
         graph = self.spec.graph
         if step_name in graph.steps:
             step = graph.steps[step_name]
-            if self._add_agregation_to_existing(aggregation):
-                aggregations = step.class_args.get("aggregates", [])
-                aggregations.append(aggregation)
-                step.class_args["aggregates"] = aggregations
+            self._add_agregation_to_existing(aggregation)
+            step.class_args["aggregates"] = list(self._aggregations.values())
         else:
             class_args = {}
+            self._aggregations[aggregation["name"]] = aggregation
             step = graph.add_step(
                 name=step_name,
                 after=after or previous_step,

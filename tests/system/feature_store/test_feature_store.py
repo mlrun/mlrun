@@ -108,19 +108,13 @@ class TestFeatureStore(TestMLRunSystem):
         quotes_set.add_aggregation("ask", ["sum", "max"], "5h", "10m", name="asks2")
         quotes_set.add_aggregation("bid", ["min"], "1h", "10m")
 
-        try:
-            # no name parameter, different window
-            quotes_set.add_aggregation("bid", ["max"], "5h", "10m")
-            assert False
-        except mlrun.errors.MLRunInvalidArgumentError:
-            pass
-
-        try:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             # no name parameter, different period
             quotes_set.add_aggregation("bid", ["max"], "1h", "5m")
-            assert False
-        except mlrun.errors.MLRunInvalidArgumentError:
-            pass
+
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            # no name parameter, different period
+            quotes_set.add_aggregation("bid", ["max"], "1h", "5m")
 
         quotes_set.add_aggregation(
             column="bid", operations=["max"], windows="1h", period="10m"

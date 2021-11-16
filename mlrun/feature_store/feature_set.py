@@ -218,6 +218,7 @@ class FeatureSetStatus(ModelObj):
         self._targets.update(target)
 
     def update_last_written_for_target(self, target_path: str, last_written: datetime):
+        print("BBBB inside update_last_written_for_target")
         for target in self._targets:
             print(f"BBBB \ntarget_name:{target.name} \n target_path:{target.path} \n iparam_path:{target_path}")
             traceback.print_stack()

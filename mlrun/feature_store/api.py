@@ -360,9 +360,16 @@ def ingest(
         for t in targets_to_ingest:
             t.run_uuid = run_uuid
     else:
+        for t in targets_to_ingest:
+            print(f"BBBB target: {t}")
+
         targets_to_ingest = featureset.update_targets_run_uuid(
             targets=targets_to_ingest, silent=True, overwrite=overwrite,
         )
+
+        for t in targets_to_ingest:
+            print(f"BBBB target after: {t}")
+
         for target in targets_to_ingest:
             if not kind_to_driver[target.kind].support_append:
                 raise mlrun.errors.MLRunInvalidArgumentError(

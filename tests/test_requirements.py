@@ -114,6 +114,7 @@ def test_requirement_specifiers_convention():
         "azure-storage-blob": {"~=12.0, <12.7.0"},
         "dask-ml": {"~=1.4,<1.9.0"},
         "pyarrow": {">=1,<4"},
+        "docutils": {"==0.16"},  # does not have a minor
     }
 
     for (ignored_requirement_name, ignored_specifiers,) in ignored_invalid_map.items():

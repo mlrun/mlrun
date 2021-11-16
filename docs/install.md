@@ -1,21 +1,12 @@
 # Installation Guide <!-- omit in toc -->
 
-This guide outlines the steps for installing and running MLRun locally.
+This guide outlines the steps for installing and running MLRun.
 
 - [Install MLRun on a Kubernetes Cluster](#install-mlrun-on-a-kubernetes-cluster)
-  - [Prerequisites](#prerequisites)
-  - [Installing on Docker Desktop](#installing-on-docker-desktop)
-    - [Configuring Docker Desktop](#configuring-docker-desktop)
-  - [Installing the Chart](#installing-the-chart)
-  - [Install Kubeflow](#install-kubeflow)
-  - [Usage](#usage)
-  - [Start Working](#start-working)
-  - [Configuring Remote Environment](#configuring-remote-environment)
-    - [Prerequisites](#prerequisites-1)
-    - [Set Environment Variables](#set-environment-variables)
-  - [Advanced Chart Configuration](#advanced-chart-configuration)
-  - [Uninstalling the Chart](#uninstalling-the-chart)
 - [Installing MLRun on a Local Docker Registry](#installing-mlrun-on-a-local-docker-registry)
+
+Once MLRun is installed you can access it remotely from your IDE (PyCharm or VSCode), read [**how to setup your IDE environment**](./howto/remote.md). 
+
 
 ## Install MLRun on a Kubernetes Cluster
 

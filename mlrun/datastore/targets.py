@@ -466,6 +466,9 @@ class BaseStoreTarget(DataTargetBase):
         """get storey Table object"""
         return None
 
+    def get_target_path(self):
+        return self._target_path.absolute_path()
+
     @property
     def _target_path(self):
         """return the actual/computed target path"""

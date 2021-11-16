@@ -1,4 +1,4 @@
-@Library('pipelinex@development') _
+@Library('pipelinex@ML-1206_enable_skip_mlrunui') _
 import com.iguazio.pipelinex.DockerRepo
 
 workDir = '/home/jenkins'
@@ -6,16 +6,7 @@ podLabel = 'mlrun-release'
 gitProject = 'mlrun'
 gitProjectUser = 'mlrun'
 gitProjectUI = 'ui'
-source_branch = 'master'
 dockerTag = env.TAG_NAME.replaceFirst(/^v/, '')
-
-properties_args = [
-    parameters([
-        booleanParam(defaultValue: true, description: '', name: 'release_mlrun_ui'),
-    ]),
-]
-
-properties(properties_args)
 
 podTemplate(
     label: podLabel,
@@ -38,18 +29,16 @@ podTemplate(
                     stage("git clone") {
                         checkout scm
                     }
-                }
+               }
 
                 container('jnlp') {
-                    common.conditional_stage('Create mlrun/ui release', true) {
-                        println("Source branch is: ${source_branch}, using this as source for ${gitProject}/${gitProjectUI}")
-                        println("You are responsible to make sure that this branch exists in ${gitProject}/${gitProjectUI}!")
-
-
+                    common.conditional_stage('Create mlrun/ui release', "${env.TAG_NAME}" != "unstable") {
                         def mlrun_github_client = new Githubc(gitProjectUser, gitProject, GIT_TOKEN, env.TAG_NAME, this)
                         def ui_github_client = new Githubc(gitProjectUser, gitProjectUI, GIT_TOKEN, this)
                         def source_branch = mlrun_github_client.getReleasecommittish()
 
+                        println("Source branch is: ${source_branch}, using this as source for ${gitProject}/${gitProjectUI}")
+                        println("You are responsible to make sure that this branch exists in ${gitProject}/${gitProjectUI}!")
 
                         if (!source_branch) {
                             error("Could not get source branch from tag")

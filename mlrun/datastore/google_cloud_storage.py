@@ -18,9 +18,9 @@ from pathlib import Path
 import fsspec
 
 import mlrun.errors
+from mlrun.utils import logger
 
 from .base import DataStore, FileStats
-from mlrun.utils import logger
 
 # Google storage objects will be represented with the following URL: gcs://<bucket name>/<path> or gs://...
 
@@ -42,7 +42,9 @@ class GoogleCloudStorageStore(DataStore):
                     cred_file.write(gcp_credentials)
                     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = cred_file.name
             else:
-                logger.info("No GCS credentials available - auth will rely on auto-discovery of credentials")
+                logger.info(
+                    "No GCS credentials available - auth will rely on auto-discovery of credentials"
+                )
 
         self.get_filesystem(silent=False)
 

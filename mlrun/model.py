@@ -1185,6 +1185,7 @@ class DataTarget(DataTargetBase):
         "updated",
         "size",
         "last_written",
+        "partitioned",
         "run_uuid",
     ]
 

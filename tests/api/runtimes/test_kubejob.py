@@ -193,13 +193,10 @@ class TestKubejobRuntime(TestRuntimeBase):
         self._assert_pvc_mount_configured(pvc_name, pvc_mount_path, volume_name)
 
     def test_run_with_k8s_secrets(self, db: Session, k8s_secrets_mock: K8sSecretsMock):
-        secret_keys = ["secret1", "secret2", "secret3"]
+        secret_keys = ["secret1", "secret2", "secret3", "mlrun.internal_secret"]
         secrets = {key: "some-secret-value" for key in secret_keys}
 
         k8s_secrets_mock.store_project_secrets(self.project, secrets)
-        expected_env_from_secrets = k8s_secrets_mock.get_expected_env_variables_from_secrets(
-            self.project
-        )
 
         runtime = self._generate_runtime()
 
@@ -213,8 +210,24 @@ class TestKubejobRuntime(TestRuntimeBase):
 
         self._execute_run(runtime, runspec=task)
 
+        # We don't expect the internal secret to be visible - the user cannot mount it to the function
+        # even if specifically asking for it in with_secrets()
+        expected_env_from_secrets = k8s_secrets_mock.get_expected_env_variables_from_secrets(
+            self.project, include_internal=False
+        )
+
         self._assert_pod_creation_config(
             expected_secrets=secret_source,
+            expected_env_from_secrets=expected_env_from_secrets,
+        )
+
+        # Now do the same with auto-mounting of project-secrets, validate internal secret is not visible
+        runtime = self._generate_runtime()
+        task = self._generate_task()
+        task.metadata.project = self.project
+
+        self._execute_run(runtime, runspec=task)
+        self._assert_pod_creation_config(
             expected_env_from_secrets=expected_env_from_secrets,
         )
 

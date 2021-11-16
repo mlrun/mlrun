@@ -13,7 +13,16 @@
 # limitations under the License.
 
 MLRUN_VERSION ?= unstable
-MLRUN_DOCKER_TAG ?= $(MLRUN_VERSION)
+# pip requires the python version to be according to some regex (so "unstable" is not valid for example) this regex only
+# allows us to have free text (like unstable) after the "+". on the contrary in a docker tag "+" is not a valid
+# character so we're doing best effort - if the provided version doesn't look valid (like unstable), we prefix the
+# version for the python package with 0.0.0+
+# if the provided version includes a "+" we replace it with "-" for the docker tag
+MLRUN_DOCKER_TAG ?= $(shell echo "$(MLRUN_VERSION)" | sed -E 's/\+/\-/g')
+MLRUN_PYTHON_PACKAGE_VERSION ?= $(MLRUN_VERSION)
+ifeq ($(shell echo "$(MLRUN_VERSION)" | grep -E "^[0-9]+\.[0-9]+\.[0-9]+.*$$"),) # empty result from egrep
+	MLRUN_PYTHON_PACKAGE_VERSION := 0.0.0+$(MLRUN_VERSION)
+endif
 MLRUN_DOCKER_REPO ?= mlrun
 # empty by default (dockerhub), can be set to something like "quay.io/".
 # This will be used to tag the images built using this makefile
@@ -22,7 +31,7 @@ MLRUN_DOCKER_REGISTRY ?=
 # disable caching)
 MLRUN_NO_CACHE ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
-MLRUN_PYTHON_VERSION ?= 3.7.9
+MLRUN_PYTHON_VERSION ?= 3.7.11
 MLRUN_LEGACY_ML_PYTHON_VERSION ?= 3.6.12
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
@@ -59,7 +68,7 @@ all:
 
 .PHONY: install-requirements
 install-requirements: ## Install all requirements needed for development
-	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=20.2.0
+	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=21.2.0
 	python -m pip install \
 		$(MLRUN_PIP_NO_CACHE_FLAG) \
 		-r requirements.txt \
@@ -114,7 +123,7 @@ endif
 
 .PHONY: update-version-file
 update-version-file: ## Update the version file
-	python ./automation/version/version_file.py --mlrun-version $(MLRUN_VERSION)
+	python ./automation/version/version_file.py --mlrun-version $(MLRUN_PYTHON_PACKAGE_VERSION)
 
 .PHONY: build
 build: docker-images package-wheel ## Build all artifacts

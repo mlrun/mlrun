@@ -59,7 +59,7 @@ class BaseSourceDriver(DataSource):
     def to_step(self, key_field=None, time_field=None, context=None):
         import storey
 
-        return storey.SyncEmitSource()
+        return storey.SyncEmitSource(context=context)
 
     def get_table_object(self):
         """get storey Table object"""
@@ -71,6 +71,17 @@ class BaseSourceDriver(DataSource):
     def to_spark_df(self, session, named_view=False):
         if self.support_spark:
             df = session.read.load(**self.get_spark_options())
+
+            if self.start_time or self.end_time:
+                self.start_time = (
+                    datetime.min if self.start_time is None else self.start_time
+                )
+                self.end_time = datetime.max if self.end_time is None else self.end_time
+                df = df.filter(
+                    (df[self.time_field] >= self.start_time)
+                    & (df[self.time_field] < self.end_time)
+                )
+
             if named_view:
                 df.createOrReplaceTempView(self.name)
             return df
@@ -93,9 +104,12 @@ class CSVSource(BaseSourceDriver):
         :parameter key_field: the CSV field to be used as the key for events. May be an int (field index) or string
             (field name) if with_header is True. Defaults to None (no key). Can be a list of keys.
         :parameter time_field: the CSV field to be parsed as the timestamp for events. May be an int (field index) or
-            string (field name) if with_header is True. Defaults to None (no timestamp field).
+            string (field name) if with_header is True. Defaults to None (no timestamp field). The field will be parsed
+            from isoformat (ISO-8601 as defined in datetime.fromisoformat()). In case the format is not isoformat,
+            timestamp_format (as defined in datetime.strptime()) should be passed in attributes.
         :parameter schedule: string to configure scheduling of the ingestion job.
-        :parameter attributes: additional parameters to pass to storey.
+        :parameter attributes: additional parameters to pass to storey. For example:
+            attributes={"timestamp_format": '%Y%m%d%H'}
         :parameter parse_dates: Optional. List of columns (names or integers, other than time_field) that will be
             attempted to parse as date column.
         """
@@ -124,6 +138,7 @@ class CSVSource(BaseSourceDriver):
         if context:
             attributes["context"] = context
         return storey.CSVSource(
+            context=context,
             paths=self.path,
             header=True,
             build_dict=True,
@@ -214,6 +229,7 @@ class ParquetSource(BaseSourceDriver):
         if context:
             attributes["context"] = context
         return storey.ParquetSource(
+            context=context,
             paths=self.path,
             key_field=self.key_field or key_field,
             time_field=self.time_field or time_field,
@@ -398,7 +414,7 @@ class CustomSource(BaseSourceDriver):
         attributes = copy(self.attributes)
         class_name = attributes.pop("class_name")
         class_object = get_class(class_name)
-        return class_object(**attributes,)
+        return class_object(context=context, **attributes)
 
 
 class DataFrameSource:
@@ -478,6 +494,7 @@ class OnlineSource(BaseSourceDriver):
             else storey.SyncEmitSource
         )
         return source_class(
+            context=context,
             key_field=self.key_field or key_field,
             time_field=self.time_field or time_field,
             full_event=True,

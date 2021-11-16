@@ -14,19 +14,41 @@
 
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-__all__ = ["DataItem", "get_store_resource"]
+__all__ = [
+    "DataItem",
+    "get_store_resource",
+    "ParquetTarget",
+    "CSVTarget",
+    "NoSqlTarget",
+    "StreamTarget",
+    "CSVSource",
+    "ParquetSource",
+    "BigQuerySource",
+    "HttpSource",
+    "StreamSource",
+    "KafkaSource",
+]
 
 from ..platforms.iguazio import OutputStream, parse_v3io_path
 from ..utils import logger
 from .base import DataItem
 from .datastore import StoreManager, in_memory_store, uri_to_ipython
 from .s3 import parse_s3_bucket_and_key
+from .sources import (
+    BigQuerySource,
+    CSVSource,
+    HttpSource,
+    KafkaSource,
+    ParquetSource,
+    StreamSource,
+)
 from .store_resources import (
     get_store_resource,
     get_store_uri,
     is_store_uri,
     parse_store_uri,
 )
+from .targets import CSVTarget, NoSqlTarget, ParquetTarget, StreamTarget
 
 store_manager = StoreManager()
 

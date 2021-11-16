@@ -105,7 +105,8 @@ jobs:
         upstream_mlrun_ui_hash=${{ steps.git_upstream_info.outputs.ui_hash }} && \
         export ui_hash=${action_mlrun_ui_hash:-`echo $upstream_mlrun_ui_hash`}
         echo "::set-output name=ui_hash::$(echo $ui_hash)"
-        echo "::set-output name=mlrun_version::$(echo ${{ steps.git_upstream_info.outputs.latest_version }}-$mlrun_hash)"
+        echo "::set-output name=mlrun_version::$(echo ${{ steps.git_upstream_info.outputs.latest_version }}+$mlrun_hash)"
+        echo "::set-output name=mlrun_docker_tag::$(echo ${{ steps.git_upstream_info.outputs.latest_version }}-$mlrun_hash)"
         echo "::set-output name=mlrun_ui_version::${{ steps.git_upstream_info.outputs.latest_version }}-$ui_hash"
         echo "::set-output name=mlrun_docker_repo::$( \
           input_docker_repo=${{ github.event.inputs.docker_repo }} && \
@@ -140,13 +141,14 @@ jobs:
           "${{ secrets.V06_SYSTEM_TEST_FRAMESD_URL }}" \
           "${{ secrets.V06_SYSTEM_TEST_USERNAME }}" \
           "${{ secrets.V06_SYSTEM_TEST_ACCESS_KEY }}" \
+          "${{ secrets.V06_SYSTEM_TEST_SPARK_SERVICE }}" \
           "${{ steps.computed_params.outputs.iguazio_version }}" \
           "${{ secrets.V06_SYSTEM_TEST_PASSWORD }}" \
           --mlrun-commit "${{ steps.computed_params.outputs.mlrun_hash }}" \
           --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
           --override-image-repo ${{ steps.computed_params.outputs.mlrun_docker_repo }} \
           --override-mlrun-images \
-          "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_version }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }}"
+          "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }}"
 
     - name: Prepare System Test env.yaml and 0.5.x system
       if: ${{ steps.git_info.outputs.branch == '0.5.x' }}
@@ -167,7 +169,7 @@ jobs:
           --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
           --override-image-repo ${{ steps.computed_params.outputs.mlrun_docker_repo }} \
           --override-mlrun-images \
-          "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_version }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }}"
+          "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }}"
 
     - name: Run System Tests
       run: |

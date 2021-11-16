@@ -430,15 +430,18 @@ class FeatureSet(ModelObj):
         result_targets = []
         run_uuid = DataTargetBase.generate_target_run_uuid()
         for target in targets:
+            print(f"BBBB update: {target}")
             if target.name in ingestion_targets.keys():
                 driver = get_target_driver(
                     target_spec=ingestion_targets[target.name], resource=self
                 )
                 if overwrite:
                     driver.run_uuid = run_uuid
+                print(f"BBBB 1 update: {driver}")
             else:
                 driver = get_target_driver(target_spec=target.to_dict(), resource=self)
                 driver.run_uuid = run_uuid
+                print(f"BBBB 2 update: {driver}")
             result_targets.append(driver)
         return result_targets
 

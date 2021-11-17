@@ -13,9 +13,9 @@ from mlrun.datastore.targets import (
     NoSqlTarget,
     ParquetTarget,
 )
+import fsspec
 
 from tests.system.base import TestMLRunSystem
-
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 # Marked as enterprise because of v3io mount and remote spark
@@ -95,7 +95,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         name = f"sched-time-{str(partitioned)}"
 
         now = datetime.now() + timedelta(minutes=2)
-        data = pd.DataFrame(
+
+        path = "v3io:///bigdata/bla.parquet"
+        fs, _ = fsspec.core.url_to_fs(path)
+        pd.DataFrame(
             {
                 "time": [
                     pd.Timestamp("2021-01-10 10:00:00"),
@@ -104,13 +107,27 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 "first_name": ["moshe", "yosi"],
                 "data": [2000, 10],
             }
-        )
+        ).to_parquet(path=path, filesystem=fs)
+        #
+        #
+        #
+        # path = "v3io:///bigdata/bla.parquet"
+        # data = pd.DataFrame(
+        #     {
+        #         "time": [
+        #             pd.Timestamp("2021-01-10 10:00:00"),
+        #             pd.Timestamp("2021-01-10 11:00:00"),
+        #         ],
+        #         "first_name": ["moshe", "yosi"],
+        #         "data": [2000, 10],
+        #     }
+        # ).to_parquet(path=path)
         # writing down a remote source
-        target2 = ParquetTarget()
-        data_set = fs.FeatureSet("data", entities=[fs.Entity("first_name")])
-        fs.ingest(data_set, data, targets=[target2])
+#        target2 = ParquetTarget()
+#        data_set = fs.FeatureSet("data", entities=[fs.Entity("first_name")])
+#        fs.ingest(data_set, data, targets=[target2])
 
-        path = data_set.status.targets[0].path
+#        path = data_set.status.targets[0].path
 
         # the job will be scheduled every minute
         cron_trigger = "*/1 * * * *"
@@ -149,7 +166,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_context=self.spark_service,
         )
         # ingest starts every round minute.
-        sleep(60 - now.second + 10)
+        sleep(60 - now.second + 50)
 
         features = [f"{name}.*"]
         vec = fs.FeatureVector("sched_test-vec", features)
@@ -171,9 +188,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 "first_name": ["moshe", "dina", "katya", "uri"],
                 "data": [50, 10, 25, 30],
             }
-        )
+        ).to_parquet(path=path)
         # writing down a remote source
-        fs.ingest(data_set, data, targets=[target2])
+#        fs.ingest(data_set, data, targets=[target2])
 
         sleep(60)
         resp = svc.get(
@@ -197,3 +214,34 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         resp = fs.get_offline_features(vec)
         assert len(resp.to_dataframe() == 4)
         assert "uri" not in resp.to_dataframe() and "katya" not in resp.to_dataframe()
+
+    def test_bbla(self):
+        import fsspec
+#        file_system = fsspec.filesystem("v3io")
+#        import v3iofs
+
+#        v3iofs.fs._init__()
+#        ffff = fsspec.filesystem("v3io")
+
+        path = "v3io:///bigdata/bla.parquet"
+        fs, _ = fsspec.core.url_to_fs(path)
+
+#        path = "/tmp/bla2.parquet"
+        data = pd.DataFrame(
+            {
+                "time": [
+                    pd.Timestamp("2021-01-10 10:00:00"),
+                    pd.Timestamp("2021-01-10 11:00:00"),
+                ],
+                "first_name": ["moshe", "yosi"],
+                "data": [2000, 10],
+            }
+        ).to_parquet(path=path, filesystem=fs)
+
+        # store, _ = store_manager.get_or_create_store(
+        #     self.get_remote_pq_source_path(path)
+        # )
+        # store.upload(
+        #     self.get_remote_pq_source_path(path, without_prefix=True),
+        #     path,
+        # )

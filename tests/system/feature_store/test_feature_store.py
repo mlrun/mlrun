@@ -109,8 +109,8 @@ class TestFeatureStore(TestMLRunSystem):
         quotes_set.add_aggregation("bid", ["min"], "1h", "10m")
 
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-            # no name parameter, different period
-            quotes_set.add_aggregation("bid", ["max"], "1h", "5m")
+            # no name parameter, different window
+            quotes_set.add_aggregation("bid", ["max"], "5h", "10m")
 
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             # no name parameter, different period

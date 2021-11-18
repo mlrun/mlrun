@@ -201,7 +201,7 @@ class RemoteStep(storey.SendToHttp):
 
     def _generate_request(self, event, body):
         method = self.method or event.method or "POST"
-        headers = self.headers or event.headers or {}
+        headers = self.headers or {}
 
         if self._url_function_handler:
             url = self._url_function_handler(body)
@@ -353,7 +353,7 @@ class BatchHttpRequests(_ConcurrentJobExecution):
     async def _process_event(self, event):
         # async implementation (with storey)
         method = self.method or event.method or "POST"
-        headers = self.headers or event.headers or {}
+        headers = self.headers or {}
         input_list = self._get_event_or_body(event)
         is_get = method == "GET"
         is_json = False

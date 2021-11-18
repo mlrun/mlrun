@@ -99,7 +99,9 @@ class RemoteStep(StepToDict, storey.SendToHttp):
         if self.url_expression:
             # init lambda function for calculating url from event
             self._url_function_handler = eval(
-                "lambda event: " + self.url_expression, {"endpoint": self._endpoint, "context": self.context}, {}
+                "lambda event: " + self.url_expression,
+                {"endpoint": self._endpoint, "context": self.context},
+                {},
             )
         elif self.subpath:
             self._append_event_path = self.subpath == "$path"

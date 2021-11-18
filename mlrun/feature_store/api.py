@@ -316,6 +316,7 @@ def ingest(
 
         filter_time_string = ""
         if source.schedule:
+            print("kkkkkkkkk source schedule")
             featureset.reload(update_spec=False)
             min_time = datetime.max
             for target in featureset.status.targets:

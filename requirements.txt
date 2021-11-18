@@ -21,7 +21,7 @@ ipykernel~=5.0
 nuclio-jupyter~=0.8.21
 # >=1.16.5 from pandas 1.2.1 and <1.20.0 because we're hitting the same issue as this one
 # https://github.com/Azure/MachineLearningNotebooks/issues/1314
-numpy>=1.16.5, <1.22
+numpy>=1.16.5, <1.22.0
 pandas~=1.2; python_version >= '3.7'
 pandas~=1.0; python_version < '3.7'
 # used as a the engine for parquet files by pandas

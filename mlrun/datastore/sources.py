@@ -204,6 +204,13 @@ class ParquetSource(BaseSourceDriver):
         start_time: Optional[Union[datetime, str]] = None,
         end_time: Optional[Union[datetime, str]] = None,
     ):
+
+        if isinstance(start_time, str):
+            start_time = datetime.fromisoformat(start_time)
+
+        if isinstance(end_time, str):
+            end_time = datetime.fromisoformat(end_time)
+
         super().__init__(
             name,
             path,

@@ -123,12 +123,12 @@ class RemoteStep(storey.SendToHttp):
         if self.body_expression:
             # init lambda function for calculating url from event
             self._body_function_handler = eval(
-                "lambda event: " + self.body_expression, {}, {}
+                "lambda event: " + self.body_expression, {"context": self.context}, {}
             )
         if self.url_expression:
             # init lambda function for calculating url from event
             self._url_function_handler = eval(
-                "lambda event: " + self.url_expression, {"endpoint": self._endpoint}, {}
+                "lambda event: " + self.url_expression, {"endpoint": self._endpoint, "context": self.context}, {}
             )
         elif self.subpath:
             self._append_event_path = self.subpath == "$path"

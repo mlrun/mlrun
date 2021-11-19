@@ -2,7 +2,7 @@ from typing import Callable, Dict, List, Union
 
 import mlrun
 from mlrun.artifacts import Artifact
-from mlrun.frameworks._common.loggers import LoggerMode, MLRunLogger, TrackableType
+from mlrun.frameworks._dl_common.loggers import LoggerMode, MLRunLogger, TrackableType
 from mlrun.frameworks.tf_keras.callbacks.logging_callback import LoggingCallback
 from mlrun.frameworks.tf_keras.model_handler import TFKerasModelHandler
 
@@ -88,11 +88,11 @@ class MLRunLoggingCallback(LoggingCallback):
                                          from tensorflow version >= 2.4.0. Using this setting will increase the model
                                          saving size.
         :param input_sample:             Input sample to the model for logging additional data regarding the input ports
-                                         of the model. In addition, ONNX conversion will use the logged information
-                                         later.
+                                         of the model. If None, the input sample will be read automatically from the
+                                         model.
         :param output_sample:            Output sample of the model for logging additional data regarding the output
-                                         ports of the model. In addition, ONNX conversion will use the logged
-                                         information later.
+                                         ports of the model. If None, the input sample will be read automatically from
+                                         the model.
         :param log_model_labels:         Labels to log with the model.
         :param log_model_parameters:     Parameters to log with the model.
         :param log_model_extra_data:     Extra data to log with the model.
@@ -143,22 +143,6 @@ class MLRunLoggingCallback(LoggingCallback):
         self._save_traces = save_traces
         self._input_sample = input_sample
         self._output_sample = output_sample
-
-    def set_input_sample(self, sample: TFKerasModelHandler.IOSample):
-        """
-        Set an input sample to the model to be logged with it into MLRun.
-
-        :param sample: The input sample to set.
-        """
-        self._input_sample = sample
-
-    def set_output_sample(self, sample: TFKerasModelHandler.IOSample):
-        """
-        Set an output sample of the model to be logged with it into MLRun.
-
-        :param sample: The output sample to set.
-        """
-        self._output_sample = sample
 
     def on_train_end(self, logs: dict = None):
         """
@@ -220,10 +204,17 @@ class MLRunLoggingCallback(LoggingCallback):
             save_traces=self._save_traces,
         )
 
-        # Set the input and output information if available:
-        if self._input_sample is not None and self._output_sample is not None:
+        # Set the inputs information if available:
+        if self._input_sample is not None:
             model_handler.set_inputs(from_sample=self._input_sample)
+        else:
+            model_handler.read_inputs_from_model()
+
+        # Set the outputs information if available:
+        if self._output_sample is not None:
             model_handler.set_outputs(from_sample=self._output_sample)
+        else:
+            model_handler.read_outputs_from_model()
 
         # Log the model:
         self._logger.log_run(model_handler=model_handler)

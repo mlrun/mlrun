@@ -5,24 +5,30 @@ import shutil
 import sys
 import zipfile
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, TypeVar, Union
+from typing import Any, Dict, Generic, List, TypeVar, Union
+
+import numpy as np
 
 import mlrun
 from mlrun.artifacts import Artifact, ModelArtifact
+from mlrun.data_types import ValueType
 from mlrun.features import Feature
 
-# Define a generic model type for the handler to have:
-Model = TypeVar("Model")
+# Generic type variables:
+Model = TypeVar("Model")  # For the model type in the handler.
+IOSample = TypeVar("IOSample")  # For reading an inout / output samples.
 
 
-class ModelHandler(ABC):
+class ModelHandler(ABC, Generic[Model, IOSample]):
     """
     An abstract interface for handling a model of the supported frameworks.
     """
 
+    # Framework name:
+    _FRAMEWORK_NAME = None  # type: str
+
     # Constant artifact names:
     _MODEL_FILE_ARTIFACT_NAME = "{}_model_file"
-    _WEIGHTS_FILE_ARTIFACT_NAME = "{}_weights_file"
     _CUSTOM_OBJECTS_MAP_ARTIFACT_NAME = "{}_custom_objects_map.json"
     _CUSTOM_OBJECTS_DIRECTORY_ARTIFACT_NAME = "{}_custom_objects.zip"
 
@@ -91,22 +97,24 @@ class ModelHandler(ABC):
         # The imported custom objects from the map. None until the '_import_custom_objects' method is called.
         self._custom_objects = None  # type: Dict[str, Any]
 
-        # Local path to the model file:
+        # Local path to the model's primary file:
         self._model_file = None  # type: str
 
-        # If the model path is of a model object, this will be the 'ModelArtifact' object.
+        # If the model path is of a store model object, this will be the 'ModelArtifact' object.
         self._model_artifact = None  # type: ModelArtifact
 
         # If the model path is of a store model object, this will be the extra data as DataItems ready to be downloaded.
-        self._extra_data = None  # type: Union[Dict[str, Artifact], Dict[str, str]]
+        self._extra_data = None  # type: Dict[str, mlrun.DataItem]
 
-        # Setup additional properties:
+        # Setup additional properties for logging the model into a ModelArtifact:
         self._inputs = None  # type: List[Feature]
         self._outputs = None  # type: List[Feature]
+        self._labels = {}  # type: Dict[str, Union[str, int, float]]
+        self._parameters = {}  # type: Dict[str, Union[str, int, float]]
 
         # Collect the relevant files of the model into the handler (only in case the model was not provided):
         if model is None:
-            self.collect_files()
+            self._collect_files()
 
     @property
     def model_name(self) -> str:
@@ -135,6 +143,43 @@ class ModelHandler(ABC):
         """
         return self._model_file
 
+    @property
+    def inputs(self) -> Union[List[Feature], None]:
+        """
+        Get the input ports features list of this model's artifact. If the inputs are not set, None will be returned.
+
+        :return: The input ports features list if its set, otherwise None.
+        """
+        return self._inputs
+
+    @property
+    def outputs(self) -> Union[List[Feature], None]:
+        """
+        Get the output ports features list of this model's artifact. If the outputs are not set, None will be returned.
+
+        :return: The output ports features list if its set, otherwise None.
+        """
+        return self._outputs
+
+    @property
+    def labels(self) -> Dict[str, str]:
+        """
+        Get the labels dictionary of this model's artifact. These will be the labels that will be logged with the model.
+
+        :return: The model's artifact labels.
+        """
+        return self._labels
+
+    @property
+    def parameters(self) -> Dict[str, str]:
+        """
+        Get the parameters dictionary of this model's artifact. These will be the parameters that will be logged with
+        the model.
+
+        :return: The model's artifact parameters.
+        """
+        return self._parameters
+
     def set_model_name(self, model_name: str):
         """
         Set the handled model name. The 'save' and 'log' methods will use the new name for the files and logs. Keep in
@@ -145,24 +190,6 @@ class ModelHandler(ABC):
         """
         self._model_name = model_name
 
-    def set_inputs(self, from_sample=None, *args, **kwargs):
-        """
-        Set the inputs property of this model to be logged along with it. The method 'to_onnx' can use this property as
-        well for the conversion process.
-
-        :param from_sample: Read the inputs properties from a given input sample to the model.
-        """
-        pass
-
-    def set_outputs(self, from_sample=None, *args, **kwargs):
-        """
-        Set the outputs property of this model to be logged along with it. The method 'to_onnx' can use this property as
-        well for the conversion process.
-
-        :param from_sample: Read the inputs properties from a given input sample to the model.
-        """
-        pass
-
     def set_context(self, context: mlrun.MLClientCtx):
         """
         Set this handler MLRun context.
@@ -170,6 +197,95 @@ class ModelHandler(ABC):
         :param context: The context to set to.
         """
         self._context = context
+
+    def set_inputs(self, from_sample: IOSample = None, features: List[Feature] = None):
+        """
+        Read the inputs property of this model to be logged along with it. The inputs can be set directly by passing the
+        input features or to be read by a given input sample.
+
+        :param from_sample: Read the inputs properties from a given input sample to the model.
+        :param features:    List of MLRun.features.Feature to set.
+
+        :raise MLRunInvalidArgumentError: If both parameters were passed.
+        """
+        # Validate parameters:
+        if from_sample is not None and features is not None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "The inputs can either be read from a given sample or from a features list. Both parameters cannot be "
+                "passed."
+            )
+
+        # Set the inputs:
+        self._inputs = (
+            features
+            if features is not None
+            else self._read_io_samples(samples=from_sample)
+        )
+
+    def set_outputs(self, from_sample: IOSample = None, features: List[Feature] = None):
+        """
+        Read the outputs property of this model to be logged along with it. The outputs can be set directly by passing
+        the output features or to be read by a given output sample.
+
+        :param from_sample: Read the outputs properties from a given output sample from the model.
+        :param features:    List of MLRun.features.Feature to set.
+
+        :raise MLRunInvalidArgumentError: If both parameters were passed.
+        """
+        # Validate parameters:
+        if from_sample is not None and features is not None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "The outputs can either be read from a given sample or from a features list. Both parameters cannot be "
+                "passed."
+            )
+
+        # Set the outputs:
+        self._outputs = (
+            features
+            if features is not None
+            else self._read_io_samples(samples=from_sample)
+        )
+
+    def update_labels(
+        self,
+        to_update: Dict[str, Union[str, int, float]] = None,
+        to_remove: List[str] = None,
+    ):
+        """
+        Update the labels dictionary of this model artifact.
+
+        :param to_update: The labels to update.
+        :param to_remove: A list of labels keys to remove.
+        """
+        # Update the labels:
+        self._labels = {**self._labels, **(to_update if to_update is not None else {})}
+
+        # Remove labels:
+        if to_remove is not None:
+            for label in to_remove:
+                self._labels.pop(label)
+
+    def update_parameters(
+        self,
+        to_update: Dict[str, Union[str, int, float]] = None,
+        to_remove: List[str] = None,
+    ):
+        """
+        Update the parameters dictionary of this model artifact.
+
+        :param to_update: The parameters to update.
+        :param to_remove: A list of parameters keys to remove.
+        """
+        # Update the parameters:
+        self._parameters = {
+            **self._parameters,
+            **(to_update if to_update is not None else {}),
+        }
+
+        # Remove parameters:
+        if to_remove is not None:
+            for label in to_remove:
+                self._parameters.pop(label)
 
     @abstractmethod
     def save(
@@ -213,25 +329,46 @@ class ModelHandler(ABC):
             self._import_custom_objects()
 
     @abstractmethod
+    def to_onnx(self, model_name: str = None, optimize: bool = True, *args, **kwargs):
+        """
+        Convert the model in this handler to an ONNX model.
+
+        :param model_name: The name to give to the converted ONNX model. If not given the default name will be the
+                           stored model name with the suffix '_onnx'.
+        :param optimize:   Whether to optimize the ONNX model using 'onnxoptimizer' before saving the model. Defaulted
+                           to True.
+
+        :return: The converted ONNX model (onnx.ModelProto).
+        """
+        pass
+
     def log(
         self,
         labels: Dict[str, Union[str, int, float]] = None,
         parameters: Dict[str, Union[str, int, float]] = None,
-        extra_data: Dict[str, Any] = None,
+        inputs: List[Feature] = None,
+        outputs: List[Feature] = None,
+        metrics: Dict[str, Union[int, float]] = None,
         artifacts: Dict[str, Artifact] = None,
+        extra_data: Dict[str, Any] = None,
     ):
         """
         Log the model held by this handler into the MLRun context provided.
 
         :param labels:     Labels to log the model with.
         :param parameters: Parameters to log with the model.
-        :param extra_data: Extra data to log with the model.
+        :param inputs:     A list of features this model expects to receive - the model's input ports.
+        :param outputs:    A list of features this model expects to return - the model's output ports.
+        :param metrics:    Metrics results to log with the model.
         :param artifacts:  Artifacts to log the model with. Will be added to the extra data.
+        :param extra_data: Extra data to log with the model.
 
-        :raise MLRunInvalidArgumentError: In case a context is missing or there is no model in this handler.
+        :raise MLRunRuntimeError:         In case is no model in this handler.
+        :raise MLRunInvalidArgumentError: If a context is missing.
         """
+        # Validate there is a model and context:
         if self._model is None:
-            raise mlrun.errors.MLRunInvalidArgumentError(
+            raise mlrun.errors.MLRunRuntimeError(
                 "Model cannot be logged as it was not given in initialization or loaded during this run."
             )
         if self._context is None:
@@ -239,18 +376,62 @@ class ModelHandler(ABC):
                 "Cannot log model if a context was not provided during initialization."
             )
 
+        # Save the model:
+        model_artifacts = self.save()
+
+        # Log the custom objects:
+        custom_objects_artifacts = (
+            self._log_custom_objects() if self._custom_objects_map is not None else {}
+        )
+
+        # Read inputs and outputs ports:
+        if inputs is not None:
+            self.set_inputs(features=inputs)
+        if outputs is not None:
+            self.set_outputs(features=outputs)
+
+        # Update labels and parameters:
+        self.update_labels(to_update=labels)
+        self.update_parameters(to_update=parameters)
+
+        # Log the model:
+        self._context.log_model(
+            self._model_name,
+            db_key=self._model_name,
+            model_file=self._model_file,
+            inputs=self._inputs,
+            outputs=self._outputs,
+            framework=self._FRAMEWORK_NAME,
+            labels=self._labels,
+            parameters=self._parameters,
+            metrics=metrics,
+            extra_data={
+                **(model_artifacts if model_artifacts is not None else {}),
+                **custom_objects_artifacts,
+                **(artifacts if artifacts is None else {}),
+                **(extra_data if extra_data is None else {}),
+            },
+        )
+
     def update(
         self,
         labels: Dict[str, Union[str, int, float]] = None,
         parameters: Dict[str, Union[str, int, float]] = None,
+        inputs: List[Feature] = None,
+        outputs: List[Feature] = None,
+        metrics: Dict[str, Union[int, float]] = None,
         extra_data: Dict[str, Any] = None,
         artifacts: Dict[str, Artifact] = None,
     ):
         """
-        Log the model held by this handler into the MLRun context provided.
+        Log the model held by this handler into the MLRun context provided, updating the model's artifact properties in
+        the same model path provided.
 
         :param labels:     Labels to update or add to the model.
         :param parameters: Parameters to update or add to the model.
+        :param inputs:     A list of features this model expects to receive - the model's input ports.
+        :param outputs:    A list of features this model expects to return - the model's output ports.
+        :param metrics:    Metrics results to log with the model.
         :param extra_data: Extra data to update or add to the model.
         :param artifacts:  Artifacts to update or add to the model. Will be added to the extra data.
 
@@ -267,49 +448,114 @@ class ModelHandler(ABC):
                 "To update a model artifact the 'model_path' must be a store object."
             )
 
-        # Set default values:
-        labels = {} if labels is None else labels
-        parameters = {} if parameters is None else parameters
-        extra_data = {} if extra_data is None else extra_data
-        artifacts = {} if artifacts is None else artifacts
+        # Read inputs and outputs ports:
+        self.set_inputs(features=inputs)
+        self.set_outputs(features=outputs)
+
+        # Update labels and parameters:
+        self.update_labels(to_update=labels)
+        self.update_parameters(to_update=parameters)
 
         # Update the model:
         mlrun.artifacts.update_model(
             model_artifact=self._model_path,
-            parameters=parameters,
-            extra_data={**artifacts, **extra_data},
-            labels=labels,
+            labels=self._labels,
+            parameters=self._parameters,
+            inputs=self._inputs,
+            outputs=self._outputs,
+            metrics=metrics,
+            extra_data={
+                **(artifacts if artifacts is None else {}),
+                **(extra_data if extra_data is None else {}),
+            },
         )
 
-    @abstractmethod
-    def to_onnx(self, model_name: str = None, *args, **kwargs):
+    @staticmethod
+    def convert_value_type_to_np_dtype(value_type: str) -> np.dtype:
         """
-        Convert the model in this handler to an ONNX model.
+        Get the 'tensorflow.DType' equivalent to the given MLRun value type.
 
-        :param model_name: The name to give to the converted ONNX model. If not given the default name will be the
-                           stored model name with the suffix '_onnx'.
+        :param value_type: The MLRun value type to convert to numpy data type.
 
-        :return: The converted ONNX model (onnx.ModelProto).
+        :return: The 'numpy.dtype' equivalent to the given MLRun data type.
+
+        :raise MLRunInvalidArgumentError: If numpy is not supporting the given data type.
         """
-        pass
+        # Initialize the mlrun to numpy data type conversion map:
+        conversion_map = {
+            ValueType.BOOL: np.bool,
+            ValueType.INT8: np.int8,
+            ValueType.INT16: np.int16,
+            ValueType.INT32: np.int32,
+            ValueType.INT64: np.int64,
+            ValueType.UINT8: np.uint8,
+            ValueType.UINT16: np.uint16,
+            ValueType.UINT32: np.uint32,
+            ValueType.UINT64: np.uint64,
+            ValueType.FLOAT16: np.float16,
+            ValueType.FLOAT: np.float32,
+            ValueType.DOUBLE: np.float64,
+        }
 
-    def collect_files(self):
+        # Convert and return:
+        if value_type in conversion_map:
+            return conversion_map[value_type]
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"The ValueType given is not supported in numpy: '{value_type}'."
+        )
+
+    @staticmethod
+    def convert_np_dtype_to_value_type(np_dtype: Union[np.dtype, type, str]) -> str:
         """
-        Collect the files from the given model path.
+        Convert the given numpy data type to MLRun value type. It is better to use explicit bit namings (for example:
+        instead of using 'np.double', use 'np.float64').
 
-        :raise MLRunInvalidArgumentError: In case the model path was not provided.
+        :param np_dtype: The numpy data type to convert to MLRun's value type. Expected to be a 'numpy.dtype', 'type' or
+                         'str'.
+
+        :return: The MLRun value type converted from the given data type.
+
+        :raise MLRunInvalidArgumentError: If the numpy data type is not supported by MLRun.
         """
-        # Validate model path is set:
-        if self._model_path is None:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "In order to collect the model's files a model path must be provided."
-            )
+        # Initialize the numpy to mlrun data type conversion map:
+        conversion_map = {
+            np.bool.__name__: ValueType.BOOL,
+            np.byte.__name__: ValueType.INT8,
+            np.int8.__name__: ValueType.INT8,
+            np.short.__name__: ValueType.INT16,
+            np.int16.__name__: ValueType.INT16,
+            np.int32.__name__: ValueType.INT32,
+            np.int.__name__: ValueType.INT64,
+            np.long.__name__: ValueType.INT64,
+            np.int64.__name__: ValueType.INT64,
+            np.ubyte.__name__: ValueType.UINT8,
+            np.uint8.__name__: ValueType.UINT8,
+            np.ushort.__name__: ValueType.UINT16,
+            np.uint16.__name__: ValueType.UINT16,
+            np.uint32.__name__: ValueType.UINT32,
+            np.uint.__name__: ValueType.UINT64,
+            np.uint64.__name__: ValueType.UINT64,
+            np.half.__name__: ValueType.FLOAT16,
+            np.float16.__name__: ValueType.FLOAT16,
+            np.single.__name__: ValueType.FLOAT,
+            np.float32.__name__: ValueType.FLOAT,
+            np.double.__name__: ValueType.DOUBLE,
+            np.float.__name__: ValueType.DOUBLE,
+            np.float64.__name__: ValueType.DOUBLE,
+        }
 
-        # Collect by the path's type:
-        if mlrun.datastore.is_store_uri(self._model_path):
-            self._collect_files_from_store_object()
-        else:
-            self._collect_files_from_local_path()
+        # Parse the given numpy data type to string:
+        if isinstance(np_dtype, np.dtype):
+            np_dtype = np_dtype.name
+        elif isinstance(np_dtype, type):
+            np_dtype = np_dtype.__name__
+
+        # Convert and return:
+        if np_dtype in conversion_map:
+            return conversion_map[np_dtype]
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"MLRun value type is not supporting the given numpy data type: '{np_dtype}'."
+        )
 
     @abstractmethod
     def _collect_files_from_store_object(self):
@@ -317,7 +563,23 @@ class ModelHandler(ABC):
         If the model path given is of a store object, collect the needed model files into this handler for later loading
         the model.
         """
-        pass
+        # Read the model artifact information:
+        self.set_inputs(self._model_artifact.inputs)
+        self.set_outputs(self._model_artifact.outputs)
+        self.update_labels(to_update=self._model_artifact.labels)
+        self.update_parameters(to_update=self._model_artifact.parameters)
+
+        # Read the custom objects:
+        if self._get_custom_objects_map_artifact_name() in self._extra_data:
+            self._custom_objects_map = self._extra_data[
+                self._get_custom_objects_map_artifact_name()
+            ].local()
+            self._custom_objects_directory = self._extra_data[
+                self._get_custom_objects_directory_artifact_name()
+            ].local()
+        else:
+            self._custom_objects_map = None
+            self._custom_objects_directory = None
 
     @abstractmethod
     def _collect_files_from_local_path(self):
@@ -334,14 +596,6 @@ class ModelHandler(ABC):
         :return: The model file artifact name.
         """
         return self._MODEL_FILE_ARTIFACT_NAME.format(self._model_name)
-
-    def _get_weights_file_artifact_name(self) -> str:
-        """
-        Get the standard name for the weights file artifact.
-
-        :return: The weights file artifact name.
-        """
-        return self._WEIGHTS_FILE_ARTIFACT_NAME.format(self._model_name)
 
     def _get_custom_objects_map_artifact_name(self) -> str:
         """
@@ -372,6 +626,24 @@ class ModelHandler(ABC):
             if model_name is None
             else model_name
         )
+
+    def _collect_files(self):
+        """
+        Collect the files from the given model path.
+
+        :raise MLRunInvalidArgumentError: In case the model path was not provided.
+        """
+        # Validate model path is set:
+        if self._model_path is None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "In order to collect the model's files a model path must be provided."
+            )
+
+        # Collect by the path's type:
+        if mlrun.datastore.is_store_uri(self._model_path):
+            self._collect_files_from_store_object()
+        else:
+            self._collect_files_from_local_path()
 
     def _import_custom_objects(self):
         """
@@ -462,7 +734,6 @@ class ModelHandler(ABC):
                 base_name=custom_objects_zip.rsplit(".", 1)[0],
                 format="zip",
                 root_dir=os.path.abspath(self._custom_objects_directory),
-                # base_dir=os.path.basename(self._custom_objects_directory),
             )
 
         # Log the zip file artifact:
@@ -474,6 +745,47 @@ class ModelHandler(ABC):
         )
 
         return artifacts
+
+    def _read_io_samples(
+        self, samples: Union[IOSample, List[IOSample]],
+    ) -> List[Feature]:
+        """
+        Read the given inputs / output sample to / from the model into a list of MLRun Features (ports) to log in
+        the model's artifact.
+
+        :param samples: The given inputs / output sample to / from the model.
+
+        :return: The generated ports list.
+        """
+        # If there is only one input, wrap in a list:
+        if not (isinstance(samples, list) or isinstance(samples, tuple)):
+            samples = [samples]
+
+        return [self._read_sample(sample=sample) for sample in samples]
+
+    def _read_sample(self, sample: IOSample) -> Feature:
+        """
+        Read the sample into a MLRun Feature. This abstract class is reading samples of 'numpy.ndarray'. For further
+        types of samples, please inherit this method.
+
+        :param sample: The sample to read.
+
+        :return: The created Feature.
+
+        :raise MLRunInvalidArgumentError: In case the given sample type cannot be read.
+        """
+        # Supported types:
+        if isinstance(sample, np.ndarray):
+            return Feature(
+                value_type=self.convert_np_dtype_to_value_type(np_dtype=sample.dtype),
+                dims=list(sample.shape),
+            )
+
+        # Unsupported type:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"The sample type given '{type(sample)}' is not supported. The input / output ports are readable from "
+            f"samples of the following types: np.ndarray"
+        )
 
     @staticmethod
     def _validate_model_parameters(model_path: str, model: Model):
@@ -517,8 +829,8 @@ class ModelHandler(ABC):
                                          objects. Can be passed as a zip file as well (will be extracted during the run
                                          before loading the model).
 
-        :raise MLRunInvalidArgumentError: If one of the parameters is not None but the other is or if the paths were of
-                                          incorrect file formats.
+        :raise MLRunInvalidArgumentError: If the custom objects directory is given without the map or if the paths were
+                                          in incorrect file formats.
         """
         # Validate that if one is provided (not None), both are provided:
         if (custom_objects_map is not None and custom_objects_directory is None) or (
@@ -537,8 +849,8 @@ class ModelHandler(ABC):
                     and os.path.exists(custom_objects_map)
                 ):
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        "The 'custom_objects_map' is either not found or not a dictionary or a path to a json file. "
-                        "received: '{}'".format(custom_objects_map)
+                        f"The 'custom_objects_map' is either not found or not a dictionary or a path to a json file. "
+                        f"received: '{custom_objects_map}'"
                     )
 
         # Validate that the path is of a directory or a zip file:
@@ -548,8 +860,8 @@ class ModelHandler(ABC):
                 or custom_objects_directory.endswith(".zip")
             ):
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "The 'custom_objects_directory' is either not found or not a directory / zip file, "
-                    "received: '{}'".format(custom_objects_directory)
+                    f"The 'custom_objects_directory' is either not found or not a directory / zip file, "
+                    f"received: '{custom_objects_directory}'"
                 )
 
     @staticmethod

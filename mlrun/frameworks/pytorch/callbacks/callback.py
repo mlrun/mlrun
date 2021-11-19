@@ -145,7 +145,7 @@ class Callback(ABC):
         """
         return True
 
-    def on_train_batch_begin(self, batch: int, x, y_true: Tensor):
+    def on_train_batch_begin(self, batch: int, x: Tensor, y_true: Tensor):
         """
         After the training of the given batch begins, this method will be called.
 
@@ -155,7 +155,9 @@ class Callback(ABC):
         """
         pass
 
-    def on_train_batch_end(self, batch: int, x, y_pred: Tensor, y_true: Tensor) -> bool:
+    def on_train_batch_end(
+        self, batch: int, x: Tensor, y_pred: Tensor, y_true: Tensor
+    ) -> bool:
         """
         Before the training of the given batch ends, this method will be called.
 
@@ -168,7 +170,7 @@ class Callback(ABC):
         """
         return True
 
-    def on_validation_batch_begin(self, batch: int, x, y_true: Tensor):
+    def on_validation_batch_begin(self, batch: int, x: Tensor, y_true: Tensor):
         """
         After the validation of the given batch begins, this method will be called.
 
@@ -179,7 +181,7 @@ class Callback(ABC):
         pass
 
     def on_validation_batch_end(
-        self, batch: int, x, y_pred: Tensor, y_true: Tensor
+        self, batch: int, x: Tensor, y_pred: Tensor, y_true: Tensor
     ) -> bool:
         """
         Before the validation of the given batch ends, this method will be called.
@@ -194,7 +196,7 @@ class Callback(ABC):
         """
         return True
 
-    def on_inference_begin(self, x):
+    def on_inference_begin(self, x: Tensor):
         """
         Before the inference of the current batch sample into the model, this method will be called to process the
         input.

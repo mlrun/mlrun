@@ -5,7 +5,7 @@ from torch import Tensor
 from torch.nn import Module, Parameter
 
 import mlrun
-from mlrun.frameworks._common.loggers import Logger, LoggerMode, TrackableType
+from mlrun.frameworks._dl_common.loggers import Logger, LoggerMode, TrackableType
 from mlrun.frameworks.pytorch.callbacks.callback import (
     Callback,
     MetricFunctionType,
@@ -459,9 +459,8 @@ class LoggingCallback(Callback):
                 value = key_chain()
             except TypeError:
                 raise TypeError(
-                    "The given value of the source '{}' "
-                    "is of type '{}' and is not callable."
-                    "".format(source, type(key_chain))
+                    f"The given value of the source '{source}' "
+                    f"is of type '{type(key_chain)}' and is not callable."
                 )
         else:
             # Needed to be extracted via key chain:
@@ -478,9 +477,8 @@ class LoggingCallback(Callback):
                         value = getattr(value, key)
                 except (KeyError, IndexError, AttributeError) as KeyChainError:
                     raise KeyChainError(
-                        "Error during getting a hyperparameter value from the {} object. "
-                        "The {} in it does not have the following key/index from the key provided: {}"
-                        "".format(source.__class__, value.__class__, key)
+                        f"Error during getting a hyperparameter value from the {source.__class__} object. The "
+                        f"{value.__class__} in it does not have the following key/index from the key provided: {key}"
                     )
 
         # Parse the value:
@@ -489,18 +487,16 @@ class LoggingCallback(Callback):
                 value = float(value)
             else:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "The parameter with the following key chain: {} is a pytorch.Tensor with {} elements. "
-                    "PyTorch tensors are trackable only if they have 1 element."
-                    "".format(key_chain, value.numel())
+                    f"The parameter with the following key chain: {key_chain} is a pytorch.Tensor with {value.numel()} "
+                    f"elements. PyTorch tensors are trackable only if they have 1 element."
                 )
         elif isinstance(value, np.ndarray):
             if value.size == 1:
                 value = float(value)
             else:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "The parameter with the following key chain: {} is a numpy.ndarray with {} elements. "
-                    "numpy arrays are trackable only if they have 1 element."
-                    "".format(key_chain, value.size)
+                    f"The parameter with the following key chain: {key_chain} is a numpy.ndarray with {value.size} "
+                    f"elements. numpy arrays are trackable only if they have 1 element."
                 )
         elif not (
             isinstance(value, float)
@@ -509,9 +505,8 @@ class LoggingCallback(Callback):
             or isinstance(value, bool)
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "The parameter with the following key chain: {} is of type '{}'. "
-                "The only trackable types are: float, int, str and bool."
-                "".format(key_chain, type(value))
+                f"The parameter with the following key chain: {key_chain} is of type '{type(value)}'. "
+                f"The only trackable types are: float, int, str and bool."
             )
         return value
 

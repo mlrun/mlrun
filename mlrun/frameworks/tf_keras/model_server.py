@@ -104,6 +104,4 @@ class TFKerasModelServer(V2ModelServer):
 
         :return: Explanation string.
         """
-        return "The '{}' model serving function named '{}'".format(
-            self.model.name, self.name
-        )
+        return f"The '{self.model.name}' model serving function named '{self.name}'"

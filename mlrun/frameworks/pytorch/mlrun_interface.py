@@ -159,9 +159,7 @@ class PyTorchMLRunInterface:
             # Beginning of a epoch callbacks:
             self._callbacks_handler.on_epoch_begin(epoch=epoch)
             print(
-                "Epoch {}/{}:".format(
-                    str(epoch + 1).rjust(len(str(self._epochs))), self._epochs
-                )
+                f"Epoch {str(epoch + 1).rjust(len(str(self._epochs)))}/{self._epochs}:"
             )
 
             # Train:
@@ -178,16 +176,12 @@ class PyTorchMLRunInterface:
                 if self._use_horovod:
                     loss_value = self._metric_average(
                         rank_value=loss_value,
-                        name="average_{}".format(
-                            self._get_metric_name(metric=self._loss_function)
-                        ),
+                        name=f"average_{self._get_metric_name(metric=self._loss_function)}",
                     )
                     metric_values = [
                         self._metric_average(
                             rank_value=metric_value,
-                            name="average_{}".format(
-                                self._get_metric_name(metric=metric_function)
-                            ),
+                            name=f"average_{self._get_metric_name(metric=metric_function)}",
                         )
                         for metric_value, metric_function in zip(
                             metric_values, self._metric_functions
@@ -263,16 +257,12 @@ class PyTorchMLRunInterface:
         if self._use_horovod:
             loss_value = self._metric_average(
                 rank_value=loss_value,
-                name="average_{}".format(
-                    self._get_metric_name(metric=self._loss_function)
-                ),
+                name=f"average_{self._get_metric_name(metric=self._loss_function)}",
             )
             metric_values = [
                 self._metric_average(
                     rank_value=metric_value,
-                    name="average_{}".format(
-                        self._get_metric_name(metric=metric_function)
-                    ),
+                    name=f"average_{self._get_metric_name(metric=metric_function)}",
                 )
                 for metric_value, metric_function in zip(
                     metric_values, self._metric_functions
@@ -445,14 +435,14 @@ class PyTorchMLRunInterface:
                 training_iterations = len(training_set)
             elif training_iterations < 1:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "The 'training_iterations' parameter must be bigger or equal to one, received: {}"
-                    "".format(training_iterations)
+                    f"The 'training_iterations' parameter must be bigger or equal to one, received: "
+                    f"{training_iterations}"
                 )
             elif training_iterations > len(training_set):
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "The 'training_iterations' cannot be bigger than the given training dataset. The size of "
-                    "the given training set is {} yet the received iterations parameter is {}."
-                    "".format(len(training_set), training_iterations)
+                    f"The 'training_iterations' cannot be bigger than the given training dataset. The size of "
+                    f"the given training set is {len(training_set)} yet the received iterations parameter is "
+                    f"{training_iterations}."
                 )
         # # Validation iterations:
         if validation_set is not None:
@@ -460,21 +450,19 @@ class PyTorchMLRunInterface:
                 validation_iterations = len(validation_set)
             elif validation_iterations < 1:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "The 'validation_iterations' parameter must be bigger or equal to one, "
-                    "received: {}".format(validation_iterations)
+                    f"The 'validation_iterations' parameter must be bigger or equal to one, "
+                    f"received: {validation_iterations}"
                 )
             elif validation_iterations > len(validation_set):
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "The 'validation_iterations' cannot be bigger than the given validation dataset. The "
-                    "size of the given validation set is {} yet the received iterations parameter is {}."
-                    "".format(len(validation_set), validation_iterations)
+                    f"The 'validation_iterations' cannot be bigger than the given validation dataset. The size of the "
+                    f"given validation set is {len(validation_set)} yet the received iterations parameter is "
+                    f"{validation_iterations}."
                 )
         # # Epochs:
         if epochs < 1:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "The 'epochs' parameter must be bigger or equal to one, received: {}".format(
-                    epochs
-                )
+                f"The 'epochs' parameter must be bigger or equal to one, received: {epochs}"
             )
         # # Scheduler step frequency:
         if isinstance(scheduler_step_frequency, str):
@@ -484,18 +472,14 @@ class PyTorchMLRunInterface:
                 scheduler_step_frequency = 1
             else:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "The scheduler step frequency parameter can be passed as a string of two values: "
-                    "'epoch' or 'batch', but the value given was: '{}'".format(
-                        scheduler_step_frequency
-                    )
+                    f"The scheduler step frequency parameter can be passed as a string of two values: "
+                    f"'epoch' or 'batch', but the value given was: '{scheduler_step_frequency}'"
                 )
         elif isinstance(scheduler_step_frequency, float):
             if scheduler_step_frequency < 0.0 or scheduler_step_frequency > 1.0:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "The scheduler step frequency parameter can be passed as a float with value between "
-                    "0.0 to 1.0, but the value given was: '{}'".format(
-                        scheduler_step_frequency
-                    )
+                    f"The scheduler step frequency parameter can be passed as a float with value between "
+                    f"0.0 to 1.0, but the value given was: '{scheduler_step_frequency}'"
                 )
             scheduler_step_frequency = int(
                 training_iterations * scheduler_step_frequency
@@ -578,9 +562,7 @@ class PyTorchMLRunInterface:
                 torch.cuda.set_device(self._hvd.local_rank())
                 # Log horovod worker device:
                 print(
-                    "Horovod worker #{} is using GPU:{}".format(
-                        self._hvd.rank(), self._hvd.local_rank()
-                    )
+                    f"Horovod worker #{self._hvd.rank()} is using GPU:{self._hvd.local_rank()}"
                 )
                 # Register the required multiprocessing arguments:
                 mp_data_loader_kwargs["num_workers"] = 1
@@ -589,7 +571,7 @@ class PyTorchMLRunInterface:
             self._objects_to_cuda()
         elif self._use_horovod:
             # Log horovod worker device:
-            print("Horovod worker #{} is using CPU".format(self._hvd.rank()))
+            print(f"Horovod worker #{self._hvd.rank()} is using CPU")
 
         # Initialize a callbacks handler:
         if self._use_horovod:

@@ -1,8 +1,11 @@
 from typing import Callable, Dict, List, Tuple, Union
 
+import torch
+from torch import Tensor
+
 import mlrun
 from mlrun.artifacts import Artifact
-from mlrun.frameworks._common.loggers import LoggerMode, MLRunLogger, TrackableType
+from mlrun.frameworks._dl_common.loggers import LoggerMode, MLRunLogger, TrackableType
 from mlrun.frameworks.pytorch.callbacks.logging_callback import LoggingCallback
 from mlrun.frameworks.pytorch.model_handler import PyTorchModelHandler
 
@@ -35,6 +38,8 @@ class MLRunLoggingCallback(LoggingCallback):
         custom_objects_directory: str,
         model_name: str = None,
         model_path: str = None,
+        input_sample: PyTorchModelHandler.IOSample = None,
+        output_sample: PyTorchModelHandler.IOSample = None,
         log_model_labels: Dict[str, TrackableType] = None,
         log_model_parameters: Dict[str, TrackableType] = None,
         log_model_extra_data: Dict[str, Union[TrackableType, Artifact]] = None,
@@ -76,6 +81,12 @@ class MLRunLoggingCallback(LoggingCallback):
                                          class name will be used.
         :param model_path:               The model's store object path. Mandatory for evaluation (to know which model to
                                          update).
+        :param input_sample:             Input sample to the model for logging additional data regarding the input ports
+                                         of the model. If None, the input sample will be read automatically from the
+                                         training / evaluation process.
+        :param output_sample:            Output sample of the model for logging additional data regarding the output
+                                         ports of the model. If None, the input sample will be read automatically from
+                                         the training / evaluation process.
         :param log_model_labels:         Labels to log with the model.
         :param log_model_parameters:     Parameters to log with the model.
         :param log_model_extra_data:     Extra data to log with the model.
@@ -124,6 +135,8 @@ class MLRunLoggingCallback(LoggingCallback):
         self._model_path = model_path
         self._custom_objects_map = custom_objects_map
         self._custom_objects_directory = custom_objects_directory
+        self._input_sample = input_sample
+        self._output_sample = output_sample
 
     def on_run_end(self):
         """
@@ -140,16 +153,21 @@ class MLRunLoggingCallback(LoggingCallback):
             else self._model_name
         )
 
-        # End the run:
-        self._logger.log_run(
-            model_handler=PyTorchModelHandler(
-                model_name=self._model_name,
-                model_path=self._model_path,
-                custom_objects_map=self._custom_objects_map,
-                custom_objects_directory=self._custom_objects_directory,
-                model=self._objects[self._ObjectKeys.MODEL],
-            )
+        # Create the model handler:
+        model_handler = PyTorchModelHandler(
+            model_name=self._model_name,
+            model_path=self._model_path,
+            custom_objects_map=self._custom_objects_map,
+            custom_objects_directory=self._custom_objects_directory,
+            model=self._objects[self._ObjectKeys.MODEL],
         )
+
+        # Set the inputs and outputs:
+        model_handler.set_inputs(from_sample=self._input_sample)
+        model_handler.set_outputs(from_sample=self._output_sample)
+
+        # End the run:
+        self._logger.log_run(model_handler=model_handler)
 
     def on_epoch_end(self, epoch: int):
         """
@@ -162,3 +180,24 @@ class MLRunLoggingCallback(LoggingCallback):
 
         # Create child context to hold the current epoch's results:
         self._logger.log_epoch_to_context(epoch=epoch)
+
+    def on_inference_begin(self, x: Tensor):
+        """
+        Before the inference of the current batch sample into the model, this method will be called to save an input
+        sample - a zeros tensor with the same properties of the 'x' input.
+
+        :param x: The input of the current batch.
+        """
+        if self._input_sample is None:
+            self._input_sample = torch.zeros(size=x.shape, dtype=x.dtype)
+
+    def on_inference_end(self, y_pred: Tensor, y_true: Tensor):
+        """
+        After the inference of the current batch sample, this method will be called to save an output sample - a zeros
+        tensor with the same properties of the 'y_pred' output.
+
+        :param y_pred: The prediction (output) of the model for this batch's input ('x').
+        :param y_true: The ground truth value of the current batch.
+        """
+        if self._output_sample is None:
+            self._output_sample = torch.zeros(size=y_pred.shape, dtype=y_pred.dtype)

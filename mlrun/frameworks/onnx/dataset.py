@@ -93,9 +93,7 @@ class ONNXDataset:
         from_index = self._batch_size * index
         if from_index >= len(self):
             raise IndexError(
-                "Dataset's length is {}, yet given index was {}.".format(
-                    len(self), index
-                )
+                f"Dataset's length is {len(self)}, yet given index was {index}."
             )
         to_index = max(self._batch_size * (index + 1), len(self._x))
         is_batched = (to_index - from_index) > 1
@@ -161,7 +159,6 @@ class ONNXDataset:
                 items = transform(items)
         else:
             for transform in transforms:
-                for index in range(len(items)):
-                    items[index] = transform(items[index])
+                items = [transform(item) for item in items]
 
         return items

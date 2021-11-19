@@ -128,6 +128,4 @@ class PyTorchModelServer(V2ModelServer):
 
         :return: Explanation string.
         """
-        return "The '{}' model serving function named '{}'".format(
-            type(self.model), self.name
-        )
+        return f"The '{type(self.model)}' model serving function named '{self.name}'"

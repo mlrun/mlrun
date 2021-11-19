@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from enum import Enum
-
 # this module is WIP
 import pyarrow
 from pyarrow.lib import TimestampType

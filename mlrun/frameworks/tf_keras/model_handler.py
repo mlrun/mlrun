@@ -331,8 +331,8 @@ class TFKerasModelHandler(DLModelHandler):
                 ]
             else:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"In order to convert the model to ONNX the 'input_signature' must be given or you can use one of "
-                    f"the 'set_inputs', 'read_inputs_from_model' methods."
+                    "In order to convert the model to ONNX the 'input_signature' must be given or you can use one of "
+                    "the 'set_inputs', 'read_inputs_from_model' methods."
                 )
         elif not isinstance(input_signature, list):
             # Wrap it in a list:

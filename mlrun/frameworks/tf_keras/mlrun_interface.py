@@ -3,7 +3,6 @@ import os
 from abc import ABC
 from typing import Any, Dict, Generator, Iterator, List, Sequence, Tuple, Union
 
-import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.callbacks import (

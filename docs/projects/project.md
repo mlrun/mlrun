@@ -1,3 +1,4 @@
+(Projects)=
 # Create, Load, and Use Projects
 
 Projects refer to a `context` directory which holds all the project code and configuration, the `context` dir is 
@@ -18,11 +19,12 @@ workflow execute the registered functions in a sequence/graph (DAG), can referen
 
 Projects can also be loaded and workflows/pipelines can be executed using the CLI (using `mlrun project` command)
 
-- [Creating a new project](#creating-a-new-project)
-- [Load & Run projects from context, git or archive](#setting-up-git-remote-repository)
-- [Get from DB or create (get_or_create_project)](#get-from-db-or-create-get-or-create-project)
-- [Working with Git](#working-with-git)
-- [Updating and using project functions](#updating-and-using-project-functions)
+- [**Creating a new project**](#creating-a-new-project)
+- [**Load & Run projects from context, git or archive**](#setting-up-git-remote-repository)
+- [**Get from DB or create (get_or_create_project)**](#get-from-db-or-create-get-or-create-project)
+- [**Working with Git**](#working-with-git)
+- [**Updating and using project functions**](#updating-and-using-project-functions)
+- [**Run, Build, and Deploy functions**](#run-build-and-deploy-functions)
 
 ## Creating a new project
 
@@ -251,13 +253,36 @@ Examples:
     project.set_function(func_object)
 ```
 
-once functions are registered or saved in the project we can get their function object using `project.func(key)`.
+once functions are registered or saved in the project we can get their function object using `project.get_function(key)`.
 
 example:
 
 ```python
     # get the data-prep function, add volume mount and run it with data input
-    run = project.func("data-prep").apply(v3io_mount()).run(inputs={"data": data_url})
+    project.get_function("data-prep").apply(v3io_mount())
+    run = project.run_function("data-prep", inputs={"data": data_url})
 ```
 
-When running inside a workflow the `funcs` dictionary holds the function object (enriched with workflow metadata/spec elements)
+(Run_project_functions)=
+## Run, Build, and Deploy functions
+
+there are a set of methods used to deploy and run project functions, those can be used interactively or inside a pipeline 
+(inside a pipeline it will be automatically mapped to the relevant pipeline engine command).
+
+* {py:meth}`~mlrun.projects.run_function`  - Run a local or remote task as part of a local run or pipeline
+* {py:meth}`~mlrun.projects.build_function`  - deploy ML function, build container with its dependencies for use in runs
+* {py:meth}`~mlrun.projects.deploy_function`  - deploy real-time/online (nuclio or serving based) functions
+
+You can use those methods as `project` methods, or as global (`mlrun.`) methods, the current project will be assumed for the later case.
+
+    run = myproject.run_function("train", inputs={"data": data_url})  # will run the "train" function in myproject
+    run = mlrun.run_function("train", inputs={"data": data_url})  # will run the "train" function in the current/active project
+    
+The first parameter in those three methods is the function name (in the project), or it can be a function object if we want to use functions we imported/created ad hoc, example:
+
+    # import a serving function from the marketplace and deploy a tarined model over it
+    serving = import_function("hub://v2_model_server", new_name="serving")
+    deploy = deploy_function(
+        serving,
+        models=[{"key": "mymodel", "model_path": train.outputs["model"]}],
+    )

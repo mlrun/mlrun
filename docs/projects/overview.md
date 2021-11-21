@@ -1,8 +1,8 @@
 # Projects, Automation & CI/CD
 
 A Project is a container for all your work on a particular activity/application. All the associated code, functions, 
-jobs/workflows and artifacts are organized within the projects. Projects can be mapped to `GIT` repositories which 
-enable versioning, collaboration, and CI/CD. Project access can be restricted to a set of users and roles. 
+jobs/workflows and artifacts are organized within the projects. Projects can be mapped to `GIT` repositories or IDE project 
+(in PyCharm, VSCode, ..) which enable versioning, collaboration, and CI/CD. Project access can be restricted to a set of users and roles. 
 
 Users can create project definitions using the SDK or a Yaml file and store those in MLRun DB, file, or archive.
 Project definitions include lists of parameters, functions, workflows (pipelines), artifacts, and secrets. 

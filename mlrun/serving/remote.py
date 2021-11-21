@@ -123,12 +123,14 @@ class RemoteStep(storey.SendToHttp):
         if self.body_expression:
             # init lambda function for calculating url from event
             self._body_function_handler = eval(
-                "lambda event: " + self.body_expression, {}, {}
+                "lambda event: " + self.body_expression, {"context": self.context}, {}
             )
         if self.url_expression:
             # init lambda function for calculating url from event
             self._url_function_handler = eval(
-                "lambda event: " + self.url_expression, {"endpoint": self._endpoint}, {}
+                "lambda event: " + self.url_expression,
+                {"endpoint": self._endpoint, "context": self.context},
+                {},
             )
         elif self.subpath:
             self._append_event_path = self.subpath == "$path"
@@ -201,7 +203,7 @@ class RemoteStep(storey.SendToHttp):
 
     def _generate_request(self, event, body):
         method = self.method or event.method or "POST"
-        headers = self.headers or event.headers or {}
+        headers = self.headers or {}
 
         if self._url_function_handler:
             url = self._url_function_handler(body)
@@ -353,7 +355,7 @@ class BatchHttpRequests(_ConcurrentJobExecution):
     async def _process_event(self, event):
         # async implementation (with storey)
         method = self.method or event.method or "POST"
-        headers = self.headers or event.headers or {}
+        headers = self.headers or {}
         input_list = self._get_event_or_body(event)
         is_get = method == "GET"
         is_json = False

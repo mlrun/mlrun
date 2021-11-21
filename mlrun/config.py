@@ -128,7 +128,7 @@ default_config = {
         "real_path": "",
         "db_type": "sqldb",
         "max_workers": "",
-        # one of online, offline
+        # See mlrun.api.schemas.APIStates for options
         "state": "online",
         "db": {
             "commit_retry_timeout": 30,

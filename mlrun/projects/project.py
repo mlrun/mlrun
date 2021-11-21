@@ -1580,7 +1580,7 @@ class MlrunProject(ModelObj):
         :param watch:     wait for pipeline completion
         :param dirty:     allow running the workflow when the git repo is dirty
         :param ttl:       pipeline ttl in secs (after that the pods will be removed)
-        :param engine:    workflow engine running the workflow. Only supported value is 'kfp' (also used if None)
+        :param engine:    workflow engine running the workflow. supported values are 'kfp' (default) or 'local'
         :param local:     run local pipeline with local functions (set local=True in function.run())
 
         :returns: run id

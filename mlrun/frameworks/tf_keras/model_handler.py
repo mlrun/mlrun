@@ -48,6 +48,7 @@ class TFKerasModelHandler(DLModelHandler):
         model_path: str = None,
         model: keras.Model = None,
         context: mlrun.MLClientCtx = None,
+        modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
         model_format: str = ModelFormats.SAVED_MODEL,
@@ -70,6 +71,18 @@ class TFKerasModelHandler(DLModelHandler):
                                          format: 'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'.
         :param model:                    Model to handle or None in case a loading parameters were supplied.
         :param context:                  MLRun context to work with for logging the model.
+        :param modules_map:              A dictionary of all the modules required for loading the model. Each key
+                                         is a path to a module and its value is the object name to import from it. All
+                                         the modules will be imported globally. If multiple objects needed to be
+                                         imported from the same module a list can be given. The map can be passed as a
+                                         path to a json file as well. For example:
+                                         {
+                                             "module1": None,  # => import module1
+                                             "module2": ["func1", "func2"],  # => from module2 import func1, func2
+                                             "module3.sub_module": "func3",  # => from module3.sub_module import func3
+                                         }
+                                         If the model path given is of a store object, the modules map will be read from
+                                         the logged modules map artifact of the model.
         :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key
                                          is a path to a python file and its value is the custom object name to import
                                          from it. If multiple objects needed to be imported from the same py file a list
@@ -138,6 +151,7 @@ class TFKerasModelHandler(DLModelHandler):
             model_name=model_name,
             model_path=model_path,
             model=model,
+            modules_map=modules_map,
             custom_objects_map=custom_objects_map,
             custom_objects_directory=custom_objects_directory,
             context=context,
@@ -169,7 +183,7 @@ class TFKerasModelHandler(DLModelHandler):
 
     # TODO: output_path won't work well with logging artifacts. Need to look into changing the logic of 'log_artifact'.
     def save(
-        self, output_path: str = None, *args, **kwargs
+        self, output_path: str = None, **kwargs
     ) -> Union[Dict[str, Artifact], None]:
         """
         Save the handled model at the given output path. If a MLRun context is available, the saved model files will be
@@ -233,7 +247,7 @@ class TFKerasModelHandler(DLModelHandler):
 
         return artifacts if self._context is not None else None
 
-    def load(self, checkpoint: str = None, *args, **kwargs):
+    def load(self, checkpoint: str = None, **kwargs):
         """
         Load the specified model in this handler. If a checkpoint is required to be loaded, it can be given here
         according to the provided model path in the initialization of this handler. Additional parameters for the class

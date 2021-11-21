@@ -34,6 +34,7 @@ class PyTorchModelHandler(DLModelHandler):
         self,
         model_name: str,
         model_class: Union[Type[Module], str] = None,
+        modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
         model_path: str = None,
@@ -44,9 +45,21 @@ class PyTorchModelHandler(DLModelHandler):
         Initialize the handler. The model can be set here so it won't require loading.
         :param model_name:               The model name for saving and logging the model.
         :param model_class:              The model's class type object. Can be passed as the class's name (string) as
-                                         well. The model class must appear in the custom objects map dictionary / json.
-                                         If the model path given is of a store object, this model class name will be
-                                         read from the logged label of the model.
+                                         well. The model class must appear in the custom objects / modules map
+                                         dictionary / json. If the model path given is of a store object, this model
+                                         class name will be read from the logged label of the model.
+        :param modules_map:              A dictionary of all the modules required for loading the model. Each key
+                                         is a path to a module and its value is the object name to import from it. All
+                                         the modules will be imported globally. If multiple objects needed to be
+                                         imported from the same module a list can be given. The map can be passed as a
+                                         path to a json file as well. For example:
+                                         {
+                                             "module1": None,  # => import module1
+                                             "module2": ["func1", "func2"],  # => from module2 import func1, func2
+                                             "module3.sub_module": "func3",  # => from module3.sub_module import func3
+                                         }
+                                         If the model path given is of a store object, the modules map will be read from
+                                         the logged modules map artifact of the model.
         :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key
                                          is a path to a python file and its value is the custom object name to import
                                          from it. If multiple objects needed to be imported from the same py file a list
@@ -97,6 +110,7 @@ class PyTorchModelHandler(DLModelHandler):
             model_name=model_name,
             model_path=model_path,
             model=model,
+            modules_map=modules_map,
             custom_objects_map=custom_objects_map,
             custom_objects_directory=custom_objects_directory,
             context=context,
@@ -125,7 +139,7 @@ class PyTorchModelHandler(DLModelHandler):
         self._labels[self._LabelKeys.MODEL_CLASS_NAME] = self._model_class_name
 
     def save(
-        self, output_path: str = None, *args, **kwargs
+        self, output_path: str = None, **kwargs
     ) -> Union[Dict[str, Artifact], None]:
         """
         Save the handled model at the given output path.
@@ -151,7 +165,7 @@ class PyTorchModelHandler(DLModelHandler):
 
         return None
 
-    def load(self, checkpoint: str = None, *args, **kwargs):
+    def load(self, checkpoint: str = None, **kwargs):
         """
         Load the specified model in this handler. If a checkpoint is required to be loaded, it can be given here
         according to the provided model path in the initialization of this handler. Additional parameters for the class
@@ -167,7 +181,10 @@ class PyTorchModelHandler(DLModelHandler):
         super(PyTorchModelHandler, self).load()
 
         # Validate the model's class is in the custom objects map:
-        if self._model_class_name not in self._custom_objects:
+        if (
+            self._model_class_name not in self._custom_objects
+            and self._model_class_name not in self._modules
+        ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"The model class '{self._model_class_name}' was not found in the given custom objects map. The custom "
                 f"objects map must include the model's class name in its values. Usually the model class should appear "
@@ -175,7 +192,11 @@ class PyTorchModelHandler(DLModelHandler):
             )
 
         # Initialize the model:
-        self._model = self._custom_objects[self._model_class_name](**kwargs)
+        self._model = (
+            self._custom_objects[self._model_class_name](**kwargs)
+            if self._model_class_name in self._custom_objects
+            else self._modules[self._model_class_name](**kwargs)
+        )
 
         # Load the state dictionary into it:
         self._model.load_state_dict(torch.load(self._model_file))

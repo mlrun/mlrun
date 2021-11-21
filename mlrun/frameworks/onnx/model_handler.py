@@ -46,7 +46,7 @@ class ONNXModelHandler(ModelHandler):
 
     # TODO: output_path won't work well with logging artifacts. Need to look into changing the logic of 'log_artifact'.
     def save(
-        self, output_path: str = None, *args, **kwargs
+        self, output_path: str = None, **kwargs
     ) -> Union[Dict[str, Artifact], None]:
         """
         Save the handled model at the given output path. If a MLRun context is available, the saved model files will be
@@ -69,7 +69,7 @@ class ONNXModelHandler(ModelHandler):
 
         return None
 
-    def load(self, *args, **kwargs):
+    def load(self, **kwargs):
         """
         Load the specified model in this handler.
         """

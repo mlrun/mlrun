@@ -349,7 +349,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
 
     @abstractmethod
     def save(
-        self, output_path: str = None, *args, **kwargs
+        self, output_path: str = None, **kwargs
     ) -> Union[Dict[str, Artifact], None]:
         """
         Save the handled model at the given output path.
@@ -375,7 +375,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         return None
 
     @abstractmethod
-    def load(self, *args, **kwargs):
+    def load(self, **kwargs):
         """
         Load the specified model in this handler. The custom objects will be imported right before loading the model. To
         access the model, call the 'model' property.
@@ -393,7 +393,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
             self._import_custom_objects()
 
     @abstractmethod
-    def to_onnx(self, model_name: str = None, optimize: bool = True, *args, **kwargs):
+    def to_onnx(self, model_name: str = None, optimize: bool = True, **kwargs):
         """
         Convert the model in this handler to an ONNX model.
 
@@ -888,8 +888,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         return artifacts
 
     def _read_io_samples(
-        self,
-        samples: Union[IOSample, List[IOSample]],
+        self, samples: Union[IOSample, List[IOSample]],
     ) -> List[Feature]:
         """
         Read the given inputs / output sample to / from the model into a list of MLRun Features (ports) to log in

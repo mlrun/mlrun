@@ -34,8 +34,9 @@ class MLRunLoggingCallback(LoggingCallback):
     def __init__(
         self,
         context: mlrun.MLClientCtx,
-        custom_objects_map: Union[Dict[str, Union[str, List[str]]], str],
-        custom_objects_directory: str,
+        modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
+        custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
+        custom_objects_directory: str = None,
         model_name: str = None,
         model_path: str = None,
         input_sample: PyTorchModelHandler.IOSample = None,
@@ -52,10 +53,23 @@ class MLRunLoggingCallback(LoggingCallback):
         auto_log: bool = False,
     ):
         """
-        Initialize an mlrun logging callback with the given hyperparameters and logging configurations.
+        Initialize an mlrun logging callback with the given hyperparameters and logging configurations. Notice: In order
+        to log the model, its class (torch.Module) must be in the custom objects map or the modules map.
 
         :param context:                  MLRun context to log to. Its parameters will be logged automatically  if
                                          'auto_log' is True.
+        :param modules_map:              A dictionary of all the modules required for loading the model. Each key
+                                         is a path to a module and its value is the object name to import from it. All
+                                         the modules will be imported globally. If multiple objects needed to be
+                                         imported from the same module a list can be given. The map can be passed as a
+                                         path to a json file as well. For example:
+                                         {
+                                             "module1": None,  # => import module1
+                                             "module2": ["func1", "func2"],  # => from module2 import func1, func2
+                                             "module3.sub_module": "func3",  # => from module3.sub_module import func3
+                                         }
+                                         If the model path given is of a store object, the modules map will be read from
+                                         the logged modules map artifact of the model.
         :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key
                                          is a path to a python file and its value is the custom object name to import
                                          from it. If multiple objects needed to be imported from the same py file a list
@@ -133,6 +147,7 @@ class MLRunLoggingCallback(LoggingCallback):
         # Store the additional PyTorchModelHandler parameters for logging the model later:
         self._model_name = model_name
         self._model_path = model_path
+        self._modules_map = modules_map
         self._custom_objects_map = custom_objects_map
         self._custom_objects_directory = custom_objects_directory
         self._input_sample = input_sample
@@ -157,6 +172,7 @@ class MLRunLoggingCallback(LoggingCallback):
         model_handler = PyTorchModelHandler(
             model_name=self._model_name,
             model_path=self._model_path,
+            modules_map=self._modules_map,
             custom_objects_map=self._custom_objects_map,
             custom_objects_directory=self._custom_objects_directory,
             model=self._objects[self._ObjectKeys.MODEL],

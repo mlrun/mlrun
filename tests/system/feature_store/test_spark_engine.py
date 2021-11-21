@@ -1,7 +1,9 @@
 import os
 
+import pandas as pd
 import pytest
 
+import mlrun
 import mlrun.feature_store as fs
 from mlrun import store_manager
 from mlrun.datastore.sources import ParquetSource
@@ -80,3 +82,29 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_context=self.spark_service,
             run_config=fs.RunConfig(local=False),
         )
+
+    def test_error_flow(self):
+        df = pd.DataFrame(
+            {
+                "key": ["Jean", "Jacques", "Pierre"],
+                "foreignkey1": ["Dubois", "Dupont", "Lavigne"],
+            }
+        )
+
+        measurements = fs.FeatureSet(
+            "measurements",
+            entities=[fs.Entity("key")],
+            engine="spark",
+        )
+
+        try:
+            fs.ingest(
+                measurements,
+                df,
+                return_df=True,
+                spark_context=self.spark_service,
+                run_config=fs.RunConfig(local=False),
+            )
+            assert False
+        except mlrun.errors.MLRunInvalidArgumentError:
+            pass

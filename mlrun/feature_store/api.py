@@ -296,10 +296,9 @@ def ingest(
         )
 
     if run_config:
-        print("rrrrremote")
         if isinstance(source, pd.DataFrame):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "DataFrame source is illegal in remote ingest"
+                "DataFrame source is illegal in with RunConfig"
             )
         # remote job execution
         verify_feature_set_permissions(
@@ -316,7 +315,6 @@ def ingest(
 
     if mlrun_context:
         # extract ingestion parameters from mlrun context
-        print("rrrrremote2")
         if isinstance(source, pd.DataFrame):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "DataFrame source is illegal when running ingest with mlrun context"
@@ -396,7 +394,6 @@ def ingest(
             "featureset.spec.engine must be set to 'spark' to ingest with spark"
         )
     if featureset.spec.engine == "spark":
-        print("rrrrremote3")
         if isinstance(source, pd.DataFrame):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "DataFrame source is illegal when ingesting with spark"

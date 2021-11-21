@@ -477,8 +477,8 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
                 **modules_artifacts,
                 **custom_objects_artifacts,
                 **self._committed_artifacts,
-                **(artifacts if artifacts is None else {}),
-                **(extra_data if extra_data is None else {}),
+                **(artifacts if artifacts is not None else {}),
+                **(extra_data if extra_data is not None else {}),
             },
         )
 
@@ -634,8 +634,10 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         the model.
         """
         # Read the model artifact information:
-        self.set_inputs(self._model_artifact.inputs)
-        self.set_outputs(self._model_artifact.outputs)
+        if len(self._model_artifact.inputs) > 0:
+            self.set_inputs(features=list(self._model_artifact.inputs))
+        if len(self._model_artifact.outputs) > 0:
+            self.set_outputs(features=list(self._model_artifact.outputs))
         self.update_labels(to_update=self._model_artifact.labels)
         self.update_parameters(to_update=self._model_artifact.parameters)
 

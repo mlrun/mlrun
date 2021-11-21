@@ -112,3 +112,9 @@ labels_prefix = "mlrun/"
 
 class LabelNames:
     schedule_name = f"{labels_prefix}schedule-name"
+
+
+class APIStates:
+    online = "online"
+    waiting_for_migrations = "waiting_for_migrations"
+    offline = "offline"

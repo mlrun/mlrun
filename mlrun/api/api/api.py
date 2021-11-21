@@ -24,7 +24,7 @@ from mlrun.api.api.endpoints import (
     submit,
 )
 
-api_router = APIRouter()
+api_router = APIRouter(dependencies=[Depends(mlrun.api.api.deps.verify_api_state)])
 api_router.include_router(
     artifacts.router,
     tags=["artifacts"],

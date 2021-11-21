@@ -128,6 +128,8 @@ default_config = {
         "real_path": "",
         "db_type": "sqldb",
         "max_workers": "",
+        # one of online, offline
+        "state": "online",
         "db": {
             "commit_retry_timeout": 30,
             "commit_retry_interval": 3,

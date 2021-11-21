@@ -3,10 +3,12 @@ import typing
 from fastapi import Request
 from sqlalchemy.orm import Session
 
+import mlrun
 import mlrun.api.db.session
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.iguazio
+import uvicorn.protocols.utils
 
 
 def get_db_session() -> typing.Generator[Session, None, None]:
@@ -19,3 +21,23 @@ def get_db_session() -> typing.Generator[Session, None, None]:
 
 def authenticate_request(request: Request) -> mlrun.api.schemas.AuthInfo:
     return mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request(request)
+
+
+def verify_api_state(request: Request):
+    path_with_query_string = uvicorn.protocols.utils.get_path_with_query_string(
+        request.scope
+    )
+    if mlrun.mlconf.httpdb.state == mlrun.api.schemas.APIStates.offline:
+        # we do want to stay healthy
+        if "healthz" not in path_with_query_string:
+            raise mlrun.errors.MLRunPreconditionFailedError("API is in offline state")
+    if mlrun.mlconf.httpdb.state == mlrun.api.schemas.APIStates.waiting_for_migrations:
+        enabled_endpoints = [
+            "healthz",
+            "background-tasks",
+        ]
+        if not any(
+                enabled_endpoint in path_with_query_string
+                for enabled_endpoint in enabled_endpoints
+        ):
+            raise mlrun.errors.MLRunPreconditionFailedError("API is waiting for migration to be triggered")

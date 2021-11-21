@@ -22,6 +22,10 @@ from .utils.db.sqlite_migration import SQLiteMigrationUtil
 
 
 def init_data(from_scratch: bool = False) -> None:
+    if _is_migration_needed():
+        config.httpdb.state = mlrun.api.schemas.APIStates.waiting_for_migrations
+        return
+
     logger.info("Creating initial data")
 
     _perform_schema_migrations()
@@ -43,6 +47,10 @@ def init_data(from_scratch: bool = False) -> None:
 # upgrading from a version earlier than 0.6.0 to v>=0.8.0 is not supported.
 data_version_prior_to_table_addition = 1
 latest_data_version = 1
+
+
+def _is_migration_needed() -> bool:
+    return False
 
 
 def _perform_schema_migrations():

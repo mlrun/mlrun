@@ -11,6 +11,7 @@ import uvicorn.protocols.utils
 from fastapi.exception_handlers import http_exception_handler
 
 import mlrun.errors
+import mlrun.api.schemas
 from mlrun.api.api.api import api_router
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.initial_data import init_data
@@ -155,23 +156,26 @@ async def startup_event():
     await _initialize_singletons()
 
     # periodic cleanup is not needed if we're not inside kubernetes cluster
-    if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+    if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster() and config.httpdb.state != mlrun.api.schemas.APIStates.online:
         _start_periodic_cleanup()
         _start_periodic_runs_monitoring()
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    get_project_member().shutdown()
+    if get_project_member():
+        get_project_member().shutdown()
     cancel_all_periodic_functions()
-    await get_scheduler().stop()
+    if get_scheduler():
+        await get_scheduler().stop()
 
 
 async def _initialize_singletons():
     initialize_logs_dir()
     initialize_db()
-    initialize_project_member()
-    await initialize_scheduler()
+    if config.httpdb.state != mlrun.api.schemas.APIStates.online:
+        initialize_project_member()
+        await initialize_scheduler()
 
 
 def _start_periodic_cleanup():

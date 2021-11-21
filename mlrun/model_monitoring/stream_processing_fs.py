@@ -488,7 +488,7 @@ class ProcessEndpointEvent(MapClass):
         if all(isinstance(x, int) or isinstance(x, float) for x in field):
             return True
         logger.error(
-            f"Expected event field is missing: {field} [Event -> {','.join(dict_path)}]"
+            f"List does not consist of only numeric values: {field} [Event -> {','.join(dict_path)}]"
         )
         return False
 

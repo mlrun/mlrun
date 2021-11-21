@@ -316,7 +316,6 @@ def ingest(
 
         filter_time_string = ""
         if source.schedule:
-            print("kkkkkkkkk source schedule")
             featureset.reload(update_spec=False)
             min_time = datetime.max
             for target in featureset.status.targets:
@@ -687,12 +686,9 @@ def _ingest_with_spark(
             target.update_resource_status("ready")
 
         if isinstance(source, BaseSourceDriver) and source.schedule:
-            print("kkkkkkkkkkk calculating")
             max_time = df.agg({timestamp_key: "max"}).collect()[0][0]
             for target in featureset.status.targets:
                 featureset.status.update_last_written_for_target(target.path, max_time)
-        else:
-            print("kkkkkkkkkkkkkk not code")
 
         _post_ingestion(mlrun_context, featureset, spark)
     finally:

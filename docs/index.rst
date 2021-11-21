@@ -62,12 +62,9 @@ Table Of Contents
    :caption: Functions and ML Pipelines:
 
    runtimes/functions
-   hyper-params
+   runtimes/distributed
    projects/overview
-   ci-pipeline
-   load-from-marketplace
    secrets
-   runtimes/node-affinity
 
 .. toctree::
    :maxdepth: 1

@@ -18,6 +18,9 @@ from mlrun.features import Feature
 Model = TypeVar("Model")  # For the model type in the handler.
 IOSample = TypeVar("IOSample")  # For reading an inout / output samples.
 
+# Extra data types:
+ExtraDataType = Union[str, bytes, Artifact, mlrun.DataItem]
+
 
 class ModelHandler(ABC, Generic[Model, IOSample]):
     """
@@ -29,6 +32,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
 
     # Constant artifact names:
     _MODEL_FILE_ARTIFACT_NAME = "{}_model_file"
+    _MODULES_MAP_ARTIFACT_NAME = "{}_modules_map.json"
     _CUSTOM_OBJECTS_MAP_ARTIFACT_NAME = "{}_custom_objects_map.json"
     _CUSTOM_OBJECTS_DIRECTORY_ARTIFACT_NAME = "{}_custom_objects.zip"
 
@@ -40,6 +44,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         model_name: str,
         model_path: str = None,
         model: Model = None,
+        modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
         context: mlrun.MLClientCtx = None,
@@ -54,6 +59,18 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
                                          path in the following format:
                                          'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'
         :param model:                    Model to handle or None in case a loading parameters were supplied.
+        :param modules_map:              A dictionary of all the modules required for loading the model. Each key
+                                         is a path to a module and its value is the object name to import from it. All
+                                         the modules will be imported globally. If multiple objects needed to be
+                                         imported from the same module a list can be given. The map can be passed as a
+                                         path to a json file as well. For example:
+                                         {
+                                             "module1": None,  # => import module1
+                                             "module2": ["func1", "func2"],  # => from module2 import func1, func2
+                                             "module3.sub_module": "func3",  # => from module3.sub_module import func3
+                                         }
+                                         If the model path given is of a store object, the modules map will be read from
+                                         the logged modules map artifact of the model.
         :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key
                                          is a path to a python file and its value is the custom object name to import
                                          from it. If multiple objects needed to be imported from the same py file a list
@@ -81,6 +98,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         """
         # Validate input:
         self._validate_model_parameters(model=model, model_path=model_path)
+        self._validate_modules_parameter(modules_map=modules_map)
         self._validate_custom_objects_parameters(
             custom_objects_map=custom_objects_map,
             custom_objects_directory=custom_objects_directory,
@@ -90,9 +108,13 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         self._model_name = model_name
         self._model_path = model_path
         self._model = model
+        self._modules_map = modules_map
         self._custom_objects_map = custom_objects_map
         self._custom_objects_directory = custom_objects_directory
         self._context = context
+
+        # The imported modules from the map. None until the '_import_modules' method is called.
+        self._modules = None  # type: Dict[str, Any]
 
         # The imported custom objects from the map. None until the '_import_custom_objects' method is called.
         self._custom_objects = None  # type: Dict[str, Any]
@@ -104,13 +126,14 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         self._model_artifact = None  # type: ModelArtifact
 
         # If the model path is of a store model object, this will be the extra data as DataItems ready to be downloaded.
-        self._extra_data = None  # type: Dict[str, mlrun.DataItem]
+        self._extra_data = {}  # type: Dict[str, mlrun.DataItem]
 
         # Setup additional properties for logging the model into a ModelArtifact:
         self._inputs = None  # type: List[Feature]
         self._outputs = None  # type: List[Feature]
         self._labels = {}  # type: Dict[str, Union[str, int, float]]
         self._parameters = {}  # type: Dict[str, Union[str, int, float]]
+        self._committed_artifacts = {}  # type: Dict[str, Artifact]
 
         # Collect the relevant files of the model into the handler (only in case the model was not provided):
         if model is None:
@@ -179,6 +202,21 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         :return: The model's artifact parameters.
         """
         return self._parameters
+
+    def get_artifacts(self, committed_only: bool = False) -> Dict[str, ExtraDataType]:
+        """
+        Get the registered artifacts of this model's artifact. By default all the artifacts (logged and to be logged -
+        committed only) will be returned. To get only the artifacts registered in the current run whom are committed and
+        not logged yet, set the 'committed_only' flag to True.
+
+        :param committed_only: Whether to return only the artifacts in queue to be logged or all the artifacts
+                               registered to this model (logged and not logged).
+
+        :return: The artifacts registered to this model.
+        """
+        if committed_only:
+            return self._committed_artifacts
+        return {**self._extra_data, **self._committed_artifacts}
 
     def set_model_name(self, model_name: str):
         """
@@ -287,6 +325,28 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
             for label in to_remove:
                 self._parameters.pop(label)
 
+    def register_artifacts(
+        self, artifacts: Union[Artifact, List[Artifact], Dict[str, Artifact]]
+    ):
+        """
+        Register the given artifacts so they will be logged as extra data with the model of this handler. Notice: The
+        artifacts will be logged only when either 'log' or 'update' are called.
+
+        :param artifacts: The artifacts to register. Can be passed as a single artifact, a list of artifacts or an
+                          artifacts dictionary. In case of single artifact or a list of artifacts, the artifacts key
+                          will be used as its name in the extra data dictionary.
+        """
+        # If a single artifact is given, wrap in a list:
+        if isinstance(artifacts, Artifact):
+            artifacts = [artifacts]
+
+        # If a list is given, prepare the artifacts dictionary:
+        if isinstance(artifacts, list):
+            artifacts = {artifact.key: artifact for artifact in artifacts}
+
+        # Register the artifacts:
+        self._committed_artifacts = {**self._committed_artifacts, **artifacts}
+
     @abstractmethod
     def save(
         self, output_path: str = None, *args, **kwargs
@@ -323,6 +383,10 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         # If a model instance is already loaded, delete it from memory:
         if self._model:
             del self._model
+
+        # Import the modules if needed (will be only imported once):
+        if self._modules is None:
+            self._import_modules()
 
         # Import the custom objects if needed (will be only imported once):
         if self._custom_objects is None:
@@ -379,6 +443,9 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         # Save the model:
         model_artifacts = self.save()
 
+        # Log the imported modules:
+        modules_artifacts = self._log_modules() if self._modules_map is not None else {}
+
         # Log the custom objects:
         custom_objects_artifacts = (
             self._log_custom_objects() if self._custom_objects_map is not None else {}
@@ -407,7 +474,9 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
             metrics=metrics,
             extra_data={
                 **(model_artifacts if model_artifacts is not None else {}),
+                **modules_artifacts,
                 **custom_objects_artifacts,
+                **self._committed_artifacts,
                 **(artifacts if artifacts is None else {}),
                 **(extra_data if extra_data is None else {}),
             },
@@ -420,8 +489,8 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         inputs: List[Feature] = None,
         outputs: List[Feature] = None,
         metrics: Dict[str, Union[int, float]] = None,
-        extra_data: Dict[str, Any] = None,
         artifacts: Dict[str, Artifact] = None,
+        extra_data: Dict[str, ExtraDataType] = None,
     ):
         """
         Log the model held by this handler into the MLRun context provided, updating the model's artifact properties in
@@ -432,8 +501,8 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         :param inputs:     A list of features this model expects to receive - the model's input ports.
         :param outputs:    A list of features this model expects to return - the model's output ports.
         :param metrics:    Metrics results to log with the model.
-        :param extra_data: Extra data to update or add to the model.
         :param artifacts:  Artifacts to update or add to the model. Will be added to the extra data.
+        :param extra_data: Extra data to update or add to the model.
 
         :raise MLRunInvalidArgumentError: In case a context is missing or the model path in this handler is missing or
                                           not of a store object.
@@ -465,6 +534,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
             outputs=self._outputs,
             metrics=metrics,
             extra_data={
+                **self._committed_artifacts,
                 **(artifacts if artifacts is None else {}),
                 **(extra_data if extra_data is None else {}),
             },
@@ -569,6 +639,14 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         self.update_labels(to_update=self._model_artifact.labels)
         self.update_parameters(to_update=self._model_artifact.parameters)
 
+        # Read the modules:
+        if self._get_modules_map_artifact_name() in self._extra_data:
+            self._modules_map = self._extra_data[
+                self._get_modules_map_artifact_name()
+            ].local()
+        else:
+            self._modules_map = None
+
         # Read the custom objects:
         if self._get_custom_objects_map_artifact_name() in self._extra_data:
             self._custom_objects_map = self._extra_data[
@@ -596,6 +674,14 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         :return: The model file artifact name.
         """
         return self._MODEL_FILE_ARTIFACT_NAME.format(self._model_name)
+
+    def _get_modules_map_artifact_name(self) -> str:
+        """
+        Get the standard name for the modules map json artifact.
+
+        :return: The modules map json artifact name.
+        """
+        return self._MODULES_MAP_ARTIFACT_NAME.format(self._model_name)
 
     def _get_custom_objects_map_artifact_name(self) -> str:
         """
@@ -645,6 +731,36 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         else:
             self._collect_files_from_local_path()
 
+    def _import_modules(self):
+        """
+        Import the modules from the map provided.
+        """
+        # Initialize the custom objects dictionary:
+        self._modules = {}
+
+        # Check if modules parameters were provided:
+        if self._modules_map is None:
+            return
+
+        # Read the modules map if given as a json:
+        if isinstance(self._modules_map, str):
+            with open(self._modules_map, "r") as map_json_file:
+                self._modules_map = json.loads(map_json_file.read())
+
+        # Start importing the modules according to the map:
+        for module_path, objects_names in self._modules_map.items():
+            self._modules = {
+                **self._modules,
+                **self._import_module(
+                    module_path=module_path,
+                    objects_names=(
+                        objects_names
+                        if isinstance(objects_names, list) or objects_names is None
+                        else [objects_names]
+                    ),
+                ),
+            }
+
     def _import_custom_objects(self):
         """
         Import the custom objects from the map and directory provided.
@@ -664,7 +780,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         # Unzip the custom objects files if the directory was given as a zip:
         if not os.path.isdir(self._custom_objects_directory):
             with zipfile.ZipFile(self._custom_objects_directory, "r") as zip_file:
-                # Update the root directory of all the custom obejcts py files:
+                # Update the root directory of all the custom objects py files:
                 self._custom_objects_directory = os.path.join(
                     os.path.dirname(self._custom_objects_directory),
                     os.path.basename(self._custom_objects_directory).rsplit(".", 1)[0],
@@ -676,17 +792,46 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         for py_file, custom_objects_names in self._custom_objects_map.items():
             self._custom_objects = {
                 **self._custom_objects,
-                **self._import_module(
-                    classes_names=(
+                **self._import_custom_object(
+                    py_file_path=os.path.abspath(
+                        os.path.join(self._custom_objects_directory, py_file)
+                    ),
+                    objects_names=(
                         custom_objects_names
                         if isinstance(custom_objects_names, list)
                         else [custom_objects_names]
                     ),
-                    py_file_path=os.path.abspath(
-                        os.path.join(self._custom_objects_directory, py_file)
-                    ),
                 ),
             }
+
+    def _log_modules(self) -> Dict[str, Artifact]:
+        """
+        Log the modules, returning the modules map json file logged as an artifact.
+
+        :return: The logged artifact in an 'extra data' style to be logged with the model.
+        """
+        # Initialize the returning artifacts dictionary:
+        artifacts = {}
+
+        # Create the custom objects map json file:
+        modules_map_json = self._get_modules_map_artifact_name()
+        if isinstance(self._modules_map, str):
+            # The modules map is still a json path (model was not loaded but given as a live object):
+            shutil.copy(self._modules_map, modules_map_json)
+        else:
+            # Dump the dictionary to json:
+            with open(modules_map_json, "w") as json_file:
+                json.dump(self._modules_map, json_file, indent=4)
+
+        # Log the json file artifact:
+        artifacts[modules_map_json] = self._context.log_artifact(
+            modules_map_json,
+            local_path=modules_map_json,
+            artifact_path=self._context.artifact_path,
+            db_key=False,
+        )
+
+        return artifacts
 
     def _log_custom_objects(self) -> Dict[str, Artifact]:
         """
@@ -702,9 +847,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         artifacts = {}
 
         # Create the custom objects map json file:
-        custom_objects_map_json = self._CUSTOM_OBJECTS_MAP_ARTIFACT_NAME.format(
-            self._model_name
-        )
+        custom_objects_map_json = self._get_custom_objects_map_artifact_name()
         if isinstance(self._custom_objects_map, str):
             # The custom objects map is still a json path (model was not loaded but given as a live object):
             shutil.copy(self._custom_objects_map, custom_objects_map_json)
@@ -722,9 +865,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         )
 
         # Zip the custom objects directory:
-        custom_objects_zip = self._CUSTOM_OBJECTS_DIRECTORY_ARTIFACT_NAME.format(
-            self._model_name
-        )
+        custom_objects_zip = self._get_custom_objects_directory_artifact_name()
         if self._custom_objects_directory.endswith(".zip"):
             # The custom objects are still zipped (model was not loaded but given as a live object):
             shutil.copy(self._custom_objects_directory, custom_objects_zip)
@@ -747,7 +888,8 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         return artifacts
 
     def _read_io_samples(
-        self, samples: Union[IOSample, List[IOSample]],
+        self,
+        samples: Union[IOSample, List[IOSample]],
     ) -> List[Feature]:
         """
         Read the given inputs / output sample to / from the model into a list of MLRun Features (ports) to log in
@@ -804,9 +946,37 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
             )
 
     @staticmethod
+    def _validate_modules_parameter(
+        modules_map: Union[Dict[str, Union[None, str, List[str]]], str]
+    ):
+        """
+        Validate the given modules parameter.
+
+        :param modules_map: A dictionary of all the modules required for loading the model. Each key is a path to a
+                            module and its value is the object name to import from it. All the modules will be imported
+                            globally. If multiple objects needed to be imported from the same module a list can be
+                            given. The map can be passed as a path to a json file as well. For example:
+                            {
+                                "module1": None,  # => import module1
+                                "module2": ["func1", "func2"],  # => from module2 import func1, func2
+                                "module3.sub_module": "func3",  # => from module3.sub_module import func3
+                            }
+                            If the model path given is of a store object, the modules map will be read from the logged
+                            modules map artifact of the model.
+
+        :raise MLRunInvalidArgumentError: If the modules map is in incorrect file format or not exist.
+        """
+        if modules_map is not None:
+            if isinstance(modules_map, str):
+                if not (modules_map.endswith(".json") and os.path.exists(modules_map)):
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"The 'modules_map' is either not found or not a path to a json file. Received: '{modules_map}'"
+                    )
+
+    @staticmethod
     def _validate_custom_objects_parameters(
-        custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
-        custom_objects_directory: str = None,
+        custom_objects_map: Union[Dict[str, Union[str, List[str]]], str],
+        custom_objects_directory: str,
     ):
         """
         Validate the given custom objects parameters.
@@ -830,7 +1000,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
                                          before loading the model).
 
         :raise MLRunInvalidArgumentError: If the custom objects directory is given without the map or if the paths were
-                                          in incorrect file formats.
+                                          in incorrect file formats or not exist.
         """
         # Validate that if one is provided (not None), both are provided:
         if (custom_objects_map is not None and custom_objects_directory is None) or (
@@ -838,7 +1008,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Either 'custom_objects_map' or 'custom_objects_directory' are None. Custom objects must be supplied "
-                "with the custom object map dictionary (or json) and the directory with all the python files."
+                "with the custom object map dictionary (or json) and the directory (or zip) with all the python files."
             )
 
         # Validate that if the map is a path, it is a path to a json file:
@@ -849,7 +1019,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
                     and os.path.exists(custom_objects_map)
                 ):
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"The 'custom_objects_map' is either not found or not a dictionary or a path to a json file. "
+                        f"The 'custom_objects_map' is either not found or not a path to a json file. "
                         f"received: '{custom_objects_map}'"
                     )
 
@@ -857,7 +1027,10 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         if custom_objects_directory is not None:
             if not (
                 os.path.isdir(custom_objects_directory)
-                or custom_objects_directory.endswith(".zip")
+                or (
+                    custom_objects_directory.endswith(".zip")
+                    and os.path.exists(custom_objects_directory)
+                )
             ):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"The 'custom_objects_directory' is either not found or not a directory / zip file, "
@@ -865,33 +1038,80 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
                 )
 
     @staticmethod
-    def _import_module(classes_names: List[str], py_file_path: str) -> Dict[str, Any]:
+    def _import_module(
+        module_path: str, objects_names: Union[List[str], None]
+    ) -> Dict[str, Any]:
         """
-        Import the given class by its name from the given python file as: from 'py_file_path' import 'class_name'. If
-        the class specified is already imported, a reference would simply be returned.
+        Import the given objects by their names from the given module path by the following rules:
 
-        :param classes_names: The classes names to be imported from the given python file.
-        :param py_file_path:  Path to the python file with the classes code.
+        * If 'objects_names' is None: import 'module_path'.
+        * Otherwise: from 'module_path' import 'object_name'.
 
-        :return: The imported classes dictionary where the keys are the classes names and the values are their imported
-                 classes.
+        If an object specified is already imported, a reference would simply be returned.
+
+        :param module_path:   Path to the module with the objects to import.
+        :param objects_names: The objects names to be imported from the given module.
+
+        :return: The imported objects dictionary where the keys are the objects names and the values are their imported
+                 objects.
         """
         # Initialize the imports dictionary:
-        classes_imports = {}
+        module_imports = {}
+
+        # Check if the module is already imported:
+        if module_path in sys.modules:
+            # It is already imported:
+            module = sys.modules[module_path]
+        else:
+            # Import the module:
+            module = importlib.import_module(module_path)
+
+        # Check what to import from the module:
+        if objects_names is None:
+            # Import the entire module (import X):
+            module_imports[module_path] = module
+        else:
+            # Import multiple objects (from X import Y, Z, ...):
+            module_imports = {
+                object_name: getattr(module, object_name)
+                for object_name in objects_names
+            }
+
+        # Update the globals dictionary with the module improts:
+        globals().update(module_imports)
+
+        return module_imports
+
+    @staticmethod
+    def _import_custom_object(
+        py_file_path: str, objects_names: List[str]
+    ) -> Dict[str, Any]:
+        """
+        Import the given objects by their names from the given python file as: from 'py_file_path' import 'object_name'.
+        If an object specified is already imported, a reference would simply be returned.
+
+        :param py_file_path:  Path to the python file with the objects code.
+        :param objects_names: The objects names to be imported from the given python file.
+
+        :return: The imported objects dictionary where the keys are the objects names and the values are their imported
+                 objects.
+        """
+        # Initialize the imports dictionary:
+        objects_imports = {}
 
         # Go through the given classes:
-        for class_name in classes_names:
-            if class_name in sys.modules:
+        for object_name in objects_names:
+            if object_name in sys.modules:
                 # It is already imported:
-                classes_imports[class_name] = sys.modules[class_name]
+                objects_imports[object_name] = sys.modules[object_name]
             else:
-                # Import the class:
+                # Import the custom object:
                 spec = importlib.util.spec_from_file_location(
-                    name=class_name, location=py_file_path
+                    name=object_name, location=py_file_path
                 )
                 module = importlib.util.module_from_spec(spec=spec)
                 spec.loader.exec_module(module)
                 # Get the imported class and store it:
-                classes_imports[class_name] = getattr(module, class_name)
+                objects_imports[object_name] = getattr(module, object_name)
 
-        return classes_imports
+        return objects_imports

@@ -145,6 +145,7 @@ setup(
         "mlrun.frameworks._common",
         "mlrun.frameworks._dl_common",
         "mlrun.frameworks._dl_common.loggers",
+        "mlrun.frameworks._ml_common",
         "mlrun.frameworks.pytorch",
         "mlrun.frameworks.pytorch.callbacks",
         "mlrun.frameworks.tf_keras",

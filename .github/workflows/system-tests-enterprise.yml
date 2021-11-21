@@ -141,8 +141,8 @@ jobs:
           "${{ secrets.V06_SYSTEM_TEST_FRAMESD_URL }}" \
           "${{ secrets.V06_SYSTEM_TEST_USERNAME }}" \
           "${{ secrets.V06_SYSTEM_TEST_ACCESS_KEY }}" \
-          "${{ secrets.V06_SYSTEM_TEST_SPARK_SERVICE }}" \
           "${{ steps.computed_params.outputs.iguazio_version }}" \
+          "${{ secrets.V06_SYSTEM_TEST_SPARK_SERVICE }}" \
           "${{ secrets.V06_SYSTEM_TEST_PASSWORD }}" \
           --mlrun-commit "${{ steps.computed_params.outputs.mlrun_hash }}" \
           --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \

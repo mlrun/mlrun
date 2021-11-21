@@ -1,5 +1,6 @@
 import typing
 
+import uvicorn.protocols.utils
 from fastapi import Request
 from sqlalchemy.orm import Session
 
@@ -8,7 +9,6 @@ import mlrun.api.db.session
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.iguazio
-import uvicorn.protocols.utils
 
 
 def get_db_session() -> typing.Generator[Session, None, None]:
@@ -37,7 +37,9 @@ def verify_api_state(request: Request):
             "background-tasks",
         ]
         if not any(
-                enabled_endpoint in path_with_query_string
-                for enabled_endpoint in enabled_endpoints
+            enabled_endpoint in path_with_query_string
+            for enabled_endpoint in enabled_endpoints
         ):
-            raise mlrun.errors.MLRunPreconditionFailedError("API is waiting for migration to be triggered")
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                "API is waiting for migration to be triggered"
+            )

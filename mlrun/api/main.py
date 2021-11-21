@@ -10,8 +10,9 @@ import uvicorn
 import uvicorn.protocols.utils
 from fastapi.exception_handlers import http_exception_handler
 
-import mlrun.errors
 import mlrun.api.schemas
+import mlrun.errors
+import mlrun.utils.version
 from mlrun.api.api.api import api_router
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.initial_data import init_data
@@ -30,7 +31,6 @@ from mlrun.config import config
 from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes import RuntimeKinds, get_runtime_handler
 from mlrun.utils import logger
-import mlrun.utils.version
 
 app = fastapi.FastAPI(
     title="MLRun",
@@ -144,7 +144,11 @@ async def log_request_response(request: fastapi.Request, call_next):
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info("configuration dump", dumped_config=config.dump_yaml(), version=mlrun.utils.version.Version().get())
+    logger.info(
+        "configuration dump",
+        dumped_config=config.dump_yaml(),
+        version=mlrun.utils.version.Version().get(),
+    )
     loop = asyncio.get_running_loop()
     # Using python 3.8 default instead of 3.7 one - max(1, os.cpu_count()) * 5 cause it's causing to high memory
     # consumption - https://bugs.python.org/issue35279
@@ -157,7 +161,10 @@ async def startup_event():
     await _initialize_singletons()
 
     # periodic cleanup is not needed if we're not inside kubernetes cluster
-    if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster() and config.httpdb.state != mlrun.api.schemas.APIStates.online:
+    if (
+        get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
+        and config.httpdb.state != mlrun.api.schemas.APIStates.online
+    ):
         _start_periodic_cleanup()
         _start_periodic_runs_monitoring()
 

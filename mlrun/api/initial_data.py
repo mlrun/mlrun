@@ -62,8 +62,8 @@ def _is_migration_needed(
         database_migration_needed = sqlite_migration_util.is_database_migration_needed()
     return (
         not _is_latest_data_version()
-        and alembic_util.is_schema_migration_needed()
-        and database_migration_needed
+        or alembic_util.is_schema_migration_needed()
+        or database_migration_needed
     )
 
 

@@ -30,6 +30,7 @@ from mlrun.config import config
 from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes import RuntimeKinds, get_runtime_handler
 from mlrun.utils import logger
+import mlrun.utils.version
 
 app = fastapi.FastAPI(
     title="MLRun",
@@ -143,7 +144,7 @@ async def log_request_response(request: fastapi.Request, call_next):
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info("configuration dump", dumped_config=config.dump_yaml())
+    logger.info("configuration dump", dumped_config=config.dump_yaml(), version=mlrun.utils.version.Version().get())
     loop = asyncio.get_running_loop()
     # Using python 3.8 default instead of 3.7 one - max(1, os.cpu_count()) * 5 cause it's causing to high memory
     # consumption - https://bugs.python.org/issue35279

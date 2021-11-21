@@ -22,15 +22,19 @@ from .utils.db.sqlite_migration import SQLiteMigrationUtil
 
 
 def init_data(from_scratch: bool = False) -> None:
-    if _is_migration_needed():
+    sqlite_migration_util = None
+    if not from_scratch and config.httpdb.db.database_migration_mode == "enabled":
+        sqlite_migration_util = SQLiteMigrationUtil()
+    alembic_util = _create_alembic_util()
+    if _is_migration_needed(alembic_util, sqlite_migration_util):
         config.httpdb.state = mlrun.api.schemas.APIStates.waiting_for_migrations
         return
 
     logger.info("Creating initial data")
 
-    _perform_schema_migrations()
+    _perform_schema_migrations(alembic_util)
 
-    _perform_database_migration(from_scratch)
+    _perform_database_migration(sqlite_migration_util)
 
     db_session = create_session()
     try:
@@ -49,11 +53,21 @@ data_version_prior_to_table_addition = 1
 latest_data_version = 1
 
 
-def _is_migration_needed() -> bool:
-    return False
+def _is_migration_needed(
+    alembic_util: AlembicUtil,
+    sqlite_migration_util: typing.Optional[SQLiteMigrationUtil],
+) -> bool:
+    database_migration_needed = False
+    if sqlite_migration_util is not None:
+        database_migration_needed = sqlite_migration_util.is_database_migration_needed()
+    return (
+        not _is_latest_data_version()
+        and alembic_util.is_schema_migration_needed()
+        and database_migration_needed
+    )
 
 
-def _perform_schema_migrations():
+def _create_alembic_util() -> AlembicUtil:
     alembic_config_file_name = "alembic.ini"
     if MySQLUtil.get_mysql_dsn_data():
         alembic_config_file_name = "alembic_mysql.ini"
@@ -63,6 +77,10 @@ def _perform_schema_migrations():
     alembic_config_path = dir_path / alembic_config_file_name
 
     alembic_util = AlembicUtil(alembic_config_path, _is_latest_data_version())
+    return alembic_util
+
+
+def _perform_schema_migrations(alembic_util: AlembicUtil):
     alembic_util.init_alembic(config.httpdb.db.database_backup_mode == "enabled")
 
 
@@ -78,9 +96,10 @@ def _is_latest_data_version():
     return current_data_version == latest_data_version
 
 
-def _perform_database_migration(from_scratch: bool = False):
-    if not from_scratch and config.httpdb.db.database_migration_mode == "enabled":
-        sqlite_migration_util = SQLiteMigrationUtil()
+def _perform_database_migration(
+    sqlite_migration_util: typing.Optional[SQLiteMigrationUtil],
+):
+    if sqlite_migration_util:
         sqlite_migration_util.transfer()
 
 

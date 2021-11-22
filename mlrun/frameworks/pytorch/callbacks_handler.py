@@ -75,18 +75,15 @@ class CallbacksHandler:
                 # Add by given name:
                 if callback[0] in self._callbacks:
                     raise KeyError(
-                        "A callback with the name '{}' "
-                        "is already exist in the callbacks handler.".format(callback[0])
+                        f"A callback with the name '{callback[0]}' is already exist in the callbacks handler."
                     )
                 self._callbacks[callback[0]] = callback[1]
             else:
                 # Add by class name:
                 if callback.__class__.__name__ in self._callbacks:
                     raise KeyError(
-                        "A callback with the name '{}' "
-                        "is already exist in the callbacks handler.".format(
-                            callback.__class__.__name__
-                        )
+                        f"A callback with the name '{callback.__class__.__name__}' is already exist in the callbacks "
+                        f"handler."
                     )
                 self._callbacks[callback.__class__.__name__] = callback
 

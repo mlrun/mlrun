@@ -14,6 +14,7 @@ def apply_mlrun(
     model: keras.Model,
     model_name: str = None,
     model_path: str = None,
+    modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
     custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
     custom_objects_directory: str = None,
     context: mlrun.MLClientCtx = None,
@@ -32,6 +33,18 @@ def apply_mlrun(
                                         tf.keras.Model.name will be used.
     :param model_path:                  The model's store object path. Mandatory for evaluation (to know which model to
                                         update).
+    :param modules_map:                 A dictionary of all the modules required for loading the model. Each key is a
+                                        path to a module and its value is the object name to import from it. All the
+                                        modules will be imported globally. If multiple objects needed to be imported
+                                        from the same module a list can be given. The map can be passed as a path to a
+                                        json file as well. For example:
+                                        {
+                                            "module1": None,  # => import module1
+                                            "module2": ["func1", "func2"],  # => from module2 import func1, func2
+                                            "module3.sub_module": "func3",  # => from module3.sub_module import func3
+                                        }
+                                        If the model path given is of a store object, the modules map will be read from
+                                        the logged modules map artifact of the model.
     :param custom_objects_map:          A dictionary of all the custom objects required for loading the model. Each key
                                         is a path to a python file and its value is the custom object name to import
                                         from it. If multiple objects needed to be imported from the same py file a list
@@ -103,6 +116,7 @@ def apply_mlrun(
         # Add the additional parameters to MLRun's callback kwargs dictionary:
         mlrun_callback_kwargs["model_name"] = model_name
         mlrun_callback_kwargs["model_path"] = model_path
+        mlrun_callback_kwargs["modules_map"] = modules_map
         mlrun_callback_kwargs["custom_objects_map"] = custom_objects_map
         mlrun_callback_kwargs["custom_objects_directory"] = custom_objects_directory
         # Add the logging callbacks with the provided parameters:

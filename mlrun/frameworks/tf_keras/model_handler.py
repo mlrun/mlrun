@@ -351,11 +351,6 @@ class TFKerasModelHandler(DLModelHandler):
         elif not isinstance(input_signature, list):
             # Wrap it in a list:
             input_signature = [input_signature]
-        input_signature = [
-            tf.TensorSpec(shape=input_sample.shape, dtype=input_sample.dtype)
-            for input_sample in input_signature
-            if isinstance(input_sample, tf.Tensor)
-        ]
 
         # Set the output path:
         if output_path is not None:

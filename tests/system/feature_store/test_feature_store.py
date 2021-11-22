@@ -1462,7 +1462,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         target = ParquetTarget()
         off1 = fs.get_offline_features(fvec, target=target)
-        dfout1 = pd.read_parquet(target._target_path.absolute_path())
+        dfout1 = pd.read_parquet(target.get_target_path())
 
         assert (
             df1.set_index(keys="name")
@@ -1474,7 +1474,7 @@ class TestFeatureStore(TestMLRunSystem):
         df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
         fs.ingest(fset, df2)
         off2 = fs.get_offline_features(fvec, target=target)
-        dfout2 = pd.read_parquet(target._target_path.absolute_path())
+        dfout2 = pd.read_parquet(target.get_target_path())
         assert (
             df2.set_index(keys="name")
             .sort_index()
@@ -2049,14 +2049,14 @@ def verify_purge(fset, targets):
     for target in targets:
         driver = get_target_driver(target_spec=target, resource=fset)
         filesystem = driver._get_store().get_filesystem(False)
-        assert filesystem.exists(driver._target_path.absolute_path())
+        assert filesystem.exists(driver.get_target_path())
 
     fset.purge_targets(target_names=target_names)
 
     for target in targets:
         driver = get_target_driver(target_spec=target, resource=fset)
         filesystem = driver._get_store().get_filesystem(False)
-        assert not filesystem.exists(driver._target_path.absolute_path())
+        assert not filesystem.exists(driver.get_target_path())
 
     fset.reload(update_spec=False)
     assert set(fset.status.targets.keys()) == set(orig_status_targets) - set(

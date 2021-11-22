@@ -283,12 +283,18 @@ class PyTorchModelHandler(DLModelHandler):
             output_names=output_layers_names,
         )
 
-        # Create a handler for the model:
+        # Create a handler for the ONNX model:
         onnx_handler = ONNXModelHandler(
             model_name=model_name, model_path=output_path, context=self._context
         )
-        onnx_handler.set_inputs(features=self._inputs)
-        onnx_handler.set_outputs(features=self._outputs)
+
+        # Pass on the inputs and outputs properties:
+        if self._inputs is not None:
+            onnx_handler.set_inputs(features=self._inputs)
+        if self._outputs is not None:
+            onnx_handler.set_outputs(features=self._outputs)
+
+        # Load the ONNX model:
         onnx_handler.load()
 
         # Optimize the model if needed:

@@ -364,12 +364,16 @@ class TFKerasModelHandler(DLModelHandler):
             model=self._model, input_signature=input_signature, output_path=output_path
         )
 
-        # Create a handler for the model:
+        # Create a handler for the ONNX model:
         onnx_handler = ONNXModelHandler(
             model_name=model_name, model=model_proto, context=self._context
         )
-        onnx_handler.set_inputs(features=self._inputs)
-        onnx_handler.set_outputs(features=self._outputs)
+
+        # Pass on the inputs and outputs properties:
+        if self._inputs is not None:
+            onnx_handler.set_inputs(features=self._inputs)
+        if self._outputs is not None:
+            onnx_handler.set_outputs(features=self._outputs)
 
         # Optimize the model if needed:
         if optimize:

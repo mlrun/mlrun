@@ -2046,17 +2046,19 @@ def verify_purge(fset, targets):
     orig_status_targets = list(fset.status.targets.keys())
     target_names = [t.name for t in targets]
 
-    for target in targets:
-        driver = get_target_driver(target_spec=target, resource=fset)
-        filesystem = driver._get_store().get_filesystem(False)
-        assert filesystem.exists(driver.get_target_path())
+    for target in fset.status.targets:
+        if target.name in target_names:
+            driver = get_target_driver(target_spec=target, resource=fset)
+            filesystem = driver._get_store().get_filesystem(False)
+            assert filesystem.exists(driver.get_target_path())
 
     fset.purge_targets(target_names=target_names)
 
-    for target in targets:
-        driver = get_target_driver(target_spec=target, resource=fset)
-        filesystem = driver._get_store().get_filesystem(False)
-        assert not filesystem.exists(driver.get_target_path())
+    for target in fset.status.targets:
+        if target.name in target_names:
+            driver = get_target_driver(target_spec=target, resource=fset)
+            filesystem = driver._get_store().get_filesystem(False)
+            assert not filesystem.exists(driver.get_target_path())
 
     fset.reload(update_spec=False)
     assert set(fset.status.targets.keys()) == set(orig_status_targets) - set(

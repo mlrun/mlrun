@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import copy
 from datetime import datetime
 from typing import List, Optional, Union
 from urllib.parse import urlparse
@@ -339,9 +340,8 @@ def ingest(
 
     namespace = namespace or get_caller_globals()
 
-    targets_to_ingest = []
-    for t in targets or featureset.spec.targets or get_default_targets():
-        targets_to_ingest.append(t.copy())
+    targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
+    targets_to_ingest = copy.deepcopy(targets_to_ingest)
 
     if overwrite is None:
         if isinstance(source, BaseSourceDriver) and source.schedule:

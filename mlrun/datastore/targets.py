@@ -717,6 +717,7 @@ class ParquetTarget(BaseStoreTarget):
                 "update_last_written": featureset_status.update_last_written_for_target
             }
 
+        print(f"BBBB partition_cols: {partition_cols}")
         graph.add_step(
             name=self.name or "ParquetTarget",
             after=after,

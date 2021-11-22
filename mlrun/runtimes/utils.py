@@ -25,7 +25,7 @@ from kubernetes import client
 
 import mlrun
 from mlrun.db import get_run_db
-from frameworks.parallel_coordinates import plot_parallel_coordinates
+from mlrun.frameworks.parallel_coordinates import plot_parallel_coordinates
 from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes.constants import MPIJobCRDVersions
 

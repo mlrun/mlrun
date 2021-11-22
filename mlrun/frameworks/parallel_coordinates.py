@@ -213,46 +213,6 @@ def _runs_list_to_df(runs_list):
     return runs_df
 
 
-def plot_parallel_coordinates(
-    source_df: pd.DataFrame,
-    hide_identical: bool = True,
-    exclude: list = None,
-    show: bool = None,
-    colorscale: str = "viridis",
-    index_col=None,
-    filename=None,
-) -> str:
-    """
-    Plots the output of the hyperparameter run in a Parallel Coordinate format using the Plotly library.
-    :param source_df: Result of the hyperparameter run as a Dataframe
-    :param param_df: Dataframe of parameters from the hyperparameter run
-    :param output_df: Dataframe of outputs from the hyperparameter run
-    :param hide_identical: Ignores parameters that remain the same throughout iterations
-    :param exclude: User-provided list of parameters to be excluded from the graph
-    :param show: Allows the user to display the plot within the notebook
-    :param run_plot: Flag used if the data sources from runs or iterations
-    :param colorscale: colors used for the lines in the parallel coordinate plot
-    :returns plot_as_html: The Parallel Coordinate plot in HTML format.
-    """
-
-    # Generate plotly figure with dropdown
-    plot_as_html = gen_pcp_plot(
-        source_df,
-        index_col=index_col or "iter",
-        hide_identical=hide_identical,
-        exclude=exclude,
-        colorscale=colorscale,
-    )
-
-    if filename:
-        with open(filename, "w") as fp:
-            fp.write(plot_as_html)
-    if show or (show is None and mlrun.utils.is_ipython):
-        display(HTML(plot_as_html))
-    else:
-        return plot_as_html
-
-
 def compare_run_iterations(
     run: mlrun.model.RunObject,
     hide_identical: bool = True,

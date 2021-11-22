@@ -25,7 +25,7 @@ from kubernetes import client
 
 import mlrun
 from mlrun.db import get_run_db
-from mlrun.frameworks.parallel_coordinates import plot_parallel_coordinates
+from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
 from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes.constants import MPIJobCRDVersions
 
@@ -270,7 +270,7 @@ def results_to_iter(results, runspec, execution):
         # may also fail due to missing plotly
         execution.log_artifact(
             "parallel_coordinates",
-            body=plot_parallel_coordinates(df),
+            body=gen_pcp_plot(df, index_col="iter"),
             local_path="parallel_coordinates.html",
         )
     except Exception:

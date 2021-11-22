@@ -21,6 +21,7 @@ from io import StringIO
 from sys import stderr
 
 import pandas as pd
+from frameworks._common.parallel_coordinates import plot_parallel_coordinates
 from kubernetes import client
 
 import mlrun
@@ -233,7 +234,6 @@ def results_to_iter(results, runspec, execution):
         execution.set_state("completed", commit=True)
         logger.warning("warning!, zero iteration results")
         return
-
     if hasattr(pd, "json_normalize"):
         df = pd.json_normalize(iter).sort_values("iter")
     else:
@@ -266,6 +266,12 @@ def results_to_iter(results, runspec, execution):
                 viewer="table",
             ),
             local_path="iteration_results.csv",
+        )
+        # may also fail due to missing plotly
+        execution.log_artifact(
+            "parallel_coordinates",
+            body=plot_parallel_coordinates(df),
+            local_path="parallel_coordinates.html",
         )
     except Exception:
         pass

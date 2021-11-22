@@ -68,8 +68,8 @@ class RunList(list):
 
         if flat:
             df = flatten(df, "labels")
-            df = flatten(df, "parameters", "param_")
-            df = flatten(df, "results", "out_")
+            df = flatten(df, "parameters", "param.")
+            df = flatten(df, "results", "output.")
 
         return df
 

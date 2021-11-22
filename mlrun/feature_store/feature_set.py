@@ -397,7 +397,7 @@ class FeatureSet(ModelObj):
             self, mlrun.api.schemas.AuthorizationAction.delete
         )
 
-        purge_targets = self._reload_and_get_targets(
+        purge_targets = self._reload_and_get_status_targets(
             target_names=target_names, silent=silent
         )
 
@@ -423,30 +423,18 @@ class FeatureSet(ModelObj):
         overwrite: bool = None,
     ):
         ingestion_target_names = [t if isinstance(t, str) else t.name for t in targets]
-        ingestion_targets = self._reload_and_get_targets(
+        status_targets = self._reload_and_get_status_targets(
             target_names=ingestion_target_names, silent=silent
         )
 
-        result_targets = []
         run_uuid = DataTargetBase.generate_target_run_uuid()
         for target in targets:
-            print(f"BBBB update: {target}")
-            if target.name in ingestion_targets.keys():
-                print(f"BBBB 0 update: {ingestion_targets[target.name]}")
-                driver = get_target_driver(
-                    target_spec=ingestion_targets[target.name], resource=self
-                )
-                if overwrite:
-                    driver.run_uuid = run_uuid
-                print(f"BBBB 1 update: {driver}")
+            if overwrite or not (target.name in status_targets.keys()):
+                target.run_uuid = run_uuid
             else:
-                driver = get_target_driver(target_spec=target.to_dict(), resource=self)
-                driver.run_uuid = run_uuid
-                print(f"BBBB 2 update: {driver}")
-            result_targets.append(driver)
-        return result_targets
+                target.run_uuid = status_targets[target.name].run_uuid
 
-    def _reload_and_get_targets(
+    def _reload_and_get_status_targets(
         self, target_names: List[str] = None, silent: bool = False
     ):
         try:

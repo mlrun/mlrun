@@ -1006,7 +1006,10 @@ class TestFeatureStore(TestMLRunSystem):
         name = f"sched-time-{str(partitioned)}"
 
         now = datetime.now() + timedelta(minutes=2)
-        data = pd.DataFrame(
+
+        # writing down a remote source
+        source_path = "v3io:///bigdata/schedule-data/data.parquet"
+        pd.DataFrame(
             {
                 "time": [
                     pd.Timestamp("2021-01-10 10:00:00"),
@@ -1015,19 +1018,13 @@ class TestFeatureStore(TestMLRunSystem):
                 "first_name": ["moshe", "yosi"],
                 "data": [2000, 10],
             }
-        )
-        # writing down a remote source
-        target2 = ParquetTarget()
-        data_set = fs.FeatureSet("data", entities=[Entity("first_name")])
-        fs.ingest(data_set, data, targets=[target2])
-
-        path = data_set.status.targets[0].path
+        ).to_parquet(path=source_path)
 
         # the job will be scheduled every minute
         cron_trigger = "*/1 * * * *"
 
         source = ParquetSource(
-            "myparquet", path=path, time_field="time", schedule=cron_trigger
+            "myparquet", path=source_path, time_field="time", schedule=cron_trigger
         )
 
         feature_set = fs.FeatureSet(
@@ -1039,7 +1036,7 @@ class TestFeatureStore(TestMLRunSystem):
                 NoSqlTarget(),
                 ParquetTarget(
                     name="tar1",
-                    path="v3io:///bigdata/fs1/",
+                    path="v3io:///bigdata/sched-t/",
                     partitioned=True,
                     partition_cols=["time"],
                 ),
@@ -1047,7 +1044,7 @@ class TestFeatureStore(TestMLRunSystem):
         else:
             targets = [
                 ParquetTarget(
-                    name="tar2", path="v3io:///bigdata/fs2/", partitioned=False
+                    name="tar2", path="v3io:///bigdata/sched-f/", partitioned=False
                 ),
                 NoSqlTarget(),
             ]
@@ -1070,7 +1067,8 @@ class TestFeatureStore(TestMLRunSystem):
         assert resp[0]["data"] == 10
         assert resp[1]["data"] == 2000
 
-        data = pd.DataFrame(
+        # writing down a remote source
+        pd.DataFrame(
             {
                 "time": [
                     pd.Timestamp("2021-01-10 12:00:00"),
@@ -1081,9 +1079,7 @@ class TestFeatureStore(TestMLRunSystem):
                 "first_name": ["moshe", "dina", "katya", "uri"],
                 "data": [50, 10, 25, 30],
             }
-        )
-        # writing down a remote source
-        fs.ingest(data_set, data, targets=[target2])
+        ).to_parquet(path=source_path)
 
         sleep(60)
         resp = svc.get(
@@ -1124,7 +1120,7 @@ class TestFeatureStore(TestMLRunSystem):
         data_set = fs.FeatureSet("data", entities=[Entity("first_name")])
         fs.ingest(data_set, data, targets=[target2])
 
-        path = data_set.status.targets[0].path
+        path = data_set.status.targets[0].get_path().absolute_path()
 
         # the job will be scheduled every minute
         cron_trigger = "*/1 * * * *"
@@ -1713,7 +1709,7 @@ class TestFeatureStore(TestMLRunSystem):
     def test_stream_source(self):
         # create feature set, ingest sample data and deploy nuclio function with stream source
         fset_name = "stream_test"
-        myset = FeatureSet("%s" % fset_name, entities=[Entity("ticker")])
+        myset = FeatureSet(f"{fset_name}", entities=[Entity("ticker")])
         fs.ingest(myset, quotes)
         source = StreamSource(key_field="ticker", time_field="time")
         filename = str(

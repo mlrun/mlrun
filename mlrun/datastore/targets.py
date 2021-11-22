@@ -488,8 +488,6 @@ class BaseStoreTarget(DataTargetBase):
         target.updated = now_date().isoformat()
         target.size = size
         target.producer = producer or target.producer
-        target.partitioned = self.partitioned
-        target.partition_cols = self.partition_cols
         target.time_partitioning_granularity = self.time_partitioning_granularity
 
         self._resource.status.update_target(target)
@@ -719,7 +717,6 @@ class ParquetTarget(BaseStoreTarget):
                 "update_last_written": featureset_status.update_last_written_for_target
             }
 
-        print(f"BBBB partition_cols: {partition_cols}")
         graph.add_step(
             name=self.name or "ParquetTarget",
             after=after,

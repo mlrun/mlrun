@@ -339,7 +339,9 @@ def ingest(
 
     namespace = namespace or get_caller_globals()
 
-    targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
+    targets_to_ingest = []
+    for t in (targets or featureset.spec.targets or get_default_targets()):
+        targets_to_ingest.append(t.copy())
 
     if overwrite is None:
         if isinstance(source, BaseSourceDriver) and source.schedule:
@@ -360,15 +362,9 @@ def ingest(
         for t in targets_to_ingest:
             t.run_uuid = run_uuid
     else:
-        for t in targets_to_ingest:
-            print(f"BBBB target: {t}")
-
-        targets_to_ingest = featureset.update_targets_run_uuid(
+        featureset.update_targets_run_uuid(
             targets=targets_to_ingest, silent=True, overwrite=overwrite,
         )
-
-        for t in targets_to_ingest:
-            print(f"BBBB target after: {t}")
 
         for target in targets_to_ingest:
             if not kind_to_driver[target.kind].support_append:

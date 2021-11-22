@@ -1,6 +1,6 @@
 import datetime
 import warnings
-from typing import List
+from typing import List, Union
 
 import numpy as np
 import pandas as pd
@@ -204,8 +204,8 @@ def _show_and_export_html(html: str, show=None, filename=None, runs_list=None):
         return html
 
 
-def _runs_list_to_df(runs_list):
-    runs_df = runs_list.to_df()
+def _runs_list_to_df(runs_list, extend_iterations=False):
+    runs_df = runs_list.to_df(extend_iterations=extend_iterations)
 
     # Remove empty param/result runs
     runs_df = runs_df[(runs_df["parameters"].str.len() >= 1)]
@@ -249,28 +249,45 @@ def compare_run_iterations(
     return _show_and_export_html(plot_as_html, show, filename)
 
 
-def compare_runs_list(
-    runs_list: List[mlrun.model.RunObject],
+def compare_run_objects(
+    runs_list: Union[mlrun.model.RunObject, List[mlrun.model.RunObject]],
     hide_identical: bool = True,
     exclude: list = None,
     show: bool = None,
+    extend_iterations=True,
     filename=None,
     colorscale: str = None,
 ):
-    """parallel coordinates plot to compare between a list of runs
+    """return/show parallel coordinates plot + table to compare between a list of runs or run iterations
 
-    :param runs_list:      List of MLRun run object
+    example:
+
+        # create two runs and compare them
+        fn = mlrun.code_to_function("myfunc", filename="./code.py", image='mlrun/mlrun', handler="handler", kind='job')
+        r1 = fn.run(name="r1", params={"p1": 2, "p2":3})
+        r2 = fn.run(name="r2", params={"p1": 3, "p2":5})
+        compare_run_objects([r1, r2], filename="comp.html")
+
+        # compare hyper-parameter run
+        run_spec = mlrun.new_task("r1").with_hyper_params({"p1": [1, 5, 3]}, selector="max.accuracy")
+        run = fn.run(run_spec)
+        compare_run_objects(run, hide_identical=False)
+
+    :param runs_list:      List or instance of MLRun RunObject (result of function.run())
     :param hide_identical: hide columns with identical values
     :param exclude:        User-provided list of parameters to be excluded from the plot
     :param show:           Allows the user to display the plot within the notebook
+    :param extend_iterations: include the iteration (hyper-param) results
     :param filename:       Output filename to save the plot html file
     :param colorscale:     colors used for the lines in the parallel coordinate plot
     :return:  plot html
     """
 
+    if isinstance(runs_list, mlrun.model.RunObject):
+        runs_list = [runs_list]
     if isinstance(runs_list, list):
         runs_list = mlrun.lists.RunList([run.to_dict() for run in runs_list])
-    source_df = _runs_list_to_df(runs_list)
+    source_df = _runs_list_to_df(runs_list, extend_iterations)
     plot_as_html = gen_pcp_plot(
         source_df,
         index_col="iter",
@@ -282,8 +299,8 @@ def compare_runs_list(
 
 
 def compare_db_runs(
-    run_name=None,
     project_name=None,
+    run_name=None,
     labels=None,
     iter=False,
     start_time_from: datetime = None,
@@ -295,11 +312,14 @@ def compare_db_runs(
     **query_args,
 ) -> str:
     """
-    Get the runs or project runs, creates param/output dataframe for each experiment and send the
-    data to be plotted as parallel coordinates.
+    Get the selected list of runs from MLRun DB and return/show a parallel coordinates plots + table.
 
-    :param run_name: Name of the run to retrieve
+    example:
+
+        compare_db_runs("my-project", run_name="train")
+
     :param project_name: Project that the runs belongs to
+    :param run_name: Name of the run to retrieve
     :param labels: List runs that have a specific label assigned. Currently only a single label filter can be
             applied, otherwise result will be empty.
     :param iter:            If ``True`` return runs from all iterations. Otherwise, return only parent runs (iter 0).

@@ -150,7 +150,7 @@ def gen_pcp_plot(
             dict(
                 active=0,
                 xanchor="left",
-                x=0.10,
+                x=0.15,
                 yanchor="bottom",
                 y=1.3,
                 bgcolor="#ffffff",
@@ -169,7 +169,7 @@ def gen_pcp_plot(
     fig.update_layout(
         annotations=[
             dict(
-                text="output metric:",
+                text="Output metric:",
                 x=0.0,
                 xref="paper",
                 y=1.4,
@@ -215,38 +215,6 @@ def _runs_list_to_df(runs_list, extend_iterations=False):
     runs_df = flatten(runs_df, "results", "output.")
     runs_df["iter"] = range(1, 1 + len(runs_df))
     return runs_df
-
-
-def compare_run_iterations(
-    run: mlrun.model.RunObject,
-    hide_identical: bool = True,
-    exclude: list = None,
-    show: bool = None,
-    filename=None,
-    colorscale: str = None,
-):
-    """parallel coordinates plot to compare between run iterations (hyper-params)
-
-    :param run:            MLRun run object
-    :param hide_identical: hide columns with identical values
-    :param exclude:        User-provided list of parameters to be excluded from the plot
-    :param show:           Allows the user to display the plot within the notebook
-    :param filename:       Output filename to save the plot html file
-    :param colorscale:     colors used for the lines in the parallel coordinate plot
-    :return:  plot html
-    """
-
-    source_df = pd.DataFrame(
-        run.status.iterations[1:], columns=run.status.iterations[0]
-    )
-    plot_as_html = gen_pcp_plot(
-        source_df,
-        index_col="iter",
-        hide_identical=hide_identical,
-        exclude=exclude,
-        colorscale=colorscale,
-    )
-    return _show_and_export_html(plot_as_html, show, filename)
 
 
 def compare_run_objects(

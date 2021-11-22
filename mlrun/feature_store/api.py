@@ -340,7 +340,7 @@ def ingest(
     namespace = namespace or get_caller_globals()
 
     targets_to_ingest = []
-    for t in (targets or featureset.spec.targets or get_default_targets()):
+    for t in targets or featureset.spec.targets or get_default_targets():
         targets_to_ingest.append(t.copy())
 
     if overwrite is None:

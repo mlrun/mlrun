@@ -488,7 +488,6 @@ class BaseStoreTarget(DataTargetBase):
         target.updated = now_date().isoformat()
         target.size = size
         target.producer = producer or target.producer
-        target.time_partitioning_granularity = self.time_partitioning_granularity
 
         self._resource.status.update_target(target)
         return target

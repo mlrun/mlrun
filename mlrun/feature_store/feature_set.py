@@ -432,6 +432,7 @@ class FeatureSet(ModelObj):
         for target in targets:
             print(f"BBBB update: {target}")
             if target.name in ingestion_targets.keys():
+                print(f"BBBB 0 update: {ingestion_targets[target.name]}")
                 driver = get_target_driver(
                     target_spec=ingestion_targets[target.name], resource=self
                 )

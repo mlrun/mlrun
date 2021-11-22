@@ -441,6 +441,7 @@ class BaseStoreTarget(DataTargetBase):
     @classmethod
     def from_spec(cls, spec: DataTargetBase, resource=None):
         """create target driver from target spec or other target driver"""
+        print(f"BBBB spec: {spec}")
         driver = cls()
         driver.name = spec.name
         driver.path = spec.path

@@ -21,11 +21,11 @@ from io import StringIO
 from sys import stderr
 
 import pandas as pd
-from frameworks._common.parallel_coordinates import plot_parallel_coordinates
 from kubernetes import client
 
 import mlrun
 from mlrun.db import get_run_db
+from mlrun.frameworks._common.parallel_coordinates import plot_parallel_coordinates
 from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes.constants import MPIJobCRDVersions
 

@@ -490,7 +490,6 @@ class BaseStoreTarget(DataTargetBase):
         target.producer = producer or target.producer
         target.partitioned = self.partitioned
         target.partition_cols = self.partition_cols
-        target.after_step = self.after_step
         target.time_partitioning_granularity = self.time_partitioning_granularity
 
         self._resource.status.update_target(target)

@@ -267,9 +267,12 @@ class PyTorchModelHandler(DLModelHandler):
                 ]
             )
 
-        # Set the output path:
-        if output_path is not None:
-            output_path = os.path.join(output_path, f"{model_name}.onnx")
+        # Set the output model file:
+        onnx_file = f"{model_name}.onnx"
+        if output_path is None:
+            output_path = "./"
+        else:
+            onnx_file = os.path.join(output_path, f"{model_name}.onnx")
 
         # Set the logging flag:
         log = self._context is not None if log is None else log
@@ -278,7 +281,7 @@ class PyTorchModelHandler(DLModelHandler):
         torch.onnx.export(
             self._model,
             input_sample,
-            output_path,
+            onnx_file,
             input_names=input_layers_names,
             output_names=output_layers_names,
         )

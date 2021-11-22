@@ -7,8 +7,8 @@ from sklearn.datasets import load_boston, load_iris
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 
+import mlrun
 from mlrun import new_function
-from mlrun.frameworks.sklearn import apply_mlrun
 
 
 def _is_installed(lib) -> bool:
@@ -30,6 +30,8 @@ def get_dataset(classification=True):
 
 
 def run_mlbase_sklearn_classification(context):
+    from mlrun.frameworks.sklearn import apply_mlrun
+
     model = LogisticRegression()
     X_train, X_test, y_train, y_test = get_dataset()
     model = apply_mlrun(
@@ -38,24 +40,52 @@ def run_mlbase_sklearn_classification(context):
     model.fit(X_train, y_train)
 
 
-def run_mlbase_xgboost_regression(context):
+def run_mlbase_xgboost_regression(context: mlrun.MLClientCtx):
     import xgboost as xgb
+    from mlrun.frameworks.xgboost import apply_mlrun
+    import json
 
     model = xgb.XGBRegressor()
     X_train, X_test, y_train, y_test = get_dataset(classification=False)
-    model = apply_mlrun(
-        model, context, X_train=X_train, y_train=y_train, X_test=X_test, y_test=y_test,
+    model_handler = apply_mlrun(
+        model,
+        context,
+        X_train=X_train,
+        y_train=y_train,
+        X_test=X_test,
+        y_test=y_test,
+        log_model=False,
     )
     model.fit(X_train, y_train)
 
+    json_artifact = "test.json"
+    with open(json_artifact, "w") as json_file:
+        json.dump({"test": 0}, json_file, indent=4)
+
+    model_handler.register_artifacts(
+        context.log_artifact(
+            json_artifact,
+            local_path=json_artifact,
+            artifact_path=context.artifact_path,
+            db_key=False,
+        )
+    )
+    model_handler.log()
+
 
 def run_mlbase_lgbm_classification(context):
+    from mlrun.frameworks.sklearn import apply_mlrun
     import lightgbm as lgb
 
     model = lgb.LGBMClassifier()
     X_train, X_test, y_train, y_test = get_dataset()
     model = apply_mlrun(
-        model, context, X_train=X_train, y_train=y_train, X_test=X_test, y_test=y_test,
+        model,
+        context,
+        X_train=X_train,
+        y_train=y_train,
+        X_test=X_test,
+        y_test=y_test,
     )
     model.fit(X_train, y_train)
 

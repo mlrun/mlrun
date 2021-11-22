@@ -13,6 +13,9 @@ from mlrun.utils import flatten
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
+max_table_rows = 50
+
+
 def _gen_dropdown_buttons(output_cols) -> list:
     """Uses each output col name to generate an equivalent dropdown button for plotting."""
 
@@ -187,6 +190,7 @@ def _show_and_export_html(html: str, show=None, filename=None, runs_list=None):
     if filename:
         with open(filename, "w") as fp:
             if runs_list:
+                # add runs table after the plot
                 fp.write(html[: html.rfind("</body>")])
                 fp.write("<br>" + html_table)
                 fp.write("</body></html>")
@@ -194,7 +198,7 @@ def _show_and_export_html(html: str, show=None, filename=None, runs_list=None):
                 fp.write(html)
     if show or (show is None and mlrun.utils.is_ipython):
         display(HTML(html))
-        if runs_list:
+        if runs_list and len(runs_list) <= max_table_rows:
             display(HTML(html_table))
     else:
         return html

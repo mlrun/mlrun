@@ -88,7 +88,7 @@ extras_require = {
     # bokeh 2.4.0 requires typing-extensions>=3.10.0 but all tensorflow versions that compatible with our
     # tensorflow~=2.4.1 requirement requiring typing-extensions~=3.7.4 so limiting to 2.3.x
     "bokeh": ["bokeh~=2.3.0"],
-    "plotly": ["plotly~=5.4.0"],
+    "plotly": ["plotly~=5.4"],
     "google-cloud-storage": ["gcsfs~=2021.8.1"],
 }
 extras_require["complete"] = sorted(

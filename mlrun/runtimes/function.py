@@ -369,14 +369,29 @@ class RemoteRuntime(KubeResource):
         return self
 
     def with_http(
-        self, workers=8, port=0, host=None, paths=None, canary=None, secret=None
+        self,
+        workers=8,
+        port=0,
+        host=None,
+        paths=None,
+        canary=None,
+        secret=None,
+        timeout: int = None,
     ):
-        self.add_trigger(
-            "http",
-            nuclio.HttpTrigger(
-                workers, port=port, host=host, paths=paths, canary=canary, secret=secret
-            ),
+        trigger = nuclio.HttpTrigger(
+            workers, port=port, host=host, paths=paths, canary=canary, secret=secret
         )
+        if timeout:
+            trigger._struct["attributes"]["workerAvailabilityTimeoutMilliseconds"] = (
+                timeout + 1
+            ) * 1000
+            trigger._struct["annotations"][
+                "nginx.org/proxy-connect-timeout"
+            ] = f"{timeout}s"
+            trigger._struct["annotations"][
+                "nginx.org/proxy-read-timeout"
+            ] = f"{timeout}s"
+        self.add_trigger("http", trigger)
         return self
 
     def add_model(self, name, model_path, **kw):
@@ -426,7 +441,13 @@ class RemoteRuntime(KubeResource):
         return self
 
     def add_v3io_stream_trigger(
-        self, stream_path, name="stream", group="serving", seek_to="earliest", shards=1,
+        self,
+        stream_path,
+        name="stream",
+        group="serving",
+        seek_to="earliest",
+        shards=1,
+        **extra_attrs,
     ):
         """add v3io stream trigger to the function"""
         endpoint = None
@@ -434,17 +455,18 @@ class RemoteRuntime(KubeResource):
             endpoint, stream_path = parse_v3io_path(stream_path, suffix="")
         container, path = split_path(stream_path)
         shards = shards or 1
-        self.add_trigger(
-            name,
-            V3IOStreamTrigger(
-                name=name,
-                container=container,
-                path=path[1:],
-                consumerGroup=group,
-                seekTo=seek_to,
-                webapi=endpoint or "http://v3io-webapi:8081",
-            ),
+        trigger = V3IOStreamTrigger(
+            name=name,
+            container=container,
+            path=path[1:],
+            consumerGroup=group,
+            seekTo=seek_to,
+            webapi=endpoint or "http://v3io-webapi:8081",
         )
+        if extra_attrs:
+            for key, value in extra_attrs.items():
+                trigger._struct["attributes"][key] = value
+        self.add_trigger(name, trigger)
         self.spec.min_replicas = shards
         self.spec.max_replicas = shards
 

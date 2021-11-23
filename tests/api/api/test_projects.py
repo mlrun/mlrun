@@ -390,7 +390,10 @@ def test_list_projects_leader_format(
 
 
 def test_projects_crud(
-    db: Session, client: TestClient, project_member_mode: str
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
     name1 = f"prj-{uuid4().hex}"
     project_1 = mlrun.api.schemas.Project(

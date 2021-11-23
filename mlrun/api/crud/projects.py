@@ -11,6 +11,7 @@ import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
+import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.scheduler
 import mlrun.errors
 import mlrun.utils.singleton
@@ -115,6 +116,9 @@ class Projects(
 
         # delete model monitoring resources
         mlrun.api.crud.ModelEndpoints().delete_model_endpoints_resources(name)
+
+        # delete project secrets - passing None will delete all secrets
+        mlrun.api.utils.singletons.k8s.get_k8s().delete_project_secrets(name, None)
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str

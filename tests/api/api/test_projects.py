@@ -23,6 +23,7 @@ import mlrun.api.utils.singletons.scheduler
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
 import mlrun.errors
+import tests.api.conftest
 from mlrun.api.db.sqldb.models import (
     Artifact,
     Entity,
@@ -89,12 +90,20 @@ def test_get_non_existing_project(
 
 
 def test_delete_project_with_resources(
-    db: Session, client: TestClient, project_member_mode: str
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
     project_to_keep = "project-to-keep"
     project_to_remove = "project-to-remove"
     _create_resources_of_all_kinds(db, project_to_keep)
     _create_resources_of_all_kinds(db, project_to_remove)
+
+    secrets = {f"secret_{i}": "a secret" for i in range(5)}
+    k8s_secrets_mock.store_project_secrets(project_to_keep, secrets)
+    k8s_secrets_mock.store_project_secrets(project_to_remove, secrets)
+
     (
         project_to_keep_table_name_records_count_map_before_project_removal,
         project_to_keep_object_records_count_map_before_project_removal,
@@ -151,6 +160,9 @@ def test_delete_project_with_resources(
         )
         == {}
     )
+
+    assert k8s_secrets_mock.get_project_secret_keys(project_to_remove) == []
+    assert k8s_secrets_mock.get_project_secret_data(project_to_keep) == secrets
 
     # deletion strategy - check - should succeed cause no project
     response = client.delete(

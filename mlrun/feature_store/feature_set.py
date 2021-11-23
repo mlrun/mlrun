@@ -310,10 +310,6 @@ class FeatureSet(ModelObj):
             fullname += ":" + self._metadata.tag
         return fullname
 
-    @property
-    def get_publish_time(self):
-        return self.metadata.publish_time
-
     def _override_run_db(
         self, session,
     ):

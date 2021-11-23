@@ -13,7 +13,6 @@ class ObjectMetadata(BaseModel):
     updated: Optional[datetime]
     created: Optional[datetime]
     uid: Optional[str]
-    publish_time: Optional[datetime]
 
     class Config:
         extra = Extra.allow

@@ -11,17 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import copy
-import traceback
 import warnings
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Dict, List, Optional, Union
 
 import pandas as pd
 
 import mlrun
 import mlrun.api.schemas
-from mlrun.errors import MLRunBadRequestError, MLRunNotFoundError
+from mlrun.errors import MLRunNotFoundError
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri

@@ -2,7 +2,6 @@ import os
 import pathlib
 import random
 import string
-import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from time import sleep
@@ -1867,6 +1866,7 @@ class TestFeatureStore(TestMLRunSystem):
         resp = svc.get([{"name": "cd"}])
         assert np.isnan(resp[0]["data2"])
         assert np.isnan(resp[0]["datas_avg_1h"])
+
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)

@@ -128,7 +128,7 @@ class ArtifactManager:
                 item.is_dir,
             )
 
-        if item.is_dir and not target_path.endswith("/"):
+        if target_path and item.is_dir and not target_path.endswith("/"):
             target_path += "/"
 
         item.target_path = target_path
@@ -138,6 +138,7 @@ class ArtifactManager:
         item.producer = producer.get_meta()
         item.iter = producer.iteration
         item.project = producer.project
+        item.tag = tag
 
         if db_key is None:
             # set the default artifact db key
@@ -162,12 +163,22 @@ class ArtifactManager:
         )
         return item
 
-    def _log_to_db(self, key, project, sources, item, tag):
+    def update_artifact(self, producer, item):
+        self.artifacts[item.key] = item
+        self._log_to_db(item.db_key, producer.project, producer.inputs, item)
+
+    def _log_to_db(self, key, project, sources, item, tag=None):
         if self.artifact_db:
+            item.updated = None
             if sources:
                 item.sources = [{"name": k, "path": str(v)} for k, v in sources.items()]
             self.artifact_db.store_artifact(
-                key, item.to_dict(), item.tree, iter=item.iter, tag=tag, project=project
+                key,
+                item.to_dict(),
+                item.tree,
+                iter=item.iter,
+                tag=tag or item.tag,
+                project=project,
             )
 
     def link_artifact(
@@ -202,6 +213,16 @@ class ArtifactManager:
                 tag=tag,
                 project=project,
             )
+
+
+def extend_artifact_path(artifact_path: str, default_artifact_path: str):
+    if artifact_path and artifact_path.startswith("+/"):
+        if not default_artifact_path:
+            return artifact_path[len("+/") :]
+        if not default_artifact_path.endswith("/"):
+            default_artifact_path += "/"
+        return default_artifact_path + artifact_path[len("+/") :]
+    return artifact_path or default_artifact_path
 
 
 def filename(key, format):

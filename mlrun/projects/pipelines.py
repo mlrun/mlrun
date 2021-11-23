@@ -57,6 +57,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         name=None,
         handler=None,
         ttl=None,
+        args_schema: dict = None,
     ):
         self.engine = engine
         self.code = code
@@ -65,6 +66,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         self.name = name
         self.handler = handler
         self.ttl = ttl
+        self.args_schema = args_schema
         self.run_local = False
         self._tmp_path = None
 
@@ -87,9 +89,23 @@ class WorkflowSpec(mlrun.model.ModelObj):
 
     def merge_args(self, extra_args):
         self.args = self.args or {}
+        required = []
+        if self.args_schema:
+            for schema in self.args_schema:
+                name = schema.get("name")
+                if name not in self.args:
+                    self.args[name] = schema.get("default")
+                if schema.get("required"):
+                    required.append(name)
         if extra_args:
             for k, v in extra_args.items():
                 self.args[k] = v
+                if k in required:
+                    required.remove(k)
+        if required:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"workflow argument(s) {','.join(required)} are required and were not specified"
+            )
 
     def clear_tmp(self):
         if self._tmp_path:

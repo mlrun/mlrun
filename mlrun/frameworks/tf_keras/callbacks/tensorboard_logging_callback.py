@@ -10,7 +10,7 @@ from tensorflow.keras import Model
 from tensorflow.python.ops import summary_ops_v2
 
 import mlrun
-from mlrun.frameworks._common.loggers import TensorboardLogger, TrackableType
+from mlrun.frameworks._dl_common.loggers import TensorboardLogger, TrackableType
 from mlrun.frameworks.tf_keras.callbacks.logging_callback import LoggingCallback
 
 
@@ -101,11 +101,11 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
         hp_metric_list = []
         for metric in self._training_results:
             for prefix in ["training", "validation"]:
-                metric_name = "{}/{}_{}".format(self._Sections.SUMMARY, prefix, metric)
+                metric_name = f"{self._Sections.SUMMARY}/{prefix}_{metric}"
                 graph_parameters[metric_name] = 0.0
                 hp_metric_list.append(hp_api.Metric(metric_name))
         for parameter, epochs in self._dynamic_hyperparameters.items():
-            parameter_name = "{}/{}".format(self._Sections.HYPERPARAMETERS, parameter)
+            parameter_name = f"{self._Sections.HYPERPARAMETERS}/{parameter}"
             graph_parameters[parameter_name] = epochs[-1]
             hp_metric_list.append(hp_api.Metric(parameter_name))
 

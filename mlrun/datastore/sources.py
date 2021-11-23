@@ -138,7 +138,6 @@ class CSVSource(BaseSourceDriver):
         if context:
             attributes["context"] = context
         return storey.CSVSource(
-            context=context,
             paths=self.path,
             header=True,
             build_dict=True,
@@ -204,6 +203,13 @@ class ParquetSource(BaseSourceDriver):
         start_time: Optional[Union[datetime, str]] = None,
         end_time: Optional[Union[datetime, str]] = None,
     ):
+
+        if isinstance(start_time, str):
+            start_time = datetime.fromisoformat(start_time)
+
+        if isinstance(end_time, str):
+            end_time = datetime.fromisoformat(end_time)
+
         super().__init__(
             name,
             path,
@@ -229,7 +235,6 @@ class ParquetSource(BaseSourceDriver):
         if context:
             attributes["context"] = context
         return storey.ParquetSource(
-            context=context,
             paths=self.path,
             key_field=self.key_field or key_field,
             time_field=self.time_field or time_field,

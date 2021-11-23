@@ -452,8 +452,11 @@ class RemoteRuntime(KubeResource):
         # For nuclio functions, we just add the project secrets as env variables. Since there's no MLRun code
         # to decode the secrets and special env variable names in the function, we just use the same env variable as
         # the key name (encode_key_names=False)
+        # If function_kind is mlrun then this is MLRun code (nuclio:mlrun), so we still encode key names.
+        encode_key_names = self.spec.function_kind == "mlrun"
+
         self._add_project_k8s_secrets_to_spec(
-            None, project=self.metadata.project, encode_key_names=False
+            None, project=self.metadata.project, encode_key_names=encode_key_names
         )
 
     def deploy(

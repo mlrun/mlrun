@@ -87,7 +87,6 @@ def init_featureset_graph(
     total_rows = 0
     targets = [get_target_driver(target, featureset) for target in targets]
     for chunk in chunks:
-        print(rows_limit)
         event = MockEvent(body=chunk)
         data = server.run(event, get_body=True)
         if data is not None:

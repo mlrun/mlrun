@@ -1733,12 +1733,12 @@ class SQLDB(DBInterface):
             object_id = tag_record.obj_id
 
         if object_id:
-            self._delete(session, cls, id=object_id)
             self._delete(session, cls.Tag, obj_id=object_id)
+            self._delete(session, cls, id=object_id)
         else:
             # If we got here, neither tag nor uid were provided - delete all references by name.
-            self._delete(session, cls, project=project, name=name)
             self._delete(session, cls.Tag, project=project, obj_name=name)
+            self._delete(session, cls, project=project, name=name)
 
     def delete_feature_set(self, session, project, name, tag=None, uid=None):
         self._delete_feature_store_object(session, FeatureSet, project, name, tag, uid)

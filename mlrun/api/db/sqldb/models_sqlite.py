@@ -117,7 +117,10 @@ def make_tag_v2(table):
         project = Column(String(255, collation=SQLCollationUtil.collation()))
         name = Column(String(255, collation=SQLCollationUtil.collation()))
         obj_id = Column(Integer, ForeignKey(f"{table}.id"))
-        obj_name = Column(String(255, collation=SQLCollationUtil.collation()))
+        obj_name = Column(
+            String(255, collation=SQLCollationUtil.collation()),
+            ForeignKey(f"{table}.name"),
+        )
 
     return Tag
 
@@ -142,9 +145,7 @@ with warnings.catch_warnings():
         updated = Column(TIMESTAMP)
         # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
         body = Column(BLOB)
-
-        labels = relationship(Label, cascade="all, delete-orphan")
-        tags = relationship(Tag, cascade="all, delete-orphan")
+        labels = relationship(Label)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.key}/{self.uid}"
@@ -165,9 +166,7 @@ with warnings.catch_warnings():
         # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
         body = Column(BLOB)
         updated = Column(TIMESTAMP)
-
-        labels = relationship(Label, cascade="all, delete-orphan")
-        tags = relationship(Tag, cascade="all, delete-orphan")
+        labels = relationship(Label)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.uid}"
@@ -201,9 +200,7 @@ with warnings.catch_warnings():
         # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
         body = Column(BLOB)
         start_time = Column(TIMESTAMP)
-
-        labels = relationship(Label, cascade="all, delete-orphan")
-        tags = relationship(Tag, cascade="all, delete-orphan")
+        labels = relationship(Label)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.uid}/{self.iteration}"
@@ -348,7 +345,6 @@ with warnings.catch_warnings():
         Tag = make_tag_v2(__tablename__)
 
         labels = relationship(Label, cascade="all, delete-orphan")
-        tags = relationship(Tag, cascade="all, delete-orphan")
 
         features = relationship(Feature, cascade="all, delete-orphan")
         entities = relationship(Entity, cascade="all, delete-orphan")
@@ -385,7 +381,6 @@ with warnings.catch_warnings():
         Tag = make_tag_v2(__tablename__)
 
         labels = relationship(Label, cascade="all, delete-orphan")
-        tags = relationship(Tag, cascade="all, delete-orphan")
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.uid}"

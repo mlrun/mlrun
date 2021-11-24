@@ -4,7 +4,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from mlrun import mlconf
-from mlrun.api.db.sqldb import models
+from mlrun.api.db.sqldb import models_sqlite
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -16,7 +16,7 @@ fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-target_metadata = models.Base.metadata
+target_metadata = models_sqlite.Base.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

@@ -27,13 +27,8 @@ import mlrun.api.schemas
 import mlrun.errors
 import mlrun.utils.regex
 
-from ..artifacts import (
-    ArtifactManager,
-    ArtifactProducer,
-    DatasetArtifact,
-    ModelArtifact,
-    dict_to_artifact,
-)
+from ..artifacts import ArtifactProducer, DatasetArtifact, ModelArtifact
+from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
 from ..datastore import store_manager
 from ..db import get_run_db
 from ..features import Feature
@@ -1061,8 +1056,8 @@ class MlrunProject(ModelObj):
         target_path=None,
     ):
         am = self._get_artifact_manager()
-        artifact_path = (
-            artifact_path or self.spec.artifact_path or mlrun.mlconf.artifact_path
+        artifact_path = extend_artifact_path(
+            artifact_path, self.spec.artifact_path or mlrun.mlconf.artifact_path
         )
         artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
             artifact_path, self.metadata.name

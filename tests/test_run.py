@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os
 import pathlib
 from unittest.mock import Mock
 
@@ -21,6 +21,7 @@ import pytest
 import mlrun
 import mlrun.errors
 from mlrun import get_run_db, new_function, new_task
+from mlrun.runtimes.utils import global_context
 from tests.conftest import (
     examples_path,
     has_secrets,
@@ -319,6 +320,10 @@ def test_local_args():
 
 
 def test_local_context():
+    global_context.set(None)
+    os.environ["MLRUN_EXEC_CONFIG"] = ""
+
+    db = mlrun.get_run_db()
     project_name = "xtst"
     mlrun.mlconf.artifact_path = out_path
     context = mlrun.get_or_create_ctx("xx", project=project_name, upload_artifacts=True)
@@ -329,11 +334,9 @@ def test_local_context():
         artifact = context.get_cached_artifact("xx")
         artifact.format = "z"
         context.update_artifact(artifact)
-        print(artifact.to_yaml())
 
     assert context._state == "completed", "task did not complete"
 
-    db = mlrun.get_run_db()
     run = db.read_run(context._uid, project=project_name)
     assert run["status"]["state"] == "completed", "run status not updated in db"
     assert run["status"]["artifacts"][0]["key"] == "xx", "artifact not updated in db"

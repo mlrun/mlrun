@@ -19,7 +19,6 @@ def apply_mlrun(
     y_test=None,
     model_name=None,
     generate_test_set=True,
-    log_model: bool = True,
     **kwargs
 ) -> XGBoostModelHandler:
     """
@@ -54,5 +53,5 @@ def apply_mlrun(
     )
 
     # Add MLRun's interface to the model:
-    XGBoostMLRunInterface.add_interface(model_handler, context, model_name, kwargs, log_model=log_model)
+    XGBoostMLRunInterface.add_interface(model_handler, context, model_name, kwargs)
     return model_handler

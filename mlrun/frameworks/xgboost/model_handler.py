@@ -111,6 +111,7 @@ class XGBoostModelHandler(MLModelHandler):
             self._model_name,
             db_key=self._model_name,
             body=dumps(self.model),
+            labels=labels if labels is not None else {},
             artifact_path=self._context.artifact_subpath("models"),
             framework=f"{str(self._model.__module__).split('.')[0]}",
             algorithm=str(self._model.__class__.__name__),

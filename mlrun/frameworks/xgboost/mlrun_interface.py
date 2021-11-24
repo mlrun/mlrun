@@ -1,9 +1,7 @@
 import pandas as pd
-from cloudpickle import dumps
 
 from mlrun.frameworks._common import MLRunInterface
 from mlrun.frameworks._common.plots import eval_model_v2
-from mlrun.frameworks.xgboost.model_handler import XGBoostModelHandler
 
 
 class XGBoostMLRunInterface(MLRunInterface):
@@ -18,7 +16,6 @@ class XGBoostMLRunInterface(MLRunInterface):
         context,
         model_name,
         data={},
-        log_model: bool = True,
         *args,
         **kwargs,
     ):
@@ -31,8 +28,6 @@ class XGBoostMLRunInterface(MLRunInterface):
                               'mlrun.get_or_create_ctx(None)'
         :param data:          The train_test_split X_train, X_test, y_train, y_test can be passed,
                               or the test data X_test, y_test can be passed.
-        :param log_model:     Whether to log the model at the end of calling 'fit'. The model can be logged post fit
-                              the model handler 'log' method.
 
         :return: The wrapped model.
         """
@@ -95,5 +90,4 @@ class XGBoostMLRunInterface(MLRunInterface):
             )
             model_handler.set_dataset(training_set=train_set, label_column=label_column)
             model_handler.register_artifacts(artifacts=eval_metrics)
-            if log_model:
-                model_handler.log()
+            model_handler.log()

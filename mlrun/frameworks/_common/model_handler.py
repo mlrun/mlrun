@@ -5,7 +5,7 @@ import shutil
 import sys
 import zipfile
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generic, List, TypeVar, Union
+from typing import Any, Dict, Generic, List, Union
 
 import numpy as np
 
@@ -13,16 +13,10 @@ import mlrun
 from mlrun.artifacts import Artifact, ModelArtifact
 from mlrun.data_types import ValueType
 from mlrun.features import Feature
-
-# Generic type variables:
-Model = TypeVar("Model")  # For the model type in the handler.
-IOSample = TypeVar("IOSample")  # For reading an inout / output samples.
-
-# Extra data types:
-ExtraDataType = Union[str, bytes, Artifact, mlrun.DataItem]
+from mlrun.frameworks._common.types import ModelType, IOSampleType, PathType, ExtraDataType
 
 
-class ModelHandler(ABC, Generic[Model, IOSample]):
+class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
     """
     An abstract interface for handling a model of the supported frameworks.
     """
@@ -42,11 +36,11 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
     def __init__(
         self,
         model_name: str,
-        model_path: str = None,
-        model: Model = None,
-        modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
-        custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
-        custom_objects_directory: str = None,
+        model_path: PathType = None,
+        model: ModelType = None,
+        modules_map: Union[Dict[str, Union[None, str, List[str]]], PathType] = None,
+        custom_objects_map: Union[Dict[str, Union[str, List[str]]], PathType] = None,
+        custom_objects_directory: PathType = None,
         context: mlrun.MLClientCtx = None,
     ):
         """
@@ -149,7 +143,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         return self._model_name
 
     @property
-    def model(self) -> Model:
+    def model(self) -> ModelType:
         """
         Get the handled model. Will return None in case the model is not initialized.
 
@@ -236,7 +230,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         """
         self._context = context
 
-    def set_inputs(self, from_sample: IOSample = None, features: List[Feature] = None):
+    def set_inputs(self, from_sample: IOSampleType = None, features: List[Feature] = None):
         """
         Read the inputs property of this model to be logged along with it. The inputs can be set directly by passing the
         input features or to be read by a given input sample.
@@ -260,7 +254,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
             else self._read_io_samples(samples=from_sample)
         )
 
-    def set_outputs(self, from_sample: IOSample = None, features: List[Feature] = None):
+    def set_outputs(self, from_sample: IOSampleType = None, features: List[Feature] = None):
         """
         Read the outputs property of this model to be logged along with it. The outputs can be set directly by passing
         the output features or to be read by a given output sample.
@@ -349,7 +343,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
 
     @abstractmethod
     def save(
-        self, output_path: str = None, **kwargs
+        self, output_path: PathType = None, **kwargs
     ) -> Union[Dict[str, Artifact], None]:
         """
         Save the handled model at the given output path.
@@ -890,7 +884,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         return artifacts
 
     def _read_io_samples(
-        self, samples: Union[IOSample, List[IOSample]],
+        self, samples: Union[IOSampleType, List[IOSampleType]],
     ) -> List[Feature]:
         """
         Read the given inputs / output sample to / from the model into a list of MLRun Features (ports) to log in
@@ -906,7 +900,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
 
         return [self._read_sample(sample=sample) for sample in samples]
 
-    def _read_sample(self, sample: IOSample) -> Feature:
+    def _read_sample(self, sample: IOSampleType) -> Feature:
         """
         Read the sample into a MLRun Feature. This abstract class is reading samples of 'numpy.ndarray'. For further
         types of samples, please inherit this method.
@@ -931,7 +925,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         )
 
     @staticmethod
-    def _validate_model_parameters(model_path: str, model: Model):
+    def _validate_model_parameters(model_path: str, model: ModelType):
         """
         Validate the given model parameters.
 

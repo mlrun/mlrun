@@ -20,7 +20,6 @@ import dask.dataframe as dd
 import fsspec
 import orjson
 import pandas as pd
-import pyarrow.parquet as pq
 import requests
 import urllib3
 

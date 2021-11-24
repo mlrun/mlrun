@@ -21,6 +21,8 @@ def close_session(db_session):
 
 def run_function_with_new_db_session(func):
     session = create_session()
-    result = func(session)
-    close_session(session)
-    return result
+    try:
+        result = func(session)
+        return result
+    finally:
+        close_session(session)

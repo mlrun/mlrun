@@ -1,5 +1,6 @@
 import mlrun
 import mlrun.artifacts
+from mlrun.artifacts.manager import extend_artifact_path
 from mlrun.utils import StorePrefix
 
 
@@ -32,3 +33,13 @@ def test_artifact_uri():
     artifact = mlrun.artifacts.ModelArtifact("data", body="abc")
     prefix, uri = mlrun.datastore.parse_store_uri(artifact.uri)
     assert prefix == StorePrefix.Model, "illegal artifact uri"
+
+
+def test_extend_artifact_path():
+    tests = ["", "./", "abc", "+/", "+/x"]
+    expected = ["", "./", "abc", "", "x"]
+    for i, test in enumerate(tests):
+        assert extend_artifact_path(test, "") == expected[i]
+    expected = ["yz", "./", "abc", "yz/", "yz/x"]
+    for i, test in enumerate(tests):
+        assert extend_artifact_path(test, "yz") == expected[i]

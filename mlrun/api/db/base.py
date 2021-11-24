@@ -232,7 +232,7 @@ class DBInterface(ABC):
 
     @abstractmethod
     async def get_project_resources_counters(
-        self, session
+        self,
     ) -> Tuple[
         Dict[str, int],
         Dict[str, int],

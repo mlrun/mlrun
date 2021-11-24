@@ -22,6 +22,7 @@ import tests.api.conftest
 from mlrun.api import schemas
 from mlrun.api.utils.scheduler import Scheduler
 from mlrun.api.utils.singletons.db import get_db
+from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config
 from mlrun.runtimes.base import RunStates
 from mlrun.utils import logger
@@ -56,6 +57,16 @@ async def bump_counter_and_wait():
 
 async def do_nothing():
     pass
+
+
+@pytest.fixture(autouse=True)
+def mock_secrets_call():
+    orig_function = get_k8s()._get_project_secrets_raw_data
+    get_k8s()._get_project_secrets_raw_data = unittest.mock.Mock(return_value={})
+
+    yield
+
+    get_k8s()._get_project_secrets_raw_data = orig_function
 
 
 @pytest.mark.asyncio

@@ -425,6 +425,7 @@ def _build_function(
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
             mlrun.api.api.utils.ensure_function_has_auth_set(fn, auth_info)
+            mlrun.api.api.utils.process_function_service_account(fn)
 
             if fn.kind == RuntimeKinds.serving:
                 # Handle model monitoring

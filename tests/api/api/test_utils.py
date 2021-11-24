@@ -1,5 +1,7 @@
+import unittest
 from http import HTTPStatus
 
+import pytest
 from deepdiff import DeepDiff
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -7,6 +9,17 @@ from sqlalchemy.orm import Session
 import mlrun
 import mlrun.api.schemas
 from mlrun.api.api.utils import _generate_function_and_task_from_submit_run_body
+from mlrun.api.utils.singletons.k8s import get_k8s
+
+
+@pytest.fixture(autouse=True)
+def mock_secrets_call():
+    orig_function = get_k8s()._get_project_secrets_raw_data
+    get_k8s()._get_project_secrets_raw_data = unittest.mock.Mock(return_value={})
+
+    yield
+
+    get_k8s()._get_project_secrets_raw_data = orig_function
 
 
 def test_generate_function_and_task_from_submit_run_body_body_override_values(

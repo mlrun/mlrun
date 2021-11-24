@@ -13,10 +13,10 @@ from sqlalchemy import and_, distinct, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, aliased
 
+import mlrun.api.db.session
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.errors
 from mlrun.api import schemas
-import mlrun.api.db.session
 from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.helpers import (
     generate_query_predicate_for_name,
@@ -865,19 +865,24 @@ class SQLDB(DBInterface):
     ]:
         results = await asyncio.gather(
             fastapi.concurrency.run_in_threadpool(
-                mlrun.api.db.session.run_function_with_new_db_session, self._calculate_files_counters,
+                mlrun.api.db.session.run_function_with_new_db_session,
+                self._calculate_files_counters,
             ),
             fastapi.concurrency.run_in_threadpool(
-                mlrun.api.db.session.run_function_with_new_db_session, self._calculate_schedules_counters,
+                mlrun.api.db.session.run_function_with_new_db_session,
+                self._calculate_schedules_counters,
             ),
             fastapi.concurrency.run_in_threadpool(
-                mlrun.api.db.session.run_function_with_new_db_session, self._calculate_feature_sets_counters,
+                mlrun.api.db.session.run_function_with_new_db_session,
+                self._calculate_feature_sets_counters,
             ),
             fastapi.concurrency.run_in_threadpool(
-                mlrun.api.db.session.run_function_with_new_db_session, self._calculate_models_counters,
+                mlrun.api.db.session.run_function_with_new_db_session,
+                self._calculate_models_counters,
             ),
             fastapi.concurrency.run_in_threadpool(
-                mlrun.api.db.session.run_function_with_new_db_session, self._calculate_runs_counters,
+                mlrun.api.db.session.run_function_with_new_db_session,
+                self._calculate_runs_counters,
             ),
         )
         (

@@ -7,8 +7,8 @@ import fastapi.concurrency
 import humanfriendly
 import sqlalchemy.orm
 
-import mlrun.api.db.session
 import mlrun.api.crud
+import mlrun.api.db.session
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db

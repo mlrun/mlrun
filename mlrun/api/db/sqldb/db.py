@@ -13,6 +13,7 @@ from sqlalchemy import and_, distinct, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, aliased
 
+import mlrun.api.db.session
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.errors
 from mlrun.api import schemas
@@ -853,7 +854,7 @@ class SQLDB(DBInterface):
         return schemas.ProjectsOutput(projects=projects)
 
     async def get_project_resources_counters(
-        self, session
+        self,
     ) -> Tuple[
         Dict[str, int],
         Dict[str, int],
@@ -864,19 +865,24 @@ class SQLDB(DBInterface):
     ]:
         results = await asyncio.gather(
             fastapi.concurrency.run_in_threadpool(
-                self._calculate_files_counters, session
+                mlrun.api.db.session.run_function_with_new_db_session,
+                self._calculate_files_counters,
             ),
             fastapi.concurrency.run_in_threadpool(
-                self._calculate_schedules_counters, session
+                mlrun.api.db.session.run_function_with_new_db_session,
+                self._calculate_schedules_counters,
             ),
             fastapi.concurrency.run_in_threadpool(
-                self._calculate_feature_sets_counters, session
+                mlrun.api.db.session.run_function_with_new_db_session,
+                self._calculate_feature_sets_counters,
             ),
             fastapi.concurrency.run_in_threadpool(
-                self._calculate_models_counters, session
+                mlrun.api.db.session.run_function_with_new_db_session,
+                self._calculate_models_counters,
             ),
             fastapi.concurrency.run_in_threadpool(
-                self._calculate_runs_counters, session
+                mlrun.api.db.session.run_function_with_new_db_session,
+                self._calculate_runs_counters,
             ),
         )
         (

@@ -2,7 +2,7 @@ from typing import Callable, Dict, List, Union
 
 import mlrun
 from mlrun.artifacts import Artifact
-from mlrun.frameworks._common.loggers import LoggerMode, MLRunLogger, TrackableType
+from mlrun.frameworks._dl_common.loggers import LoggerMode, MLRunLogger, TrackableType
 from mlrun.frameworks.tf_keras.callbacks.logging_callback import LoggingCallback
 from mlrun.frameworks.tf_keras.model_handler import TFKerasModelHandler
 
@@ -33,6 +33,7 @@ class MLRunLoggingCallback(LoggingCallback):
         context: mlrun.MLClientCtx,
         model_name: str = None,
         model_path: str = None,
+        modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
         model_format: str = TFKerasModelHandler.ModelFormats.SAVED_MODEL,
@@ -59,6 +60,18 @@ class MLRunLoggingCallback(LoggingCallback):
                                          tf.keras.Model.name will be used.
         :param model_path:               The model's store object path. Mandatory for evaluation (to know which model to
                                          update).
+        :param modules_map:              A dictionary of all the modules required for loading the model. Each key
+                                         is a path to a module and its value is the object name to import from it. All
+                                         the modules will be imported globally. If multiple objects needed to be
+                                         imported from the same module a list can be given. The map can be passed as a
+                                         path to a json file as well. For example:
+                                         {
+                                             "module1": None,  # => import module1
+                                             "module2": ["func1", "func2"],  # => from module2 import func1, func2
+                                             "module3.sub_module": "func3",  # => from module3.sub_module import func3
+                                         }
+                                         If the model path given is of a store object, the modules map will be read from
+                                         the logged modules map artifact of the model.
         :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key
                                          is a path to a python file and its value is the custom object name to import
                                          from it. If multiple objects needed to be imported from the same py file a list
@@ -88,11 +101,11 @@ class MLRunLoggingCallback(LoggingCallback):
                                          from tensorflow version >= 2.4.0. Using this setting will increase the model
                                          saving size.
         :param input_sample:             Input sample to the model for logging additional data regarding the input ports
-                                         of the model. In addition, ONNX conversion will use the logged information
-                                         later.
+                                         of the model. If None, the input sample will be read automatically from the
+                                         model.
         :param output_sample:            Output sample of the model for logging additional data regarding the output
-                                         ports of the model. In addition, ONNX conversion will use the logged
-                                         information later.
+                                         ports of the model. If None, the input sample will be read automatically from
+                                         the model.
         :param log_model_labels:         Labels to log with the model.
         :param log_model_parameters:     Parameters to log with the model.
         :param log_model_extra_data:     Extra data to log with the model.
@@ -137,28 +150,13 @@ class MLRunLoggingCallback(LoggingCallback):
         # Store the additional TFKerasModelHandler parameters for logging the model later:
         self._model_name = model_name
         self._model_path = model_path
+        self._modules_map = modules_map
         self._custom_objects_map = custom_objects_map
         self._custom_objects_directory = custom_objects_directory
         self._model_format = model_format
         self._save_traces = save_traces
         self._input_sample = input_sample
         self._output_sample = output_sample
-
-    def set_input_sample(self, sample: TFKerasModelHandler.IOSample):
-        """
-        Set an input sample to the model to be logged with it into MLRun.
-
-        :param sample: The input sample to set.
-        """
-        self._input_sample = sample
-
-    def set_output_sample(self, sample: TFKerasModelHandler.IOSample):
-        """
-        Set an output sample of the model to be logged with it into MLRun.
-
-        :param sample: The output sample to set.
-        """
-        self._output_sample = sample
 
     def on_train_end(self, logs: dict = None):
         """
@@ -214,16 +212,24 @@ class MLRunLoggingCallback(LoggingCallback):
             model_name=self._model_name,
             model_path=self._model_path,
             model=self.model,
+            modules_map=self._modules_map,
             custom_objects_map=self._custom_objects_map,
             custom_objects_directory=self._custom_objects_directory,
             model_format=self._model_format,
             save_traces=self._save_traces,
         )
 
-        # Set the input and output information if available:
-        if self._input_sample is not None and self._output_sample is not None:
+        # Set the inputs information if available:
+        if self._input_sample is not None:
             model_handler.set_inputs(from_sample=self._input_sample)
+        else:
+            model_handler.read_inputs_from_model()
+
+        # Set the outputs information if available:
+        if self._output_sample is not None:
             model_handler.set_outputs(from_sample=self._output_sample)
+        else:
+            model_handler.read_outputs_from_model()
 
         # Log the model:
         self._logger.log_run(model_handler=model_handler)

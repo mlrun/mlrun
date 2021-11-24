@@ -46,7 +46,7 @@ class Feature(ModelObj):
 
     def __init__(
         self,
-        value_type: ValueType = None,
+        value_type: str = None,
         dims: List[int] = None,
         description: str = None,
         aggregate: bool = None,
@@ -59,7 +59,8 @@ class Feature(ModelObj):
 
         Features can be specified manually or inferred automatically (during ingest/preview)
 
-        :param value_type:  type of the feature, e.g. ValueType.STRING, ValueType.INT
+        :param value_type:  type of the feature. Use the ValueType constants library e.g. ValueType.STRING,
+                            ValueType.INT
         :param dims:        list of dimensions for vectors/tensors, e.g. [2, 2]
         :param description: text description of the feature
         :param aggregate:   is it an aggregated value
@@ -69,7 +70,7 @@ class Feature(ModelObj):
         :param labels:      a set of key/value labels (tags)
         """
         self.name = name or ""
-        self.value_type: ValueType = value_type or ""
+        self.value_type = value_type or ""
         self.dims = dims
         self.description = description
         self.default = default

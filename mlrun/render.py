@@ -335,9 +335,9 @@ def runs_to_html(df, display=True, classes=None, short=False):
         except ValueError:
             return ""
 
-    df["artifacts"] = df["artifacts"].apply(lambda x: artifacts_html(x, "target_path"))
     df["results"] = df["results"].apply(dict_html)
     df["start"] = df["start"].apply(time_str)
+    df["parameters"] = df["parameters"].apply(dict_html)
     if config.resolve_ui_url():
         df["uid"] = df.apply(
             lambda x: uid_template.format(
@@ -355,14 +355,17 @@ def runs_to_html(df, display=True, classes=None, short=False):
 
     if short:
         df.drop("project", axis=1, inplace=True)
-        df.drop("iter", axis=1, inplace=True)
+        if df["iter"].nunique() == 1:
+            df.drop("iter", axis=1, inplace=True)
         df.drop("labels", axis=1, inplace=True)
         df.drop("inputs", axis=1, inplace=True)
-        df.drop("parameters", axis=1, inplace=True)
+        df.drop("artifacts", axis=1, inplace=True)
     else:
         df["labels"] = df["labels"].apply(dict_html)
         df["inputs"] = df["inputs"].apply(inputs_html)
-        df["parameters"] = df["parameters"].apply(dict_html)
+        df["artifacts"] = df["artifacts"].apply(
+            lambda x: artifacts_html(x, "target_path")
+        )
 
     def expand_error(x):
         if x["state"] == "error":

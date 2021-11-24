@@ -128,6 +128,41 @@ def test_remote_class(httpserver, engine):
     assert resp == {"req": {"x": 5}, "resp": {"cat": "ok"}}
 
 
+# ML-1394
+@pytest.mark.parametrize("engine", ["sync", "async"])
+def test_remote_class_no_header_propagation(httpserver, engine):
+    from mlrun.serving.remote import RemoteStep
+
+    httpserver.expect_request(
+        "/cat", method="GET", headers={"X-dont-propagate": "me"}
+    ).respond_with_json({"cat": "ok"})
+
+    function = mlrun.new_function("test2", kind="serving")
+    flow = function.set_topology("flow", engine=engine)
+    flow.to(name="s1", handler="echo").to(
+        RemoteStep(
+            name="remote_echo",
+            url=httpserver.url_for("/cat"),
+            method="GET",
+            input_path="req",
+            result_path="resp",
+            retries=0,
+        )
+    ).to(name="s3", handler="echo").respond()
+
+    server = function.to_mock_server()
+    try:
+        server.test(body={"req": {"x": 5}}, headers={"X-dont-propagate": "me"})
+        assert False
+    except RuntimeError:
+        pass
+    finally:
+        try:
+            server.wait_for_completion()
+        except RuntimeError:
+            pass
+
+
 @pytest.mark.parametrize("engine", ["sync", "async"])
 def test_remote_advance(httpserver, engine):
     from mlrun.serving.remote import RemoteStep

@@ -61,9 +61,9 @@ _v3iofs = None
 spark_transform_handler = "transform"
 
 
-def _features_to_vector_and_check_permissions(features):
+def _features_to_vector_and_check_permissions(features, update_stats):
     if isinstance(features, str):
-        vector = get_feature_vector_by_uri(features)
+        vector = get_feature_vector_by_uri(features, update=update_stats)
     elif isinstance(features, FeatureVector):
         vector = features
         if not vector.metadata.name:
@@ -92,6 +92,7 @@ def get_offline_features(
     start_time: Optional[pd.Timestamp] = None,
     end_time: Optional[pd.Timestamp] = None,
     with_indexes: bool = False,
+    update_stats: bool = False,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 
@@ -115,7 +116,8 @@ def get_offline_features(
         print(vector.get_stats_table())
         resp.to_parquet("./out.parquet")
 
-    :param feature_vector: feature vector uri or FeatureVector object
+    :param feature_vector: feature vector uri or FeatureVector object. passing feature vector obj requires update
+                            permissions
     :param entity_rows:    dataframe with entity rows to join with
     :param target:         where to write the results to
     :param drop_columns:   list of columns to drop from the final result
@@ -127,9 +129,14 @@ def get_offline_features(
     :param end_time:        datetime, high limit of time needed to be filtered. Optional.
         entity_timestamp_column must be passed when using time filtering.
     :param with_indexes:    return vector with index columns (default False)
+    :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
     """
+    if isinstance(feature_vector, FeatureVector):
+        update_stats = True
 
-    feature_vector = _features_to_vector_and_check_permissions(feature_vector)
+    feature_vector = _features_to_vector_and_check_permissions(
+        feature_vector, update_stats
+    )
 
     entity_timestamp_column = (
         entity_timestamp_column or feature_vector.spec.timestamp_field
@@ -158,6 +165,7 @@ def get_offline_features(
         start_time=start_time,
         end_time=end_time,
         with_indexes=with_indexes,
+        update_stats=update_stats,
     )
 
 
@@ -166,6 +174,7 @@ def get_online_feature_service(
     run_config: RunConfig = None,
     fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
     impute_policy: dict = None,
+    update_stats: bool = False,
 ) -> OnlineVectorService:
     """initialize and return online feature vector service api,
     returns :py:class:`~mlrun.feature_store.OnlineVectorService`
@@ -183,16 +192,24 @@ def get_online_feature_service(
         svc = get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0))
         resp = svc.get([{"id": "C123487"}])
 
-    :param feature_vector:    feature vector uri or FeatureVector object
+    :param feature_vector:    feature vector uri or FeatureVector object. passing feature vector obj requires update
+                              permissions
     :param run_config:        function and/or run configuration for remote jobs/services
     :param impute_policy:     a dict with `impute_policy` per feature, the dict key is the feature name and the dict
                               value indicate which value will be used in case the feature is NaN/empty, the replaced
                               value can be fixed number for constants or $mean, $max, $min, $std, $count for statistical
                               values. "*" is used to specify the default for all features, example: `{"*": "$mean"}`
-    :param fixed_window_type: determines how to query the fixed window values which were previously inserted by ingest.
+    :param fixed_window_type: determines how to query the fixed window values which were previously inserted by ingest
+    :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
     """
-    feature_vector = _features_to_vector_and_check_permissions(feature_vector)
-    graph, index_columns = init_feature_vector_graph(feature_vector, fixed_window_type)
+    if isinstance(feature_vector, FeatureVector):
+        update_stats = True
+    feature_vector = _features_to_vector_and_check_permissions(
+        feature_vector, update_stats
+    )
+    graph, index_columns = init_feature_vector_graph(
+        feature_vector, fixed_window_type, update_stats=update_stats
+    )
     service = OnlineVectorService(
         feature_vector, graph, index_columns, impute_policy=impute_policy
     )
@@ -684,9 +701,11 @@ def _ingest_with_spark(
                 df.write.mode("append").save(**spark_options)
             target.set_resource(featureset)
             target.update_resource_status("ready")
-        max_time = df.agg({timestamp_key: "max"}).collect()[0][0]
-        for target in featureset.status.targets:
-            featureset.status.update_last_written_for_target(target.path, max_time)
+
+        if isinstance(source, BaseSourceDriver) and source.schedule:
+            max_time = df.agg({timestamp_key: "max"}).collect()[0][0]
+            for target in featureset.status.targets:
+                featureset.status.update_last_written_for_target(target.path, max_time)
 
         _post_ingestion(mlrun_context, featureset, spark)
     finally:

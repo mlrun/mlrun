@@ -1,5 +1,8 @@
 from typing import Any, Dict, List, Type, Union
 
+import numpy as np
+import torch
+from torch import Tensor
 from torch.nn import Module
 
 import mlrun
@@ -94,7 +97,7 @@ class PyTorchModelServer(V2ModelServer):
             model=self._model_handler.model, context=self.context
         )
 
-    def predict(self, request: Dict[str, Any]) -> list:
+    def predict(self, request: Dict[str, Any]) -> Tensor:
         """
         Infer the inputs through the model using MLRun's PyTorch interface and return its output. The inferred data will
         be read from the "inputs" key of the request.
@@ -105,6 +108,10 @@ class PyTorchModelServer(V2ModelServer):
         """
         # Get the inputs:
         inputs = request["inputs"]
+
+        # Parse the inputs:
+        if isinstance(inputs[0], np.ndarray):
+            inputs = torch.from_numpy(np.stack(inputs))
 
         # Predict:
         predictions = self._pytorch_interface.predict(
@@ -121,6 +128,4 @@ class PyTorchModelServer(V2ModelServer):
 
         :return: Explanation string.
         """
-        return "The '{}' model serving function named '{}'".format(
-            type(self.model), self.name
-        )
+        return f"The '{type(self.model)}' model serving function named '{self.name}'"

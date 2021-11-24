@@ -95,7 +95,7 @@ def get_feature_set_by_uri(uri, project=None):
     return db.get_feature_set(name, project, tag, uid)
 
 
-def get_feature_vector_by_uri(uri, project=None):
+def get_feature_vector_by_uri(uri, project=None, update=True):
     """get feature vector object from db by uri"""
     db = mlrun.get_run_db()
     default_project = project or config.default_project
@@ -115,9 +115,15 @@ def get_feature_vector_by_uri(uri, project=None):
         project, "feature-vector"
     )
 
-    auth_input = AuthorizationVerificationInput(
-        resource=resource, action=mlrun.api.schemas.AuthorizationAction.read
-    )
+    if update:
+        auth_input = AuthorizationVerificationInput(
+            resource=resource, action=mlrun.api.schemas.AuthorizationAction.update
+        )
+    else:
+        auth_input = AuthorizationVerificationInput(
+            resource=resource, action=mlrun.api.schemas.AuthorizationAction.read
+        )
+
     db.verify_authorization(auth_input)
 
     return db.get_feature_vector(name, project, tag, uid)

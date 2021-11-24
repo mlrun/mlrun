@@ -83,7 +83,7 @@ def test_infer_from_df():
 
 def test_backwards_compatibility_step_vs_state():
     quotes_set = fs.FeatureSet("post-aggregation", entities=[fs.Entity("ticker")])
-    agg_step = quotes_set.add_aggregation("asks", "ask", ["sum", "max"], "1h", "10m")
+    agg_step = quotes_set.add_aggregation("ask", ["sum", "max"], "1h", "10m")
     agg_step.to("MyMap", "somemap1", field="multi1", multiplier=3)
     quotes_set.set_targets(
         targets=[ParquetTarget("parquet1", after_state="somemap1")],

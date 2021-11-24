@@ -21,7 +21,7 @@ import socket
 import sys
 import traceback
 import uuid
-from typing import Union
+from typing import Optional, Union
 
 import mlrun
 from mlrun.config import config
@@ -182,10 +182,11 @@ class GraphServer(ModelObj):
         path: str = "/",
         body: Union[str, bytes, dict] = None,
         method: str = "",
-        content_type: str = None,
+        headers: Optional[str] = None,
+        content_type: Optional[str] = None,
         silent: bool = False,
         get_body: bool = True,
-        event_id: str = None,
+        event_id: Optional[str] = None,
     ):
         """invoke a test event into the server to simulate/test server behavior
 
@@ -198,6 +199,7 @@ class GraphServer(ModelObj):
         :param path:       api path, e.g. (/{router.url_prefix}/{model-name}/..) path
         :param body:       message body (dict or json str/bytes)
         :param method:     optional, GET, POST, ..
+        :param headers:    optional, request headers, ..
         :param content_type:  optional, http mime type
         :param silent:     don't raise on error responses (when not 20X)
         :param get_body:   return the body as py object (vs serialize response into json)
@@ -211,6 +213,7 @@ class GraphServer(ModelObj):
             body=body,
             path=path,
             method=method,
+            headers=headers,
             content_type=content_type,
             event_id=event_id,
         )
@@ -248,7 +251,7 @@ class GraphServer(ModelObj):
         try:
             response = self.graph.run(event, **(extra_args or {}))
         except Exception as exc:
-            message = str(exc)
+            message = f"{exc.__class__.__name__}: {exc}"
             if server_context.verbose:
                 message += "\n" + str(traceback.format_exc())
             context.logger.error(f"run error, {traceback.format_exc()}")
@@ -434,11 +437,11 @@ class GraphContext:
             return self._server._secrets.get(key)
         return None
 
-    def get_remote_endpoint(self, name, external=False):
+    def get_remote_endpoint(self, name, external=True):
         """return the remote nuclio/serving function http(s) endpoint given its name
 
         :param name: the function name/uri in the form [project/]function-name[:tag]
-        :param external: return the external url (returns the in-cluster url by default)
+        :param external: return the external url (returns the external url by default)
         """
         if "://" in name:
             return name

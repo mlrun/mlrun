@@ -379,9 +379,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         function = self._generate_runtime(self.runtime_kind)
         self._serialize_and_deploy_nuclio_function(function)
 
-        # This test runs in KubeJob as well, with different secret names encoding
+        # This test runs in serving, nuclio:mlrun as well, with different secret names encoding
         expected_secrets = k8s_secrets_mock.get_expected_env_variables_from_secrets(
-            self.project, encode_key_names=(self.class_name != "remote")
+            self.project, encode_key_names=(self.runtime_kind != "nuclio")
         )
         self._assert_deploy_called_basic_config(
             expected_class=self.class_name, expected_env_from_secrets=expected_secrets
@@ -727,3 +727,11 @@ class TestNuclioRuntime(TestRuntimeBase):
                 },
             },
         }
+
+
+# Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well
+class TestNuclioMLRunRuntime(TestNuclioRuntime):
+    @property
+    def runtime_kind(self):
+        # enables extending classes to run the same tests with different runtime
+        return "nuclio:mlrun"

@@ -53,7 +53,6 @@ _sparkjob_template = {
     "spec": {
         "mode": "cluster",
         "image": "",
-        "imagePullPolicy": "IfNotPresent",
         "mainApplicationFile": "",
         "sparkVersion": "2.4.5",
         "restartPolicy": {
@@ -288,6 +287,11 @@ class AbstractSparkRuntime(KubejobRuntime):
             "spec.sparkVersion",
             self.spec.spark_version or self._get_spark_version(),
         )
+
+        if self.spec.image_pull_policy:
+            verify_and_update_in(
+                job, "spec.imagePullPolicy", self.spec.image_pull_policy, str
+            )
 
         if self.spec.restart_policy:
             verify_and_update_in(

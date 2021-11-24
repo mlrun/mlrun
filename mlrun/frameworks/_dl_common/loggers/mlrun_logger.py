@@ -5,8 +5,8 @@ from bokeh.plotting import figure
 
 import mlrun
 from mlrun.artifacts import Artifact, BokehArtifact
-from mlrun.frameworks._common.loggers.logger import Logger, LoggerMode
 from mlrun.frameworks._common.model_handler import ModelHandler
+from mlrun.frameworks._dl_common.loggers.logger import Logger, LoggerMode
 
 # All trackable values types:
 TrackableType = Union[str, bool, float, int]
@@ -27,6 +27,16 @@ class MLRunLogger(Logger):
       * Per epoch chart artifacts for the validation summaries and dynamic hyperparameters.
       * Model is logged with all of the files and artifacts.
     """
+
+    class _Loops:
+        """
+        The types of loops performed in a training / evaluation process. Used as names and prefixes to add to the
+        metrics names when logging.
+        """
+
+        TRAINING = "training"
+        VALIDATION = "validation"
+        EVALUATION = "evaluation"
 
     def __init__(
         self,
@@ -84,20 +94,22 @@ class MLRunLogger(Logger):
             for dynamic_parameter, values in self._dynamic_hyperparameters.items():
                 self._context.log_result(dynamic_parameter, values[-1])
             for metric, results in self._training_summaries.items():
-                self._context.log_result("training_{}".format(metric), results[-1])
+                self._context.log_result(
+                    f"{self._Loops.TRAINING}_{metric}", results[-1]
+                )
         for metric, results in self._validation_summaries.items():
             self._context.log_result(
-                "evaluation_{}".format(metric)
+                f"{self._Loops.EVALUATION}_{metric}"
                 if self._mode == LoggerMode.EVALUATION
-                else "validation_{}".format(metric),
+                else f"{self._Loops.VALIDATION}_{metric}",
                 results[-1],
             )
 
         # Log the epochs metrics results as chart artifacts:
         loops = (
-            ["evaluation"]
+            [self._Loops.EVALUATION]
             if self._mode == LoggerMode.EVALUATION
-            else ["training", "validation"]
+            else [self._Loops.TRAINING, self._Loops.VALIDATION]
         )
         metrics_dictionaries = (
             [self._validation_results]
@@ -141,7 +153,7 @@ class MLRunLogger(Logger):
 
         :param model_handler: The model handler object holding the model to save and log.
         """
-        # If in training mode, log the summaries and hyperparameters:
+        # If in training mode, log the summaries and hyperparameters artifacts:
         if self._mode == LoggerMode.TRAINING:
             # Create chart artifacts for summaries:
             for metric_name in self._training_summaries:
@@ -173,12 +185,16 @@ class MLRunLogger(Logger):
                 # Collect it for later adding it to the model logging as extra data:
                 self._artifacts[artifact.key.split(".")[0]] = artifact
 
+        # Get the final metrics summary:
+        metrics = self._generate_metrics_summary()
+
         # Log or update:
         model_handler.set_context(context=self._context)
         if self._mode == LoggerMode.EVALUATION:
             model_handler.update(
                 labels=self._log_model_labels,
                 parameters=self._log_model_parameters,
+                metrics=metrics,
                 extra_data=self._log_model_extra_data,
                 artifacts=self._artifacts,
             )
@@ -186,12 +202,38 @@ class MLRunLogger(Logger):
             model_handler.log(
                 labels=self._log_model_labels,
                 parameters=self._log_model_parameters,
+                metrics=metrics,
                 extra_data=self._log_model_extra_data,
                 artifacts=self._artifacts,
             )
 
         # Commit:
         self._context.commit()
+
+    def _generate_metrics_summary(self) -> Dict[str, float]:
+        """
+        Generate a metrics summary to log along the model.
+
+        :return: The metrics summary.
+        """
+        # If in training mode, return both training and validation metrics:
+        if self._mode == LoggerMode.TRAINING:
+            return {
+                **{
+                    f"{self._Loops.TRAINING}_{name}": values[-1]
+                    for name, values in self._training_summaries.items()
+                },
+                **{
+                    f"{self._Loops.VALIDATION}_{name}": values[-1]
+                    for name, values in self._validation_summaries.items()
+                },
+            }
+
+        # Return the evaluation metrics:
+        return {
+            f"{self._Loops.EVALUATION}_{name}": values[-1]
+            for name, values in self._validation_summaries.items()
+        }
 
     @staticmethod
     def _generate_metric_results_artifact(
@@ -208,11 +250,11 @@ class MLRunLogger(Logger):
         :return: The generated bokeh figure wrapped in MLRun artifact.
         """
         # Parse the artifact's name:
-        artifact_name = "{}_{}_epoch_{}".format(loop, name, epoch)
+        artifact_name = f"{loop}_{name}_epoch_{epoch}"
 
         # Initialize a bokeh figure:
         metric_figure = figure(
-            title="{} Results for epoch {}".format(name, epoch),
+            title=f"{name} Results for epoch {epoch}",
             x_axis_label="Batches",
             y_axis_label="Results",
             x_axis_type="linear",
@@ -222,9 +264,7 @@ class MLRunLogger(Logger):
         metric_figure.line(x=list(np.arange(len(results))), y=results)
 
         # Create the bokeh artifact:
-        artifact = BokehArtifact(
-            key="{}.html".format(artifact_name), figure=metric_figure
-        )
+        artifact = BokehArtifact(key=f"{artifact_name}.html", figure=metric_figure)
 
         return artifact
 
@@ -243,11 +283,11 @@ class MLRunLogger(Logger):
         :return: The generated bokeh figure wrapped in MLRun artifact.
         """
         # Parse the artifact's name:
-        artifact_name = "{}_summary".format(name)
+        artifact_name = f"{name}_summary"
 
         # Initialize a bokeh figure:
         summary_figure = figure(
-            title="{} Summary".format(name),
+            title=f"{name} Summary",
             x_axis_label="Epochs",
             y_axis_label="Results",
             x_axis_type="linear",
@@ -279,9 +319,7 @@ class MLRunLogger(Logger):
             )
 
         # Create the bokeh artifact:
-        artifact = BokehArtifact(
-            key="{}.html".format(artifact_name), figure=summary_figure
-        )
+        artifact = BokehArtifact(key=f"{artifact_name}.html", figure=summary_figure)
 
         return artifact
 
@@ -298,7 +336,7 @@ class MLRunLogger(Logger):
         :return: The generated bokeh figure wrapped in MLRun artifact.
         """
         # Parse the artifact's name:
-        artifact_name = "{}.html".format(name)
+        artifact_name = f"{name}.html"
 
         # Initialize a bokeh figure:
         hyperparameter_figure = figure(
@@ -314,7 +352,7 @@ class MLRunLogger(Logger):
 
         # Create the bokeh artifact:
         artifact = BokehArtifact(
-            key="{}.html".format(artifact_name), figure=hyperparameter_figure
+            key=f"{artifact_name}.html", figure=hyperparameter_figure
         )
 
         return artifact

@@ -701,9 +701,11 @@ def _ingest_with_spark(
                 df.write.mode("append").save(**spark_options)
             target.set_resource(featureset)
             target.update_resource_status("ready")
-        max_time = df.agg({timestamp_key: "max"}).collect()[0][0]
-        for target in featureset.status.targets:
-            featureset.status.update_last_written_for_target(target.path, max_time)
+
+        if isinstance(source, BaseSourceDriver) and source.schedule:
+            max_time = df.agg({timestamp_key: "max"}).collect()[0][0]
+            for target in featureset.status.targets:
+                featureset.status.update_last_written_for_target(target.path, max_time)
 
         _post_ingestion(mlrun_context, featureset, spark)
     finally:

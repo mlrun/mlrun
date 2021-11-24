@@ -10,7 +10,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.utils.tensorboard.summary import hparams
 
 import mlrun
-from mlrun.frameworks._common.loggers import TensorboardLogger, TrackableType
+from mlrun.frameworks._dl_common.loggers import TensorboardLogger, TrackableType
 from mlrun.frameworks.pytorch.callbacks.logging_callback import (
     LoggingCallback,
     MetricFunctionType,
@@ -134,17 +134,13 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
         # Prepare the summaries values and the dynamic hyperparameters values:
         graph_parameters = {}
         for metric in self._training_summaries:
-            graph_parameters[
-                "{}/training_{}".format(self._Sections.SUMMARY, metric)
-            ] = 0.0
+            graph_parameters[f"{self._Sections.SUMMARY}/training_{metric}"] = 0.0
         for metric in self._validation_summaries:
-            graph_parameters[
-                "{}/validation_{}".format(self._Sections.SUMMARY, metric)
-            ] = 0.0
+            graph_parameters[f"{self._Sections.SUMMARY}/validation_{metric}"] = 0.0
         for parameter, epochs in self._dynamic_hyperparameters.items():
-            graph_parameters[
-                "{}/{}".format(self._Sections.HYPERPARAMETERS, parameter)
-            ] = epochs[-1]
+            graph_parameters[f"{self._Sections.HYPERPARAMETERS}/{parameter}"] = epochs[
+                -1
+            ]
 
         # Write the hyperparameters and summaries table:
         self._summary_writer.add_hparams(non_graph_parameters, graph_parameters)

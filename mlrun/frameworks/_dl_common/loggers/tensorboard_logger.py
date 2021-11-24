@@ -1,19 +1,19 @@
 import os
 from abc import abstractmethod
 from datetime import datetime
-from typing import Any, Callable, Dict, List, TypeVar, Union
+from typing import Any, Callable, Dict, Generic, List, TypeVar, Union
 
 import yaml
 
 import mlrun
 from mlrun.config import config
-from mlrun.frameworks._common.loggers.logger import Logger, TrackableType
+from mlrun.frameworks._dl_common.loggers.logger import Logger, TrackableType
 
 # Define a type variable for the different tensor type objects of the supported frameworks:
 Weight = TypeVar("Weight")
 
 
-class TensorboardLogger(Logger):
+class TensorboardLogger(Logger, Generic[Weight]):
     """
     An abstract tensorboard logger class for logging the information collected during training / evaluation of the base
     logger to tensorboard. Each framework has its own way of logging to tensorboard, but each must implement the entire
@@ -95,8 +95,8 @@ class TensorboardLogger(Logger):
             or (isinstance(update_frequency, int) and update_frequency > 0)
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "The update frequency parameter is expected to be euqal to 'epoch', 'batch' or a positive "
-                "integer, received: {}".format(update_frequency)
+                f"The update frequency parameter is expected to be euqal to 'epoch', 'batch' or a positive "
+                f"integer, received: {update_frequency}"
             )
 
         # Store the given parameters:
@@ -230,7 +230,7 @@ class TensorboardLogger(Logger):
         for parameter, epochs in self._training_results.items():
             for i, value in enumerate(epochs[-1][-index_to_log_from:]):
                 self._write_scalar_to_tensorboard(
-                    name="{}/{}".format(self._Sections.TRAINING, parameter),
+                    name=f"{self._Sections.TRAINING}/{parameter}",
                     value=value,
                     step=self._last_logged_training_iteration + i + 1,
                 )
@@ -269,7 +269,7 @@ class TensorboardLogger(Logger):
         for parameter, epochs in self._validation_results.items():
             for i, value in enumerate(epochs[-1][-index_to_log_from:]):
                 self._write_scalar_to_tensorboard(
-                    name="{}/{}".format(self._Sections.VALIDATION, parameter),
+                    name=f"{self._Sections.VALIDATION}/{parameter}",
                     value=value,
                     step=self._last_logged_validation_iteration + i + 1,
                 )
@@ -285,7 +285,7 @@ class TensorboardLogger(Logger):
         """
         for metric, epochs in self._training_summaries.items():
             self._write_scalar_to_tensorboard(
-                name="{}/{}_{}".format(self._Sections.SUMMARY, "training", metric),
+                name=f"{self._Sections.SUMMARY}/training_{metric}",
                 value=epochs[-1],
                 step=self._epochs,
             )
@@ -296,7 +296,7 @@ class TensorboardLogger(Logger):
         """
         for metric, epochs in self._validation_summaries.items():
             self._write_scalar_to_tensorboard(
-                name="{}/{}_{}".format(self._Sections.SUMMARY, "validation", metric),
+                name=f"{self._Sections.SUMMARY}/validation_{metric}",
                 value=epochs[-1],
                 step=self._epochs,
             )
@@ -307,7 +307,7 @@ class TensorboardLogger(Logger):
         """
         for parameter, epochs in self._dynamic_hyperparameters.items():
             self._write_scalar_to_tensorboard(
-                name="{}/{}".format(self._Sections.HYPERPARAMETERS, parameter),
+                name=f"{self._Sections.HYPERPARAMETERS}/{parameter}",
                 value=epochs[-1],
                 step=self._epochs,
             )
@@ -318,7 +318,7 @@ class TensorboardLogger(Logger):
         """
         for weight_name, weight in self._weights.items():
             self._write_weight_histogram_to_tensorboard(
-                name="{}/{}".format(self._Sections.WEIGHTS, weight_name),
+                name=f"{self._Sections.WEIGHTS}/{weight_name}",
                 weight=weight,
                 step=self._epochs,
             )
@@ -329,7 +329,7 @@ class TensorboardLogger(Logger):
         """
         for weight_name, weight in self._weights.items():
             self._write_weight_image_to_tensorboard(
-                name="{}/{}".format(self._Sections.WEIGHTS, weight_name),
+                name=f"{self._Sections.WEIGHTS}/{weight_name}",
                 weight=weight,
                 step=self._epochs,
             )
@@ -341,9 +341,7 @@ class TensorboardLogger(Logger):
         for statistic, weights in self._weights_statistics.items():
             for weight_name, epoch_values in weights.items():
                 self._write_scalar_to_tensorboard(
-                    name="{}/{}:{}".format(
-                        self._Sections.WEIGHTS, weight_name, statistic
-                    ),
+                    name=f"{self._Sections.WEIGHTS}/{weight_name}:{statistic}",
                     value=epoch_values[-1],
                     step=self._epochs,
                 )
@@ -427,7 +425,7 @@ class TensorboardLogger(Logger):
                     .replace(".", "-")
                 )
                 if self._context is None
-                else "{}-{}".format(self._context.name, self._context.uid)
+                else f"{self._context.name}-{self._context.uid}"
             )
 
         # If the tensorboard directory is not provided, set it to the default:
@@ -457,7 +455,7 @@ class TensorboardLogger(Logger):
             )
             # Check if need to index the name:
             if index > 0:
-                self._run_name = "{}_{}".format(self._run_name, index + 1)
+                self._run_name = f"{self._run_name}_{index + 1}"
 
         # Create the output path:
         self._output_path = os.path.join(self._tensorboard_directory, self._run_name)

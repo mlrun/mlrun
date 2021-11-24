@@ -1,10 +1,16 @@
 import os
+from datetime import datetime, timedelta
+from time import sleep
 
+import fsspec
+import pandas as pd
 import pytest
+import v3iofs
 
 import mlrun.feature_store as fs
 from mlrun import store_manager
 from mlrun.datastore.sources import ParquetSource
+from mlrun.datastore.targets import NoSqlTarget, ParquetTarget
 from tests.system.base import TestMLRunSystem
 
 
@@ -80,3 +86,108 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_context=self.spark_service,
             run_config=fs.RunConfig(local=False),
         )
+
+    @pytest.mark.parametrize("partitioned", [True, False])
+    def test_schedule_on_filtered_by_time(self, partitioned):
+        name = f"sched-time-{str(partitioned)}"
+
+        now = datetime.now() + timedelta(minutes=2)
+
+        path = "v3io:///bigdata/bla.parquet"
+        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        pd.DataFrame(
+            {
+                "time": [
+                    pd.Timestamp("2021-01-10 10:00:00"),
+                    pd.Timestamp("2021-01-10 11:00:00"),
+                ],
+                "first_name": ["moshe", "yosi"],
+                "data": [2000, 10],
+            }
+        ).to_parquet(path=path, filesystem=fsys)
+
+        cron_trigger = "*/1 * * * *"
+
+        source = ParquetSource(
+            "myparquet", path=path, time_field="time", schedule=cron_trigger
+        )
+
+        feature_set = fs.FeatureSet(
+            name=name,
+            entities=[fs.Entity("first_name")],
+            timestamp_key="time",
+            engine="spark",
+        )
+
+        if partitioned:
+            targets = [
+                NoSqlTarget(),
+                ParquetTarget(
+                    name="tar1",
+                    path="v3io:///bigdata/fs1/",
+                    partitioned=True,
+                    partition_cols=["time"],
+                ),
+            ]
+        else:
+            targets = [
+                ParquetTarget(
+                    name="tar2", path="v3io:///bigdata/fs2/", partitioned=False
+                ),
+                NoSqlTarget(),
+            ]
+
+        fs.ingest(
+            feature_set,
+            source,
+            run_config=fs.RunConfig(local=False),
+            targets=targets,
+            spark_context=self.spark_service,
+        )
+        # ingest starts every round minute.
+        sleep(60 - now.second + 50)
+
+        features = [f"{name}.*"]
+        vec = fs.FeatureVector("sched_test-vec", features)
+
+        svc = fs.get_online_feature_service(vec)
+
+        resp = svc.get([{"first_name": "yosi"}, {"first_name": "moshe"}])
+        assert resp[0]["data"] == 10
+        assert resp[1]["data"] == 2000
+
+        pd.DataFrame(
+            {
+                "time": [
+                    pd.Timestamp("2021-01-10 12:00:00"),
+                    pd.Timestamp("2021-01-10 13:00:00"),
+                    now + pd.Timedelta(minutes=10),
+                    pd.Timestamp("2021-01-09 13:00:00"),
+                ],
+                "first_name": ["moshe", "dina", "katya", "uri"],
+                "data": [50, 10, 25, 30],
+            }
+        ).to_parquet(path=path)
+
+        sleep(60)
+        resp = svc.get(
+            [
+                {"first_name": "yosi"},
+                {"first_name": "moshe"},
+                {"first_name": "katya"},
+                {"first_name": "dina"},
+                {"first_name": "uri"},
+            ]
+        )
+        assert resp[0]["data"] == 10
+        assert resp[1]["data"] == 50
+        assert resp[2] is None
+        assert resp[3]["data"] == 10
+        assert resp[4] is None
+
+        svc.close()
+
+        # check offline
+        resp = fs.get_offline_features(vec)
+        assert len(resp.to_dataframe() == 4)
+        assert "uri" not in resp.to_dataframe() and "katya" not in resp.to_dataframe()

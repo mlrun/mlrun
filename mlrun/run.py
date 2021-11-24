@@ -401,6 +401,7 @@ def get_or_create_ctx(
     ctx = MLClientCtx.from_dict(
         newspec, rundb=out, autocommit=autocommit, tmp=tmp, host=socket.gethostname()
     )
+    global_context.set(ctx)
     return ctx
 
 

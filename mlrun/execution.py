@@ -24,7 +24,6 @@ import mlrun
 from mlrun.artifacts import ModelArtifact
 from mlrun.datastore.store_resources import get_store_resource
 from mlrun.errors import MLRunInvalidArgumentError
-from mlrun.runtimes.utils import global_context
 
 from .artifacts import DatasetArtifact
 from .artifacts.manager import ArtifactManager, extend_artifact_path
@@ -812,7 +811,7 @@ class MLClientCtx(object):
         self._last_update = now_date()
         self._update_db(commit=True, message=message)
         if completed and not self.iteration:
-            global_context.set(None)
+            mlrun.runtimes.utils.global_context.set(None)
 
     def set_state(self, state: str = None, error: str = None, commit=True):
         """modify and store the run state or mark an error

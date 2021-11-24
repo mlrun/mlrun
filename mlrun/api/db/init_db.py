@@ -1,9 +1,9 @@
 from sqlalchemy.orm import Session
 
-from mlrun.api.utils.db.mysql import MySQLUtil
 from mlrun.api.db.sqldb.models import Base as MySQLBase
 from mlrun.api.db.sqldb.models_sqlite import Base as SQLiteBase
 from mlrun.api.db.sqldb.session import get_engine
+from mlrun.api.utils.db.mysql import MySQLUtil
 from mlrun.config import config
 
 

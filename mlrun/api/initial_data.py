@@ -26,8 +26,10 @@ def init_data(from_scratch: bool = False) -> None:
     if not from_scratch and config.httpdb.db.database_migration_mode == "enabled":
         sqlite_migration_util = SQLiteMigrationUtil()
     alembic_util = _create_alembic_util()
-    if _is_migration_needed(alembic_util, sqlite_migration_util):
-        config.httpdb.state = mlrun.api.schemas.APIStates.waiting_for_migrations
+    if not from_scratch and _is_migration_needed(alembic_util, sqlite_migration_util):
+        state = mlrun.api.schemas.APIStates.waiting_for_migrations
+        logger.info("Migration is needed, changing api state", state=state)
+        config.httpdb.state = state
         return
 
     logger.info("Creating initial data")
@@ -57,16 +59,26 @@ def _is_migration_needed(
     alembic_util: AlembicUtil,
     sqlite_migration_util: typing.Optional[SQLiteMigrationUtil],
 ) -> bool:
-    database_migration_needed = False
+    is_database_migration_needed = False
     if sqlite_migration_util is not None:
-        database_migration_needed = sqlite_migration_util.is_database_migration_needed()
-    return (
-        (
-            not _is_latest_data_version()
-            and config.httpdb.db.data_migrations_mode == "enabled"
+        is_database_migration_needed = (
+            sqlite_migration_util.is_database_migration_needed()
         )
-        or alembic_util.is_schema_migration_needed()
-        or database_migration_needed
+    is_schema_migration_needed = alembic_util.is_schema_migration_needed()
+    is_data_migration_needed = (
+        not _is_latest_data_version()
+        and config.httpdb.db.data_migrations_mode == "enabled"
+    )
+    logger.info(
+        "Checking if migration is needed",
+        is_schema_migration_needed=is_schema_migration_needed,
+        is_data_migration_needed=is_data_migration_needed,
+        is_database_migration_needed=is_database_migration_needed,
+    )
+    return (
+        is_data_migration_needed
+        or is_schema_migration_needed
+        or is_database_migration_needed
     )
 
 

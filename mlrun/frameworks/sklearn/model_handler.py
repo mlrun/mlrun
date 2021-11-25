@@ -104,9 +104,10 @@ class SKLearnModelHandler(MLModelHandler):
         """
         # Import onnx related modules:
         try:
-            import skl2onnx
+            pass
+            # import skl2onnx
 
-            from mlrun.frameworks.onnx import ONNXModelHandler
+            # from mlrun.frameworks.onnx import ONNXModelHandler
         except ModuleNotFoundError:
             raise mlrun.errors.MLRunMissingDependencyError(
                 "ONNX conversion requires additional packages to be installed. "

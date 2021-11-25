@@ -193,9 +193,10 @@ class XGBoostModelHandler(MLModelHandler):
         """
         # Import onnx related modules:
         try:
-            import onnxmltools
+            pass
+            # import onnxmltools
 
-            from mlrun.frameworks.onnx import ONNXModelHandler
+            # from mlrun.frameworks.onnx import ONNXModelHandler
         except ModuleNotFoundError:
             raise mlrun.errors.MLRunMissingDependencyError(
                 "ONNX conversion requires additional packages to be installed. "

@@ -3,10 +3,11 @@ from typing import Type
 
 import mlrun
 from mlrun.artifacts import get_model
-from mlrun.frameworks._common import ModelHandler
 
 
 class AutoMLRun:
+    from ._common import ModelHandler
+
     """
     A library of automatic functions for managing models using MLRun's framework features.
     """

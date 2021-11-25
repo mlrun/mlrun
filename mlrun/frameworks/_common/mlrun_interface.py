@@ -3,7 +3,7 @@ from abc import ABC
 from types import MethodType
 from typing import Any, Dict, Generic, List, Type
 
-from mlrun.frameworks._common.types import ModelType
+from .types import ModelType
 
 
 class MLRunInterface(ABC, Generic[ModelType]):

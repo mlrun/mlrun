@@ -1,8 +1,8 @@
 from pathlib import Path
 from typing import TypeVar, Union
 
-from mlrun.artifacts import Artifact
-from mlrun.datastore import DataItem
+from ...artifacts import Artifact
+from ...datastore import DataItem
 
 # Generic types:
 ModelType = TypeVar(

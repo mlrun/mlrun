@@ -10,10 +10,11 @@ from typing import Any, Dict, Generic, List, Union
 import numpy as np
 
 import mlrun
-from mlrun.artifacts import Artifact, ModelArtifact
-from mlrun.data_types import ValueType
-from mlrun.features import Feature
-from mlrun.frameworks._common.types import (
+from ...execution import MLClientCtx
+from ...artifacts import Artifact, ModelArtifact
+from ...data_types import ValueType
+from ...features import Feature
+from .types import (
     ExtraDataType,
     IOSampleType,
     ModelType,
@@ -46,7 +47,7 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
         modules_map: Union[Dict[str, Union[None, str, List[str]]], PathType] = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], PathType] = None,
         custom_objects_directory: PathType = None,
-        context: mlrun.MLClientCtx = None,
+        context: MLClientCtx = None,
         **kwargs,
     ):
         """
@@ -233,7 +234,7 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
         """
         self._model_name = model_name
 
-    def set_context(self, context: mlrun.MLClientCtx):
+    def set_context(self, context: MLClientCtx):
         """
         Set this handler MLRun context.
 

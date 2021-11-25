@@ -10,16 +10,12 @@ from typing import Any, Dict, Generic, List, Union
 import numpy as np
 
 import mlrun
-from mlrun.execution import MLClientCtx
 from mlrun.artifacts import Artifact, ModelArtifact
 from mlrun.data_types import ValueType
+from mlrun.execution import MLClientCtx
 from mlrun.features import Feature
-from .types import (
-    ExtraDataType,
-    IOSampleType,
-    ModelType,
-    PathType,
-)
+
+from .types import ExtraDataType, IOSampleType, ModelType, PathType
 
 
 class ModelHandler(ABC, Generic[ModelType, IOSampleType]):

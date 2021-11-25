@@ -3,6 +3,7 @@ from typing import Type
 
 import mlrun
 from mlrun.artifacts import get_model
+
 from .._common import ModelHandler
 
 

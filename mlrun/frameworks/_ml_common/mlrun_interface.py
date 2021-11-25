@@ -3,8 +3,8 @@ from typing import List
 import numpy as np
 import pandas as pd
 
-from mlrun.frameworks._ml_common.model_handler import MLModelHandler
-from mlrun.frameworks._ml_common.plots import eval_model_v2
+from .model_handler import MLModelHandler
+from .plots import eval_model_v2
 
 
 class MLMLRunInterface:
@@ -93,7 +93,7 @@ class MLMLRunInterface:
 
             # Identify label column
             label_column = None  # type: List[str]
-            if isinstance(y, pd.Dataframe):
+            if isinstance(y, pd.DataFrame):
                 label_column = y.columns.to_list()
             elif isinstance(y, pd.Series):
                 if y.name is not None:

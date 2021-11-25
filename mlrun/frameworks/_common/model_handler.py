@@ -10,10 +10,10 @@ from typing import Any, Dict, Generic, List, Union
 import numpy as np
 
 import mlrun
-from ...execution import MLClientCtx
-from ...artifacts import Artifact, ModelArtifact
-from ...data_types import ValueType
-from ...features import Feature
+from mlrun.execution import MLClientCtx
+from mlrun.artifacts import Artifact, ModelArtifact
+from mlrun.data_types import ValueType
+from mlrun.features import Feature
 from .types import (
     ExtraDataType,
     IOSampleType,

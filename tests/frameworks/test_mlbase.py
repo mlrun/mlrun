@@ -41,9 +41,11 @@ def run_mlbase_sklearn_classification(context):
 
 
 def run_mlbase_xgboost_regression(context: mlrun.MLClientCtx):
-    import xgboost as xgb
-    from mlrun.frameworks.xgboost import apply_mlrun
     import json
+
+    import xgboost as xgb
+
+    from mlrun.frameworks.xgboost import apply_mlrun
 
     model = xgb.XGBRegressor()
     X_train, X_test, y_train, y_test = get_dataset(classification=False)
@@ -68,8 +70,9 @@ def run_mlbase_xgboost_regression(context: mlrun.MLClientCtx):
 
 
 def run_mlbase_lgbm_classification(context):
-    from mlrun.frameworks.lgbm import apply_mlrun
     import lightgbm as lgb
+
+    from mlrun.frameworks.lgbm import apply_mlrun
 
     model = lgb.LGBMClassifier()
     X_train, X_test, y_train, y_test = get_dataset()

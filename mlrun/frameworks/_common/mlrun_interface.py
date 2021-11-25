@@ -1,7 +1,7 @@
 import copy
 from abc import ABC
 from types import MethodType
-from typing import Any, Dict, List, Type, Generic
+from typing import Any, Dict, Generic, List, Type
 
 from mlrun.frameworks._common.types import ModelType
 

@@ -31,8 +31,8 @@ class TFKerasModelHandler(DLModelHandler):
         """
 
         SAVED_MODEL = "SavedModel"
-        H5 = "H5"
-        JSON_ARCHITECTURE_H5_WEIGHTS = "json_H5"
+        H5 = "h5"
+        JSON_ARCHITECTURE_H5_WEIGHTS = "json_h5"
 
     class _LabelKeys:
         """
@@ -47,12 +47,13 @@ class TFKerasModelHandler(DLModelHandler):
         model_name: str,
         model_path: str = None,
         model: keras.Model = None,
+        model_format: str = ModelFormats.SAVED_MODEL,
         context: mlrun.MLClientCtx = None,
         modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
-        model_format: str = ModelFormats.SAVED_MODEL,
         save_traces: bool = False,
+        **kwargs,
     ):
         """
         Initialize the handler. The model can be set here so it won't require loading. Notice that if the model path
@@ -70,6 +71,8 @@ class TFKerasModelHandler(DLModelHandler):
                                          The model path can be also passed as a model object path in the following
                                          format: 'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'.
         :param model:                    Model to handle or None in case a loading parameters were supplied.
+        :param model_format:             The format to use for saving and loading the model. Should be passed as a
+                                         member of the class 'ModelFormats'. Defaulted to 'ModelFormats.SAVED_MODEL'.
         :param context:                  MLRun context to work with for logging the model.
         :param modules_map:              A dictionary of all the modules required for loading the model. Each key
                                          is a path to a module and its value is the object name to import from it. All
@@ -104,17 +107,15 @@ class TFKerasModelHandler(DLModelHandler):
                                          before loading the model). If the model path given is of a store object, the
                                          custom objects files will be read from the logged custom object artifact of the
                                          model.
-        :param model_format:             The format to use for saving and loading the model. Should be passed as a
-                                         member of the class 'ModelFormats'. Defaulted to 'ModelFormats.SAVED_MODEL'.
         :param save_traces:              Whether or not to use functions saving (only available for the 'SavedModel'
                                          format) for loading the model later without the custom objects dictionary. Only
                                          from tensorflow version >= 2.4.0. Using this setting will increase the model
                                          saving size.
 
         :raise MLRunInvalidArgumentError: In case the input was incorrect:
-                           * Model format is unrecognized.
-                           * There was no model or model directory supplied.
-                           * 'save_traces' parameter was miss-used.
+                                          * Model format is unrecognized.
+                                          * There was no model or model directory supplied.
+                                          * 'save_traces' parameter was miss-used.
         """
         # Validate given format:
         if model_format not in [
@@ -155,6 +156,7 @@ class TFKerasModelHandler(DLModelHandler):
             custom_objects_map=custom_objects_map,
             custom_objects_directory=custom_objects_directory,
             context=context,
+            **kwargs,
         )
 
         # Set the required labels:
@@ -266,7 +268,7 @@ class TFKerasModelHandler(DLModelHandler):
 
         super(TFKerasModelHandler, self).load()
 
-        # ModelFormats.H5 - Load from a .h5 file:
+        # ModelFormats.H5 - Load from a h5 file:
         if self._model_format == TFKerasModelHandler.ModelFormats.H5:
             self._model = keras.models.load_model(
                 self._model_file, custom_objects=self._custom_objects
@@ -278,7 +280,7 @@ class TFKerasModelHandler(DLModelHandler):
                 self._model_file, custom_objects=self._custom_objects
             )
 
-        # ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS - Load from a .json architecture file and a .h5 weights file:
+        # ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS - Load from a json architecture file and a h5 weights file:
         else:
             # Load the model architecture (json):
             with open(self._model_file, "r") as json_file:
@@ -512,13 +514,6 @@ class TFKerasModelHandler(DLModelHandler):
         If the model path given is of a store object, collect the needed model files into this handler for later loading
         the model.
         """
-        # Get the artifact and model file along with its extra data:
-        (
-            self._model_file,
-            self._model_artifact,
-            self._extra_data,
-        ) = mlrun.artifacts.get_model(self._model_path)
-
         # Read the settings:
         self._model_format = self._model_artifact.labels[self._LabelKeys.MODEL_FORMAT]
         self._save_traces = self._model_artifact.labels.get(

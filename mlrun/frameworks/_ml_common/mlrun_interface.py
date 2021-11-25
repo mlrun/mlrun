@@ -1,10 +1,10 @@
 import pandas as pd
 
-from mlrun.frameworks._common import MLRunInterface
-from mlrun.frameworks._common.plots import eval_model_v2
+from mlrun.frameworks._ml_common.model_handler import MLModelHandler
+from mlrun.frameworks._ml_common.plots import eval_model_v2
 
 
-class XGBoostMLRunInterface(MLRunInterface):
+class MLMLRunInterface:
     """
     Wraps the original .fit() method of the passed model enabling auto-logging.
     """
@@ -12,22 +12,23 @@ class XGBoostMLRunInterface(MLRunInterface):
     @classmethod
     def add_interface(
         cls,
-        model_handler,
+        model_handler: MLModelHandler,
         context,
         model_name,
         data={},
         *args,
-        **kwargs,
+        **kwargs
     ):
         """
         Wrap the given model with MLRun model features, providing it with MLRun model attributes including its
         parameters and methods.
 
-        :param model_handler: The model to wrap.
-        :param context:       MLRun context to work with. If no context is given it will be retrieved via
-                              'mlrun.get_or_create_ctx(None)'
-        :param data:          The train_test_split X_train, X_test, y_train, y_test can be passed,
-                              or the test data X_test, y_test can be passed.
+        :param model:       The model to wrap.
+        :param context:     MLRun context to work with. If no context is given it will be retrieved via
+                            'mlrun.get_or_create_ctx(None)'
+        :param model_name:  name under whcih the model will be saved within the databse.
+        :param data:        Optional: The train_test_split X_train, X_test, y_train, y_test can be passed,
+                                      or the test data X_test, y_test can be passed.
 
         :return: The wrapped model.
         """
@@ -71,15 +72,13 @@ class XGBoostMLRunInterface(MLRunInterface):
 
                 if data.get("generate_test_set"):
                     # Log test dataset
-                    model_handler.register_artifacts(
-                        artifacts=context.log_dataset(
-                            "test_set",
-                            df=test_set,
-                            format="parquet",
-                            index=False,
-                            labels={"data-type": "held-out"},
-                            artifact_path=context.artifact_subpath("data"),
-                        )
+                    context.log_dataset(
+                        "test_set",
+                        df=test_set,
+                        format="parquet",
+                        index=False,
+                        labels={"data-type": "held-out"},
+                        artifact_path=context.artifact_subpath("data"),
                     )
 
             # Log fitted model and metrics
@@ -88,6 +87,11 @@ class XGBoostMLRunInterface(MLRunInterface):
                 if isinstance(y_train, pd.Series)
                 else y_train.columns.to_list()
             )
-            model_handler.set_dataset(training_set=train_set, label_column=label_column)
-            model_handler.register_artifacts(artifacts=eval_metrics)
-            model_handler.log()
+            model_handler.log(
+                algorithm=str(model.__class__.__name__),
+                training_set=train_set,
+                label_column=label_column,
+                extra_data=eval_metrics,
+                artifacts=eval_metrics,
+                metrics=context.results,
+            )

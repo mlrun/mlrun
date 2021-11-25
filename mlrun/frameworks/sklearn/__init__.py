@@ -4,8 +4,9 @@ __init__ function of sklearn-autologger. Will be extended and contain multiple S
 """
 
 import mlrun
-from mlrun.frameworks._common.pkl_model_server import PickleModelServer
-from mlrun.frameworks.mlbase.mlrun_interface import MLBaseMLRunInterface
+from mlrun.frameworks._ml_common.mlrun_interface import MLMLRunInterface
+from mlrun.frameworks._ml_common.pkl_model_server import PickleModelServer
+from mlrun.frameworks.sklearn.model_handler import SKLearnModelHandler
 
 # Temporary placeholder, SklearnModelServer may deviate from PklModelServer in upcoming versions.
 SklearnModelServer = PickleModelServer
@@ -47,6 +48,11 @@ def apply_mlrun(
     kwargs["X_test"] = X_test
     kwargs["y_test"] = y_test
     kwargs["generate_test_set"] = generate_test_set
+
+    mh = SKLearnModelHandler(
+        model_name=model_name or "model", model=model, context=context
+    )
+
     # Add MLRun's interface to the model:
-    MLBaseMLRunInterface.add_interface(model, context, model_name, kwargs)
-    return model
+    MLMLRunInterface.add_interface(mh, context, model_name, kwargs)
+    return mh

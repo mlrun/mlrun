@@ -3,38 +3,38 @@ import pickle
 from typing import Dict, List, Tuple, Union
 
 import cloudpickle
+import lightgbm as lgb
 import numpy as np
 import pandas as pd
-import xgboost as xgb
 
 import mlrun
 from mlrun.frameworks._ml_common import MLModelHandler
 
 
-class XGBoostModelHandler(MLModelHandler):
+class LGBMModelHandler(MLModelHandler):
     """
     Class for handling a XGBoost model, enabling loading and saving it during runs.
     """
 
     # Framework name:
-    _FRAMEWORK_NAME = "xgboost"
+    _FRAMEWORK_NAME = "lgbm"
 
     # Declare a type of an input sample:
-    IOSample = Union[xgb.DMatrix, pd.DataFrame, np.ndarray, List[Tuple[str, str]]]
+    IOSample = Union[pd.DataFrame, np.ndarray, List[Tuple[str, str]]]
 
     class ModelFormats:
         """
-        Model formats to pass to the 'XGBoostModelHandler' for loading and saving XGBoost models.
+        Model formats to pass to the 'LGBMModelHandler' for loading and saving LightGBM models.
         """
 
         PKL = "pkl"
-        JSON = "json"
+        TXT = "txt"
 
     def __init__(
         self,
         model_name: str,
         model_path: str = None,
-        model: xgb.XGBModel = None,
+        model: lgb.LGBMModel = None,
         modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
@@ -93,22 +93,22 @@ class XGBoostModelHandler(MLModelHandler):
         """
         # Validate given format:
         if model_format not in [
-            XGBoostModelHandler.ModelFormats.PKL,
-            XGBoostModelHandler.ModelFormats.JSON,
+            LGBMModelHandler.ModelFormats.PKL,
+            LGBMModelHandler.ModelFormats.TXT,
         ]:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unrecognized model format: '{model_format}'. Please use one of the class members of "
                 "'TFKerasModelHandler.ModelFormats'"
             )
-        if model_format == XGBoostModelHandler.ModelFormats.JSON:
+        if model_format == LGBMModelHandler.ModelFormats.TXT:
             raise NotImplementedError(
-                "JSON model format is not yet implemented for XGBoost."
+                "TXT model format is not yet implemented for LightGBM."
             )
 
         # Store the configuration:
         self._model_format = model_format
 
-        super(XGBoostModelHandler, self).__init__(
+        super(LGBMModelHandler, self).__init__(
             model_name=model_name,
             model_path=model_path,
             model=model,
@@ -127,7 +127,7 @@ class XGBoostModelHandler(MLModelHandler):
         :raise MLRunNotFoundError: If the model file was not found.
         """
         # ModelFormats.PKL - Get the pickle model file:
-        if self._model_format == XGBoostModelHandler.ModelFormats.PKL:
+        if self._model_format == LGBMModelHandler.ModelFormats.PKL:
             self._model_file = os.path.join(self._model_path, f"{self._model_name}.pkl")
             if not os.path.exists(self._model_file):
                 raise mlrun.errors.MLRunNotFoundError(
@@ -145,10 +145,10 @@ class XGBoostModelHandler(MLModelHandler):
 
         :return The saved model artifacts dictionary if context is available and None otherwise.
         """
-        super(XGBoostModelHandler, self).save(output_path=output_path)
+        super(LGBMModelHandler, self).save(output_path=output_path)
 
         # ModelFormats.PICKLE - Save from a pkl file:
-        if self._model_format == XGBoostModelHandler.ModelFormats.PKL:
+        if self._model_format == LGBMModelHandler.ModelFormats.PKL:
             self._model_file = f"{self._model_name}.pkl"
             with open(self._model_file, "wb") as pickle_file:
                 cloudpickle.dump(self._model, pickle_file)
@@ -160,10 +160,10 @@ class XGBoostModelHandler(MLModelHandler):
         Load the specified model in this handler. Additional parameters for the class initializer can be passed via the
         kwargs dictionary.
         """
-        super(XGBoostModelHandler, self).load()
+        super(LGBMModelHandler, self).load()
 
         # ModelFormats.PICKLE - Load from a pkl file:
-        if self._model_format == XGBoostModelHandler.ModelFormats.PKL:
+        if self._model_format == LGBMModelHandler.ModelFormats.PKL:
             with open(self._model_file, "rb") as pickle_file:
                 self._model = pickle.load(pickle_file)
 
@@ -198,7 +198,7 @@ class XGBoostModelHandler(MLModelHandler):
         except ModuleNotFoundError:
             raise mlrun.errors.MLRunMissingDependencyError(
                 "ONNX conversion requires additional packages to be installed. "
-                "Please run 'pip install mlrun[xgboost]' to install MLRun's XGBoost package."
+                "Please run 'pip install mlrun[lgbm]' to install MLRun's XGBoost package."
             )
 
         raise NotImplementedError  # TODO: Finish ONNX conversion

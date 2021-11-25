@@ -25,6 +25,7 @@ from kubernetes import client
 
 import mlrun
 from mlrun.db import get_run_db
+from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
 from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes.constants import MPIJobCRDVersions
 
@@ -233,7 +234,6 @@ def results_to_iter(results, runspec, execution):
         execution.set_state("completed", commit=True)
         logger.warning("warning!, zero iteration results")
         return
-
     if hasattr(pd, "json_normalize"):
         df = pd.json_normalize(iter).sort_values("iter")
     else:
@@ -266,6 +266,12 @@ def results_to_iter(results, runspec, execution):
                 viewer="table",
             ),
             local_path="iteration_results.csv",
+        )
+        # may also fail due to missing plotly
+        execution.log_artifact(
+            "parallel_coordinates",
+            body=gen_pcp_plot(df, index_col="iter"),
+            local_path="parallel_coordinates.html",
         )
     except Exception:
         pass

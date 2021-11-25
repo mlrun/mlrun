@@ -1,12 +1,12 @@
 import copy
-from abc import ABC, abstractmethod
+from abc import ABC
 from types import MethodType
-from typing import Any, Dict, List, Type
+from typing import Any, Dict, Generic, List, Type
 
-from mlrun.frameworks._common.model_handler import Model
+from .types import ModelType
 
 
-class MLRunInterface(ABC):
+class MLRunInterface(ABC, Generic[ModelType]):
     """
     An abstract class for enriching an object interface with the properties, methods and functions written below. A
     class inheriting MLRun interface should insert what ever it needs to be inserted to the object to the following
@@ -24,8 +24,7 @@ class MLRunInterface(ABC):
     _FUNCTIONS = []  # type: List[str]
 
     @classmethod
-    @abstractmethod
-    def add_interface(cls, model: Model):
+    def add_interface(cls, model: ModelType):
         """
         Enrich the model object with this class properties, methods and functions so it will have MLRun specific
         features.
@@ -42,7 +41,7 @@ class MLRunInterface(ABC):
         cls._insert_functions(model=model, interface=cls)
 
     @staticmethod
-    def _insert_properties(model: Model, interface: Type["MLRunInterface"]):
+    def _insert_properties(model: ModelType, interface: Type["MLRunInterface"]):
         """
         Insert the properties of the given interface to the model. The properties default values are being copied (not
         deep copied) into the model.
@@ -55,7 +54,7 @@ class MLRunInterface(ABC):
                 setattr(model, property_name, copy.copy(default_value))
 
     @staticmethod
-    def _insert_methods(model: Model, interface: Type["MLRunInterface"]):
+    def _insert_methods(model: ModelType, interface: Type["MLRunInterface"]):
         """
         Insert the methods of the given interface to the model.
 
@@ -71,7 +70,7 @@ class MLRunInterface(ABC):
                 )
 
     @staticmethod
-    def _insert_functions(model: Model, interface: Type["MLRunInterface"]):
+    def _insert_functions(model: ModelType, interface: Type["MLRunInterface"]):
         """
         Insert the functions of the given interface to the model.
 

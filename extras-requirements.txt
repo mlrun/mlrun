@@ -18,3 +18,4 @@ azure-identity~=1.5
 azure-keyvault-secrets~=4.2
 bokeh~=2.3.0
 gcsfs~=2021.8.1
+plotly~=5.4

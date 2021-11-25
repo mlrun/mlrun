@@ -4,8 +4,9 @@ import numpy as np
 from tensorflow import keras
 
 import mlrun
-from mlrun.frameworks.tf_keras.model_handler import TFKerasModelHandler
 from mlrun.serving.v2_serving import V2ModelServer
+
+from .model_handler import TFKerasModelHandler
 
 
 class TFKerasModelServer(V2ModelServer):
@@ -104,6 +105,4 @@ class TFKerasModelServer(V2ModelServer):
 
         :return: Explanation string.
         """
-        return "The '{}' model serving function named '{}'".format(
-            self.model.name, self.name
-        )
+        return f"The '{self.model.name}' model serving function named '{self.name}'"

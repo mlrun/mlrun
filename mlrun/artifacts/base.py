@@ -79,6 +79,7 @@ class Artifact(ModelObj):
         self._inline = is_inline
         self.license = ""
         self.extra_data = {}
+        self.tag = None  # temp store of the tag
 
     def before_log(self):
         pass

@@ -384,6 +384,8 @@ class SQLDB(DBInterface):
 
     def del_artifact(self, session, key, tag="", project=""):
         project = project or config.default_project
+
+        # deleting tags and labels, because in sqlite the relationships aren't necessarily cascading
         self._delete_artifact_tags(session, project, key, tag, commit=False)
         self._delete_class_labels(
             session, Artifact, project=project, key=key, commit=False
@@ -507,6 +509,8 @@ class SQLDB(DBInterface):
 
     def delete_function(self, session: Session, project: str, name: str):
         logger.debug("Removing function from db", project=project, name=name)
+
+        # deleting tags and labels, because in sqlite the relationships aren't necessarily cascading
         self._delete_function_tags(session, project, name, commit=False)
         self._delete_class_labels(
             session, Function, project=project, name=name, commit=False
@@ -1733,12 +1737,14 @@ class SQLDB(DBInterface):
             object_id = tag_record.obj_id
 
         if object_id:
-            self._delete(session, cls, id=object_id)
+            # deleting tags, because in sqlite the relationships aren't necessarily cascading
             self._delete(session, cls.Tag, obj_id=object_id)
+            self._delete(session, cls, id=object_id)
         else:
             # If we got here, neither tag nor uid were provided - delete all references by name.
-            self._delete(session, cls, project=project, name=name)
+            # deleting tags, because in sqlite the relationships aren't necessarily cascading
             self._delete(session, cls.Tag, project=project, obj_name=name)
+            self._delete(session, cls, project=project, name=name)
 
     def delete_feature_set(self, session, project, name, tag=None, uid=None):
         self._delete_feature_store_object(session, FeatureSet, project, name, tag, uid)

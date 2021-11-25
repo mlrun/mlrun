@@ -1,3 +1,6 @@
+from typing import List
+
+import numpy as np
 import pandas as pd
 
 from mlrun.frameworks._ml_common.model_handler import MLModelHandler
@@ -54,21 +57,28 @@ class MLMLRunInterface:
             eval_metrics = None
             context.set_label("class", str(model.__class__.__name__))
 
-            # Identify splits and build test set
-            X_train = args[0]
-            y_train = args[1]
-            train_set = pd.concat([X_train, y_train], axis=1)
+            # Get passed X,y from model.fit(X,y)
+            x, y = args[0], args[1]
+            # np.array -> Dataframe
+            if isinstance(x, np.ndarray):
+                x = pd.DataFrame(x)
+            if isinstance(y, np.ndarray):
+                y = pd.DataFrame(y)
+
+            # Merge X and y for logging of the train set
+            train_set = pd.concat([x, y], axis=1)
             train_set.reset_index(drop=True, inplace=True)
 
             if data.get("X_test") is not None and data.get("y_test") is not None:
                 # Identify splits and build test set
-                X_test = data["X_test"]
-                y_test = data["y_test"]
-                test_set = pd.concat([X_test, y_test], axis=1)
+                x_test, y_test = data["X_test"], data["y_test"]
+
+                # Merge X and y for logging of the test set
+                test_set = pd.concat([x_test, y_test], axis=1)
                 test_set.reset_index(drop=True, inplace=True)
 
                 # Evaluate model results and get the evaluation metrics
-                eval_metrics = eval_model_v2(context, X_test, y_test, model)
+                eval_metrics = eval_model_v2(context, x_test, y_test, model)
 
                 if data.get("generate_test_set"):
                     # Log test dataset
@@ -81,12 +91,16 @@ class MLMLRunInterface:
                         artifact_path=context.artifact_subpath("data"),
                     )
 
-            # Log fitted model and metrics
-            label_column = (
-                y_train.name
-                if isinstance(y_train, pd.Series)
-                else y_train.columns.to_list()
-            )
+            # Identify label column
+            label_column = None  # type: List[str]
+            if isinstance(y, pd.Dataframe):
+                label_column = y.columns.to_list()
+            elif isinstance(y, pd.Series):
+                if y.name is not None:
+                    label_column = [str(y.name)]
+                else:
+                    raise ValueError("No column name for y was specified")
+
             model_handler.log(
                 algorithm=str(model.__class__.__name__),
                 training_set=train_set,

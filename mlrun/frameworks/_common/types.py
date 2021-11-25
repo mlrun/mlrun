@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import TypeVar, Union
 
-from mlrun import DataItem
+import mlrun
 from mlrun.artifacts import Artifact
 
 # Generic types:
@@ -15,5 +15,5 @@ IOSampleType = TypeVar(
 # Common types:
 PathType = Union[str, Path]  # For receiving a path from 'pathlib' or 'os.path'
 ExtraDataType = Union[
-    str, bytes, Artifact, DataItem
+    str, bytes, Artifact, mlrun.DataItem
 ]  # Types available in the extra data dictionary of an artifact

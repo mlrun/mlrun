@@ -4,6 +4,7 @@ import os
 import pathlib
 import typing
 
+import pymysql.err
 import sqlalchemy.exc
 import sqlalchemy.orm
 
@@ -340,11 +341,18 @@ def _resolve_current_data_version(
     except (
         sqlalchemy.exc.ProgrammingError,
         sqlalchemy.exc.OperationalError,
+        pymysql.err.ProgrammingError,
+        pymysql.err.OperationalError,
         mlrun.errors.MLRunNotFoundError,
     ) as exc:
         try:
             projects = db.list_projects(db_session)
-        except (sqlalchemy.exc.ProgrammingError, sqlalchemy.exc.OperationalError):
+        except (
+            sqlalchemy.exc.ProgrammingError,
+            sqlalchemy.exc.OperationalError,
+            pymysql.err.ProgrammingError,
+            pymysql.err.OperationalError,
+        ):
             projects = None
 
         # heuristic - if there are no projects it's a new DB - data version is latest

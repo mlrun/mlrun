@@ -8,7 +8,8 @@ import pandas as pd
 import sklearn
 
 import mlrun
-from mlrun.frameworks._ml_common import MLModelHandler
+
+from .._ml_common import MLModelHandler
 
 
 class SKLearnModelHandler(MLModelHandler):

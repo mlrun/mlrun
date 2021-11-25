@@ -10,9 +10,9 @@ import numpy as np
 import pandas as pd
 
 import mlrun
-from mlrun.frameworks._ml_common.mlrun_interface import MLMLRunInterface
-from mlrun.frameworks._ml_common.pkl_model_server import PickleModelServer
-from mlrun.frameworks.lgbm.model_handler import LGBMModelHandler
+
+from .._ml_common import MLMLRunInterface, PickleModelServer
+from .model_handler import LGBMModelHandler
 
 # Temporary placeholder, LGBMModelServer may
 # deviate from PickleModelServer in upcoming versions.

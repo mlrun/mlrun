@@ -16,11 +16,9 @@ from tensorflow.keras.callbacks import (
 from tensorflow.keras.optimizers import Optimizer
 
 import mlrun
-from mlrun.frameworks._common import MLRunInterface
-from mlrun.frameworks.tf_keras.callbacks import (
-    MLRunLoggingCallback,
-    TensorboardLoggingCallback,
-)
+
+from .._common import MLRunInterface
+from .callbacks import MLRunLoggingCallback, TensorboardLoggingCallback
 
 
 class TFKerasMLRunInterface(MLRunInterface, ABC):

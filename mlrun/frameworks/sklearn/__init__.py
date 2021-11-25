@@ -4,9 +4,10 @@ __init__ function of sklearn-autologger. Will be extended and contain multiple S
 """
 
 import mlrun
-from mlrun.frameworks._ml_common.mlrun_interface import MLMLRunInterface
-from mlrun.frameworks._ml_common.pkl_model_server import PickleModelServer
-from mlrun.frameworks.sklearn.model_handler import SKLearnModelHandler
+
+from .._ml_common.mlrun_interface import MLMLRunInterface
+from .._ml_common.pkl_model_server import PickleModelServer
+from .model_handler import SKLearnModelHandler
 
 # Temporary placeholder, SklearnModelServer may deviate from PklModelServer in upcoming versions.
 SklearnModelServer = PickleModelServer

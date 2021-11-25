@@ -13,7 +13,8 @@ from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 
 import mlrun
-from mlrun.frameworks.pytorch.callbacks import (
+
+from .callbacks import (
     Callback,
     HyperparametersKeys,
     MetricFunctionType,
@@ -21,7 +22,7 @@ from mlrun.frameworks.pytorch.callbacks import (
     MLRunLoggingCallback,
     TensorboardLoggingCallback,
 )
-from mlrun.frameworks.pytorch.callbacks_handler import CallbacksHandler
+from .callbacks_handler import CallbacksHandler
 
 
 class PyTorchMLRunInterface:

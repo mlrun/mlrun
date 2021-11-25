@@ -6,7 +6,8 @@ import onnxoptimizer
 
 import mlrun
 from mlrun.artifacts import Artifact
-from mlrun.frameworks._common import ModelHandler
+
+from .._common import ModelHandler
 
 
 class ONNXModelHandler(ModelHandler):

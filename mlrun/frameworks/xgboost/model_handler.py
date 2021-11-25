@@ -8,7 +8,8 @@ import pandas as pd
 import xgboost as xgb
 
 import mlrun
-from mlrun.frameworks._ml_common import MLModelHandler
+
+from .._ml_common import MLModelHandler
 
 
 class XGBoostModelHandler(MLModelHandler):

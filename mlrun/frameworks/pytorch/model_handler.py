@@ -9,7 +9,8 @@ import mlrun
 from mlrun.artifacts import Artifact
 from mlrun.data_types import ValueType
 from mlrun.features import Feature
-from mlrun.frameworks._dl_common import DLModelHandler
+
+from .._dl_common import DLModelHandler
 
 
 class PyTorchModelHandler(DLModelHandler):

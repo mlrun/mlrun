@@ -3,7 +3,8 @@ from typing import Dict, List, Union
 
 from mlrun.artifacts import Artifact
 from mlrun.features import Feature
-from mlrun.frameworks._common import ExtraDataType, IOSampleType, ModelHandler
+
+from .._common import ExtraDataType, IOSampleType, ModelHandler
 
 
 class MLModelHandler(ModelHandler, ABC):

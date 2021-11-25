@@ -8,7 +8,8 @@ import numpy as np
 import pandas as pd
 
 import mlrun
-from mlrun.frameworks._ml_common import MLModelHandler
+
+from .._ml_common import MLModelHandler
 
 
 class LGBMModelHandler(MLModelHandler):

@@ -4,8 +4,9 @@ import numpy as np
 from tensorflow import keras
 
 import mlrun
-from mlrun.frameworks.tf_keras.model_handler import TFKerasModelHandler
 from mlrun.serving.v2_serving import V2ModelServer
+
+from .model_handler import TFKerasModelHandler
 
 
 class TFKerasModelServer(V2ModelServer):

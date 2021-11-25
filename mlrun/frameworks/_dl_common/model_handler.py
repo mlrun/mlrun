@@ -1,6 +1,6 @@
 from abc import ABC
 
-from mlrun.frameworks._common import ModelHandler
+from .._common import ModelHandler
 
 
 class DLModelHandler(ModelHandler, ABC):

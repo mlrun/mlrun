@@ -4,10 +4,10 @@ from typing import Any, Dict, List, Union
 from tensorflow import keras
 
 import mlrun
-import mlrun.frameworks.tf_keras.callbacks
-from mlrun.frameworks.tf_keras.mlrun_interface import TFKerasMLRunInterface
-from mlrun.frameworks.tf_keras.model_handler import TFKerasModelHandler
-from mlrun.frameworks.tf_keras.model_server import TFKerasModelServer
+
+from .mlrun_interface import TFKerasMLRunInterface
+from .model_handler import TFKerasModelHandler
+from .model_server import TFKerasModelServer
 
 
 def apply_mlrun(

@@ -5,11 +5,7 @@ from torch.nn import Module
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
-from mlrun.frameworks.pytorch.callbacks.callback import (
-    Callback,
-    MetricFunctionType,
-    MetricValueType,
-)
+from .callbacks import Callback, MetricFunctionType, MetricValueType
 
 
 class _CallbackInterface:

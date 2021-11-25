@@ -10,8 +10,9 @@ import numpy as np
 import pandas as pd
 
 import mlrun
-from mlrun.frameworks._common.pkl_model_server import PickleModelServer
-from mlrun.frameworks.mlbase.mlrun_interface import MLBaseMLRunInterface
+
+from .._ml_common import MLMLRunInterface, PickleModelServer
+from .model_handler import LGBMModelHandler
 
 # Temporary placeholder, LGBMModelServer may
 # deviate from PickleModelServer in upcoming versions.
@@ -21,8 +22,8 @@ LGBMModelServer = PickleModelServer
 def apply_mlrun(
     model,
     context: mlrun.MLClientCtx = None,
-    X_test: Union[np.ndarray, pd.core.frame.DataFrame] = None,
-    y_test: Union[np.ndarray, pd.core.frame.DataFrame] = None,
+    X_test: Union[np.ndarray, pd.DataFrame] = None,
+    y_test: Union[np.ndarray, pd.DataFrame] = None,
     model_name: str = None,
     generate_test_set: bool = True,
     **kwargs
@@ -54,6 +55,10 @@ def apply_mlrun(
     kwargs["y_test"] = y_test
     kwargs["generate_test_set"] = generate_test_set
 
+    mh = LGBMModelHandler(
+        model_name=model_name or "model", model=model, context=context
+    )
+
     # Add MLRun's interface to the model:
-    MLBaseMLRunInterface.add_interface(model, context, model_name, kwargs)
-    return model
+    MLMLRunInterface.add_interface(mh, context, model_name, kwargs)
+    return mh

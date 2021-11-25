@@ -152,7 +152,6 @@ setup(
         "mlrun.frameworks.tf_keras",
         "mlrun.frameworks.tf_keras.callbacks",
         "mlrun.frameworks.onnx",
-        "mlrun.frameworks.mlbase",
         "mlrun.frameworks.sklearn",
         "mlrun.frameworks.xgboost",
         "mlrun.frameworks.lgbm",

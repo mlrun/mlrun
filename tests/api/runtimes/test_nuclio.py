@@ -398,16 +398,7 @@ class TestNuclioRuntime(TestRuntimeBase):
     def test_deploy_with_service_accounts(
         self, db: Session, k8s_secrets_mock: K8sSecretsMock
     ):
-        secrets = {
-            mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key(
-                "default"
-            ): "sa1",
-            mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key(
-                "allowed"
-            ): "sa1, sa2",
-        }
-
-        k8s_secrets_mock.store_project_secrets(self.project, secrets)
+        k8s_secrets_mock.set_service_account_keys(self.project, "sa1", ["sa1", "sa2"])
 
         function = self._generate_runtime(self.runtime_kind)
         # Need to call _build_function, since service-account enrichment is happening only on server side, before the

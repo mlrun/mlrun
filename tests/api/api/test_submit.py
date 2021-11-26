@@ -1,4 +1,3 @@
-import base64
 import unittest.mock
 from http import HTTPStatus
 
@@ -12,6 +11,7 @@ import mlrun.api.utils.clients.iguazio
 from mlrun.api.schemas import AuthInfo
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config as mlconf
+from tests.api.conftest import K8sSecretsMock
 
 
 def test_submit_job_failure_function_not_found(db: Session, client: TestClient) -> None:
@@ -149,31 +149,19 @@ def test_submit_job_ensure_function_has_auth_set(
     _assert_pod_env_vars(pod_create_mock, expected_env_vars)
 
 
-def _mock_service_account_secrets(allowed_service_accounts, default_service_account):
-    secrets = {}
-    if default_service_account:
-        secrets[
-            mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key(
-                "default"
-            )
-        ] = base64.b64encode(default_service_account.encode()).decode("utf-8")
-    if allowed_service_accounts:
-        allowed_str = ",".join(allowed_service_accounts)
-        secrets[
-            mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key(
-                "allowed"
-            )
-        ] = base64.b64encode(allowed_str.encode()).decode("utf-8")
-
-    get_k8s()._get_project_secrets_raw_data = unittest.mock.Mock(return_value=secrets)
-
-
-def test_submit_job_service_accounts(db: Session, client: TestClient, pod_create_mock):
-    _mock_service_account_secrets(["sa1", "sa2"], "sa1")
-
+def test_submit_job_service_accounts(
+    db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock: K8sSecretsMock
+):
     project = "my-proj1"
+    # must set the default project since new_function creates the function object and ignores the project parameter.
+    # Instead, the function always gets the default project name. This may be a bug, need to check.
+    mlconf.default_project = project
+
     function_name = "test-function"
     function_tag = "latest"
+
+    k8s_secrets_mock.set_service_account_keys(project, "sa1", ["sa1", "sa2"])
+
     function = mlrun.new_function(
         name=function_name,
         project=project,
@@ -203,7 +191,7 @@ def test_submit_job_service_accounts(db: Session, client: TestClient, pod_create
     assert resp.status_code == HTTPStatus.BAD_REQUEST.value
 
     # Validate that without setting the secrets, any SA is allowed
-    _mock_service_account_secrets(None, None)
+    k8s_secrets_mock.delete_project_secrets(project, None)
     pod_create_mock.reset_mock()
     resp = client.post("/api/submit_job", json=submit_job_body)
     assert resp

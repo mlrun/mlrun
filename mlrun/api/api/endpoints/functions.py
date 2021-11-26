@@ -508,6 +508,7 @@ def _start_function(function, auth_info: mlrun.api.schemas.AuthInfo):
             run_db = get_run_db_instance(db_session)
             function.set_db_connection(run_db)
             mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)
+            mlrun.api.api.utils.process_function_service_account(function)
             #  resp = resource["start"](fn)  # TODO: handle resp?
             resource["start"](function)
             function.save(versioned=False)

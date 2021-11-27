@@ -163,7 +163,7 @@ async def startup_event():
     # periodic cleanup is not needed if we're not inside kubernetes cluster
     if (
         get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
-        and config.httpdb.state != mlrun.api.schemas.APIStates.online
+        and config.httpdb.state == mlrun.api.schemas.APIStates.online
     ):
         _start_periodic_cleanup()
         _start_periodic_runs_monitoring()
@@ -181,7 +181,7 @@ async def shutdown_event():
 async def _initialize_singletons():
     initialize_logs_dir()
     initialize_db()
-    if config.httpdb.state != mlrun.api.schemas.APIStates.online:
+    if config.httpdb.state == mlrun.api.schemas.APIStates.online:
         initialize_project_member()
         await initialize_scheduler()
 

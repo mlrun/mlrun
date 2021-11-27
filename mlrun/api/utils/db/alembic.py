@@ -25,6 +25,7 @@ class AlembicUtil(object):
         self._db_path_exists = os.path.isfile(self._db_file_path)
         self._revision_history = self._get_revision_history_list()
         self._latest_revision = self._revision_history[0]
+        self._initial_revision = self._revision_history[-1]
 
     def init_alembic(self, use_backups: bool = False):
         current_revision = self._get_current_revision()
@@ -51,6 +52,10 @@ class AlembicUtil(object):
     def is_schema_migration_needed(self):
         current_revision = self._get_current_revision()
         return current_revision != self._latest_revision
+
+    def is_migration_from_scratch(self):
+        current_revision = self._get_current_revision()
+        return current_revision != self._initial_revision
 
     @staticmethod
     def _get_db_file_path() -> str:

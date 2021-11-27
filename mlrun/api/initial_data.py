@@ -73,6 +73,7 @@ def _is_migration_needed(
         is_database_migration_needed = (
             sqlite_migration_util.is_database_migration_needed()
         )
+    is_migration_from_scratch = alembic_util.is_migration_from_scratch()
     is_schema_migration_needed = alembic_util.is_schema_migration_needed()
     is_data_migration_needed = (
         not _is_latest_data_version()
@@ -80,11 +81,12 @@ def _is_migration_needed(
     )
     logger.info(
         "Checking if migration is needed",
+        is_migration_from_scratch=is_migration_from_scratch,
         is_schema_migration_needed=is_schema_migration_needed,
         is_data_migration_needed=is_data_migration_needed,
         is_database_migration_needed=is_database_migration_needed,
     )
-    return (
+    return not is_migration_from_scratch and (
         is_data_migration_needed
         or is_schema_migration_needed
         or is_database_migration_needed

@@ -117,4 +117,5 @@ class LabelNames:
 class APIStates:
     online = "online"
     waiting_for_migrations = "waiting_for_migrations"
+    migration_in_progress = "migration_in_progress"
     offline = "offline"

@@ -18,13 +18,13 @@ test_router = fastapi.APIRouter()
     "/projects/{project}/background-tasks",
     response_model=mlrun.api.schemas.BackgroundTask,
 )
-def create_background_task(
+def create_project_background_task(
     project: str, background_tasks: fastapi.BackgroundTasks, failed_task: bool = False,
 ):
     function = bump_counter
     if failed_task:
         function = failing_function
-    return mlrun.api.utils.background_tasks.Handler().create_background_task(
+    return mlrun.api.utils.background_tasks.Handler().create_project_background_task(
         project, background_tasks, function
     )
 
@@ -49,7 +49,7 @@ def client() -> typing.Generator:
         yield client
 
 
-def test_create_background_task_success(
+def test_create_project_background_task_success(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ):
     project = "project"
@@ -68,7 +68,7 @@ def test_create_background_task_success(
     assert call_counter == 1
 
 
-def test_create_background_task_failure(
+def test_create_project_background_task_failure(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ):
     project = "project"
@@ -85,7 +85,7 @@ def test_create_background_task_failure(
     assert background_task.metadata.updated is not None
 
 
-def test_get_background_task_not_exists(
+def test_get_project_background_task_not_exists(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ):
     project = "project"

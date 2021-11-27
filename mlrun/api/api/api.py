@@ -14,6 +14,7 @@ from mlrun.api.api.endpoints import (
     healthz,
     logs,
     marketplace,
+    migrations,
     model_endpoints,
     pipelines,
     projects,
@@ -107,5 +108,10 @@ api_router.include_router(model_endpoints.router, tags=["model-endpoints"])
 api_router.include_router(
     marketplace.router,
     tags=["marketplace"],
+    dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
+)
+api_router.include_router(
+    migrations.router,
+    tags=["migrations"],
     dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
 )

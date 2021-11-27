@@ -34,29 +34,21 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
         if name in self._project_background_tasks:
             raise RuntimeError("Background task name already exists")
         background_task = self._generate_background_task(name, project)
-        self._project_background_tasks.setdefault(project, {})[
-            name
-        ] = background_task
+        self._project_background_tasks.setdefault(project, {})[name] = background_task
         background_tasks.add_task(
             self.background_task_wrapper, project, name, function, *args, **kwargs
         )
         return self.get_project_background_task(project, name)
 
     def create_background_task(
-        self,
-        background_tasks: fastapi.BackgroundTasks,
-        function,
-        *args,
-        **kwargs,
+        self, background_tasks: fastapi.BackgroundTasks, function, *args, **kwargs,
     ) -> mlrun.api.schemas.BackgroundTask:
         name = str(uuid.uuid4())
         # sanity
         if name in self._background_tasks:
             raise RuntimeError("Background task name already exists")
         background_task = self._generate_background_task(name)
-        self._background_tasks[
-            name
-        ] = background_task
+        self._background_tasks[name] = background_task
         background_tasks.add_task(
             self.background_task_wrapper, None, name, function, *args, **kwargs
         )
@@ -87,12 +79,8 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
         else:
             return self._generate_background_task_not_found_response(name)
 
-    def get_background_task(
-            self, name: str,
-    ) -> mlrun.api.schemas.BackgroundTask:
-        if (
-                name in self._background_tasks[name]
-        ):
+    def get_background_task(self, name: str,) -> mlrun.api.schemas.BackgroundTask:
+        if name in self._background_tasks:
             return self._background_tasks[name]
         else:
             return self._generate_background_task_not_found_response(name)
@@ -118,7 +106,10 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
             )
 
     def _update_background_task(
-        self, name: str, state: mlrun.api.schemas.BackgroundTaskState, project: typing.Optional[str] = None
+        self,
+        name: str,
+        state: mlrun.api.schemas.BackgroundTaskState,
+        project: typing.Optional[str] = None,
     ):
         if project is not None:
             background_task = self._project_background_tasks[project][name]
@@ -127,7 +118,9 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
         background_task.status.state = state
         background_task.metadata.updated = datetime.datetime.utcnow()
 
-    def _generate_background_task_not_found_response(self, name: str, project: typing.Optional[str] = None):
+    def _generate_background_task_not_found_response(
+        self, name: str, project: typing.Optional[str] = None
+    ):
         # in order to keep things simple we don't persist the background tasks to the DB
         # If for some reason get is called and the background task doesn't exist, it means that probably we got
         # restarted, therefore we want to return a failed background task so the client will retry (if needed)

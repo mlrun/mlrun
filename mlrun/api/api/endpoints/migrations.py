@@ -6,6 +6,7 @@ import mlrun.api.crud
 import mlrun.api.initial_data
 import mlrun.api.schemas
 import mlrun.api.utils.background_tasks
+from mlrun.utils import logger
 
 router = fastapi.APIRouter()
 
@@ -17,13 +18,18 @@ router = fastapi.APIRouter()
         http.HTTPStatus.ACCEPTED.value: {"model": mlrun.api.schemas.BackgroundTask},
     },
 )
-def start_migration(background_tasks: fastapi.BackgroundTasks,):
+def start_migration(
+    background_tasks: fastapi.BackgroundTasks, response: fastapi.Response,
+):
     if mlrun.mlconf.httpdb.state == mlrun.api.schemas.APIStates.migration_in_progress:
         raise mlrun.errors.MLRunConflictError("Migration already in progress")
     if mlrun.mlconf.httpdb.state != mlrun.api.schemas.APIStates.waiting_for_migrations:
         return fastapi.Response(status_code=http.HTTPStatus.OK.value)
-    return mlrun.api.utils.background_tasks.Handler().create_background_task(
+    logger.info("Starting the migration process")
+    background_task = mlrun.api.utils.background_tasks.Handler().create_background_task(
         background_tasks,
         mlrun.api.initial_data.init_data,
         perform_migrations_if_needed=True,
     )
+    response.status_code = http.HTTPStatus.ACCEPTED.value
+    return background_task

@@ -31,10 +31,14 @@ def verify_api_state(request: Request):
         # we do want to stay healthy
         if "healthz" not in path_with_query_string:
             raise mlrun.errors.MLRunPreconditionFailedError("API is in offline state")
-    if mlrun.mlconf.httpdb.state == mlrun.api.schemas.APIStates.waiting_for_migrations:
+    if mlrun.mlconf.httpdb.state in [
+        mlrun.api.schemas.APIStates.waiting_for_migrations,
+        mlrun.api.schemas.APIStates.migration_in_progress,
+    ]:
         enabled_endpoints = [
             "healthz",
             "background-tasks",
+            "migrations",
         ]
         if not any(
             enabled_endpoint in path_with_query_string

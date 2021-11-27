@@ -105,7 +105,7 @@ class AlembicUtil(object):
         if db_file_path == ":memory:":
             return
 
-        if self._data_version_is_latest and self.is_schema_migration_needed():
+        if self._data_version_is_latest and not self.is_schema_migration_needed():
             logger.debug(
                 "Schema version and Data version are latest, skipping backup..."
             )

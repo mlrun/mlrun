@@ -77,7 +77,7 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
         ):
             return self._project_background_tasks[project][name]
         else:
-            return self._generate_background_task_not_found_response(name)
+            return self._generate_background_task_not_found_response(name, project)
 
     def get_background_task(self, name: str,) -> mlrun.api.schemas.BackgroundTask:
         if name in self._background_tasks:

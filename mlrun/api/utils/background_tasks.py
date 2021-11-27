@@ -19,6 +19,7 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
         self._project_background_tasks: typing.Dict[
             str, typing.Dict[str, mlrun.api.schemas.BackgroundTask]
         ] = {}
+        self._background_tasks: typing.Dict[str, mlrun.api.schemas.BackgroundTask] = {}
 
     def create_project_background_task(
         self,
@@ -63,18 +64,17 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
         ):
             return self._project_background_tasks[project][name]
         else:
-            # in order to keep things simple we don't persist the background tasks to the DB
-            # If for some reason get is called and the background task doesn't exist, it means that probably we got
-            # restarted, therefore we want to return a failed background task so the client will retry (if needed)
-            return mlrun.api.schemas.BackgroundTask(
-                metadata=mlrun.api.schemas.BackgroundTaskMetadata(
-                    name=name, project=project
-                ),
-                spec=mlrun.api.schemas.BackgroundTaskSpec(),
-                status=mlrun.api.schemas.BackgroundTaskStatus(
-                    state=mlrun.api.schemas.BackgroundTaskState.failed
-                ),
-            )
+            return self._generate_background_task_not_found_response(name)
+
+    def get_background_task(
+            self, name: str,
+    ) -> mlrun.api.schemas.BackgroundTask:
+        if (
+                name in self._background_tasks[name]
+        ):
+            return self._background_tasks[name]
+        else:
+            return self._generate_background_task_not_found_response(name)
 
     async def project_background_task_wrapper(
         self, project: str, name: str, function, *args, **kwargs
@@ -102,3 +102,17 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
         background_task = self._project_background_tasks[project][name]
         background_task.status.state = state
         background_task.metadata.updated = datetime.datetime.utcnow()
+
+    def _generate_background_task_not_found_response(self, name: str, project: typing.Optional[str] = None):
+        # in order to keep things simple we don't persist the background tasks to the DB
+        # If for some reason get is called and the background task doesn't exist, it means that probably we got
+        # restarted, therefore we want to return a failed background task so the client will retry (if needed)
+        return mlrun.api.schemas.BackgroundTask(
+            metadata=mlrun.api.schemas.BackgroundTaskMetadata(
+                name=name, project=project
+            ),
+            spec=mlrun.api.schemas.BackgroundTaskSpec(),
+            status=mlrun.api.schemas.BackgroundTaskStatus(
+                state=mlrun.api.schemas.BackgroundTaskState.failed
+            ),
+        )

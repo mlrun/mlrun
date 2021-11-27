@@ -22,18 +22,25 @@ from .utils.db.mysql import MySQLUtil
 from .utils.db.sqlite_migration import SQLiteMigrationUtil
 
 
-def init_data(from_scratch: bool = False) -> None:
+def init_data(
+    from_scratch: bool = False, perform_migrations_if_needed: bool = False
+) -> None:
     sqlite_migration_util = None
     if not from_scratch and config.httpdb.db.database_migration_mode == "enabled":
         sqlite_migration_util = SQLiteMigrationUtil()
     alembic_util = _create_alembic_util()
-    if not from_scratch and _is_migration_needed(alembic_util, sqlite_migration_util):
+    if (
+        not from_scratch
+        and not perform_migrations_if_needed
+        and _is_migration_needed(alembic_util, sqlite_migration_util)
+    ):
         state = mlrun.api.schemas.APIStates.waiting_for_migrations
         logger.info("Migration is needed, changing api state", state=state)
         config.httpdb.state = state
         return
 
     logger.info("Creating initial data")
+    config.httpdb.state = mlrun.api.schemas.APIStates.migration_in_progress
 
     _perform_schema_migrations(alembic_util)
 
@@ -46,6 +53,7 @@ def init_data(from_scratch: bool = False) -> None:
         _perform_data_migrations(db_session)
     finally:
         close_session(db_session)
+    config.httpdb.state = mlrun.api.schemas.APIStates.online
     logger.info("Initial data created")
 
 

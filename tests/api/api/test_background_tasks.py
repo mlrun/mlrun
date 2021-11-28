@@ -109,7 +109,7 @@ def test_get_background_task_auth_skip(
     assert response.status_code == http.HTTPStatus.OK.value
     assert mlrun.api.utils.auth.verifier.AuthVerifier().query_resource_permissions.call_count == 0
 
-    mlrun.mlconf.igz_version = "3.4.0-b26.20210904121245"
+    mlrun.mlconf.igz_version = "3.5.0-b26.20210904121245"
     response = client.get("/api/background-tasks/some-task-name")
     assert response.status_code == http.HTTPStatus.OK.value
     assert mlrun.api.utils.auth.verifier.AuthVerifier().query_resource_permissions.call_count == 1

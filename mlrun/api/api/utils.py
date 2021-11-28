@@ -10,10 +10,12 @@ from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
 import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
+from mlrun.api.schemas import SecretProviderName
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler
@@ -133,6 +135,8 @@ def _generate_function_and_task_from_submit_run_body(
     # in the auth_info. If this was triggered by the SDK, then auto-mount was already attempted and will be skipped.
     try_perform_auto_mount(function, auth_info)
 
+    # Validate function's service-account, based on allowed SAs for the project, if existing in a project-secret.
+    process_function_service_account(function)
     return function, task
 
 
@@ -183,6 +187,44 @@ def try_perform_auto_mount(function, auth_info: mlrun.api.schemas.AuthInfo):
         override_params["user"] = auth_info.username
 
     function.try_auto_mount_based_on_config(override_params)
+
+
+def process_function_service_account(function):
+    allowed_service_accounts = mlrun.api.crud.secrets.Secrets().get_secret(
+        function.metadata.project,
+        SecretProviderName.kubernetes,
+        mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key("allowed"),
+        allow_secrets_from_k8s=True,
+        allow_internal_secrets=True,
+    )
+    if allowed_service_accounts:
+        allowed_service_accounts = [
+            service_account.strip()
+            for service_account in allowed_service_accounts.split(",")
+        ]
+
+    default_service_account = mlrun.api.crud.secrets.Secrets().get_secret(
+        function.metadata.project,
+        SecretProviderName.kubernetes,
+        mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key("default"),
+        allow_secrets_from_k8s=True,
+        allow_internal_secrets=True,
+    )
+
+    # Sanity check on project configuration
+    if (
+        default_service_account
+        and allowed_service_accounts
+        and default_service_account not in allowed_service_accounts
+    ):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Default service account {default_service_account} is not in list of allowed "
+            + f"service accounts {allowed_service_accounts}"
+        )
+
+    function.validate_and_enrich_service_account(
+        allowed_service_accounts, default_service_account
+    )
 
 
 def _submit_run(

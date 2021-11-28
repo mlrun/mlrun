@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from .data_types import ValueType
 from .model import ModelObj
@@ -14,6 +14,13 @@ class Entity(ModelObj):
         description: str = None,
         labels: Optional[Dict[str, str]] = None,
     ):
+        """data entity (index key)
+
+        :param name:        entity name
+        :param value_type:  type of the entity, e.g. ValueType.STRING, ValueType.INT
+        :param description: test description of the entity
+        :param labels:      a set of key/value labels (tags)
+        """
         self.name = name
         self.description = description
         self.value_type = value_type
@@ -34,26 +41,42 @@ class Feature(ModelObj):
         "labels",
         "aggregate",
         "validator",
+        "origin",
     ]
 
     def __init__(
         self,
-        value_type: ValueType = None,
-        dims=None,
-        description=None,
-        aggregate=None,
-        name=None,
+        value_type: str = None,
+        dims: List[int] = None,
+        description: str = None,
+        aggregate: bool = None,
+        name: str = None,
         validator=None,
-        default=None,
+        default: str = None,
         labels: Dict[str, str] = None,
     ):
+        """data feature
+
+        Features can be specified manually or inferred automatically (during ingest/preview)
+
+        :param value_type:  type of the feature. Use the ValueType constants library e.g. ValueType.STRING,
+                            ValueType.INT
+        :param dims:        list of dimensions for vectors/tensors, e.g. [2, 2]
+        :param description: text description of the feature
+        :param aggregate:   is it an aggregated value
+        :param name:        name of the feature
+        :param validator:   feature validation policy
+        :param default:     default value
+        :param labels:      a set of key/value labels (tags)
+        """
         self.name = name or ""
-        self.value_type: ValueType = value_type or ""
-        self.dims = None
+        self.value_type = value_type or ""
+        self.dims = dims
         self.description = description
         self.default = default
         self.labels = labels or {}
         self.aggregate = aggregate
+        self.origin = None  # used to link the feature to the feature set origin (inside vector.status)
         self._validator = validator
 
     @property

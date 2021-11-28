@@ -6,7 +6,8 @@ from tensorflow import Tensor, Variable
 from tensorflow.keras.callbacks import Callback
 
 import mlrun
-from mlrun.frameworks._common.loggers import Logger, LoggerMode, TrackableType
+
+from ..._dl_common.loggers import Logger, LoggerMode, TrackableType
 
 
 class LoggingCallback(Callback):
@@ -388,7 +389,7 @@ class LoggingCallback(Callback):
 
         :raise KeyError:   In case the one of the keys in the key chain is incorrect.
         :raise IndexError: In case the one of the keys in the key chain is incorrect.
-        :raise ValueError: In case the value is not trackable.
+        :raise MLRunInvalidArgumentError: In case the value is not trackable.
         """
         if isinstance(key_chain, Callable):
             # It is a custom callable method:
@@ -404,9 +405,9 @@ class LoggingCallback(Callback):
                         value = getattr(value, key)
                 except KeyError or IndexError as KeyChainError:
                     raise KeyChainError(
-                        "Error during getting a hyperparameter value with the key chain {}. "
-                        "The {} in it does not have the following key/index from the key provided: {}"
-                        "".format(key_chain, value.__class__, key)
+                        f"Error during getting a hyperparameter value with the key chain {key_chain}. "
+                        f"The {value.__class__} in it does not have the following key/index from the key provided: "
+                        f"{key}"
                     )
 
         # Parse the value:
@@ -414,19 +415,17 @@ class LoggingCallback(Callback):
             if int(tf.size(value)) == 1:
                 value = float(value)
             else:
-                raise ValueError(
-                    "The parameter with the following key chain: {} is a tensorflow.Tensor with {} elements. "
-                    "Tensorflow tensors are trackable only if they have 1 element."
-                    "".format(key_chain, value.numel())
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The parameter with the following key chain: {key_chain} is a tensorflow.Tensor with "
+                    f"{value.numel()} elements. Tensorflow tensors are trackable only if they have 1 element."
                 )
         elif isinstance(value, np.ndarray):
             if value.size == 1:
                 value = float(value)
             else:
-                raise ValueError(
-                    "The parameter with the following key chain: {} is a numpy.ndarray with {} elements. "
-                    "numpy arrays are trackable only if they have 1 element."
-                    "".format(key_chain, value.size)
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The parameter with the following key chain: {key_chain} is a numpy.ndarray with {value.size} "
+                    f"elements. numpy arrays are trackable only if they have 1 element."
                 )
         elif not (
             isinstance(value, float)
@@ -434,10 +433,9 @@ class LoggingCallback(Callback):
             or isinstance(value, str)
             or isinstance(value, bool)
         ):
-            raise ValueError(
-                "The parameter with the following key chain: {} is of type '{}'. "
-                "The only trackable types are: float, int, str and bool."
-                "".format(key_chain, type(value))
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"The parameter with the following key chain: {key_chain} is of type '{type(value)}'. The only "
+                f"trackable types are: float, int, str and bool."
             )
         return value
 

@@ -36,7 +36,7 @@ RUN conda config --add channels conda-forge && \
     conda update -n base -c defaults conda && \
     conda install -n base \
         python=3.6 \
-        pip~=20.2.0 \
+        pip~=21.2.0 \
     && conda clean -aqy
 
 RUN conda install -n base cmake cython \
@@ -79,22 +79,25 @@ WORKDIR /mlrun
 COPY ./requirements.txt ./
 COPY ./extras-requirements.txt ./extras-requirements.txt
 COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
-COPY ./dockerfiles/base/requirements.txt ./base-image-requirements.txt
-COPY ./dockerfiles/models/requirements.txt ./models-image-requirements.txt
-COPY ./dockerfiles/models-gpu/requirements.txt ./models-gpu-image-requirements.txt
 
 RUN python -m pip install \
     -r requirements.txt \
     -r extras-requirements.txt \
-    -r mlrun-image-requirements.txt \
-    -r base-image-requirements.txt \
-    -r models-image-requirements.txt \
+    -r mlrun-image-requirements.txt
+
+# if we give all the requirements together pip resolver go nuts so separating between the package and the image
+# requirements
+COPY ./dockerfiles/base/requirements.txt ./base-image-requirements.txt
+RUN python -m pip install \
+    -r base-image-requirements.txt
+
+COPY ./dockerfiles/models/requirements.txt ./models-image-requirements.txt
+RUN python -m pip install \
+    -r models-image-requirements.txt
+
+COPY ./dockerfiles/models-gpu/requirements.txt ./models-gpu-image-requirements.txt
+RUN python -m pip install \
     -r models-gpu-image-requirements.txt
 
 COPY . .
 RUN python -m pip install .[complete]
-
-ARG MLRUN_MLUTILS_GITHUB_TAG=development
-ARG MLRUN_MLUTILS_CACHE_DATE=initial
-RUN python -m pip install \
-    git+https://github.com/mlrun/mlutils.git@${MLRUN_MLUTILS_GITHUB_TAG}

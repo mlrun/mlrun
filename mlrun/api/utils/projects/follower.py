@@ -294,7 +294,7 @@ class Member(
         import mlrun.api.crud
 
         project_summaries = await mlrun.api.crud.Projects().generate_projects_summaries(
-            db_session, project_names
+            project_names
         )
 
         return mlrun.api.schemas.ProjectSummariesOutput(
@@ -314,7 +314,7 @@ class Member(
         import mlrun.api.crud
 
         project_summaries = await mlrun.api.crud.Projects().generate_projects_summaries(
-            db_session, [name]
+            [name]
         )
 
         return project_summaries[0]

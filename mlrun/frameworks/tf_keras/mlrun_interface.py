@@ -3,7 +3,6 @@ import os
 from abc import ABC
 from typing import Any, Dict, Generator, Iterator, List, Sequence, Tuple, Union
 
-import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.callbacks import (
@@ -17,11 +16,9 @@ from tensorflow.keras.callbacks import (
 from tensorflow.keras.optimizers import Optimizer
 
 import mlrun
-from mlrun.frameworks._common import MLRunInterface
-from mlrun.frameworks.tf_keras.callbacks import (
-    MLRunLoggingCallback,
-    TensorboardLoggingCallback,
-)
+
+from .._common import MLRunInterface
+from .callbacks import MLRunLoggingCallback, TensorboardLoggingCallback
 
 
 class TFKerasMLRunInterface(MLRunInterface, ABC):
@@ -102,20 +99,11 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
             def wrapper(*args, **kwargs):
                 # Unwrap the evaluation method as fit will use it:
                 setattr(model, "evaluate", evaluate_method)
-                # # Get IO samples:  TODO: Enable once IOLogging is enabled
-                # x, y = cls._get_dataset_arguments(args=args, kwargs=kwargs)
-                # input_sample, output_sample = cls._get_io_samples(x=x, y=y)
                 # Setup the callbacks list:
                 if "callbacks" not in kwargs or kwargs["callbacks"] is None:
                     kwargs["callbacks"] = []
                 # Add auto log callbacks if they were added:
                 kwargs["callbacks"] = kwargs["callbacks"] + model._auto_log_callbacks
-                # # Add IO samples to the MLRun logging callback:  TODO: Enable once IOLogging is enabled
-                # for callback in kwargs["callbacks"]:
-                #     if isinstance(callback, MLRunLoggingCallback):
-                #         callback.set_input_sample(sample=input_sample)
-                #         callback.set_output_sample(sample=output_sample)
-                #         break
                 # Setup default values if needed:
                 kwargs["verbose"] = kwargs.get("verbose", 1)
                 kwargs["steps_per_epoch"] = kwargs.get("steps_per_epoch", None)
@@ -261,7 +249,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
                  [1] = The 'experimental_run_tf_function' parameter for 'compile' kwargs or 'None' if horovod should not
                        be used.
 
-        :raise ValueError: In case the optimizer was passed as a string.
+        :raise MLRunInvalidArgumentError: In case the optimizer was passed as a string.
         """
         # Check if needed to run with horovod:
         if self._hvd is None:
@@ -269,7 +257,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
 
         # Validate the optimizer input:
         if isinstance(optimizer, str):
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "When using horovod, the compile method is expecting an initialized optimizer instance and not a "
                 "string."
             )
@@ -286,14 +274,12 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
                     gpus[self._hvd.local_rank()], "GPU"
                 )
                 print(
-                    "Horovod worker #{} is using GPU #{}".format(
-                        self._hvd.rank(), self._hvd.local_rank()
-                    )
+                    f"Horovod worker #{self._hvd.rank()} is using GPU #{self._hvd.local_rank()}"
                 )
         else:
             # No GPUs were found, or 'use_cuda' was false:
             os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-            print("Horovod worker #{} is using CPU".format(self._hvd.rank()))
+            print(f"Horovod worker #{self._hvd.rank()} is using CPU")
 
         # Adjust learning rate based on the number of GPUs:
         optimizer.lr = optimizer.lr * self._hvd.size()
@@ -332,7 +318,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
                  [2] = Steps per epoch or None if not given.
                  [3] = Validation steps or None if not given.
 
-        :raise ValueError: If horovod is being used but the 'steps_per_epoch' parameter were not given.
+        :raise MLRunInvalidArgumentError: If horovod is being used but the 'steps_per_epoch' parameter were not given.
         """
         # Check if needed to run with horovod:
         if self._hvd is None:
@@ -340,7 +326,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
 
         # Validate steps provided for horovod:
         if steps_per_epoch is None:
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "When using Horovod, the parameter 'steps_per_epoch' must be provided to the 'fit' method in order to "
                 "split the steps between the workers."
             )
@@ -389,7 +375,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
                  [0] = Callbacks list.
                  [1] = Steps.
 
-        :raise ValueError: If horovod is being used but the 'steps' parameter were not given.
+        :raise MLRunInvalidArgumentError: If horovod is being used but the 'steps' parameter were not given.
         """
         # Remove the 'auto_log' callback 'TensorboardLoggingCallback' (only relevant for training):
         callbacks = [
@@ -404,7 +390,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
 
         # Validate steps provided for horovod:
         if steps is None:
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "When using Horovod, the parameter 'steps' must be provided to the 'evaluate' method in order to "
                 "split the steps between the workers."
             )
@@ -428,53 +414,3 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
         steps = steps // self._hvd.size()
 
         return callbacks, steps
-
-    @staticmethod
-    def _get_dataset_arguments(args, kwargs) -> Tuple[Dataset, GroundTruths]:
-        """
-        Read the datasets parameters ('x' and 'y') given to the 'fit' / 'evaluate' methods and return them.
-
-        :return: The 'x' and 'y' parameters.
-        """
-        # Get the 'x' dataset:
-        if "x" in kwargs:
-            x = kwargs["x"]
-        else:
-            x = args[0]
-
-        # Get the 'y' ground truths:
-        if isinstance(x, tf.data.Dataset) or isinstance(x, keras.utils.Sequence):
-            y = None
-        else:
-            if "y" in kwargs:
-                y = kwargs["y"]
-            else:
-                y = args[1]
-
-        return x, y
-
-    @staticmethod
-    def _get_io_samples(x: Dataset, y: GroundTruths) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Get input and output samples from the given 'x' and 'y' parameters.
-
-        :param x: The 'x' parameter from the 'fit' / 'evaluate' methods.
-        :param y: The 'y' parameter from the 'fit' / 'evaluate' methods.
-
-        :return: A tuple of input and ground truth samples.
-        """
-        if y is None:
-            if hasattr(x, "element_spec"):
-                input_sample = x.element_spec[0]
-                output_sample = x.element_spec[1]
-            elif isinstance(x, keras.utils.Sequence):
-                input_sample, output_sample = x[0]
-            elif isinstance(x, Iterator) or isinstance(x, Generator):
-                input_sample, output_sample = next(x)
-            else:
-                raise ValueError("Unsupported dataset type: '{}'".format(type(x)))
-        else:
-            input_sample = x[0]
-            output_sample = y[0]
-
-        return input_sample, output_sample

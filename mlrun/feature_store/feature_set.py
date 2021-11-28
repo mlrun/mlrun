@@ -13,7 +13,7 @@
 # limitations under the License.
 import datetime
 import warnings
-from typing import List
+from typing import Dict, List, Optional, Union
 
 import pandas as pd
 
@@ -89,7 +89,7 @@ class FeatureSetSpec(ModelObj):
 
         self.owner = owner
         self.description = description
-        self.entities: List[Entity] = entities or []
+        self.entities: List[Union[Entity, str]] = entities or []
         self.features: List[Feature] = features or []
         self.partition_keys = partition_keys or []
         self.timestamp_key = timestamp_key
@@ -109,7 +109,12 @@ class FeatureSetSpec(ModelObj):
         return self._entities
 
     @entities.setter
-    def entities(self, entities: List[Entity]):
+    def entities(self, entities: List[Union[Entity, str]]):
+        if entities:
+            # if the entity is a string, convert it to Entity class
+            for i, entity in enumerate(entities):
+                if isinstance(entity, str):
+                    entities[i] = Entity(entity)
         self._entities = ObjectList.from_list(Entity, entities)
 
     @property
@@ -225,12 +230,26 @@ class FeatureSet(ModelObj):
 
     def __init__(
         self,
-        name=None,
-        description=None,
-        entities=None,
-        timestamp_key=None,
-        engine=None,
+        name: str = None,
+        description: str = None,
+        entities: List[Union[Entity, str]] = None,
+        timestamp_key: str = None,
+        engine: str = None,
     ):
+        """Feature set object, defines a set of features and their data pipeline
+
+        example::
+
+            import mlrun.feature_store as fstore
+            ticks = fstore.FeatureSet("ticks", entities=["stock"], timestamp_key="timestamp")
+            fstore.ingest(ticks, df)
+
+        :param name:          name of the feature set
+        :param description:   text description
+        :param entities:      list of entity (index key) names or :py:class:`~mlrun.features.FeatureSet.Entity`
+        :param timestamp_key: timestamp column name
+        :param engine:        name of the processing engine (storey, pandas, or spark), defaults to storey
+        """
         self._spec: FeatureSetSpec = None
         self._metadata = None
         self._status = None
@@ -246,6 +265,7 @@ class FeatureSet(ModelObj):
         self.metadata = VersionedObjMetadata(name=name)
         self.status = None
         self._last_state = ""
+        self._aggregations = {}
 
     @property
     def spec(self) -> FeatureSetSpec:
@@ -274,13 +294,17 @@ class FeatureSet(ModelObj):
     @property
     def uri(self):
         """fully qualified feature set uri"""
-        uri = (
+        return get_store_uri(StorePrefix.FeatureSet, self.fullname)
+
+    @property
+    def fullname(self):
+        """full name in the form project/name[:tag]"""
+        fullname = (
             f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
         )
-        uri = get_store_uri(StorePrefix.FeatureSet, uri)
         if self._metadata.tag:
-            uri += ":" + self._metadata.tag
-        return uri
+            fullname += ":" + self._metadata.tag
+        return fullname
 
     def _override_run_db(
         self, session,
@@ -400,8 +424,21 @@ class FeatureSet(ModelObj):
         source = self.spec.source
         return source is not None and source.path is not None and source.path != "None"
 
-    def add_entity(self, entity, name=None):
-        """add/set an entity"""
+    def add_entity(
+        self,
+        name: str,
+        value_type: mlrun.data_types.ValueType = None,
+        description: str = None,
+        labels: Optional[Dict[str, str]] = None,
+    ):
+        """add/set an entity (dataset index)
+
+        :param name:        entity name
+        :param value_type:  type of the entity (default to ValueType.STRING)
+        :param description: description of the entity
+        :param labels:      label tags dict
+        """
+        entity = Entity(name, value_type, description=description, labels=labels)
         self._spec.entities.update(entity, name)
 
     def add_feature(self, feature, name=None):
@@ -417,13 +454,39 @@ class FeatureSet(ModelObj):
         """feature set transformation graph/DAG"""
         return self.spec.graph
 
+    def _add_agregation_to_existing(self, new_aggregation):
+        name = new_aggregation["name"]
+        if name in self._aggregations:
+            current_aggr = self._aggregations[name]
+            if current_aggr["windows"] != new_aggregation["windows"]:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Aggregation with name {name} already exists but with window {current_aggr['windows']}. "
+                    f"Please provide name for the aggregation"
+                )
+            if current_aggr["period"] != new_aggregation["period"]:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Aggregation with name {name} already exists but with period {current_aggr['period']}. "
+                    f"Please provide name for the aggregation"
+                )
+            if current_aggr["column"] != new_aggregation["column"]:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Aggregation with name {name} already exists but for different column {current_aggr['column']}. "
+                    f"Please provide name for the aggregation"
+                )
+            current_aggr["operations"] = list(
+                set(current_aggr["operations"] + new_aggregation["operations"])
+            )
+
+            return
+        self._aggregations[name] = new_aggregation
+
     def add_aggregation(
         self,
-        name,
         column,
         operations,
         windows,
         period=None,
+        name=None,
         step_name=None,
         after=None,
         before=None,
@@ -433,9 +496,8 @@ class FeatureSet(ModelObj):
 
         example::
 
-            myset.add_aggregation("asks", "ask", ["sum", "max"], "1h", "10m")
+            myset.add_aggregation("ask", ["sum", "max"], "1h", "10m", name="asks")
 
-        :param name:       aggregation name/prefix
         :param column:     name of column/field aggregate
         :param operations: aggregation operations, e.g. ['sum', 'std']
         :param windows:    time windows, can be a single window, e.g. '1h', '1d',
@@ -456,13 +518,18 @@ class FeatureSet(ModelObj):
                               In this case, each record on an in-application stream belongs
                               to a specific window. It is processed only once
                               (when the query processes the window to which the record belongs).
-
         :param period:     optional, sliding window granularity, e.g. '10m'
+        :param name:       optional, aggregation name/prefix. Must be unique per feature set.If not passed,
+                            the column will be used as name.
         :param step_name: optional, graph step name
         :param state_name: *Deprecated* - use step_name instead
         :param after:      optional, after which graph step it runs
         :param before:     optional, comes before graph step
         """
+        if isinstance(operations, str):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Invalid parameters provided - operations must be a list."
+            )
         if state_name:
             warnings.warn(
                 "The state_name parameter is deprecated. Use step_name instead",
@@ -471,17 +538,7 @@ class FeatureSet(ModelObj):
             )
             step_name = step_name or state_name
 
-        if isinstance(windows, list):
-            unit = None
-            for window in windows:
-                if not unit:
-                    unit = window[-1]
-                else:
-                    if window[-1] != unit:
-                        raise mlrun.errors.MLRunInvalidArgumentError(
-                            "List of windows is supported only for the same unit of time, e.g [1h, 5h].\n"
-                            "For additional windows create another aggregation"
-                        )
+        name = name or column
 
         if isinstance(windows, str):
             windows = [windows]
@@ -502,11 +559,11 @@ class FeatureSet(ModelObj):
         graph = self.spec.graph
         if step_name in graph.steps:
             step = graph.steps[step_name]
-            aggregations = step.class_args.get("aggregates", [])
-            aggregations.append(aggregation)
-            step.class_args["aggregates"] = aggregations
+            self._add_agregation_to_existing(aggregation)
+            step.class_args["aggregates"] = list(self._aggregations.values())
         else:
             class_args = {}
+            self._aggregations[aggregation["name"]] = aggregation
             step = graph.add_step(
                 name=step_name,
                 after=after or previous_step,

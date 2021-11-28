@@ -51,13 +51,13 @@ can be used:
 import mlrun.feature_store as fstore
 # create a new feature set
 quotes_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")])
-quotes_set.add_aggregation("bids", "bid", ["min", "max"], ["1h"], "10m")
+quotes_set.add_aggregation("bid", ["min", "max"], ["1h"], "10m")
 ```
 
 Once this is executed, the feature-set will have new features introduced, with their names produced from the aggregate
-parameters, using this format: `{name}_{operation}_{window}`. Thus, the example above will generate two new features:
-`bids_min_1h` and `bids_max_1h`. The function gets a `name` parameter which is used as mentioned, and a `column` 
-parameter which determines on what column to perform the aggregations. These features can then be fed into predictive models or be used for additional 
+parameters, using this format: `{column}_{operation}_{window}`. Thus, the example above will generate two new features:
+`bid_min_1h` and `bid_max_1h`. If the function gets an optional `name` parameter features will be produced in `{name}_{operation}_{window}` format, 
+These features can then be fed into predictive models or be used for additional 
 processing and feature generation.
 
 ```{admonition} Note
@@ -179,9 +179,8 @@ When using a local Spark session, the `ingest` API would wait for its completion
 ```python
 import mlrun
 from mlrun.datastore.sources import CSVSource
-from mlrun.datastore.targets import CSVTarget
-from mlrun import code_to_function
 import mlrun.feature_store as fstore
+from pyspark.sql import SparkSession
 
 mlrun.set_environment(project="stocks")
 feature_set = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")], engine="spark")
@@ -220,7 +219,6 @@ def my_spark_func(df, context=None):
 ```
 ```python
 from mlrun.datastore.sources import CSVSource
-from mlrun.datastore.targets import CSVTarget
 from mlrun import code_to_function
 import mlrun.feature_store as fstore
 
@@ -241,6 +239,8 @@ fstore.ingest(feature_set, source, run_config=fstore.RunConfig(), spark_context=
 For Spark to work with S3, it requires several properties to be set. The following example writes a
 feature set to S3 in the parquet format:
 ```python
+from pyspark import SparkConf
+
 target = ParquetTarget(
     path="s3:///my-s3-bucket/some/path",
     partitioned=False,

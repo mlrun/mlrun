@@ -1,21 +1,12 @@
 # Installation Guide <!-- omit in toc -->
 
-This guide outlines the steps for installing and running MLRun locally.
+This guide outlines the steps for installing and running MLRun.
 
 - [Install MLRun on a Kubernetes Cluster](#install-mlrun-on-a-kubernetes-cluster)
-  - [Prerequisites](#prerequisites)
-  - [Installing on Docker Desktop](#installing-on-docker-desktop)
-    - [Configuring Docker Desktop](#configuring-docker-desktop)
-  - [Installing the Chart](#installing-the-chart)
-  - [Install Kubeflow](#install-kubeflow)
-  - [Usage](#usage)
-  - [Start Working](#start-working)
-  - [Configuring Remote Environment](#configuring-remote-environment)
-    - [Prerequisites](#prerequisites-1)
-    - [Set Environment Variables](#set-environment-variables)
-  - [Advanced Chart Configuration](#advanced-chart-configuration)
-  - [Uninstalling the Chart](#uninstalling-the-chart)
 - [Installing MLRun on a Local Docker Registry](#installing-mlrun-on-a-local-docker-registry)
+
+Once MLRun is installed you can access it remotely from your IDE (PyCharm or VSCode), read [**how to setup your IDE environment**](./howto/remote.md). 
+
 
 ## Install MLRun on a Kubernetes Cluster
 
@@ -257,12 +248,12 @@ To use MLRun with your local Docker registry, run the MLRun API service, dashboa
 ```sh
 SHARED_DIR=~/mlrun-data
 
-docker pull mlrun/jupyter:0.7.0
-docker pull mlrun/mlrun-ui:0.7.0
+docker pull mlrun/jupyter:0.8.0
+docker pull mlrun/mlrun-ui:0.8.0
 
 docker network create mlrun-network
-docker run -it -p 8080:8080 -p 30040:8888 --rm -d --network mlrun-network --name jupyter -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.7.0
-docker run -it -p 30050:80 --rm -d --network mlrun-network --name mlrun-ui -e MLRUN_API_PROXY_URL=http://jupyter:8080 mlrun/mlrun-ui:0.7.0
+docker run -it -p 8080:8080 -p 30040:8888 --rm -d --network mlrun-network --name jupyter -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.8.0
+docker run -it -p 30050:80 --rm -d --network mlrun-network --name mlrun-ui -e MLRUN_API_PROXY_URL=http://jupyter:8080 mlrun/mlrun-ui:0.8.0
 ```
 
 When the execution completes &mdash;

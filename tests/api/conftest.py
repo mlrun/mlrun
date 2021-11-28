@@ -85,12 +85,17 @@ class K8sSecretsMock:
             if (secret_keys and key in secret_keys) or not secret_keys
         }
 
-    def get_expected_env_variables_from_secrets(self, project, encode_key_names=True):
+    def get_expected_env_variables_from_secrets(
+        self, project, encode_key_names=True, include_internal=False
+    ):
         expected_env_from_secrets = {}
         secret_name = mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(
             project
         )
         for key in self.project_secrets_map.get(project, {}):
+            if key.startswith("mlrun.") and not include_internal:
+                continue
+
             env_variable_name = (
                 SecretsStore.k8s_env_variable_name_for_secret(key)
                 if encode_key_names
@@ -107,6 +112,24 @@ class K8sSecretsMock:
             )
             == {}
         )
+
+    def set_service_account_keys(
+        self, project, default_service_account, allowed_service_accounts
+    ):
+        secrets = {}
+        if default_service_account:
+            secrets[
+                mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key(
+                    "default"
+                )
+            ] = default_service_account
+        if allowed_service_accounts:
+            secrets[
+                mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key(
+                    "allowed"
+                )
+            ] = ",".join(allowed_service_accounts)
+        self.store_project_secrets(project, secrets)
 
 
 @pytest.fixture()

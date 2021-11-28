@@ -130,6 +130,7 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
     # todo: sample spark DF if sample_size is not None and DF is bigger than sample_size
 
     summary_df = df.summary().toPandas()
+    summary_df.set_index(["summary"], drop=True, inplace=True)
     results_dict = {}
     for col, values in summary_df.items():
         stats_dict = {}

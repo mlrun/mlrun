@@ -292,11 +292,17 @@ def test_to_dict():
         method="GET",
         input_path="req",
         result_path="resp",
+        retries=4,
     )
 
     assert rs.to_dict() == {
         "name": "remote_echo",
-        "class_args": {"method": "GET", "return_json": True, "url": "/url"},
+        "class_args": {
+            "method": "GET",
+            "return_json": True,
+            "url": "/url",
+            "retries": 4,
+        },
         "class_name": "mlrun.serving.remote.RemoteStep",
         "input_path": "req",
         "result_path": "resp",

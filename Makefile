@@ -13,7 +13,16 @@
 # limitations under the License.
 
 MLRUN_VERSION ?= unstable
-MLRUN_DOCKER_TAG ?= $(MLRUN_VERSION)
+# pip requires the python version to be according to some regex (so "unstable" is not valid for example) this regex only
+# allows us to have free text (like unstable) after the "+". on the contrary in a docker tag "+" is not a valid
+# character so we're doing best effort - if the provided version doesn't look valid (like unstable), we prefix the
+# version for the python package with 0.0.0+
+# if the provided version includes a "+" we replace it with "-" for the docker tag
+MLRUN_DOCKER_TAG ?= $(shell echo "$(MLRUN_VERSION)" | sed -E 's/\+/\-/g')
+MLRUN_PYTHON_PACKAGE_VERSION ?= $(MLRUN_VERSION)
+ifeq ($(shell echo "$(MLRUN_VERSION)" | grep -E "^[0-9]+\.[0-9]+\.[0-9]+.*$$"),) # empty result from egrep
+	MLRUN_PYTHON_PACKAGE_VERSION := 0.0.0+$(MLRUN_VERSION)
+endif
 MLRUN_DOCKER_REPO ?= mlrun
 # empty by default (dockerhub), can be set to something like "quay.io/".
 # This will be used to tag the images built using this makefile
@@ -22,9 +31,8 @@ MLRUN_DOCKER_REGISTRY ?=
 # disable caching)
 MLRUN_NO_CACHE ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
-MLRUN_PYTHON_VERSION ?= 3.7.9
+MLRUN_PYTHON_VERSION ?= 3.7.11
 MLRUN_LEGACY_ML_PYTHON_VERSION ?= 3.6.12
-MLRUN_MLUTILS_GITHUB_TAG ?= development
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
 # 1. docker pull the same image with the given tag (cache image) before the build
@@ -60,7 +68,7 @@ all:
 
 .PHONY: install-requirements
 install-requirements: ## Install all requirements needed for development
-	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=20.2.0
+	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=21.2.0
 	python -m pip install \
 		$(MLRUN_PIP_NO_CACHE_FLAG) \
 		-r requirements.txt \
@@ -114,8 +122,8 @@ endif
 	-type f -print0 | xargs -0 sed -i '' -e 's/:$(MLRUN_OLD_VERSION_ESCAPED)/:$(MLRUN_NEW_VERSION)/g'
 
 .PHONY: update-version-file
-update-version-file: automation ## Update the version file
-	python ./automation/version/version_file.py --mlrun-version $(MLRUN_VERSION)
+update-version-file: ## Update the version file
+	python ./automation/version/version_file.py --mlrun-version $(MLRUN_PYTHON_PACKAGE_VERSION)
 
 .PHONY: build
 build: docker-images package-wheel ## Build all artifacts
@@ -186,7 +194,6 @@ base-core: pull-cache update-version-file ## Build base core docker image
 	docker build \
 		--file dockerfiles/base/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
-		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_CORE_BASE_IMAGE_NAME_TAGGED) .
@@ -219,7 +226,6 @@ base-legacy-core: pull-cache update-version-file ## Build base legacy core docke
 	docker build \
 		--file dockerfiles/base/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_LEGACY_ML_PYTHON_VERSION) \
-		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_CORE_LEGACY_BASE_IMAGE_NAME_TAGGED) .
@@ -252,6 +258,8 @@ models-core: base-core ## Build models core docker image
 	docker build \
 		--file dockerfiles/models/Dockerfile \
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_BASE_IMAGE_NAME_TAGGED) \
+		--build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
+		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_CORE_MODELS_IMAGE_NAME_TAGGED) .
@@ -262,8 +270,6 @@ models: models-core ## Build models docker image
 	docker build \
 		--file dockerfiles/common/Dockerfile \
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_MODELS_IMAGE_NAME_TAGGED) \
-		--build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
-		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_MODELS_IMAGE_NAME_TAGGED) .
@@ -320,7 +326,6 @@ models-gpu: update-version-file ## Build models-gpu docker image
 	$(MLRUN_MODELS_GPU_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/models-gpu/Dockerfile \
-		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		--build-arg CUDA_VER=$(MLRUN_CUDA_VERSION) \
 		--build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
 		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
@@ -347,7 +352,6 @@ models-gpu-legacy: update-version-file ## Build models-gpu legacy docker image
 	$(MLRUN_LEGACY_MODELS_GPU_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/models-gpu/$(MLRUN_LEGACY_DOCKERFILE_DIR_NAME)/Dockerfile \
-		--build-arg MLRUN_MLUTILS_GITHUB_TAG=$(MLRUN_MLUTILS_GITHUB_TAG) \
 		$(MLRUN_LEGACY_MODELS_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_LEGACY_MODELS_GPU_IMAGE_NAME_TAGGED) .

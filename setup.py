@@ -32,8 +32,8 @@ def version():
         # When installing un-released version (e.g. by doing
         # pip install git+https://github.com/mlrun/mlrun@development)
         # it won't have a version file, so adding some sane default
-        logger.warning("Failed resolving version. Ignoring and using unstable")
-        return "unstable"
+        logger.warning("Failed resolving version. Ignoring and using 0.0.0+unstable")
+        return "0.0.0+unstable"
 
 
 def is_ignored(line):
@@ -85,9 +85,10 @@ extras_require = {
     ],
     "azure-blob-storage": ["azure-storage-blob~=12.0", "adlfs~=2021.8.1"],
     "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
-    # bokeh 2.4.0 requires typing-extensions>=3.10.0 but previous packages installs 3.7.4.3 which is incompatible so
-    # adding it explictly
-    "bokeh": ["typing-extensions>=3.10.0", "bokeh~=2.3"],
+    # bokeh 2.4.0 requires typing-extensions>=3.10.0 but all tensorflow versions that compatible with our
+    # tensorflow~=2.4.1 requirement requiring typing-extensions~=3.7.4 so limiting to 2.3.x
+    "bokeh": ["bokeh~=2.3.0"],
+    "plotly": ["plotly~=5.4"],
     "google-cloud-storage": ["gcsfs~=2021.8.1"],
 }
 extras_require["complete"] = sorted(
@@ -120,8 +121,9 @@ setup(
         "mlrun.api.api.endpoints",
         "mlrun.api.crud",
         "mlrun.api.db",
-        "mlrun.api.db.sqldb",
         "mlrun.api.db.filedb",
+        "mlrun.api.db.sqldb",
+        "mlrun.api.db.sqldb.models",
         "mlrun.api.migrations_sqlite",
         "mlrun.api.migrations_sqlite.versions",
         "mlrun.api.migrations_mysql",
@@ -143,14 +145,17 @@ setup(
         "mlrun.feature_store.retrieval",
         "mlrun.frameworks",
         "mlrun.frameworks._common",
-        "mlrun.frameworks._common.loggers",
+        "mlrun.frameworks._dl_common",
+        "mlrun.frameworks._dl_common.loggers",
+        "mlrun.frameworks._ml_common",
+        "mlrun.frameworks.auto_mlrun",
+        "mlrun.frameworks.lgbm",
+        "mlrun.frameworks.onnx",
         "mlrun.frameworks.pytorch",
         "mlrun.frameworks.pytorch.callbacks",
+        "mlrun.frameworks.sklearn",
         "mlrun.frameworks.tf_keras",
         "mlrun.frameworks.tf_keras.callbacks",
-        "mlrun.frameworks.onnx",
-        "mlrun.frameworks.mlbase",
-        "mlrun.frameworks.sklearn",
         "mlrun.frameworks.xgboost",
         "mlrun.mlutils",
         "mlrun.model_monitoring",

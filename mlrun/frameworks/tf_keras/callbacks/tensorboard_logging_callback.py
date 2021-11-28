@@ -10,8 +10,9 @@ from tensorflow.keras import Model
 from tensorflow.python.ops import summary_ops_v2
 
 import mlrun
-from mlrun.frameworks._common.loggers import TensorboardLogger, TrackableType
-from mlrun.frameworks.tf_keras.callbacks.logging_callback import LoggingCallback
+
+from ..._dl_common.loggers import TensorboardLogger, TrackableType
+from .logging_callback import LoggingCallback
 
 
 class _TFKerasTensorboardLogger(TensorboardLogger):
@@ -37,11 +38,13 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
         :param context:               A MLRun context to use for logging into the user's tensorboard directory. The
                                       context parameters can be logged as static hyperparameters as well.
         :param tensorboard_directory: If context is not given, or if wished to set the directory even with context,
-                                      this will be the output for the event logs of tensorboard.
+                                      this will be the output for the event logs of tensorboard. If not given, context
+                                      must be provided as the default tensorboard output directory will be:
+                                      /User/.tensorboard/<PROJECT_NAME> or if working on local, the set artifacts path.
         :param run_name:              This experiment run name. Each run name will be indexed at the end of the name so
                                       each experiment will be numbered automatically. If a context was given, the
                                       context's uid will be added instead of an index. If a run name was not given the
-                                      current time in the following format: 'YYYY-mm-dd_HH:MM:SS'.
+                                      current time stamp will be used.
         :param update_frequency:      Per how many iterations (batches) the callback should write the tracked values to
                                       tensorboard. Can be passed as a string equal to 'epoch' for per epoch and 'batch'
                                       for per single batch, or as an integer specifying per how many iterations to
@@ -99,11 +102,11 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
         hp_metric_list = []
         for metric in self._training_results:
             for prefix in ["training", "validation"]:
-                metric_name = "{}/{}_{}".format(self._Sections.SUMMARY, prefix, metric)
+                metric_name = f"{self._Sections.SUMMARY}/{prefix}_{metric}"
                 graph_parameters[metric_name] = 0.0
                 hp_metric_list.append(hp_api.Metric(metric_name))
         for parameter, epochs in self._dynamic_hyperparameters.items():
-            parameter_name = "{}/{}".format(self._Sections.HYPERPARAMETERS, parameter)
+            parameter_name = f"{self._Sections.HYPERPARAMETERS}/{parameter}"
             graph_parameters[parameter_name] = epochs[-1]
             hp_metric_list.append(hp_api.Metric(parameter_name))
 
@@ -296,21 +299,14 @@ class TensorboardLoggingCallback(LoggingCallback):
         :param auto_log:                Whether or not to enable auto logging for logging the context parameters and
                                         trying to track common static and dynamic hyperparameters such as learning rate.
 
-        :raise ValueError: In case both 'context' and 'tensorboard_directory' parameters were not given or the
-                           'update_frequency' was incorrect.
+        :raise MLRunInvalidArgumentError: In case both 'context' and 'tensorboard_directory' parameters were not given
+                                          or the 'update_frequency' was incorrect.
         """
         super(TensorboardLoggingCallback, self).__init__(
             dynamic_hyperparameters=dynamic_hyperparameters,
             static_hyperparameters=static_hyperparameters,
             auto_log=auto_log,
         )
-
-        # Validate input:
-        if context is None and tensorboard_directory is None:
-            raise ValueError(
-                "Expecting to receive a mlrun.MLClientCtx context or a path to a directory to output "
-                "the logging file but None were given."
-            )
 
         # Replace the logger with a TensorboardLogger:
         del self._logger

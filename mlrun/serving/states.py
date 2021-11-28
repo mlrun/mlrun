@@ -426,6 +426,8 @@ class TaskStep(BaseStep):
     def _post_init(self, mode="sync"):
         if self._object and hasattr(self._object, "post_init"):
             self._object.post_init(mode)
+            if hasattr(self._object, "model_endpoint_uid"):
+                self.endpoint_uid = self._object.model_endpoint_uid
 
     def respond(self):
         """mark this step as the responder.
@@ -1399,5 +1401,6 @@ def _init_async_objects(context, steps):
                 step.async_object.to(storey.Complete(full_event=True))
                 wait_for_result = True
 
-    default_source = storey.SyncEmitSource()
+    source_args = context.get_param("source_args", {})
+    default_source = storey.SyncEmitSource(context=context, **source_args)
     return default_source, wait_for_result

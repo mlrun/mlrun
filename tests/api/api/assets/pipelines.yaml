@@ -26,7 +26,7 @@ spec:
           - {name: MLRUN_MPIJOB_CRD_VERSION, value: v1}
           - {name: V3IO_ACCESS_KEY, value: some-session}
           - {name: MLRUN_ARTIFACT_PATH, value: 'v3io:///projects/getting-started-tutorial-iguazio/artifacts/pipeline/{{workflow.uid}}'}
-        image: mlrun/mlrun:0.7.0-rc4
+        image: mlrun/mlrun:0.8.0-rc4
       inputs:
         parameters:
           - {name: source_url}

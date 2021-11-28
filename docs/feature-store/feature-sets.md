@@ -38,6 +38,11 @@ stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
 
 To learn more about FeatureSet go to {py:class}`~mlrun.feature_store.FeatureSet` 
 
+> **Note:** Feature sets can also be created using the MLRun UI. To create a new feature set using the UI:
+>1. Select a project and press the "Feature store" link.
+>2. Press on "Create Set"
+>3. After completing the form, press "Save and Ingest" to start the process, or "Save" to save the set for later ingestion.
+
 ### Add Transformations 
 
 Feature set data pipeline take raw data from online or offline sources and transforms it to meaningful features,
@@ -62,7 +67,7 @@ feature_set = fstore.FeatureSet("measurements", entities=[Entity(key)], timestam
 # Define the computational graph including our custom functions
 feature_set.graph.to(DropColumns(drop_columns))\
                  .to(RenameColumns(mapping={'bad': 'bed'}))
-feature_set.add_aggregation('hr', 'hr', ['avg'], ["1h"])
+feature_set.add_aggregation('hr', ['avg'], ["1h"])
 feature_set.plot()
 fstore.ingest(feature_set, data_df)
 ```

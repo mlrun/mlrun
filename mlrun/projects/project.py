@@ -27,13 +27,8 @@ import mlrun.api.schemas
 import mlrun.errors
 import mlrun.utils.regex
 
-from ..artifacts import (
-    ArtifactManager,
-    ArtifactProducer,
-    DatasetArtifact,
-    ModelArtifact,
-    dict_to_artifact,
-)
+from ..artifacts import ArtifactProducer, DatasetArtifact, ModelArtifact
+from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
 from ..datastore import store_manager
 from ..db import get_run_db
 from ..features import Feature
@@ -226,7 +221,11 @@ def load_project(
         project.spec.origin_url = url or project.spec.origin_url
     project.spec.repo = repo
     if repo:
-        project.spec.branch = repo.active_branch.name
+        try:
+            # handle cases where active_branch is not set (e.g. in Gitlab CI)
+            project.spec.branch = repo.active_branch.name
+        except Exception:
+            pass
     project.register_artifacts()
     mlrun.mlconf.default_project = project.metadata.name
     pipeline_context.set(project)
@@ -1057,8 +1056,8 @@ class MlrunProject(ModelObj):
         target_path=None,
     ):
         am = self._get_artifact_manager()
-        artifact_path = (
-            artifact_path or self.spec.artifact_path or mlrun.mlconf.artifact_path
+        artifact_path = extend_artifact_path(
+            artifact_path, self.spec.artifact_path or mlrun.mlconf.artifact_path
         )
         artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
             artifact_path, self.metadata.name
@@ -1576,7 +1575,7 @@ class MlrunProject(ModelObj):
         :param watch:     wait for pipeline completion
         :param dirty:     allow running the workflow when the git repo is dirty
         :param ttl:       pipeline ttl in secs (after that the pods will be removed)
-        :param engine:    workflow engine running the workflow. Only supported value is 'kfp' (also used if None)
+        :param engine:    workflow engine running the workflow. supported values are 'kfp' (default) or 'local'
         :param local:     run local pipeline with local functions (set local=True in function.run())
 
         :returns: run id

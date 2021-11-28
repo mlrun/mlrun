@@ -1,3 +1,6 @@
+# The system tests are expecting the env vars to be set in an env.yaml file in this same directory
+# this is a template file for the env file
+
 # The mlrun-api URL. e.g. https://mlrun-api.default-tenant.app.hedingber-28-1.iguazio-cd2.com
 MLRUN_DBPATH:
 
@@ -15,3 +18,6 @@ V3IO_PASSWORD:
 
 # access key used to add v3io mounts to pods - e.g. 4c1c2011-618f-434a-abd6-d456770fd33c
 V3IO_ACCESS_KEY:
+
+# spark service name for spark ingestion
+MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE:

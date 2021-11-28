@@ -1,12 +1,13 @@
 import os
-from typing import Any, Dict, List, Union
+from typing import Dict, List, Union
 
 import onnx
 import onnxoptimizer
 
 import mlrun
 from mlrun.artifacts import Artifact
-from mlrun.frameworks._common import ModelHandler
+
+from .._common import ModelHandler
 
 
 class ONNXModelHandler(ModelHandler):
@@ -14,12 +15,16 @@ class ONNXModelHandler(ModelHandler):
     Class for handling an ONNX model, enabling loading and saving it during runs.
     """
 
+    # Framework name:
+    _FRAMEWORK_NAME = "onnx"
+
     def __init__(
         self,
         model_name: str,
         model_path: str = None,
         model: onnx.ModelProto = None,
         context: mlrun.MLClientCtx = None,
+        **kwargs,
     ):
         """
         Initialize the handler. The model can be set here so it won't require loading. Notice that if the model path
@@ -34,16 +39,20 @@ class ONNXModelHandler(ModelHandler):
         :param model:      Model to handle or None in case a loading parameters were supplied.
         :param context:    MLRun context to work with for logging the model.
 
-        :raise ValueError: There was no model or model directory supplied.
+        :raise MLRunInvalidArgumentError: There was no model or model directory supplied.
         """
         # Setup the base handler class:
         super(ONNXModelHandler, self).__init__(
-            model_name=model_name, model_path=model_path, model=model, context=context,
+            model_name=model_name,
+            model_path=model_path,
+            model=model,
+            context=context,
+            **kwargs,
         )
 
     # TODO: output_path won't work well with logging artifacts. Need to look into changing the logic of 'log_artifact'.
     def save(
-        self, output_path: str = None, *args, **kwargs
+        self, output_path: str = None, **kwargs
     ) -> Union[Dict[str, Artifact], None]:
         """
         Save the handled model at the given output path. If a MLRun context is available, the saved model files will be
@@ -56,33 +65,17 @@ class ONNXModelHandler(ModelHandler):
         """
         super(ONNXModelHandler, self).save(output_path=output_path)
 
-        # Setup the returning model artifacts list:
-        artifacts = {}  # type: Dict[str, Artifact]
-        model_file = None  # type: str
-
         # Set the output path:
         if output_path is None:
             output_path = os.path.join(self._context.artifact_path, self._model_name)
 
         # Save the model:
-        model_file = "{}.onnx".format(self._model_name)
-        onnx.save(self._model, model_file)
+        self._model_file = f"{self._model_name}.onnx"
+        onnx.save(self._model, self._model_file)
 
-        # Update the paths and log artifacts if context is available:
-        self._model_file = model_file
-        if self._context is not None:
-            artifacts[
-                self._get_model_file_artifact_name()
-            ] = self._context.log_artifact(
-                model_file,
-                local_path=model_file,
-                artifact_path=output_path,
-                db_key=False,
-            )
+        return None
 
-        return artifacts if self._context is not None else None
-
-    def load(self, *args, **kwargs):
+    def load(self, **kwargs):
         """
         Load the specified model in this handler.
         """
@@ -93,51 +86,6 @@ class ONNXModelHandler(ModelHandler):
 
         # Load the ONNX model:
         self._model = onnx.load(self._model_file)
-
-    def log(
-        self,
-        labels: Dict[str, Union[str, int, float]] = None,
-        parameters: Dict[str, Union[str, int, float]] = None,
-        extra_data: Dict[str, Any] = None,
-        artifacts: Dict[str, Artifact] = None,
-    ):
-        """
-        Log the model held by this handler into the MLRun context provided.
-
-        :param labels:     Labels to log the model with.
-        :param parameters: Parameters to log with the model.
-        :param extra_data: Extra data to log with the model.
-        :param artifacts:  Artifacts to log the model with. Will be added to the extra data.
-
-        :raise ValueError: In case a context is missing or there is no model in this handler.
-        """
-        super(ONNXModelHandler, self).log(
-            labels=labels,
-            parameters=parameters,
-            extra_data=extra_data,
-            artifacts=artifacts,
-        )
-
-        # Set default values:
-        labels = {} if labels is None else labels
-        parameters = {} if parameters is None else parameters
-        extra_data = {} if extra_data is None else extra_data
-        artifacts = {} if artifacts is None else artifacts
-
-        # Save the model:
-        model_artifacts = self.save()
-
-        # Log the model:
-        self._context.log_model(
-            self._model_name,
-            db_key=self._model_name,
-            model_file=self._model_file,
-            framework="onnx",
-            labels=labels,
-            parameters=parameters,
-            metrics=self._context.results,
-            extra_data={**model_artifacts, **artifacts, **extra_data},
-        )
 
     def optimize(self, optimizations: List[str] = None, fixed_point: bool = False):
         """
@@ -167,34 +115,16 @@ class ONNXModelHandler(ModelHandler):
         """
         return self._model
 
-    def _collect_files_from_store_object(self):
-        """
-        If the model path given is of a store object, collect the needed model files into this handler for later loading
-        the model.
-        """
-        # Get the artifact and model file along with its extra data:
-        (
-            self._model_file,
-            self._model_artifact,
-            self._extra_data,
-        ) = mlrun.artifacts.get_model(self._model_path)
-
-        # Get the model file:
-        if self._model_file.endswith(".pkl"):
-            self._model_file = self._extra_data[
-                self._get_model_file_artifact_name()
-            ].local()
-
     def _collect_files_from_local_path(self):
         """
         If the model path given is of a local path, search for the needed model files and collect them into this handler
         for later loading the model.
+
+        :raise MLRunNotFoundError: If the onnx file was not found.
         """
-        self._model_file = os.path.join(
-            self._model_path, "{}.onnx".format(self._model_name)
-        )
+        self._model_file = os.path.join(self._model_path, f"{self._model_name}.onnx")
         if not os.path.exists(self._model_file):
-            raise FileNotFoundError(
-                "The model file '{}.onnx' was not found within the given 'model_path': "
-                "'{}'".format(self._model_name, self._model_path)
+            raise mlrun.errors.MLRunNotFoundError(
+                f"The model file '{self._model_name}.onnx' was not found within the given "
+                f"'model_path': '{self._model_path}'"
             )

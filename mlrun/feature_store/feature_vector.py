@@ -151,12 +151,7 @@ class FeatureVectorStatus(ModelObj):
 
 
 class FeatureVector(ModelObj):
-    """Feature vector, specify selected features, their metadata and material views
-    :param name: List of names of targets to delete (default: delete all ingested targets)
-    :param features: list of feature to collect to this vector. format <project>/<feature_set>.<feature_name or *>
-    :param label_feature: feature name to be used as label data
-    :param description: vector description
-    :param with_indexes: whether to keep the entity and timestamp columns in the response"""
+    """Feature vector, specify selected features, their metadata and material views"""
 
     kind = kind = mlrun.api.schemas.ObjectKind.feature_vector.value
     _dict_fields = ["kind", "metadata", "spec", "status"]
@@ -169,6 +164,28 @@ class FeatureVector(ModelObj):
         description=None,
         with_indexes=None,
     ):
+        """Feature vector, specify selected features, their metadata and material views
+
+        example::
+
+            import mlrun.feature_store as fstore
+            features = ["quotes.bid", "quotes.asks_sum_5h", "stocks.*"]
+            vector = fstore.FeatureVector("my-vec", features)
+
+            # get the vector as a dataframe
+            df = fstore.get_offline_features(vector).to_dataframe()
+
+            # return an online/real-time feature service
+            svc = fs.get_online_feature_service(vector, impute_policy={"*": "$mean"})
+            resp = svc.get([{"stock": "GOOG"}])
+
+        :param name:           List of names of targets to delete (default: delete all ingested targets)
+        :param features:       list of feature to collect to this vector.
+                               format [<project>/]<feature_set>.<feature_name or *> [as <alias>]
+        :param label_feature:  feature name to be used as label data
+        :param description:    text description of the vector
+        :param with_indexes:   whether to keep the entity and timestamp columns in the response
+        """
         self._spec: FeatureVectorSpec = None
         self._metadata = None
         self._status = None
@@ -261,7 +278,7 @@ class FeatureVector(ModelObj):
         if update_spec:
             self.spec = from_db.spec
 
-    def parse_features(self, offline=True):
+    def parse_features(self, offline=True, update_stats=False):
         """parse and validate feature list (from vector) and add metadata from feature sets
 
         :returns
@@ -282,7 +299,7 @@ class FeatureVector(ModelObj):
             if alias in processed_features.keys():
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"feature name/alias {alias} already specified,"
-                    " use another alias (feature-set:name[@alias])"
+                    " use another alias (feature-set.name [as alias])"
                 )
             feature = feature_set_object[name]
             processed_features[alias or name] = (feature_set_object, feature)
@@ -321,10 +338,12 @@ class FeatureVector(ModelObj):
                     index_keys.append(key)
             for name, alias in fields:
                 field_name = alias or name
-                if name in feature_set.status.stats:
+                if name in feature_set.status.stats and update_stats:
                     self.status.stats[field_name] = feature_set.status.stats[name]
                 if name in feature_set.spec.features.keys():
-                    self.status.features[field_name] = feature_set.spec.features[name]
+                    feature = feature_set.spec.features[name].copy()
+                    feature.origin = f"{feature_set.fullname}.{name}"
+                    self.status.features[field_name] = feature
 
         self.status.index_keys = index_keys
         return feature_set_objects, feature_set_fields
@@ -453,15 +472,15 @@ class OnlineVectorService:
                     ):
                         data[column] = None
 
-            if self._impute_values:
+            if self._impute_values and data:
                 for name in data.keys():
                     v = data[name]
                     if v is None or (type(v) == float and (np.isinf(v) or np.isnan(v))):
                         data[name] = self._impute_values.get(name, v)
 
-            if as_list:
+            if as_list and data:
                 data = [
-                    result.body[key]
+                    data.get(key, None)
                     for key in self.vector.status.features.keys()
                     if key != self.vector.status.label_column
                 ]

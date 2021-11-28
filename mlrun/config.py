@@ -100,6 +100,10 @@ default_config = {
     "default_function_priority_class_name": "",
     # valid options for priority classes - separated by a comma
     "valid_function_priority_class_names": "",
+    # default path prefix for demo data and models
+    "default_samples_path": "https://s3.wasabisys.com/iguazio/",
+    # default path for tensorboard logs
+    "default_tensorboard_logs_path": "/User/.tensorboard/{{project}}",
     "function_defaults": {
         "image_by_kind": {
             "job": "mlrun/mlrun",

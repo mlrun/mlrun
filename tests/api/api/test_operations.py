@@ -1,6 +1,4 @@
 import http
-import unittest.mock
-import mlrun.api.utils.singletons.scheduler
 
 import fastapi.testclient
 import pytest
@@ -12,6 +10,7 @@ import mlrun.api.crud
 import mlrun.api.initial_data
 import mlrun.api.schemas
 import mlrun.api.utils.clients.iguazio
+import mlrun.api.utils.singletons.scheduler
 import mlrun.errors
 import mlrun.runtimes
 from mlrun.utils import logger
@@ -51,10 +50,12 @@ def _mock_waiting_for_migration():
 
 
 def test_migrations_success(
-        # db calls init_data with from_scratch=True which means it will anyways do the migrations
-        # therefore in order to make the api to be started as if its in a state where migrations are needed
-        # we just add a middle fixture that sets the state
-        db: sqlalchemy.orm.Session, _mock_waiting_for_migration, client: fastapi.testclient.TestClient
+    # db calls init_data with from_scratch=True which means it will anyways do the migrations
+    # therefore in order to make the api to be started as if its in a state where migrations are needed
+    # we just add a middle fixture that sets the state
+    db: sqlalchemy.orm.Session,
+    _mock_waiting_for_migration,
+    client: fastapi.testclient.TestClient,
 ) -> None:
     original_init_data = mlrun.api.initial_data.init_data
     mlrun.api.initial_data.init_data = _mock_migration_process

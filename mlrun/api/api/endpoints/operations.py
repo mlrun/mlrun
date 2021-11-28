@@ -13,6 +13,7 @@ router = fastapi.APIRouter()
 
 current_migration_background_task_name = None
 
+
 @router.post(
     "/operations/migrations",
     responses={
@@ -23,9 +24,13 @@ current_migration_background_task_name = None
 def start_migration(
     background_tasks: fastapi.BackgroundTasks, response: fastapi.Response,
 ):
+    # we didn't yet decide who should have permissions to such actions, therefore no authorization at the moment
+    # note in api.py we do declare to use the authenticate_request dependency - meaning we do have authentication
     global current_migration_background_task_name
     if mlrun.mlconf.httpdb.state == mlrun.api.schemas.APIStates.migration_in_progress:
-        background_task = mlrun.api.utils.background_tasks.Handler().get_background_task(current_migration_background_task_name)
+        background_task = mlrun.api.utils.background_tasks.Handler().get_background_task(
+            current_migration_background_task_name
+        )
         response.status_code = http.HTTPStatus.ACCEPTED.value
         return background_task
     if mlrun.mlconf.httpdb.state != mlrun.api.schemas.APIStates.waiting_for_migrations:

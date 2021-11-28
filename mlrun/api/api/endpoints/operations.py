@@ -4,8 +4,8 @@ import fastapi
 import fastapi.concurrency
 
 import mlrun.api.crud
-import mlrun.api.main
 import mlrun.api.initial_data
+import mlrun.api.main
 import mlrun.api.schemas
 import mlrun.api.utils.background_tasks
 from mlrun.utils import logger
@@ -39,8 +39,7 @@ def start_migration(
         return fastapi.Response(status_code=http.HTTPStatus.OK.value)
     logger.info("Starting the migration process")
     background_task = mlrun.api.utils.background_tasks.Handler().create_background_task(
-        background_tasks,
-        _perform_migration,
+        background_tasks, _perform_migration,
     )
     current_migration_background_task_name = background_task.metadata.name
     response.status_code = http.HTTPStatus.ACCEPTED.value
@@ -48,6 +47,8 @@ def start_migration(
 
 
 async def _perform_migration():
-    await fastapi.concurrency.run_in_threadpool(mlrun.api.initial_data.init_data, perform_migrations_if_needed=True)
+    await fastapi.concurrency.run_in_threadpool(
+        mlrun.api.initial_data.init_data, perform_migrations_if_needed=True
+    )
     await mlrun.api.main.move_api_to_online()
     mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.online

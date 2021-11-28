@@ -4,8 +4,8 @@ import fastapi.testclient
 import sqlalchemy.orm
 
 import mlrun
-import mlrun.api.crud
 import mlrun.api.api.endpoints.operations
+import mlrun.api.crud
 import mlrun.api.initial_data
 import mlrun.api.schemas
 import mlrun.api.utils.clients.iguazio
@@ -18,7 +18,9 @@ def test_start_migration_already_in_progress(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
     background_task_name = "some-name"
-    mlrun.api.api.endpoints.operations.current_migration_background_task_name = background_task_name
+    mlrun.api.api.endpoints.operations.current_migration_background_task_name = (
+        background_task_name
+    )
     mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.migrations_in_progress
     response = client.post("/api/operations/migrations")
     assert response.status_code == http.HTTPStatus.ACCEPTED.value

@@ -1,5 +1,4 @@
 import http
-import mlrun.api.utils.auth.verifier
 import typing
 import unittest.mock
 
@@ -11,6 +10,7 @@ import sqlalchemy.orm
 import mlrun.api.api.deps
 import mlrun.api.main
 import mlrun.api.schemas
+import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
 
 test_router = fastapi.APIRouter()
@@ -101,18 +101,26 @@ def test_get_project_background_task_not_exists(
 
 
 def test_get_background_task_auth_skip(
-        db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ):
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_resource_permissions = unittest.mock.Mock()
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_resource_permissions = (
+        unittest.mock.Mock()
+    )
     mlrun.mlconf.igz_version = "3.2.0-b26.20210904121245"
     response = client.get("/api/background-tasks/some-task-name")
     assert response.status_code == http.HTTPStatus.OK.value
-    assert mlrun.api.utils.auth.verifier.AuthVerifier().query_resource_permissions.call_count == 0
+    assert (
+        mlrun.api.utils.auth.verifier.AuthVerifier().query_resource_permissions.call_count
+        == 0
+    )
 
     mlrun.mlconf.igz_version = "3.5.0-b26.20210904121245"
     response = client.get("/api/background-tasks/some-task-name")
     assert response.status_code == http.HTTPStatus.OK.value
-    assert mlrun.api.utils.auth.verifier.AuthVerifier().query_resource_permissions.call_count == 1
+    assert (
+        mlrun.api.utils.auth.verifier.AuthVerifier().query_resource_permissions.call_count
+        == 1
+    )
 
 
 def _assert_background_task_creation(expected_project, response):

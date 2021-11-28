@@ -119,11 +119,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         raise_on_forbidden: bool = True,
     ) -> bool:
         return self.query_resource_permissions(
-            resource_type,
-            "",
-            action,
-            auth_info,
-            raise_on_forbidden,
+            resource_type, "", action, auth_info, raise_on_forbidden,
         )
 
     def query_resource_permissions(

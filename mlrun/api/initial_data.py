@@ -30,11 +30,7 @@ def init_data(
         sqlite_migration_util = SQLiteMigrationUtil()
     alembic_util = _create_alembic_util()
     is_migration_needed = _is_migration_needed(alembic_util, sqlite_migration_util)
-    if (
-        not from_scratch
-        and not perform_migrations_if_needed
-        and is_migration_needed
-    ):
+    if not from_scratch and not perform_migrations_if_needed and is_migration_needed:
         state = mlrun.api.schemas.APIStates.waiting_for_migrations
         logger.info("Migration is needed, changing api state", state=state)
         config.httpdb.state = state
@@ -87,9 +83,9 @@ def _is_migration_needed(
         and config.httpdb.db.data_migrations_mode == "enabled"
     )
     is_migration_needed = not is_migration_from_scratch and (
-            is_data_migration_needed
-            or is_schema_migration_needed
-            or is_database_migration_needed
+        is_data_migration_needed
+        or is_schema_migration_needed
+        or is_database_migration_needed
     )
     logger.info(
         "Checking if migration is needed",

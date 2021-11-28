@@ -41,5 +41,7 @@ def test_init_data_migration_required_recognition() -> None:
     original_is_migration_needed = mlrun.api.initial_data._is_migration_needed
     mlrun.api.initial_data._is_migration_needed = unittest.mock.Mock(return_value=True)
     mlrun.api.initial_data.init_data()
-    assert mlrun.mlconf.httpdb.state == mlrun.api.schemas.APIStates.waiting_for_migrations
+    assert (
+        mlrun.mlconf.httpdb.state == mlrun.api.schemas.APIStates.waiting_for_migrations
+    )
     mlrun.api.initial_data._is_migration_needed = original_is_migration_needed

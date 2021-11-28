@@ -1,4 +1,5 @@
 import fastapi
+import semver
 
 import mlrun.api.api.deps
 import mlrun.api.schemas
@@ -43,10 +44,14 @@ def get_background_task(
     ),
 ):
     # Since there's no not-found option on get_background_task - we authorize before getting (unlike other get endpoint)
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.background_task,
-        name,
-        mlrun.api.schemas.AuthorizationAction.read,
-        auth_info,
-    )
+    # In Iguazio 3.2 the manifest doesn't support the global background task resource - therefore we have to just omit
+    # authorization
+    igz_version = mlrun.mlconf.get_parsed_igz_version()
+    if igz_version and igz_version >= semver.VersionInfo.parse("3.4.0-b1"):
+        mlrun.api.utils.auth.verifier.AuthVerifier().query_resource_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.background_task,
+            name,
+            mlrun.api.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     return mlrun.api.utils.background_tasks.Handler().get_background_task(name)

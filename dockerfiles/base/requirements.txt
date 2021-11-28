@@ -1,7 +1,7 @@
 blosc~=1.7
 dask-kubernetes~=0.11.0
 dask-ml~=1.4,<1.9.0
-# after 221.03.0 dask dropped support for python 3.6
+# after 2021.03.0 dask dropped support for python 3.6
 dask[complete]~=2021.09.1; python_version >= '3.7'
 dask[complete]~=2021.03.0; python_version < '3.7'
 lz4~=3.0

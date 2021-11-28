@@ -45,5 +45,5 @@ def verify_api_state(request: Request):
             for enabled_endpoint in enabled_endpoints
         ):
             raise mlrun.errors.MLRunPreconditionFailedError(
-                "API is waiting for migration to be triggered"
+                "API is waiting for migration to be triggered. Send POST request to /api/migrations/start to trigger it"
             )

@@ -1,6 +1,9 @@
 import http
+import unittest.mock
+import mlrun.api.utils.singletons.scheduler
 
 import fastapi.testclient
+import pytest
 import sqlalchemy.orm
 
 import mlrun
@@ -14,7 +17,7 @@ import mlrun.runtimes
 from mlrun.utils import logger
 
 
-def test_start_migration_already_in_progress(
+def test_migrations_already_in_progress(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
     background_task_name = "some-name"
@@ -29,7 +32,7 @@ def test_start_migration_already_in_progress(
     mlrun.api.api.endpoints.operations.current_migration_background_task_name = None
 
 
-def test_start_migration_not_needed(
+def test_migrations_not_needed(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
     mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.online
@@ -42,12 +45,26 @@ def _mock_migration_process(*args, **kwargs):
     mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.migrations_completed
 
 
-def test_start_migration_success(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
-) -> None:
+@pytest.fixture
+def _mock_waiting_for_migration():
     mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.waiting_for_migrations
+
+
+def test_migrations_success(
+        # db calls init_data with from_scratch=True which means it will anyways do the migrations
+        # therefore in order to make the api to be started as if its in a state where migrations are needed
+        # we just add a middle fixture that sets the state
+        db: sqlalchemy.orm.Session, _mock_waiting_for_migration, client: fastapi.testclient.TestClient
+) -> None:
     original_init_data = mlrun.api.initial_data.init_data
     mlrun.api.initial_data.init_data = _mock_migration_process
+    response = client.get("/api/projects")
+    # error cause we're waiting for migrations
+    assert response.status_code == http.HTTPStatus.PRECONDITION_FAILED.value
+    assert "API is waiting for migration to be triggered" in response.text
+    # not initialized until we're not doing migrations
+    assert mlrun.api.utils.singletons.scheduler.get_scheduler() is None
+    # trigger migrations
     response = client.post("/api/operations/migrations")
     assert response.status_code == http.HTTPStatus.ACCEPTED.value
     background_task = mlrun.api.schemas.BackgroundTask(**response.json())
@@ -59,4 +76,11 @@ def test_start_migration_success(
         background_task.status.state == mlrun.api.schemas.BackgroundTaskState.succeeded
     )
     assert mlrun.mlconf.httpdb.state == mlrun.api.schemas.APIStates.online
+    # now we should be able to get projects
+    response = client.get("/api/projects")
+    assert response.status_code == http.HTTPStatus.OK.value
+    # should be initialized
+    assert mlrun.api.utils.singletons.scheduler.get_scheduler() is not None
+
+    # tear down
     mlrun.api.initial_data.init_data = original_init_data

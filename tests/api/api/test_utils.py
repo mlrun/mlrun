@@ -1,5 +1,6 @@
 from http import HTTPStatus
 
+import pytest
 from deepdiff import DeepDiff
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -7,6 +8,10 @@ from sqlalchemy.orm import Session
 import mlrun
 import mlrun.api.schemas
 from mlrun.api.api.utils import _generate_function_and_task_from_submit_run_body
+
+# Want to use k8s_secrets_mock for all tests in this module. It is needed since
+# _generate_function_and_task_from_submit_run_body looks for project secrets for secret-accoutn validation.
+pytestmark = pytest.mark.usefixtures("k8s_secrets_mock")
 
 
 def test_generate_function_and_task_from_submit_run_body_body_override_values(

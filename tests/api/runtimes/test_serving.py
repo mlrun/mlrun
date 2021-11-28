@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from mlrun import mlconf
+from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.db import SQLDB
 from mlrun.runtimes.function import NuclioStatus, deploy_nuclio_function
 
@@ -222,6 +223,9 @@ class TestServingRuntime(TestNuclioRuntime):
             server.test()
 
     def test_serving_with_secrets_remote_build(self, db: Session, client: TestClient):
+        orig_function = get_k8s()._get_project_secrets_raw_data
+        get_k8s()._get_project_secrets_raw_data = unittest.mock.Mock(return_value={})
+
         function = self._create_serving_function()
 
         # Simulate a remote build by issuing client's API. Code below is taken from httpdb.
@@ -235,6 +239,8 @@ class TestServingRuntime(TestNuclioRuntime):
         assert response.status_code == HTTPStatus.OK.value
 
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
+
+        get_k8s()._get_project_secrets_raw_data = orig_function
 
     def test_child_functions_with_secrets(self, db: Session, client: TestClient):
         function = self._create_serving_function()

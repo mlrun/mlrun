@@ -227,6 +227,11 @@ class BaseRuntime(ModelObj):
     def try_auto_mount_based_on_config(self):
         pass
 
+    def validate_and_enrich_service_account(
+        self, allowed_service_account, default_service_account
+    ):
+        pass
+
     def fill_credentials(self):
         if "MLRUN_AUTH_SESSION" in os.environ or "V3IO_ACCESS_KEY" in os.environ:
             self.metadata.credentials.access_key = os.environ.get(

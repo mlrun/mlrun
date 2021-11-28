@@ -24,6 +24,7 @@ from mlrun.api.utils.singletons.db import initialize_db
 from mlrun.config import config
 from mlrun.runtimes import BaseRuntime
 from mlrun.runtimes.function import NuclioStatus
+from mlrun.runtimes.utils import global_context
 from tests.conftest import logs_path, root_path, rundb_path
 
 session_maker: Callable
@@ -38,6 +39,8 @@ def config_test_base():
     environ["MLRUN_httpdb__logs_path"] = logs_path
     environ["MLRUN_httpdb__projects__periodic_sync_interval"] = "0 seconds"
     environ["MLRUN_httpdb__projects__counters_cache_ttl"] = "0 seconds"
+    environ["MLRUN_EXEC_CONFIG"] = ""
+    global_context.set(None)
     log_level = "DEBUG"
     environ["MLRUN_log_level"] = log_level
     # reload config so that values overridden by tests won't pass to other tests

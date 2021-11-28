@@ -272,6 +272,7 @@ def update_model(
     key_prefix: str = "",
     labels: dict = None,
     write_spec_copy=True,
+    store_object: bool = True,
 ):
     """Update model object attributes
 
@@ -294,6 +295,7 @@ def update_model(
     :param key_prefix:      key prefix to add to metrics and extra data items
     :param labels:          metadata labels
     :param write_spec_copy: write a YAML copy of the spec to the target dir
+    :param store_object:    Whether to store the model artifact updated.
     """
 
     if hasattr(model_artifact, "artifact_url"):
@@ -339,11 +341,12 @@ def update_model(
         store_manager.object(url=spec_path).put(model_spec.to_yaml())
 
     model_spec.db_key = model_spec.db_key or model_spec.key
-    mlrun.get_run_db().store_artifact(
-        model_spec.db_key,
-        model_spec.to_dict(),
-        model_spec.tree,
-        iter=model_spec.iter,
-        project=model_spec.project,
-    )
+    if store_object:
+        mlrun.get_run_db().store_artifact(
+            model_spec.db_key,
+            model_spec.to_dict(),
+            model_spec.tree,
+            iter=model_spec.iter,
+            project=model_spec.project,
+        )
     return model_spec

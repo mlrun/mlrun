@@ -25,7 +25,8 @@ from mlrun.artifacts import ModelArtifact
 from mlrun.datastore.store_resources import get_store_resource
 from mlrun.errors import MLRunInvalidArgumentError
 
-from .artifacts import ArtifactManager, DatasetArtifact
+from .artifacts import DatasetArtifact
+from .artifacts.manager import ArtifactManager, extend_artifact_path
 from .datastore import store_manager
 from .db import get_run_db
 from .features import Feature
@@ -108,7 +109,7 @@ class MLClientCtx(object):
     def __exit__(self, exc_type, exc_value, exc_traceback):
         if exc_value:
             self.set_state(error=exc_value, commit=False)
-        self.commit(completed=exc_value is None)
+        self.commit()
 
     def get_child_context(self, with_parent_params=False, **params):
         """get child context (iteration)
@@ -158,17 +159,20 @@ class MLClientCtx(object):
         self._children.append(ctx)
         return ctx
 
-    def update_child_iterations(self, best_run=0, commit_children=False):
+    def update_child_iterations(
+        self, best_run=0, commit_children=False, completed=True
+    ):
         """update children results in the parent, and optionally mark the best
 
         :param best_run:  marks the child iteration number (starts from 1)
         :param commit_children:  commit all child runs to the db
+        :param completed:  mark children as completed
         """
         if not self._children:
             return
         if commit_children:
             for child in self._children:
-                child.commit()
+                child.commit(completed=completed)
         results = [child.to_dict() for child in self._children]
         summary = mlrun.runtimes.utils.results_to_iter(results, None, self)
         task = results[best_run - 1] if best_run else None
@@ -589,7 +593,7 @@ class MLClientCtx(object):
             item,
             body=body,
             local_path=local_path,
-            artifact_path=artifact_path or self.artifact_path,
+            artifact_path=extend_artifact_path(artifact_path, self.artifact_path),
             target_path=target_path,
             tag=tag,
             viewer=viewer,
@@ -666,7 +670,7 @@ class MLClientCtx(object):
             self,
             ds,
             local_path=local_path,
-            artifact_path=artifact_path or self.artifact_path,
+            artifact_path=extend_artifact_path(artifact_path, self.artifact_path),
             target_path=target_path,
             tag=tag,
             upload=upload,
@@ -768,7 +772,7 @@ class MLClientCtx(object):
             self,
             model,
             local_path=model_dir,
-            artifact_path=artifact_path or self.artifact_path,
+            artifact_path=extend_artifact_path(artifact_path, self.artifact_path),
             tag=tag,
             upload=upload,
             db_key=db_key,
@@ -777,12 +781,21 @@ class MLClientCtx(object):
         self._update_db()
         return item
 
-    def commit(self, message: str = "", completed=False):
+    def get_cached_artifact(self, key):
+        """return an a logged artifact from cache (for potential updates)"""
+        return self._artifacts_manager.artifacts[key]
+
+    def update_artifact(self, artifact_object):
+        """update an artifact object in the cache and the DB"""
+        self._artifacts_manager.update_artifact(self, artifact_object)
+
+    def commit(self, message: str = "", completed=True):
         """save run state and optionally add a commit message
 
         :param message:   commit message to save in the run
         :param completed: mark run as completed
         """
+        completed = completed and self._state == "running"
         if message:
             self._annotations["message"] = message
         if completed:
@@ -794,9 +807,11 @@ class MLClientCtx(object):
             self._parent._update_db(commit=True, message=message)
 
         if self._children:
-            self.update_child_iterations(commit_children=True)
+            self.update_child_iterations(commit_children=True, completed=completed)
         self._last_update = now_date()
         self._update_db(commit=True, message=message)
+        if completed and not self.iteration:
+            mlrun.runtimes.utils.global_context.set(None)
 
     def set_state(self, state: str = None, error: str = None, commit=True):
         """modify and store the run state or mark an error

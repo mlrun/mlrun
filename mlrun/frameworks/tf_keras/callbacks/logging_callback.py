@@ -6,7 +6,8 @@ from tensorflow import Tensor, Variable
 from tensorflow.keras.callbacks import Callback
 
 import mlrun
-from mlrun.frameworks._dl_common.loggers import Logger, LoggerMode, TrackableType
+
+from ..._dl_common.loggers import Logger, LoggerMode, TrackableType
 
 
 class LoggingCallback(Callback):

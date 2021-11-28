@@ -5,9 +5,10 @@ from torch import Tensor
 
 import mlrun
 from mlrun.artifacts import Artifact
-from mlrun.frameworks._dl_common.loggers import LoggerMode, MLRunLogger, TrackableType
-from mlrun.frameworks.pytorch.callbacks.logging_callback import LoggingCallback
-from mlrun.frameworks.pytorch.model_handler import PyTorchModelHandler
+
+from ..._dl_common.loggers import LoggerMode, MLRunLogger, TrackableType
+from ..model_handler import PyTorchModelHandler
+from .logging_callback import LoggingCallback
 
 
 class MLRunLoggingCallback(LoggingCallback):

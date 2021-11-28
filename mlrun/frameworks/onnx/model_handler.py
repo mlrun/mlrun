@@ -6,7 +6,8 @@ import onnxoptimizer
 
 import mlrun
 from mlrun.artifacts import Artifact
-from mlrun.frameworks._common import ModelHandler
+
+from .._common import ModelHandler
 
 
 class ONNXModelHandler(ModelHandler):
@@ -23,6 +24,7 @@ class ONNXModelHandler(ModelHandler):
         model_path: str = None,
         model: onnx.ModelProto = None,
         context: mlrun.MLClientCtx = None,
+        **kwargs,
     ):
         """
         Initialize the handler. The model can be set here so it won't require loading. Notice that if the model path
@@ -41,7 +43,11 @@ class ONNXModelHandler(ModelHandler):
         """
         # Setup the base handler class:
         super(ONNXModelHandler, self).__init__(
-            model_name=model_name, model_path=model_path, model=model, context=context,
+            model_name=model_name,
+            model_path=model_path,
+            model=model,
+            context=context,
+            **kwargs,
         )
 
     # TODO: output_path won't work well with logging artifacts. Need to look into changing the logic of 'log_artifact'.
@@ -108,21 +114,6 @@ class ONNXModelHandler(ModelHandler):
         :return: The current handled ONNX model as there is nothing to convert.
         """
         return self._model
-
-    def _collect_files_from_store_object(self):
-        """
-        If the model path given is of a store object, collect the needed model files into this handler for later loading
-        the model.
-        """
-        # Get the artifact and model file along with its extra data:
-        (
-            self._model_file,
-            self._model_artifact,
-            self._extra_data,
-        ) = mlrun.artifacts.get_model(self._model_path)
-
-        # Continue collecting from abstract class:
-        super(ONNXModelHandler, self)._collect_files_from_store_object()
 
     def _collect_files_from_local_path(self):
         """

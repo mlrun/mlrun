@@ -5,8 +5,9 @@ import onnx
 import onnxruntime
 
 import mlrun
-from mlrun.frameworks.onnx.model_handler import ONNXModelHandler
 from mlrun.serving.v2_serving import V2ModelServer
+
+from .model_handler import ONNXModelHandler
 
 
 class ONNXModelServer(V2ModelServer):

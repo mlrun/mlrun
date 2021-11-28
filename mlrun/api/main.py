@@ -158,15 +158,11 @@ async def startup_event():
         concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
     )
 
-    await _initialize_singletons()
+    initialize_logs_dir()
+    initialize_db()
 
-    # periodic cleanup is not needed if we're not inside kubernetes cluster
-    if (
-        get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
-        and config.httpdb.state == mlrun.api.schemas.APIStates.online
-    ):
-        _start_periodic_cleanup()
-        _start_periodic_runs_monitoring()
+    if config.httpdb.state == mlrun.api.schemas.APIStates.online:
+        await move_api_to_online()
 
 
 @app.on_event("shutdown")
@@ -178,12 +174,16 @@ async def shutdown_event():
         await get_scheduler().stop()
 
 
-async def _initialize_singletons():
-    initialize_logs_dir()
-    initialize_db()
-    if config.httpdb.state == mlrun.api.schemas.APIStates.online:
-        initialize_project_member()
-        await initialize_scheduler()
+async def move_api_to_online():
+    logger.info("Moving api to online")
+    initialize_project_member()
+    await initialize_scheduler()
+    # periodic cleanup is not needed if we're not inside kubernetes cluster
+    if (
+            get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
+    ):
+        _start_periodic_cleanup()
+        _start_periodic_runs_monitoring()
 
 
 def _start_periodic_cleanup():

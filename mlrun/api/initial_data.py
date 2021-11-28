@@ -29,10 +29,11 @@ def init_data(
     if not from_scratch and config.httpdb.db.database_migration_mode == "enabled":
         sqlite_migration_util = SQLiteMigrationUtil()
     alembic_util = _create_alembic_util()
+    is_migration_needed = _is_migration_needed(alembic_util, sqlite_migration_util)
     if (
         not from_scratch
         and not perform_migrations_if_needed
-        and _is_migration_needed(alembic_util, sqlite_migration_util)
+        and is_migration_needed
     ):
         state = mlrun.api.schemas.APIStates.waiting_for_migrations
         logger.info("Migration is needed, changing api state", state=state)
@@ -40,7 +41,7 @@ def init_data(
         return
 
     logger.info("Creating initial data")
-    config.httpdb.state = mlrun.api.schemas.APIStates.migration_in_progress
+    config.httpdb.state = mlrun.api.schemas.APIStates.migrations_in_progress
 
     _perform_schema_migrations(alembic_util)
 
@@ -53,7 +54,13 @@ def init_data(
         _perform_data_migrations(db_session)
     finally:
         close_session(db_session)
-    config.httpdb.state = mlrun.api.schemas.APIStates.online
+    # if the above process actually ran a migration - initializations that were skipped on the API initialization
+    # should happen - we can't do it here because it requires an asyncio loop which can't be accessible here
+    # therefore moving to migration_completed state, and other component will take care of moving to online
+    if is_migration_needed:
+        config.httpdb.state = mlrun.api.schemas.APIStates.migrations_completed
+    else:
+        config.httpdb.state = mlrun.api.schemas.APIStates.online
     logger.info("Initial data created")
 
 
@@ -79,18 +86,21 @@ def _is_migration_needed(
         not _is_latest_data_version()
         and config.httpdb.db.data_migrations_mode == "enabled"
     )
+    is_migration_needed = not is_migration_from_scratch and (
+            is_data_migration_needed
+            or is_schema_migration_needed
+            or is_database_migration_needed
+    )
     logger.info(
         "Checking if migration is needed",
         is_migration_from_scratch=is_migration_from_scratch,
         is_schema_migration_needed=is_schema_migration_needed,
         is_data_migration_needed=is_data_migration_needed,
         is_database_migration_needed=is_database_migration_needed,
+        is_migration_needed=is_migration_needed,
     )
-    return not is_migration_from_scratch and (
-        is_data_migration_needed
-        or is_schema_migration_needed
-        or is_database_migration_needed
-    )
+
+    return is_migration_needed
 
 
 def _create_alembic_util() -> AlembicUtil:

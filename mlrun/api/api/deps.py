@@ -34,7 +34,7 @@ def verify_api_state(request: Request):
             raise mlrun.errors.MLRunPreconditionFailedError("API is in offline state")
     if mlrun.mlconf.httpdb.state in [
         mlrun.api.schemas.APIStates.waiting_for_migrations,
-        mlrun.api.schemas.APIStates.migration_in_progress,
+        mlrun.api.schemas.APIStates.migrations_in_progress,
     ]:
         enabled_endpoints = [
             "healthz",
@@ -48,7 +48,7 @@ def verify_api_state(request: Request):
             )
             if (
                 mlrun.mlconf.httpdb.state
-                == mlrun.api.schemas.APIStates.migration_in_progress
+                == mlrun.api.schemas.APIStates.migrations_in_progress
             ):
                 message = "Migration is in progress"
             raise mlrun.errors.MLRunPreconditionFailedError(message)

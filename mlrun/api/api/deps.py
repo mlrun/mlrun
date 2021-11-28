@@ -44,6 +44,13 @@ def verify_api_state(request: Request):
             enabled_endpoint in path_with_query_string
             for enabled_endpoint in enabled_endpoints
         ):
-            raise mlrun.errors.MLRunPreconditionFailedError(
-                "API is waiting for migration to be triggered. Send POST request to /api/migrations/start to trigger it"
+            message = (
+                "API is waiting for migration to be triggered. Send POST request to /api/migrations/start to tr"
+                "igger it"
             )
+            if (
+                mlrun.mlconf.httpdb.state
+                == mlrun.api.schemas.APIStates.migration_in_progress
+            ):
+                message = "Migration is in progress"
+            raise mlrun.errors.MLRunPreconditionFailedError(message)

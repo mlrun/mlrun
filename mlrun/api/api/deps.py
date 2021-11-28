@@ -27,9 +27,10 @@ def verify_api_state(request: Request):
     path_with_query_string = uvicorn.protocols.utils.get_path_with_query_string(
         request.scope
     )
+    path = path_with_query_string.split("?")[0]
     if mlrun.mlconf.httpdb.state == mlrun.api.schemas.APIStates.offline:
         # we do want to stay healthy
-        if "healthz" not in path_with_query_string:
+        if "healthz" not in path:
             raise mlrun.errors.MLRunPreconditionFailedError("API is in offline state")
     if mlrun.mlconf.httpdb.state in [
         mlrun.api.schemas.APIStates.waiting_for_migrations,
@@ -40,10 +41,7 @@ def verify_api_state(request: Request):
             "background-tasks",
             "migrations",
         ]
-        if not any(
-            enabled_endpoint in path_with_query_string
-            for enabled_endpoint in enabled_endpoints
-        ):
+        if not any(enabled_endpoint in path for enabled_endpoint in enabled_endpoints):
             message = (
                 "API is waiting for migration to be triggered. Send POST request to /api/migrations/start to tr"
                 "igger it"

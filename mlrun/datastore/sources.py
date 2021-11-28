@@ -575,7 +575,7 @@ class StreamSource(OnlineSource):
             self.attributes["group"],
             self.attributes["seek_to"],
             self.attributes["shards"],
-            **self.attributes.get("extra_attributes", {}),
+            extra_attributes=self.attributes.get("extra_attributes", {}),
         )
         return function
 

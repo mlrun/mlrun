@@ -583,6 +583,8 @@ class HTTPRunDB(RunDBInterface):
         until=None,
         iter: int = None,
         best_iteration: bool = False,
+        kind: str = None,
+        category: Union[str, schemas.ArtifactCategories] = None,
     ) -> ArtifactList:
         """ List artifacts filtered by various parameters.
 
@@ -605,9 +607,14 @@ class HTTPRunDB(RunDBInterface):
         :param best_iteration: Returns the artifact which belongs to the best iteration of a given run, in the case of
             artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
             from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
+        :param kind: Return artifacts of the requested kind.
+        :param category: Return artifacts of the requested category.
         """
 
         project = project or config.default_project
+        if category and isinstance(category, schemas.ArtifactCategories):
+            category = category.value
+
         params = {
             "name": name,
             "project": project,
@@ -615,6 +622,8 @@ class HTTPRunDB(RunDBInterface):
             "label": labels or [],
             "iter": iter,
             "best-iteration": best_iteration,
+            "kind": kind,
+            "category": category,
         }
         error = "list artifacts"
         resp = self.api_call("GET", "artifacts", error, params=params)

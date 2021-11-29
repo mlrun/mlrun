@@ -166,8 +166,13 @@ class SQLDB(RunDBInterface):
         until=None,
         iter: int = None,
         best_iteration: bool = False,
+        kind: str = None,
+        category: Union[str, schemas.ArtifactCategories] = None,
     ):
         import mlrun.api.crud
+
+        if category and isinstance(category, str):
+            category = schemas.ArtifactCategories(category)
 
         return self._transform_db_error(
             mlrun.api.crud.Artifacts().list_artifacts,
@@ -180,6 +185,8 @@ class SQLDB(RunDBInterface):
             until,
             iter=iter,
             best_iteration=best_iteration,
+            kind=kind,
+            category=category,
         )
 
     def del_artifact(self, key, tag="", project=""):

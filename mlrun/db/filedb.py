@@ -236,10 +236,12 @@ class FileRunDB(RunDBInterface):
         until=None,
         iter: int = None,
         best_iteration: bool = False,
+        kind: str = None,
+        category: Union[str, schemas.ArtifactCategories] = None,
     ):
-        if iter:
+        if iter or kind or category:
             raise NotImplementedError(
-                "iter parameter not supported for filedb implementation"
+                "iter/kind/category parameters are not supported for filedb implementation"
             )
 
         labels = [] if labels is None else labels

@@ -24,13 +24,14 @@ from tempfile import mkdtemp
 from uuid import uuid4
 
 import deepdiff
+import pandas
 import pytest
 
 import mlrun.errors
 import mlrun.projects.project
 from mlrun import RunObject
 from mlrun.api import schemas
-from mlrun.artifacts import Artifact
+from mlrun.artifacts import Artifact, DatasetArtifact, ModelArtifact
 from mlrun.db.httpdb import HTTPRunDB
 from tests.conftest import tests_root_directory, wait_for_server
 
@@ -274,6 +275,34 @@ def test_artifacts(create_server):
     db.del_artifacts(project=prj, tag="*")
     artifacts = db.list_artifacts(project=prj, tag="*")
     assert len(artifacts) == 0, "bad number of artifacts after del"
+
+
+def test_list_artifacts_filter_by_kind(create_server):
+    server: Server = create_server()
+    db = server.conn
+
+    prj, uid, key, body = "p9", "u19", "k802", "tomato"
+    model_artifact = ModelArtifact(key, body, target_path="a.txt")
+
+    data = {"col1": [1, 2], "col2": [3, 4]}
+    data_frame = pandas.DataFrame(data=data)
+    dataset_artifact = DatasetArtifact(
+        key, df=data_frame, format="parquet", target_path="b.pq"
+    )
+
+    db.store_artifact(key, model_artifact, f"model_{uid}", project=prj)
+    db.store_artifact(key, dataset_artifact, f"ds_{uid}", project=prj, iter=42)
+
+    artifacts = db.list_artifacts(project=prj)
+    assert len(artifacts) == 2, "bad number of artifacts"
+
+    artifacts = db.list_artifacts(project=prj, kind="model")
+    assert len(artifacts) == 1, "bad number of model artifacts"
+
+    artifacts = db.list_artifacts(
+        project=prj, category=schemas.ArtifactCategories.dataset
+    )
+    assert len(artifacts) == 1, "bad number of dataset artifacts"
 
 
 def test_basic_auth(create_server):

@@ -96,6 +96,8 @@ class RunDBInterface(ABC):
         until=None,
         iter: int = None,
         best_iteration: bool = False,
+        kind: str = None,
+        category: Union[str, schemas.ArtifactCategories] = None,
     ):
         pass
 

@@ -116,7 +116,11 @@ async def test_create_schedule(db: Session, scheduler: Scheduler):
 
 
 @pytest.mark.asyncio
-async def test_invoke_schedule(db: Session, scheduler: Scheduler):
+async def test_invoke_schedule(
+    db: Session,
+    scheduler: Scheduler,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+):
     cron_trigger = schemas.ScheduleCronTrigger(year=1999)
     schedule_name = "schedule-name"
     project = config.default_project
@@ -159,7 +163,11 @@ async def test_invoke_schedule(db: Session, scheduler: Scheduler):
 
 
 @pytest.mark.asyncio
-async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler):
+async def test_create_schedule_mlrun_function(
+    db: Session,
+    scheduler: Scheduler,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+):
     now = datetime.now()
     now_plus_1_second = now + timedelta(seconds=1)
     now_plus_2_second = now + timedelta(seconds=2)
@@ -787,7 +795,11 @@ async def test_schedule_access_key_generation(
 
 
 @pytest.mark.asyncio
-async def test_update_schedule(db: Session, scheduler: Scheduler):
+async def test_update_schedule(
+    db: Session,
+    scheduler: Scheduler,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+):
     labels_1 = {
         "label1": "value1",
         "label2": "value2",
@@ -945,6 +957,7 @@ async def test_schedule_job_concurrency_limit(
     concurrency_limit: int,
     run_amount: int,
     schedule_kind: schemas.ScheduleKinds,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
     global call_counter
     call_counter = 0

@@ -326,7 +326,7 @@ class RunDBInterface(ABC):
         project: str,
         provider: Union[
             str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.vault,
+        ] = schemas.SecretProviderName.kubernetes,
         secrets: dict = None,
     ):
         pass
@@ -338,7 +338,7 @@ class RunDBInterface(ABC):
         token: str,
         provider: Union[
             str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.vault,
+        ] = schemas.SecretProviderName.kubernetes,
         secrets: List[str] = None,
     ) -> schemas.SecretsData:
         pass
@@ -349,7 +349,7 @@ class RunDBInterface(ABC):
         project: str,
         provider: Union[
             str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.vault,
+        ] = schemas.SecretProviderName.kubernetes,
         token: str = None,
     ) -> schemas.SecretKeysData:
         pass
@@ -360,7 +360,7 @@ class RunDBInterface(ABC):
         project: str,
         provider: Union[
             str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.vault,
+        ] = schemas.SecretProviderName.kubernetes,
         secrets: List[str] = None,
     ):
         pass

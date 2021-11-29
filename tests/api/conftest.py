@@ -113,6 +113,24 @@ class K8sSecretsMock:
             == {}
         )
 
+    def set_service_account_keys(
+        self, project, default_service_account, allowed_service_accounts
+    ):
+        secrets = {}
+        if default_service_account:
+            secrets[
+                mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key(
+                    "default"
+                )
+            ] = default_service_account
+        if allowed_service_accounts:
+            secrets[
+                mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key(
+                    "allowed"
+                )
+            ] = ",".join(allowed_service_accounts)
+        self.store_project_secrets(project, secrets)
+
 
 @pytest.fixture()
 def k8s_secrets_mock(client: TestClient) -> K8sSecretsMock:

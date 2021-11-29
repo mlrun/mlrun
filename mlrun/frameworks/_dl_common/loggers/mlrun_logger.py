@@ -5,8 +5,9 @@ from bokeh.plotting import figure
 
 import mlrun
 from mlrun.artifacts import Artifact, BokehArtifact
-from mlrun.frameworks._common.model_handler import ModelHandler
-from mlrun.frameworks._dl_common.loggers.logger import Logger, LoggerMode
+
+from ..._common.model_handler import ModelHandler
+from .logger import Logger, LoggerMode
 
 # All trackable values types:
 TrackableType = Union[str, bool, float, int]

@@ -1077,6 +1077,9 @@ def compile_function_config(function: RemoteRuntime):
         spec.set_config("spec.minReplicas", function.spec.min_replicas)
         spec.set_config("spec.maxReplicas", function.spec.max_replicas)
 
+    if function.spec.service_account:
+        spec.set_config("spec.serviceAccount", function.spec.service_account)
+
     if function.spec.base_spec or function.spec.build.functionSourceCode:
         config = function.spec.base_spec
         if not config:

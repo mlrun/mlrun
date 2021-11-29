@@ -586,6 +586,26 @@ class KubeResource(BaseRuntime):
 
         self.apply(modifier(**mount_params_dict))
 
+    def validate_and_enrich_service_account(
+        self, allowed_service_accounts, default_service_account
+    ):
+        if not self.spec.service_account:
+            if default_service_account:
+                self.spec.service_account = default_service_account
+                logger.info(
+                    f"Setting default service account to function: {default_service_account}"
+                )
+            return
+
+        if (
+            allowed_service_accounts
+            and self.spec.service_account not in allowed_service_accounts
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Function service account {self.spec.service_account} is not in allowed "
+                + f"service accounts {allowed_service_accounts}"
+            )
+
 
 def kube_resource_spec_to_pod_spec(
     kube_resource_spec: KubeResourceSpec, container: client.V1Container

@@ -5,7 +5,8 @@ import onnx
 import onnxruntime
 
 import mlrun
-from mlrun.frameworks.onnx.dataset import ONNXDataset
+
+from .dataset import ONNXDataset
 
 
 # TODO: Finish evaluation and prediction.

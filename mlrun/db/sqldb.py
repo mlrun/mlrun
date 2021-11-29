@@ -571,7 +571,7 @@ class SQLDB(RunDBInterface):
         project: str,
         provider: Union[
             str, mlrun.api.schemas.SecretProviderName
-        ] = mlrun.api.schemas.SecretProviderName.vault,
+        ] = mlrun.api.schemas.SecretProviderName.kubernetes,
         secrets: dict = None,
     ):
         raise NotImplementedError()
@@ -582,7 +582,7 @@ class SQLDB(RunDBInterface):
         token: str,
         provider: Union[
             str, mlrun.api.schemas.SecretProviderName
-        ] = mlrun.api.schemas.SecretProviderName.vault,
+        ] = mlrun.api.schemas.SecretProviderName.kubernetes,
         secrets: List[str] = None,
     ) -> mlrun.api.schemas.SecretsData:
         raise NotImplementedError()
@@ -592,7 +592,7 @@ class SQLDB(RunDBInterface):
         project: str,
         provider: Union[
             str, mlrun.api.schemas.SecretProviderName
-        ] = mlrun.api.schemas.SecretProviderName.vault,
+        ] = mlrun.api.schemas.SecretProviderName.kubernetes,
         token: str = None,
     ) -> mlrun.api.schemas.SecretKeysData:
         raise NotImplementedError()
@@ -602,7 +602,7 @@ class SQLDB(RunDBInterface):
         project: str,
         provider: Union[
             str, mlrun.api.schemas.SecretProviderName
-        ] = mlrun.api.schemas.SecretProviderName.vault,
+        ] = mlrun.api.schemas.SecretProviderName.kubernetes,
         secrets: List[str] = None,
     ):
         raise NotImplementedError()

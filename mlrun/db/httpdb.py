@@ -2059,7 +2059,7 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         provider: Union[
             str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.vault,
+        ] = schemas.SecretProviderName.kubernetes,
         secrets: dict = None,
     ):
         """ Create project-context secrets using either ``vault`` or ``kubernetes`` provider.
@@ -2084,7 +2084,7 @@ class HTTPRunDB(RunDBInterface):
                 secrets = {'password': 'myPassw0rd', 'aws_key': '111222333'}
                 db.create_project_secrets(
                     "project1",
-                    provider=mlrun.api.schemas.SecretProviderName.vault,
+                    provider=mlrun.api.schemas.SecretProviderName.kubernetes,
                     secrets=secrets
                 )
         """
@@ -2104,7 +2104,7 @@ class HTTPRunDB(RunDBInterface):
         token: str = None,
         provider: Union[
             str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.vault,
+        ] = schemas.SecretProviderName.kubernetes,
         secrets: List[str] = None,
     ) -> schemas.SecretsData:
         """ Retrieve project-context secrets from Vault.
@@ -2143,7 +2143,7 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         provider: Union[
             str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.vault,
+        ] = schemas.SecretProviderName.kubernetes,
         token: str = None,
     ) -> schemas.SecretKeysData:
         """ Retrieve project-context secret keys from Vault or Kubernetes.

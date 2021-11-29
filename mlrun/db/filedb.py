@@ -652,7 +652,7 @@ class FileRunDB(RunDBInterface):
     def create_project_secrets(
         self,
         project: str,
-        provider: str = mlrun.api.schemas.SecretProviderName.vault.value,
+        provider: str = mlrun.api.schemas.SecretProviderName.kubernetes.value,
         secrets: dict = None,
     ):
         raise NotImplementedError()
@@ -661,7 +661,7 @@ class FileRunDB(RunDBInterface):
         self,
         project: str,
         token: str,
-        provider: str = mlrun.api.schemas.SecretProviderName.vault.value,
+        provider: str = mlrun.api.schemas.SecretProviderName.kubernetes.value,
         secrets: List[str] = None,
     ) -> mlrun.api.schemas.SecretsData:
         raise NotImplementedError()
@@ -669,7 +669,7 @@ class FileRunDB(RunDBInterface):
     def list_project_secret_keys(
         self,
         project: str,
-        provider: str = mlrun.api.schemas.SecretProviderName.vault,
+        provider: str = mlrun.api.schemas.SecretProviderName.kubernetes,
         token: str = None,
     ) -> mlrun.api.schemas.SecretKeysData:
         raise NotImplementedError()
@@ -677,7 +677,7 @@ class FileRunDB(RunDBInterface):
     def delete_project_secrets(
         self,
         project: str,
-        provider: str = mlrun.api.schemas.SecretProviderName.vault.value,
+        provider: str = mlrun.api.schemas.SecretProviderName.kubernetes.value,
         secrets: List[str] = None,
     ):
         raise NotImplementedError()

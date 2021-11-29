@@ -156,10 +156,7 @@ class EventStreamProcessor:
             step_name="Aggregates",
         )
         feature_set.add_aggregation(
-            LATENCY,
-            ["avg"],
-            self.aggregate_avg_windows,
-            self.aggregate_avg_period,
+            LATENCY, ["avg"], self.aggregate_avg_windows, self.aggregate_avg_period,
         )
         feature_set.graph.add_step(
             "storey.steps.SampleWindow",

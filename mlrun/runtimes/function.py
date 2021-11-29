@@ -388,6 +388,7 @@ class RemoteRuntime(KubeResource):
             ) * 1000
             annotations["nginx.org/proxy-connect-timeout"] = f"{timeout}s"
             annotations["nginx.org/proxy-read-timeout"] = f"{timeout}s"
+            annotations["nginx.org/proxy-send-timeout"] = f"{timeout}s"
         self.add_trigger(
             "http",
             nuclio.HttpTrigger(

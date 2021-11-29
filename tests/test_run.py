@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import pathlib
 from unittest.mock import Mock
 
@@ -316,3 +315,32 @@ def test_local_args():
     print(state)
     print(log)
     assert log.find(", '--xyz', '789']") != -1, "params not detected in argv"
+
+
+def test_local_context():
+    project_name = "xtst"
+    mlrun.mlconf.artifact_path = out_path
+    context = mlrun.get_or_create_ctx("xx", project=project_name, upload_artifacts=True)
+    with context:
+        context.log_artifact("xx", body="123", local_path="a.txt")
+        context.log_model("mdl", body="456", model_file="mdl.pkl", artifact_path="+/mm")
+
+        artifact = context.get_cached_artifact("xx")
+        artifact.format = "z"
+        context.update_artifact(artifact)
+
+    assert context._state == "completed", "task did not complete"
+
+    db = mlrun.get_run_db()
+    run = db.read_run(context._uid, project=project_name)
+    assert run["status"]["state"] == "completed", "run status not updated in db"
+    assert run["status"]["artifacts"][0]["key"] == "xx", "artifact not updated in db"
+    assert (
+        run["status"]["artifacts"][0]["format"] == "z"
+    ), "run/artifact attribute not updated in db"
+    assert (
+        run["status"]["artifacts"][1]["target_path"] == out_path + "/mm/"
+    ), "artifact not uploaded to subpath"
+
+    db_artifact = db.read_artifact(artifact.db_key, project=project_name)
+    assert db_artifact["format"] == "z", "artifact attribute not updated in db"

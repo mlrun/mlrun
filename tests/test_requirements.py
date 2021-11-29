@@ -105,7 +105,7 @@ def test_requirement_specifiers_convention():
         "chardet": {">=3.0.2, <4.0"},
         "google-auth": {">=1.25.0, <2.0dev"},
         "ipython": {"~=7.0, <7.17"},
-        "numpy": {">=1.16.5, <1.20.0"},
+        "numpy": {">=1.16.5, <1.22.0"},
         "tabulate": {">=0.8.0, <=0.8.3"},
         "orjson": {">=3,<3.4"},
         "alembic": {"~=1.4,<1.6.0"},
@@ -113,6 +113,7 @@ def test_requirement_specifiers_convention():
         "boto3": {"~=1.9, <1.17.107"},
         "azure-storage-blob": {"~=12.0, <12.7.0"},
         "dask-ml": {"~=1.4,<1.9.0"},
+        "pyarrow": {">=1,<6"},
     }
 
     for (ignored_requirement_name, ignored_specifiers,) in ignored_invalid_map.items():
@@ -139,6 +140,10 @@ def test_requirement_specifiers_inconsistencies():
     ignored_inconsistencies_map = {
         # It's ok we have 2 different versions cause they are for different python versions
         "pandas": {"~=1.2; python_version >= '3.7'", "~=1.0; python_version < '3.7'"},
+        "scikit-learn": {
+            "~=1.0; python_version >= '3.7'",
+            "~=0.23.0; python_version < '3.7'",
+        },
         # The empty specifier is from tests/runtimes/assets/requirements.txt which is there specifically to test the
         # scenario of requirements without version specifiers
         "python-dotenv": {"", "~=0.17.0"},

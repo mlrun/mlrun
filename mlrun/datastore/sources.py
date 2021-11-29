@@ -59,7 +59,7 @@ class BaseSourceDriver(DataSource):
     def to_step(self, key_field=None, time_field=None, context=None):
         import storey
 
-        return storey.SyncEmitSource()
+        return storey.SyncEmitSource(context=context)
 
     def get_table_object(self):
         """get storey Table object"""
@@ -203,6 +203,13 @@ class ParquetSource(BaseSourceDriver):
         start_time: Optional[Union[datetime, str]] = None,
         end_time: Optional[Union[datetime, str]] = None,
     ):
+
+        if isinstance(start_time, str):
+            start_time = datetime.fromisoformat(start_time)
+
+        if isinstance(end_time, str):
+            end_time = datetime.fromisoformat(end_time)
+
         super().__init__(
             name,
             path,
@@ -412,7 +419,7 @@ class CustomSource(BaseSourceDriver):
         attributes = copy(self.attributes)
         class_name = attributes.pop("class_name")
         class_object = get_class(class_name)
-        return class_object(**attributes,)
+        return class_object(context=context, **attributes)
 
 
 class DataFrameSource:
@@ -492,6 +499,7 @@ class OnlineSource(BaseSourceDriver):
             else storey.SyncEmitSource
         )
         return source_class(
+            context=context,
             key_field=self.key_field or key_field,
             time_field=self.time_field or time_field,
             full_event=True,

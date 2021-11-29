@@ -28,6 +28,7 @@ class TestMLRunSystem:
         "V3IO_FRAMESD",
         "V3IO_USERNAME",
         "V3IO_ACCESS_KEY",
+        "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE",
     ]
 
     def setup_method(self, method):

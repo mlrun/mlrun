@@ -64,6 +64,7 @@ from .utils import (
     new_pipe_meta,
     parse_versioned_object_uri,
     retry_until_successful,
+    run_keys,
     update_in,
 )
 
@@ -305,6 +306,7 @@ def get_or_create_ctx(
     with_env: bool = True,
     rundb: str = "",
     project: str = "",
+    upload_artifacts=False,
 ):
     """called from within the user program to obtain a run context
 
@@ -321,6 +323,8 @@ def get_or_create_ctx(
     :param with_env: look for context in environment vars, default True
     :param rundb:    path/url to the metadata and artifact database
     :param project:  project to initiate the context in (by default mlrun.mlctx.default_project)
+    :param upload_artifacts:  when using local context (not as part of a job/run), upload artifacts to the
+                              system default artifact path location
 
     :return: execution context
 
@@ -375,6 +379,11 @@ def get_or_create_ctx(
 
     if not newspec:
         newspec = {}
+        if upload_artifacts:
+            artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
+                mlconf.artifact_path, project or mlconf.default_project
+            )
+            update_in(newspec, ["spec", run_keys.output_path], artifact_path)
 
     newspec.setdefault("metadata", {})
     update_in(newspec, "metadata.name", name, replace=False)
@@ -386,12 +395,13 @@ def get_or_create_ctx(
         logger.info(f"logging run results to: {out}")
 
     newspec["metadata"]["project"] = (
-        project or newspec["metadata"].get("project") or mlconf.default_project
+        newspec["metadata"].get("project") or project or mlconf.default_project
     )
 
     ctx = MLClientCtx.from_dict(
         newspec, rundb=out, autocommit=autocommit, tmp=tmp, host=socket.gethostname()
     )
+    global_context.set(ctx)
     return ctx
 
 

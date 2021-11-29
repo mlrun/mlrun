@@ -4,8 +4,10 @@ __init__ function of Xgboost-autologger. Will be extended and contain multiple X
 """
 
 import mlrun
-from mlrun.frameworks._common.pkl_model_server import PickleModelServer
-from mlrun.frameworks.mlbase.mlrun_interface import MLBaseMLRunInterface
+
+from .._ml_common import MLMLRunInterface
+from .._ml_common.pkl_model_server import PickleModelServer
+from .model_handler import XGBoostModelHandler
 
 # Temporary placeholder, XGBModelServer may deviate from PklModelServer in upcoming versions.
 XGBModelServer = PickleModelServer
@@ -19,7 +21,7 @@ def apply_mlrun(
     model_name=None,
     generate_test_set=True,
     **kwargs
-):
+) -> XGBoostModelHandler:
     """
     Wrap the given model with MLRun model, saving the model's attributes and methods while giving it mlrun's additional
     features.
@@ -27,7 +29,7 @@ def apply_mlrun(
 
         model = XGBRegressor()
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
-        model = apply_mlrun(model, context, X_test=X_test, y_test=y_test)
+        apply_mlrun(model, context, X_test=X_test, y_test=y_test)
         model.fit(X_train, y_train)
 
     :param model:       The model to wrap.
@@ -46,6 +48,11 @@ def apply_mlrun(
     kwargs["X_test"] = X_test
     kwargs["y_test"] = y_test
     kwargs["generate_test_set"] = generate_test_set
+
+    mh = XGBoostModelHandler(
+        model_name=model_name or "model", model=model, context=context
+    )
+
     # Add MLRun's interface to the model:
-    MLBaseMLRunInterface.add_interface(model, context, model_name, kwargs)
-    return model
+    MLMLRunInterface.add_interface(mh, context, model_name, kwargs)
+    return mh

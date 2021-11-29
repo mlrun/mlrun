@@ -47,6 +47,7 @@ class SystemTestPreparer:
         username: str,
         access_key: str,
         iguazio_version: str,
+        spark_service: str,
         password: str = None,
         debug: bool = False,
     ):
@@ -73,6 +74,7 @@ class SystemTestPreparer:
             "V3IO_FRAMESD": framesd_url,
             "V3IO_USERNAME": username,
             "V3IO_ACCESS_KEY": access_key,
+            "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE": spark_service,
         }
         if password:
             self._env_config["V3IO_PASSWORD"] = password
@@ -433,6 +435,7 @@ def main():
 @click.argument("username", type=str, required=True)
 @click.argument("access-key", type=str, required=True)
 @click.argument("iguazio-version", type=str, default=None, required=True)
+@click.argument("spark-service", type=str, required=True)
 @click.argument("password", type=str, default=None, required=False)
 @click.option(
     "--debug",
@@ -456,6 +459,7 @@ def run(
     username: str,
     access_key: str,
     iguazio_version: str,
+    spark_service: str,
     password: str,
     debug: bool,
 ):
@@ -475,6 +479,7 @@ def run(
         username,
         access_key,
         iguazio_version,
+        spark_service,
         password,
         debug,
     )

@@ -151,10 +151,9 @@ class EventStreamProcessor:
             ["count"],
             self.aggregate_count_windows,
             self.aggregate_count_period,
+            name=PREDICTIONS,
             after="MapFeatureNames",
             step_name="Aggregates",
-            name=PREDICTIONS,
-
         )
         feature_set.add_aggregation(
             LATENCY,

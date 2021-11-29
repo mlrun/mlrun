@@ -43,7 +43,7 @@ def verify_api_state(request: Request):
         ]
         if not any(enabled_endpoint in path for enabled_endpoint in enabled_endpoints):
             message = (
-                "API is waiting for migration to be triggered. Send POST request to /api/migrations/start to"
+                "API is waiting for migration to be triggered. Send POST request to /api/operations/migrations to"
                 " trigger it"
             )
             if (

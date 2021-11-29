@@ -63,6 +63,14 @@ class K8sSecretsMock:
     def __init__(self):
         # project -> secret_key -> secret_value
         self.project_secrets_map = {}
+        self._is_running_in_k8s = True
+
+    # cannot use a property since it's used as a side-effect in the fixture's mock.
+    def is_running_in_k8s_cluster(self) -> bool:
+        return self._is_running_in_k8s
+
+    def set_is_running_in_k8s_cluster(self, value: bool):
+        self._is_running_in_k8s = value
 
     def store_project_secrets(self, project, secrets, namespace=""):
         self.project_secrets_map.setdefault(project, {}).update(secrets)
@@ -151,7 +159,7 @@ def k8s_secrets_mock(client: TestClient) -> K8sSecretsMock:
     }
 
     mlrun.api.utils.singletons.k8s.get_k8s().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
-        return_value=True
+        side_effect=k8s_secrets_mock.is_running_in_k8s_cluster
     )
     mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_keys = unittest.mock.Mock(
         side_effect=k8s_secrets_mock.get_project_secret_keys

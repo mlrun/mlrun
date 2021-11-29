@@ -95,6 +95,9 @@ def test_delete_project_with_resources(
     project_member_mode: str,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
+    # need to set this to False, otherwise impl will try to delete k8s resources, and will need many more
+    # mocks to overcome this.
+    k8s_secrets_mock.set_is_running_in_k8s_cluster(False)
     project_to_keep = "project-to-keep"
     project_to_remove = "project-to-remove"
     _create_resources_of_all_kinds(db, project_to_keep)
@@ -395,6 +398,10 @@ def test_projects_crud(
     project_member_mode: str,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
+    # need to set this to False, otherwise impl will try to delete k8s resources, and will need many more
+    # mocks to overcome this.
+    k8s_secrets_mock.set_is_running_in_k8s_cluster(False)
+
     name1 = f"prj-{uuid4().hex}"
     project_1 = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=name1),

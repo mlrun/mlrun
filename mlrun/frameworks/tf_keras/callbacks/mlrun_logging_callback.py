@@ -2,9 +2,10 @@ from typing import Callable, Dict, List, Union
 
 import mlrun
 from mlrun.artifacts import Artifact
-from mlrun.frameworks._dl_common.loggers import LoggerMode, MLRunLogger, TrackableType
-from mlrun.frameworks.tf_keras.callbacks.logging_callback import LoggingCallback
-from mlrun.frameworks.tf_keras.model_handler import TFKerasModelHandler
+
+from ..._dl_common.loggers import LoggerMode, MLRunLogger, TrackableType
+from ..model_handler import TFKerasModelHandler
+from .logging_callback import LoggingCallback
 
 
 class MLRunLoggingCallback(LoggingCallback):

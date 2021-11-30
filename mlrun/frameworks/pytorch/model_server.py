@@ -6,9 +6,10 @@ from torch import Tensor
 from torch.nn import Module
 
 import mlrun
-from mlrun.frameworks.pytorch.mlrun_interface import PyTorchMLRunInterface
-from mlrun.frameworks.pytorch.model_handler import PyTorchModelHandler
 from mlrun.serving.v2_serving import V2ModelServer
+
+from .mlrun_interface import PyTorchMLRunInterface
+from .model_handler import PyTorchModelHandler
 
 
 class PyTorchModelServer(V2ModelServer):

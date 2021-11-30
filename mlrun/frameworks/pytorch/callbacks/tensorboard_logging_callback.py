@@ -10,12 +10,9 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.utils.tensorboard.summary import hparams
 
 import mlrun
-from mlrun.frameworks._dl_common.loggers import TensorboardLogger, TrackableType
-from mlrun.frameworks.pytorch.callbacks.logging_callback import (
-    LoggingCallback,
-    MetricFunctionType,
-    MetricValueType,
-)
+
+from ..._dl_common.loggers import TensorboardLogger, TrackableType
+from .logging_callback import LoggingCallback, MetricFunctionType, MetricValueType
 
 
 class _MLRunSummaryWriter(SummaryWriter):

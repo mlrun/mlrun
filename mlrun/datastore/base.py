@@ -20,7 +20,6 @@ import dask.dataframe as dd
 import fsspec
 import orjson
 import pandas as pd
-import pyarrow.parquet as pq
 import requests
 import urllib3
 
@@ -163,25 +162,11 @@ class DataStore:
                             f"feature not supported for python version {sys.version_info}"
                         )
 
-                    from storey.utils import find_filters
+                    from storey.utils import find_filters, find_partitions
 
-                    dataset = pq.ParquetDataset(url, filesystem=fs)
-                    if dataset.partitions:
-                        partitions = dataset.partitions.partition_names
-                        time_attributes = [
-                            "year",
-                            "month",
-                            "day",
-                            "hour",
-                            "minute",
-                            "second",
-                        ]
-                        partitions_time_attributes = [
-                            j for j in time_attributes if j in partitions
-                        ]
-                    else:
-                        partitions_time_attributes = []
                     filters = []
+                    partitions_time_attributes = find_partitions(url, fs)
+
                     find_filters(
                         partitions_time_attributes,
                         start_time,
@@ -190,6 +175,7 @@ class DataStore:
                         time_column,
                     )
                     kwargs["filters"] = filters
+
                 return df_module.read_parquet(*args, **kwargs)
 
         elif url.endswith(".json") or format == "json":

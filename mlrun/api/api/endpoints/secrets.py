@@ -46,7 +46,7 @@ def store_project_secrets(
 @router.delete("/projects/{project}/secrets", status_code=HTTPStatus.NO_CONTENT.value)
 def delete_project_secrets(
     project: str,
-    provider: schemas.SecretProviderName,
+    provider: schemas.SecretProviderName = schemas.SecretProviderName.kubernetes,
     secrets: List[str] = fastapi.Query(None, alias="secret"),
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
@@ -72,7 +72,7 @@ def delete_project_secrets(
 @router.get("/projects/{project}/secret-keys", response_model=schemas.SecretKeysData)
 def list_secret_keys(
     project: str,
-    provider: schemas.SecretProviderName = schemas.SecretProviderName.vault,
+    provider: schemas.SecretProviderName = schemas.SecretProviderName.kubernetes,
     token: str = fastapi.Header(None, alias=schemas.HeaderNames.secret_store_token),
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
@@ -96,7 +96,7 @@ def list_secret_keys(
 def list_secrets(
     project: str,
     secrets: List[str] = fastapi.Query(None, alias="secret"),
-    provider: schemas.SecretProviderName = schemas.SecretProviderName.vault,
+    provider: schemas.SecretProviderName = schemas.SecretProviderName.kubernetes,
     token: str = fastapi.Header(None, alias=schemas.HeaderNames.secret_store_token),
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request

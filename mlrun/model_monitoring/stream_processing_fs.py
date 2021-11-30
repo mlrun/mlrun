@@ -147,20 +147,16 @@ class EventStreamProcessor:
         )
         # kv and tsdb branch
         feature_set.add_aggregation(
-            PREDICTIONS,
             ENDPOINT_ID,
             ["count"],
             self.aggregate_count_windows,
             self.aggregate_count_period,
+            name=PREDICTIONS,
             after="MapFeatureNames",
             step_name="Aggregates",
         )
         feature_set.add_aggregation(
-            LATENCY,
-            LATENCY,
-            ["avg"],
-            self.aggregate_avg_windows,
-            self.aggregate_avg_period,
+            LATENCY, ["avg"], self.aggregate_avg_windows, self.aggregate_avg_period,
         )
         feature_set.graph.add_step(
             "storey.steps.SampleWindow",

@@ -493,9 +493,9 @@ test-integration: clean ## Run mlrun integration tests
 		--disable-warnings \
 		--durations=100 \
 		-rf \
-		tests/integration \
-		tests/test_notebooks.py \
-		tests/rundb/test_httpdb.py
+		tests/integration
+#		tests/test_notebooks.py \
+#		tests/rundb/test_httpdb.py
 
 .PHONY: test-migrations-dockerized
 test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docker container

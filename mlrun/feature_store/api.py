@@ -393,8 +393,8 @@ def ingest(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "featureset.spec.engine must be set to 'spark' to ingest with spark"
         )
-    if featureset.spec.engine == "spark" and run_config is not None:
-        if isinstance(source, pd.DataFrame):
+    if featureset.spec.engine == "spark":
+        if isinstance(source, pd.DataFrame) and run_config is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "DataFrame source is illegal when ingesting with spark"
             )

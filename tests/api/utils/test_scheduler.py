@@ -45,7 +45,6 @@ epsilon = 0.5
 
 
 async def bump_counter():
-    print('bumping', datetime.now())
     global call_counter
     call_counter += 1
 

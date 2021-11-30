@@ -1798,8 +1798,8 @@ class TestFeatureStore(TestMLRunSystem):
             "aug": {"mykey1": "1", "mykey2": "2"},
         }
 
-    def test_preview_bug_1300(self):
-        name = "fset-1300"
+    def test_preview_saves_changes(self):
+        name = "update-on-preview"
         v3io_source = StreamSource(key_field="ticker", time_field="time")
         fset = fs.FeatureSet(name, timestamp_key="time", entities=[Entity("ticker")])
         import v3io.dataplane

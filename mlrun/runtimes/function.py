@@ -376,19 +376,26 @@ class RemoteRuntime(KubeResource):
         paths=None,
         canary=None,
         secret=None,
-        timeout: int = None,
+        worker_timeout: int = None,
+        gateway_timeout: int = None,
         annotations=None,
         extra_attributes=None,
     ):
         annotations = annotations or {}
         extra_attributes = extra_attributes or {}
-        if timeout:
+        if worker_timeout:
             extra_attributes["workerAvailabilityTimeoutMilliseconds"] = (
-                timeout + 1
+                worker_timeout
             ) * 1000
-            annotations["nginx.org/proxy-connect-timeout"] = f"{timeout}s"
-            annotations["nginx.org/proxy-read-timeout"] = f"{timeout}s"
-            annotations["nginx.org/proxy-send-timeout"] = f"{timeout}s"
+            gateway_timeout = gateway_timeout or (worker_timeout + 60)
+        if gateway_timeout:
+            if worker_timeout and worker_timeout >= gateway_timeout:
+                raise ValueError(
+                    "gateway timeout must be greater than the worker timeout"
+                )
+            annotations["nginx.org/proxy-connect-timeout"] = f"{gateway_timeout}s"
+            annotations["nginx.org/proxy-read-timeout"] = f"{gateway_timeout}s"
+            annotations["nginx.org/proxy-send-timeout"] = f"{gateway_timeout}s"
         self.add_trigger(
             "http",
             nuclio.HttpTrigger(
@@ -458,6 +465,7 @@ class RemoteRuntime(KubeResource):
         seek_to="earliest",
         shards=1,
         extra_attributes=None,
+        **kwargs,
     ):
         """add v3io stream trigger to the function"""
         endpoint = None
@@ -475,6 +483,7 @@ class RemoteRuntime(KubeResource):
                 seekTo=seek_to,
                 webapi=endpoint or "http://v3io-webapi:8081",
                 extra_attributes=extra_attributes,
+                **kwargs,
             ),
         )
         self.spec.min_replicas = shards

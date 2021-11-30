@@ -41,6 +41,7 @@ async def scheduler(db: Session) -> typing.Generator:
 
 
 call_counter: int = 0
+epsilon = 0.5
 
 
 async def bump_counter():
@@ -92,6 +93,7 @@ async def test_not_skipping_delayed_schedules(db: Session, scheduler: Scheduler)
 async def test_create_schedule(db: Session, scheduler: Scheduler):
     global call_counter
     call_counter = 0
+
     now = datetime.now()
     expected_call_counter = 5
     now_plus_1_seconds = now + timedelta(seconds=1)
@@ -111,7 +113,14 @@ async def test_create_schedule(db: Session, scheduler: Scheduler):
         bump_counter,
         cron_trigger,
     )
-    await asyncio.sleep(1 + expected_call_counter)
+
+    # cronjob starts on start of each second and until it gets to run the job it takes a few microseconds,
+    # to avoid the transient errors we round the seconds to wait and add an epsilon to each sleep.
+    time_to_sleep = (now_plus_5_seconds - datetime.now()).total_seconds() + epsilon
+    await asyncio.sleep(time_to_sleep)
+
+    if now.microsecond == 0:
+        expected_call_counter += 1
     assert call_counter == expected_call_counter
 
 

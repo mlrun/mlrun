@@ -45,6 +45,7 @@ epsilon = 0.5
 
 
 async def bump_counter():
+    print('bumping', datetime.now())
     global call_counter
     call_counter += 1
 
@@ -63,13 +64,14 @@ async def do_nothing():
 async def test_not_skipping_delayed_schedules(db: Session, scheduler: Scheduler):
     global call_counter
     call_counter = 0
-    now = datetime.now()
     expected_call_counter = 1
-    now_plus_1_seconds = now + timedelta(seconds=1)
-    now_plus_2_seconds = now + timedelta(seconds=1 + expected_call_counter)
+
+    start_date, end_date = _get_start_and_end_time_for_scheduled_trigger(
+        number_of_jobs=expected_call_counter, seconds_interval=1
+    )
     # this way we're leaving ourselves one second to create the schedule preventing transient test failure
     cron_trigger = schemas.ScheduleCronTrigger(
-        second="*/1", start_date=now_plus_1_seconds, end_date=now_plus_2_seconds
+        second="*/1", start_date=start_date, end_date=end_date
     )
     schedule_name = "schedule-name"
     project = config.default_project
@@ -94,13 +96,13 @@ async def test_create_schedule(db: Session, scheduler: Scheduler):
     global call_counter
     call_counter = 0
 
-    now = datetime.now()
     expected_call_counter = 5
-    now_plus_1_seconds = now + timedelta(seconds=1)
-    now_plus_5_seconds = now + timedelta(seconds=1 + expected_call_counter)
+    start_date, end_date = _get_start_and_end_time_for_scheduled_trigger(
+        number_of_jobs=5, seconds_interval=1
+    )
     # this way we're leaving ourselves one second to create the schedule preventing transient test failure
     cron_trigger = schemas.ScheduleCronTrigger(
-        second="*/1", start_date=now_plus_1_seconds, end_date=now_plus_5_seconds
+        second="*/1", start_date=start_date, end_date=end_date
     )
     schedule_name = "schedule-name"
     project = config.default_project
@@ -116,11 +118,8 @@ async def test_create_schedule(db: Session, scheduler: Scheduler):
 
     # cronjob starts on start of each second and until it gets to run the job it takes a few microseconds,
     # to avoid the transient errors we round the seconds to wait and add an epsilon to each sleep.
-    time_to_sleep = (now_plus_5_seconds - datetime.now()).total_seconds() + epsilon
+    time_to_sleep = (end_date - datetime.now()).total_seconds() + epsilon
     await asyncio.sleep(time_to_sleep)
-
-    if now.microsecond == 0:
-        expected_call_counter += 1
     assert call_counter == expected_call_counter
 
 
@@ -174,14 +173,13 @@ async def test_invoke_schedule(
 @pytest.mark.asyncio
 async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler):
 
-    now = datetime.now()
     expected_call_counter = 1
-
-    now_plus_1_second = now + timedelta(seconds=1)
-    now_plus_2_second = now + timedelta(seconds=1 + expected_call_counter)
+    start_date, end_date = _get_start_and_end_time_for_scheduled_trigger(
+        number_of_jobs=expected_call_counter, seconds_interval=1
+    )
     # this way we're leaving ourselves one second to create the schedule preventing transient test failure
     cron_trigger = schemas.ScheduleCronTrigger(
-        second="*/1", start_date=now_plus_1_second, end_date=now_plus_2_second
+        second="*/1", start_date=start_date, end_date=end_date
     )
     schedule_name = "schedule-name"
     project = config.default_project
@@ -197,20 +195,13 @@ async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler)
         scheduled_object,
         cron_trigger,
     )
-    await asyncio.sleep(2 + epsilon)
+    time_to_sleep = (end_date - datetime.now()).total_seconds() + epsilon
+    await asyncio.sleep(time_to_sleep)
     runs = get_db().list_runs(db, project=project)
 
-    # If microsecond is 0, then the scheduler will be able to fit one more run, because the scheduler
-    # starts at the start of every second(when microsecond == 0) so if for example we want to run between
-    # 12:08:06.100000 until 12:08:07.10000 the scheduler will run a job at 12:08:07.00000
-    # (because the start request is already past the time cron starts to run), but if microsecond is 0
-    # 12:08:06.000000 until 12:08:07:000000 the scheduler will run a job also at 06 and 07 second.
-    if now.microsecond == 0:
-        expected_call_counter += 1
     assert len(runs) == expected_call_counter
 
-    for run in runs:
-        assert run["status"]["state"] == RunStates.completed
+    assert runs[0]["status"]["state"] == RunStates.completed
 
     # the default of list_runs returns the the list descending by date.
     expected_last_run_uri = f"{project}@{runs[0]['metadata']['uid']}#0"
@@ -255,12 +246,13 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     name = "schedule-name"
     project = config.default_project
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
-    now = datetime.now()
+
     expected_call_counter = 3
-    now_plus_2_seconds = now + timedelta(seconds=2)
-    now_plus_5_seconds = now + timedelta(seconds=2 + expected_call_counter)
+    start_date, end_date = _get_start_and_end_time_for_scheduled_trigger(
+        number_of_jobs=expected_call_counter, seconds_interval=1
+    )
     cron_trigger = schemas.ScheduleCronTrigger(
-        second="*/1", start_date=now_plus_2_seconds, end_date=now_plus_5_seconds
+        second="*/1", start_date=start_date, end_date=end_date
     )
     # we're before upgrade so create a schedule with empty auth info
     scheduler.create_schedule(
@@ -286,8 +278,8 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     mlrun.api.utils.singletons.project_member.get_project_member().get_project_owner = unittest.mock.Mock(
         return_value=mlrun.api.schemas.ProjectOwner(username=username, session=session)
     )
-
-    await asyncio.sleep(2 + expected_call_counter + 1)
+    time_to_sleep = (end_date - datetime.now()).total_seconds() + epsilon
+    await asyncio.sleep(time_to_sleep)
     runs = get_db().list_runs(db, project=project)
     assert len(runs) == 3
     assert (
@@ -629,10 +621,13 @@ async def test_delete_schedules(db: Session, scheduler: Scheduler):
 async def test_rescheduling(db: Session, scheduler: Scheduler):
     global call_counter
     call_counter = 0
-    now = datetime.now()
-    now_plus_2_seconds = now + timedelta(seconds=2)
+
+    expected_call_counter = 2
+    start_date, end_date = _get_start_and_end_time_for_scheduled_trigger(
+        number_of_jobs=expected_call_counter, seconds_interval=1
+    )
     cron_trigger = schemas.ScheduleCronTrigger(
-        second="*/1", start_date=now, end_date=now_plus_2_seconds
+        second="*/1", start_date=start_date, end_date=end_date
     )
     schedule_name = "schedule-name"
     project = config.default_project
@@ -647,7 +642,8 @@ async def test_rescheduling(db: Session, scheduler: Scheduler):
     )
 
     # wait so one run will complete
-    await asyncio.sleep(1)
+    time_to_sleep = (start_date - datetime.now()).total_seconds() + 1
+    await asyncio.sleep(time_to_sleep)
 
     # stop the scheduler and assert indeed only one call happened
     await scheduler.stop()
@@ -655,7 +651,7 @@ async def test_rescheduling(db: Session, scheduler: Scheduler):
 
     # start the scheduler and and assert another run
     await scheduler.start(db)
-    await asyncio.sleep(1)
+    await asyncio.sleep(1 + epsilon)
     assert call_counter == 2
 
 
@@ -905,12 +901,13 @@ async def test_update_schedule(
     )
 
     # update it so it runs
-    now = datetime.now()
-    now_plus_1_second = now + timedelta(seconds=1)
-    now_plus_2_second = now + timedelta(seconds=2)
+    expected_call_counter = 1
+    start_date, end_date = _get_start_and_end_time_for_scheduled_trigger(
+        number_of_jobs=expected_call_counter, seconds_interval=1
+    )
     # this way we're leaving ourselves one second to create the schedule preventing transient test failure
     cron_trigger = schemas.ScheduleCronTrigger(
-        second="*/1", start_date=now_plus_1_second, end_date=now_plus_2_second,
+        second="*/1", start_date=start_date, end_date=end_date,
     )
     scheduler.update_schedule(
         db,
@@ -922,12 +919,12 @@ async def test_update_schedule(
     schedule = scheduler.get_schedule(db, project, schedule_name)
 
     next_run_time = datetime(
-        year=now_plus_2_second.year,
-        month=now_plus_2_second.month,
-        day=now_plus_2_second.day,
-        hour=now_plus_2_second.hour,
-        minute=now_plus_2_second.minute,
-        second=now_plus_2_second.second,
+        year=end_date.year,
+        month=end_date.month,
+        day=end_date.day,
+        hour=end_date.hour,
+        minute=end_date.minute,
+        second=end_date.second,
         tzinfo=tzlocal(),
     )
 
@@ -940,8 +937,8 @@ async def test_update_schedule(
         next_run_time,
         {},
     )
-
-    await asyncio.sleep(2)
+    time_to_sleep = (end_date - datetime.now()).total_seconds() + epsilon
+    await asyncio.sleep(time_to_sleep)
     runs = get_db().list_runs(db, project=project)
     assert len(runs) == 1
     assert runs[0]["status"]["state"] == RunStates.completed
@@ -1126,3 +1123,21 @@ def _create_mlrun_function_and_matching_scheduled_object(
         }
     }
     return scheduled_object
+
+
+def _get_start_and_end_time_for_scheduled_trigger(
+    number_of_jobs: int, seconds_interval: int
+):
+    """
+    If microsecond is 0, then the scheduler will be able to fit one more run, because the scheduler
+    starts at the start of every second(when microsecond == 0) so if for example we want to run between
+    12:08:06.100000 until 12:08:07.10000 the scheduler will run a job at 12:08:07.00000
+    (because the start request is already past the time cron starts to run), but if microsecond is 0
+    12:08:06.000000 until 12:08:07:000000 the scheduler will run a job also at 06 and 07 second.
+    """
+    now = datetime.now()
+    if now.microsecond == 0:
+        now = now + timedelta(seconds=1, milliseconds=1)
+    start_date = now + timedelta(seconds=1)
+    end_date = now + timedelta(seconds=1 + number_of_jobs * seconds_interval)
+    return start_date, end_date

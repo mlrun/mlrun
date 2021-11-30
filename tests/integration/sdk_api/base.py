@@ -3,6 +3,7 @@ import os
 import pathlib
 import subprocess
 import sys
+import time
 
 import mlrun
 import mlrun.api.schemas
@@ -25,6 +26,7 @@ class TestMLRunIntegration:
             f"Setting up test {self.__class__.__name__}::{method.__name__}"
         )
         self.db_container_id = self._run_db()
+        time.sleep(30)
         self.api_container_id, api_url = self._run_api()
         self._test_env = {}
         self._old_env = {}

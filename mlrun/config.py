@@ -104,6 +104,8 @@ default_config = {
     "default_samples_path": "https://s3.wasabisys.com/iguazio/",
     # default path for tensorboard logs
     "default_tensorboard_logs_path": "/User/.tensorboard/{{project}}",
+    # ";" separated list of notebook cell tag names to ignore e.g. "ignore-this;ignore-that"
+    "ignored_notebook_tags": "",
     "function_defaults": {
         "image_by_kind": {
             "job": "mlrun/mlrun",

@@ -41,7 +41,7 @@ async def scheduler(db: Session) -> typing.Generator:
 
 
 call_counter: int = 0
-epsilon = 0.5
+schedule_end_time_margin = 0.5
 
 
 async def bump_counter():
@@ -117,7 +117,7 @@ async def test_create_schedule(db: Session, scheduler: Scheduler):
 
     # cronjob starts on start of each second and until it gets to run the job it takes a few microseconds,
     # to avoid the transient errors we round the seconds to wait and add an epsilon to each sleep.
-    time_to_sleep = (end_date - datetime.now()).total_seconds() + epsilon
+    time_to_sleep = (end_date - datetime.now()).total_seconds() + schedule_end_time_margin
     await asyncio.sleep(time_to_sleep)
     assert call_counter == expected_call_counter
 
@@ -194,7 +194,7 @@ async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler)
         scheduled_object,
         cron_trigger,
     )
-    time_to_sleep = (end_date - datetime.now()).total_seconds() + epsilon
+    time_to_sleep = (end_date - datetime.now()).total_seconds() + schedule_end_time_margin
     await asyncio.sleep(time_to_sleep)
     runs = get_db().list_runs(db, project=project)
 
@@ -277,7 +277,7 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     mlrun.api.utils.singletons.project_member.get_project_member().get_project_owner = unittest.mock.Mock(
         return_value=mlrun.api.schemas.ProjectOwner(username=username, session=session)
     )
-    time_to_sleep = (end_date - datetime.now()).total_seconds() + epsilon
+    time_to_sleep = (end_date - datetime.now()).total_seconds() + schedule_end_time_margin
     await asyncio.sleep(time_to_sleep)
     runs = get_db().list_runs(db, project=project)
     assert len(runs) == 3
@@ -650,7 +650,7 @@ async def test_rescheduling(db: Session, scheduler: Scheduler):
 
     # start the scheduler and and assert another run
     await scheduler.start(db)
-    await asyncio.sleep(1 + epsilon)
+    await asyncio.sleep(1 + schedule_end_time_margin)
     assert call_counter == 2
 
 
@@ -936,7 +936,7 @@ async def test_update_schedule(
         next_run_time,
         {},
     )
-    time_to_sleep = (end_date - datetime.now()).total_seconds() + epsilon
+    time_to_sleep = (end_date - datetime.now()).total_seconds() + schedule_end_time_margin
     await asyncio.sleep(time_to_sleep)
     runs = get_db().list_runs(db, project=project)
     assert len(runs) == 1

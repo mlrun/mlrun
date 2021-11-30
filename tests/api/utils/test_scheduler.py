@@ -172,14 +172,13 @@ async def test_invoke_schedule(
 
 
 @pytest.mark.asyncio
-async def test_create_schedule_mlrun_function(
-    db: Session,
-    scheduler: Scheduler,
-    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
-):
+async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler):
+
     now = datetime.now()
+    expected_call_counter = 1
+
     now_plus_1_second = now + timedelta(seconds=1)
-    now_plus_2_second = now + timedelta(seconds=2)
+    now_plus_2_second = now + timedelta(seconds=1 + expected_call_counter)
     # this way we're leaving ourselves one second to create the schedule preventing transient test failure
     cron_trigger = schemas.ScheduleCronTrigger(
         second="*/1", start_date=now_plus_1_second, end_date=now_plus_2_second
@@ -198,11 +197,22 @@ async def test_create_schedule_mlrun_function(
         scheduled_object,
         cron_trigger,
     )
-    await asyncio.sleep(2)
+    await asyncio.sleep(2 + epsilon)
     runs = get_db().list_runs(db, project=project)
-    assert len(runs) == 1
-    assert runs[0]["status"]["state"] == RunStates.completed
 
+    # If microsecond is 0, then the scheduler will be able to fit one more run, because the scheduler
+    # starts at the start of every second(when microsecond == 0) so if for example we want to run between
+    # 12:08:06.100000 until 12:08:07.10000 the scheduler will run a job at 12:08:07.00000
+    # (because the start request is already past the time cron starts to run), but if microsecond is 0
+    # 12:08:06.000000 until 12:08:07:000000 the scheduler will run a job also at 06 and 07 second.
+    if now.microsecond == 0:
+        expected_call_counter += 1
+    assert len(runs) == expected_call_counter
+
+    for run in runs:
+        assert run["status"]["state"] == RunStates.completed
+
+    # the default of list_runs returns the the list descending by date.
     expected_last_run_uri = f"{project}@{runs[0]['metadata']['uid']}#0"
 
     schedule = get_db().get_schedule(db, project, schedule_name)

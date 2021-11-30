@@ -573,7 +573,7 @@ run-test-db:
 		mysql/mysql-server:5.7 \
 		--character-set-server=utf8 \
 		--collation-server=utf8_bin \
-		--max-allowed-packet=256M
+		--max-allowed-packet=1G
 
 .PHONY: html-docs
 html-docs: ## Build html docs

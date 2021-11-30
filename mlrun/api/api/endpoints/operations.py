@@ -5,7 +5,6 @@ import fastapi.concurrency
 
 import mlrun.api.crud
 import mlrun.api.initial_data
-import mlrun.api.main
 import mlrun.api.schemas
 import mlrun.api.utils.background_tasks
 from mlrun.utils import logger
@@ -47,6 +46,9 @@ def start_migration(
 
 
 async def _perform_migration():
+    # import here to prevent import cycle
+    import mlrun.api.main
+
     await fastapi.concurrency.run_in_threadpool(
         mlrun.api.initial_data.init_data, perform_migrations_if_needed=True
     )

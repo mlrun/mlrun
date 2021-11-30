@@ -574,7 +574,8 @@ run-test-db:
 		--character-set-server=utf8 \
 		--collation-server=utf8_bin \
 		--max-allowed-packet=1G \
-		--net-write-timeout=300
+		--net-write-timeout=300 \
+		--wait-timeout=28800
 
 .PHONY: html-docs
 html-docs: ## Build html docs

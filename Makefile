@@ -493,9 +493,9 @@ test-integration: clean ## Run mlrun integration tests
 		--disable-warnings \
 		--durations=100 \
 		-rf \
-		tests/integration \
-		tests/test_notebooks.py \
-		tests/rundb/test_httpdb.py
+		tests/integration
+#		tests/test_notebooks.py \
+#		tests/rundb/test_httpdb.py
 
 .PHONY: test-migrations-dockerized
 test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docker container
@@ -555,7 +555,25 @@ run-api: api ## Run mlrun api (dockerized)
 		--name mlrun-api \
 		--detach \
 		--publish 8080 \
+		--add-host host.docker.internal:host-gateway \
+		--env MLRUN_HTTPDB__DSN=$(MLRUN_HTTPDB__DSN) \
 		$(MLRUN_API_IMAGE_NAME_TAGGED)
+
+.PHONY: run-test-db
+run-test-db:
+	docker run \
+		--name=test-db \
+		-v $(pwd):/mlrun \
+		-p 3306:3306 \
+		-e MYSQL_ROOT_PASSWORD="" \
+		-e MYSQL_ALLOW_EMPTY_PASSWORD="true" \
+		-e MYSQL_ROOT_HOST=% \
+		-e MYSQL_DATABASE="mlrun" \
+		-d \
+		mysql/mysql-server:5.7 \
+		--character-set-server=utf8 \
+		--collation-server=utf8_bin \
+		--max-allowed-packet=256M
 
 .PHONY: html-docs
 html-docs: ## Build html docs

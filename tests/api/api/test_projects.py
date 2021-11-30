@@ -100,18 +100,18 @@ def test_delete_project_with_resources(
     k8s_secrets_mock.set_is_running_in_k8s_cluster(False)
     project_to_keep = "project-to-keep"
     project_to_remove = "project-to-remove"
-    _create_resources_of_all_kinds(db, project_to_keep)
-    _create_resources_of_all_kinds(db, project_to_remove)
-
-    secrets = {f"secret_{i}": "a secret" for i in range(5)}
-    k8s_secrets_mock.store_project_secrets(project_to_keep, secrets)
-    k8s_secrets_mock.store_project_secrets(project_to_remove, secrets)
+    _create_resources_of_all_kinds(db, k8s_secrets_mock, project_to_keep)
+    _create_resources_of_all_kinds(db, k8s_secrets_mock, project_to_remove)
 
     (
         project_to_keep_table_name_records_count_map_before_project_removal,
         project_to_keep_object_records_count_map_before_project_removal,
-    ) = _assert_resources_in_project(db, project_member_mode, project_to_keep)
-    _assert_resources_in_project(db, project_member_mode, project_to_remove)
+    ) = _assert_resources_in_project(
+        db, k8s_secrets_mock, project_member_mode, project_to_keep
+    )
+    _assert_resources_in_project(
+        db, k8s_secrets_mock, project_member_mode, project_to_remove
+    )
 
     # deletion strategy - check - should fail because there are resources
     response = client.delete(
@@ -143,9 +143,15 @@ def test_delete_project_with_resources(
     (
         project_to_keep_table_name_records_count_map_after_project_removal,
         project_to_keep_object_records_count_map_after_project_removal,
-    ) = _assert_resources_in_project(db, project_member_mode, project_to_keep)
+    ) = _assert_resources_in_project(
+        db, k8s_secrets_mock, project_member_mode, project_to_keep
+    )
     _assert_resources_in_project(
-        db, project_member_mode, project_to_remove, assert_no_resources=True
+        db,
+        k8s_secrets_mock,
+        project_member_mode,
+        project_to_remove,
+        assert_no_resources=True,
     )
     assert (
         deepdiff.DeepDiff(
@@ -163,9 +169,6 @@ def test_delete_project_with_resources(
         )
         == {}
     )
-
-    assert k8s_secrets_mock.get_project_secret_keys(project_to_remove) == []
-    assert k8s_secrets_mock.get_project_secret_data(project_to_keep) == secrets
 
     # deletion strategy - check - should succeed cause no project
     response = client.delete(
@@ -552,7 +555,11 @@ def test_projects_crud(
     _list_project_names_and_assert(client, [name2])
 
 
-def _create_resources_of_all_kinds(db_session: Session, project: str):
+def _create_resources_of_all_kinds(
+    db_session: Session,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+    project: str,
+):
     db = mlrun.api.utils.singletons.db.get_db()
     # add labels to project
     project_schema = mlrun.api.schemas.Project(
@@ -676,9 +683,13 @@ def _create_resources_of_all_kinds(db_session: Session, project: str):
     )
     db.create_feature_vector(db_session, project, feature_vector)
 
+    secrets = {f"secret_{i}": "a secret" for i in range(5)}
+    k8s_secrets_mock.store_project_secrets(project, secrets)
+
 
 def _assert_resources_in_project(
     db_session: Session,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
     project_member_mode: str,
     project: str,
     assert_no_resources: bool = False,
@@ -687,6 +698,12 @@ def _assert_resources_in_project(
         "Logs": _assert_logs_in_project(project, assert_no_resources),
         "Schedules": _assert_schedules_in_project(project, assert_no_resources),
     }
+
+    secrets = (
+        {} if assert_no_resources else {f"secret_{i}": "a secret" for i in range(5)}
+    )
+    assert k8s_secrets_mock.get_project_secret_data(project) == secrets
+
     return (
         _assert_db_resources_in_project(
             db_session, project_member_mode, project, assert_no_resources

@@ -118,7 +118,9 @@ class TestMLRunIntegration:
         host = output.splitlines()[0]
         url = f"http://{host}"
         self._check_api_is_healthy(url)
-        self._logger.info("Successfully started API", url=url, container_id=container_id)
+        self._logger.info(
+            "Successfully started API", url=url, container_id=container_id
+        )
         return container_id, url
 
     def _remove_api(self):

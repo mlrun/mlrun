@@ -32,6 +32,15 @@ class MySQLUtil(object):
     def close(self):
         self._connection.close()
 
+    def check_db_has_tables(self):
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT COUNT(*) INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'mlrun'"
+            )
+            if cursor.fetchone()[0] > 0:
+                return True
+        return False
+
     def check_db_has_data(self):
         with self._connection.cursor() as cursor:
             for check_table in self.check_tables:

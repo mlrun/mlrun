@@ -57,7 +57,10 @@ class SQLiteMigrationUtil(object):
 
         db_has_data = False
         if self._mysql_util:
-            if self._mysql_util.check_db_has_data():
+            if (
+                self._mysql_util.check_db_has_tables()
+                and self._mysql_util.check_db_has_data()
+            ):
                 db_has_data = True
             self._mysql_util.close()
 

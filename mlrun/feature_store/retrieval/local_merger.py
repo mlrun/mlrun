@@ -21,10 +21,11 @@ import mlrun.errors
 
 from ...utils import logger
 from ..feature_vector import OfflineVectorResponse
+from .base import BaseMerger
 
 
-class LocalFeatureMerger:
-    def __init__(self, vector):
+class LocalFeatureMerger(BaseMerger):
+    def __init__(self, vector, **engine_args):
         self._result_df = None
         self.vector = vector
 
@@ -232,11 +233,3 @@ class LocalFeatureMerger:
         indexes = list(featureset.spec.entities.keys())
         merged_df = pd.merge(entity_df, featureset_df, on=indexes)
         return merged_df
-
-    def get_status(self):
-        if self._result_df is None:
-            raise RuntimeError("unexpected status, no result df")
-        return "completed"
-
-    def get_df(self):
-        return self._result_df

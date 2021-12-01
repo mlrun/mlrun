@@ -273,16 +273,20 @@ class TestModelMonitoringAPI(TestMLRunSystem):
                     key=f"{name}:latest", category="model"
                 ),
             )
-
         # Enable model monitoring
         serving_fn.deploy()
 
         # checking that stream processing and batch monitoring were successfully deployed
         mlrun.get_run_db().get_schedule(self.project_name, "model-monitoring-batch")
-        metadta = BaseMetadata(
-            name="model-monitoring-stream", project=self.project_name, tag=""
+
+        base_runtime = BaseRuntime(
+            BaseMetadata(
+                name="model-monitoring-stream", project=self.project_name, tag=""
+            )
         )
-        mlrun.get_run_db().get_builder_status(BaseRuntime(metadata=metadta))
+        stat = mlrun.get_run_db().get_builder_status(base_runtime)
+
+        assert base_runtime.status.state == "ready", stat
 
         iris_data = iris["data"].tolist()
 

@@ -78,9 +78,7 @@ def nuclio_jobs_handler(context, event):
     # Inject project secrets from env. variables to the context
     secret_list = os.environ.get("MLRUN_PROJECT_SECRETS_LIST")
     if secret_list:
-        secrets_keys = secret_list.split(",")
-        secrets = {key: os.environ.get(key) for key in secrets_keys}
-        ctx._secrets_manager.add_source("inline", secrets)
+        ctx._secrets_manager.add_source("env", secret_list)
 
     args = get_func_arg(fhandler, RunTemplate.from_dict(ctx.to_dict()), ctx)
     try:

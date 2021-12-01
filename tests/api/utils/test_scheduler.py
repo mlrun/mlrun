@@ -115,11 +115,13 @@ async def test_create_schedule(db: Session, scheduler: Scheduler):
         cron_trigger,
     )
 
-    # cronjob starts on start of each second and until it gets to run the job it takes a few microseconds,
-    # to avoid the transient errors we round the seconds to wait and add an epsilon to each sleep.
+    # The trigger is defined with `second="*/1"` meaning it runs on round seconds,
+    # but executing the actual functional code - bumping the counter - happens a few microseconds afterwards.
+    # To avoid transient errors on slow systems, we add some extra margin.
     time_to_sleep = (
         end_date - datetime.now()
     ).total_seconds() + schedule_end_time_margin
+
     await asyncio.sleep(time_to_sleep)
     assert call_counter == expected_call_counter
 
@@ -199,6 +201,7 @@ async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler)
     time_to_sleep = (
         end_date - datetime.now()
     ).total_seconds() + schedule_end_time_margin
+
     await asyncio.sleep(time_to_sleep)
     runs = get_db().list_runs(db, project=project)
 
@@ -284,6 +287,7 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     time_to_sleep = (
         end_date - datetime.now()
     ).total_seconds() + schedule_end_time_margin
+
     await asyncio.sleep(time_to_sleep)
     runs = get_db().list_runs(db, project=project)
     assert len(runs) == 3
@@ -945,6 +949,7 @@ async def test_update_schedule(
     time_to_sleep = (
         end_date - datetime.now()
     ).total_seconds() + schedule_end_time_margin
+
     await asyncio.sleep(time_to_sleep)
     runs = get_db().list_runs(db, project=project)
     assert len(runs) == 1

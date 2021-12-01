@@ -117,7 +117,7 @@ async def test_create_schedule(db: Session, scheduler: Scheduler):
 
     # The trigger is defined with `second="*/1"` meaning it runs on round seconds,
     # but executing the actual functional code - bumping the counter - happens a few microseconds afterwards.
-    # To avoid transient errors on slow systems, we add some extra margin.
+    # To avoid transient errors on slow systems, we add extra margin.
     time_to_sleep = (
         end_date - datetime.now()
     ).total_seconds() + schedule_end_time_margin

@@ -80,7 +80,7 @@ def nuclio_jobs_handler(context, event):
     if secret_list:
         secrets_keys = secret_list.split(",")
         secrets = {key: os.environ.get(key) for key in secrets_keys}
-        context._secrets_manager.add_source("inline", secrets)
+        ctx._secrets_manager.add_source("inline", secrets)
 
     args = get_func_arg(fhandler, RunTemplate.from_dict(ctx.to_dict()), ctx)
     try:

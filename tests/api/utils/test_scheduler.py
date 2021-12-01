@@ -117,7 +117,9 @@ async def test_create_schedule(db: Session, scheduler: Scheduler):
 
     # cronjob starts on start of each second and until it gets to run the job it takes a few microseconds,
     # to avoid the transient errors we round the seconds to wait and add an epsilon to each sleep.
-    time_to_sleep = (end_date - datetime.now()).total_seconds() + schedule_end_time_margin
+    time_to_sleep = (
+        end_date - datetime.now()
+    ).total_seconds() + schedule_end_time_margin
     await asyncio.sleep(time_to_sleep)
     assert call_counter == expected_call_counter
 
@@ -194,7 +196,9 @@ async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler)
         scheduled_object,
         cron_trigger,
     )
-    time_to_sleep = (end_date - datetime.now()).total_seconds() + schedule_end_time_margin
+    time_to_sleep = (
+        end_date - datetime.now()
+    ).total_seconds() + schedule_end_time_margin
     await asyncio.sleep(time_to_sleep)
     runs = get_db().list_runs(db, project=project)
 
@@ -277,7 +281,9 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     mlrun.api.utils.singletons.project_member.get_project_member().get_project_owner = unittest.mock.Mock(
         return_value=mlrun.api.schemas.ProjectOwner(username=username, session=session)
     )
-    time_to_sleep = (end_date - datetime.now()).total_seconds() + schedule_end_time_margin
+    time_to_sleep = (
+        end_date - datetime.now()
+    ).total_seconds() + schedule_end_time_margin
     await asyncio.sleep(time_to_sleep)
     runs = get_db().list_runs(db, project=project)
     assert len(runs) == 3
@@ -936,7 +942,9 @@ async def test_update_schedule(
         next_run_time,
         {},
     )
-    time_to_sleep = (end_date - datetime.now()).total_seconds() + schedule_end_time_margin
+    time_to_sleep = (
+        end_date - datetime.now()
+    ).total_seconds() + schedule_end_time_margin
     await asyncio.sleep(time_to_sleep)
     runs = get_db().list_runs(db, project=project)
     assert len(runs) == 1
@@ -1128,11 +1136,14 @@ def _get_start_and_end_time_for_scheduled_trigger(
     number_of_jobs: int, seconds_interval: int
 ):
     """
-    If microsecond is 0, then the scheduler will be able to fit one more run, because the scheduler
-    starts at the start of every second(when microsecond == 0) so if for example we want to run between
-    12:08:06.100000 until 12:08:07.10000 the scheduler will run a job at 12:08:07.00000
-    (because the start request is already past the time cron starts to run), but if microsecond is 0
-    12:08:06.000000 until 12:08:07:000000 the scheduler will run a job also at 06 and 07 second.
+    The scheduler executes the job on round seconds (when microsecond == 0)
+    Therefore if the start time will be a round second - let's say 12:08:06.000000 and the end time 12:08:07.000000
+    it means two executions will happen - at 06 and 07 second.
+    This is obviously very rare (since the times are based on datetime.now()) - usually the start time
+    will be something like 12:08:06.100000 then the end time will be 12:08:07.10000 - meaning there will be only
+     one execution on the 07 second.
+    So instead of conditioning every assertion we're doing on whether the start time was a round second,
+     we simply make sure it's not a round second.
     """
     now = datetime.now()
     if now.microsecond == 0:

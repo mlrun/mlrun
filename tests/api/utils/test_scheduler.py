@@ -174,7 +174,11 @@ async def test_invoke_schedule(
 
 
 @pytest.mark.asyncio
-async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler):
+async def test_create_schedule_mlrun_function(
+    db: Session,
+    scheduler: Scheduler,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+):
 
     expected_call_counter = 1
     start_date, end_date = _get_start_and_end_time_for_scheduled_trigger(

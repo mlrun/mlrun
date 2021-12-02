@@ -62,7 +62,6 @@ class SQLiteMigrationUtil(object):
                 and self._mysql_util.check_db_has_data()
             ):
                 db_has_data = True
-            self._mysql_util.close()
 
         # if mysqldb already has data, don't transfer the data
         if db_has_data:

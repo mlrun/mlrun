@@ -138,7 +138,6 @@ class AlembicUtil(object):
 
         mysql_util = MySQLUtil()
         mysql_util.dump_database_to_file(backup_path)
-        mysql_util.close()
 
     @staticmethod
     def _downgrade_to_revision(

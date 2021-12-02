@@ -24,16 +24,6 @@ class MySQLUtil(object):
         if not mysql_dsn_data:
             raise RuntimeError(f"Invalid mysql dsn: {self.get_dsn()}")
 
-        self._connection = pymysql.connect(
-            host=mysql_dsn_data["host"],
-            user=mysql_dsn_data["username"],
-            port=int(mysql_dsn_data["port"]),
-            database=mysql_dsn_data["database"],
-        )
-
-    def close(self):
-        self._connection.close()
-
     @staticmethod
     def wait_for_db_liveness(logger, retry_interval=3, timeout=2 * 60):
         logger.debug("Waiting for database liveness")
@@ -59,26 +49,48 @@ class MySQLUtil(object):
         tmp_connection.close()
 
     def check_db_has_tables(self):
-        with self._connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='mlrun';"
-            )
-            if cursor.fetchone()[0] > 0:
-                return True
-        return False
-
-    def check_db_has_data(self):
-        with self._connection.cursor() as cursor:
-            for check_table in self.check_tables:
-                cursor.execute(f"SELECT COUNT(*) FROM `{check_table}`;")
+        connection = self._create_connection()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='mlrun';"
+                )
                 if cursor.fetchone()[0] > 0:
                     return True
-        return False
+            return False
+        finally:
+            connection.close()
+
+    def check_db_has_data(self):
+        connection = self._create_connection()
+        try:
+            with connection.cursor() as cursor:
+                for check_table in self.check_tables:
+                    cursor.execute(f"SELECT COUNT(*) FROM `{check_table}`;")
+                    if cursor.fetchone()[0] > 0:
+                        return True
+            return False
+        finally:
+            connection.close()
+
+    def _create_connection(self):
+        mysql_dsn_data = self.get_mysql_dsn_data()
+        if not mysql_dsn_data:
+            raise RuntimeError(f"Invalid mysql dsn: {self.get_dsn()}")
+        return pymysql.connect(
+            host=mysql_dsn_data["host"],
+            user=mysql_dsn_data["username"],
+            port=int(mysql_dsn_data["port"]),
+            database=mysql_dsn_data["database"],
+        )
 
     def dump_database_to_file(self, filepath: pathlib.Path):
-        with self._connection.cursor() as cursor:
-            database_dump = self._get_database_dump(cursor)
-
+        connection = self._create_connection()
+        try:
+            with connection.cursor() as cursor:
+                database_dump = self._get_database_dump(cursor)
+        finally:
+            connection.close()
         with open(str(filepath), "w") as f:
             f.writelines(database_dump)
 

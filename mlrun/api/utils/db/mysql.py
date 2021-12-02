@@ -35,7 +35,7 @@ class MySQLUtil(object):
     def check_db_has_tables(self):
         with self._connection.cursor() as cursor:
             cursor.execute(
-                "SELECT COUNT(*) INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'mlrun'"
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='mlrun';"
             )
             if cursor.fetchone()[0] > 0:
                 return True

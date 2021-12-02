@@ -118,5 +118,6 @@ class APIStates:
     online = "online"
     waiting_for_migrations = "waiting_for_migrations"
     migrations_in_progress = "migrations_in_progress"
+    migrations_failed = "migrations_failed"
     migrations_completed = "migrations_completed"
     offline = "offline"

@@ -35,6 +35,7 @@ def verify_api_state(request: Request):
     if mlrun.mlconf.httpdb.state in [
         mlrun.api.schemas.APIStates.waiting_for_migrations,
         mlrun.api.schemas.APIStates.migrations_in_progress,
+        mlrun.api.schemas.APIStates.migrations_failed,
     ]:
         enabled_endpoints = [
             "healthz",
@@ -43,12 +44,17 @@ def verify_api_state(request: Request):
         ]
         if not any(enabled_endpoint in path for enabled_endpoint in enabled_endpoints):
             message = (
-                "API is waiting for migration to be triggered. Send POST request to /api/operations/migrations to"
+                "API is waiting for migrations to be triggered. Send POST request to /api/operations/migrations to"
                 " trigger it"
             )
             if (
                 mlrun.mlconf.httpdb.state
                 == mlrun.api.schemas.APIStates.migrations_in_progress
             ):
-                message = "Migration is in progress"
+                message = "Migrations are in progress"
+            elif (
+                mlrun.mlconf.httpdb.state
+                == mlrun.api.schemas.APIStates.migrations_failed
+            ):
+                message = "Migrations failed"
             raise mlrun.errors.MLRunPreconditionFailedError(message)

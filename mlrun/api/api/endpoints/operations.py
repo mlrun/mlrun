@@ -34,7 +34,13 @@ def start_migration(
         )
         response.status_code = http.HTTPStatus.ACCEPTED.value
         return background_task
-    if mlrun.mlconf.httpdb.state != mlrun.api.schemas.APIStates.waiting_for_migrations:
+    elif mlrun.mlconf.httpdb.state == mlrun.api.schemas.APIStates.migrations_failed:
+        raise mlrun.errors.MLRunPreconditionFailedError(
+            "Migrations were already triggered and failed. Restart the API to retry"
+        )
+    elif (
+        mlrun.mlconf.httpdb.state != mlrun.api.schemas.APIStates.waiting_for_migrations
+    ):
         return fastapi.Response(status_code=http.HTTPStatus.OK.value)
     logger.info("Starting the migration process")
     background_task = mlrun.api.utils.background_tasks.Handler().create_background_task(

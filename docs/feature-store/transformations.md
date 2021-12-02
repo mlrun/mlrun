@@ -242,7 +242,7 @@ feature set to S3 in the parquet format:
 from pyspark import SparkConf
 
 target = ParquetTarget(
-    path="s3:///my-s3-bucket/some/path",
+    path="s3://my-s3-bucket/some/path",
     partitioned=False,
 )
 

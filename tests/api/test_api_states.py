@@ -21,19 +21,25 @@ def test_offline_state(
     assert "API is in offline state" in response.text
 
 
-def test_waiting_for_migrations_state(
+def test_migrations_states(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
-    mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.waiting_for_migrations
-    response = client.get("/api/healthz")
-    assert response.status_code == http.HTTPStatus.OK.value
+    expected_message_map = {
+        mlrun.api.schemas.APIStates.waiting_for_migrations: "API is waiting for migrations to be triggered",
+        mlrun.api.schemas.APIStates.migrations_in_progress: "Migrations are in progress",
+        mlrun.api.schemas.APIStates.migrations_failed: "Migrations failed",
+    }
+    for state, expected_message in expected_message_map.items():
+        mlrun.mlconf.httpdb.state = state
+        response = client.get("/api/healthz")
+        assert response.status_code == http.HTTPStatus.OK.value
 
-    response = client.get("/api/projects/some-project/background-tasks/some-task")
-    assert response.status_code == http.HTTPStatus.OK.value
+        response = client.get("/api/projects/some-project/background-tasks/some-task")
+        assert response.status_code == http.HTTPStatus.OK.value
 
-    response = client.get("/api/projects")
-    assert response.status_code == http.HTTPStatus.PRECONDITION_FAILED.value
-    assert "API is waiting for migration to be triggered" in response.text
+        response = client.get("/api/projects")
+        assert response.status_code == http.HTTPStatus.PRECONDITION_FAILED.value
+        assert expected_message in response.text
 
 
 def test_init_data_migration_required_recognition() -> None:

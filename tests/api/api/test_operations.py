@@ -31,6 +31,15 @@ def test_migrations_already_in_progress(
     mlrun.api.api.endpoints.operations.current_migration_background_task_name = None
 
 
+def test_migrations_failed(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.migrations_failed
+    response = client.post("/api/operations/migrations")
+    assert response.status_code == http.HTTPStatus.PRECONDITION_FAILED.value
+    assert "Migrations were already triggered and failed" in response.text
+
+
 def test_migrations_not_needed(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:

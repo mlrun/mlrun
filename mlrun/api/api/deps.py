@@ -56,5 +56,5 @@ def verify_api_state(request: Request):
                 mlrun.mlconf.httpdb.state
                 == mlrun.api.schemas.APIStates.migrations_failed
             ):
-                message = "Migrations failed"
+                message = "Migrations failed, API can't be started"
             raise mlrun.errors.MLRunPreconditionFailedError(message)

@@ -4,10 +4,12 @@ import pathlib
 import subprocess
 import sys
 
+import pymysql
+
 import mlrun
 import mlrun.api.schemas
 import tests.conftest
-from mlrun.utils import create_logger
+from mlrun.utils import create_logger, retry_until_successful
 
 logger = create_logger(level="debug", name="test-integration")
 
@@ -18,12 +20,21 @@ class TestMLRunIntegration:
     root_path = pathlib.Path(__file__).absolute().parent.parent.parent.parent
     results_path = root_path / "tests" / "test_results" / "integration"
 
+    db_liveness_timeout = 30
+    db_host_internal = "host.docker.internal"
+    db_host_external = "localhost"
+    db_user = "root"
+    db_port = 3306
+    db_name = "mlrun"
+    db_dsn = f"mysql+pymysql://{db_user}@{db_host_internal}:{db_port}/{db_name}"
+
     def setup_method(self, method):
         self._logger = logger
         self._logger.info(
             f"Setting up test {self.__class__.__name__}::{method.__name__}"
         )
-        self.container_id, api_url = self._run_api()
+        self.db_container_id = self._run_db()
+        self.api_container_id, api_url = self._run_api()
         self._test_env = {}
         self._old_env = {}
         self._setup_env({"MLRUN_DBPATH": api_url})
@@ -42,6 +53,7 @@ class TestMLRunIntegration:
         self.custom_teardown()
 
         self._remove_api()
+        self._remove_db()
 
         self._teardown_env()
         self._logger.info(
@@ -84,12 +96,28 @@ class TestMLRunIntegration:
         # reload the config so changes to the env vars will take affect
         mlrun.config.config.reload()
 
+    def _run_db(self):
+        self._logger.debug("Starting DataBase")
+        self._run_command(
+            "make", args=["run-test-db"], cwd=TestMLRunIntegration.root_path,
+        )
+        output = self._run_command("docker", args=["ps", "--last", "1", "-q"],)
+        container_id = output.strip()
+
+        self._logger.debug("Started DataBase", container_id=container_id)
+
+        self._ensure_database_liveness(timeout=self.db_liveness_timeout)
+
+        return container_id
+
     def _run_api(self):
         self._logger.debug("Starting API")
         self._run_command(
             "make",
             args=["run-api"],
-            env=self._extend_current_env({"MLRUN_VERSION": "test-integration"}),
+            env=self._extend_current_env(
+                {"MLRUN_VERSION": "test-integration", "MLRUN_HTTPDB__DSN": self.db_dsn}
+            ),
             cwd=TestMLRunIntegration.root_path,
         )
         output = self._run_command("docker", args=["ps", "--last", "1", "-q"],)
@@ -101,16 +129,48 @@ class TestMLRunIntegration:
         host = output.splitlines()[0]
         url = f"http://{host}"
         self._check_api_is_healthy(url)
-        self._logger.info("Successfully started API", url=url)
+        self._logger.info(
+            "Successfully started API", url=url, container_id=container_id
+        )
         return container_id, url
 
     def _remove_api(self):
-        if self.container_id:
-            logs = self._run_command("docker", args=["logs", self.container_id])
+        if self.api_container_id:
+            logs = self._run_command("docker", args=["logs", self.api_container_id])
             self._logger.debug(
-                "Removing API container", container_id=self.container_id, logs=logs
+                "Removing API container", container_id=self.api_container_id, logs=logs
             )
-            self._run_command("docker", args=["rm", "--force", self.container_id])
+            self._run_command("docker", args=["rm", "--force", self.api_container_id])
+
+    def _remove_db(self):
+        if self.db_container_id:
+            logs = self._run_command("docker", args=["logs", self.db_container_id])
+            self._logger.debug(
+                "Removing Database container",
+                container_name=self.db_container_id,
+                logs=logs,
+            )
+            out = self._run_command(
+                "docker", args=["rm", "--force", self.db_container_id]
+            )
+            self._logger.debug(
+                "Removed Database container", out=out,
+            )
+
+    def _ensure_database_liveness(self, retry_interval=2, timeout=30):
+        self._logger.debug("Ensuring database liveness")
+        retry_until_successful(
+            retry_interval,
+            timeout,
+            self._logger,
+            True,
+            pymysql.connect,
+            host=self.db_host_external,
+            user=self.db_user,
+            port=self.db_port,
+            database=self.db_name,
+        )
+        self._logger.debug("Database ready for connection")
 
     @staticmethod
     def _extend_current_env(env):

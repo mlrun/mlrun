@@ -18,7 +18,7 @@ ipython~=7.0, <7.17
 # has ipython>=7.23.1 which is incompatible with our ipython specifiers, therefore instsalling ipykernel 5.x before
 # nuclio-jupyter
 ipykernel~=5.0
-nuclio-jupyter~=0.8.21
+nuclio-jupyter~=0.8.22
 # >=1.16.5 from pandas 1.2.1 and <1.20.0 because we're hitting the same issue as this one
 # https://github.com/Azure/MachineLearningNotebooks/issues/1314
 numpy>=1.16.5, <1.22.0
@@ -63,7 +63,7 @@ fsspec~=2021.8.1
 v3iofs~=0.1.7
 # 3.4 and above failed builidng in some images - see https://github.com/pyca/cryptography/issues/5771
 cryptography~=3.0, <3.4
-storey~=0.8.9; python_version >= '3.7'
+storey~=0.8.10; python_version >= '3.7'
 deepdiff~=5.0
 pymysql~=1.0
 inflection~=0.5.0

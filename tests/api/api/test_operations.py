@@ -71,7 +71,7 @@ def test_migrations_success(
     response = client.get("/api/projects")
     # error cause we're waiting for migrations
     assert response.status_code == http.HTTPStatus.PRECONDITION_FAILED.value
-    assert "API is waiting for migration to be triggered" in response.text
+    assert "API is waiting for migrations to be triggered" in response.text
     # not initialized until we're not doing migrations
     assert mlrun.api.utils.singletons.scheduler.get_scheduler() is None
     # trigger migrations

@@ -82,10 +82,9 @@ def _is_migration_needed(
         not _is_latest_data_version()
         and config.httpdb.db.data_migrations_mode == "enabled"
     )
-    is_migration_needed = not is_migration_from_scratch and (
-        is_data_migration_needed
-        or is_schema_migration_needed
-        or is_database_migration_needed
+    is_migration_needed = is_database_migration_needed or (
+        not is_migration_from_scratch
+        and (is_schema_migration_needed or is_data_migration_needed)
     )
     logger.info(
         "Checking if migration is needed",

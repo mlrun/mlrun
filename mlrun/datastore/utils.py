@@ -3,7 +3,7 @@ def store_path_to_spark(path):
         path = "v3io:" + path[len("v3io:/") :]
     elif path.startswith("s3://"):
         if path.startswith("s3:///"):
-            # 's3:///' not supported since mlrun 0.9.0 should use s3://
+            # 's3:///' not supported since mlrun 0.9.0 should use s3:// instead
             from mlrun.errors import MLRunInvalidArgumentError
             valid_path = path.replace('///', '//')
             raise MLRunInvalidArgumentError(

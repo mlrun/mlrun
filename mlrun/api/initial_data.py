@@ -120,6 +120,7 @@ def _create_alembic_util() -> AlembicUtil:
 
 
 def _perform_schema_migrations(alembic_util: AlembicUtil):
+    logger.info("Performing schema migration")
     alembic_util.init_alembic(config.httpdb.db.database_backup_mode == "enabled")
 
 
@@ -139,6 +140,7 @@ def _perform_database_migration(
     sqlite_migration_util: typing.Optional[SQLiteMigrationUtil],
 ):
     if sqlite_migration_util:
+        logger.info("Performing database migration")
         sqlite_migration_util.transfer()
 
 

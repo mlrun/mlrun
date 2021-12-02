@@ -113,7 +113,7 @@ class ReleaseNotesGenerator:
         # currently we just put everything under features / enhancements
         # TODO: enforce a commit message convention which will allow to parse whether it's a feature/enhancement or
         #  bug fix
-        failed_commits = '\n'.join(failed_parsing_commits)
+        failed_commits = "\n".join(failed_parsing_commits)
         print(
             f"""
 ### Features / Enhancements
@@ -131,7 +131,10 @@ class ReleaseNotesGenerator:
 {failed_commits}
         """
         )
-        raise ValueError("Failed parsing some of the commits, added them at the end of the release notes")
+
+        raise ValueError(
+            "Failed parsing some of the commits, added them at the end of the release notes"
+        )
 
     def _generate_highlight_notes_from_commits(self, commits):
         highlighted_notes = ""

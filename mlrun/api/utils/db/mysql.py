@@ -5,6 +5,8 @@ import typing
 
 import pymysql
 
+import mlrun.utils
+
 
 class MySQLUtil(object):
     dsn_env_var = "MLRUN_HTTPDB__DSN"
@@ -31,6 +33,28 @@ class MySQLUtil(object):
 
     def close(self):
         self._connection.close()
+
+    @staticmethod
+    def wait_for_db_liveness(logger, retry_interval=3, timeout=2 * 60):
+        logger.debug("Waiting for database liveness")
+        mysql_dsn_data = MySQLUtil.get_mysql_dsn_data()
+        if not mysql_dsn_data:
+            logger.warn(f"Invalid mysql dsn: {MySQLUtil.get_dsn()}, assuming sqlite and skipping liveness verification")
+            return
+
+        tmp_connection = mlrun.utils.retry_until_successful(
+            retry_interval,
+            timeout,
+            logger,
+            True,
+            pymysql.connect,
+            host=mysql_dsn_data["host"],
+            user=mysql_dsn_data["username"],
+            port=int(mysql_dsn_data["port"]),
+            database=mysql_dsn_data["database"],
+        )
+        logger.debug("Database ready for connection")
+        tmp_connection.close()
 
     def check_db_has_tables(self):
         with self._connection.cursor() as cursor:

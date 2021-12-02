@@ -105,9 +105,10 @@ class ReleaseNotesGenerator:
     def _generate_release_notes_from_commits(
         self, commits_for_highlights, commits_for_pull_requests
     ):
-        highlight_notes = self._generate_highlight_notes_from_commits(
-            commits_for_highlights
-        )
+        (
+            highlight_notes,
+            failed_parsing_commits,
+        ) = self._generate_highlight_notes_from_commits(commits_for_highlights)
         # currently we just put everything under features / enhancements
         # TODO: enforce a commit message convention which will allow to parse whether it's a feature/enhancement or
         #  bug fix
@@ -123,14 +124,21 @@ class ReleaseNotesGenerator:
 
 #### Pull requests:
 {commits_for_pull_requests}
+
+#### Failed parsing:
+{failed_parsing_commits}
         """
         )
+        raise ValueError(failed_parsing_commits)
 
     def _generate_highlight_notes_from_commits(self, commits):
         highlighted_notes = ""
+        failed_parsing_commits = []
         for commit in commits.split("\n"):
             match = re.fullmatch(self.commit_regex, commit)
-            assert match is not None, f"Commit did not matched regex. {commit}"
+            if match is None:
+                failed_parsing_commits.append(commit)
+                break
             scope = match.groupdict()["scope"] or "Unknown"
             message = match.groupdict()["commitMessage"]
             pull_request_number = match.groupdict()["pullRequestNumber"]
@@ -141,7 +149,7 @@ class ReleaseNotesGenerator:
                 f"* **{scope}**: {message}, {pull_request_number}, @{github_username}\n"
             )
 
-        return highlighted_notes
+        return highlighted_notes, failed_parsing_commits
 
     def _resolve_github_username(self, commit_id, username):
         """

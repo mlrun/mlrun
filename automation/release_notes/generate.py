@@ -130,7 +130,7 @@ class ReleaseNotesGenerator:
 {failed_commits}
         """
         )
-        raise ValueError(failed_parsing_commits)
+        raise ValueError("Failed parsing some of the commits, added them at the end of the release notes")
 
     def _generate_highlight_notes_from_commits(self, commits):
         highlighted_notes = ""

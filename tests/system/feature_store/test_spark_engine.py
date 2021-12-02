@@ -106,7 +106,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             }
         ).to_parquet(path=path, filesystem=fsys)
 
-        cron_trigger = "*/1 * * * *"
+        cron_trigger = "*/2 * * * *"
 
         source = ParquetSource(
             "myparquet", path=path, time_field="time", schedule=cron_trigger
@@ -145,7 +145,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_context=self.spark_service,
         )
         # ingest starts every round minute.
-        sleep(60 - now.second + 50)
+        sleep(60 - now.second + 100)
 
         features = [f"{name}.*"]
         vec = fs.FeatureVector("sched_test-vec", features)
@@ -169,7 +169,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             }
         ).to_parquet(path=path)
 
-        sleep(60)
+        sleep(120)
         resp = svc.get(
             [
                 {"first_name": "yosi"},

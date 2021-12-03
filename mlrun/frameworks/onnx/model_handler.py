@@ -16,7 +16,7 @@ class ONNXModelHandler(ModelHandler):
     """
 
     # Framework name:
-    _FRAMEWORK_NAME = "onnx"
+    FRAMEWORK_NAME = "onnx"
 
     def __init__(
         self,
@@ -61,7 +61,7 @@ class ONNXModelHandler(ModelHandler):
         :param output_path: The full path to the directory to save the handled model at. If not given, the context
                             stored will be used to save the model in the defaulted artifacts location.
 
-        :return The saved model artifacts dictionary if context is available and None otherwise.
+        :return The saved model additional artifacts (if needed) dictionary if context is available and None otherwise.
         """
         super(ONNXModelHandler, self).save(output_path=output_path)
 

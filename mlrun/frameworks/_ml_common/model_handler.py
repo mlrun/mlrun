@@ -14,6 +14,7 @@ class MLModelHandler(ModelHandler, ABC):
 
     def log(
         self,
+        tag: str = "",
         labels: Dict[str, Union[str, int, float]] = None,
         parameters: Dict[str, Union[str, int, float]] = None,
         inputs: List[Feature] = None,
@@ -30,6 +31,7 @@ class MLModelHandler(ModelHandler, ABC):
         """
         Log the model held by this handler into the MLRun context provided.
 
+        :param tag:             Tag of a version to give to the logged model.
         :param labels:          Labels to log the model with.
         :param parameters:      Parameters to log with the model.
         :param inputs:          A list of features this model expects to receive - the model's input ports.
@@ -48,6 +50,7 @@ class MLModelHandler(ModelHandler, ABC):
         :raise MLRunInvalidArgumentError: If a context is missing.
         """
         super(MLModelHandler, self).log(
+            tag=tag,
             labels=labels,
             parameters=parameters,
             inputs=inputs,

@@ -42,6 +42,7 @@ class MLRunLogger(Logger):
     def __init__(
         self,
         context: mlrun.MLClientCtx,
+        log_model_tag: str,
         log_model_labels: Dict[str, TrackableType],
         log_model_parameters: Dict[str, TrackableType],
         log_model_extra_data: Dict[str, Union[TrackableType, Artifact]],
@@ -51,6 +52,7 @@ class MLRunLogger(Logger):
 
         :param context:              MLRun context to log to. The context parameters can be logged as static
                                      hyperparameters.
+        :param log_model_tag:        Version tag to give the logged model.
         :param log_model_labels:     Labels to log with the model.
         :param log_model_parameters: Parameters to log with the model.
         :param log_model_extra_data: Extra data to log with the model.
@@ -58,6 +60,7 @@ class MLRunLogger(Logger):
         super(MLRunLogger, self).__init__(context=context)
 
         # Store the attributes to log along the model:
+        self._log_model_tag = log_model_tag
         self._log_model_labels = log_model_labels
         self._log_model_parameters = log_model_parameters
         self._log_model_extra_data = log_model_extra_data
@@ -201,6 +204,7 @@ class MLRunLogger(Logger):
             )
         else:
             model_handler.log(
+                tag=self._log_model_tag,
                 labels=self._log_model_labels,
                 parameters=self._log_model_parameters,
                 metrics=metrics,

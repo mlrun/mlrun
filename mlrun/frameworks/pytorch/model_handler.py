@@ -19,7 +19,7 @@ class PyTorchModelHandler(DLModelHandler):
     """
 
     # Framework name:
-    _FRAMEWORK_NAME = "pytorch"
+    FRAMEWORK_NAME = "pytorch"
 
     # Declare a type of an input sample:
     IOSample = Union[torch.Tensor, np.ndarray]
@@ -45,7 +45,9 @@ class PyTorchModelHandler(DLModelHandler):
     ):
         """
         Initialize the handler. The model can be set here so it won't require loading.
-        :param model_name:               The model name for saving and logging the model.
+        :param model_name:               The model name for saving and logging the model. Mandatory for loading a model
+                                         from local path (from store object it will be taken from the artifact). If None
+                                         and a model is provided, the name will be set to the model's class name.
         :param model_class:              The model's class type object. Can be passed as the class's name (string) as
                                          well. The model class must appear in the custom objects / modules map
                                          dictionary / json. If the model path given is of a store object, this model
@@ -91,21 +93,33 @@ class PyTorchModelHandler(DLModelHandler):
         :param context:                  MLRun context to work with for logging the model.
 
         :raise MLRunInvalidArgumentError: If the provided model path is of a local model files but the model class name
-                                          was not provided (=None).
+                                          and or the model name were not provided (= None).
         """
-        # Store the model's class name:
+        # Validate a modules map or custom objects were provided:
+        if (
+            model_path is not None
+            and modules_map is None
+            and (custom_objects_directory is None or custom_objects_directory is None)
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "At least 'modules_map' or both custom objects parameters: 'custom_objects_map' and "
+                "'custom_objects_directory' are mandatory for the handler as the class must be located in a "
+                "custom object python file or an installed module. Without one of them the model will not be able "
+                "to be saved and logged"
+            )
+
+        # If the model is given try to set the model class and model name:
         if model is not None:
-            # Check if no value was provided:
             if model_class is None:
-                # Take it from the model provided:
                 model_class = type(model).__name__
-            # Parse the class name and store it:
+            if model_name is None:
+                model_name = model_class
+
+        # Parse the class name (in case it was passed as a class type) and store it:
+        if model_class is not None:
             self._model_class_name = (
                 model_class if isinstance(model_class, str) else model_class.__name__
             )
-        else:
-            # Store the given value and edit later in one of the 'collect_files_...' methods:
-            self._model_class_name = model_class
 
         # Setup the base handler class:
         super(PyTorchModelHandler, self).__init__(
@@ -150,7 +164,7 @@ class PyTorchModelHandler(DLModelHandler):
         :param output_path: The full path to the directory to save the handled model at. If not given, the context
                             stored will be used to save the model in the defaulted location.
 
-        :return The saved model artifacts dictionary if context is available and None otherwise.
+        :return The saved model additional artifacts (if needed) dictionary if context is available and None otherwise.
 
         :raise MLRunRuntimeError:         In case there is no model initialized in this handler.
         :raise MLRunInvalidArgumentError: If an output path was not given, yet a context was not provided in
@@ -419,11 +433,6 @@ class PyTorchModelHandler(DLModelHandler):
                 "The model class name must be provided when loading the model from local path. Otherwise, the handler "
                 "will not be able to load the model."
             )
-        self._model_class_name = (
-            self._model_class_name
-            if isinstance(self._model_class_name, str)
-            else self._model_class_name.__name__
-        )
 
         # Collect the weights file:
         self._model_file = os.path.join(self._model_path, f"{self._model_name}.pt")

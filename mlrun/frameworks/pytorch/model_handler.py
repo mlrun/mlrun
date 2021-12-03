@@ -99,7 +99,7 @@ class PyTorchModelHandler(DLModelHandler):
         """
         # Validate a modules map or custom objects were provided:
         if (
-            model_path is not None
+            model_path is None
             and modules_map is None
             and (custom_objects_directory is None or custom_objects_directory is None)
         ):

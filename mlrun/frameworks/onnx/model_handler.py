@@ -20,9 +20,9 @@ class ONNXModelHandler(ModelHandler):
 
     def __init__(
         self,
-        model_name: str,
-        model_path: str = None,
         model: onnx.ModelProto = None,
+        model_path: str = None,
+        model_name: str = None,
         context: mlrun.MLClientCtx = None,
         **kwargs,
     ):
@@ -31,7 +31,11 @@ class ONNXModelHandler(ModelHandler):
         given is of a previously logged model (store model object path), all of the other configurations will be loaded
         automatically as they were logged with the model, hence they are optional.
 
-        :param model_name: The model name for saving and logging the model.
+        :param model_name: The model name for saving and logging the model:
+                           * Mandatory for loading the model from a local path.
+                           * If given a logged model (store model path) it will be read from the artifact.
+                           * If given a loaded model object and the model name is None, the name will be set to the
+                             model's object name / class.
         :param model_path: Path to the model's directory to load it from. The onnx file must start with the given model
                            name and the directory must contain the onnx file. The model path can be also passed as a
                            model object path in the following format:
@@ -43,9 +47,9 @@ class ONNXModelHandler(ModelHandler):
         """
         # Setup the base handler class:
         super(ONNXModelHandler, self).__init__(
-            model_name=model_name,
-            model_path=model_path,
             model=model,
+            model_path=model_path,
+            model_name=model_name,
             context=context,
             **kwargs,
         )

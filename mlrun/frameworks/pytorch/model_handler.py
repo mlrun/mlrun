@@ -33,21 +33,28 @@ class PyTorchModelHandler(DLModelHandler):
 
     def __init__(
         self,
-        model_name: str,
+        model: Module = None,
+        model_path: str = None,
+        model_name: str = None,
         model_class: Union[Type[Module], str] = None,
         modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
-        model_path: str = None,
-        model: Module = None,
         context: mlrun.MLClientCtx = None,
         **kwargs,
     ):
         """
         Initialize the handler. The model can be set here so it won't require loading.
-        :param model_name:               The model name for saving and logging the model. Mandatory for loading a model
-                                         from local path (from store object it will be taken from the artifact). If None
-                                         and a model is provided, the name will be set to the model's class name.
+        :param model:                    Model to handle or None in case a loading parameters were supplied.
+        :param model_path:               Path to the model's directory with the saved '.pt' file. The file must start
+                                         with the given model name. The model path can be also passed as a model object
+                                         path in the following format:
+                                         'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'.
+        :param model_name:               The model name for saving and logging the model:
+                                         * Mandatory for loading the model from a local path.
+                                         * If given a logged model (store model path) it will be read from the artifact.
+                                         * If given a loaded model object and the model name is None, the name will be
+                                           set to the model's object name / class.
         :param model_class:              The model's class type object. Can be passed as the class's name (string) as
                                          well. The model class must appear in the custom objects / modules map
                                          dictionary / json. If the model path given is of a store object, this model
@@ -85,11 +92,6 @@ class PyTorchModelHandler(DLModelHandler):
                                          before loading the model). If the model path given is of a store object, the
                                          custom objects files will be read from the logged custom object artifact of the
                                          model.
-        :param model_path:               Path to the model's directory with the saved '.pt' file. The file must start
-                                         with the given model name. The model path can be also passed as a model object
-                                         path in the following format:
-                                         'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'.
-        :param model:                    Model to handle or None in case a loading parameters were supplied.
         :param context:                  MLRun context to work with for logging the model.
 
         :raise MLRunInvalidArgumentError: If the provided model path is of a local model files but the model class name
@@ -108,12 +110,10 @@ class PyTorchModelHandler(DLModelHandler):
                 "to be saved and logged"
             )
 
-        # If the model is given try to set the model class and model name:
+        # If the model is given try to set the model class:
         if model is not None:
             if model_class is None:
                 model_class = type(model).__name__
-            if model_name is None:
-                model_name = model_class
 
         # Parse the class name (in case it was passed as a class type) and store it:
         if model_class is not None:
@@ -123,9 +123,9 @@ class PyTorchModelHandler(DLModelHandler):
 
         # Setup the base handler class:
         super(PyTorchModelHandler, self).__init__(
-            model_name=model_name,
-            model_path=model_path,
             model=model,
+            model_path=model_path,
+            model_name=model_name,
             modules_map=modules_map,
             custom_objects_map=custom_objects_map,
             custom_objects_directory=custom_objects_directory,

@@ -37,9 +37,9 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
 
     def __init__(
         self,
-        model_name: str,
-        model_path: PathType = None,
         model: ModelType = None,
+        model_path: PathType = None,
+        model_name: str = None,
         modules_map: Union[Dict[str, Union[None, str, List[str]]], PathType] = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], PathType] = None,
         custom_objects_directory: PathType = None,
@@ -51,11 +51,15 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
         one of 'model' and 'model_path'. If a model is not given, the files in the model path will be collected
         automatically to be ready for loading.
 
-        :param model_name:               The model name for saving and logging the model.
+        :param model:                    Model to handle or None in case a loading parameters were supplied.
         :param model_path:               Path to the directory with the model files. Can be passed as a model object
                                          path in the following format:
                                          'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'
-        :param model:                    Model to handle or None in case a loading parameters were supplied.
+        :param model_name:               The model name for saving and logging the model:
+                                         * Mandatory for loading the model from a local path.
+                                         * If given a logged model (store model path) it will be read from the artifact.
+                                         * If given a loaded model object and the model name is None, the name will be
+                                           set to the model's object name / class.
         :param modules_map:              A dictionary of all the modules required for loading the model. Each key
                                          is a path to a module and its value is the object name to import from it. All
                                          the modules will be imported globally. If multiple objects needed to be
@@ -100,6 +104,10 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
             custom_objects_map=custom_objects_map,
             custom_objects_directory=custom_objects_directory,
         )
+
+        # Set a default model name if needed - the class name of the given model:
+        if model_name is None and model is not None:
+            model_name = type(model).__name__
 
         # Store parameters:
         self._model_name = model_name

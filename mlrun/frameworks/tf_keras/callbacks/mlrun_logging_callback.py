@@ -142,11 +142,6 @@ class MLRunLoggingCallback(LoggingCallback):
         """
         End the run, logging the collected artifacts.
         """
-        # Set the model name:
-        self._model_name = (
-            self.model.name if self._model_name is None else self._model_name
-        )
-
         # Set the inputs information if needed:
         if self._model_handler.inputs is None:
             self._model_handler.read_inputs_from_model()

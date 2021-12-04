@@ -19,8 +19,10 @@ class TFKerasModelServer(V2ModelServer):
         self,
         context: mlrun.MLClientCtx,
         name: str,
-        model_path: str = None,
         model: keras.Model = None,
+        model_path: str = None,
+        model_name: str = None,
+        modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
         protocol: str = None,
@@ -32,8 +34,33 @@ class TFKerasModelServer(V2ModelServer):
 
         :param context:                  The mlrun context to work with.
         :param name:                     The model name to be served.
-        :param model_path:               Path to the model directory to load. Can be passed as a store model object.
-        :param model:                    The model to use.
+        :param model:                    Model to handle or None in case a loading parameters were supplied.
+        :param model_path:               Path to the model's directory to load it from. The model files must start with
+                                         the given model name and the directory must contain based on the given model
+                                         formats:
+                                         * SavedModel - A zip file 'model_name.zip' or a directory named 'model_name'.
+                                         * H5 - A h5 file 'model_name.h5'.
+                                         * Architecture and weights - The json file 'model_name.json' and h5 weight file
+                                           'model_name.h5'.
+                                         The model path can be also passed as a model object path in the following
+                                         format: 'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'.
+        :param model_name:               The model name for saving and logging the model:
+                                         * Mandatory for loading the model from a local path.
+                                         * If given a logged model (store model path) it will be read from the artifact.
+                                         * If given a loaded model object and the model name is None, the name will be
+                                           set to the model's object name / class.
+        :param modules_map:              A dictionary of all the modules required for loading the model. Each key
+                                         is a path to a module and its value is the object name to import from it. All
+                                         the modules will be imported globally. If multiple objects needed to be
+                                         imported from the same module a list can be given. The map can be passed as a
+                                         path to a json file as well. For example:
+                                         {
+                                             "module1": None,  # => import module1
+                                             "module2": ["func1", "func2"],  # => from module2 import func1, func2
+                                             "module3.sub_module": "func3",  # => from module3.sub_module import func3
+                                         }
+                                         If the model path given is of a store object, the modules map will be read from
+                                         the logged modules map artifact of the model.
         :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key
                                          is a path to a python file and its value is the custom object name to import
                                          from it. If multiple objects needed to be imported from the same py file a list
@@ -68,10 +95,13 @@ class TFKerasModelServer(V2ModelServer):
             protocol=protocol,
             **class_args,
         )
+
+        # Set up a model handler:
         self._model_handler = TFKerasModelHandler(
-            model_name=name,
-            model_path=model_path,
             model=model,
+            model_path=model_path,
+            model_name=model_name,
+            modules_map=modules_map,
             custom_objects_map=custom_objects_map,
             custom_objects_directory=custom_objects_directory,
             model_format=model_format,
@@ -82,7 +112,8 @@ class TFKerasModelServer(V2ModelServer):
         """
         Use the model handler to load the model.
         """
-        self._model_handler.load()
+        if self._model_handler.model is None:
+            self._model_handler.load()
         self.model = self._model_handler.model
 
     def predict(self, request: Dict[str, Any]) -> np.ndarray:

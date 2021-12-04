@@ -22,9 +22,11 @@ class PyTorchModelServer(V2ModelServer):
         self,
         context: mlrun.MLClientCtx,
         name: str,
-        model_class: Union[Type[Module], str] = None,
-        model_path: str = None,
         model: Module = None,
+        model_path: str = None,
+        model_name: str = None,
+        model_class: Union[Type[Module], str] = None,
+        modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
         use_cuda: bool = True,
@@ -36,12 +38,32 @@ class PyTorchModelServer(V2ModelServer):
 
         :param context:                  The mlrun context to work with.
         :param name:                     The name of this server to be initialized.
+        :param model:                    Model to handle or None in case a loading parameters were supplied.
+        :param model_path:               Path to the model's directory with the saved '.pt' file. The file must start
+                                         with the given model name. The model path can be also passed as a model object
+                                         path in the following format:
+                                         'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'.
+        :param model_name:               The model name for saving and logging the model:
+                                         * Mandatory for loading the model from a local path.
+                                         * If given a logged model (store model path) it will be read from the artifact.
+                                         * If given a loaded model object and the model name is None, the name will be
+                                           set to the model's object name / class.
         :param model_class:              The model's class type object. Can be passed as the class's name (string) as
-                                         well. The model class must appear in the custom objects map dictionary / json.
-                                         If the model path given is of a store object, this model class name will be
-                                         read from the logged label of the model.
-        :param model_path:               Path to the model directory to load. Can be passed as a store model object.
-        :param model:                    The model to use.
+                                         well. The model class must appear in the custom objects / modules map
+                                         dictionary / json. If the model path given is of a store object, this model
+                                         class name will be read from the logged label of the model.
+        :param modules_map:              A dictionary of all the modules required for loading the model. Each key
+                                         is a path to a module and its value is the object name to import from it. All
+                                         the modules will be imported globally. If multiple objects needed to be
+                                         imported from the same module a list can be given. The map can be passed as a
+                                         path to a json file as well. For example:
+                                         {
+                                             "module1": None,  # => import module1
+                                             "module2": ["func1", "func2"],  # => from module2 import func1, func2
+                                             "module3.sub_module": "func3",  # => from module3.sub_module import func3
+                                         }
+                                         If the model path given is of a store object, the modules map will be read from
+                                         the logged modules map artifact of the model.
         :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key
                                          is a path to a python file and its value is the custom object name to import
                                          from it. If multiple objects needed to be imported from the same py file a list
@@ -76,24 +98,35 @@ class PyTorchModelServer(V2ModelServer):
             protocol=protocol,
             **class_args,
         )
-        self._use_cuda = use_cuda
+
+        # Set up a model handler:
         self._model_handler = PyTorchModelHandler(
-            context=self.context,
-            model_name=name,
-            model_class=model_class,
             model_path=model_path,
             model=model,
+            model_name=model_name,
+            model_class=model_class,
+            modules_map=modules_map,
             custom_objects_map=custom_objects_map,
             custom_objects_directory=custom_objects_directory,
+            context=self.context,
         )
+
+        # Store the CUDA preference:
+        self._use_cuda = use_cuda
+
+        # Prepare inference parameters:
         self._pytorch_interface = None  # type: PyTorchMLRunInterface
 
     def load(self):
         """
         Use the model handler to load the model.
         """
-        self._model_handler.load()
+        # Load the model:
+        if self._model_handler.model is None:
+            self._model_handler.load()
         self.model = self._model_handler.model
+
+        # Initialize the MLRun interface:
         self._pytorch_interface = PyTorchMLRunInterface(
             model=self._model_handler.model, context=self.context
         )

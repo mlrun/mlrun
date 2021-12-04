@@ -31,16 +31,16 @@ class ONNXModelHandler(ModelHandler):
         given is of a previously logged model (store model object path), all of the other configurations will be loaded
         automatically as they were logged with the model, hence they are optional.
 
+        :param model:      Model to handle or None in case a loading parameters were supplied.
+        :param model_path: Path to the model's directory to load it from. The onnx file must start with the given model
+                           name and the directory must contain the onnx file. The model path can be also passed as a
+                           model object path in the following format:
+                           'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'.
         :param model_name: The model name for saving and logging the model:
                            * Mandatory for loading the model from a local path.
                            * If given a logged model (store model path) it will be read from the artifact.
                            * If given a loaded model object and the model name is None, the name will be set to the
                              model's object name / class.
-        :param model_path: Path to the model's directory to load it from. The onnx file must start with the given model
-                           name and the directory must contain the onnx file. The model path can be also passed as a
-                           model object path in the following format:
-                           'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'.
-        :param model:      Model to handle or None in case a loading parameters were supplied.
         :param context:    MLRun context to work with for logging the model.
 
         :raise MLRunInvalidArgumentError: There was no model or model directory supplied.

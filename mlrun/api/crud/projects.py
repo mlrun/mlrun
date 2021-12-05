@@ -99,16 +99,17 @@ class Projects(
     def delete_project_resources(
         self, session: sqlalchemy.orm.Session, name: str,
     ):
+        # Delete schedules before runtime resources - otherwise they will keep getting created
+        mlrun.api.utils.singletons.scheduler.get_scheduler().delete_schedules(
+            session, name
+        )
+
         # delete runtime resources
         mlrun.api.crud.RuntimeResources().delete_runtime_resources(
             session, label_selector=f"mlrun/project={name}", force=True,
         )
 
         mlrun.api.crud.Logs().delete_logs(name)
-
-        mlrun.api.utils.singletons.scheduler.get_scheduler().delete_schedules(
-            session, name
-        )
 
         # delete db resources
         mlrun.api.utils.singletons.db.get_db().delete_project_related_resources(

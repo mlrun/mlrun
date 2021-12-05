@@ -151,20 +151,24 @@ class SparkFeatureMerger(BaseMerger):
         entity_with_id = entity_df.withColumn("_row_nr", monotonically_increasing_id())
         indexes = list(featureset.spec.entities.keys())
 
-        # set timestamp column
-        if entity_timestamp_column is None:
-            entity_timestamp_column = (
-                entity_timestamp_column or featureset.spec.timestamp_key
-            )
-
-        # name featureset col with prefix
-        feature_event_timestamp_column_with_prefix = (
-            f"{'ft'}__{entity_timestamp_column}"
-        )
+        # # set timestamp column
+        # if entity_timestamp_column is None:
+        #     entity_timestamp_column = (
+        #         entity_timestamp_column or featureset.spec.timestamp_key
+        #     )
+        #
+        # # name featureset col with prefix
+        # feature_event_timestamp_column_with_prefix = (
+        #     f"{'ft'}__{entity_timestamp_column}"
+        # )
 
         # get columns for projection
         projection = [
-            col(col_name).alias(f"{'ft'}__{col_name}")
+            col(col_name).alias(
+                f"{'ft'}__{col_name}"
+                if col_name in indexes + [entity_timestamp_column]
+                else col_name
+            )
             for col_name in featureset_df.columns
         ]
 
@@ -176,7 +180,7 @@ class SparkFeatureMerger(BaseMerger):
         print(entity_with_id.columns)
         join_cond = (
             entity_with_id[entity_timestamp_column]
-            >= aliased_feature_table_df[feature_event_timestamp_column_with_prefix]
+            >= aliased_feature_table_df[f"{'ft'}__{entity_timestamp_column}"]
         )
 
         # join based on entities
@@ -193,20 +197,16 @@ class SparkFeatureMerger(BaseMerger):
                 aliased_feature_table_df[f"{'ft'}__{key}"]
             )
 
-        window = Window.partitionBy(
-            "_row_nr", *indexes
-        ).orderBy(col(feature_event_timestamp_column_with_prefix).desc(),)
+        window = Window.partitionBy("_row_nr", *indexes).orderBy(
+            col(entity_timestamp_column).desc(),
+        )
         filter_most_recent_feature_timestamp = conditional_join.withColumn(
             "_rank", row_number().over(window)
         ).filter(col("_rank") == 1)
         print("filter_most_recent_feature_timestamp:")
         filter_most_recent_feature_timestamp.show()
 
-        return filter_most_recent_feature_timestamp.select(
-            entity_df.columns
-            + ["ft__" + key for key in featureset.spec.features.keys()]
-            + ["ft__" + entity_timestamp_column]
-        ).show(truncate=False)
+        return filter_most_recent_feature_timestamp.show(truncate=False)
 
     def _join(
         self, entity_df, entity_timestamp_column: str, featureset, featureset_df,

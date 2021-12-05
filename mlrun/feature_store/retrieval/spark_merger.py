@@ -78,7 +78,9 @@ class SparkFeatureMerger(BaseMerger):
                 if entity not in df.columns and entity not in column_names:
                     columns.append((entity, entity))
 
+            print("extended cols:", columns)
             df = df.select([col(name).alias(alias or name) for name, alias in columns])
+            df.show()
             # df = df.select(column_names)
 
             dfs.append(df)
@@ -170,6 +172,8 @@ class SparkFeatureMerger(BaseMerger):
         ]
 
         aliased_feature_table_df = featureset_df.select(projection)
+        print("aliased:")
+        aliased_feature_table_df.show()
 
         # set join conditions
         print(entity_with_id.columns)

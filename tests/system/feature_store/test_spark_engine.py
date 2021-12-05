@@ -91,7 +91,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     def test_schedule_on_filtered_by_time(self, partitioned):
         name = f"sched-time-{str(partitioned)}"
 
-        now = datetime.now() + timedelta(minutes=2)
+        now = datetime.now()
 
         path = "v3io:///bigdata/bla.parquet"
         fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
@@ -144,8 +144,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             targets=targets,
             spark_context=self.spark_service,
         )
-        # ingest starts every round minute.
-        sleep(60 - now.second + 100)
+        # ingest starts every second minute and it takes ~90 seconds to finish.
+        if (now.minute % 2) == 0:
+            sleep(60 - now.second + 60 + 90)
+        else:
+            sleep(60 - now.second + 90)
 
         features = [f"{name}.*"]
         vec = fs.FeatureVector("sched_test-vec", features)

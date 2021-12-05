@@ -100,7 +100,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             "measurements", entities=[fs.Entity("name")], engine="spark",
         )
 
-        try:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             fs.ingest(
                 measurements,
                 df,
@@ -108,9 +108,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 spark_context=self.spark_service,
                 run_config=fs.RunConfig(local=False),
             )
-            assert False
-        except mlrun.errors.MLRunInvalidArgumentError:
-            pass
 
     @pytest.mark.parametrize("partitioned", [True, False])
     def test_schedule_on_filtered_by_time(self, partitioned):

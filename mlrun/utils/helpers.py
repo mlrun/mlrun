@@ -162,6 +162,31 @@ def verify_field_list_of_type(
         verify_field_of_type(field_name, element, expected_element_type)
 
 
+def verify_items_types_of_dict(
+    name: str, dictionary: dict, expected_keys_types: list, expected_values_types: list
+):
+    if type(dictionary) != dict:
+        raise mlrun.errors.MLRunInvalidArgumentTypeError(
+            f"{name} expected to be of type dict, got type : {type(dictionary)}"
+        )
+
+    verify_list_types(name, "keys", dictionary.keys(), expected_keys_types)
+    verify_list_types(name, "values", dictionary.values(), expected_values_types)
+
+
+def verify_list_types(
+    name: str, list_name: str, actual_list, expected_types: list
+):
+    actual_list_types = set(map(type, actual_list))
+    expected_types = set(expected_types)
+
+    if actual_list_types != expected_types:
+        raise mlrun.errors.MLRunInvalidArgumentTypeError(
+            f"{name} should have {list_name} of type : {expected_types} "
+            f"(got : {actual_list_types}"
+        )
+
+
 def now_date():
     return datetime.now(timezone.utc)
 

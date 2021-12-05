@@ -28,7 +28,9 @@ class SparkFeatureMerger(BaseMerger):
 
         if self.spark is None:
             # create spark context
-            self.spark = SparkSession.builder.appName("name").getOrCreate()
+            self.spark = SparkSession.builder.appName(
+                f"vector-merger-{self.vector.metadata.name}"
+            ).getOrCreate()
 
         feature_sets = []
         dfs = []
@@ -65,10 +67,25 @@ class SparkFeatureMerger(BaseMerger):
                 )
 
             df = source.to_spark_df(self.spark, named_view=self.named_view)
+            timestamp_key = feature_set.spec.timestamp_key
+            if (
+                timestamp_key
+                and timestamp_key not in df.columns
+                and timestamp_key not in column_names
+            ):
+                columns.append((timestamp_key, timestamp_key))
+            for entity in feature_set.spec.entities.keys():
+                if entity not in df.columns and entity not in column_names:
+                    columns.append((entity, entity))
+
             df = df.select([col(name).alias(alias or name) for name, alias in columns])
             # df = df.select(column_names)
 
             dfs.append(df)
+
+        if entity_rows is not None and not hasattr(entity_rows, "rdd"):
+            # convert pandas to spark DF if needed
+            entity_rows = self.spark.createDataFrame(entity_rows)
 
         self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
 

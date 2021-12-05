@@ -1,3 +1,4 @@
+import json
 import os
 import pathlib
 import random
@@ -1802,6 +1803,86 @@ class TestFeatureStore(TestMLRunSystem):
             "foreignkey2": {"mykey1": "C", "mykey2": "F"},
             "aug": {"mykey1": "1", "mykey2": "2"},
         }
+
+    def test_preview_saves_changes(self):
+        name = "update-on-preview"
+        v3io_source = StreamSource(key_field="ticker", time_field="time")
+        fset = fs.FeatureSet(name, timestamp_key="time", entities=[Entity("ticker")])
+        import v3io.dataplane
+
+        v3io_client = v3io.dataplane.Client()
+
+        stream_path = f"/{self.project_name}/FeatureStore/{name}/v3ioStream"
+        try:
+            v3io_client.stream.delete(container="projects", stream_path=stream_path)
+        finally:
+            v3io_client.stream.create(
+                container="projects", stream_path=stream_path, shard_count=1
+            )
+
+        record = {
+            "data": json.dumps(
+                {
+                    "ticker": "AAPL",
+                    "time": "2021-08-15T10:58:37.415101",
+                    "bid": 300,
+                    "ask": 100,
+                }
+            )
+        }
+
+        v3io_client.stream.put_records(
+            container="projects", stream_path=stream_path, records=[record]
+        )
+
+        fs.preview(
+            featureset=fset,
+            source=quotes,
+            entity_columns=["ticker"],
+            timestamp_key="time",
+        )
+
+        filename = str(
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "api"
+            / "runtimes"
+            / "assets"
+            / "sample_function.py"
+        )
+
+        function = mlrun.code_to_function(
+            "ingest_transactions", kind="serving", filename=filename
+        )
+        function.spec.default_content_type = "application/json"
+        run_config = fs.RunConfig(function=function, local=False).apply(
+            mlrun.mount_v3io()
+        )
+        fs.deploy_ingestion_service(
+            featureset=fset,
+            source=v3io_source,
+            run_config=run_config,
+            targets=[ParquetTarget(flush_after_seconds=1)],
+        )
+
+        record = {
+            "data": json.dumps(
+                {
+                    "ticker": "AAPL",
+                    "time": "2021-08-15T10:58:37.415101",
+                    "bid": 400,
+                    "ask": 200,
+                }
+            )
+        }
+
+        v3io_client.stream.put_records(
+            container="projects", stream_path=stream_path, records=[record]
+        )
+
+        features = [f"{name}.*"]
+        vector = fs.FeatureVector("vecc", features, with_indexes=True)
+
+        fs.get_offline_features(vector)
 
     def test_online_impute(self):
         data = pd.DataFrame(

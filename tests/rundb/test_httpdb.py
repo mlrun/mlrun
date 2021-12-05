@@ -73,7 +73,6 @@ def start_server(workdir, env_config: dict):
 
     proc = Popen(cmd, env=env, stdout=PIPE, stderr=PIPE, cwd=project_dir_path)
     url = f"http://localhost:{port}"
-    check_server_up(url)
 
     return proc, url
 
@@ -147,6 +146,7 @@ def server_fixture():
         nonlocal process, workdir
         workdir = create_workdir()
         process, url = start_server(workdir, env)
+        check_server_up(url)
         conn = HTTPRunDB(url)
         conn.connect()
         return Server(url, conn, workdir)

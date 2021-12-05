@@ -524,6 +524,7 @@ def preview(
     df = infer_from_static_df(
         source, featureset, entity_columns, options, sample_size=sample_size
     )
+    featureset.save()
     return df
 
 

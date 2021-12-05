@@ -149,6 +149,7 @@ class SparkFeatureMerger(BaseMerger):
         from pyspark.sql.functions import col, monotonically_increasing_id, row_number
 
         entity_with_id = entity_df.withColumn("_row_nr", monotonically_increasing_id())
+        indexes = list(featureset.spec.entities.keys())
 
         # set timestamp column
         if entity_timestamp_column is None:
@@ -179,7 +180,7 @@ class SparkFeatureMerger(BaseMerger):
         )
 
         # join based on entities
-        for key in [d["name"] for d in featureset.spec.to_dict()["entities"]]:
+        for key in indexes:
             join_cond = join_cond & (
                 entity_with_id[key] == aliased_feature_table_df[f"{'ft'}__{key}"]
             )
@@ -187,21 +188,23 @@ class SparkFeatureMerger(BaseMerger):
         conditional_join = entity_with_id.join(
             aliased_feature_table_df, join_cond, "leftOuter"
         )
-        for key in [d["name"] for d in featureset.spec.to_dict()["entities"]]:
+        for key in indexes:
             conditional_join = conditional_join.drop(
                 aliased_feature_table_df[f"{'ft'}__{key}"]
             )
 
         window = Window.partitionBy(
-            "_row_nr", *[d["name"] for d in featureset.spec.to_dict()["entities"]]
+            "_row_nr", *indexes
         ).orderBy(col(feature_event_timestamp_column_with_prefix).desc(),)
         filter_most_recent_feature_timestamp = conditional_join.withColumn(
             "_rank", row_number().over(window)
         ).filter(col("_rank") == 1)
+        print("filter_most_recent_feature_timestamp:")
+        filter_most_recent_feature_timestamp.show()
 
         return filter_most_recent_feature_timestamp.select(
             entity_df.columns
-            + ["ft__" + d["name"] for d in featureset.spec.to_dict()["features"]]
+            + ["ft__" + key for key in featureset.spec.features.keys()]
             + ["ft__" + entity_timestamp_column]
         ).show(truncate=False)
 

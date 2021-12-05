@@ -1,5 +1,5 @@
+import mlrun
 from mlrun.datastore.targets import get_offline_target
-from mlrun.datastore.utils import store_path_to_spark
 
 from ..feature_vector import OfflineVectorResponse
 from .base import BaseMerger
@@ -7,49 +7,29 @@ from .base import BaseMerger
 
 class SparkFeatureMerger(BaseMerger):
     def __init__(self, vector, **engine_args):
-        self._result_df = None
-        self.vector = vector
+        super().__init__(vector, **engine_args)
         self.spark = engine_args.get("spark", None)
+        self.named_view = engine_args.get("named_view", False)
 
     def to_spark_df(self, session, path):
         return session.read.load(path)
 
-    def start(
+    def _generate_vector(
         self,
-        entity_rows=None,
-        entity_timestamp_column=None,
-        target=None,
-        drop_columns=None,
+        entity_rows,
+        entity_timestamp_column,
+        feature_set_objects,
+        feature_set_fields,
         start_time=None,
         end_time=None,
-        with_indexes=None,
-        update_stats=None,
     ):
         from pyspark.sql import SparkSession
+        from pyspark.sql.functions import col
 
         if self.spark is None:
             # create spark context
             self.spark = SparkSession.builder.appName("name").getOrCreate()
 
-        if not drop_columns:
-            drop_columns = []
-        index_columns = []
-        drop_indexes = False if self.vector.spec.with_indexes else True
-
-        def append_drop_column(key):
-            if key and key not in drop_columns:
-                drop_columns.append(key)
-
-        def append_index(key):
-            if key:
-                if key not in index_columns:
-                    index_columns.append(key)
-                if drop_indexes:
-                    append_drop_column(key)
-
-        if entity_timestamp_column and drop_indexes:
-            drop_columns.append(entity_timestamp_column)
-        feature_set_objects, feature_set_fields = self.vector.parse_features()
         feature_sets = []
         dfs = []
 
@@ -57,16 +37,49 @@ class SparkFeatureMerger(BaseMerger):
             feature_set = feature_set_objects[name]
             feature_sets.append(feature_set)
             column_names = [name for name, alias in columns]
-            entities = list(feature_set.spec.entities.keys())
             target = get_offline_target(feature_set)
             if not target:
-                # TODO - throw
-                break
-            path = target.path
-            df = self.spark.read.load(store_path_to_spark(path))
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Feature set {name} does not have offline targets"
+                )
+
+            # handling case where there are multiple feature sets and user creates vector where
+            # entity_timestamp_column is from a specific feature set (can't be entity timestamp)
+            source_driver = mlrun.datastore.sources.source_kind_to_driver[target.kind]
+            if (
+                entity_timestamp_column in column_names
+                or feature_set.spec.timestamp_key == entity_timestamp_column
+            ):
+                source = source_driver(
+                    self.vector.metadata.name,
+                    target.path,
+                    time_field=entity_timestamp_column,
+                    start_time=start_time,
+                    end_time=end_time,
+                )
+            else:
+                source = source_driver(
+                    self.vector.metadata.name,
+                    target.path,
+                    time_field=entity_timestamp_column,
+                )
+
+            df = source.to_spark_df(self.spark, named_view=self.named_view)
+            df = df.select([col(name).alias(alias or name) for name, alias in columns])
+            # df = df.select(column_names)
+
             dfs.append(df)
 
         self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
+
+        self._result_df = self._result_df.drop(*self._drop_columns)
+
+        # todo: drop rows with null label_column values
+
+        self._write_to_target()
+
+        # todo: drop/set indexes if needed
+
         return OfflineVectorResponse(self)
 
     def merge(

@@ -16,9 +16,6 @@ from typing import List
 
 import pandas as pd
 
-import mlrun
-import mlrun.errors
-
 from ...utils import logger
 from ..feature_vector import OfflineVectorResponse
 from .base import BaseMerger
@@ -26,51 +23,18 @@ from .base import BaseMerger
 
 class LocalFeatureMerger(BaseMerger):
     def __init__(self, vector, **engine_args):
-        self._result_df = None
-        self.vector = vector
+        super().__init__(vector, **engine_args)
 
-    def start(
+    def _generate_vector(
         self,
-        entity_rows=None,
-        entity_timestamp_column=None,
-        target=None,
-        drop_columns=None,
+        entity_rows,
+        entity_timestamp_column,
+        feature_set_objects,
+        feature_set_fields,
         start_time=None,
         end_time=None,
-        with_indexes=None,
-        update_stats=None,
     ):
-        if not drop_columns:
-            drop_columns = []
-        index_columns = []
-        drop_indexes = (
-            False if (self.vector.spec.with_indexes or with_indexes) else True
-        )
 
-        def append_drop_column(key):
-            if key and key not in drop_columns:
-                drop_columns.append(key)
-
-        def append_index(key):
-            if key:
-                if key not in index_columns:
-                    index_columns.append(key)
-                if drop_indexes:
-                    append_drop_column(key)
-
-        if entity_timestamp_column and drop_indexes:
-            drop_columns.append(entity_timestamp_column)
-        feature_set_objects, feature_set_fields = self.vector.parse_features(
-            update_stats=update_stats
-        )
-        if len(feature_set_fields) == 0:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "No features in vector. Make sure to infer the schema on all the feature sets first"
-            )
-        if update_stats:
-            self.vector.save()
-
-        # load dataframes
         feature_sets = []
         dfs = []
         df_module = None  # for use of dask or other non pandas df module
@@ -102,37 +66,22 @@ class LocalFeatureMerger(BaseMerger):
                 columns={name: alias for name, alias in columns if alias}, inplace=True
             )
             dfs.append(df)
-            if not entity_timestamp_column and drop_indexes:
-                append_drop_column(feature_set.spec.timestamp_key)
-            for key in feature_set.spec.entities.keys():
-                append_index(key)
 
         self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
 
-        self._result_df.drop(columns=drop_columns, inplace=True, errors="ignore")
+        self._result_df.drop(columns=self._drop_columns, inplace=True, errors="ignore")
 
         if self.vector.status.label_column:
             self._result_df = self._result_df.dropna(
                 subset=[self.vector.status.label_column]
             )
 
-        if target:
-            is_persistent_vector = self.vector.metadata.name is not None
-            if not target.path and not is_persistent_vector:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "target path was not specified"
-                )
-            target.set_resource(self.vector)
-            size = target.write_dataframe(self._result_df)
-            if is_persistent_vector:
-                target_status = target.update_resource_status("ready", size=size)
-                logger.info(f"wrote target: {target_status}")
-                self.vector.save()
+        self._write_to_target()
 
-        # check if need to set indices
-        if drop_indexes:
+        # check if need to set/reset indices
+        if self._drop_indexes:
             self._result_df.reset_index(drop=True, inplace=True)
-        elif index_columns:
+        elif self._index_columns:
 
             # in case of using spark engine the index will be of the default type 'RangeIndex' and it will be replaced,
             # in other cases the index should already be set correctly.
@@ -140,11 +89,11 @@ class LocalFeatureMerger(BaseMerger):
                 self._result_df.index, pd.core.indexes.range.RangeIndex
             ):
                 index_columns_missing = []
-                for index in index_columns:
+                for index in self._index_columns:
                     if index not in self._result_df.columns:
                         index_columns_missing.append(index)
                 if not index_columns_missing:
-                    self._result_df.set_index(index_columns, inplace=True)
+                    self._result_df.set_index(self._index_columns, inplace=True)
                 else:
                     logger.warn(
                         f"Can't set index, not all index columns found: {index_columns_missing}. "

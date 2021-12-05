@@ -138,10 +138,10 @@ class TestFeatureStore(TestMLRunSystem):
         self._logger.info(f"output df:\n{df}")
         assert quotes_set.status.stats.get("asks1_sum_1h"), "stats not created"
 
-    def _get_offline_vector(self, features, features_size):
+    def _get_offline_vector(self, features, features_size, engine=None):
         vector = fs.FeatureVector("myvector", features, "stock-quotes.xx")
         resp = fs.get_offline_features(
-            vector, entity_rows=trades, entity_timestamp_column="time",
+            vector, entity_rows=trades, entity_timestamp_column="time", engine=engine
         )
         assert len(vector.spec.features) == len(
             features
@@ -162,7 +162,7 @@ class TestFeatureStore(TestMLRunSystem):
         # check simple api without join with other df
         # test the use of vector uri
         vector.save()
-        resp = fs.get_offline_features(vector.uri)
+        resp = fs.get_offline_features(vector.uri, engine=engine)
         df = resp.to_dataframe()
         assert df.shape[1] == features_size, "unexpected num of returned df columns"
 
@@ -220,7 +220,13 @@ class TestFeatureStore(TestMLRunSystem):
         features_size = (
             len(features) + 1 + 1
         )  # (*) returns 2 features, label adds 1 feature
-        self._get_offline_vector(features, features_size)
+
+        # test fetch with the pandas merger engine
+        self._get_offline_vector(features, features_size, engine="local")
+
+        # test fetch with the dask merger engine
+        # disabled for now, require a fix in storey
+        # self._get_offline_vector(features, features_size, engine="dask")
 
         self._logger.debug("Get online feature vector")
         self._get_online_features(features, features_size)

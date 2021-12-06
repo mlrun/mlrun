@@ -25,4 +25,6 @@ class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):
             name=ctx_name, project=mlrun.mlconf.default_project
         )
         assert len(runs) == 1
-        assert runs[0]["status"]["state"] == mlrun.runtimes.constants.RunStates.completed
+        assert (
+            runs[0]["status"]["state"] == mlrun.runtimes.constants.RunStates.completed
+        )

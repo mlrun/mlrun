@@ -5,7 +5,6 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from tests.api.runtimes.base import TestRuntimeBase
 
-from mlrun.config import config as mlconf
 from mlrun.runtimes.base import BaseRuntime
 import mlrun.errors
 

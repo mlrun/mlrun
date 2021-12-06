@@ -190,7 +190,7 @@ def verify_list_types(actual_list, expected_types: list = None):
 
         if not actual_list_types.issubset(expected_types):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"Got types {actual_list_types}"
+                f"Got types {get_pretty_types_names(actual_list_types)}"
             )
 
 
@@ -199,7 +199,7 @@ def get_pretty_types_names(types):
         raise
     if len(types) > 1:
         return "Union[" + ",".join([ty.__name__ for ty in types]) + "]"
-    return "".join(types[0].__name__)
+    return "".join([ty.__name__ for ty in types])
 
 
 def now_date():

@@ -158,7 +158,7 @@ class TestFeatureStore(TestMLRunSystem):
         df = resp.to_dataframe()
         columns = trades.shape[1] + features_size - 2  # - 2 keys
         assert df.shape[1] == columns, "unexpected num of returned df columns"
-        resp.to_parquet(str(self.results_path / "query.parquet"))
+        resp.to_parquet(str(self.results_path / f"query-{engine}.parquet"))
 
         # check simple api without join with other df
         # test the use of vector uri

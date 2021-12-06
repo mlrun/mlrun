@@ -163,28 +163,40 @@ def verify_field_list_of_type(
 
 
 def verify_items_types_of_dict(
-    name: str, dictionary: dict, expected_keys_types: list, expected_values_types: list
+    name: str,
+    dictionary: dict,
+    expected_keys_types: list = None,
+    expected_values_types: list = None,
 ):
-    if type(dictionary) != dict:
-        raise mlrun.errors.MLRunInvalidArgumentTypeError(
-            f"{name} expected to be of type dict, got type : {type(dictionary)}"
-        )
+    if dictionary:
+        if type(dictionary) != dict:
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                f"{name} expected to be of type dict, got type : {type(dictionary)}"
+            )
 
-    verify_list_types(name, "keys", dictionary.keys(), expected_keys_types)
-    verify_list_types(name, "values", dictionary.values(), expected_values_types)
+        verify_list_types(name, "keys", dictionary.keys(), expected_keys_types)
+        verify_list_types(name, "values", dictionary.values(), expected_values_types)
 
 
 def verify_list_types(
-    name: str, list_name: str, actual_list, expected_types: list
+    name: str, list_name: str, actual_list, expected_types: list = None
 ):
-    actual_list_types = set(map(type, actual_list))
-    expected_types = set(expected_types)
+    if actual_list and expected_types:
+        actual_list_types = set(map(type, actual_list))
+        expected_types = set(expected_types)
 
-    if actual_list_types != expected_types:
-        raise mlrun.errors.MLRunInvalidArgumentTypeError(
-            f"{name} should have {list_name} of type : {expected_types} "
-            f"(got : {actual_list_types}"
-        )
+        if not actual_list_types.issubset(expected_types):
+            expected_types = get_pretty_types_names(expected_types)
+            actual_list_types = get_pretty_types_names(actual_list_types)
+
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                f"{name} should have {list_name} of type : {expected_types} "
+                f"(got : {actual_list_types} with values : {actual_list})."
+            )
+
+
+def get_pretty_types_names(types):
+    return [ty.__name__ for ty in types]
 
 
 def now_date():

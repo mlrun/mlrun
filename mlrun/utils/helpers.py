@@ -196,7 +196,7 @@ def verify_list_types(actual_list, expected_types: list = None):
 
 def get_pretty_types_names(types):
     if len(types) == 0:
-        raise
+        return ""
     if len(types) > 1:
         return "Union[" + ",".join([ty.__name__ for ty in types]) + "]"
     return "".join([ty.__name__ for ty in types])

@@ -192,7 +192,7 @@ class SparkFeatureMerger(BaseMerger):
         conditional_join = entity_with_id.join(
             aliased_feature_table_df, join_cond, "leftOuter"
         )
-        for key in indexes:
+        for key in indexes + [entity_timestamp_column]:
             conditional_join = conditional_join.drop(
                 aliased_feature_table_df[f"{'ft'}__{key}"]
             )
@@ -204,9 +204,9 @@ class SparkFeatureMerger(BaseMerger):
             "_rank", row_number().over(window)
         ).filter(col("_rank") == 1)
         print("filter_most_recent_feature_timestamp:")
-        filter_most_recent_feature_timestamp.show()
+        filter_most_recent_feature_timestamp.show(truncate=False)
 
-        return filter_most_recent_feature_timestamp.show(truncate=False)
+        return filter_most_recent_feature_timestamp.drop(["_row_nr"])
 
     def _join(
         self, entity_df, entity_timestamp_column: str, featureset, featureset_df,

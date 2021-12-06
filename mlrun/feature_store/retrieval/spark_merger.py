@@ -75,9 +75,6 @@ class SparkFeatureMerger(BaseMerger):
                     columns.append((entity, None))
 
             df = df.select([col(name).alias(alias or name) for name, alias in columns])
-            df.show()
-            # df = df.select(column_names)
-
             dfs.append(df)
 
         if entity_rows is not None and not hasattr(entity_rows, "rdd"):
@@ -160,26 +157,26 @@ class SparkFeatureMerger(BaseMerger):
             for col_name in featureset_df.columns
         ]
 
-        aliased_feature_table_df = featureset_df.select(projection)
+        aliased_featureset_df = featureset_df.select(projection)
 
         # set join conditions
         join_cond = (
             entity_with_id[entity_timestamp_column]
-            >= aliased_feature_table_df[f"{'ft'}__{entity_timestamp_column}"]
+            >= aliased_featureset_df[f"{'ft'}__{entity_timestamp_column}"]
         )
 
         # join based on entities
         for key in indexes:
             join_cond = join_cond & (
-                entity_with_id[key] == aliased_feature_table_df[f"{'ft'}__{key}"]
+                entity_with_id[key] == aliased_featureset_df[f"{'ft'}__{key}"]
             )
 
         conditional_join = entity_with_id.join(
-            aliased_feature_table_df, join_cond, "leftOuter"
+            aliased_featureset_df, join_cond, "leftOuter"
         )
         for key in indexes + [entity_timestamp_column]:
             conditional_join = conditional_join.drop(
-                aliased_feature_table_df[f"{'ft'}__{key}"]
+                aliased_featureset_df[f"{'ft'}__{key}"]
             )
 
         window = Window.partitionBy("_row_nr", *indexes).orderBy(
@@ -188,8 +185,6 @@ class SparkFeatureMerger(BaseMerger):
         filter_most_recent_feature_timestamp = conditional_join.withColumn(
             "_rank", row_number().over(window)
         ).filter(col("_rank") == 1)
-        print("filter_most_recent_feature_timestamp:")
-        filter_most_recent_feature_timestamp.show(truncate=False)
 
         return filter_most_recent_feature_timestamp.drop("_row_nr", "_rank")
 

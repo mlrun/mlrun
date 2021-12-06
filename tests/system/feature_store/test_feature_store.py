@@ -226,8 +226,7 @@ class TestFeatureStore(TestMLRunSystem):
         self._get_offline_vector(features, features_size, engine="local")
 
         # test fetch with the dask merger engine
-        # disabled for now, require a fix in storey
-        # self._get_offline_vector(features, features_size, engine="dask")
+        self._get_offline_vector(features, features_size, engine="dask")
 
         self._logger.debug("Get online feature vector")
         self._get_online_features(features, features_size)

@@ -213,3 +213,8 @@ class SparkFeatureMerger(BaseMerger):
         indexes = list(featureset.spec.entities.keys())
         merged_df = entity_df.join(featureset_df, on=indexes)
         return merged_df
+
+    def get_df(self, to_pandas=True):
+        if to_pandas:
+            return self._result_df.toPandas()
+        return self._result_df

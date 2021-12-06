@@ -109,15 +109,15 @@ class BaseMerger(abc.ABC):
             raise RuntimeError("unexpected status, no result df")
         return "completed"
 
-    def get_df(self):
+    def get_df(self, to_pandas=True):
         return self._result_df
 
     def to_parquet(self, target_path, **kw):
         """return results as parquet file"""
-        size = ParquetTarget(path=target_path).write_dataframe(self.get_df(), **kw)
+        size = ParquetTarget(path=target_path).write_dataframe(self._result_df, **kw)
         return size
 
     def to_csv(self, target_path, **kw):
         """return results as csv file"""
-        size = CSVTarget(path=target_path).write_dataframe(self.get_df(), **kw)
+        size = CSVTarget(path=target_path).write_dataframe(self._result_df, **kw)
         return size

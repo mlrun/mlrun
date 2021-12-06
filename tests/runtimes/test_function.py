@@ -85,3 +85,34 @@ class TestAutoMountNuclio(TestAutoMount):
 
     def _execute_run(self, runtime):
         runtime.deploy(project=self.project)
+
+
+def test_http_trigger():
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
+    function.with_http(
+        workers=2, host="x", worker_timeout=5, extra_attributes={"yy": "123"},
+    )
+
+    trigger = function.spec.config["spec.triggers.http"]
+    assert trigger["maxWorkers"] == 2
+    assert trigger["attributes"]["ingresses"] == {"0": {"host": "x", "paths": ["/"]}}
+    assert trigger["attributes"]["yy"] == "123"
+    assert trigger["attributes"]["workerAvailabilityTimeoutMilliseconds"] == 5000
+    assert trigger["annotations"]["nginx.org/proxy-connect-timeout"] == "65s"
+
+
+def test_v3io_stream_trigger():
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
+    function.add_v3io_stream_trigger(
+        "v3io:///projects/x/y",
+        name="mystream",
+        extra_attributes={"yy": "123"},
+        access_key="x",
+    )
+
+    print(function.spec.config)
+    trigger = function.spec.config["spec.triggers.mystream"]
+    assert trigger["attributes"]["containerName"] == "projects"
+    assert trigger["attributes"]["streamPath"] == "x/y"
+    assert trigger["password"] == "x"
+    assert trigger["attributes"]["yy"] == "123"

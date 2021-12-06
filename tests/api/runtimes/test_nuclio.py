@@ -389,7 +389,7 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         # This test runs in serving, nuclio:mlrun as well, with different secret names encoding
         expected_secrets = k8s_secrets_mock.get_expected_env_variables_from_secrets(
-            self.project, encode_key_names=(self.runtime_kind != "nuclio")
+            self.project, encode_key_names=(self.class_name != "remote")
         )
         self._assert_deploy_called_basic_config(
             expected_class=self.class_name, expected_env_from_secrets=expected_secrets

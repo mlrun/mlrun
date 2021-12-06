@@ -26,12 +26,14 @@ import binascii
 import copy
 import json
 import os
+import typing
 import urllib.parse
 from collections.abc import Mapping
 from distutils.util import strtobool
 from os.path import expanduser
 from threading import Lock
 
+import semver
 import yaml
 
 env_prefix = "MLRUN_"
@@ -104,6 +106,8 @@ default_config = {
     "default_samples_path": "https://s3.wasabisys.com/iguazio/",
     # default path for tensorboard logs
     "default_tensorboard_logs_path": "/User/.tensorboard/{{project}}",
+    # ";" separated list of notebook cell tag names to ignore e.g. "ignore-this;ignore-that"
+    "ignored_notebook_tags": "",
     "function_defaults": {
         "image_by_kind": {
             "job": "mlrun/mlrun",
@@ -128,6 +132,8 @@ default_config = {
         "real_path": "",
         "db_type": "sqldb",
         "max_workers": "",
+        # See mlrun.api.schemas.APIStates for options
+        "state": "online",
         "db": {
             "commit_retry_timeout": 30,
             "commit_retry_interval": 3,
@@ -395,6 +401,19 @@ class Config:
             if priority_class_name not in valid_function_priority_class_names:
                 valid_function_priority_class_names.append(priority_class_name)
         return valid_function_priority_class_names
+
+    @staticmethod
+    def get_parsed_igz_version() -> typing.Optional[semver.VersionInfo]:
+        if not config.igz_version:
+            return None
+        try:
+            parsed_version = semver.VersionInfo.parse(config.igz_version)
+            return parsed_version
+        except ValueError:
+            # iguazio version is semver compatible only from 3.2, before that it will be something
+            # like 3.0_b177_20210806003728
+            semver_compatible_igz_version = config.igz_version.split("_")[0]
+            return semver.VersionInfo.parse(f"{semver_compatible_igz_version}.0")
 
     @staticmethod
     def get_storage_auto_mount_params():

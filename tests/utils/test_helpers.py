@@ -13,9 +13,9 @@ from mlrun.utils.helpers import (
     extend_hub_uri_if_needed,
     fill_artifact_path_template,
     get_parsed_docker_registry,
+    get_pretty_types_names,
     verify_field_regex,
     verify_list_types,
-    get_pretty_types_names,
 )
 from mlrun.utils.regex import run_name
 

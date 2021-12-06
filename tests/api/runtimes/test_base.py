@@ -1,12 +1,10 @@
 import pytest
-
-
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from tests.api.runtimes.base import TestRuntimeBase
 
-from mlrun.runtimes.base import BaseRuntime
 import mlrun.errors
+from mlrun.runtimes.base import BaseRuntime
+from tests.api.runtimes.base import TestRuntimeBase
 
 
 class TestBaseRunTime(TestRuntimeBase):

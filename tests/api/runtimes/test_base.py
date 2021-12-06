@@ -13,7 +13,9 @@ class TestBaseRunTime(TestRuntimeBase):
     def custom_setup_after_fixtures(self):
         self._mock_create_namespaced_pod()
 
-    @pytest.mark.parametrize("inputs", [{"input1": 123}, {"input1": None}])
+    @pytest.mark.parametrize(
+        "inputs", [{"input1": 123}, {"input1": None}, {"input1": None, "input2": 2}]
+    )
     def test_run_with_invalid_inputs(self, db: Session, client: TestClient, inputs):
         runtime = BaseRuntime()
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError):

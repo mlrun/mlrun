@@ -190,7 +190,7 @@ def verify_list_types(actual_list, expected_types: list = None):
 
         if not actual_list_types.issubset(expected_types):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"Got types {get_pretty_types_names(actual_list_types)}"
+                f"Got types: {actual_list_types}, from: {actual_list}"
             )
 
 

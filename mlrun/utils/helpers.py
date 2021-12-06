@@ -173,30 +173,33 @@ def verify_items_types_of_dict(
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 f"{name} expected to be of type dict, got type : {type(dictionary)}"
             )
+        try:
+            verify_list_types(dictionary.keys(), expected_keys_types)
+            verify_list_types(dictionary.values(), expected_values_types)
+        except mlrun.errors.MLRunInvalidArgumentTypeError as exc:
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                f"{name} should be of type Dict[{get_pretty_types_names(expected_keys_types)},"
+                f"{get_pretty_types_names(expected_values_types)}]."
+            ) from exc
 
-        verify_list_types(name, "keys", dictionary.keys(), expected_keys_types)
-        verify_list_types(name, "values", dictionary.values(), expected_values_types)
 
-
-def verify_list_types(
-    name: str, list_name: str, actual_list, expected_types: list = None
-):
+def verify_list_types(actual_list, expected_types: list = None):
     if actual_list and expected_types:
         actual_list_types = set(map(type, actual_list))
         expected_types = set(expected_types)
 
         if not actual_list_types.issubset(expected_types):
-            expected_types = get_pretty_types_names(expected_types)
-            actual_list_types = get_pretty_types_names(actual_list_types)
-
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"{name} should have {list_name} of type : {expected_types} "
-                f"(got : {actual_list_types} with values : {actual_list})."
+                f"Got types {actual_list_types}"
             )
 
 
 def get_pretty_types_names(types):
-    return [ty.__name__ for ty in types]
+    if len(types) == 0:
+        raise
+    if len(types) > 1:
+        return "Union[" + ",".join([ty.__name__ for ty in types]) + "]"
+    return "".join(types[0].__name__)
 
 
 def now_date():

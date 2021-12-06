@@ -317,7 +317,7 @@ def ingest(
         # extract ingestion parameters from mlrun context
         if isinstance(source, pd.DataFrame):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "DataFrame source is illegal when running ingest with mlrun context"
+                "DataFrame source is illegal when running ingest remotely"
             )
         if featureset or source is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(

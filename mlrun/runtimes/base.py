@@ -287,7 +287,7 @@ class BaseRuntime(ModelObj):
         :return: run context object (RunObject) with run metadata, results and status
         """
         mlrun.utils.helpers.verify_items_types_of_dict(
-            "inputs", inputs, [str], [str]
+            "Inputs", inputs, [str], [str]
         )
 
         if self.spec.mode and self.spec.mode not in run_modes:

@@ -95,7 +95,7 @@ endif
 	docker run \
 		--name=migration-db \
 		--rm \
-		-v $(pwd):/mlrun \
+		-v $(PWD):/mlrun \
 		-p 3306:3306 \
 		-e MYSQL_ROOT_PASSWORD="pass" \
 		-e MYSQL_ROOT_HOST=% \
@@ -563,7 +563,7 @@ run-api: api ## Run mlrun api (dockerized)
 run-test-db:
 	docker run \
 		--name=test-db \
-		-v $(pwd):/mlrun \
+		-v $(PWD):/mlrun \
 		-p 3306:3306 \
 		-e MYSQL_ROOT_PASSWORD="" \
 		-e MYSQL_ALLOW_EMPTY_PASSWORD="true" \

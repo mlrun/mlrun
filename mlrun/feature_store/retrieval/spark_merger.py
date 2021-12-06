@@ -74,7 +74,6 @@ class SparkFeatureMerger(BaseMerger):
                 if entity not in column_names:
                     columns.append((entity, None))
 
-            print("extended cols:", columns)
             df = df.select([col(name).alias(alias or name) for name, alias in columns])
             df.show()
             # df = df.select(column_names)
@@ -151,17 +150,6 @@ class SparkFeatureMerger(BaseMerger):
         entity_with_id = entity_df.withColumn("_row_nr", monotonically_increasing_id())
         indexes = list(featureset.spec.entities.keys())
 
-        # # set timestamp column
-        # if entity_timestamp_column is None:
-        #     entity_timestamp_column = (
-        #         entity_timestamp_column or featureset.spec.timestamp_key
-        #     )
-        #
-        # # name featureset col with prefix
-        # feature_event_timestamp_column_with_prefix = (
-        #     f"{'ft'}__{entity_timestamp_column}"
-        # )
-
         # get columns for projection
         projection = [
             col(col_name).alias(
@@ -173,11 +161,8 @@ class SparkFeatureMerger(BaseMerger):
         ]
 
         aliased_feature_table_df = featureset_df.select(projection)
-        print("aliased:")
-        aliased_feature_table_df.show()
 
         # set join conditions
-        print(entity_with_id.columns)
         join_cond = (
             entity_with_id[entity_timestamp_column]
             >= aliased_feature_table_df[f"{'ft'}__{entity_timestamp_column}"]
@@ -206,7 +191,7 @@ class SparkFeatureMerger(BaseMerger):
         print("filter_most_recent_feature_timestamp:")
         filter_most_recent_feature_timestamp.show(truncate=False)
 
-        return filter_most_recent_feature_timestamp.drop(["_row_nr"])
+        return filter_most_recent_feature_timestamp.drop("_row_nr", "_rank")
 
     def _join(
         self, entity_df, entity_timestamp_column: str, featureset, featureset_df,

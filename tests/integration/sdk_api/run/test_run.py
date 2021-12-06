@@ -2,7 +2,7 @@ import mlrun
 import tests.integration.sdk_api.base
 
 
-class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
+class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):
     def test_ctx_creation_creates_run_with_project(self):
         ctx_name = "some-context"
         mlrun.get_or_create_ctx(ctx_name)

@@ -223,9 +223,15 @@ def test_enrich_image():
         },
         {
             "image": "mlrun/mlrun",
-            "expected_output": "ghcr.io/mlrun/mlrun:0.0.0-unstable",
+            "expected_output": "ghcr.io/mlrun/mlrun:unstable",
             "images_tag": None,
             "version": "0.0.0+unstable",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "expected_output": "ghcr.io/mlrun/mlrun:0.1.2-some-special-tag",
+            "images_tag": None,
+            "version": "0.1.2+some-special-tag",
         },
     ]
     default_images_to_enrich_registry = config.images_to_enrich_registry

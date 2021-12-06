@@ -20,29 +20,42 @@ class AlembicUtil(object):
         self._alembic_config = alembic.config.Config(self._alembic_config_path)
         self._alembic_output = ""
         self._data_version_is_latest = data_version_is_latest
+        self._db_file_path = self._get_db_file_path()
+        # call to _get_current_revision might create dummy db file so we first of all check whether the db file exist
+        self._db_path_exists = os.path.isfile(self._db_file_path)
+        self._revision_history = self._get_revision_history_list()
+        self._latest_revision = self._revision_history[0]
+        self._initial_revision = self._revision_history[-1]
 
     def init_alembic(self, use_backups: bool = False):
-        revision_history = self._get_revision_history_list()
-        latest_revision = revision_history[0]
-        db_file_path = self._get_db_file_path()
-        db_path_exists = os.path.isfile(db_file_path)
-        # this command for some reason creates a dummy db file so it has to be after db_path_exists
         current_revision = self._get_current_revision()
 
         if (
             use_backups
-            and db_path_exists
+            and self._db_path_exists
             and current_revision
-            and current_revision not in revision_history
+            and current_revision not in self._revision_history
         ):
-            self._downgrade_to_revision(db_file_path, current_revision, latest_revision)
+            self._downgrade_to_revision(
+                self._db_file_path, current_revision, self._latest_revision
+            )
 
         # get current revision again if it changed during the last commands
         current_revision = self._get_current_revision()
         if use_backups and current_revision:
-            self._backup_revision(db_file_path, current_revision, latest_revision)
+            self._backup_revision(
+                self._db_file_path, current_revision, self._latest_revision
+            )
         logger.debug("Performing schema migrations")
         alembic.command.upgrade(self._alembic_config, "head")
+
+    def is_schema_migration_needed(self):
+        current_revision = self._get_current_revision()
+        return current_revision != self._latest_revision
+
+    def is_migration_from_scratch(self):
+        current_revision = self._get_current_revision()
+        return current_revision != self._initial_revision
 
     @staticmethod
     def _get_db_file_path() -> str:
@@ -97,7 +110,7 @@ class AlembicUtil(object):
         if db_file_path == ":memory:":
             return
 
-        if self._data_version_is_latest and current_version == latest_revision:
+        if self._data_version_is_latest and not self.is_schema_migration_needed():
             logger.debug(
                 "Schema version and Data version are latest, skipping backup..."
             )
@@ -125,7 +138,6 @@ class AlembicUtil(object):
 
         mysql_util = MySQLUtil()
         mysql_util.dump_database_to_file(backup_path)
-        mysql_util.close()
 
     @staticmethod
     def _downgrade_to_revision(

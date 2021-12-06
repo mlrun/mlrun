@@ -7,4 +7,4 @@ scikit-plot~=0.3.7
 xgboost~=1.1
 graphviz~=0.16.0
 python-dotenv~=0.17.0
-nuclio-jupyter[jupyter-server]~=0.8.21
+nuclio-jupyter[jupyter-server]~=0.8.22

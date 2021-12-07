@@ -86,6 +86,7 @@ class Projects(
             mlrun.api.utils.singletons.db.get_db().verify_project_has_no_related_resources(
                 session, name
             )
+            self._verify_project_has_no_external_resources(name)
             if deletion_strategy == mlrun.api.schemas.DeletionStrategy.check:
                 return
         elif deletion_strategy.is_cascading():
@@ -95,6 +96,16 @@ class Projects(
                 f"Unknown deletion strategy: {deletion_strategy}"
             )
         projects_store.delete_project(session, name, deletion_strategy)
+
+    def _verify_project_has_no_external_resources(self, project: str):
+        # Resources which are not tracked in the MLRun DB need to be verified here. Currently these are project
+        # secrets and model endpoints.
+        mlrun.api.crud.ModelEndpoints().verify_project_has_no_model_endpoints(project)
+
+        if mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_keys(project):
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                f"Project {project} can not be deleted since related resources found: project secrets"
+            )
 
     def delete_project_resources(
         self, session: sqlalchemy.orm.Session, name: str,

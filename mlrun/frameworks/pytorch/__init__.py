@@ -5,19 +5,13 @@ from torch.nn import Module
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
-import mlrun.frameworks.pytorch.callbacks
-from mlrun.frameworks.pytorch.callbacks import (
-    Callback,
-    HyperparametersKeys,
-    MetricFunctionType,
-    MetricValueType,
-    MLRunLoggingCallback,
-    TensorboardLoggingCallback,
-)
-from mlrun.frameworks.pytorch.callbacks_handler import CallbacksHandler
-from mlrun.frameworks.pytorch.mlrun_interface import PyTorchMLRunInterface
-from mlrun.frameworks.pytorch.model_handler import PyTorchModelHandler
-from mlrun.frameworks.pytorch.model_server import PyTorchModelServer
+import mlrun
+
+from .callbacks import Callback, MetricFunctionType, MetricValueType
+from .callbacks_handler import CallbacksHandler
+from .mlrun_interface import PyTorchMLRunInterface
+from .model_handler import PyTorchModelHandler
+from .model_server import PyTorchModelServer
 
 
 def train(

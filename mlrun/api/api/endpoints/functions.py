@@ -233,7 +233,7 @@ async def start_function(
     )
 
     background_task = await run_in_threadpool(
-        mlrun.api.utils.background_tasks.Handler().create_background_task,
+        mlrun.api.utils.background_tasks.Handler().create_project_background_task,
         function.metadata.project,
         background_tasks,
         _start_function,
@@ -425,6 +425,7 @@ def _build_function(
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
             mlrun.api.api.utils.ensure_function_has_auth_set(fn, auth_info)
+            mlrun.api.api.utils.process_function_service_account(fn)
 
             if fn.kind == RuntimeKinds.serving:
                 # Handle model monitoring
@@ -507,6 +508,7 @@ def _start_function(function, auth_info: mlrun.api.schemas.AuthInfo):
             run_db = get_run_db_instance(db_session)
             function.set_db_connection(run_db)
             mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)
+            mlrun.api.api.utils.process_function_service_account(function)
             #  resp = resource["start"](fn)  # TODO: handle resp?
             resource["start"](function)
             function.save(versioned=False)

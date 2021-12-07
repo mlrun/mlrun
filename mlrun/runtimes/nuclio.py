@@ -13,6 +13,7 @@
 # limitations under the License.
 import inspect
 import json
+import os
 import socket
 
 from ..db import get_or_set_dburl
@@ -73,6 +74,11 @@ def nuclio_jobs_handler(context, event):
         log_stream=context.logger,
         host=socket.gethostname(),
     )
+
+    # Inject project secrets from env. variables to the context
+    secret_list = os.environ.get("MLRUN_PROJECT_SECRETS_LIST")
+    if secret_list:
+        ctx._secrets_manager.add_source("env", secret_list)
 
     args = get_func_arg(fhandler, RunTemplate.from_dict(ctx.to_dict()), ctx)
     try:

@@ -63,6 +63,14 @@ class K8sSecretsMock:
     def __init__(self):
         # project -> secret_key -> secret_value
         self.project_secrets_map = {}
+        self._is_running_in_k8s = True
+
+    # cannot use a property since it's used as a side-effect in the fixture's mock.
+    def is_running_in_k8s_cluster(self) -> bool:
+        return self._is_running_in_k8s
+
+    def set_is_running_in_k8s_cluster(self, value: bool):
+        self._is_running_in_k8s = value
 
     def store_project_secrets(self, project, secrets, namespace=""):
         self.project_secrets_map.setdefault(project, {}).update(secrets)
@@ -113,14 +121,45 @@ class K8sSecretsMock:
             == {}
         )
 
+    def set_service_account_keys(
+        self, project, default_service_account, allowed_service_accounts
+    ):
+        secrets = {}
+        if default_service_account:
+            secrets[
+                mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key(
+                    "default"
+                )
+            ] = default_service_account
+        if allowed_service_accounts:
+            secrets[
+                mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key(
+                    "allowed"
+                )
+            ] = ",".join(allowed_service_accounts)
+        self.store_project_secrets(project, secrets)
+
 
 @pytest.fixture()
 def k8s_secrets_mock(client: TestClient) -> K8sSecretsMock:
     logger.info("Creating k8s secrets mock")
     k8s_secrets_mock = K8sSecretsMock()
 
+    mocked_function_names = [
+        "is_running_inside_kubernetes_cluster",
+        "get_project_secret_keys",
+        "get_project_secret_data",
+        "store_project_secrets",
+        "delete_project_secrets",
+    ]
+
+    original_functions = {
+        name: getattr(mlrun.api.utils.singletons.k8s.get_k8s(), name)
+        for name in mocked_function_names
+    }
+
     mlrun.api.utils.singletons.k8s.get_k8s().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
-        return_value=True
+        side_effect=k8s_secrets_mock.is_running_in_k8s_cluster
     )
     mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_keys = unittest.mock.Mock(
         side_effect=k8s_secrets_mock.get_project_secret_keys
@@ -135,4 +174,10 @@ def k8s_secrets_mock(client: TestClient) -> K8sSecretsMock:
         side_effect=k8s_secrets_mock.delete_project_secrets
     )
 
-    return k8s_secrets_mock
+    yield k8s_secrets_mock
+
+    # Revert mocked functions
+    for func in mocked_function_names:
+        setattr(
+            mlrun.api.utils.singletons.k8s.get_k8s(), func, original_functions[func]
+        )

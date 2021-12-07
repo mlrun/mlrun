@@ -221,7 +221,7 @@ class DaskCluster(KubejobRuntime):
                 now = datetime.datetime.utcnow()
                 timeout = now + datetime.timedelta(minutes=10)
                 while now < timeout:
-                    background_task = db.get_background_task(
+                    background_task = db.get_project_background_task(
                         background_task.metadata.project, background_task.metadata.name
                     )
                     if (

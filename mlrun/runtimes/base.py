@@ -227,6 +227,11 @@ class BaseRuntime(ModelObj):
     def try_auto_mount_based_on_config(self):
         pass
 
+    def validate_and_enrich_service_account(
+        self, allowed_service_account, default_service_account
+    ):
+        pass
+
     def fill_credentials(self):
         if "MLRUN_AUTH_SESSION" in os.environ or "V3IO_ACCESS_KEY" in os.environ:
             self.metadata.credentials.access_key = os.environ.get(
@@ -240,7 +245,7 @@ class BaseRuntime(ModelObj):
         name: str = "",
         project: str = "",
         params: dict = None,
-        inputs: dict = None,
+        inputs: Dict[str, str] = None,
         out_path: str = "",
         workdir: str = "",
         artifact_path: str = "",
@@ -281,6 +286,7 @@ class BaseRuntime(ModelObj):
 
         :return: run context object (RunObject) with run metadata, results and status
         """
+        mlrun.utils.helpers.verify_dict_items_type("Inputs", inputs, [str], [str])
 
         if self.spec.mode and self.spec.mode not in run_modes:
             raise ValueError(f'run mode can only be {",".join(run_modes)}')

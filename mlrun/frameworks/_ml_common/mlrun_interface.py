@@ -1,17 +1,27 @@
+from typing import List
+
+import numpy as np
 import pandas as pd
-from cloudpickle import dumps
 
-from mlrun.frameworks._common import MLRunInterface
-from mlrun.frameworks._common.plots import eval_model_v2
+from .model_handler import MLModelHandler
+from .plots import eval_model_v2
 
 
-class MLBaseMLRunInterface(MLRunInterface):
+class MLMLRunInterface:
     """
     Wraps the original .fit() method of the passed model enabling auto-logging.
     """
 
     @classmethod
-    def add_interface(cls, model, context, model_name, data={}, *args, **kwargs):
+    def add_interface(
+        cls,
+        model_handler: MLModelHandler,
+        context,
+        model_name,
+        data={},
+        *args,
+        **kwargs
+    ):
         """
         Wrap the given model with MLRun model features, providing it with MLRun model attributes including its
         parameters and methods.
@@ -25,6 +35,7 @@ class MLBaseMLRunInterface(MLRunInterface):
 
         :return: The wrapped model.
         """
+        model = model_handler.model
 
         # Wrap the fit method:
         def fit_wrapper(fit_method, **kwargs):
@@ -46,21 +57,28 @@ class MLBaseMLRunInterface(MLRunInterface):
             eval_metrics = None
             context.set_label("class", str(model.__class__.__name__))
 
-            # Identify splits and build test set
-            X_train = args[0]
-            y_train = args[1]
-            train_set = pd.concat([X_train, y_train], axis=1)
+            # Get passed X,y from model.fit(X,y)
+            x, y = args[0], args[1]
+            # np.array -> Dataframe
+            if isinstance(x, np.ndarray):
+                x = pd.DataFrame(x)
+            if isinstance(y, np.ndarray):
+                y = pd.DataFrame(y)
+
+            # Merge X and y for logging of the train set
+            train_set = pd.concat([x, y], axis=1)
             train_set.reset_index(drop=True, inplace=True)
 
             if data.get("X_test") is not None and data.get("y_test") is not None:
                 # Identify splits and build test set
-                X_test = data["X_test"]
-                y_test = data["y_test"]
-                test_set = pd.concat([X_test, y_test], axis=1)
+                x_test, y_test = data["X_test"], data["y_test"]
+
+                # Merge X and y for logging of the test set
+                test_set = pd.concat([x_test, y_test], axis=1)
                 test_set.reset_index(drop=True, inplace=True)
 
                 # Evaluate model results and get the evaluation metrics
-                eval_metrics = eval_model_v2(context, X_test, y_test, model)
+                eval_metrics = eval_model_v2(context, x_test, y_test, model)
 
                 if data.get("generate_test_set"):
                     # Log test dataset
@@ -73,23 +91,21 @@ class MLBaseMLRunInterface(MLRunInterface):
                         artifact_path=context.artifact_subpath("data"),
                     )
 
-            # Log fitted model and metrics
-            label_column = (
-                y_train.name
-                if isinstance(y_train, pd.Series)
-                else y_train.columns.to_list()
-            )
-            context.log_model(
-                model_name or "model",
-                db_key=model_name,
-                body=dumps(model),
-                artifact_path=context.artifact_subpath("models"),
-                framework=f"{str(model.__module__).split('.')[0]}",
+            # Identify label column
+            label_column = None  # type: List[str]
+            if isinstance(y, pd.DataFrame):
+                label_column = y.columns.to_list()
+            elif isinstance(y, pd.Series):
+                if y.name is not None:
+                    label_column = [str(y.name)]
+                else:
+                    raise ValueError("No column name for y was specified")
+
+            model_handler.log(
                 algorithm=str(model.__class__.__name__),
-                model_file=f"{str(model.__class__.__name__)}.pkl",
-                metrics=context.results,
-                format="pkl",
                 training_set=train_set,
                 label_column=label_column,
                 extra_data=eval_metrics,
+                artifacts=eval_metrics,
+                metrics=context.results,
             )

@@ -34,6 +34,7 @@ class AuthorizationResourceTypes(str, enum.Enum):
     feature_vector = "feature-vector"
     feature = "feature"
     entity = "entity"
+    project_background_task = "project-background-task"
     background_task = "background-task"
     schedule = "schedule"
     secret = "secret"
@@ -50,7 +51,11 @@ class AuthorizationResourceTypes(str, enum.Enum):
             AuthorizationResourceTypes.project: "/projects/{project_name}",
             AuthorizationResourceTypes.function: "/projects/{project_name}/functions/{resource_name}",
             AuthorizationResourceTypes.artifact: "/projects/{project_name}/artifacts/{resource_name}",
-            AuthorizationResourceTypes.background_task: "/projects/{project_name}/background-tasks/{resource_name}",
+            # fmt: off
+            AuthorizationResourceTypes.project_background_task:
+                "/projects/{project_name}/background-tasks/{resource_name}",
+            # fmt: on
+            AuthorizationResourceTypes.background_task: "/background-tasks/{resource_name}",
             AuthorizationResourceTypes.feature_set: "/projects/{project_name}/feature-sets/{resource_name}",
             AuthorizationResourceTypes.feature_vector: "/projects/{project_name}/feature-vectors/{resource_name}",
             AuthorizationResourceTypes.feature: "/projects/{project_name}/features/{resource_name}",

@@ -41,6 +41,7 @@ async def scheduler(db: Session) -> typing.Generator:
 
 
 call_counter: int = 0
+schedule_end_time_margin = 0.5
 
 
 async def bump_counter():
@@ -62,13 +63,14 @@ async def do_nothing():
 async def test_not_skipping_delayed_schedules(db: Session, scheduler: Scheduler):
     global call_counter
     call_counter = 0
-    now = datetime.now()
     expected_call_counter = 1
-    now_plus_1_seconds = now + timedelta(seconds=1)
-    now_plus_2_seconds = now + timedelta(seconds=1 + expected_call_counter)
+
+    start_date, end_date = _get_start_and_end_time_for_scheduled_trigger(
+        number_of_jobs=expected_call_counter, seconds_interval=1
+    )
     # this way we're leaving ourselves one second to create the schedule preventing transient test failure
     cron_trigger = schemas.ScheduleCronTrigger(
-        second="*/1", start_date=now_plus_1_seconds, end_date=now_plus_2_seconds
+        second="*/1", start_date=start_date, end_date=end_date
     )
     schedule_name = "schedule-name"
     project = config.default_project
@@ -92,13 +94,14 @@ async def test_not_skipping_delayed_schedules(db: Session, scheduler: Scheduler)
 async def test_create_schedule(db: Session, scheduler: Scheduler):
     global call_counter
     call_counter = 0
-    now = datetime.now()
+
     expected_call_counter = 5
-    now_plus_1_seconds = now + timedelta(seconds=1)
-    now_plus_5_seconds = now + timedelta(seconds=1 + expected_call_counter)
+    start_date, end_date = _get_start_and_end_time_for_scheduled_trigger(
+        number_of_jobs=5, seconds_interval=1
+    )
     # this way we're leaving ourselves one second to create the schedule preventing transient test failure
     cron_trigger = schemas.ScheduleCronTrigger(
-        second="*/1", start_date=now_plus_1_seconds, end_date=now_plus_5_seconds
+        second="*/1", start_date=start_date, end_date=end_date
     )
     schedule_name = "schedule-name"
     project = config.default_project
@@ -111,12 +114,24 @@ async def test_create_schedule(db: Session, scheduler: Scheduler):
         bump_counter,
         cron_trigger,
     )
-    await asyncio.sleep(1 + expected_call_counter)
+
+    # The trigger is defined with `second="*/1"` meaning it runs on round seconds,
+    # but executing the actual functional code - bumping the counter - happens a few microseconds afterwards.
+    # To avoid transient errors on slow systems, we add extra margin.
+    time_to_sleep = (
+        end_date - datetime.now()
+    ).total_seconds() + schedule_end_time_margin
+
+    await asyncio.sleep(time_to_sleep)
     assert call_counter == expected_call_counter
 
 
 @pytest.mark.asyncio
-async def test_invoke_schedule(db: Session, scheduler: Scheduler):
+async def test_invoke_schedule(
+    db: Session,
+    scheduler: Scheduler,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+):
     cron_trigger = schemas.ScheduleCronTrigger(year=1999)
     schedule_name = "schedule-name"
     project = config.default_project
@@ -159,13 +174,19 @@ async def test_invoke_schedule(db: Session, scheduler: Scheduler):
 
 
 @pytest.mark.asyncio
-async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler):
-    now = datetime.now()
-    now_plus_1_second = now + timedelta(seconds=1)
-    now_plus_2_second = now + timedelta(seconds=2)
+async def test_create_schedule_mlrun_function(
+    db: Session,
+    scheduler: Scheduler,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+):
+
+    expected_call_counter = 1
+    start_date, end_date = _get_start_and_end_time_for_scheduled_trigger(
+        number_of_jobs=expected_call_counter, seconds_interval=1
+    )
     # this way we're leaving ourselves one second to create the schedule preventing transient test failure
     cron_trigger = schemas.ScheduleCronTrigger(
-        second="*/1", start_date=now_plus_1_second, end_date=now_plus_2_second
+        second="*/1", start_date=start_date, end_date=end_date
     )
     schedule_name = "schedule-name"
     project = config.default_project
@@ -181,11 +202,18 @@ async def test_create_schedule_mlrun_function(db: Session, scheduler: Scheduler)
         scheduled_object,
         cron_trigger,
     )
-    await asyncio.sleep(2)
+    time_to_sleep = (
+        end_date - datetime.now()
+    ).total_seconds() + schedule_end_time_margin
+
+    await asyncio.sleep(time_to_sleep)
     runs = get_db().list_runs(db, project=project)
-    assert len(runs) == 1
+
+    assert len(runs) == expected_call_counter
+
     assert runs[0]["status"]["state"] == RunStates.completed
 
+    # the default of list_runs returns the the list descending by date.
     expected_last_run_uri = f"{project}@{runs[0]['metadata']['uid']}#0"
 
     schedule = get_db().get_schedule(db, project, schedule_name)
@@ -228,12 +256,13 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     name = "schedule-name"
     project = config.default_project
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
-    now = datetime.now()
+
     expected_call_counter = 3
-    now_plus_2_seconds = now + timedelta(seconds=2)
-    now_plus_5_seconds = now + timedelta(seconds=2 + expected_call_counter)
+    start_date, end_date = _get_start_and_end_time_for_scheduled_trigger(
+        number_of_jobs=expected_call_counter, seconds_interval=1
+    )
     cron_trigger = schemas.ScheduleCronTrigger(
-        second="*/1", start_date=now_plus_2_seconds, end_date=now_plus_5_seconds
+        second="*/1", start_date=start_date, end_date=end_date
     )
     # we're before upgrade so create a schedule with empty auth info
     scheduler.create_schedule(
@@ -259,8 +288,11 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     mlrun.api.utils.singletons.project_member.get_project_member().get_project_owner = unittest.mock.Mock(
         return_value=mlrun.api.schemas.ProjectOwner(username=username, session=session)
     )
+    time_to_sleep = (
+        end_date - datetime.now()
+    ).total_seconds() + schedule_end_time_margin
 
-    await asyncio.sleep(2 + expected_call_counter + 1)
+    await asyncio.sleep(time_to_sleep)
     runs = get_db().list_runs(db, project=project)
     assert len(runs) == 3
     assert (
@@ -602,10 +634,13 @@ async def test_delete_schedules(db: Session, scheduler: Scheduler):
 async def test_rescheduling(db: Session, scheduler: Scheduler):
     global call_counter
     call_counter = 0
-    now = datetime.now()
-    now_plus_2_seconds = now + timedelta(seconds=2)
+
+    expected_call_counter = 2
+    start_date, end_date = _get_start_and_end_time_for_scheduled_trigger(
+        number_of_jobs=expected_call_counter, seconds_interval=1
+    )
     cron_trigger = schemas.ScheduleCronTrigger(
-        second="*/1", start_date=now, end_date=now_plus_2_seconds
+        second="*/1", start_date=start_date, end_date=end_date
     )
     schedule_name = "schedule-name"
     project = config.default_project
@@ -620,7 +655,8 @@ async def test_rescheduling(db: Session, scheduler: Scheduler):
     )
 
     # wait so one run will complete
-    await asyncio.sleep(1)
+    time_to_sleep = (start_date - datetime.now()).total_seconds() + 1
+    await asyncio.sleep(time_to_sleep)
 
     # stop the scheduler and assert indeed only one call happened
     await scheduler.stop()
@@ -628,7 +664,7 @@ async def test_rescheduling(db: Session, scheduler: Scheduler):
 
     # start the scheduler and and assert another run
     await scheduler.start(db)
-    await asyncio.sleep(1)
+    await asyncio.sleep(1 + schedule_end_time_margin)
     assert call_counter == 2
 
 
@@ -787,7 +823,11 @@ async def test_schedule_access_key_generation(
 
 
 @pytest.mark.asyncio
-async def test_update_schedule(db: Session, scheduler: Scheduler):
+async def test_update_schedule(
+    db: Session,
+    scheduler: Scheduler,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+):
     labels_1 = {
         "label1": "value1",
         "label2": "value2",
@@ -874,12 +914,13 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
     )
 
     # update it so it runs
-    now = datetime.now()
-    now_plus_1_second = now + timedelta(seconds=1)
-    now_plus_2_second = now + timedelta(seconds=2)
+    expected_call_counter = 1
+    start_date, end_date = _get_start_and_end_time_for_scheduled_trigger(
+        number_of_jobs=expected_call_counter, seconds_interval=1
+    )
     # this way we're leaving ourselves one second to create the schedule preventing transient test failure
     cron_trigger = schemas.ScheduleCronTrigger(
-        second="*/1", start_date=now_plus_1_second, end_date=now_plus_2_second,
+        second="*/1", start_date=start_date, end_date=end_date,
     )
     scheduler.update_schedule(
         db,
@@ -891,12 +932,12 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
     schedule = scheduler.get_schedule(db, project, schedule_name)
 
     next_run_time = datetime(
-        year=now_plus_2_second.year,
-        month=now_plus_2_second.month,
-        day=now_plus_2_second.day,
-        hour=now_plus_2_second.hour,
-        minute=now_plus_2_second.minute,
-        second=now_plus_2_second.second,
+        year=end_date.year,
+        month=end_date.month,
+        day=end_date.day,
+        hour=end_date.hour,
+        minute=end_date.minute,
+        second=end_date.second,
         tzinfo=tzlocal(),
     )
 
@@ -909,8 +950,11 @@ async def test_update_schedule(db: Session, scheduler: Scheduler):
         next_run_time,
         {},
     )
+    time_to_sleep = (
+        end_date - datetime.now()
+    ).total_seconds() + schedule_end_time_margin
 
-    await asyncio.sleep(2)
+    await asyncio.sleep(time_to_sleep)
     runs = get_db().list_runs(db, project=project)
     assert len(runs) == 1
     assert runs[0]["status"]["state"] == RunStates.completed
@@ -945,6 +989,7 @@ async def test_schedule_job_concurrency_limit(
     concurrency_limit: int,
     run_amount: int,
     schedule_kind: schemas.ScheduleKinds,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
     global call_counter
     call_counter = 0
@@ -1094,3 +1139,24 @@ def _create_mlrun_function_and_matching_scheduled_object(
         }
     }
     return scheduled_object
+
+
+def _get_start_and_end_time_for_scheduled_trigger(
+    number_of_jobs: int, seconds_interval: int
+):
+    """
+    The scheduler executes the job on round seconds (when microsecond == 0)
+    Therefore if the start time will be a round second - let's say 12:08:06.000000 and the end time 12:08:07.000000
+    it means two executions will happen - at 06 and 07 second.
+    This is obviously very rare (since the times are based on datetime.now()) - usually the start time
+    will be something like 12:08:06.100000 then the end time will be 12:08:07.10000 - meaning there will be only
+     one execution on the 07 second.
+    So instead of conditioning every assertion we're doing on whether the start time was a round second,
+     we simply make sure it's not a round second.
+    """
+    now = datetime.now()
+    if now.microsecond == 0:
+        now = now + timedelta(seconds=1, milliseconds=1)
+    start_date = now + timedelta(seconds=1)
+    end_date = now + timedelta(seconds=1 + number_of_jobs * seconds_interval)
+    return start_date, end_date

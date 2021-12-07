@@ -30,7 +30,6 @@ import mlrun.errors
 import mlrun.projects.project
 from mlrun import RunObject
 from mlrun.api import schemas
-from mlrun.artifacts import Artifact
 from mlrun.db.httpdb import HTTPRunDB
 from tests.conftest import tests_root_directory, wait_for_server
 
@@ -74,7 +73,6 @@ def start_server(workdir, env_config: dict):
 
     proc = Popen(cmd, env=env, stdout=PIPE, stderr=PIPE, cwd=project_dir_path)
     url = f"http://localhost:{port}"
-    check_server_up(url)
 
     return proc, url
 
@@ -148,6 +146,7 @@ def server_fixture():
         nonlocal process, workdir
         workdir = create_workdir()
         process, url = start_server(workdir, env)
+        check_server_up(url)
         conn = HTTPRunDB(url)
         conn.connect()
         return Server(url, conn, workdir)
@@ -237,43 +236,6 @@ def test_runs(create_server):
     db.del_runs(project=prj, state="created")
     runs = db.list_runs(project=prj)
     assert not runs, "found runs in after delete"
-
-
-def test_artifact(create_server):
-    server: Server = create_server()
-    db = server.conn
-
-    prj, uid, key, body = "p7", "u199", "k800", "cucumber"
-    artifact = Artifact(key, body)
-
-    db.store_artifact(key, artifact, uid, project=prj)
-    # TODO: Need a run file
-    # db.del_artifact(key, project=prj)
-
-
-def test_artifacts(create_server):
-    server: Server = create_server()
-    db = server.conn
-    prj, uid, key, body = "p9", "u19", "k802", "tomato"
-    artifact = Artifact(key, body, target_path="a.txt")
-
-    db.store_artifact(key, artifact, uid, project=prj)
-    db.store_artifact(key, artifact, uid, project=prj, iter=42)
-    artifacts = db.list_artifacts(project=prj, tag="*")
-    assert len(artifacts) == 2, "bad number of artifacts"
-    assert artifacts.objects()[0].key == key, "not a valid artifact object"
-    assert artifacts.dataitems()[0].url, "not a valid artifact dataitem"
-
-    artifacts = db.list_artifacts(project=prj, tag="*", iter=0)
-    assert len(artifacts) == 1, "bad number of artifacts"
-
-    # Only 1 will be returned since it's only looking for iter 0
-    artifacts = db.list_artifacts(project=prj, tag="*", best_iteration=True)
-    assert len(artifacts) == 1, "bad number of artifacts"
-
-    db.del_artifacts(project=prj, tag="*")
-    artifacts = db.list_artifacts(project=prj, tag="*")
-    assert len(artifacts) == 0, "bad number of artifacts after del"
 
 
 def test_basic_auth(create_server):

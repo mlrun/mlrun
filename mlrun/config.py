@@ -202,6 +202,7 @@ default_config = {
             "counters_cache_ttl": "2 minutes",
             # access key to be used when the leader is iguazio and polling is done from it
             "iguazio_access_key": "",
+            "iguazio_list_projects_default_page_size": 200,
             "project_owners_cache_ttl": "30 seconds",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates

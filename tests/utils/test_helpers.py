@@ -13,7 +13,9 @@ from mlrun.utils.helpers import (
     extend_hub_uri_if_needed,
     fill_artifact_path_template,
     get_parsed_docker_registry,
+    get_pretty_types_names,
     verify_field_regex,
+    verify_list_items_type,
 )
 from mlrun.utils.regex import run_name
 
@@ -355,3 +357,45 @@ def test_fill_artifact_path_template():
                 case["artifact_path"], case.get("project")
             )
             assert case["expected_artifact_path"] == filled_artifact_path
+
+
+@pytest.mark.parametrize("actual_list", [[1], [1, "asd"], [None], ["asd", 23]])
+@pytest.mark.parametrize("expected_types", [[str]])
+def test_verify_list_types_failure(actual_list, expected_types):
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError):
+        verify_list_items_type(actual_list, expected_types)
+
+
+@pytest.mark.parametrize(
+    "actual_list", [[1.0, 8, "test"], ["test", 0.0], [None], [[["test"], 23]]]
+)
+@pytest.mark.parametrize("expected_types", [[str, int]])
+def test_verify_list_multiple_types_failure(actual_list, expected_types):
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError):
+        verify_list_items_type(actual_list, expected_types)
+
+
+@pytest.mark.parametrize("actual_list", [[], ["test"], ["test", "test1"]])
+@pytest.mark.parametrize("expected_types", [[str]])
+def test_verify_list_types_success(actual_list, expected_types):
+    verify_list_items_type(actual_list, expected_types)
+
+
+@pytest.mark.parametrize(
+    "actual_list",
+    [[1, 8, "test"], ["test", 0], [], ["test", 23, "test"], ["test"], [1], [123, 123]],
+)
+@pytest.mark.parametrize("expected_types", [[str, int]])
+def test_verify_list_multiple_types_success(actual_list, expected_types):
+    verify_list_items_type(actual_list, expected_types)
+
+
+def test_get_pretty_types_names():
+    cases = [
+        ([], ""),
+        ([str], "str"),
+        ([str, int], "Union[str,int]"),
+    ]
+    for types, expected in cases:
+        pretty_result = get_pretty_types_names(types)
+        assert pretty_result == expected

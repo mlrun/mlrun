@@ -14,6 +14,7 @@ import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
 import mlrun.config
 import mlrun.errors
+import tests.api.conftest
 from mlrun.utils import logger
 
 
@@ -137,6 +138,7 @@ def test_delete_project(
     db: sqlalchemy.orm.Session,
     projects_follower: mlrun.api.utils.projects.follower.Member,
     nop_leader: mlrun.api.utils.projects.remotes.leader.Member,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
     project = _generate_project()
     projects_follower.create_project(

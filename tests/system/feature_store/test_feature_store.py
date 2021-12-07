@@ -83,6 +83,15 @@ class TestFeatureStore(TestMLRunSystem):
         stocks_set = fs.FeatureSet(
             "stocks", entities=[Entity("ticker", ValueType.STRING)]
         )
+
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            fs.ingest(
+                stocks_set,
+                stocks,
+                infer_options=fs.InferOptions.default(),
+                run_config=fs.RunConfig(local=True),
+            )
+
         df = fs.ingest(stocks_set, stocks, infer_options=fs.InferOptions.default())
 
         self._logger.info(f"output df:\n{df}")

@@ -133,10 +133,7 @@ class SQLDB(DBInterface):
         start_time = run_start_time(struct)
         if start_time:
             run.start_time = start_time
-        run.labels.clear()
-        for name, value in run_labels(struct).items():
-            lbl = Run.Label(name=name, value=value, parent=run.id)
-            run.labels.append(lbl)
+        update_labels(run, run_labels(struct))
         session.merge(run)
         session.commit()
         self._delete_empty_labels(session, Run.Label)

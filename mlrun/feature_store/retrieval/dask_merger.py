@@ -1,5 +1,3 @@
-from typing import List
-
 import dask.dataframe as dd
 import pandas as pd
 from dask.dataframe.multi import merge, merge_asof

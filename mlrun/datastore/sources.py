@@ -83,7 +83,6 @@ class BaseSourceDriver(DataSource):
     def to_spark_df(self, session, named_view=False):
         if self.support_spark:
             df = session.read.load(**self.get_spark_options())
-            df = self.filter_df_start_end_time(df)
 
             if named_view:
                 df.createOrReplaceTempView(self.name)
@@ -397,7 +396,6 @@ class BigQuerySource(BaseSourceDriver):
             options["path"] = table
 
         df = session.read.format("bigquery").load(**options)
-        df = self.filter_df_start_end_time(df)
         if named_view:
             df.createOrReplaceTempView(self.name)
         return df

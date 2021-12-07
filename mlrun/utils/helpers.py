@@ -162,7 +162,7 @@ def verify_field_list_of_type(
         verify_field_of_type(field_name, element, expected_element_type)
 
 
-def verify_items_types_of_dict(
+def verify_dict_items_type(
     name: str,
     dictionary: dict,
     expected_keys_types: list = None,
@@ -174,8 +174,8 @@ def verify_items_types_of_dict(
                 f"{name} expected to be of type dict, got type : {type(dictionary)}"
             )
         try:
-            verify_list_types(dictionary.keys(), expected_keys_types)
-            verify_list_types(dictionary.values(), expected_values_types)
+            verify_list_items_type(dictionary.keys(), expected_keys_types)
+            verify_list_items_type(dictionary.values(), expected_values_types)
         except mlrun.errors.MLRunInvalidArgumentTypeError as exc:
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 f"{name} should be of type Dict[{get_pretty_types_names(expected_keys_types)},"
@@ -183,14 +183,15 @@ def verify_items_types_of_dict(
             ) from exc
 
 
-def verify_list_types(actual_list, expected_types: list = None):
-    if actual_list and expected_types:
-        actual_list_types = set(map(type, actual_list))
+def verify_list_items_type(list_, expected_types: list = None):
+    if list_ and expected_types:
+        list_items_types = set(map(type, list_))
         expected_types = set(expected_types)
 
-        if not actual_list_types.issubset(expected_types):
+        if not list_items_types.issubset(expected_types):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"Got types: {actual_list_types}, from: {actual_list}"
+                f"Found unexpected types in list items. expected: {expected_types},"
+                f" found: {list_items_types} in : {list_}"
             )
 
 
@@ -199,7 +200,7 @@ def get_pretty_types_names(types):
         return ""
     if len(types) > 1:
         return "Union[" + ",".join([ty.__name__ for ty in types]) + "]"
-    return "".join([ty.__name__ for ty in types])
+    return types[0].__name__
 
 
 def now_date():

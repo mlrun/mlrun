@@ -19,7 +19,7 @@ class TestBaseRunTime(TestRuntimeBase):
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError):
             self._execute_run(runtime, inputs=inputs)
 
-    def test_run_with_currect_inputs(self, db: Session, client: TestClient):
+    def test_run_with_valid_inputs(self, db: Session, client: TestClient):
         inputs = {"input1": "mlrun"}
         runtime = BaseRuntime()
         self._execute_run(runtime, inputs=inputs)

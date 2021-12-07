@@ -15,7 +15,7 @@ from mlrun.utils.helpers import (
     get_parsed_docker_registry,
     get_pretty_types_names,
     verify_field_regex,
-    verify_list_types,
+    verify_list_items_type,
 )
 from mlrun.utils.regex import run_name
 
@@ -363,7 +363,7 @@ def test_fill_artifact_path_template():
 @pytest.mark.parametrize("expected_types", [[str]])
 def test_verify_list_types_failure(actual_list, expected_types):
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError):
-        verify_list_types(actual_list, expected_types)
+        verify_list_items_type(actual_list, expected_types)
 
 
 @pytest.mark.parametrize(
@@ -372,13 +372,13 @@ def test_verify_list_types_failure(actual_list, expected_types):
 @pytest.mark.parametrize("expected_types", [[str, int]])
 def test_verify_list_multiple_types_failure(actual_list, expected_types):
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError):
-        verify_list_types(actual_list, expected_types)
+        verify_list_items_type(actual_list, expected_types)
 
 
 @pytest.mark.parametrize("actual_list", [[], ["test"], ["test", "test1"]])
 @pytest.mark.parametrize("expected_types", [[str]])
 def test_verify_list_types_success(actual_list, expected_types):
-    verify_list_types(actual_list, expected_types)
+    verify_list_items_type(actual_list, expected_types)
 
 
 @pytest.mark.parametrize(
@@ -387,17 +387,15 @@ def test_verify_list_types_success(actual_list, expected_types):
 )
 @pytest.mark.parametrize("expected_types", [[str, int]])
 def test_verify_list_multiple_types_success(actual_list, expected_types):
-    verify_list_types(actual_list, expected_types)
+    verify_list_items_type(actual_list, expected_types)
 
 
-testdata = [
-    ([], ""),
-    ([str], "str"),
-    ([str, int], "Union[str,int]"),
-]
-
-
-@pytest.mark.parametrize("types,expected", testdata)
-def test_get_pretty_types_names(types, expected):
-    pretty_result = get_pretty_types_names(types)
-    assert pretty_result == expected
+def test_get_pretty_types_names():
+    cases = [
+        ([], ""),
+        ([str], "str"),
+        ([str, int], "Union[str,int]"),
+    ]
+    for types, expected in cases:
+        pretty_result = get_pretty_types_names(types)
+        assert pretty_result == expected

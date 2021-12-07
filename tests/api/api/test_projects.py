@@ -316,7 +316,10 @@ def test_list_and_get_project_summaries(
 
 
 def test_delete_project_deletion_strategy_check(
-    db: Session, client: TestClient, project_member_mode: str
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
     project = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name="project-name"),
@@ -358,6 +361,45 @@ def test_delete_project_deletion_strategy_check(
         },
     )
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
+
+
+def test_delete_project_deletion_strategy_check_external_resource(
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+) -> None:
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.api.schemas.ProjectSpec(),
+    )
+
+    # create
+    response = client.post("/api/projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+    _assert_project_response(project, response)
+
+    # Set a project secret
+    k8s_secrets_mock.store_project_secrets("project-name", {"secret": "value"})
+
+    # deletion strategy - check - should fail because there's a project secret
+    response = client.delete(
+        f"/api/projects/{project.metadata.name}",
+        headers={
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted
+        },
+    )
+    assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
+    assert "project secrets" in response.text
+
+    k8s_secrets_mock.delete_project_secrets("project-name", None)
+    response = client.delete(
+        f"/api/projects/{project.metadata.name}",
+        headers={
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted
+        },
+    )
+    assert response
 
 
 # leader format is only relevant to follower mode

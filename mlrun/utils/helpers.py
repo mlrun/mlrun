@@ -162,6 +162,47 @@ def verify_field_list_of_type(
         verify_field_of_type(field_name, element, expected_element_type)
 
 
+def verify_dict_items_type(
+    name: str,
+    dictionary: dict,
+    expected_keys_types: list = None,
+    expected_values_types: list = None,
+):
+    if dictionary:
+        if type(dictionary) != dict:
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                f"{name} expected to be of type dict, got type : {type(dictionary)}"
+            )
+        try:
+            verify_list_items_type(dictionary.keys(), expected_keys_types)
+            verify_list_items_type(dictionary.values(), expected_values_types)
+        except mlrun.errors.MLRunInvalidArgumentTypeError as exc:
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                f"{name} should be of type Dict[{get_pretty_types_names(expected_keys_types)},"
+                f"{get_pretty_types_names(expected_values_types)}]."
+            ) from exc
+
+
+def verify_list_items_type(list_, expected_types: list = None):
+    if list_ and expected_types:
+        list_items_types = set(map(type, list_))
+        expected_types = set(expected_types)
+
+        if not list_items_types.issubset(expected_types):
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                f"Found unexpected types in list items. expected: {expected_types},"
+                f" found: {list_items_types} in : {list_}"
+            )
+
+
+def get_pretty_types_names(types):
+    if len(types) == 0:
+        return ""
+    if len(types) > 1:
+        return "Union[" + ",".join([ty.__name__ for ty in types]) + "]"
+    return types[0].__name__
+
+
 def now_date():
     return datetime.now(timezone.utc)
 

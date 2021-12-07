@@ -102,6 +102,10 @@ class Projects(
         # secrets and model endpoints.
         mlrun.api.crud.ModelEndpoints().verify_project_has_no_model_endpoints(project)
 
+        # Note: this check lists also internal secrets. The assumption is that any internal secret that relate to
+        # an MLRun resource (such as model-endpoints) was already verified in previous checks. Therefore, any internal
+        # secret existing here is something that the user needs to be notified about, as MLRun didn't generate it.
+        # Therefore, this check should remain at the end of the verification flow.
         if mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_keys(project):
             raise mlrun.errors.MLRunPreconditionFailedError(
                 f"Project {project} can not be deleted since related resources found: project secrets"

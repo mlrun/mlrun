@@ -57,12 +57,12 @@ class DaskFeatureMerger(BaseMerger):
                 subset=[self.vector.status.label_column]
             )
 
-        self._write_to_target()
-
-        # check if need to set/reset indices
         if self._drop_indexes:
             self._result_df = self._result_df.reset_index(drop=True)
-        elif self._index_columns:
+        self._write_to_target()
+
+        # check if need to set indices
+        if self._index_columns and not self._drop_indexes:
 
             if self._result_df.index is None or self._result_df.index.name is None:
                 index_columns_missing = []
@@ -78,33 +78,6 @@ class DaskFeatureMerger(BaseMerger):
                     )
 
         return OfflineVectorResponse(self)
-
-    def merge(
-        self,
-        entity_df,
-        entity_timestamp_column: str,
-        featuresets: list,
-        featureset_dfs: List[pd.DataFrame],
-    ):
-        merged_df = entity_df
-        if entity_df is None:
-            merged_df = featureset_dfs.pop(0)
-            featureset = featuresets.pop(0)
-            entity_timestamp_column = (
-                entity_timestamp_column or featureset.spec.timestamp_key
-            )
-
-        for featureset, featureset_df in zip(featuresets, featureset_dfs):
-            if featureset.spec.timestamp_key:
-                merge_func = self._asof_join
-            else:
-                merge_func = self._join
-
-            merged_df = merge_func(
-                merged_df, entity_timestamp_column, featureset, featureset_df,
-            )
-
-        self._result_df = merged_df
 
     def _reset_index(self, df):
         to_drop = df.index.name is None

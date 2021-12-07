@@ -67,6 +67,8 @@ class SparkFeatureMerger(BaseMerger):
                 )
 
             df = source.to_spark_df(self.spark, named_view=self.named_view)
+
+            # add the index/key to selected columns
             timestamp_key = feature_set.spec.timestamp_key
             if timestamp_key and timestamp_key not in column_names:
                 columns.append((timestamp_key, None))
@@ -74,13 +76,15 @@ class SparkFeatureMerger(BaseMerger):
                 if entity not in column_names:
                     columns.append((entity, None))
 
+            # select requested columns and rename with alias where needed
             df = df.select([col(name).alias(alias or name) for name, alias in columns])
             dfs.append(df)
 
+        # convert convert pandas entity_rows to spark DF if needed
         if entity_rows is not None and not hasattr(entity_rows, "rdd"):
-            # convert pandas to spark DF if needed
             entity_rows = self.spark.createDataFrame(entity_rows)
 
+        # join the feature data frames
         self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
 
         self._result_df = self._result_df.drop(*self._drop_columns)
@@ -89,37 +93,9 @@ class SparkFeatureMerger(BaseMerger):
 
         self._write_to_target()
 
-        # todo: drop/set indexes if needed
+        # todo: set indexes if needed (may need to go into the get_df for pandas)
 
         return OfflineVectorResponse(self)
-
-    def merge(
-        self,
-        entity_df,
-        entity_timestamp_column: str,
-        featuresets: list,
-        featureset_dfs: list,
-    ):
-        merged_df = entity_df
-        if entity_df is None and featureset_dfs:
-            merged_df = featureset_dfs.pop(0)
-            featureset = featuresets.pop(0)
-            entity_timestamp_column = (
-                entity_timestamp_column or featureset.spec.timestamp_key
-            )
-
-        for featureset, featureset_df in zip(featuresets, featureset_dfs):
-
-            if featureset.spec.timestamp_key:
-                merge_func = self._asof_join
-            else:
-                merge_func = self._join
-
-            merged_df = merge_func(
-                merged_df, entity_timestamp_column, featureset, featureset_df,
-            )
-
-        self._result_df = merged_df
 
     def _asof_join(
         self, entity_df, entity_timestamp_column: str, featureset, featureset_df,

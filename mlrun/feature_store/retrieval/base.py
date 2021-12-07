@@ -104,12 +104,42 @@ class BaseMerger(abc.ABC):
     ):
         raise NotImplementedError("_generate_vector() operation not supported in class")
 
+    def merge(
+        self,
+        entity_df,
+        entity_timestamp_column: str,
+        featuresets: list,
+        featureset_dfs: list,
+    ):
+        """join the entities and feature set features into a result dataframe"""
+        merged_df = entity_df
+        if entity_df is None and featureset_dfs:
+            merged_df = featureset_dfs.pop(0)
+            featureset = featuresets.pop(0)
+            entity_timestamp_column = (
+                entity_timestamp_column or featureset.spec.timestamp_key
+            )
+
+        for featureset, featureset_df in zip(featuresets, featureset_dfs):
+            if featureset.spec.timestamp_key:
+                merge_func = self._asof_join
+            else:
+                merge_func = self._join
+
+            merged_df = merge_func(
+                merged_df, entity_timestamp_column, featureset, featureset_df,
+            )
+
+        self._result_df = merged_df
+
     def get_status(self):
+        """return the status of the merge operation (in case its asynchrounious)"""
         if self._result_df is None:
             raise RuntimeError("unexpected status, no result df")
         return "completed"
 
     def get_df(self, to_pandas=True):
+        """return the result as a dataframe (pandas by default)"""
         return self._result_df
 
     def to_parquet(self, target_path, **kw):

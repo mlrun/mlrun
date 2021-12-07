@@ -44,14 +44,9 @@ semver~=2.13
 # after 2021.03.0 dask dropped support for python 3.6
 dask~=2021.09.1; python_version >= '3.7'
 dask~=2021.03.0; python_version < '3.7'
-# dask-kubernetes 0.11.0 has distributed>=2.5.2, but after 2.30.1 they moved to CalVer and released 2020.12.0
-# so without our limitation to <3, 2020.12.0 is installed which is incompatible since it has dask>=2020.12.0 while ours
-# is ~=2.12
-# TODO: dask-kubernetes will probably release 0.11.1 with a fix for this soon and this could be removed
-# (19.01.2021) - >=2.5.2, <3 in the client resolves to 2.30.1, and mlrun/ml-models comes pre-installed with 2.11.0 which
-# is fine for that specifier, but they don't work together (couldn't find why) only 2.23 and up is working, so putting
-# min bound of 2.23
-distributed>=2.23, <3
+# after 2021.03.0 distributed dropped support for python 3.6
+distributed~=2021.09.1; python_version >= '3.7'
+distributed~=2021.03.0; python_version < '3.7'
 # 3.0 iguazio system is running k8s 1.17 so ideally we would use 17.X, but kfp limiting to <12.0
 kubernetes~=11.0
 # TODO: move to API requirements (shouldn't really be here, the sql run db using the API sqldb is preventing us from

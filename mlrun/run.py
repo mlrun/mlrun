@@ -646,6 +646,7 @@ def code_to_function(
     categories: List[str] = None,
     labels: Dict[str, str] = None,
     with_doc: bool = True,
+    ignored_tags=None,
 ) -> Union[
     MpiRuntimeV1Alpha1,
     MpiRuntimeV1,
@@ -704,6 +705,7 @@ def code_to_function(
     :param categories:   list of categories for mlrun function marketplace, defaults to None
     :param labels:       immutable name/value pairs to tag the function with useful metadata, defaults to None
     :param with_doc:     indicates whether to document the function parameters, defaults to True
+    :param ignored_tags: notebook cells to ignore when converting notebooks to py code (separated by ";")
 
     :return:
            pre-configured function object from a mlrun runtime class
@@ -734,6 +736,7 @@ def code_to_function(
 
     """
     filebase, _ = path.splitext(path.basename(filename))
+    ignored_tags = ignored_tags or mlconf.ignored_notebook_tags
 
     def add_name(origin, name=""):
         name = filename or (name + ".ipynb")
@@ -770,7 +773,11 @@ def code_to_function(
     code_origin = add_name(add_code_metadata(filename), name)
 
     name, spec, code = build_file(
-        filename, name=name, handler=handler or "handler", kind=subkind
+        filename,
+        name=name,
+        handler=handler or "handler",
+        kind=subkind,
+        ignored_tags=ignored_tags,
     )
     spec_kind = get_in(spec, "kind", "")
     if not kind and spec_kind not in ["", "Function"]:
@@ -780,7 +787,11 @@ def code_to_function(
         is_nuclio, subkind = resolve_nuclio_subkind(kind)
         if is_nuclio:
             name, spec, code = build_file(
-                filename, name=name, handler=handler or "handler", kind=subkind
+                filename,
+                name=name,
+                handler=handler or "handler",
+                kind=subkind,
+                ignored_tags=ignored_tags,
             )
 
     if code_output:
@@ -825,7 +836,7 @@ def code_to_function(
     else:
         raise ValueError(f"unsupported runtime ({kind})")
 
-    name, spec, code = build_file(filename, name=name)
+    name, spec, code = build_file(filename, name=name, ignored_tags=ignored_tags)
 
     if not name:
         raise ValueError("name must be specified")

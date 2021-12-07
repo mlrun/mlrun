@@ -163,6 +163,26 @@ def test_get_hub_url():
     )
 
 
+def test_get_parsed_igz_version():
+    # open source - version not set
+    mlconf.config.igz_version = None
+    assert mlconf.config.get_parsed_igz_version() is None
+
+    # 3.2 (or after) - semver compatible
+    mlconf.config.igz_version = "3.2.0-b26.20210904121245"
+    igz_version = mlconf.config.get_parsed_igz_version()
+    assert igz_version.major == 3
+    assert igz_version.minor == 2
+    assert igz_version.patch == 0
+
+    # 3.0 (or before) - non semver compatible
+    mlconf.config.igz_version = "3.0_b154_20210326104738"
+    igz_version = mlconf.config.get_parsed_igz_version()
+    assert igz_version.major == 3
+    assert igz_version.minor == 0
+    assert igz_version.patch == 0
+
+
 def test_setting_dbpath_trigger_connect(requests_mock: requests_mock_package.Mocker):
     api_url = "http://mlrun-api-url:8080"
     remote_host = "some-namespace"

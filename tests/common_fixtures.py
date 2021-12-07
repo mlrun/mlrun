@@ -10,7 +10,10 @@ import requests
 import v3io.dataplane
 
 import mlrun.api.utils.singletons.db
+import mlrun.api.utils.singletons.k8s
+import mlrun.api.utils.singletons.logs_dir
 import mlrun.api.utils.singletons.project_member
+import mlrun.api.utils.singletons.scheduler
 import mlrun.config
 import mlrun.datastore
 import mlrun.db
@@ -54,6 +57,12 @@ def config_test_base():
 
     # remove singletons in case they were changed (we don't want changes to pass between tests)
     mlrun.utils.singleton.Singleton._instances = {}
+
+    mlrun.api.utils.singletons.db.db = None
+    mlrun.api.utils.singletons.project_member.project_member = None
+    mlrun.api.utils.singletons.scheduler.scheduler = None
+    mlrun.api.utils.singletons.k8s._k8s = None
+    mlrun.api.utils.singletons.logs_dir.logs_dir = None
 
     mlrun.k8s_utils._k8s = None
     mlrun.runtimes.runtime_handler_instances_cache = {}

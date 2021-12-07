@@ -9,7 +9,8 @@ import mlrun
 from mlrun.artifacts import Artifact
 from mlrun.data_types import ValueType
 from mlrun.features import Feature
-from mlrun.frameworks._dl_common import DLModelHandler
+
+from .._dl_common import DLModelHandler
 
 
 class PyTorchModelHandler(DLModelHandler):
@@ -40,6 +41,7 @@ class PyTorchModelHandler(DLModelHandler):
         model_path: str = None,
         model: Module = None,
         context: mlrun.MLClientCtx = None,
+        **kwargs,
     ):
         """
         Initialize the handler. The model can be set here so it won't require loading.
@@ -114,6 +116,7 @@ class PyTorchModelHandler(DLModelHandler):
             custom_objects_map=custom_objects_map,
             custom_objects_directory=custom_objects_directory,
             context=context,
+            **kwargs,
         )
 
         # Set the required labels:
@@ -394,13 +397,6 @@ class PyTorchModelHandler(DLModelHandler):
         If the model path given is of a store object, collect the needed model files into this handler for later loading
         the model.
         """
-        # Get the artifact and model file along with its extra data:
-        (
-            self._model_file,
-            self._model_artifact,
-            self._extra_data,
-        ) = mlrun.artifacts.get_model(self._model_path)
-
         # Read the model's class name:
         self._model_class_name = self._model_artifact.labels[
             self._LabelKeys.MODEL_CLASS_NAME

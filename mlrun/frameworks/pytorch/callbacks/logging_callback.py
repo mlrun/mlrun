@@ -5,12 +5,9 @@ from torch import Tensor
 from torch.nn import Module, Parameter
 
 import mlrun
-from mlrun.frameworks._dl_common.loggers import Logger, LoggerMode, TrackableType
-from mlrun.frameworks.pytorch.callbacks.callback import (
-    Callback,
-    MetricFunctionType,
-    MetricValueType,
-)
+
+from ..._dl_common.loggers import Logger, LoggerMode, TrackableType
+from .callback import Callback, MetricFunctionType, MetricValueType
 
 
 class HyperparametersKeys:

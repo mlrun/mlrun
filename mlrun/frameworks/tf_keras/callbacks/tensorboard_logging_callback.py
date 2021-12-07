@@ -10,8 +10,9 @@ from tensorflow.keras import Model
 from tensorflow.python.ops import summary_ops_v2
 
 import mlrun
-from mlrun.frameworks._dl_common.loggers import TensorboardLogger, TrackableType
-from mlrun.frameworks.tf_keras.callbacks.logging_callback import LoggingCallback
+
+from ..._dl_common.loggers import TensorboardLogger, TrackableType
+from .logging_callback import LoggingCallback
 
 
 class _TFKerasTensorboardLogger(TensorboardLogger):

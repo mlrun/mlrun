@@ -526,6 +526,10 @@ class ModelEndpoints:
         auth_info = mlrun.api.schemas.AuthInfo(
             data_session=os.getenv("V3IO_ACCESS_KEY")
         )
+
+        if not config.igz_version or not config.v3io_api:
+            return
+
         endpoints = self.list_endpoints(auth_info, project_name)
         if endpoints.endpoints:
             raise mlrun.errors.MLRunPreconditionFailedError(

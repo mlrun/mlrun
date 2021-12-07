@@ -22,20 +22,49 @@ from .utils.db.mysql import MySQLUtil
 from .utils.db.sqlite_migration import SQLiteMigrationUtil
 
 
-def init_data(from_scratch: bool = False) -> None:
+def init_data(
+    from_scratch: bool = False, perform_migrations_if_needed: bool = False
+) -> None:
+    MySQLUtil.wait_for_db_liveness(logger)
+
+    sqlite_migration_util = None
+    if not from_scratch and config.httpdb.db.database_migration_mode == "enabled":
+        sqlite_migration_util = SQLiteMigrationUtil()
+    alembic_util = _create_alembic_util()
+    is_migration_needed = _is_migration_needed(alembic_util, sqlite_migration_util)
+    if not from_scratch and not perform_migrations_if_needed and is_migration_needed:
+        state = mlrun.api.schemas.APIStates.waiting_for_migrations
+        logger.info("Migration is needed, changing API state", state=state)
+        config.httpdb.state = state
+        return
+
     logger.info("Creating initial data")
+    config.httpdb.state = mlrun.api.schemas.APIStates.migrations_in_progress
 
-    _perform_schema_migrations()
-
-    _perform_database_migration(from_scratch)
-
-    db_session = create_session()
     try:
-        init_db(db_session)
-        _add_initial_data(db_session)
-        _perform_data_migrations(db_session)
-    finally:
-        close_session(db_session)
+        _perform_schema_migrations(alembic_util)
+
+        _perform_database_migration(sqlite_migration_util)
+
+        db_session = create_session()
+        try:
+            init_db(db_session)
+            _add_initial_data(db_session)
+            _perform_data_migrations(db_session)
+        finally:
+            close_session(db_session)
+    except Exception:
+        state = mlrun.api.schemas.APIStates.migrations_failed
+        logger.warning("Migrations failed, changing API state", state=state)
+        config.httpdb.state = state
+        raise
+    # if the above process actually ran a migration - initializations that were skipped on the API initialization
+    # should happen - we can't do it here because it requires an asyncio loop which can't be accessible here
+    # therefore moving to migration_completed state, and other component will take care of moving to online
+    if is_migration_needed:
+        config.httpdb.state = mlrun.api.schemas.APIStates.migrations_completed
+    else:
+        config.httpdb.state = mlrun.api.schemas.APIStates.online
     logger.info("Initial data created")
 
 
@@ -46,7 +75,38 @@ data_version_prior_to_table_addition = 1
 latest_data_version = 1
 
 
-def _perform_schema_migrations():
+def _is_migration_needed(
+    alembic_util: AlembicUtil,
+    sqlite_migration_util: typing.Optional[SQLiteMigrationUtil],
+) -> bool:
+    is_database_migration_needed = False
+    if sqlite_migration_util is not None:
+        is_database_migration_needed = (
+            sqlite_migration_util.is_database_migration_needed()
+        )
+    is_migration_from_scratch = alembic_util.is_migration_from_scratch()
+    is_schema_migration_needed = alembic_util.is_schema_migration_needed()
+    is_data_migration_needed = (
+        not _is_latest_data_version()
+        and config.httpdb.db.data_migrations_mode == "enabled"
+    )
+    is_migration_needed = is_database_migration_needed or (
+        not is_migration_from_scratch
+        and (is_schema_migration_needed or is_data_migration_needed)
+    )
+    logger.info(
+        "Checking if migration is needed",
+        is_migration_from_scratch=is_migration_from_scratch,
+        is_schema_migration_needed=is_schema_migration_needed,
+        is_data_migration_needed=is_data_migration_needed,
+        is_database_migration_needed=is_database_migration_needed,
+        is_migration_needed=is_migration_needed,
+    )
+
+    return is_migration_needed
+
+
+def _create_alembic_util() -> AlembicUtil:
     alembic_config_file_name = "alembic.ini"
     if MySQLUtil.get_mysql_dsn_data():
         alembic_config_file_name = "alembic_mysql.ini"
@@ -56,6 +116,11 @@ def _perform_schema_migrations():
     alembic_config_path = dir_path / alembic_config_file_name
 
     alembic_util = AlembicUtil(alembic_config_path, _is_latest_data_version())
+    return alembic_util
+
+
+def _perform_schema_migrations(alembic_util: AlembicUtil):
+    logger.info("Performing schema migration")
     alembic_util.init_alembic(config.httpdb.db.database_backup_mode == "enabled")
 
 
@@ -71,9 +136,11 @@ def _is_latest_data_version():
     return current_data_version == latest_data_version
 
 
-def _perform_database_migration(from_scratch: bool = False):
-    if not from_scratch and config.httpdb.db.database_migration_mode == "enabled":
-        sqlite_migration_util = SQLiteMigrationUtil()
+def _perform_database_migration(
+    sqlite_migration_util: typing.Optional[SQLiteMigrationUtil],
+):
+    if sqlite_migration_util:
+        logger.info("Performing database migration")
         sqlite_migration_util.transfer()
 
 

@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 from time import sleep
 
 import fsspec
@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 import v3iofs
 
+import mlrun
 import mlrun.feature_store as fs
 from mlrun import store_manager
 from mlrun.datastore.sources import ParquetSource
@@ -87,11 +88,32 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=fs.RunConfig(local=False),
         )
 
+    def test_error_flow(self):
+        df = pd.DataFrame(
+            {
+                "name": ["Jean", "Jacques", "Pierre"],
+                "last_name": ["Dubois", "Dupont", "Lavigne"],
+            }
+        )
+
+        measurements = fs.FeatureSet(
+            "measurements", entities=[fs.Entity("name")], engine="spark",
+        )
+
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            fs.ingest(
+                measurements,
+                df,
+                return_df=True,
+                spark_context=self.spark_service,
+                run_config=fs.RunConfig(local=False),
+            )
+
     @pytest.mark.parametrize("partitioned", [True, False])
     def test_schedule_on_filtered_by_time(self, partitioned):
         name = f"sched-time-{str(partitioned)}"
 
-        now = datetime.now() + timedelta(minutes=2)
+        now = datetime.now()
 
         path = "v3io:///bigdata/bla.parquet"
         fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
@@ -106,7 +128,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             }
         ).to_parquet(path=path, filesystem=fsys)
 
-        cron_trigger = "*/1 * * * *"
+        cron_trigger = "*/2 * * * *"
 
         source = ParquetSource(
             "myparquet", path=path, time_field="time", schedule=cron_trigger
@@ -144,8 +166,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             targets=targets,
             spark_context=self.spark_service,
         )
-        # ingest starts every round minute.
-        sleep(60 - now.second + 50)
+        # ingest starts every second minute and it takes ~90 seconds to finish.
+        if (now.minute % 2) == 0:
+            sleep(60 - now.second + 60 + 90)
+        else:
+            sleep(60 - now.second + 90)
 
         features = [f"{name}.*"]
         vec = fs.FeatureVector("sched_test-vec", features)
@@ -169,7 +194,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             }
         ).to_parquet(path=path)
 
-        sleep(60)
+        sleep(120)
         resp = svc.get(
             [
                 {"first_name": "yosi"},

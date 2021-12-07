@@ -50,20 +50,26 @@ class SQLiteMigrationUtil(object):
         if self._mysql_dsn_data:
             self._mysql_util = MySQLUtil()
 
-    def transfer(self):
-
+    def is_database_migration_needed(self) -> bool:
         # if some data is missing, don't transfer the data
         if not self._migrator:
-            return
+            return False
 
         db_has_data = False
         if self._mysql_util:
-            if self._mysql_util.check_db_has_data():
+            if (
+                self._mysql_util.check_db_has_tables()
+                and self._mysql_util.check_db_has_data()
+            ):
                 db_has_data = True
-            self._mysql_util.close()
 
         # if mysqldb already has data, don't transfer the data
         if db_has_data:
+            return False
+        return True
+
+    def transfer(self):
+        if not self.is_database_migration_needed():
             return
 
         self._migrator.transfer()

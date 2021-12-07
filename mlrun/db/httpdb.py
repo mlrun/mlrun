@@ -1170,7 +1170,9 @@ class HTTPRunDB(RunDBInterface):
 
         return schemas.BackgroundTask(**resp.json())
 
-    def get_background_task(self, project: str, name: str,) -> schemas.BackgroundTask:
+    def get_project_background_task(
+        self, project: str, name: str,
+    ) -> schemas.BackgroundTask:
         """ Retrieve updated information on a background task being executed."""
 
         project = project or config.default_project

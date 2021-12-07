@@ -296,6 +296,10 @@ def ingest(
         )
 
     if run_config:
+        if isinstance(source, pd.DataFrame):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "DataFrame source is illegal in with RunConfig"
+            )
         # remote job execution
         verify_feature_set_permissions(
             featureset, mlrun.api.schemas.AuthorizationAction.update
@@ -311,6 +315,10 @@ def ingest(
 
     if mlrun_context:
         # extract ingestion parameters from mlrun context
+        if isinstance(source, pd.DataFrame):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "DataFrame source is illegal when running ingest remotely"
+            )
         if featureset or source is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot specify mlrun_context with feature set or source"
@@ -386,6 +394,10 @@ def ingest(
             "featureset.spec.engine must be set to 'spark' to ingest with spark"
         )
     if featureset.spec.engine == "spark":
+        if isinstance(source, pd.DataFrame) and run_config is not None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "DataFrame source is illegal when ingesting with spark"
+            )
         # use local spark session to ingest
         return _ingest_with_spark(
             spark_context,
@@ -644,6 +656,7 @@ def _ingest_with_spark(
             df = spark.createDataFrame(source)
         else:
             df = source.to_spark_df(spark)
+            df = source.filter_df_start_end_time(df)
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
         infer_from_static_df(df, featureset, options=infer_options)

@@ -245,7 +245,7 @@ class BaseRuntime(ModelObj):
         name: str = "",
         project: str = "",
         params: dict = None,
-        inputs: dict = None,
+        inputs: Dict[str, str] = None,
         out_path: str = "",
         workdir: str = "",
         artifact_path: str = "",
@@ -286,6 +286,7 @@ class BaseRuntime(ModelObj):
 
         :return: run context object (RunObject) with run metadata, results and status
         """
+        mlrun.utils.helpers.verify_dict_items_type("Inputs", inputs, [str], [str])
 
         if self.spec.mode and self.spec.mode not in run_modes:
             raise ValueError(f'run mode can only be {",".join(run_modes)}')

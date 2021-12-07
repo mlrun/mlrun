@@ -505,11 +505,11 @@ class OfflineVectorResponse:
         """vector prep job status (ready, running, error)"""
         return self._merger.get_status()
 
-    def to_dataframe(self):
+    def to_dataframe(self, to_pandas=True):
         """return result as dataframe"""
         if self.status != "completed":
             raise mlrun.errors.MLRunTaskNotReady("feature vector dataset is not ready")
-        return self._merger.get_df()
+        return self._merger.get_df(to_pandas=to_pandas)
 
     def to_parquet(self, target_path, **kw):
         """return results as parquet file"""

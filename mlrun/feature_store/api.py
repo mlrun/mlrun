@@ -656,6 +656,7 @@ def _ingest_with_spark(
             df = spark.createDataFrame(source)
         else:
             df = source.to_spark_df(spark)
+            df = source.filter_df_start_end_time(df)
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
         infer_from_static_df(df, featureset, options=infer_options)

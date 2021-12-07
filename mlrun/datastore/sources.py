@@ -68,19 +68,21 @@ class BaseSourceDriver(DataSource):
     def to_dataframe(self):
         return mlrun.store_manager.object(url=self.path).as_df()
 
+    def filter_df_start_end_time(self, df):
+        if self.start_time or self.end_time:
+            self.start_time = (
+                datetime.min if self.start_time is None else self.start_time
+            )
+            self.end_time = datetime.max if self.end_time is None else self.end_time
+            df = df.filter(
+                (df[self.time_field] >= self.start_time)
+                & (df[self.time_field] < self.end_time)
+            )
+        return df
+
     def to_spark_df(self, session, named_view=False):
         if self.support_spark:
             df = session.read.load(**self.get_spark_options())
-
-            if self.start_time or self.end_time:
-                self.start_time = (
-                    datetime.min if self.start_time is None else self.start_time
-                )
-                self.end_time = datetime.max if self.end_time is None else self.end_time
-                df = df.filter(
-                    (df[self.time_field] >= self.start_time)
-                    & (df[self.time_field] < self.end_time)
-                )
 
             if named_view:
                 df.createOrReplaceTempView(self.name)

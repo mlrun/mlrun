@@ -257,7 +257,11 @@ def test_list_project_with_updated_after(
                 f"[$gt]{updated_after.isoformat().split('+')[0]}Z".lower()
             ],
             "include": ["owner"],
-            "page[size]": [str(mlrun.mlconf.httpdb.projects.iguazio_list_projects_default_page_size)],
+            "page[size]": [
+                str(
+                    mlrun.mlconf.httpdb.projects.iguazio_list_projects_default_page_size
+                )
+            ],
         }
         context.status_code = http.HTTPStatus.OK.value
         _verify_project_request_headers(request.headers, session)

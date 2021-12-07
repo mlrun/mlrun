@@ -131,28 +131,26 @@ class ReleaseNotesGenerator:
 {failed_commits}
         """
         )
-
-        raise ValueError(
-            "Failed parsing some of the commits, added them at the end of the release notes"
-        )
+        if failed_parsing_commits:
+            raise ValueError(
+                "Failed parsing some of the commits, added them at the end of the release notes"
+            )
 
     def _generate_highlight_notes_from_commits(self, commits):
         highlighted_notes = ""
         failed_parsing_commits = []
         for commit in commits.split("\n"):
             match = re.fullmatch(self.commit_regex, commit)
-            if match is None:
+            if match:
+                scope = match.groupdict()["scope"] or "Unknown"
+                message = match.groupdict()["commitMessage"]
+                pull_request_number = match.groupdict()["pullRequestNumber"]
+                commit_id = match.groupdict()["commitId"]
+                username = match.groupdict()["username"]
+                github_username = self._resolve_github_username(commit_id, username)
+                highlighted_notes += f"* **{scope}**: {message}, {pull_request_number}, @{github_username}\n"
+            else:
                 failed_parsing_commits.append(commit)
-                break
-            scope = match.groupdict()["scope"] or "Unknown"
-            message = match.groupdict()["commitMessage"]
-            pull_request_number = match.groupdict()["pullRequestNumber"]
-            commit_id = match.groupdict()["commitId"]
-            username = match.groupdict()["username"]
-            github_username = self._resolve_github_username(commit_id, username)
-            highlighted_notes += (
-                f"* **{scope}**: {message}, {pull_request_number}, @{github_username}\n"
-            )
 
         return highlighted_notes, failed_parsing_commits
 

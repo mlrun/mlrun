@@ -316,7 +316,10 @@ def test_list_and_get_project_summaries(
 
 
 def test_delete_project_deletion_strategy_check(
-    db: Session, client: TestClient, project_member_mode: str
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
     project = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name="project-name"),

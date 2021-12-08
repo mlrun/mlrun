@@ -1,6 +1,7 @@
-import re
 import io
+import re
 import unittest.mock
+
 import deepdiff
 
 import automation.release_notes.generate

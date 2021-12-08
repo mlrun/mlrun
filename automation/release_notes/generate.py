@@ -131,7 +131,7 @@ class ReleaseNotesGenerator:
             failed_parsing_template = f"""
 #### Failed parsing:
 {failed_commits}
-            """
+"""
 
             print(release_notes + failed_parsing_template)
             raise ValueError(

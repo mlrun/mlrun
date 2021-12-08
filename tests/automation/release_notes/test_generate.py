@@ -119,7 +119,8 @@ def test_generate_release_notes():
 #### Pull requests:
 fd6c5a86 [Requirements] Bump storey to 0.8.15 and v3io-frames to 0.10.2 (#1553)
 985d7cb8 [Secrets] Verify project secrets do not exist when deleting a project (#1552)
-\n""",
+
+""",
         },
         {
             "_run_command": [
@@ -151,7 +152,8 @@ fd6c5a86 [Requirements] Bump storey to 0.8.15 and v3io-frames to 0.10.2 (#1553)
 
 #### Failed parsing:
 20d4088c {{yuribros1974}} Merge pull request #1511 from mlrun/ML-509_update_release_status
-            \n""",
+
+""",
         },
     ]
     automation.release_notes.generate.tempfile = unittest.mock.MagicMock()

@@ -39,7 +39,7 @@ importlib-resources~=5.0; python_version < '3.7'
 alembic~=1.4,<1.6.0
 mergedeep~=1.3
 # 3.2 iguazio system uses 0.9.x - limiting to only patch changes
-v3io-frames~=0.9.6
+v3io-frames~=0.10.2
 semver~=2.13
 dask~=2.12
 # dask-kubernetes 0.11.0 has distributed>=2.5.2, but after 2.30.1 they moved to CalVer and released 2020.12.0
@@ -63,7 +63,8 @@ fsspec~=2021.8.1
 v3iofs~=0.1.7
 # 3.4 and above failed builidng in some images - see https://github.com/pyca/cryptography/issues/5771
 cryptography~=3.0, <3.4
-storey~=0.8.10; python_version >= '3.7'
+# In 0.8.12 the requirements loosen too much so pip resolver never finds a resolution
+storey~=0.8.15; python_version >= '3.7'
 deepdiff~=5.0
 pymysql~=1.0
 inflection~=0.5.0

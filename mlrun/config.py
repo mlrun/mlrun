@@ -26,12 +26,14 @@ import binascii
 import copy
 import json
 import os
+import typing
 import urllib.parse
 from collections.abc import Mapping
 from distutils.util import strtobool
 from os.path import expanduser
 from threading import Lock
 
+import semver
 import yaml
 
 env_prefix = "MLRUN_"
@@ -130,6 +132,8 @@ default_config = {
         "real_path": "",
         "db_type": "sqldb",
         "max_workers": "",
+        # See mlrun.api.schemas.APIStates for options
+        "state": "online",
         "db": {
             "commit_retry_timeout": 30,
             "commit_retry_interval": 3,
@@ -198,6 +202,7 @@ default_config = {
             "counters_cache_ttl": "2 minutes",
             # access key to be used when the leader is iguazio and polling is done from it
             "iguazio_access_key": "",
+            "iguazio_list_projects_default_page_size": 200,
             "project_owners_cache_ttl": "30 seconds",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
@@ -397,6 +402,19 @@ class Config:
             if priority_class_name not in valid_function_priority_class_names:
                 valid_function_priority_class_names.append(priority_class_name)
         return valid_function_priority_class_names
+
+    @staticmethod
+    def get_parsed_igz_version() -> typing.Optional[semver.VersionInfo]:
+        if not config.igz_version:
+            return None
+        try:
+            parsed_version = semver.VersionInfo.parse(config.igz_version)
+            return parsed_version
+        except ValueError:
+            # iguazio version is semver compatible only from 3.2, before that it will be something
+            # like 3.0_b177_20210806003728
+            semver_compatible_igz_version = config.igz_version.split("_")[0]
+            return semver.VersionInfo.parse(f"{semver_compatible_igz_version}.0")
 
     @staticmethod
     def get_storage_auto_mount_params():

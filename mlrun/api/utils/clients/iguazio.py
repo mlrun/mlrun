@@ -215,7 +215,10 @@ class Client(
             return True
 
     def list_projects(
-        self, session: str, updated_after: typing.Optional[datetime.datetime] = None,
+        self,
+        session: str,
+        updated_after: typing.Optional[datetime.datetime] = None,
+        page_size: typing.Optional[int] = None,
     ) -> typing.Tuple[
         typing.List[mlrun.api.schemas.Project], typing.Optional[datetime.datetime]
     ]:
@@ -223,6 +226,12 @@ class Client(
         if updated_after is not None:
             time_string = updated_after.isoformat().split("+")[0]
             params = {"filter[updated_at]": f"[$gt]{time_string}Z"}
+        if page_size is None:
+            page_size = (
+                mlrun.mlconf.httpdb.projects.iguazio_list_projects_default_page_size
+            )
+        if page_size is not None:
+            params["page[size]"] = int(page_size)
 
         params["include"] = "owner"
         response = self._send_request_to_api(

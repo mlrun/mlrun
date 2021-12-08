@@ -18,6 +18,7 @@ from .background_task import (
 )
 from .client_spec import ClientSpec
 from .constants import (
+    APIStates,
     DeletionStrategy,
     FeatureStorePartitionByField,
     HeaderNames,

@@ -114,8 +114,7 @@ class ReleaseNotesGenerator:
         # TODO: enforce a commit message convention which will allow to parse whether it's a feature/enhancement or
         #  bug fix
         failed_commits = "\n".join(failed_parsing_commits)
-        print(
-            f"""
+        release_notes = f"""
 ### Features / Enhancements
 {highlight_notes}
 * **UI**: [Features & enhancement](https://github.com/mlrun/ui/releases/tag/{self._release}#features-and-enhancements)
@@ -126,15 +125,20 @@ class ReleaseNotesGenerator:
 
 #### Pull requests:
 {commits_for_pull_requests}
+"""
 
+        if failed_parsing_commits:
+            failed_parsing_template = f"""
 #### Failed parsing:
 {failed_commits}
-        """
-        )
-        if failed_parsing_commits:
+            """
+
+            print(release_notes + failed_parsing_template)
             raise ValueError(
                 "Failed parsing some of the commits, added them at the end of the release notes"
             )
+
+        print(release_notes)
 
     def _generate_highlight_notes_from_commits(self, commits):
         highlighted_notes = ""

@@ -1,11 +1,9 @@
 import re
-from io import StringIO
-from unittest import mock
-
-from deepdiff import DeepDiff
+import io
+import unittest.mock
+import deepdiff
 
 import automation.release_notes.generate
-from mlrun.utils import logger
 
 
 def test_commit_regex_matching():
@@ -88,7 +86,7 @@ def test_commit_regex_matching():
         )
 
 
-def test_generate_highlight_notes_from_commits():
+def test_generate_release_notes():
     release = "v0.9.0-rc8"
     previous_release = "v0.9.0-rc7"
     release_branch = "master"
@@ -121,10 +119,7 @@ def test_generate_highlight_notes_from_commits():
 #### Pull requests:
 fd6c5a86 [Requirements] Bump storey to 0.8.15 and v3io-frames to 0.10.2 (#1553)
 985d7cb8 [Secrets] Verify project secrets do not exist when deleting a project (#1552)
-
-#### Failed parsing:
-
-        \n""",
+\n""",
         },
         {
             "_run_command": [
@@ -137,6 +132,7 @@ fd6c5a86 [Requirements] Bump storey to 0.8.15 and v3io-frames to 0.10.2 (#1553)
                 "985d7cb8 [Secrets] Verify project secrets do not exist when deleting a project (#1552)",
             ],
             "_resolve_github_username": ["gtopper", "theSaarco"],
+            "expect_failure": True,
             "expected_response": f"""
 ### Features / Enhancements
 * **Requirements**: Bump storey to 0.8.15 and v3io-frames to 0.10.2, #1553, @gtopper
@@ -155,25 +151,24 @@ fd6c5a86 [Requirements] Bump storey to 0.8.15 and v3io-frames to 0.10.2 (#1553)
 
 #### Failed parsing:
 20d4088c {{yuribros1974}} Merge pull request #1511 from mlrun/ML-509_update_release_status
-        \n""",
+            \n""",
         },
     ]
-    automation.release_notes.generate.tempfile = mock.MagicMock()
+    automation.release_notes.generate.tempfile = unittest.mock.MagicMock()
     for case in cases:
-        with mock.patch(
+        with unittest.mock.patch(
             "automation.release_notes.generate.ReleaseNotesGenerator._run_command"
-        ) as _run_command_mock, mock.patch(
+        ) as _run_command_mock, unittest.mock.patch(
             "automation.release_notes.generate.ReleaseNotesGenerator._resolve_github_username"
-        ) as _resolve_github_user_mock, mock.patch(
-            "sys.stdout", new=StringIO()
-        ) as fake_out:
+        ) as _resolve_github_user_mock, unittest.mock.patch(
+            "sys.stdout", new=io.StringIO()
+        ) as stdout_mock:
             _run_command_mock.side_effect = case["_run_command"]
             _resolve_github_user_mock.side_effect = case["_resolve_github_username"]
             try:
                 release_generator.run()
             except ValueError:
-                logger.warning(
-                    "Test case had some commits that didn't pass the requirements"
-                )
-            diff = DeepDiff(case["expected_response"], fake_out.getvalue())
+                if not case.get("expect_failure", False):
+                    raise
+            diff = deepdiff.DeepDiff(case["expected_response"], stdout_mock.getvalue())
             assert diff == {}

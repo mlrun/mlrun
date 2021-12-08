@@ -3,9 +3,9 @@ from io import StringIO
 from unittest import mock
 
 from deepdiff import DeepDiff
-from mlrun.utils import logger
 
 import automation.release_notes.generate
+from mlrun.utils import logger
 
 
 def test_commit_regex_matching():
@@ -172,6 +172,8 @@ fd6c5a86 [Requirements] Bump storey to 0.8.15 and v3io-frames to 0.10.2 (#1553)
             try:
                 release_generator.run()
             except ValueError:
-                logger.warning(f"Test case had some commits that didn't pass the requirements")
+                logger.warning(
+                    "Test case had some commits that didn't pass the requirements"
+                )
             diff = DeepDiff(case["expected_response"], fake_out.getvalue())
             assert diff == {}

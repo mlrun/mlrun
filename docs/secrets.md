@@ -114,7 +114,8 @@ In terms of exposure of secret values, this method is the same as for inline or 
 ### Kubernetes
 MLRun can use a Kubernetes (k8s) secret to store and retrieve secret values as required. This way
 of passing secrets is supported for all runtimes that generate k8s pods.  The k8s provider creates a
-k8s secret per project, and can store multiple secret keys within this secret. 
+k8s secret per project, and can store multiple secret keys within this secret. To pass k8s secrets to 
+nuclio functions, use the method `set_env_from_secret(name, secret, secret_key)`.
 
 #### Populating the kubernetes secret
 To populate the MLRun k8s secret with secret values, MLRun provides APIs that allow the user to perform operations

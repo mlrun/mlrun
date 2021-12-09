@@ -30,6 +30,7 @@ class PyTorchModelServer(V2ModelServer):
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
         use_cuda: bool = True,
+        to_list: bool = False,
         protocol: str = None,
         **class_args,
     ):
@@ -87,6 +88,7 @@ class PyTorchModelServer(V2ModelServer):
                                          model.
         :param use_cuda:                 Whether or not to use cuda. Only relevant if cuda is available. Defaulted to
                                          True.
+        :param to_list:                  Whether to return a list instead of a torch.Tensor. Defaulted to False.
         :param protocol:                 -
         :param class_args:               -
         """
@@ -111,8 +113,9 @@ class PyTorchModelServer(V2ModelServer):
             context=self.context,
         )
 
-        # Store the CUDA preference:
+        # Store the preferences:
         self._use_cuda = use_cuda
+        self._to_list = to_list
 
         # Prepare inference parameters:
         self._pytorch_interface = None  # type: PyTorchMLRunInterface
@@ -131,14 +134,15 @@ class PyTorchModelServer(V2ModelServer):
             model=self._model_handler.model, context=self.context
         )
 
-    def predict(self, request: Dict[str, Any]) -> Tensor:
+    def predict(self, request: Dict[str, Any]) -> Union[Tensor, list]:
         """
         Infer the inputs through the model using MLRun's PyTorch interface and return its output. The inferred data will
         be read from the "inputs" key of the request.
 
         :param request: The request to the model. The input to the model will be read from the "inputs" key.
 
-        :return: The model's prediction on the given input.
+        :return: The model's prediction on the given input. If 'to_list' was set to True in initialization, a list will
+                 be returned instead of a torch.Tensor.
         """
         # Get the inputs:
         inputs = request["inputs"]
@@ -152,7 +156,8 @@ class PyTorchModelServer(V2ModelServer):
             inputs=inputs, use_cuda=self._use_cuda
         )
 
-        return predictions
+        # Return as list if required:
+        return predictions if not self._to_list else predictions.tolist()
 
     def explain(self, request: Dict[str, Any]) -> str:
         """

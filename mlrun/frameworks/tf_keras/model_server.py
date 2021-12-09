@@ -25,8 +25,9 @@ class TFKerasModelServer(V2ModelServer):
         modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
+        model_format: str = TFKerasModelHandler.ModelFormats.SAVED_MODEL,
+        to_list: bool = False,
         protocol: str = None,
-        model_format: str = TFKerasModelHandler.ModelFormats.H5,
         **class_args,
     ):
         """
@@ -82,9 +83,10 @@ class TFKerasModelServer(V2ModelServer):
                                          before loading the model). If the model path given is of a store object, the
                                          custom objects files will be read from the logged custom object artifact of the
                                          model.
-        :param protocol:                 -
         :param model_format:             The format used to save the model. One of the members of the
-                                         TFKerasModelHandler.ModelFormats class.
+                                         TFKerasModelHandler.ModelFormats class. Defaulted to SavedModel.
+        :param to_list:                  Whether to return a list instead of a numpy.ndarray. Defaulted to False.
+        :param protocol:                 -
         :param class_args:               -
         """
         super(TFKerasModelServer, self).__init__(
@@ -108,6 +110,9 @@ class TFKerasModelServer(V2ModelServer):
             context=self.context,
         )
 
+        # Store additional configurations:
+        self._to_list = to_list
+
     def load(self):
         """
         Use the model handler to load the model.
@@ -116,17 +121,24 @@ class TFKerasModelServer(V2ModelServer):
             self._model_handler.load()
         self.model = self._model_handler.model
 
-    def predict(self, request: Dict[str, Any]) -> np.ndarray:
+    def predict(self, request: Dict[str, Any]) -> Union[np.ndarray, list]:
         """
         Infer the inputs through the model using 'keras.Model.predict' and return its output. The inferred data will be
         read from the "inputs" key of the request.
 
         :param request: The request to the model. The input to the model will be read from the "inputs" key.
 
-        :return: The 'keras.Model.predict' returned output on the given inputs.
+        :return: The 'keras.Model.predict' returned output on the given inputs. If 'to_list' was set to True in
+                 initialization, a list will be returned instead of a numpy.ndarray.
         """
+        # Get the inputs:
         inputs = request["inputs"]
-        return self.model.predict(inputs)
+
+        # Predict:
+        prediction = self.model.predict(inputs)
+
+        # Return as list if required:
+        return prediction if not self._to_list else prediction.tolist()
 
     def explain(self, request: Dict[str, Any]) -> str:
         """

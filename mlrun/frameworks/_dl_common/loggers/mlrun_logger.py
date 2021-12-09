@@ -1,7 +1,7 @@
-from typing import Dict, List, Union
 import itertools
-import numpy as np
+from typing import Dict, List, Union
 
+import numpy as np
 import plotly.graph_objects as go
 
 import mlrun

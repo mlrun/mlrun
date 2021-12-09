@@ -170,7 +170,9 @@ k8s RBAC and ensuring that logging into the k8s nodes as a user with elevated pe
 
 The k8s secrets are passed to nuclio functions as environment variables, and their values can be retrieved directly 
 from the environment variable of the same name. For example, to access the `aws_key` secret in a nuclio function use:
-`aws_key = os.environ.get("aws_key")`
+```python
+aws_key = os.environ.get("aws_key")
+```
 
 ### Azure Vault
 MLRun can serve secrets from an Azure key Vault. Azure key Vaults support 3 types of entities - `keys`, `secrets` and 

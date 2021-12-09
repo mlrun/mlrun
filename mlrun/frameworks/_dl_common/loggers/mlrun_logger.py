@@ -347,7 +347,7 @@ class MLRunLogger(Logger):
         :return: The generated plotly figure wrapped in MLRun artifact.
         """
         # Parse the artifact's name:
-        artifact_name = f"{name}.html"
+        artifact_name = f"{name}_values"
 
         # Initialize a plotly figure:
         hyperparameter_figure = go.Figure()

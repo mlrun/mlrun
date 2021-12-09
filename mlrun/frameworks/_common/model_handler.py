@@ -502,7 +502,11 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
             labels=self._labels,
             parameters=self._parameters,
             metrics=metrics,
-            extra_data=self._extra_data,
+            extra_data={
+                k: v
+                for k, v in self._extra_data.items()
+                if not isinstance(v, mlrun.DataItem)
+            },
             algorithm=kwargs.get("algorithm", None),
             training_set=kwargs.get("training_set", None),
             label_column=kwargs.get("label_column", None),
@@ -585,7 +589,11 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
             inputs=self._inputs,
             outputs=self._outputs,
             metrics=metrics,
-            extra_data=self._extra_data,
+            extra_data={
+                k: v
+                for k, v in self._extra_data.items()
+                if not isinstance(v, mlrun.DataItem)
+            },
             store_object=not self._is_logged,  # If the model was not logged, store the updated model in the database.
         )
         if self._is_logged:

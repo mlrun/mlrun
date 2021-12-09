@@ -45,7 +45,7 @@ def test_function(context, db_name):
 The {py:func}`~mlrun.model.RunTemplate.with_secrets()` function tells MLRun what secrets the executed code needs to 
 access. The MLRun framework prepares the needed infrastructure to make these secrets available to the runtime, 
 and passes information about them to the execution framework by specifying those secrets in the spec of the runtime. 
-For example, if running a kubernetes job, the secret keys aree noted in the generated pod's spec.
+For example, if running a kubernetes job, the secret keys are noted in the generated pod's spec.
 
 The actual details of MLRun's handling of the secrets differ per the **secret provider** used. The following sections
 provide more details on these providers and how they handle secrets and their values.

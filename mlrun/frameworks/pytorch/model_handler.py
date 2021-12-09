@@ -1,5 +1,5 @@
 import os
-from typing import Dict, List, Type, Union
+from typing import Dict, List, Tuple, Type, Union
 
 import numpy as np
 import torch
@@ -221,7 +221,7 @@ class PyTorchModelHandler(DLModelHandler):
     def to_onnx(
         self,
         model_name: str = None,
-        input_sample: Union[torch.Tensor, Dict[str, torch.Tensor]] = None,
+        input_sample: Union[torch.Tensor, Tuple[torch.Tensor, ...]] = None,
         input_layers_names: List[str] = None,
         output_layers_names: List[str] = None,
         dynamic_axes: Dict[str, Dict[int, str]] = None,
@@ -238,8 +238,8 @@ class PyTorchModelHandler(DLModelHandler):
                                     the stored model name with the suffix '_onnx'.
         :param optimize:            Whether to optimize the ONNX model using 'onnxoptimizer' before saving the model.
                                     Defaulted to True.
-        :param input_sample:        A torch.Tensor with the shape and data type of the expected input to the model. It
-                                    is optional but recommended.
+        :param input_sample:        A torch.Tensor with the shape and data type of the expected input to the model. Can
+                                    be passed as a tuple if the model expects multiple input tensors.
         :param input_layers_names:  List of names to assign to the input nodes of the graph in order. All of the other
                                     parameters (inner layers) can be set as well by passing additional names in the
                                     list. The order is by the order of the parameters in the model. If None, the inputs

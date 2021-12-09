@@ -1131,7 +1131,7 @@ def compile_function_config(function: RemoteRuntime):
         )
         update_in(config, "metadata.name", function.metadata.name)
         update_in(config, "spec.volumes", function.spec.generate_nuclio_volumes())
-        base_image = get_in(config, "spec.build.baseImage") or function.spec.image
+        base_image = get_in(config, "spec.build.baseImage") or function.spec.image or function.spec.build.base_image
         if base_image:
             update_in(config, "spec.build.baseImage", enrich_image_url(base_image))
 

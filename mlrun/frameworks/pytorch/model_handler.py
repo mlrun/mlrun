@@ -272,7 +272,7 @@ class PyTorchModelHandler(DLModelHandler):
                     "here."
                 )
             # Parse the input features into a sample:
-            input_sample = torch.stack(
+            input_sample = tuple(
                 [
                     torch.zeros(
                         size=input_feature.dims,
@@ -283,6 +283,8 @@ class PyTorchModelHandler(DLModelHandler):
                     for input_feature in self._inputs
                 ]
             )
+            if len(input_sample) == 1:
+                input_sample = input_sample[0]
 
         # Set the output model file:
         onnx_file = f"{model_name}.onnx"

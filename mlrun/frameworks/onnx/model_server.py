@@ -132,8 +132,14 @@ class ONNXModelServer(V2ModelServer):
         return self._inference_session.run(
             output_names=self._output_layers,
             input_feed={
-                input_layer: data
-                for input_layer, data in zip(self._input_layers, inputs)
+                input_layer: (
+                    data
+                    if len(data.shape) == len(input_layer.shape)
+                    else [data]  # In case it should be part a batch
+                )
+                for input_layer, data in zip(
+                    self._inference_session.get_inputs(), inputs
+                )
             },
         )
 

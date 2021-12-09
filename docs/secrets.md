@@ -160,7 +160,7 @@ As a result, this method does not expose the secret values at all, except at the
 the secret value is exposed through an environment variable. This means that even a user with `kubectl` looking at the pod
 spec cannot see the secret values. 
 
-Users, however, ca view the secrets using the following methods:
+Users, however, can view the secrets using the following methods:
 
 1. Run `kubectl` to view the actual contents of the k8s secret.
 2. Perform `kubectl exec` into the running pod, and examine the environment variables.

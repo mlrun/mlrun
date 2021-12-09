@@ -311,8 +311,10 @@ class PyTorchModelHandler(DLModelHandler):
                 )
                 if self._inputs is None
                 else (
-                    f"input_{i}" if layer.name == "" else layer.name
-                    for i, layer in enumerate(self._inputs)
+                    [
+                        f"input_{i}" if layer.name == "" else layer.name
+                        for i, layer in enumerate(self._inputs)
+                    ]
                 )
             )
 

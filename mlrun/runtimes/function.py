@@ -1139,6 +1139,9 @@ def compile_function_config(function: RemoteRuntime):
         name = get_fullname(function.metadata.name, project, tag)
         function.status.nuclio_name = name
         update_in(config, "metadata.name", name)
+        logger.debug("================IF===================")
+        logger.debug("Config :", config=config)
+        logger.debug("===================================")
     else:
 
         name, config, code = nuclio.build_file(
@@ -1157,15 +1160,20 @@ def compile_function_config(function: RemoteRuntime):
             update_in(
                 config, "spec.build.baseImage", enrich_image_url(function.spec.image)
             )
-        logger.info("===================================")
-        logger.info("Config :", config=config)
-        logger.info("===================================")
 
         name = get_fullname(name, project, tag)
         function.status.nuclio_name = name
 
         update_in(config, "metadata.name", name)
 
+        logger.debug("================ELSE===================")
+        logger.debug("Config :", config=config)
+        logger.debug("===================================")
+
+
+    logger.debug("================END===================")
+    logger.debug("Config :", config=config)
+    logger.debug("===================================")
     return name, project, config
 
 

@@ -224,6 +224,8 @@ class PyTorchModelHandler(DLModelHandler):
         input_sample: Union[torch.Tensor, Dict[str, torch.Tensor]] = None,
         input_layers_names: List[str] = None,
         output_layers_names: List[str] = None,
+        dynamic_axes: Dict[str, Dict[int, str]] = None,
+        is_batched: bool = True,
         optimize: bool = True,
         output_path: str = None,
         log: bool = None,
@@ -240,8 +242,21 @@ class PyTorchModelHandler(DLModelHandler):
                                     is optional but recommended.
         :param input_layers_names:  List of names to assign to the input nodes of the graph in order. All of the other
                                     parameters (inner layers) can be set as well by passing additional names in the
-                                    list. The order is by the order of the parameters in the model.
-        :param output_layers_names: List of names to assign to the output nodes of the graph in order.
+                                    list. The order is by the order of the parameters in the model. If None, the inputs
+                                    will be read from the handler's inputs. If its also None, it is defaulted to:
+                                    "input_0", "input_1", ...
+        :param output_layers_names: List of names to assign to the output nodes of the graph in order. If None, the
+                                    outputs will be read from the handler's outputs. If its also None, it is defaulted
+                                    to: "output_0" (for multiple outputs, this parameter must be provided).
+        :param dynamic_axes:        If part of the input / output shape is dynamic, like (batch_size, 3, 32, 32) you can
+                                    specify it by giving a dynamic axis to the input / output layer by its name as
+                                    follows: {
+                                        "input layer name": {0: "batch_size"},
+                                        "output layer name": {0: "batch_size"},
+                                    }
+                                    If provided, the 'is_batched' flag will be ignored. Defaulted to None.
+        :param is_batched:          Whether to include a batch size as the first axis in every input and output layer.
+                                    Defaulted to True. Will be ignored if 'dynamic_axes' is provided.
         :param output_path:         In order to save the ONNX model, pass here the output directory. The model file will
                                     be named with the model name given. Defaulted to None (not saving).
         :param log:                 In order to log the ONNX model, pass True. If None, the model will be logged if this
@@ -286,6 +301,39 @@ class PyTorchModelHandler(DLModelHandler):
             if len(input_sample) == 1:
                 input_sample = input_sample[0]
 
+        # Set the default input layers names if not provided:
+        if input_layers_names is None:
+            input_layers_names = (
+                (
+                    [f"input_{i}" for i in range(len(input_sample))]
+                    if isinstance(input_sample, tuple)
+                    else ["input_0"]
+                )
+                if self._inputs is None
+                else (
+                    f"input_{i}" if layer.name == "" else layer.name
+                    for i, layer in enumerate(self._inputs)
+                )
+            )
+
+        # Set the default output layers names if not provided:
+        if output_layers_names is None:
+            output_layers_names = (
+                ["output_0"]
+                if self._outputs is None
+                else [
+                    f"output_{i}" if layer.name == "" else layer.name
+                    for i, layer in enumerate(self._outputs)
+                ]
+            )
+
+        # Setup first axis to be a batch_size if needed:
+        if dynamic_axes is None and is_batched:
+            dynamic_axes = {
+                layer: {0: "batch_size"}
+                for layer in input_layers_names + output_layers_names
+            }
+
         # Set the output model file:
         onnx_file = f"{model_name}.onnx"
         if output_path is None:
@@ -303,6 +351,7 @@ class PyTorchModelHandler(DLModelHandler):
             onnx_file,
             input_names=input_layers_names,
             output_names=output_layers_names,
+            dynamic_axes=dynamic_axes,
         )
 
         # Create a handler for the ONNX model:

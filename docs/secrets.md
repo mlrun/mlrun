@@ -142,7 +142,10 @@ When MLRun is executed in the Iguazio platform, the secret management APIs are p
 that only users with permissions to access and modify a specific project can alter its secrets.
 
 ##### Creating secrets in the Projects page
-You can also create secrets in the Projects page by clicking the 
+The Settings dialog in the Projects page, accessed with the Settings icon, has a Secrets tab where you can 
+add secrets as key-value pairs. The secrets are automatically available to all jobs belonging to this project. 
+Users with the Editor or Admin role can add, modify, and delete secrets, and assign new secret values. 
+Viewers can only view the secret keys. The values themselves are not visible to any users.
 
 #### Accessing the secrets
 By default, any runtime not executed locally automatically gains access to all the secrets of the project it 

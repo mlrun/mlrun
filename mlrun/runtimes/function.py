@@ -1157,6 +1157,9 @@ def compile_function_config(function: RemoteRuntime):
             update_in(
                 config, "spec.build.baseImage", enrich_image_url(function.spec.image)
             )
+        print("===================================")
+        print(config)
+        print("===================================")
         name = get_fullname(name, project, tag)
         function.status.nuclio_name = name
 

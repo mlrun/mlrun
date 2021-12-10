@@ -357,13 +357,13 @@ class PyTorchMLRunInterface:
         # Set model to evaluate mode:
         self._model.eval()
 
-        # Convert the list of tensors to a stack of tensors (only in case of multiple input layers):
-        if isinstance(inputs, list):
-            inputs = torch.stack(inputs) if len(inputs) > 1 else inputs[0]
+        # Wrap in a list if given as a single Tensor:
+        if not isinstance(inputs, list):
+            inputs = [inputs]
 
         # Initialize a data loader for the given inputs:
         data_loader = DataLoader(
-            TensorDataset(inputs),
+            TensorDataset(*inputs),
             batch_size=batch_size if batch_size != -1 else len(inputs),
         )
 

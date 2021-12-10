@@ -363,54 +363,39 @@ def test_delete_project_deletion_strategy_check(
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
 
 
-def test_delete_project_not_deleting_functions_multiple_times(
+def test_delete_project_not_deleting_versioned_objects_multiple_times(
     db: Session,
     client: TestClient,
     project_member_mode: str,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
-    project = mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(name="project-name"),
-        spec=mlrun.api.schemas.ProjectSpec(),
-    )
 
-    # create
-    response = client.post("/api/projects", json=project.dict())
-    assert response.status_code == HTTPStatus.CREATED.value
-    _assert_project_response(project, response)
+    # need to set this to False, otherwise impl will try to delete k8s resources, and will need many more
+    # mocks to overcome this.
+    k8s_secrets_mock.set_is_running_in_k8s_cluster(False)
+    project_name = "project-name"
+    _create_resources_of_all_kinds(db, k8s_secrets_mock, project_name)
 
-    # add function to project
-    function_name = "function-name"
-    function = {"metadata": {"name": function_name}}
-    response = client.post(
-        f"/api/func/{project.metadata.name}/{function_name}", json=function, params={"versioned": True}
+    response = client.get(
+        "/api/funcs",
+        params={
+            "project": project_name,
+        },
     )
     assert response.status_code == HTTPStatus.OK.value
-
-    # add function again, with slight change in body so a new version will be created
-    function_name = "function-name"
-    function = {"metadata": {"name": function_name}, "spec": {"some-change": True}}
-    response = client.post(
-        f"/api/func/{project.metadata.name}/{function_name}", json=function, params={"versioned": True}
-    )
-    assert response.status_code == HTTPStatus.OK.value
-
-    # ensure we have 2 versions of the same function
-    response = client.get(f"/api/funcs", params={"project": project.metadata.name, "name": function_name})
-    assert response.status_code == HTTPStatus.OK.value
-    assert len(response.json()['funcs']) == 2
+    distinct_function_names = {function['metadata']['name'] for function in response.json()['funcs']}
 
     mlrun.api.utils.singletons.db.get_db().delete_function = unittest.mock.Mock()
     # deletion strategy - check - should fail because there are resources
     response = client.delete(
-        f"/api/projects/{project.metadata.name}",
+        f"/api/projects/{project_name}",
         headers={
             mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading
         },
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
-    assert mlrun.api.utils.singletons.db.get_db().delete_function.call_count == 1
+    assert mlrun.api.utils.singletons.db.get_db().delete_function.call_count == len(distinct_function_names)
 
 
 def test_delete_project_deletion_strategy_check_external_resource(
@@ -672,20 +657,24 @@ def _create_resources_of_all_kinds(
     function = {
         "bla": "blabla",
         "metadata": {"labels": labels},
+        "spec": {"asd": "asdasd"},
         "status": {"bla": "blabla"},
     }
     function_names = ["function_name_1", "function_name_2", "function_name_3"]
     function_tags = ["some_tag", "some_tag2", "some_tag3"]
     for function_name in function_names:
         for function_tag in function_tags:
-            db.store_function(
-                db_session,
-                function,
-                function_name,
-                project,
-                tag=function_tag,
-                versioned=True,
-            )
+            # change spec a bit so different (un-tagged) versions will be created
+            for index in range(3):
+                function['spec']['index'] = index
+                db.store_function(
+                    db_session,
+                    function,
+                    function_name,
+                    project,
+                    tag=function_tag,
+                    versioned=True,
+                )
 
     # Create several artifacts with several tags
     artifact = {

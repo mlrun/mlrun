@@ -1133,11 +1133,11 @@ class SQLDB(DBInterface):
         self._verify_empty_list_of_project_related_resources(
             name, functions, "functions"
         )
-        feature_sets = self.list_feature_sets(session, name).feature_sets
+        feature_sets = self._list_project_feature_set_names(session, name)
         self._verify_empty_list_of_project_related_resources(
             name, feature_sets, "feature_sets"
         )
-        feature_vectors = self.list_feature_vectors(session, name).feature_vectors
+        feature_vectors = self._list_project_feature_vector_names(session, name)
         self._verify_empty_list_of_project_related_resources(
             name, feature_vectors, "feature_vectors"
         )

@@ -515,11 +515,11 @@ class SQLDB(DBInterface):
         self._delete(session, Function, project=project, name=name)
 
     def _delete_functions(self, session: Session, project: str):
-        for function in self._list_project_functions(session, project):
-            self.delete_function(session, project, function.name)
+        for function_name in self._list_project_function_names(session, project):
+            self.delete_function(session, project, function_name)
 
-    def _list_project_functions(self, session: Session, project: str):
-        return self._query(session, Function, project=project).all()
+    def _list_project_function_names(self, session: Session, project: str) -> typing.List[str]:
+        return [name for name, in self._query(session, distinct(Function.name), project=project).all()]
 
     def _delete_resources_tags(self, session: Session, project: str):
         for tagged_class in _tagged:
@@ -1123,7 +1123,7 @@ class SQLDB(DBInterface):
         self._verify_empty_list_of_project_related_resources(
             name, schedules, "schedules"
         )
-        functions = self._list_project_functions(session, name)
+        functions = self._list_project_function_names(session, name)
         self._verify_empty_list_of_project_related_resources(
             name, functions, "functions"
         )

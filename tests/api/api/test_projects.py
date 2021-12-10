@@ -363,6 +363,56 @@ def test_delete_project_deletion_strategy_check(
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
 
 
+def test_delete_project_not_deleting_functions_multiple_times(
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+) -> None:
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.api.schemas.ProjectSpec(),
+    )
+
+    # create
+    response = client.post("/api/projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+    _assert_project_response(project, response)
+
+    # add function to project
+    function_name = "function-name"
+    function = {"metadata": {"name": function_name}}
+    response = client.post(
+        f"/api/func/{project.metadata.name}/{function_name}", json=function, params={"versioned": True}
+    )
+    assert response.status_code == HTTPStatus.OK.value
+
+    # add function again, with slight change in body so a new version will be created
+    function_name = "function-name"
+    function = {"metadata": {"name": function_name}, "spec": {"some-change": True}}
+    response = client.post(
+        f"/api/func/{project.metadata.name}/{function_name}", json=function, params={"versioned": True}
+    )
+    assert response.status_code == HTTPStatus.OK.value
+
+    # ensure we have 2 versions of the same function
+    response = client.get(f"/api/funcs", params={"project": project.metadata.name, "name": function_name})
+    assert response.status_code == HTTPStatus.OK.value
+    assert len(response.json()['funcs']) == 2
+
+    mlrun.api.utils.singletons.db.get_db().delete_function = unittest.mock.Mock()
+    # deletion strategy - check - should fail because there are resources
+    response = client.delete(
+        f"/api/projects/{project.metadata.name}",
+        headers={
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading
+        },
+    )
+    assert response.status_code == HTTPStatus.NO_CONTENT.value
+
+    assert mlrun.api.utils.singletons.db.get_db().delete_function.call_count == 1
+
+
 def test_delete_project_deletion_strategy_check_external_resource(
     db: Session,
     client: TestClient,

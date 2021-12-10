@@ -518,8 +518,15 @@ class SQLDB(DBInterface):
         for function_name in self._list_project_function_names(session, project):
             self.delete_function(session, project, function_name)
 
-    def _list_project_function_names(self, session: Session, project: str) -> typing.List[str]:
-        return [name for name, in self._query(session, distinct(Function.name), project=project).all()]
+    def _list_project_function_names(
+        self, session: Session, project: str
+    ) -> typing.List[str]:
+        return [
+            name
+            for name, in self._query(
+                session, distinct(Function.name), project=project
+            ).all()
+        ]
 
     def _delete_resources_tags(self, session: Session, project: str):
         for tagged_class in _tagged:
@@ -729,8 +736,15 @@ class SQLDB(DBInterface):
         for feature_set_name in self._list_project_feature_set_names(session, project):
             self.delete_feature_set(session, project, feature_set_name)
 
-    def _list_project_feature_set_names(self, session: Session, project: str) -> typing.List[str]:
-        return [name for name, in self._query(session, distinct(FeatureSet.name), project=project).all()]
+    def _list_project_feature_set_names(
+        self, session: Session, project: str
+    ) -> typing.List[str]:
+        return [
+            name
+            for name, in self._query(
+                session, distinct(FeatureSet.name), project=project
+            ).all()
+        ]
 
     def _delete_feature_vectors(self, session: Session, project: str):
         logger.debug("Removing feature-vectors from db", project=project)
@@ -739,8 +753,15 @@ class SQLDB(DBInterface):
         ):
             self.delete_feature_vector(session, project, feature_vector_name)
 
-    def _list_project_feature_vector_names(self, session: Session, project: str) -> typing.List[str]:
-        return [name for name, in self._query(session, distinct(FeatureVector.name), project=project).all()]
+    def _list_project_feature_vector_names(
+        self, session: Session, project: str
+    ) -> typing.List[str]:
+        return [
+            name
+            for name, in self._query(
+                session, distinct(FeatureVector.name), project=project
+            ).all()
+        ]
 
     def tag_artifacts(self, session, artifacts, project: str, name: str):
         for artifact in artifacts:

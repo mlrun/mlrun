@@ -376,32 +376,31 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     project_name = "project-name"
     _create_resources_of_all_kinds(db, k8s_secrets_mock, project_name)
 
-    response = client.get(
-        "/api/funcs",
-        params={
-            "project": project_name,
-        },
-    )
+    response = client.get("/api/funcs", params={"project": project_name})
     assert response.status_code == HTTPStatus.OK.value
-    distinct_function_names = {function['metadata']['name'] for function in response.json()['funcs']}
+    distinct_function_names = {
+        function["metadata"]["name"] for function in response.json()["funcs"]
+    }
     # ensure there are indeed several versions of the same function name
-    assert len(distinct_function_names) < len(response.json()['funcs'])
+    assert len(distinct_function_names) < len(response.json()["funcs"])
 
-    response = client.get(
-        f"/api/projects/{project_name}/feature-sets",
-    )
+    response = client.get(f"/api/projects/{project_name}/feature-sets",)
     assert response.status_code == HTTPStatus.OK.value
-    distinct_feature_set_names = {feature_set['metadata']['name'] for feature_set in response.json()['feature_sets']}
+    distinct_feature_set_names = {
+        feature_set["metadata"]["name"]
+        for feature_set in response.json()["feature_sets"]
+    }
     # ensure there are indeed several versions of the same feature_set name
-    assert len(distinct_feature_set_names) < len(response.json()['feature_sets'])
+    assert len(distinct_feature_set_names) < len(response.json()["feature_sets"])
 
-    response = client.get(
-        f"/api/projects/{project_name}/feature-vectors",
-    )
+    response = client.get(f"/api/projects/{project_name}/feature-vectors",)
     assert response.status_code == HTTPStatus.OK.value
-    distinct_feature_vector_names = {feature_vector['metadata']['name'] for feature_vector in response.json()['feature_vectors']}
+    distinct_feature_vector_names = {
+        feature_vector["metadata"]["name"]
+        for feature_vector in response.json()["feature_vectors"]
+    }
     # ensure there are indeed several versions of the same feature_vector name
-    assert len(distinct_feature_vector_names) < len(response.json()['feature_vectors'])
+    assert len(distinct_feature_vector_names) < len(response.json()["feature_vectors"])
 
     mlrun.api.utils.singletons.db.get_db().delete_function = unittest.mock.Mock()
     mlrun.api.utils.singletons.db.get_db().delete_feature_set = unittest.mock.Mock()
@@ -415,9 +414,15 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
-    assert mlrun.api.utils.singletons.db.get_db().delete_function.call_count == len(distinct_function_names)
-    assert mlrun.api.utils.singletons.db.get_db().delete_feature_set.call_count == len(distinct_feature_set_names)
-    assert mlrun.api.utils.singletons.db.get_db().delete_feature_vector.call_count == len(distinct_feature_vector_names)
+    assert mlrun.api.utils.singletons.db.get_db().delete_function.call_count == len(
+        distinct_function_names
+    )
+    assert mlrun.api.utils.singletons.db.get_db().delete_feature_set.call_count == len(
+        distinct_feature_set_names
+    )
+    assert mlrun.api.utils.singletons.db.get_db().delete_feature_vector.call_count == len(
+        distinct_feature_vector_names
+    )
 
 
 def test_delete_project_deletion_strategy_check_external_resource(
@@ -688,7 +693,7 @@ def _create_resources_of_all_kinds(
         for function_tag in function_tags:
             # change spec a bit so different (un-tagged) versions will be created
             for index in range(3):
-                function['spec']['index'] = index
+                function["spec"]["index"] = index
                 db.store_function(
                     db_session,
                     function,
@@ -806,7 +811,9 @@ def _create_resources_of_all_kinds(
                 feature_vector.metadata.name = feature_vector_name
                 feature_vector.metadata.tag = feature_vector_tag
                 feature_vector.spec.index = index
-                db.store_feature_vector(db_session, project, feature_vector_name, feature_vector)
+                db.store_feature_vector(
+                    db_session, project, feature_vector_name, feature_vector
+                )
 
     secrets = {f"secret_{i}": "a secret" for i in range(5)}
     k8s_secrets_mock.store_project_secrets(project, secrets)

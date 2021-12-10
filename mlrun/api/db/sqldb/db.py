@@ -726,15 +726,21 @@ class SQLDB(DBInterface):
 
     def _delete_feature_sets(self, session: Session, project: str):
         logger.debug("Removing feature-sets from db", project=project)
-        for feature_set in self.list_feature_sets(session, project).feature_sets:
-            self.delete_feature_set(session, project, feature_set.metadata.name)
+        for feature_set_name in self._list_project_feature_set_names(session, project):
+            self.delete_feature_set(session, project, feature_set_name)
+
+    def _list_project_feature_set_names(self, session: Session, project: str) -> typing.List[str]:
+        return [name for name, in self._query(session, distinct(FeatureSet.name), project=project).all()]
 
     def _delete_feature_vectors(self, session: Session, project: str):
         logger.debug("Removing feature-vectors from db", project=project)
-        for feature_vector in self.list_feature_vectors(
+        for feature_vector_name in self._list_project_feature_vector_names(
             session, project
-        ).feature_vectors:
-            self.delete_feature_vector(session, project, feature_vector.metadata.name)
+        ):
+            self.delete_feature_vector(session, project, feature_vector_name)
+
+    def _list_project_feature_vector_names(self, session: Session, project: str) -> typing.List[str]:
+        return [name for name, in self._query(session, distinct(FeatureVector.name), project=project).all()]
 
     def tag_artifacts(self, session, artifacts, project: str, name: str):
         for artifact in artifacts:

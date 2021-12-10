@@ -147,9 +147,9 @@ class PyTorchModelServer(V2ModelServer):
         # Get the inputs:
         inputs = request["inputs"]
 
-        # Parse the inputs:
+        # Convert input from numpy arrays to torch tensors if needed:
         if isinstance(inputs[0], np.ndarray):
-            inputs = torch.from_numpy(np.stack(inputs))
+            inputs = [torch.from_numpy(array_input) for array_input in inputs]
 
         # Predict:
         predictions = self._pytorch_interface.predict(

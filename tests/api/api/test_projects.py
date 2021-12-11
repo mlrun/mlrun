@@ -384,11 +384,14 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     # ensure there are indeed several versions of the same function name
     assert len(distinct_function_names) < len(response.json()["funcs"])
 
-    response = client.get("/api/artifacts", params={"project": project_name, "tag": "*"})
+    response = client.get(
+        "/api/artifacts", params={"project": project_name, "tag": "*"}
+    )
     assert response.status_code == HTTPStatus.OK.value
     # ensure there are indeed several versions of the same artifact key
     distinct_artifact_keys = {
-        (artifact["db_key"], artifact["iter"]) for artifact in response.json()["artifacts"]
+        (artifact["db_key"], artifact["iter"])
+        for artifact in response.json()["artifacts"]
     }
     assert len(distinct_artifact_keys) < len(response.json()["artifacts"])
 
@@ -728,9 +731,9 @@ def _create_resources_of_all_kinds(
         for artifact_uid in artifact_uids:
             for artifact_tag in artifact_tags:
                 for artifact_iter in range(3):
-                    artifact['iter'] = artifact_iter
-                    artifact['tag'] = artifact_tag
-                    artifact['uid'] = artifact_uid
+                    artifact["iter"] = artifact_iter
+                    artifact["tag"] = artifact_tag
+                    artifact["uid"] = artifact_uid
                     db.store_artifact(
                         db_session,
                         artifact_key,

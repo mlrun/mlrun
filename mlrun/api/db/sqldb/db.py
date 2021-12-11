@@ -416,7 +416,12 @@ class SQLDB(DBInterface):
         ids = "*"
         if tag and tag != "*":
             ids = self._resolve_tag(session, Artifact, project, tag)
-        distinct_keys = {artifact.key for artifact in self._find_artifacts(session, project, ids, labels, name=name)}
+        distinct_keys = {
+            artifact.key
+            for artifact in self._find_artifacts(
+                session, project, ids, labels, name=name
+            )
+        }
         for key in distinct_keys:
             self.del_artifact(session, key, "", project)
 

@@ -67,9 +67,9 @@ def validate_nuclio_version_compatibility(*min_versions):
     parsed_min_versions.sort(reverse=True)
     for parsed_min_version in parsed_min_versions:
         if (
-                parsed_current_version.major == parsed_min_version.major
-                and parsed_current_version.minor == parsed_min_version.minor
-                and parsed_current_version.patch < parsed_min_version.patch
+            parsed_current_version.major == parsed_min_version.major
+            and parsed_current_version.minor == parsed_min_version.minor
+            and parsed_current_version.patch < parsed_min_version.patch
         ):
             return False
 
@@ -97,38 +97,38 @@ def min_nuclio_versions(*versions):
 
 class NuclioSpec(KubeResourceSpec):
     def __init__(
-            self,
-            command=None,
-            args=None,
-            image=None,
-            mode=None,
-            entry_points=None,
-            description=None,
-            replicas=None,
-            min_replicas=None,
-            max_replicas=None,
-            volumes=None,
-            volume_mounts=None,
-            env=None,
-            resources=None,
-            config=None,
-            base_spec=None,
-            no_cache=None,
-            source=None,
-            image_pull_policy=None,
-            function_kind=None,
-            build=None,
-            service_account=None,
-            readiness_timeout=None,
-            default_handler=None,
-            node_name=None,
-            node_selector=None,
-            affinity=None,
-            disable_auto_mount=False,
-            priority_class_name=None,
-            pythonpath=None,
-            workdir=None,
-            image_pull_secret=None,
+        self,
+        command=None,
+        args=None,
+        image=None,
+        mode=None,
+        entry_points=None,
+        description=None,
+        replicas=None,
+        min_replicas=None,
+        max_replicas=None,
+        volumes=None,
+        volume_mounts=None,
+        env=None,
+        resources=None,
+        config=None,
+        base_spec=None,
+        no_cache=None,
+        source=None,
+        image_pull_policy=None,
+        function_kind=None,
+        build=None,
+        service_account=None,
+        readiness_timeout=None,
+        default_handler=None,
+        node_name=None,
+        node_selector=None,
+        affinity=None,
+        disable_auto_mount=False,
+        priority_class_name=None,
+        pythonpath=None,
+        workdir=None,
+        image_pull_secret=None,
     ):
 
         super().__init__(
@@ -199,13 +199,13 @@ class NuclioSpec(KubeResourceSpec):
 
 class NuclioStatus(FunctionStatus):
     def __init__(
-            self,
-            state=None,
-            nuclio_name=None,
-            address=None,
-            internal_invocation_urls=None,
-            external_invocation_urls=None,
-            build_pod=None,
+        self,
+        state=None,
+        nuclio_name=None,
+        address=None,
+        internal_invocation_urls=None,
+        external_invocation_urls=None,
+        build_pod=None,
     ):
         super().__init__(state, build_pod)
 
@@ -255,7 +255,7 @@ class RemoteRuntime(KubeResource):
         return self
 
     def with_source_archive(
-            self, source, handler="", runtime="", secrets=None,
+        self, source, handler="", runtime="", secrets=None,
     ):
         """Load nuclio function from remote source
         :param source: a full path to the nuclio function source (code entry) to load the function from
@@ -369,24 +369,24 @@ class RemoteRuntime(KubeResource):
         return self
 
     def with_http(
-            self,
-            workers=8,
-            port=0,
-            host=None,
-            paths=None,
-            canary=None,
-            secret=None,
-            worker_timeout: int = None,
-            gateway_timeout: int = None,
-            annotations=None,
-            extra_attributes=None,
+        self,
+        workers=8,
+        port=0,
+        host=None,
+        paths=None,
+        canary=None,
+        secret=None,
+        worker_timeout: int = None,
+        gateway_timeout: int = None,
+        annotations=None,
+        extra_attributes=None,
     ):
         annotations = annotations or {}
         extra_attributes = extra_attributes or {}
         if worker_timeout:
             extra_attributes["workerAvailabilityTimeoutMilliseconds"] = (
-                                                                            worker_timeout
-                                                                        ) * 1000
+                worker_timeout
+            ) * 1000
             gateway_timeout = gateway_timeout or (worker_timeout + 60)
         if gateway_timeout:
             if worker_timeout and worker_timeout >= gateway_timeout:
@@ -429,15 +429,15 @@ class RemoteRuntime(KubeResource):
         self.spec.base_spec = config
 
     def serving(
-            self,
-            models: dict = None,
-            model_class="",
-            protocol="",
-            image="",
-            endpoint="",
-            explainer=False,
-            workers=8,
-            canary=None,
+        self,
+        models: dict = None,
+        model_class="",
+        protocol="",
+        image="",
+        endpoint="",
+        explainer=False,
+        workers=8,
+        canary=None,
     ):
 
         if models:
@@ -458,14 +458,14 @@ class RemoteRuntime(KubeResource):
         return self
 
     def add_v3io_stream_trigger(
-            self,
-            stream_path,
-            name="stream",
-            group="serving",
-            seek_to="earliest",
-            shards=1,
-            extra_attributes=None,
-            **kwargs,
+        self,
+        stream_path,
+        name="stream",
+        group="serving",
+        seek_to="earliest",
+        shards=1,
+        extra_attributes=None,
+        **kwargs,
     ):
         """add v3io stream trigger to the function"""
         endpoint = None
@@ -498,12 +498,12 @@ class RemoteRuntime(KubeResource):
         )
 
     def deploy(
-            self,
-            dashboard="",
-            project="",
-            tag="",
-            verbose=False,
-            auth_info: AuthInfo = None,
+        self,
+        dashboard="",
+        project="",
+        tag="",
+        verbose=False,
+        auth_info: AuthInfo = None,
     ):
         # todo: verify that the function name is normalized
 
@@ -594,10 +594,10 @@ class RemoteRuntime(KubeResource):
 
     @min_nuclio_versions("1.5.20", "1.6.10")
     def with_node_selection(
-            self,
-            node_name: typing.Optional[str] = None,
-            node_selector: typing.Optional[typing.Dict[str, str]] = None,
-            affinity: typing.Optional[client.V1Affinity] = None,
+        self,
+        node_name: typing.Optional[str] = None,
+        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        affinity: typing.Optional[client.V1Affinity] = None,
     ):
         super().with_node_selection(node_name, node_selector, affinity)
 
@@ -606,13 +606,13 @@ class RemoteRuntime(KubeResource):
         super().with_priority_class(name)
 
     def _get_state(
-            self,
-            dashboard="",
-            last_log_timestamp=0,
-            verbose=False,
-            raise_on_exception=True,
-            resolve_address=True,
-            auth_info: AuthInfo = None,
+        self,
+        dashboard="",
+        last_log_timestamp=0,
+        verbose=False,
+        raise_on_exception=True,
+        resolve_address=True,
+        auth_info: AuthInfo = None,
     ) -> typing.Tuple[str, str, typing.Optional[float]]:
         if dashboard:
             (
@@ -738,14 +738,14 @@ class RemoteRuntime(KubeResource):
         return env_dict, external_source_env_dict
 
     def deploy_step(
-            self,
-            dashboard="",
-            project="",
-            models=None,
-            env=None,
-            tag=None,
-            verbose=None,
-            use_function_from_db=True,
+        self,
+        dashboard="",
+        project="",
+        models=None,
+        env=None,
+        tag=None,
+        verbose=None,
+        use_function_from_db=True,
     ):
         models = {} if models is None else models
         function_name = self.metadata.name or "function"
@@ -772,14 +772,14 @@ class RemoteRuntime(KubeResource):
         )
 
     def invoke(
-            self,
-            path,
-            body=None,
-            method=None,
-            headers=None,
-            dashboard="",
-            force_external_address=False,
-            auth_info: AuthInfo = None,
+        self,
+        path,
+        body=None,
+        method=None,
+        headers=None,
+        dashboard="",
+        force_external_address=False,
+        auth_info: AuthInfo = None,
     ):
         if not method:
             method = "POST" if body else "GET"
@@ -901,7 +901,7 @@ class RemoteRuntime(KubeResource):
                 self.store_run(task)
                 task.spec.secret_sources = secrets or []
                 resp = submit(session, url, task, semaphore, headers=headers)
-                runs.append(asyncio.ensure_future(resp, ))
+                runs.append(asyncio.ensure_future(resp,))
 
             for result in asyncio.as_completed(runs):
                 status, resp, logs, task = await result
@@ -955,11 +955,11 @@ class RemoteRuntime(KubeResource):
         # try to infer the invocation url from the internal and if not exists, use external.
         # $$$$ we do not want to use the external invocation url (e.g.: ingress, nodePort, etc)
         if (
-                not force_external_address
-                and self.status.internal_invocation_urls
-                and get_k8s_helper(
-            silent=True, log=False
-        ).is_running_inside_kubernetes_cluster()
+            not force_external_address
+            and self.status.internal_invocation_urls
+            and get_k8s_helper(
+                silent=True, log=False
+            ).is_running_inside_kubernetes_cluster()
         ):
             return f"http://{self.status.internal_invocation_urls[0]}/{path}"
 
@@ -1013,7 +1013,7 @@ def get_fullname(name, project, tag):
 
 
 def deploy_nuclio_function(
-        function: RemoteRuntime, dashboard="", watch=False, auth_info: AuthInfo = None
+    function: RemoteRuntime, dashboard="", watch=False, auth_info: AuthInfo = None
 ):
     dashboard = dashboard or mlconf.nuclio_dashboard_url
     function_name, project_name, function_config = compile_function_config(function)
@@ -1046,7 +1046,7 @@ def resolve_function_ingresses(function_spec):
 
     ingresses = []
     for _, ingress_config in (
-            http_trigger.get("attributes", {}).get("ingresses", {}).items()
+        http_trigger.get("attributes", {}).get("ingresses", {}).items()
     ):
         ingresses.append(ingress_config)
     return ingresses
@@ -1102,9 +1102,9 @@ def compile_function_config(function: RemoteRuntime):
             spec.set_config("spec.affinity", function.spec._get_sanitized_affinity())
     # don't send default or any priority class name if nuclio is not compatible
     if (
-            function.spec.priority_class_name
-            and validate_nuclio_version_compatibility("1.6.18")
-            and len(mlconf.get_valid_function_priority_class_names())
+        function.spec.priority_class_name
+        and validate_nuclio_version_compatibility("1.6.18")
+        and len(mlconf.get_valid_function_priority_class_names())
     ):
         spec.set_config("spec.priorityClassName", function.spec.priority_class_name)
 
@@ -1131,7 +1131,11 @@ def compile_function_config(function: RemoteRuntime):
         )
         update_in(config, "metadata.name", function.metadata.name)
         update_in(config, "spec.volumes", function.spec.generate_nuclio_volumes())
-        base_image = get_in(config, "spec.build.baseImage") or function.spec.image or function.spec.build.base_image
+        base_image = (
+            get_in(config, "spec.build.baseImage")
+            or function.spec.image
+            or function.spec.build.base_image
+        )
         if base_image:
             update_in(config, "spec.build.baseImage", enrich_image_url(base_image))
 
@@ -1156,8 +1160,7 @@ def compile_function_config(function: RemoteRuntime):
         base_image = function.spec.image or function.spec.build.base_image
         if base_image:
             update_in(
-                config, "spec.build.baseImage",
-                enrich_image_url(base_image),
+                config, "spec.build.baseImage", enrich_image_url(base_image),
             )
 
         name = get_fullname(name, project, tag)
@@ -1215,14 +1218,14 @@ def enrich_function_with_ingress(config, mode, service_type):
 
 
 def get_nuclio_deploy_status(
-        name,
-        project,
-        tag,
-        dashboard="",
-        last_log_timestamp=0,
-        verbose=False,
-        resolve_address=True,
-        auth_info: AuthInfo = None,
+    name,
+    project,
+    tag,
+    dashboard="",
+    last_log_timestamp=0,
+    verbose=False,
+    resolve_address=True,
+    auth_info: AuthInfo = None,
 ):
     api_address = find_dashboard_url(dashboard or mlconf.nuclio_dashboard_url)
     name = get_fullname(name, project, tag)

@@ -116,14 +116,14 @@ class TestNuclioRuntime(TestRuntimeBase):
         return runtime
 
     def _assert_deploy_called_basic_config(
-            self,
-            expected_class="remote",
-            call_count=1,
-            expected_params=[],
-            expected_labels=None,
-            expected_env_from_secrets=None,
-            expected_service_account=None,
-            expected_build_base_image=None,
+        self,
+        expected_class="remote",
+        call_count=1,
+        expected_params=[],
+        expected_labels=None,
+        expected_env_from_secrets=None,
+        expected_service_account=None,
+        expected_build_base_image=None,
     ):
         if expected_labels is None:
             expected_labels = {}
@@ -166,7 +166,10 @@ class TestNuclioRuntime(TestRuntimeBase):
             assert spec_source_code.startswith(original_source_code)
 
             if self.image_name or expected_build_base_image:
-                assert build_info["baseImage"] == self.image_name or expected_build_base_image
+                assert (
+                    build_info["baseImage"] == self.image_name
+                    or expected_build_base_image
+                )
 
             if expected_env_from_secrets:
                 env_vars = deploy_config["spec"]["env"]
@@ -174,7 +177,7 @@ class TestNuclioRuntime(TestRuntimeBase):
 
             if expected_service_account:
                 assert (
-                        deploy_config["spec"]["serviceAccount"] == expected_service_account
+                    deploy_config["spec"]["serviceAccount"] == expected_service_account
                 )
 
     def _assert_triggers(self, http_trigger=None, v3io_trigger=None):
@@ -184,18 +187,18 @@ class TestNuclioRuntime(TestRuntimeBase):
         if http_trigger:
             expected_struct = self._get_expected_struct_for_http_trigger(http_trigger)
             assert (
-                    deepdiff.DeepDiff(
-                        triggers_config["http"],
-                        expected_struct,
-                        ignore_order=True,
-                        # TODO - (in Nuclio) There is a bug with canary configuration:
-                        #        the nginx.ingress.kubernetes.io/canary-weight annotation gets assigned the host name
-                        #        rather than the actual weight. Remove this once bug is fixed.
-                        exclude_paths=[
-                            "root['annotations']['nginx.ingress.kubernetes.io/canary-weight']"
-                        ],
-                    )
-                    == {}
+                deepdiff.DeepDiff(
+                    triggers_config["http"],
+                    expected_struct,
+                    ignore_order=True,
+                    # TODO - (in Nuclio) There is a bug with canary configuration:
+                    #        the nginx.ingress.kubernetes.io/canary-weight annotation gets assigned the host name
+                    #        rather than the actual weight. Remove this once bug is fixed.
+                    exclude_paths=[
+                        "root['annotations']['nginx.ingress.kubernetes.io/canary-weight']"
+                    ],
+                )
+                == {}
             )
 
         if v3io_trigger:
@@ -243,18 +246,18 @@ class TestNuclioRuntime(TestRuntimeBase):
             "volumeMount": {"mountPath": local_path, "name": "v3io", "subPath": ""},
         }
         assert (
-                deepdiff.DeepDiff(
-                    deploy_spec["volumes"], [expected_volume], ignore_order=True
-                )
-                == {}
+            deepdiff.DeepDiff(
+                deploy_spec["volumes"], [expected_volume], ignore_order=True
+            )
+            == {}
         )
 
     def _assert_node_selections(
-            self,
-            kube_resource_spec: KubeResourceSpec,
-            expected_node_name=None,
-            expected_node_selector=None,
-            expected_affinity=None,
+        self,
+        kube_resource_spec: KubeResourceSpec,
+        expected_node_name=None,
+        expected_node_selector=None,
+        expected_affinity=None,
     ):
         args, _ = nuclio.deploy.deploy_config.call_args
         deploy_spec = args[0]["spec"]
@@ -264,24 +267,24 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         if expected_node_selector:
             assert (
-                    deepdiff.DeepDiff(
-                        deploy_spec["nodeSelector"],
-                        expected_node_selector,
-                        ignore_order=True,
-                    )
-                    == {}
+                deepdiff.DeepDiff(
+                    deploy_spec["nodeSelector"],
+                    expected_node_selector,
+                    ignore_order=True,
+                )
+                == {}
             )
         if expected_affinity:
             # deploy_spec returns affinity in CamelCase, V1Affinity is in snake_case
             assert (
-                    deepdiff.DeepDiff(
-                        kube_resource_spec._transform_affinity_to_k8s_class_instance(
-                            deploy_spec["affinity"]
-                        ),
-                        expected_affinity,
-                        ignore_order=True,
-                    )
-                    == {}
+                deepdiff.DeepDiff(
+                    kube_resource_spec._transform_affinity_to_k8s_class_instance(
+                        deploy_spec["affinity"]
+                    ),
+                    expected_affinity,
+                    ignore_order=True,
+                )
+                == {}
             )
 
     def test_enrich_with_ingress_no_overriding(self, db: Session, client: TestClient):
@@ -378,7 +381,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             assert expected_env_var in config["spec"]["env"]
 
     def test_deploy_with_project_secrets(
-            self, db: Session, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
     ):
         secret_keys = ["secret1", "secret2", "secret3"]
         secrets = {key: "some-secret-value" for key in secret_keys}
@@ -397,7 +400,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
 
     def test_deploy_with_service_accounts(
-            self, db: Session, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
     ):
         k8s_secrets_mock.set_service_account_keys(self.project, "sa1", ["sa1", "sa2"])
 
@@ -426,7 +429,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._serialize_and_deploy_nuclio_function(function)
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
 
-    def test_deploy_build_base_image(self, db: Session, k8s_secrets_mock: K8sSecretsMock):
+    def test_deploy_build_base_image(
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+    ):
         expected_build_base_image = "mlrun/base_mlrun:latest"
         self.image_name = None
 
@@ -434,10 +439,14 @@ class TestNuclioRuntime(TestRuntimeBase):
         function.spec.build.base_image = expected_build_base_image
 
         self._serialize_and_deploy_nuclio_function(function)
-        self._assert_deploy_called_basic_config(expected_class=self.class_name,
-                                                expected_build_base_image=expected_build_base_image)
+        self._assert_deploy_called_basic_config(
+            expected_class=self.class_name,
+            expected_build_base_image=expected_build_base_image,
+        )
 
-    def test_deploy_image_name_and_build_base_image(self, db: Session, k8s_secrets_mock: K8sSecretsMock):
+    def test_deploy_image_name_and_build_base_image(
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+    ):
         """When spec.image and also spec.build.base_image are both defined the spec.image should be applied
          to spec.baseImage in nuclio."""
 
@@ -447,7 +456,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._serialize_and_deploy_nuclio_function(function)
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
 
-    def test_deploy_without_image_and_build_base_image(self, db: Session, k8s_secrets_mock: K8sSecretsMock):
+    def test_deploy_without_image_and_build_base_image(
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+    ):
         self.image_name = None
 
         function = self._generate_runtime(self.runtime_kind)
@@ -666,6 +677,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             ["2.6.11"],
             ["1.5.9", "1.6.11"],
         ]:
+
             @min_nuclio_versions(*case)
             def fail():
                 pytest.fail("Should not enter this function")
@@ -682,6 +694,7 @@ class TestNuclioRuntime(TestRuntimeBase):
                 ["1.5.9", "1.6.9"],
                 ["1.0.0", "0.9.81", "1.4.1"],
             ]:
+
                 @min_nuclio_versions(*case)
                 def success():
                     pass

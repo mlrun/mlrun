@@ -257,6 +257,7 @@ class RemoteRuntime(KubeResource):
         """
         if hasattr(spec, "to_dict"):
             spec = spec.to_dict()
+        spec["name"] = name
         self.spec.config[f"spec.triggers.{name}"] = spec
         return self
 

@@ -1131,7 +1131,11 @@ def compile_function_config(function: RemoteRuntime):
         )
         update_in(config, "metadata.name", function.metadata.name)
         update_in(config, "spec.volumes", function.spec.generate_nuclio_volumes())
-        base_image = get_in(config, "spec.build.baseImage") or function.spec.image
+        base_image = (
+            get_in(config, "spec.build.baseImage")
+            or function.spec.image
+            or function.spec.build.base_image
+        )
         if base_image:
             update_in(config, "spec.build.baseImage", enrich_image_url(base_image))
 
@@ -1153,10 +1157,12 @@ def compile_function_config(function: RemoteRuntime):
         )
 
         update_in(config, "spec.volumes", function.spec.generate_nuclio_volumes())
-        if function.spec.image:
+        base_image = function.spec.image or function.spec.build.base_image
+        if base_image:
             update_in(
-                config, "spec.build.baseImage", enrich_image_url(function.spec.image)
+                config, "spec.build.baseImage", enrich_image_url(base_image),
             )
+
         name = get_fullname(name, project, tag)
         function.status.nuclio_name = name
 
@@ -1166,7 +1172,6 @@ def compile_function_config(function: RemoteRuntime):
 
 
 def enrich_function_with_ingress(config, mode, service_type):
-
     # do not enrich with an ingress
     if mode == NuclioIngressAddTemplatedIngressModes.never:
         return
@@ -1181,7 +1186,6 @@ def enrich_function_with_ingress(config, mode, service_type):
     # we would enrich it with an ingress
     http_trigger = resolve_function_http_trigger(config["spec"])
     if not http_trigger:
-
         # function has an HTTP trigger without an ingress
         # TODO: read from nuclio-api frontend-spec
         http_trigger = {

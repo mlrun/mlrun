@@ -1153,10 +1153,11 @@ def compile_function_config(function: RemoteRuntime):
         )
 
         update_in(config, "spec.volumes", function.spec.generate_nuclio_volumes())
-        if function.spec.image or function.spec.build.base_image:
+        base_image = function.spec.image or function.spec.build.base_image
+        if base_image:
             update_in(
                 config, "spec.build.baseImage",
-                enrich_image_url(function.spec.image) or enrich_image_url(function.spec.build.base_image)
+                enrich_image_url(base_image),
             )
 
         name = get_fullname(name, project, tag)

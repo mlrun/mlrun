@@ -447,6 +447,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             "paths": ["/path/1", "/path/2"],
             "secret": "my little secret",
             "canary": 50,
+            "name": "http",
         }
 
         v3io_trigger = {

@@ -63,6 +63,7 @@ class TestNuclioRuntime(TestRuntimeBase):
     def _get_expected_struct_for_http_trigger(parameters):
         expected_struct = {
             "kind": "http",
+            "name": "http",
             "maxWorkers": parameters["workers"],
             "attributes": {
                 "ingresses": {
@@ -447,7 +448,6 @@ class TestNuclioRuntime(TestRuntimeBase):
             "paths": ["/path/1", "/path/2"],
             "secret": "my little secret",
             "canary": 50,
-            "name": "http",
         }
 
         v3io_trigger = {

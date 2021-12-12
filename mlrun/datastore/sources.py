@@ -78,8 +78,8 @@ class BaseSourceDriver(DataSource):
                 )
                 self.end_time = datetime.max if self.end_time is None else self.end_time
                 df = df.filter(
-                    (df[self.time_field] >= self.start_time)
-                    & (df[self.time_field] < self.end_time)
+                    (df[self.time_field] > self.start_time)
+                    & (df[self.time_field] <= self.end_time)
                 )
 
             if named_view:
@@ -178,9 +178,9 @@ class ParquetSource(BaseSourceDriver):
        :parameter key_field: the column to be used as the key for events. Can be a list of keys.
        :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
        :parameter start_filter: datetime. If not None, the results will be filtered by partitions and
-            'filter_column' >= start_filter. Default is None
+            'filter_column' > start_filter. Default is None
        :parameter end_filter: datetime. If not None, the results will be filtered by partitions
-            'filter_column' < end_filter. Default is None
+            'filter_column' <= end_filter. Default is None
        :parameter filter_column: Optional. if not None, the results will be filtered by this column and
             start_filter & end_filter
        :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will

@@ -705,6 +705,9 @@ def _ingest_with_spark(
 
         if isinstance(source, BaseSourceDriver) and source.schedule:
             max_time = df.agg({timestamp_key: "max"}).collect()[0][0]
+            if not max_time:
+                # if max_time is None(no data), next scheduled run should be with same start_time
+                max_time = source.start_time
             for target in featureset.status.targets:
                 featureset.status.update_last_written_for_target(target.path, max_time)
 

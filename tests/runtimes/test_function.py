@@ -98,7 +98,10 @@ def test_http_trigger():
     assert trigger["attributes"]["ingresses"] == {"0": {"host": "x", "paths": ["/"]}}
     assert trigger["attributes"]["yy"] == "123"
     assert trigger["attributes"]["workerAvailabilityTimeoutMilliseconds"] == 5000
-    assert trigger["annotations"]["nginx.org/proxy-connect-timeout"] == "65s"
+    assert (
+        trigger["annotations"]["nginx.ingress.kubernetes.io/proxy-connect-timeout"]
+        == "65"
+    )
 
 
 def test_v3io_stream_trigger():

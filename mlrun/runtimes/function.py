@@ -451,8 +451,9 @@ class RemoteRuntime(KubeResource):
 
     def add_model(self, name, model_path, **kw):
         warnings.warn(
-            'This method is deprecated. Use the "serving" runtime instead',
-            PendingDeprecationWarning,
+            'This method is deprecated and will be removed in 0.10.0. Use the "serving" runtime instead',
+            # TODO: remove in 0.10.0
+            DeprecationWarning,
         )
         if model_path.startswith("v3io://"):
             model = "/User/" + "/".join(model_path.split("/")[5:])
@@ -482,8 +483,9 @@ class RemoteRuntime(KubeResource):
         canary=None,
     ):
         warnings.warn(
-            'This method is deprecated. Use the "serving" runtime instead',
-            PendingDeprecationWarning,
+            'This method is deprecated and will be removed in 0.10.0. Use the "serving" runtime instead',
+            # TODO: remove in 0.10.0
+            DeprecationWarning,
         )
 
         if models:

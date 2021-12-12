@@ -28,7 +28,7 @@ def train(
     validation_iterations: int = None,
     callbacks_list: List[Callback] = None,
     use_cuda: bool = True,
-    use_horovod: bool = False,
+    use_horovod: bool = None,
     auto_log: bool = True,
     model_name: str = None,
     modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
@@ -38,7 +38,7 @@ def train(
     mlrun_callback_kwargs: Dict[str, Any] = None,
     tensorboard_callback_kwargs: Dict[str, Any] = None,
     context: mlrun.MLClientCtx = None,
-):
+) -> PyTorchModelHandler:
     """
     Use MLRun's PyTorch interface to train the model with the given parameters. For more information and further options
     regarding the auto logging, see 'PyTorchMLRunInterface' documentation. Notice for auto-logging: In order to log the
@@ -117,10 +117,28 @@ def train(
                                         'context' and 'auto_log' parameters are already given here.
     :param context:                     The context to use for the logs.
 
-    :return: The initialized trainer.
+    :return: A model handler with the provided model and parameters.
 
-    :raise ValueError: If 'auto_log' is set to True and one of the custom objects parameter given is None.
+    :raise ValueError: If 'auto_log' is set to True and one all of the custom objects or modules parameters given is
+                       None.
     """
+    # Get the context if not given:
+    context = (
+        context
+        if context is not None
+        else mlrun.get_or_create_ctx(PyTorchMLRunInterface.DEFAULT_CONTEXT_NAME)
+    )
+
+    # Create the model handler:
+    handler = PyTorchModelHandler(
+        model_name=model_name,
+        model=model,
+        modules_map=modules_map,
+        custom_objects_map=custom_objects_map,
+        custom_objects_directory=custom_objects_directory,
+        context=context,
+    )
+
     # Initialize the interface:
     interface = PyTorchMLRunInterface(model=model, context=context)
 
@@ -128,15 +146,10 @@ def train(
     if auto_log:
         # Parse the custom objects and the kwargs:
         mlrun_callback_kwargs, tensorboard_callback_kwargs = _parse_callbacks_kwargs(
-            model_name=model_name,
-            model_path=None,
-            modules_map=modules_map,
-            custom_objects_map=custom_objects_map,
-            custom_objects_directory=custom_objects_directory,
+            handler=handler,
             tensorboard_directory=tensorboard_directory,
             mlrun_callback_kwargs=mlrun_callback_kwargs,
             tensorboard_callback_kwargs=tensorboard_callback_kwargs,
-            is_training=True,
         )
         # Add the logging callbacks with the provided parameters:
         interface.add_auto_logging_callbacks(
@@ -161,11 +174,13 @@ def train(
         use_horovod=use_horovod,
     )
 
+    return handler
+
 
 def evaluate(
-    model: Module,
     model_path: str,
     dataset: DataLoader,
+    model: Module = None,
     loss_function: Module = None,
     metric_functions: List[MetricFunctionType] = None,
     iterations: int = None,
@@ -179,16 +194,17 @@ def evaluate(
     custom_objects_directory: str = None,
     mlrun_callback_kwargs: Dict[str, Any] = None,
     context: mlrun.MLClientCtx = None,
-) -> List[MetricValueType]:
+) -> Tuple[PyTorchModelHandler, List[MetricValueType]]:
     """
     Use MLRun's PyTorch interface to evaluate the model with the given parameters. For more information and further
     options regarding the auto logging, see 'PyTorchMLRunInterface' documentation. Notice for auto-logging: In order to
     log the model to MLRun, its class (torch.Module) must be in the custom objects map or the modules map.
 
-    :param model:                    The model to evaluate.
     :param model_path:               The model's store object path. Mandatory for evaluation (to know which model to
                                      update).
     :param dataset:                  A data loader for the validation process.
+    :param model:                    The model to evaluate. IF None, the model will be loaded from the given store model
+                                     path.
     :param loss_function:            The loss function to use during training.
     :param metric_functions:         The metrics to use on training and validation.
     :param iterations:               Amount of iterations (batches) to perform on the dataset. If 'None' the entire
@@ -235,24 +251,43 @@ def evaluate(
                                      'custom_objects' and 'auto_log' parameters are already given here.
     :param context:                  The context to use for the logs.
 
-    :return: The initialized evaluator.
+    :return: A tuple of:
+             [0] = Initialized model handler with the evaluated model.
+             [1] = The evaluation metrics results list.
     """
+    # Get the context if not given:
+    context = (
+        context
+        if context is not None
+        else mlrun.get_or_create_ctx(PyTorchMLRunInterface.DEFAULT_CONTEXT_NAME)
+    )
+
+    # Create the model handler:
+    handler = PyTorchModelHandler(
+        model_path=model_path,
+        model_name=model_name,
+        model=model,
+        modules_map=modules_map,
+        custom_objects_map=custom_objects_map,
+        custom_objects_directory=custom_objects_directory,
+        context=context,
+    )
+
+    # Check if the model is needed to be loaded:
+    if model is None:
+        handler.load()
+
     # Initialize the interface:
-    interface = PyTorchMLRunInterface(model=model, context=context)
+    interface = PyTorchMLRunInterface(model=handler.model, context=context)
 
     # Add auto logging:
     if auto_log:
         # Parse the custom objects and the kwargs:
         mlrun_callback_kwargs, _ = _parse_callbacks_kwargs(
-            model_name=model_name,
-            model_path=model_path,
-            modules_map=modules_map,
-            custom_objects_map=custom_objects_map,
-            custom_objects_directory=custom_objects_directory,
+            handler=handler,
             tensorboard_directory=None,
             mlrun_callback_kwargs=mlrun_callback_kwargs,
             tensorboard_callback_kwargs=None,
-            is_training=False,
         )
         # Add the logging callbacks with the provided parameters:
         interface.add_auto_logging_callbacks(
@@ -260,64 +295,30 @@ def evaluate(
         )
 
     # Evaluate:
-    return interface.evaluate(
-        dataset=dataset,
-        loss_function=loss_function,
-        metric_functions=metric_functions,
-        iterations=iterations,
-        callbacks=callbacks_list,
-        use_cuda=use_cuda,
-        use_horovod=use_horovod,
+    return (
+        handler,
+        interface.evaluate(
+            dataset=dataset,
+            loss_function=loss_function,
+            metric_functions=metric_functions,
+            iterations=iterations,
+            callbacks=callbacks_list,
+            use_cuda=use_cuda,
+            use_horovod=use_horovod,
+        ),
     )
 
 
 def _parse_callbacks_kwargs(
-    model_name: Union[str, None],
-    model_path: Union[str, None],
-    modules_map: Union[Dict[str, Union[None, str, List[str]]], str],
-    custom_objects_map: Union[Dict[str, Union[str, List[str]]], str],
-    custom_objects_directory: str,
+    handler: PyTorchModelHandler,
     tensorboard_directory: Union[str, None],
     mlrun_callback_kwargs: Union[Dict[str, Any], None],
     tensorboard_callback_kwargs: Union[Dict[str, Any], None],
-    is_training: bool,
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+) -> Tuple[dict, dict]:
     """
     Parse the given parameters into the MLRun and Tensorboard callbacks kwargs.
 
-    :param model_name:                  The model name to use for storing the model artifact. If not given, the model's
-                                        class name will be used.
-    :param model_path:                  The model's store object path. Mandatory for evaluation (to know which model to
-                                        update).
-    :param modules_map:                 A dictionary of all the modules required for loading the model. Each key is a
-                                        path to a module and its value is the object name to import from it. All the
-                                        modules will be imported globally. If multiple objects needed to be imported
-                                        from the same module a list can be given. The map can be passed as a path to a
-                                        json file as well. For example:
-                                        {
-                                           "module1": None,  # => import module1
-                                           "module2": ["func1", "func2"],  # => from module2 import func1, func2
-                                           "module3.sub_module": "func3",  # => from module3.sub_module import func3
-                                        }
-                                        If the model path given is of a store object, the modules map will be read from
-                                        the logged modules map artifact of the model.
-    :param custom_objects_map:          A dictionary of all the custom objects required for loading the model. Each key
-                                        is a path to a python file and its value is the custom object name to import
-                                        from it. If multiple objects needed to be imported from the same py file a list
-                                        can be given. The map can be passed as a path to a json file as well. For
-                                        example:
-                                        {
-                                            "/.../custom_optimizer.py": "optimizer",
-                                            "/.../custom_layers.py": ["layer1", "layer2"]
-                                        }
-                                        All the paths will be accessed from the given 'custom_objects_directory',
-                                        meaning each py file will be read from 'custom_objects_directory/<MAP VALUE>'.
-                                        Notice: The custom objects will be imported in the order they came in this
-                                        dictionary (or json). If a custom object is depended on another, make sure to
-                                        put it below the one it relies on.
-    :param custom_objects_directory:    Path to the directory with all the python files required for the custom
-                                        objects. Can be passed as a zip file as well (will be extracted during the run
-                                        before loading the model).
+    :param handler:                     An initialized model handler to insert to the mlrun callback kwargs.
     :param tensorboard_directory:       If context is not given, or if wished to set the directory even with context,
                                         this will be the output for the event logs of tensorboard. If not given, the
                                         'tensorboard_dir' parameter will be tried to be taken from the provided context.
@@ -329,8 +330,6 @@ def _parse_callbacks_kwargs(
     :param tensorboard_callback_kwargs: Key word arguments for the tensorboard callback. For further information see
                                         the documentation of the class 'TensorboardLoggingCallback'. Note that both
                                         'context' and 'auto_log' parameters are already given here.
-    :param is_training:                 Whether to validate the arguments as part of a training session or evaluation
-                                        session.
 
     :return: Tuple of the callbacks kwargs:
              [0] = MLRun's kwargs.
@@ -339,27 +338,6 @@ def _parse_callbacks_kwargs(
     :raise MLRunInvalidArgumentError: In case of a training session: if one or more of the custom objects parameters
                                       were not given. In case of an evaluation session, if the model path was not given.
     """
-    # Validate the custom objects parameters were provided:
-    if is_training:
-        if modules_map is None:
-            if custom_objects_map is None or custom_objects_directory is None:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "If custom objects are required for loading the model, both custom objects parameters: "
-                    "'custom_objects_map' and 'custom_objects_directory' are mandatory."
-                )
-        else:
-            if custom_objects_map is None or custom_objects_directory is None:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "At least 'modules_map' or both custom objects parameters: 'custom_objects_map' and "
-                    "'custom_objects_directory' are mandatory for auto logging as the class must be located in a "
-                    "custom object python file or an installed module. Without one of them the model will not be able "
-                    "to be saved and logged"
-                )
-    elif model_path is None:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "To evaluate the model and log it, the store path of the model ('model_path' parameter) must be provided."
-        )
-
     # Set the kwargs dictionaries defaults:
     mlrun_callback_kwargs = (
         {} if mlrun_callback_kwargs is None else mlrun_callback_kwargs
@@ -372,10 +350,6 @@ def _parse_callbacks_kwargs(
     tensorboard_callback_kwargs["tensorboard_directory"] = tensorboard_directory
 
     # Add the additional parameters to MLRun's callback kwargs dictionary:
-    mlrun_callback_kwargs["model_name"] = model_name
-    mlrun_callback_kwargs["model_path"] = model_path
-    mlrun_callback_kwargs["modules_map"] = modules_map
-    mlrun_callback_kwargs["custom_objects_map"] = custom_objects_map
-    mlrun_callback_kwargs["custom_objects_directory"] = custom_objects_directory
+    mlrun_callback_kwargs["model_handler"] = handler
 
     return mlrun_callback_kwargs, tensorboard_callback_kwargs

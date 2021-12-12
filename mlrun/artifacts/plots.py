@@ -129,7 +129,7 @@ class ChartArtifact(Artifact):
 
 class BokehArtifact(Artifact):
     """
-    Bokeh artifact is an artifact for saving Bokeh generated figures. They will be stored in html format.
+    Bokeh artifact is an artifact for saving Bokeh generated figures. They will be stored in a html format.
     """
 
     kind = "bokeh"
@@ -149,9 +149,9 @@ class BokehArtifact(Artifact):
         # Validate input:
         try:
             from bokeh.plotting import Figure
-        except ImportError:
-            raise ImportError(
-                "Using 'BokehArtifact' requires bokeh package. Use pip install mlrun[bokeh] to install it"
+        except (ModuleNotFoundError, ImportError) as Error:
+            raise Error(
+                "Using 'BokehArtifact' requires bokeh package. Use pip install mlrun[bokeh] to install it."
             )
         if not isinstance(figure, Figure):
             raise ValueError(
@@ -173,3 +173,48 @@ class BokehArtifact(Artifact):
         from bokeh.resources import CDN
 
         return file_html(self._figure, CDN, self.key)
+
+
+class PlotlyArtifact(Artifact):
+    """
+    Plotly artifact is an artifact for saving Plotly generated figures. They will be stored in a html format.
+    """
+
+    kind = "plotly"
+
+    def __init__(
+        self, figure, key: str = None, target_path: str = None,
+    ):
+        """
+        Initialize a Plotly artifact with the given figure.
+
+        :param figure:      Plotly figure ('plotly.graph_objs.Figure' object) to save as an artifact.
+        :param key:         Key for the artifact to be stored in the database.
+        :param target_path: Path to save the artifact.
+        """
+        super().__init__(key=key, target_path=target_path, viewer="plotly")
+
+        # Validate input:
+        try:
+            from plotly.graph_objs import Figure
+        except (ModuleNotFoundError, ImportError) as Error:
+            raise Error(
+                "Using 'PlotlyArtifact' requires plotly package. Use pip install mlrun[plotly] to install it."
+            )
+        if not isinstance(figure, Figure):
+            raise ValueError(
+                "PlotlyArtifact requires the figure parameter to be a "
+                "'plotly.graph_objs.Figure' but received '{}'".format(type(figure))
+            )
+
+        # Continue initializing the plotly artifact:
+        self._figure = figure
+        self.format = "html"
+
+    def get_body(self):
+        """
+        Get the artifact's body - the Plotly figure's html code.
+
+        :return: The figure's html code.
+        """
+        return self._figure.write_html(self.key)

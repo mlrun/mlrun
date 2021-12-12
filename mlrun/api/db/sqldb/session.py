@@ -35,7 +35,13 @@ def _get_session_maker() -> SessionMaker:
 def _init_engine(dsn=None):
     global engine
     dsn = dsn or config.httpdb.dsn
-    engine = create_engine(dsn)
+    kwargs = {}
+    if "mysql" in dsn:
+        kwargs = {
+            "pool_size": config.httpdb.db.connections_pool_size,
+            "max_overflow": config.httpdb.db.connections_pool_max_overflow,
+        }
+    engine = create_engine(dsn, **kwargs)
     _init_session_maker()
 
 

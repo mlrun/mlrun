@@ -143,6 +143,8 @@ default_config = {
             "database_migration_mode": "enabled",
             # Whether or not to use db backups on initialization
             "database_backup_mode": "enabled",
+            "connections_pool_size": 20,
+            "connections_pool_max_overflow": 50,
         },
         "jobs": {
             # whether to allow to run local runtimes in the API - configurable to allow the scheduler testing to work

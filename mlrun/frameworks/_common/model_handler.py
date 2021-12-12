@@ -24,7 +24,7 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
     """
 
     # Framework name:
-    _FRAMEWORK_NAME = None  # type: str
+    FRAMEWORK_NAME = None  # type: str
 
     # Constant artifact names:
     _MODEL_FILE_ARTIFACT_NAME = "{}_model_file"
@@ -37,9 +37,9 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
 
     def __init__(
         self,
-        model_name: str,
-        model_path: PathType = None,
         model: ModelType = None,
+        model_path: PathType = None,
+        model_name: str = None,
         modules_map: Union[Dict[str, Union[None, str, List[str]]], PathType] = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], PathType] = None,
         custom_objects_directory: PathType = None,
@@ -51,11 +51,15 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
         one of 'model' and 'model_path'. If a model is not given, the files in the model path will be collected
         automatically to be ready for loading.
 
-        :param model_name:               The model name for saving and logging the model.
+        :param model:                    Model to handle or None in case a loading parameters were supplied.
         :param model_path:               Path to the directory with the model files. Can be passed as a model object
                                          path in the following format:
                                          'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'
-        :param model:                    Model to handle or None in case a loading parameters were supplied.
+        :param model_name:               The model name for saving and logging the model:
+                                         * Mandatory for loading the model from a local path.
+                                         * If given a logged model (store model path) it will be read from the artifact.
+                                         * If given a loaded model object and the model name is None, the name will be
+                                           set to the model's object name / class.
         :param modules_map:              A dictionary of all the modules required for loading the model. Each key
                                          is a path to a module and its value is the object name to import from it. All
                                          the modules will be imported globally. If multiple objects needed to be
@@ -100,6 +104,10 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
             custom_objects_map=custom_objects_map,
             custom_objects_directory=custom_objects_directory,
         )
+
+        # Set a default model name if needed - the class name of the given model:
+        if model_name is None and model is not None:
+            model_name = type(model).__name__
 
         # Store parameters:
         self._model_name = model_name
@@ -414,6 +422,7 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
 
     def log(
         self,
+        tag: str = "",
         labels: Dict[str, Union[str, int, float]] = None,
         parameters: Dict[str, Union[str, int, float]] = None,
         inputs: List[Feature] = None,
@@ -426,6 +435,7 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
         """
         Log the model held by this handler into the MLRun context provided.
 
+        :param tag:        Tag of a version to give to the logged model.
         :param labels:     Labels to log the model with.
         :param parameters: Parameters to log with the model.
         :param inputs:     A list of features this model expects to receive - the model's input ports.
@@ -485,13 +495,18 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
             self._model_name,
             db_key=self._model_name,
             model_file=self._model_file,
+            tag=tag,
             inputs=self._inputs,
             outputs=self._outputs,
-            framework=self._FRAMEWORK_NAME,
+            framework=self.FRAMEWORK_NAME,
             labels=self._labels,
             parameters=self._parameters,
             metrics=metrics,
-            extra_data=self._extra_data,
+            extra_data={
+                k: v
+                for k, v in self._extra_data.items()
+                if not isinstance(v, mlrun.DataItem)
+            },
             algorithm=kwargs.get("algorithm", None),
             training_set=kwargs.get("training_set", None),
             label_column=kwargs.get("label_column", None),
@@ -574,7 +589,11 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
             inputs=self._inputs,
             outputs=self._outputs,
             metrics=metrics,
-            extra_data=self._extra_data,
+            extra_data={
+                k: v
+                for k, v in self._extra_data.items()
+                if not isinstance(v, mlrun.DataItem)
+            },
             store_object=not self._is_logged,  # If the model was not logged, store the updated model in the database.
         )
         if self._is_logged:
@@ -782,9 +801,17 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
                     self._model_artifact,
                     self._extra_data,
                 ) = mlrun.artifacts.get_model(self._model_path)
+            # Check if the model name was not provided:
+            if self._model_name is None:
+                self._model_name = self._model_artifact.key
             # Continue to collect the files from the store object each framework requires:
             self._collect_files_from_store_object()
         else:
+            if self._model_name is None:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "The model name must be provided in the handler's initialization in order to collect the required "
+                    "model files from a local path."
+                )
             self._collect_files_from_local_path()
 
     def _import_modules(self):

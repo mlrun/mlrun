@@ -18,7 +18,7 @@ class SKLearnModelHandler(MLModelHandler):
     """
 
     # Framework name:
-    _FRAMEWORK_NAME = "sklearn"
+    FRAMEWORK_NAME = "sklearn"
 
     # Declare a type of a SciKitLearn model:
     SKLearnModel = Union[
@@ -57,7 +57,7 @@ class SKLearnModelHandler(MLModelHandler):
         :param output_path: The full path to the directory to save the handled model at. If not given, the context
                             stored will be used to save the model in the defaulted artifacts location.
 
-        :return The saved model artifacts dictionary if context is available and None otherwise.
+        :return The saved model additional artifacts (if needed) dictionary if context is available and None otherwise.
         """
         super(SKLearnModelHandler, self).save(output_path=output_path)
 

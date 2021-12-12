@@ -5,6 +5,7 @@ from typing import Dict, List, Union
 
 import numpy as np
 import tensorflow as tf
+from packaging import version
 from tensorflow import keras
 
 import mlrun
@@ -21,7 +22,7 @@ class TFKerasModelHandler(DLModelHandler):
     """
 
     # Framework name:
-    _FRAMEWORK_NAME = "tf.keras"
+    FRAMEWORK_NAME = "tf.keras"
 
     # Declare a type of an input sample:
     IOSample = Union[tf.Tensor, tf.TensorSpec, np.ndarray]
@@ -45,9 +46,9 @@ class TFKerasModelHandler(DLModelHandler):
 
     def __init__(
         self,
-        model_name: str,
-        model_path: str = None,
         model: keras.Model = None,
+        model_path: str = None,
+        model_name: str = None,
         model_format: str = ModelFormats.SAVED_MODEL,
         context: mlrun.MLClientCtx = None,
         modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
@@ -61,7 +62,7 @@ class TFKerasModelHandler(DLModelHandler):
         given is of a previously logged model (store model object path), all of the other configurations will be loaded
         automatically as they were logged with the model, hence they are optional.
 
-        :param model_name:               The model name for saving and logging the model.
+        :param model:                    Model to handle or None in case a loading parameters were supplied.
         :param model_path:               Path to the model's directory to load it from. The model files must start with
                                          the given model name and the directory must contain based on the given model
                                          formats:
@@ -71,7 +72,11 @@ class TFKerasModelHandler(DLModelHandler):
                                            'model_name.h5'.
                                          The model path can be also passed as a model object path in the following
                                          format: 'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'.
-        :param model:                    Model to handle or None in case a loading parameters were supplied.
+        :param model_name:               The model name for saving and logging the model:
+                                         * Mandatory for loading the model from a local path.
+                                         * If given a logged model (store model path) it will be read from the artifact.
+                                         * If given a loaded model object and the model name is None, the name will be
+                                           set to the model's object name / class.
         :param model_format:             The format to use for saving and loading the model. Should be passed as a
                                          member of the class 'ModelFormats'. Defaulted to 'ModelFormats.SAVED_MODEL'.
         :param context:                  MLRun context to work with for logging the model.
@@ -131,7 +136,7 @@ class TFKerasModelHandler(DLModelHandler):
 
         # Validate 'save_traces':
         if save_traces:
-            if float(tf.__version__.rsplit(".", 1)[0]) < 2.4:
+            if version.parse(tf.__version__) < version.parse("2.4.0"):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"The 'save_traces' parameter can be true only for tensorflow versions >= 2.4. Current "
                     f"version is {tf.__version__}"
@@ -140,6 +145,10 @@ class TFKerasModelHandler(DLModelHandler):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "The 'save_traces' parameter is valid only for the 'SavedModel' format."
                 )
+
+        # If the model is given without a model name, set the model name:
+        if model_name is None and model is not None:
+            model_name = model.name
 
         # Store the configuration:
         self._model_format = model_format
@@ -150,9 +159,9 @@ class TFKerasModelHandler(DLModelHandler):
 
         # Setup the base handler class:
         super(TFKerasModelHandler, self).__init__(
-            model_name=model_name,
-            model_path=model_path,
             model=model,
+            model_path=model_path,
+            model_name=model_name,
             modules_map=modules_map,
             custom_objects_map=custom_objects_map,
             custom_objects_directory=custom_objects_directory,
@@ -195,7 +204,7 @@ class TFKerasModelHandler(DLModelHandler):
         :param output_path: The full path to the directory to save the handled model at. If not given, the context
                             stored will be used to save the model in the defaulted artifacts location.
 
-        :return The saved model artifacts dictionary if context is available and None otherwise.
+        :return The saved model additional artifacts (if needed) dictionary if context is available and None otherwise.
         """
         super(TFKerasModelHandler, self).save(output_path=output_path)
 

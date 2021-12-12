@@ -519,7 +519,7 @@ class KubeResource(BaseRuntime):
 
         # Keep a list of the variables that relate to secrets, so that the MLRun context (when using nuclio:mlrun)
         # can be initialized with those env variables as secrets
-        if not encode_key_names:
+        if not encode_key_names and secrets.keys():
             self.set_env("MLRUN_PROJECT_SECRETS_LIST", ",".join(secrets.keys()))
 
     def _add_vault_params_to_spec(self, runobj=None, project=None):

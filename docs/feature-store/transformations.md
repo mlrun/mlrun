@@ -56,7 +56,8 @@ quotes_set.add_aggregation("bid", ["min", "max"], ["1h"], "10m")
 
 Once this is executed, the feature-set will have new features introduced, with their names produced from the aggregate
 parameters, using this format: `{column}_{operation}_{window}`. Thus, the example above will generate two new features:
-`bid_min_1h` and `bid_max_1h`. If the function gets an optional `name` parameter features will be produced in `{name}_{operation}_{window}` format, 
+`bid_min_1h` and `bid_max_1h`. If the function gets an optional `name` parameter, features will be produced in `{name}_{operation}_{window}` format.
+If the `name` parameter is not specified, features will be produced in `{column_name}_{operation}_{window}` format.
 These features can then be fed into predictive models or be used for additional 
 processing and feature generation.
 

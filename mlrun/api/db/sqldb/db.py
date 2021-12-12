@@ -133,10 +133,7 @@ class SQLDB(DBInterface):
         start_time = run_start_time(struct)
         if start_time:
             run.start_time = start_time
-        run.labels.clear()
-        for name, value in run_labels(struct).items():
-            lbl = Run.Label(name=name, value=value, parent=run.id)
-            run.labels.append(lbl)
+        update_labels(run, run_labels(struct))
         session.merge(run)
         session.commit()
         self._delete_empty_labels(session, Run.Label)
@@ -419,8 +416,14 @@ class SQLDB(DBInterface):
         ids = "*"
         if tag and tag != "*":
             ids = self._resolve_tag(session, Artifact, project, tag)
-        for artifact in self._find_artifacts(session, project, ids, labels, name=name):
-            self.del_artifact(session, artifact.key, "", project)
+        distinct_keys = {
+            artifact.key
+            for artifact in self._find_artifacts(
+                session, project, ids, labels, name=name
+            )
+        }
+        for key in distinct_keys:
+            self.del_artifact(session, key, "", project)
 
     def store_function(
         self, session, function, name, project="", tag="", versioned=False,
@@ -518,11 +521,18 @@ class SQLDB(DBInterface):
         self._delete(session, Function, project=project, name=name)
 
     def _delete_functions(self, session: Session, project: str):
-        for function in self._list_project_functions(session, project):
-            self.delete_function(session, project, function.name)
+        for function_name in self._list_project_function_names(session, project):
+            self.delete_function(session, project, function_name)
 
-    def _list_project_functions(self, session: Session, project: str):
-        return self._query(session, Function, project=project).all()
+    def _list_project_function_names(
+        self, session: Session, project: str
+    ) -> typing.List[str]:
+        return [
+            name
+            for name, in self._query(
+                session, distinct(Function.name), project=project
+            ).all()
+        ]
 
     def _delete_resources_tags(self, session: Session, project: str):
         for tagged_class in _tagged:
@@ -729,15 +739,35 @@ class SQLDB(DBInterface):
 
     def _delete_feature_sets(self, session: Session, project: str):
         logger.debug("Removing feature-sets from db", project=project)
-        for feature_set in self.list_feature_sets(session, project).feature_sets:
-            self.delete_feature_set(session, project, feature_set.metadata.name)
+        for feature_set_name in self._list_project_feature_set_names(session, project):
+            self.delete_feature_set(session, project, feature_set_name)
+
+    def _list_project_feature_set_names(
+        self, session: Session, project: str
+    ) -> typing.List[str]:
+        return [
+            name
+            for name, in self._query(
+                session, distinct(FeatureSet.name), project=project
+            ).all()
+        ]
 
     def _delete_feature_vectors(self, session: Session, project: str):
         logger.debug("Removing feature-vectors from db", project=project)
-        for feature_vector in self.list_feature_vectors(
+        for feature_vector_name in self._list_project_feature_vector_names(
             session, project
-        ).feature_vectors:
-            self.delete_feature_vector(session, project, feature_vector.metadata.name)
+        ):
+            self.delete_feature_vector(session, project, feature_vector_name)
+
+    def _list_project_feature_vector_names(
+        self, session: Session, project: str
+    ) -> typing.List[str]:
+        return [
+            name
+            for name, in self._query(
+                session, distinct(FeatureVector.name), project=project
+            ).all()
+        ]
 
     def tag_artifacts(self, session, artifacts, project: str, name: str):
         for artifact in artifacts:
@@ -1126,15 +1156,15 @@ class SQLDB(DBInterface):
         self._verify_empty_list_of_project_related_resources(
             name, schedules, "schedules"
         )
-        functions = self._list_project_functions(session, name)
+        functions = self._list_project_function_names(session, name)
         self._verify_empty_list_of_project_related_resources(
             name, functions, "functions"
         )
-        feature_sets = self.list_feature_sets(session, name).feature_sets
+        feature_sets = self._list_project_feature_set_names(session, name)
         self._verify_empty_list_of_project_related_resources(
             name, feature_sets, "feature_sets"
         )
-        feature_vectors = self.list_feature_vectors(session, name).feature_vectors
+        feature_vectors = self._list_project_feature_vector_names(session, name)
         self._verify_empty_list_of_project_related_resources(
             name, feature_vectors, "feature_vectors"
         )

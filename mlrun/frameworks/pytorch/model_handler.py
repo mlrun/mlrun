@@ -1,5 +1,5 @@
 import os
-from typing import Dict, List, Type, Union
+from typing import Dict, List, Tuple, Type, Union
 
 import numpy as np
 import torch
@@ -19,7 +19,7 @@ class PyTorchModelHandler(DLModelHandler):
     """
 
     # Framework name:
-    _FRAMEWORK_NAME = "pytorch"
+    FRAMEWORK_NAME = "pytorch"
 
     # Declare a type of an input sample:
     IOSample = Union[torch.Tensor, np.ndarray]
@@ -33,19 +33,28 @@ class PyTorchModelHandler(DLModelHandler):
 
     def __init__(
         self,
-        model_name: str,
+        model: Module = None,
+        model_path: str = None,
+        model_name: str = None,
         model_class: Union[Type[Module], str] = None,
         modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
-        model_path: str = None,
-        model: Module = None,
         context: mlrun.MLClientCtx = None,
         **kwargs,
     ):
         """
         Initialize the handler. The model can be set here so it won't require loading.
-        :param model_name:               The model name for saving and logging the model.
+        :param model:                    Model to handle or None in case a loading parameters were supplied.
+        :param model_path:               Path to the model's directory with the saved '.pt' file. The file must start
+                                         with the given model name. The model path can be also passed as a model object
+                                         path in the following format:
+                                         'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'.
+        :param model_name:               The model name for saving and logging the model:
+                                         * Mandatory for loading the model from a local path.
+                                         * If given a logged model (store model path) it will be read from the artifact.
+                                         * If given a loaded model object and the model name is None, the name will be
+                                           set to the model's object name / class.
         :param model_class:              The model's class type object. Can be passed as the class's name (string) as
                                          well. The model class must appear in the custom objects / modules map
                                          dictionary / json. If the model path given is of a store object, this model
@@ -83,35 +92,40 @@ class PyTorchModelHandler(DLModelHandler):
                                          before loading the model). If the model path given is of a store object, the
                                          custom objects files will be read from the logged custom object artifact of the
                                          model.
-        :param model_path:               Path to the model's directory with the saved '.pt' file. The file must start
-                                         with the given model name. The model path can be also passed as a model object
-                                         path in the following format:
-                                         'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'.
-        :param model:                    Model to handle or None in case a loading parameters were supplied.
         :param context:                  MLRun context to work with for logging the model.
 
         :raise MLRunInvalidArgumentError: If the provided model path is of a local model files but the model class name
-                                          was not provided (=None).
+                                          and or the model name were not provided (= None).
         """
-        # Store the model's class name:
+        # Validate a modules map or custom objects were provided:
+        if (
+            model_path is None
+            and modules_map is None
+            and (custom_objects_directory is None or custom_objects_directory is None)
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "At least 'modules_map' or both custom objects parameters: 'custom_objects_map' and "
+                "'custom_objects_directory' are mandatory for the handler as the class must be located in a "
+                "custom object python file or an installed module. Without one of them the model will not be able "
+                "to be saved and logged"
+            )
+
+        # If the model is given try to set the model class:
         if model is not None:
-            # Check if no value was provided:
             if model_class is None:
-                # Take it from the model provided:
                 model_class = type(model).__name__
-            # Parse the class name and store it:
+
+        # Parse the class name (in case it was passed as a class type) and store it:
+        if model_class is not None:
             self._model_class_name = (
                 model_class if isinstance(model_class, str) else model_class.__name__
             )
-        else:
-            # Store the given value and edit later in one of the 'collect_files_...' methods:
-            self._model_class_name = model_class
 
         # Setup the base handler class:
         super(PyTorchModelHandler, self).__init__(
-            model_name=model_name,
-            model_path=model_path,
             model=model,
+            model_path=model_path,
+            model_name=model_name,
             modules_map=modules_map,
             custom_objects_map=custom_objects_map,
             custom_objects_directory=custom_objects_directory,
@@ -150,7 +164,7 @@ class PyTorchModelHandler(DLModelHandler):
         :param output_path: The full path to the directory to save the handled model at. If not given, the context
                             stored will be used to save the model in the defaulted location.
 
-        :return The saved model artifacts dictionary if context is available and None otherwise.
+        :return The saved model additional artifacts (if needed) dictionary if context is available and None otherwise.
 
         :raise MLRunRuntimeError:         In case there is no model initialized in this handler.
         :raise MLRunInvalidArgumentError: If an output path was not given, yet a context was not provided in
@@ -207,9 +221,11 @@ class PyTorchModelHandler(DLModelHandler):
     def to_onnx(
         self,
         model_name: str = None,
-        input_sample: Union[torch.Tensor, Dict[str, torch.Tensor]] = None,
+        input_sample: Union[torch.Tensor, Tuple[torch.Tensor, ...]] = None,
         input_layers_names: List[str] = None,
         output_layers_names: List[str] = None,
+        dynamic_axes: Dict[str, Dict[int, str]] = None,
+        is_batched: bool = True,
         optimize: bool = True,
         output_path: str = None,
         log: bool = None,
@@ -222,12 +238,25 @@ class PyTorchModelHandler(DLModelHandler):
                                     the stored model name with the suffix '_onnx'.
         :param optimize:            Whether to optimize the ONNX model using 'onnxoptimizer' before saving the model.
                                     Defaulted to True.
-        :param input_sample:        A torch.Tensor with the shape and data type of the expected input to the model. It
-                                    is optional but recommended.
+        :param input_sample:        A torch.Tensor with the shape and data type of the expected input to the model. Can
+                                    be passed as a tuple if the model expects multiple input tensors.
         :param input_layers_names:  List of names to assign to the input nodes of the graph in order. All of the other
                                     parameters (inner layers) can be set as well by passing additional names in the
-                                    list. The order is by the order of the parameters in the model.
-        :param output_layers_names: List of names to assign to the output nodes of the graph in order.
+                                    list. The order is by the order of the parameters in the model. If None, the inputs
+                                    will be read from the handler's inputs. If its also None, it is defaulted to:
+                                    "input_0", "input_1", ...
+        :param output_layers_names: List of names to assign to the output nodes of the graph in order. If None, the
+                                    outputs will be read from the handler's outputs. If its also None, it is defaulted
+                                    to: "output_0" (for multiple outputs, this parameter must be provided).
+        :param dynamic_axes:        If part of the input / output shape is dynamic, like (batch_size, 3, 32, 32) you can
+                                    specify it by giving a dynamic axis to the input / output layer by its name as
+                                    follows: {
+                                        "input layer name": {0: "batch_size"},
+                                        "output layer name": {0: "batch_size"},
+                                    }
+                                    If provided, the 'is_batched' flag will be ignored. Defaulted to None.
+        :param is_batched:          Whether to include a batch size as the first axis in every input and output layer.
+                                    Defaulted to True. Will be ignored if 'dynamic_axes' is provided.
         :param output_path:         In order to save the ONNX model, pass here the output directory. The model file will
                                     be named with the model name given. Defaulted to None (not saving).
         :param log:                 In order to log the ONNX model, pass True. If None, the model will be logged if this
@@ -258,7 +287,7 @@ class PyTorchModelHandler(DLModelHandler):
                     "here."
                 )
             # Parse the input features into a sample:
-            input_sample = torch.stack(
+            input_sample = tuple(
                 [
                     torch.zeros(
                         size=input_feature.dims,
@@ -269,6 +298,43 @@ class PyTorchModelHandler(DLModelHandler):
                     for input_feature in self._inputs
                 ]
             )
+            if len(input_sample) == 1:
+                input_sample = input_sample[0]
+
+        # Set the default input layers names if not provided:
+        if input_layers_names is None:
+            input_layers_names = (
+                (
+                    [f"input_{i}" for i in range(len(input_sample))]
+                    if isinstance(input_sample, tuple)
+                    else ["input_0"]
+                )
+                if self._inputs is None
+                else (
+                    [
+                        f"input_{i}" if layer.name == "" else layer.name
+                        for i, layer in enumerate(self._inputs)
+                    ]
+                )
+            )
+
+        # Set the default output layers names if not provided:
+        if output_layers_names is None:
+            output_layers_names = (
+                ["output_0"]
+                if self._outputs is None
+                else [
+                    f"output_{i}" if layer.name == "" else layer.name
+                    for i, layer in enumerate(self._outputs)
+                ]
+            )
+
+        # Setup first axis to be a batch_size if needed:
+        if dynamic_axes is None and is_batched:
+            dynamic_axes = {
+                layer: {0: "batch_size"}
+                for layer in input_layers_names + output_layers_names
+            }
 
         # Set the output model file:
         onnx_file = f"{model_name}.onnx"
@@ -287,6 +353,7 @@ class PyTorchModelHandler(DLModelHandler):
             onnx_file,
             input_names=input_layers_names,
             output_names=output_layers_names,
+            dynamic_axes=dynamic_axes,
         )
 
         # Create a handler for the ONNX model:
@@ -419,11 +486,6 @@ class PyTorchModelHandler(DLModelHandler):
                 "The model class name must be provided when loading the model from local path. Otherwise, the handler "
                 "will not be able to load the model."
             )
-        self._model_class_name = (
-            self._model_class_name
-            if isinstance(self._model_class_name, str)
-            else self._model_class_name.__name__
-        )
 
         # Collect the weights file:
         self._model_file = os.path.join(self._model_path, f"{self._model_name}.pt")

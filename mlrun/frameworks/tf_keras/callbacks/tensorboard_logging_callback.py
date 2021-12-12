@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Callable, Dict, List, Union
 
 import tensorflow as tf
+from packaging import version
 from tensorboard.plugins.hparams import api as hp_api
 from tensorboard.plugins.hparams import api_pb2 as hp_api_pb2
 from tensorboard.plugins.hparams import summary as hp_summary
@@ -69,10 +70,11 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
         :param model: The model to write to tensorboard.
         """
         with self._file_writer.as_default():
-            if tf.__version__ == "2.4.1":
+            # Log the model's graph according to tensorflow's version:
+            if version.parse(tf.__version__) < version.parse("2.5.0"):
                 with summary_ops_v2.always_record_summaries():
                     summary_ops_v2.keras_model(name=model.name, data=model, step=0)
-            elif tf.__version__ == "2.5.0":
+            else:
                 from tensorflow.python.keras.callbacks import keras_model_summary
 
                 with summary_ops_v2.record_if(True):

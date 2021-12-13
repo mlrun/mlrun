@@ -58,7 +58,7 @@ humanfriendly~=8.2
 # fastapi fail to present docs. happen due to fastapi changes in 0.68.0
 # the breaking PR is: https://github.com/tiangolo/fastapi/commit/97fa743ecb5a716fa0223a7463cb83f3f0df494c
 # the bug report on: https://github.com/tiangolo/fastapi/issues/3782
-fastapi~= 0.67.0
+fastapi~=0.67.0
 fsspec~=2021.8.1
 v3iofs~=0.1.7
 # 3.4 and above failed builidng in some images - see https://github.com/pyca/cryptography/issues/5771

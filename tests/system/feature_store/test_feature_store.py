@@ -1825,6 +1825,8 @@ class TestFeatureStore(TestMLRunSystem):
         stream_path = f"/{self.project_name}/FeatureStore/{name}/v3ioStream"
         try:
             v3io_client.stream.delete(container="projects", stream_path=stream_path)
+        except RuntimeError as err:
+            assert err.__str__().__contains__("404"), "only acceptable error is with status 404"
         finally:
             v3io_client.stream.create(
                 container="projects", stream_path=stream_path, shard_count=1

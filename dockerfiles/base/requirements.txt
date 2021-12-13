@@ -3,11 +3,7 @@ dask-kubernetes~=0.11.0
 dask-ml~=1.4,<1.9.0
 dask[complete]~=2.12
 lz4~=3.0
-# one of the sub-requirements of this package requires s3fs<0.3 while we use a much newer version
-# we should move to vaex~=4.0 which is compatible with our s3fs version, but vaex requires pyarrow>=3.0 and we're on 1
-# we can't upgrade pyarrow before we upgrade pip...
-# TODO: upgrade vaex after pip and pyarrow are upgraded
-vaex~=2.6
+vaex~=4.0
 yellowbrick~=1.1
 lifelines~=0.25.0
 plotly~=5.4

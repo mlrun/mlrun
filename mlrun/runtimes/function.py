@@ -415,11 +415,7 @@ class RemoteRuntime(KubeResource):
         :return: function object (self)
         """
         annotations = annotations or {}
-        extra_attributes = extra_attributes or {}
         if worker_timeout:
-            extra_attributes["workerAvailabilityTimeoutMilliseconds"] = (
-                worker_timeout
-            ) * 1000
             gateway_timeout = gateway_timeout or (worker_timeout + 60)
         if gateway_timeout:
             if worker_timeout and worker_timeout >= gateway_timeout:
@@ -435,19 +431,22 @@ class RemoteRuntime(KubeResource):
             annotations[
                 "nginx.ingress.kubernetes.io/proxy-send-timeout"
             ] = f"{gateway_timeout}"
-        self.add_trigger(
-            trigger_name or "http",
-            nuclio.HttpTrigger(
-                workers,
-                port=port,
-                host=host,
-                paths=paths,
-                canary=canary,
-                secret=secret,
-                annotations=annotations,
-                extra_attributes=extra_attributes,
-            ),
+
+        trigger = nuclio.HttpTrigger(
+            workers,
+            port=port,
+            host=host,
+            paths=paths,
+            canary=canary,
+            secret=secret,
+            annotations=annotations,
+            extra_attributes=extra_attributes,
         )
+        if worker_timeout:
+            trigger._struct["workerAvailabilityTimeoutMilliseconds"] = (
+                worker_timeout
+            ) * 1000
+        self.add_trigger(trigger_name or "http", trigger)
         return self
 
     def add_model(self, name, model_path, **kw):

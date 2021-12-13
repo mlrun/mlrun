@@ -63,6 +63,7 @@ class TestNuclioRuntime(TestRuntimeBase):
     def _get_expected_struct_for_http_trigger(parameters):
         expected_struct = {
             "kind": "http",
+            "name": "http",
             "maxWorkers": parameters["workers"],
             "attributes": {
                 "ingresses": {

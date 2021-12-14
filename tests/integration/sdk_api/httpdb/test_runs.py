@@ -1,9 +1,7 @@
-import pytest
 import json
 
 import mlrun
 import mlrun.api.schemas
-import mlrun.errors
 import tests.integration.sdk_api.base
 
 

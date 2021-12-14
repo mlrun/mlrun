@@ -18,6 +18,7 @@ import warnings
 from datetime import datetime, timezone
 
 import orjson
+import sqlalchemy.dialects.mysql
 from sqlalchemy import (
     JSON,
     TIMESTAMP,
@@ -30,7 +31,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import class_mapper, relationship
-import sqlalchemy.dialects.mysql
 
 from mlrun.api import schemas
 from mlrun.api.utils.db.sql_collation import SQLCollationUtil

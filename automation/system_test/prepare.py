@@ -312,6 +312,8 @@ class SystemTestPreparer:
             # will make our tests really long)
             "MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL": "0 Seconds",
             # Enabling it in system tests until we enable it by default in config
+            "MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS": 100,
+            # to allow batch_function to have parquet files sooner
         }
         if self._override_image_registry:
             data["MLRUN_IMAGES_REGISTRY"] = f"{self._override_image_registry}"

@@ -475,6 +475,7 @@ class OnlineSource(BaseSourceDriver):
         "time_field",
         "online",
         "workers",
+        "pass_key_time",
     ]
     kind = ""
 
@@ -486,10 +487,12 @@ class OnlineSource(BaseSourceDriver):
         key_field: str = None,
         time_field: str = None,
         workers: int = None,
+        pass_key_time: bool = True,
     ):
         super().__init__(name, path, attributes, key_field, time_field)
         self.online = True
         self.workers = workers
+        self.pass_key_time = pass_key_time
 
     def to_step(self, key_field=None, time_field=None, context=None):
         import storey
@@ -500,13 +503,18 @@ class OnlineSource(BaseSourceDriver):
             else storey.SyncEmitSource
         )
         source_args = self.attributes.get("source_args", {})
-        return source_class(
-            context=context,
-            key_field=self.key_field or key_field,
-            time_field=self.time_field or time_field,
-            full_event=True,
-            **source_args,
-        )
+
+        if self.pass_key_time:
+            src_class = source_class(
+                context=context,
+                key_field=self.key_field or key_field,
+                time_field=self.time_field or time_field,
+                full_event=True,
+                **source_args,
+            )
+        else:
+            src_class = source_class(context=context, full_event=True, **source_args,)
+        return src_class
 
     def add_nuclio_trigger(self, function):
         raise mlrun.errors.MLRunInvalidArgumentError(

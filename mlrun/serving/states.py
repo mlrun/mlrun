@@ -1088,6 +1088,8 @@ class FlowStep(BaseStep):
 
     def run(self, event, *args, **kwargs):
 
+        print(f"QQQQQQQQQQQQQQ {event}")
+
         if self._controller:
             # async flow (using storey)
             event._awaitable_result = None

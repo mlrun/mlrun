@@ -21,7 +21,7 @@ Use the `build` CLI command to build all the function dependencies from the func
 This command supports many options, including the following; for the full list, run `mlrun build --help`:
 
 ```text
-  --name TEXT            Function name
+  --name TEXT            Function nam e
   --project TEXT         Project name
   --tag TEXT             Function tag
   -i, --image TEXT       Target image path

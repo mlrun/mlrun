@@ -12,13 +12,22 @@
 Use the following commands of the MLRun command-line interface (CLI) &mdash; `mlrun` &mdash; to build and run MLRun functions:
 
 - [`build`](#cli-cmd-build)
+- [`clean`](#cli-cmd-clean)
+- [`config`](#cli-cmd-config)
+- [`get`](#cli-cmd-get)
+- [`log`](#cli-cmd-log)
+- [`project`](#cli-cmd-project)
 - [`run`](#cli-cmd-run)
+- [`version`](#cli-cmd-version)
+- [`watch`](#cli-cmd-watch)
+- [`watch-stream`](#cli-cmd-watch-stream)
+
+Each command supports many flags, some of which are listed in their relevant sections. To view all the flags of a command, run `mlrun <command name> --help`:
 
 <a id="cli-cmd-build"></a>
 ### The `build` Command
 
 Use the `build` CLI command to build all the function dependencies from the function specification into a function container (Docker image).
-This command supports many options, including the following; for the full list, run `mlrun build --help`:
 
 ```text
   --name TEXT            Function name
@@ -39,11 +48,92 @@ This command supports many options, including the following; for the full list, 
 
 > **Note:** For information about using the `-a|--archive` option to create a function-sources archive, see [Using a Sources Archive](#sources-archive) later in this tutorial.
 
+<a id="cli-cmd-clean"></a>
+### The `clean` Command
+
+Use the `clean` CLI command to clean runtime resources. When runs without any flags, it cleans the resources for all runs of all runtimes.
+
+```text
+  --kind                 Clean resources for all runs of a specific kind (e.g. job). 
+  --object_id            Delete the resources of the mlrun object twith this identifier. for most function runtimes, runtime resources are per Run, and the identifier is the Run’s UID. For dask runtime, the runtime resources are per Function, and the identifier is the Function’s name.
+  --api                  URL of the api service
+  -ls, --label-selector  Delete only runtime resources matching the label selector.
+  -f, --force            Delete the runtime resource even if they're not in terminal state or if the grace period didn’t pass.
+  -gp, --grace-period    Grace period, in seconds, given to the runtime resource before they are actually removed, counted from the moment they moved to terminal state.   
+```
+See the [list of kinds](/runtimes/using-functions.html##function-runtimes).
+
+<a id="cli-cmd-config"></a>
+### The `` Command
+
+Use the `` CLI command to show configuration and exit.
+
+
+<a id="cli-cmd-get"></a>
+### The `get` Command
+
+Use the `get` CLI command to list one or more objects per kind/class.
+
+```text
+  --kind                See below.       
+  --name
+  -s, --selector         Label selector
+  -n, --namespace        Kubernetes namespace
+  --uid                  Object ID 
+  --project              Project name to list
+  -t, --tag              Artifact/function tag
+  --db                   db path/url
+  --extra_args
+  --kind
+```
+
+See the [list of kinds](/runtimes/using-functions.html##function-runtimes).
+
+<a id="cli-cmd-logs"></a>
+### The `logs` Command
+
+Use the `logs` CLI command to get or watch task logs.
+
+```text
+  --uid          
+  -p, --project          Project name
+  --offset               Byte offset
+  --db                   API and db service path/url
+  w, --watch             Follow the log 
+```
+
+<a id="cli-cmd-project"></a>
+### The `project` Command
+
+Use the `project` CLI command to load and/or run a project.
+
+```text         
+  --context,
+  --name                 Project name
+  --url                  Remote git or archive url
+  --run                  Run workflow name of .py file
+  -a, --arguments        Kubeflow pipeline arguments name and value tuples (with -r flag), e.g. -a x=6 
+  -p, --artifact_path    Output artifacts path
+  x, --param             mlrun project parameter name and value tuples, e.g. -p x=37 -p y='text'
+  -s, --secrets          Secrets file=<filename> or env=ENV_KEY1,..
+  --namespace            k8s namespace
+  --db                   API and db service path/url           
+  --init_git             For new projects init git context
+  -c, --clone            Force override/clone into the context dir
+  --sync                 Sync functions into db
+  -w, --watch            Wait for pipeline completion (with -r flag)
+  -d, --dirty            Allow run with uncommitted git changes
+  --git_repo             git repo (org/repo) for git comments
+  --git_issue            git issue number for git comments
+  --handler              Workflow function handler name
+  --engine               Workflow engine (kfp/local)
+  --local                Try to run workflow functions locally
+```
+
 <a id="cli-cmd-run"></a>
 ### The `run` Command
 
 Use the `run` CLI command to execute a task by using a local or remote function.
-This command supports many options, including the following; for the full list, run `mlrun run --help`:
 
 ```text
   -p, --param key=val    Parameter name and value tuples; for example, `-p x=37 -p y='text'`
@@ -56,6 +146,33 @@ This command supports many options, including the following; for the full list, 
   -f, --func-url TEXT    Path/URL of a YAML function-configuration file, or db://<project>/<name>[:tag] for a DB function object
   --task TEXT            Path/URL of a YAML task-configuration file
   --handler TEXT         Invoke the function handler inside the code file
+```
+
+<a id="cli-cmd-version"></a>
+### The `version` Command
+
+Use the `version` CLI command to get the mlrun version.
+
+<a id="cli-cmd-watch"></a>
+### The `watch` Command
+
+Use the `watch` CLI command to read the current or previous task (pod) logs.
+
+```text
+  --pod
+  -n, --namespace        kubernetes namespace
+  -t, --timeout          Timeout in seconds
+```
+
+<a id="cli-cmd-watch-stream"></a>
+### The `watch-stream` Command
+
+Use the `watch-stream` CLI command to watch a stream and print data at a recurring interval.
+
+```text
+  -s, --shard-ids        Shard id to listen on (can be multiple).         
+  -i, --interval         Interval in seconds.
+  -j, --is-json          Indicates that the payload is json (will be deserialized).
 ```
 
 <a id="git-func"></a>

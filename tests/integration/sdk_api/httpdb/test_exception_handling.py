@@ -63,7 +63,8 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         with pytest.raises(
             mlrun.errors.MLRunInternalServerError,
             match=r"500 Server Error: Internal Server Error for url: http:\/\/(.*)\/api\/projects\/some-project\/model-"
-            r"endpoints\?start=now-1h&end=now&top-level=False: details: {'reason': \"gaierror\((.*)\)\"}",
+            r"endpoints\?start=now-1h&end=now&top-level=False: details: {\'reason\': \"ValueError\(\'Access key must be"
+            r" provided in Client\(\) arguments or in the V3IO_ACCESS_KEY environment variable\'\)\"}",
         ):
             mlrun.get_run_db().list_model_endpoints(
                 "some-project", access_key="some-access-key"

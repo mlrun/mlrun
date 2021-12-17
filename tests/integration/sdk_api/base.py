@@ -121,7 +121,9 @@ class TestMLRunIntegration:
         output = self._run_command("docker", args=["ps", "--last", "1", "-q"],)
         self.api_container_id = output.strip()
         # retrieve container bind port + host
-        output = self._run_command("docker", args=["port", self.api_container_id, "8080"])
+        output = self._run_command(
+            "docker", args=["port", self.api_container_id, "8080"]
+        )
         # usually the output is something like '0.0.0.0:49154\n' but sometimes (in GH actions) it's something like
         # '0.0.0.0:49154\n:::49154\n' for some reason, so just taking the first line
         host = output.splitlines()[0]

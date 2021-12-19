@@ -1808,7 +1808,6 @@ class TestFeatureStore(TestMLRunSystem):
         }
 
     def test_get_offline_features_with_tag(self):
-
         def validate_result(test_vector, test_keys):
             res_set = fs.get_offline_features(test_vector)
             assert res_set is not None
@@ -1820,9 +1819,7 @@ class TestFeatureStore(TestMLRunSystem):
         tag = "test"
         project = self.project_name
 
-        test_set = fs.FeatureSet(
-            name, entities=[Entity("ticker", ValueType.STRING)]
-        )
+        test_set = fs.FeatureSet(name, entities=[Entity("ticker", ValueType.STRING)])
 
         df = fs.ingest(test_set, data)
         assert df is not None
@@ -1831,26 +1828,27 @@ class TestFeatureStore(TestMLRunSystem):
         test_set.add_aggregation(
             "bid", ["avg"], "1h",
         )
-        new_column = 'bid_avg_1h'
+        new_column = "bid_avg_1h"
         test_set.metadata.tag = tag
         fs.ingest(test_set, data)
 
         # retrieve feature set with feature vector and check for changes
-        vector = fs.FeatureVector("vector",
-                                  [f"{name}.*"], with_indexes=True)
-        vector_with_tag = fs.FeatureVector("vector_with_tag",
-                                           [f"{name}:{tag}.*"], with_indexes=True)
-        vector_with_project = fs.FeatureVector("vector_with_project",
-                                               [f"{project}/{name}.*"], with_indexes=True)
+        vector = fs.FeatureVector("vector", [f"{name}.*"], with_indexes=True)
+        vector_with_tag = fs.FeatureVector(
+            "vector_with_tag", [f"{name}:{tag}.*"], with_indexes=True
+        )
+        vector_with_project = fs.FeatureVector(
+            "vector_with_project", [f"{project}/{name}.*"], with_indexes=True
+        )
         # vector_with_project.metadata.project = "bs"
-        vector_with_features = fs.FeatureVector("vector_with_features",
-                                                [f"{name}.bid",
-                                                 f"{name}.time"],
-                                                with_indexes=True)
-        vector_with_project_tag_and_features = fs.FeatureVector("vector_with_project_tag_and_features",
-                                                                [f"{project}/{name}:{tag}.bid",
-                                                                 f"{project}/{name}:{tag}.{new_column}"],
-                                                                with_indexes=True)
+        vector_with_features = fs.FeatureVector(
+            "vector_with_features", [f"{name}.bid", f"{name}.time"], with_indexes=True
+        )
+        vector_with_project_tag_and_features = fs.FeatureVector(
+            "vector_with_project_tag_and_features",
+            [f"{project}/{name}:{tag}.bid", f"{project}/{name}:{tag}.{new_column}"],
+            with_indexes=True,
+        )
 
         expected_keys = ["time", "bid", "ask"]
 
@@ -1878,9 +1876,7 @@ class TestFeatureStore(TestMLRunSystem):
         tag = "test"
         project = self.project_name
 
-        test_set = fs.FeatureSet(
-            name, entities=[Entity("ticker", ValueType.STRING)]
-        )
+        test_set = fs.FeatureSet(name, entities=[Entity("ticker", ValueType.STRING)])
 
         df = fs.ingest(test_set, data)
         assert df is not None
@@ -1889,26 +1885,27 @@ class TestFeatureStore(TestMLRunSystem):
         test_set.add_aggregation(
             "bid", ["avg"], "1h",
         )
-        new_column = 'bid_avg_1h'
+        new_column = "bid_avg_1h"
         test_set.metadata.tag = tag
         fs.ingest(test_set, data)
 
         # retrieve feature set with feature vector and check for changes
-        vector = fs.FeatureVector("vector",
-                                  [f"{name}.*"], with_indexes=True)
-        vector_with_tag = fs.FeatureVector("vector_with_tag",
-                                           [f"{name}:{tag}.*"], with_indexes=True)
-        vector_with_project = fs.FeatureVector("vector_with_project",
-                                               [f"{project}/{name}.*"], with_indexes=True)
+        vector = fs.FeatureVector("vector", [f"{name}.*"], with_indexes=True)
+        vector_with_tag = fs.FeatureVector(
+            "vector_with_tag", [f"{name}:{tag}.*"], with_indexes=True
+        )
+        vector_with_project = fs.FeatureVector(
+            "vector_with_project", [f"{project}/{name}.*"], with_indexes=True
+        )
         # vector_with_project.metadata.project = "bs"
-        vector_with_features = fs.FeatureVector("vector_with_features",
-                                                [f"{name}.bid",
-                                                 f"{name}.time"],
-                                                with_indexes=True)
-        vector_with_project_tag_and_features = fs.FeatureVector("vector_with_project_tag_and_features",
-                                                                [f"{project}/{name}:{tag}.bid",
-                                                                 f"{project}/{name}:{tag}.{new_column}"],
-                                                                with_indexes=True)
+        vector_with_features = fs.FeatureVector(
+            "vector_with_features", [f"{name}.bid", f"{name}.time"], with_indexes=True
+        )
+        vector_with_project_tag_and_features = fs.FeatureVector(
+            "vector_with_project_tag_and_features",
+            [f"{project}/{name}:{tag}.bid", f"{project}/{name}:{tag}.{new_column}"],
+            with_indexes=True,
+        )
 
         expected_keys = ["ticker", "time", "bid", "ask"]
 

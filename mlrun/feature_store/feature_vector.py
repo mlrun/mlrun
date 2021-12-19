@@ -320,7 +320,12 @@ class FeatureVector(ModelObj):
                 for field in feature_fields:
                     if field != feature_set_object.spec.timestamp_key:
                         if alias:
-                            add_feature(field, alias + "_" + field, feature_set_object, feature_set)
+                            add_feature(
+                                field,
+                                alias + "_" + field,
+                                feature_set_object,
+                                feature_set,
+                            )
                         else:
                             add_feature(field, field, feature_set_object, feature_set)
             else:

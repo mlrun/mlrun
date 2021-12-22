@@ -104,6 +104,8 @@ The data source could be a DataFrame or files (e.g. csv, parquet). Files can be 
 When targets are not specified data is stored in the configured default targets (i.e. NoSQL for real-time and Parquet for offline).
 Batch ingestion can be done locally (i.e. running as a python process in the Jupyter pod) or as an MLRun job.
 
+>  **Limitation**: Do not ingest data with column names that start with `t_`. It is not ingested correctly.
+
 ### Ingest data (locally)
 
 Use FeatureSet to create the basic feature set definition and then the ingest method to run a simple ingestion "locally" in the jupyter notebook pod.

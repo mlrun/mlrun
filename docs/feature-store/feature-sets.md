@@ -104,7 +104,7 @@ The data source could be a DataFrame or files (e.g. csv, parquet). Files can be 
 When targets are not specified data is stored in the configured default targets (i.e. NoSQL for real-time and Parquet for offline).
 Batch ingestion can be done locally (i.e. running as a python process in the Jupyter pod) or as an MLRun job.
 
->  **Limitation**: Do not ingest data with column names that start with `t_`. It is not ingested correctly.
+>  **Limitation**: Do not ingest data with column names that start with `t_`. This is reserved for internal use, and the data does not ingest correctly.
 
 ### Ingest data (locally)
 

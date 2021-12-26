@@ -29,25 +29,25 @@ Use the `build` CLI command to build all the function dependencies from the func
 
 Usage: mlrun build [OPTIONS] FUNC_URL
 
-Example: `mlrun build myfunc.yaml`
+Example:  `mlrun build myfunc.yaml`
 
-| Flag   &nbsp; &nbsp; &nbsp; | Description                             |
+| Flag   &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Description                             |
 | ------------------------- | --------------------------------------- |
-|  --name TEXT           | Function name |
-|  --project TEXT        | Project name |
-|  --tag TEXT           |  Function tag |
-|  -i, --image TEXT     |  Target image path |
-|  -s, --source TEXT    |  Path/URL of the function source code. A PY file, or if `-a|--archive`  is specified, a directory to archive. (Default: './') |
-|  -b, --base-image TEXT &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;| Base Docker image |
-|  -c, --command TEXT   |  Build commands; for example, '-c pip install pandas' |
-|  --secret-name TEXT   |  Name of a container-registry secret |
-|  -a, --archive TEXT   |  Path/URL of a target function-sources archive directory: as part of the build, the function sources (see `-s|--source`) are archived into a TAR file and then extracted into the archive directory  |
-|  --silent            |   Do not show build logs |
-|  --with-mlrun         |  Add the MLRun package ("mlrun") |
-|  --db TEXT           |   Save the run results to path or DB url |
-| -r, --runtime TEXT  |  Function spec dict, for pipeline usage |
-|  --kfp               |   Running inside Kubeflow Piplines, do not use |
-|  --skip             |   Skip if already deployed |
+|  &minus;&minus;name TEXT           | Function name |
+|  &minus;&minus;project TEXT        | Project name |
+|  &minus;&minus;tag TEXT           |  Function tag |
+|  -i, &minus;&minus;image TEXT     |  Target image path |
+|  -s, &minus;&minus;source TEXT    |  Path/URL of the function source code. A PY file, or if `-a|--archive`  is specified, a directory to archive. (Default: './') |
+|  -b, &minus;&minus;base-image TEXT &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;| Base Docker image |
+|  -c, &minus;&minus;command TEXT   |  Build commands; for example, '-c pip install pandas' |
+|  &minus;&minus;secret-name TEXT   |  Name of a container-registry secret |
+|  -a, &minus;&minus;archive TEXT   |  Path/URL of a target function-sources archive directory: as part of the build, the function sources (see `-s|--source`) are archived into a TAR file and then extracted into the archive directory  |
+|  &minus;&minus;silent            |   Do not show build logs |
+|  &minus;&minus;with-mlrun         |  Add the MLRun package ("mlrun") |
+|  &minus;&minus;db TEXT           |   Save the run results to path or DB url |
+| -r, &minus;&minus;runtime TEXT  |  Function spec dict, for pipeline usage |
+|  &minus;&minus;kfp               |   Running inside Kubeflow Piplines, do not use |
+|  &minus;&minus;skip             |   Skip if already deployed |
 
 
 > **Note:** For information about using the `-a|--archive` option to create a function-sources archive, see [Using a Sources Archive](#sources-archive) later in this tutorial.
@@ -61,30 +61,30 @@ Usage: mlrun clean [OPTIONS] [KIND] [id]
 
 Examples: 
 
-- Clean resources for all runs of all runtimes: `mlrun clean`
-- Clean resources for all runs of a specific kind (e.g. job): `mlrun clean job`
-- Clean resources for specific job (by uid): `mlrun clean mpijob 15d04c19c2194c0a8efb26ea3017254b`
+- Clean resources for all runs of all runtimes:  `mlrun clean`
+- Clean resources for all runs of a specific kind (e.g. job):  `mlrun clean job`
+- Clean resources for specific job (by uid):  `mlrun clean mpijob 15d04c19c2194c0a8efb26ea3017254b`
 
 
 | Flag   &nbsp; &nbsp; &nbsp; | Description                             |
 | ----------------------------- | --------------------------------------- |
-|  --kind &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Clean resources for all runs of a specific kind (e.g. job). |
-|  --id &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Delete the resources of the mlrun object twith this identifier. For most function runtimes, runtime resources are per Run, and the identifier is the Run’s UID. For DASK runtime, the runtime resources are per Function, and the identifier is the Function’s name.|
+|  &minus;&minus;kind &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Clean resources for all runs of a specific kind (e.g. job). |
+|  &minus;&minus;id &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Delete the resources of the mlrun object twith this identifier. For most function runtimes, runtime resources are per Run, and the identifier is the Run’s UID. For DASK runtime, the runtime resources are per Function, and the identifier is the Function’s name.|
 
   
 Options| Description |
 | ----------- | ----------- |
-|  --api |  URL of the mlrun-api service.|
-|  -ls, --label-selector &nbsp; &nbsp; &nbsp;&nbsp; &nbsp; &nbsp;&nbsp; &nbsp; &nbsp;| Delete only runtime resources matching the label selector.|
-|  -f, --force   |  Delete the runtime resource even if they're not in terminal state or if the grace period didn’t pass.|
-|  -gp, --grace-period &nbsp; &nbsp; &nbsp;  &nbsp; &nbsp; &nbsp; | Grace period, in seconds, given to the runtime resource before they are actually removed, counted from the moment they moved to the terminal state.  |
+|  &minus;&minus;api |  URL of the mlrun-api service.|
+|  -ls, &minus;&minus;label-selector &nbsp; &nbsp; &nbsp;&nbsp; &nbsp; &nbsp;&nbsp; &nbsp; &nbsp;| Delete only runtime resources matching the label selector.|
+|  -f, &minus;&minus;force   |  Delete the runtime resource even if they're not in terminal state or if the grace period didn’t pass.|
+|  -gp, &minus;&minus;grace-period &nbsp; &nbsp; &nbsp;  &nbsp; &nbsp; &nbsp; | Grace period, in seconds, given to the runtime resource before they are actually removed, counted from the moment they moved to the terminal state.  |
 
 <a id="cli-cmd-config"></a>
 ### `config` 
 
 Use the `config` CLI command to show the mlrun client environment configuration, such as location of artifacts and api.
 
-Example: `mlrun config`
+Example:  `mlrun config`
 
 
 <a id="cli-cmd-get"></a>
@@ -103,13 +103,13 @@ Examples:
 
 | Flag      | Description |
 | ----------- | ----------- |
-|  --name           | Name of object to return |
-|  -s, --selector   | Label selector |
-|  -n, --namespace  |  Kubernetes namespace |
-|  --uid           |  Object ID |
-|  --project    | Project name to return |
-| -t, --tag    | Artifact/function tag of object to return |
-|  --db          |  db path/url of object to return |
+|  &minus;&minus;name           | Name of object to return |
+|  -s, &minus;&minus;selector   | Label selector |
+|  -n, &minus;&minus;namespace  |  Kubernetes namespace |
+|  &minus;&minus;uid           |  Object ID |
+|  &minus;&minus;project    | Project name to return |
+| -t, &minus;&minus;tag    | Artifact/function tag of object to return |
+|  &minus;&minus;db          |  db path/url of object to return |
 
 
 <a id="cli-cmd-logs"></a>
@@ -119,14 +119,14 @@ Use the `logs` CLI command to get or watch task logs.
 
 Usage: logs [OPTIONS] uid
 
-Example: `mlrun logs ba409c0cb4904d60aa8f8d1c05b40a75 --project getting-started-admin`
+Example:  `mlrun logs ba409c0cb4904d60aa8f8d1c05b40a75 --project getting-started-admin`
 
-| Flag &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;| Description  |
-| -------------------------------------------------------------------------------- | ----------- |
-| -p, --project TEXT &nbsp; &nbsp; &nbsp;  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;  &nbsp; &nbsp; &nbsp; | Project name |
-| --offset INTEGER  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Retrieve partial log, get up to size bytes starting at the offset from beginning of log |
-| --db TEXT         | API service url |
-| -w, --watch       |Retrieve logs of a running process, and watch the progress of the execution until it completes. Prints out the logs and continues to periodically poll for, and print, new logs as long as the state of the runtime that generates this log is either `pending` or `running`. |
+| Flag  | Description  |
+| ---------------------------- | ----------- |
+| -p, &minus;&minus;project TEXT | Project name |
+| &minus;&minus;offset INTEGER  | Retrieve partial log, get up to size bytes starting at the offset from beginning of log |
+| &minus;&minus;db TEXT         | API service url |
+| -w, &minus;&minus;watch       |Retrieve logs of a running process, and watch the progress of the execution until it completes. Prints out the logs and continues to periodically poll for, and print, new logs as long as the state of the runtime that generates this log is either `pending` or `running`. |
 
 
 <a id="cli-cmd-project"></a>
@@ -136,30 +136,30 @@ Use the `project` CLI command to load and/or run a project.
 
 Usage: mlrun project [OPTIONS] [CONTEXT]
 
-Example: `mlrun project -r workflow.py .`
+Example:  `mlrun project -r workflow.py .`
 
 
-| Flag      | Description |
-| ----------- | ----------- |     
-|  -n, --name TEXT          | Project name |
-|  -u, --url  TEXT          | Remote git or archive url of the project |
-|  -r, --run  TEXT          | Run workflow name of .py file |
-|  -a, --arguments TEXT     | Kubeflow pipeline arguments name and value tuples (with -r flag), e.g. -a x=6 
-|  -p, --artifact_path TEXT | Target path/url for workflow artifacts, The string ‘{{workflow.uid}}’ is replaced by workflow id 
-| -x, --param  TEXT         | mlrun project parameter name and value tuples, e.g. -p x=37 -p y='text' |
-| -s, --secrets TEXT        | Secrets file=<filename> or env=ENV_KEY1,.. |
-|  --namespace TEXT         | k8s namespace |
-|  --db TEXT                | API service url |
-|  --init_git               | For new projects init git the context dir |
-|  -c, --clone              | Force override/clone into the context dir |
-|  --sync                   | Sync functions into db |
-|  -w, --watch              | Wait for pipeline completion (with -r flag) |
-|  -d, --dirty              | Allow run with uncommitted git changes |
-|  --git_repo TEXT          | git repo (org/repo) for git comments |
-|  --git_issue INTEGER      | git issue number for git comments |
-|  --handler TEXT           | Workflow function handler name |
-| --engine TEXT             | Workflow engine (kfp/local) |
-|  --local                  | Try to run workflow functions locally |
+| Flag &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;   | Description |
+| ------------------------------------------------------------------------------------------------------------------------- | ----------- |     
+| -n, &minus;&minus;name TEXT          | Project name |
+| -u, &minus;&minus;url  TEXT          | Remote git or archive url of the project |
+| -r, &minus;&minus;run  TEXT          | Run workflow name of .py file |
+| -a, &minus;&minus;arguments TEXT     | Kubeflow pipeline arguments name and value tuples (with -r flag), e.g. -a x=6 
+| -p, &minus;&minus;artifact_path TEXT | Target path/url for workflow artifacts, The string ‘{{workflow.uid}}’ is replaced by workflow id 
+| -x, &minus;&minus;param  TEXT         | mlrun project parameter name and value tuples, e.g. -p x=37 -p y='text' |
+| -s, &minus;&minus;secrets TEXT        | Secrets file=<filename> or env=ENV_KEY1,.. |
+| &minus;&minus;namespace TEXT         | k8s namespace |
+| &minus;&minus;db TEXT                | API service url |
+| &minus;&minus;init_git               | For new projects init git the context dir |
+| -c, &minus;&minus;clone              | Force override/clone into the context dir |
+| &minus;&minus;sync                   | Sync functions into db |
+| -w, &minus;&minus;watch              | Wait for pipeline completion (with -r flag) |
+| -d, &minus;&minus;dirty              | Allow run with uncommitted git changes |
+| &minus;&minus;git_repo TEXT          | git repo (org/repo) for git comments |
+| &minus;&minus;git_issue INTEGER      | git issue number for git comments |
+| &minus;&minus;handler TEXT           | Workflow function handler name |
+| &minus;&minus;engine TEXT             | Workflow engine (kfp/local) |
+| &minus;&minus;local                  | Try to run workflow functions locally |
 
 <a id="cli-cmd-run"></a>
 ### `run` 
@@ -175,16 +175,16 @@ Examples:
 
 | Flag      | Description |
 | ----------- | ----------- | 
-|  -p, --param TEXT   |  Parameter name and value tuples; for example, `-p x=37 -p y='text'` |
-|  -i, --inputs TEXT  | Input artifact; for example, `-i infile.txt=s3://mybucket/infile.txt` |
-|  --in-path TEXT     | Base directory path/URL for storing input artifacts |
-|  --out-path TEXT    | Base directory path/URL for storing output artifacts |
-|  -s, --secrets TEXT |  Secrets, either as `file=<filename>` or `env=<ENVAR>,...`; for example, `-s file=secrets.txt` |
-|  --name TEXT        | Run name |
-|  --project TEXT     | Project name or ID |
-|  -f, --func-url TEXT | Path/URL of a YAML function-configuration file, or db://<project>/<name>[:tag] for a DB function object |
-|  --task TEXT         | Path/URL of a YAML task-configuration file |
-|  --handler TEXT      | Invoke the function handler inside the code file |
+|  -p, &minus;&minus;param TEXT   |  Parameter name and value tuples; for example, `-p x=37 -p y='text'` |
+|  -i, &minus;&minus;inputs TEXT  | Input artifact; for example, `-i infile.txt=s3://mybucket/infile.txt` |
+|  &minus;&minus;in-path TEXT     | Base directory path/URL for storing input artifacts |
+|  &minus;&minus;out-path TEXT    | Base directory path/URL for storing output artifacts |
+|  -s, &minus;&minus;secrets TEXT |  Secrets, either as `file=<filename>` or `env=<ENVAR>,...`; for example, `-s file=secrets.txt` |
+|  &minus;&minus;name TEXT        | Run name |
+|  &minus;&minus;project TEXT     | Project name or ID |
+|  -f, &minus;&minus;func-url TEXT | Path/URL of a YAML function-configuration file, or db://<project>/<name>[:tag] for a DB function object |
+|  &minus;&minus;task TEXT         | Path/URL of a YAML task-configuration file |
+|  &minus;&minus;handler TEXT      | Invoke the function handler inside the code file |
 
 <a id="cli-cmd-version"></a>
 ### `version` 
@@ -198,12 +198,12 @@ Use the `watch` CLI command to read the current or previous task (pod) logs.
 
 Usage: mlrun watch [OPTIONS] POD
 
-Example: `mlrun watch prep-data-6rf7b`
+Example:  `mlrun watch prep-data-6rf7b`
 
 | Flag      | Description |
 | ----------- | ----------- | 
-|  -n, --namespace | kubernetes namespace |
-|  -t, --timeout | Timeout in seconds |
+|  -n, &minus;&minus;namespace | kubernetes namespace |
+|  -t, &minus;&minus;timeout | Timeout in seconds |
 
 <a id="cli-cmd-watch-stream"></a>
 ### `watch-stream` 
@@ -220,10 +220,10 @@ Examples:
 
 | Flag      | Description |
 | ----------- | ----------- | 
-|  -s, --shard-ids | Shard id to listen on (can be multiple). |  
+|  -s, &minus;&minus;shard-ids | Shard id to listen on (can be multiple). |  
 |  --seek TEXT     | Where to start/seek (EARLIEST or LATEST)  |
-|  -i, --interval  | Interval in seconds. Default = 3 |
-|  -j, --is-json   | Indicates that the payload is json (will be deserialized). |
+|  -i, &minus;&minus;interval  | Interval in seconds. Default = 3 |
+|  -j, &minus;&minus;is-json   | Indicates that the payload is json (will be deserialized). |
 
 <a id="git-func"></a>
 ## Building and Running a Function from a Git Repository

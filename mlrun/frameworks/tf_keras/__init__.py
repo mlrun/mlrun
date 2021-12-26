@@ -14,6 +14,8 @@ def apply_mlrun(
     model: keras.Model,
     model_name: str = None,
     model_path: str = None,
+    model_format: str = TFKerasModelHandler.ModelFormats.SAVED_MODEL,
+    save_traces: bool = False,
     modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
     custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
     custom_objects_directory: str = None,
@@ -23,7 +25,7 @@ def apply_mlrun(
     mlrun_callback_kwargs: Dict[str, Any] = None,
     tensorboard_callback_kwargs: Dict[str, Any] = None,
     use_horovod: bool = None,
-) -> keras.Model:
+) -> TFKerasModelHandler:
     """
     Wrap the given model with MLRun model, saving the model's attributes and methods while giving it mlrun's additional
     features.
@@ -33,6 +35,12 @@ def apply_mlrun(
                                         tf.keras.Model.name will be used.
     :param model_path:                  The model's store object path. Mandatory for evaluation (to know which model to
                                         update).
+    :param model_format:                The format to use for saving and loading the model. Should be passed as a
+                                        member of the class 'ModelFormats'. Defaulted to 'ModelFormats.SAVED_MODEL'.
+    :param save_traces:                 Whether or not to use functions saving (only available for the 'SavedModel'
+                                        format) for loading the model later without the custom objects dictionary. Only
+                                        from tensorflow version >= 2.4.0. Using this setting will increase the model
+                                        saving size.
     :param modules_map:                 A dictionary of all the modules required for loading the model. Each key is a
                                         path to a module and its value is the object name to import from it. All the
                                         modules will be imported globally. If multiple objects needed to be imported
@@ -95,6 +103,19 @@ def apply_mlrun(
             context.labels.get("kind", "") == "mpijob" if context is not None else False
         )
 
+    # Create a model handler:
+    handler = TFKerasModelHandler(
+        model_name=model_name,
+        model_path=model_path,
+        model=model,
+        model_format=model_format,
+        save_traces=save_traces,
+        context=context,
+        modules_map=modules_map,
+        custom_objects_map=custom_objects_map,
+        custom_objects_directory=custom_objects_directory,
+    )
+
     # Add MLRun's interface to the model:
     TFKerasMLRunInterface.add_interface(model=model)
 
@@ -114,11 +135,7 @@ def apply_mlrun(
         # Add the additional parameters to Tensorboard's callback kwargs dictionary:
         tensorboard_callback_kwargs["tensorboard_directory"] = tensorboard_directory
         # Add the additional parameters to MLRun's callback kwargs dictionary:
-        mlrun_callback_kwargs["model_name"] = model_name
-        mlrun_callback_kwargs["model_path"] = model_path
-        mlrun_callback_kwargs["modules_map"] = modules_map
-        mlrun_callback_kwargs["custom_objects_map"] = custom_objects_map
-        mlrun_callback_kwargs["custom_objects_directory"] = custom_objects_directory
+        mlrun_callback_kwargs["model_handler"] = handler
         # Add the logging callbacks with the provided parameters:
         model.auto_log(
             context=context,
@@ -126,4 +143,4 @@ def apply_mlrun(
             tensorboard_callback_kwargs=tensorboard_callback_kwargs,
         )
 
-    return model
+    return handler

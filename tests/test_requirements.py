@@ -145,6 +145,10 @@ def test_requirement_specifiers_inconsistencies():
             "~=1.0; python_version >= '3.7'",
             "~=0.23.0; python_version < '3.7'",
         },
+        "tensorboard": {
+            "~=2.5; python_version >= '3.7'",
+            "~=1.0; python_version < '3.7'",
+        },
         # The empty specifier is from tests/runtimes/assets/requirements.txt which is there specifically to test the
         # scenario of requirements without version specifiers
         "python-dotenv": {"", "~=0.17.0"},

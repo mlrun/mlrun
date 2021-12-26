@@ -661,6 +661,7 @@ def _ingest_with_spark(
             df = spark.createDataFrame(source)
         else:
             df = source.to_spark_df(spark)
+            df = source.filter_df_start_end_time(df)
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
         infer_from_static_df(df, featureset, options=infer_options)
@@ -722,6 +723,9 @@ def _ingest_with_spark(
 
         if isinstance(source, BaseSourceDriver) and source.schedule:
             max_time = df.agg({timestamp_key: "max"}).collect()[0][0]
+            if not max_time:
+                # if max_time is None(no data), next scheduled run should be with same start_time
+                max_time = source.start_time
             for target in featureset.status.targets:
                 featureset.status.update_last_written_for_target(target.path, max_time)
 

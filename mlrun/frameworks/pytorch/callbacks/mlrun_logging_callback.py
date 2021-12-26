@@ -35,13 +35,8 @@ class MLRunLoggingCallback(LoggingCallback):
     def __init__(
         self,
         context: mlrun.MLClientCtx,
-        modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
-        custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
-        custom_objects_directory: str = None,
-        model_name: str = None,
-        model_path: str = None,
-        input_sample: PyTorchModelHandler.IOSample = None,
-        output_sample: PyTorchModelHandler.IOSample = None,
+        model_handler: PyTorchModelHandler,
+        log_model_tag: str = "",
         log_model_labels: Dict[str, TrackableType] = None,
         log_model_parameters: Dict[str, TrackableType] = None,
         log_model_extra_data: Dict[str, Union[TrackableType, Artifact]] = None,
@@ -59,49 +54,9 @@ class MLRunLoggingCallback(LoggingCallback):
 
         :param context:                  MLRun context to log to. Its parameters will be logged automatically  if
                                          'auto_log' is True.
-        :param modules_map:              A dictionary of all the modules required for loading the model. Each key
-                                         is a path to a module and its value is the object name to import from it. All
-                                         the modules will be imported globally. If multiple objects needed to be
-                                         imported from the same module a list can be given. The map can be passed as a
-                                         path to a json file as well. For example:
-                                         {
-                                             "module1": None,  # => import module1
-                                             "module2": ["func1", "func2"],  # => from module2 import func1, func2
-                                             "module3.sub_module": "func3",  # => from module3.sub_module import func3
-                                         }
-                                         If the model path given is of a store object, the modules map will be read from
-                                         the logged modules map artifact of the model.
-        :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key
-                                         is a path to a python file and its value is the custom object name to import
-                                         from it. If multiple objects needed to be imported from the same py file a list
-                                         can be given. The map can be passed as a path to a json file as well. For
-                                         example:
-                                         {
-                                             "/.../custom_optimizer.py": "optimizer",
-                                             "/.../custom_layers.py": ["layer1", "layer2"]
-                                         }
-                                         All the paths will be accessed from the given 'custom_objects_directory',
-                                         meaning each py file will be read from 'custom_objects_directory/<MAP VALUE>'.
-                                         If the model path given is of a store object, the custom objects map will be
-                                         read from the logged custom object map artifact of the model.
-                                         Notice: The custom objects will be imported in the order they came in this
-                                         dictionary (or json). If a custom object is depended on another, make sure to
-                                         put it below the one it relies on.
-        :param custom_objects_directory: Path to the directory with all the python files required for the custom
-                                         objects. Can be passed as a zip file as well (will be extracted during the run
-                                         before loading the model). If the model path given is of a store object, the
-                                         custom objects files will be read from the logged custom object artifact of the
-                                         model.
-        :param model_name:               The model name to use for storing the model artifact. If not given, the model's
-                                         class name will be used.
-        :param model_path:               The model's store object path. Mandatory for evaluation (to know which model to
-                                         update).
-        :param input_sample:             Input sample to the model for logging additional data regarding the input ports
-                                         of the model. If None, the input sample will be read automatically from the
-                                         training / evaluation process.
-        :param output_sample:            Output sample of the model for logging additional data regarding the output
-                                         ports of the model. If None, the input sample will be read automatically from
-                                         the training / evaluation process.
+        :param model_handler:            The model handler to use for logging the model at the end of the run with the
+                                         collected logs.
+        :param log_model_tag:            Version tag to give the logged model.
         :param log_model_labels:         Labels to log with the model.
         :param log_model_parameters:     Parameters to log with the model.
         :param log_model_extra_data:     Extra data to log with the model.
@@ -140,19 +95,18 @@ class MLRunLoggingCallback(LoggingCallback):
         del self._logger
         self._logger = MLRunLogger(
             context=context,
+            log_model_tag=log_model_tag,
             log_model_labels=log_model_labels,
             log_model_parameters=log_model_parameters,
             log_model_extra_data=log_model_extra_data,
         )
 
+        # Store the given handler:
+        self._model_handler = model_handler
+
         # Store the additional PyTorchModelHandler parameters for logging the model later:
-        self._model_name = model_name
-        self._model_path = model_path
-        self._modules_map = modules_map
-        self._custom_objects_map = custom_objects_map
-        self._custom_objects_directory = custom_objects_directory
-        self._input_sample = input_sample
-        self._output_sample = output_sample
+        self._input_sample = None  # type: PyTorchModelHandler.IOSample
+        self._output_sample = None  # type: PyTorchModelHandler.IOSample
 
     def on_run_end(self):
         """
@@ -162,29 +116,14 @@ class MLRunLoggingCallback(LoggingCallback):
         if self._logger.mode == LoggerMode.EVALUATION:
             self._logger.log_epoch_to_context(epoch=1)
 
-        # Set the model name:
-        self._model_name = (
-            type(self._objects[self._ObjectKeys.MODEL]).__name__
-            if self._model_name is None
-            else self._model_name
-        )
-
-        # Create the model handler:
-        model_handler = PyTorchModelHandler(
-            model_name=self._model_name,
-            model_path=self._model_path,
-            modules_map=self._modules_map,
-            custom_objects_map=self._custom_objects_map,
-            custom_objects_directory=self._custom_objects_directory,
-            model=self._objects[self._ObjectKeys.MODEL],
-        )
-
         # Set the inputs and outputs:
-        model_handler.set_inputs(from_sample=self._input_sample)
-        model_handler.set_outputs(from_sample=self._output_sample)
+        if self._model_handler.inputs is None:
+            self._model_handler.set_inputs(from_sample=self._input_sample)
+        if self._model_handler.outputs is None:
+            self._model_handler.set_outputs(from_sample=self._output_sample)
 
         # End the run:
-        self._logger.log_run(model_handler=model_handler)
+        self._logger.log_run(model_handler=self._model_handler)
 
     def on_epoch_end(self, epoch: int):
         """

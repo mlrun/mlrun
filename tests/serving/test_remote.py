@@ -100,8 +100,7 @@ def test_remote_step_bad_status_code(httpserver, engine):
     server = _new_server(None, engine, method="GET", url_expression="event['myurl']")
     with pytest.raises(RuntimeError):
         server.test(body={"myurl": httpserver.url_for("/foo")})
-    with pytest.raises(ValueError):
-        server.wait_for_completion()
+    server.wait_for_completion()
 
 
 @pytest.mark.parametrize("engine", ["sync", "async"])

@@ -16,13 +16,13 @@ class ONNXModelHandler(ModelHandler):
     """
 
     # Framework name:
-    _FRAMEWORK_NAME = "onnx"
+    FRAMEWORK_NAME = "onnx"
 
     def __init__(
         self,
-        model_name: str,
-        model_path: str = None,
         model: onnx.ModelProto = None,
+        model_path: str = None,
+        model_name: str = None,
         context: mlrun.MLClientCtx = None,
         **kwargs,
     ):
@@ -31,21 +31,25 @@ class ONNXModelHandler(ModelHandler):
         given is of a previously logged model (store model object path), all of the other configurations will be loaded
         automatically as they were logged with the model, hence they are optional.
 
-        :param model_name: The model name for saving and logging the model.
+        :param model:      Model to handle or None in case a loading parameters were supplied.
         :param model_path: Path to the model's directory to load it from. The onnx file must start with the given model
                            name and the directory must contain the onnx file. The model path can be also passed as a
                            model object path in the following format:
                            'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'.
-        :param model:      Model to handle or None in case a loading parameters were supplied.
+        :param model_name: The model name for saving and logging the model:
+                           * Mandatory for loading the model from a local path.
+                           * If given a logged model (store model path) it will be read from the artifact.
+                           * If given a loaded model object and the model name is None, the name will be set to the
+                             model's object name / class.
         :param context:    MLRun context to work with for logging the model.
 
         :raise MLRunInvalidArgumentError: There was no model or model directory supplied.
         """
         # Setup the base handler class:
         super(ONNXModelHandler, self).__init__(
-            model_name=model_name,
-            model_path=model_path,
             model=model,
+            model_path=model_path,
+            model_name=model_name,
             context=context,
             **kwargs,
         )
@@ -61,7 +65,7 @@ class ONNXModelHandler(ModelHandler):
         :param output_path: The full path to the directory to save the handled model at. If not given, the context
                             stored will be used to save the model in the defaulted artifacts location.
 
-        :return The saved model artifacts dictionary if context is available and None otherwise.
+        :return The saved model additional artifacts (if needed) dictionary if context is available and None otherwise.
         """
         super(ONNXModelHandler, self).save(output_path=output_path)
 

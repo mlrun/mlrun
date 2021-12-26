@@ -28,7 +28,7 @@ from tests.system.base import TestMLRunSystem
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestModelMonitoringAPI(TestMLRunSystem):
-    project_name = "model-monitor-sys-test4"
+    project_name = "model-monitor-sys-test5"
 
 
     def test_clear_endpoint(self):
@@ -301,6 +301,10 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             )
             sleep(uniform(0.2, 1.7))
             data_sent+=1
+
+        mlrun.get_run_db().invoke_schedule(self.project_name, "model-monitoring-batch")
+
+        sleep(30)
 
         # checking top level methods
         top_level_endpoints = mlrun.get_run_db().list_model_endpoints(

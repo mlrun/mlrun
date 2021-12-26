@@ -104,7 +104,7 @@ The data source could be a DataFrame or files (e.g. csv, parquet). Files can be 
 When targets are not specified data is stored in the configured default targets (i.e. NoSQL for real-time and Parquet for offline).
 Batch ingestion can be done locally (i.e. running as a python process in the Jupyter pod) or as an MLRun job.
 
->  **Limitation**: Do not ingest data with column names that start with `t_` or `aggr_`. They are reserved for internal use, and the data does not ingest correctly. See also general limitations in [Attribute name restrictions](https://www.iguazio.com/docs/latest-release/data-layer/objects/attributes/#attribute-names).
+>  **Limitation**: Do not name columns starting with either `t_` or `aggr_`. They are reserved for internal use, and the data does not ingest correctly. See also general limitations in [Attribute name restrictions](https://www.iguazio.com/docs/latest-release/data-layer/objects/attributes/#attribute-names).
 
 ### Ingest data (locally)
 

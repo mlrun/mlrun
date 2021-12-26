@@ -14,7 +14,6 @@
 
 import pandas as pd
 
-from ...utils import logger
 from ..feature_vector import OfflineVectorResponse
 from .base import BaseMerger
 
@@ -35,7 +34,6 @@ class LocalFeatureMerger(BaseMerger):
 
         feature_sets = []
         dfs = []
-        df_module = None  # for use of dask or other non pandas df module
         for name, columns in feature_set_fields.items():
             feature_set = feature_set_objects[name]
             feature_sets.append(feature_set)
@@ -48,16 +46,13 @@ class LocalFeatureMerger(BaseMerger):
             ):
                 df = feature_set.to_dataframe(
                     columns=column_names,
-                    df_module=df_module,
                     start_time=start_time,
                     end_time=end_time,
                     time_column=entity_timestamp_column,
                 )
             else:
                 df = feature_set.to_dataframe(
-                    columns=column_names,
-                    df_module=df_module,
-                    time_column=entity_timestamp_column,
+                    columns=column_names, time_column=entity_timestamp_column,
                 )
             # rename columns with aliases
             df.rename(
@@ -79,23 +74,7 @@ class LocalFeatureMerger(BaseMerger):
         self._write_to_target()
 
         # check if need to set indices
-        if self._index_columns and not self._drop_indexes:
-            # in case of using spark engine the index will be of the default type 'RangeIndex' and it will be replaced,
-            # in other cases the index should already be set correctly.
-            if self._result_df.index is None or isinstance(
-                self._result_df.index, pd.core.indexes.range.RangeIndex
-            ):
-                index_columns_missing = []
-                for index in self._index_columns:
-                    if index not in self._result_df.columns:
-                        index_columns_missing.append(index)
-                if not index_columns_missing:
-                    self._result_df.set_index(self._index_columns, inplace=True)
-                else:
-                    logger.warn(
-                        f"Can't set index, not all index columns found: {index_columns_missing}. "
-                        f"It is possible that column was already indexed."
-                    )
+        self._result_df = self._set_indexes(self._result_df)
         return OfflineVectorResponse(self)
 
     def _asof_join(

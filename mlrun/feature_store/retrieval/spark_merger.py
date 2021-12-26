@@ -10,6 +10,7 @@ class SparkFeatureMerger(BaseMerger):
         super().__init__(vector, **engine_args)
         self.spark = engine_args.get("spark", None)
         self.named_view = engine_args.get("named_view", False)
+        self._pandas_df = None
 
     def to_spark_df(self, session, path):
         return session.read.load(path)
@@ -92,9 +93,6 @@ class SparkFeatureMerger(BaseMerger):
         # todo: drop rows with null label_column values
 
         self._write_to_target()
-
-        # todo: set indexes if needed (may need to go into the get_df for pandas)
-
         return OfflineVectorResponse(self)
 
     def _asof_join(
@@ -126,7 +124,7 @@ class SparkFeatureMerger(BaseMerger):
         # get columns for projection
         projection = [
             col(col_name).alias(
-                f"{'ft'}__{col_name}"
+                f"ft__{col_name}"
                 if col_name in indexes + [entity_timestamp_column]
                 else col_name
             )
@@ -138,13 +136,13 @@ class SparkFeatureMerger(BaseMerger):
         # set join conditions
         join_cond = (
             entity_with_id[entity_timestamp_column]
-            >= aliased_featureset_df[f"{'ft'}__{entity_timestamp_column}"]
+            >= aliased_featureset_df[f"ft__{entity_timestamp_column}"]
         )
 
         # join based on entities
         for key in indexes:
             join_cond = join_cond & (
-                entity_with_id[key] == aliased_featureset_df[f"{'ft'}__{key}"]
+                entity_with_id[key] == aliased_featureset_df[f"ft__{key}"]
             )
 
         conditional_join = entity_with_id.join(
@@ -152,7 +150,7 @@ class SparkFeatureMerger(BaseMerger):
         )
         for key in indexes + [entity_timestamp_column]:
             conditional_join = conditional_join.drop(
-                aliased_featureset_df[f"{'ft'}__{key}"]
+                aliased_featureset_df[f"ft__{key}"]
             )
 
         window = Window.partitionBy("_row_nr", *indexes).orderBy(
@@ -192,5 +190,8 @@ class SparkFeatureMerger(BaseMerger):
 
     def get_df(self, to_pandas=True):
         if to_pandas:
-            return self._result_df.toPandas()
+            if self._pandas_df is None:
+                self._pandas_df = self._set_indexes(self._result_df.toPandas())
+            return self._pandas_df
+
         return self._result_df

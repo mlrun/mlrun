@@ -3,7 +3,6 @@ import pandas as pd
 from dask.dataframe.multi import merge, merge_asof
 from dask.distributed import Client
 
-from ...utils import logger
 from ..feature_vector import OfflineVectorResponse
 from .base import BaseMerger
 
@@ -60,21 +59,7 @@ class DaskFeatureMerger(BaseMerger):
         self._write_to_target()
 
         # check if need to set indices
-        if self._index_columns and not self._drop_indexes:
-
-            if self._result_df.index is None or self._result_df.index.name is None:
-                index_columns_missing = []
-                for index in self._index_columns:
-                    if index not in self._result_df.columns:
-                        index_columns_missing.append(index)
-                if not index_columns_missing:
-                    self._result_df = self._result_df.set_index(self._index_columns)
-                else:
-                    logger.warn(
-                        f"Can't set index, not all index columns found: {index_columns_missing}. "
-                        f"It is possible that column was already indexed."
-                    )
-
+        self._result_df = self._set_indexes(self._result_df)
         return OfflineVectorResponse(self)
 
     def _reset_index(self, df):

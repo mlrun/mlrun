@@ -3,6 +3,7 @@ import os
 import pathlib
 import random
 import string
+import tempfile
 import uuid
 from datetime import datetime, timedelta, timezone
 from time import sleep
@@ -466,7 +467,7 @@ class TestFeatureStore(TestMLRunSystem):
             }
         )
 
-        csv_path = "/tmp/multiple_time_columns.csv"
+        csv_path = tempfile.mktemp(".csv")
         df.to_csv(path_or_buf=csv_path, index=False)
         source = CSVSource(
             path=csv_path, time_field="time_stamp", parse_dates=["another_time_column"]

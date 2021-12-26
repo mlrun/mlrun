@@ -100,7 +100,7 @@ print(quotes_set.get_stats_table())
 ## Ingest Data Into The Feature Store
 
 Data can be ingested as a batch process either by running the ingest command on demand or as a scheduled job.
-The data source could be a DataFrame or files (e.g. csv, parquet). Files can be either local files residing on a volume (e.g. v3io), remote (e.g. S3, Azure blob). MLRun also supports Google BigQuery as a data source. If you define a transformation graph then when running an ingestion process it runs the graph transformations, infers metadata and stats and writes the results to a target data store.
+The data source could be a DataFrame or files (e.g. csv, parquet). Files can be either local files residing on a volume (e.g. v3io), and remote (e.g. S3, Azure blob). MLRun also supports Google BigQuery as a data source. If you define a transformation graph then when running an ingestion process it runs the graph transformations, infers metadata and stats and writes the results to a target data store.
 When targets are not specified data is stored in the configured default targets (i.e. NoSQL for real-time and Parquet for offline).
 Batch ingestion can be done locally (i.e. running as a python process in the Jupyter pod) or as an MLRun job.
 

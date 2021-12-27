@@ -408,8 +408,9 @@ class ServingRuntime(RemoteRuntime):
                 group = stream.options.get("group", "serving")
 
                 child_function = self._spec.function_refs[function_name]
+                trigger_args = stream.trigger_args or {}
                 child_function.function_object.add_v3io_stream_trigger(
-                    stream.path, group=group, shards=stream.shards
+                    stream.path, group=group, shards=stream.shards, **trigger_args
                 )
 
     def _deploy_function_refs(self):

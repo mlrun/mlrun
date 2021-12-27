@@ -170,7 +170,7 @@ Define your MLRun configuration. As a minimum requirement:
     MLRUN_ARTIFACT_PATH=/User/artifacts/{{project}}
     ```
 
-3. If the remote service is on an instance of the Iguazio Data Science Platform (**"the platform"**), set the following environment variables as well; replace the `<...>` placeholders with the information for your specific platform cluster:
+3. If the remote service is on an instance of the Iguazio MLOps Platform (**"the platform"**), set the following environment variables as well; replace the `<...>` placeholders with the information for your specific platform cluster:
 
     ```ini
     V3IO_USERNAME=<username of a platform user with access to the MLRun service>

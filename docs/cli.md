@@ -113,7 +113,7 @@ spec:
 ## Using a Sources Archive
 
 The `-a|--archive` option of the CLI [`build`](#cli-cmd-build) command enables you to define a remote object path for storing TAR archive files with all the required code dependencies.
-The remote location can be, for example, in an AWS S3 bucket or in a data container in an Iguazio Data Science Platform ("platform") cluster.
+The remote location can be, for example, in an AWS S3 bucket or in a data container in an Iguazio MLOps Platform ("platform") cluster.
 Alternatively, you can also set the archive path by using the `MLRUN_DEFAULT_ARCHIVE` environment variable.
 When an archive path is provided, the remote builder archives the configured function sources (see the `-s|-source` [`build`](#cli-cmd-build) option) into a TAR archive file, and then extracts (untars) all of the archive files (i.e., the function sources) into the configured archive location.
 <!-- [IntInfo] MLRUN_DEFAULT_ARCHIVE is referenced in the code using

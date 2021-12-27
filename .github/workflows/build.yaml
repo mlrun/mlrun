@@ -1,0 +1,90 @@
+# This name is referenced in the release.yaml workflow, if you're changing here - change there
+name: Build
+
+on:
+  push:
+    branches:
+    - development
+    - '[0-9]+.[0-9]+.x'
+
+  workflow_dispatch:
+    inputs:
+      docker_registry:
+        description: 'Docker registry to push images to (default: ghcr.io/, use registry.hub.docker.com/ for docker hub)'
+        required: true
+        default: 'ghcr.io/'
+      docker_repo:
+        description: 'Docker repo to push images to (default: lowercase github repository owner name)'
+        required: false
+        default: ''
+jobs:
+  build-images:
+    name: Build and push image - ${{ matrix.image-name }}
+    runs-on: ubuntu-latest
+
+    # let's not run this on every fork, change to your fork when developing
+    if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
+
+    strategy:
+      matrix:
+        image-name:
+        - mlrun
+        - api
+        - base
+        - base-legacy
+        - models
+        - models-legacy
+        - test
+# The GPU images are too big (~24GB) GH action runner has only 14GB
+#        - models-gpu
+#        - models-gpu-legacy
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install curl and jq
+      run: sudo apt-get install curl jq
+    - name: Extract git hashes + branch and latest version
+      id: git_info
+      run: |
+        echo "::set-output name=branch::$(echo ${GITHUB_REF#refs/heads/})"
+        echo "::set-output name=mlrun_commit_hash::$(git rev-parse --short=8 $GITHUB_SHA)"
+        echo "::set-output name=latest_version::$(curl -sf https://pypi.org/pypi/mlrun/json | jq -r '.info.version')"
+    - name: Resolve docker cache tag
+      id: docker_cache
+      run: |
+        export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
+        export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
+        echo "::set-output name=tag::$(echo $unstable_tag)"
+    - name: Set computed versions params
+      id: computed_params
+      run: |
+        echo "::set-output name=mlrun_version::${{ steps.git_info.outputs.latest_version }}+${{ steps.git_info.outputs.mlrun_commit_hash }}"
+        echo "::set-output name=mlrun_docker_repo::$( \
+          input_docker_repo=${{ github.event.inputs.docker_repo }} && \
+          default_docker_repo=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]') && \
+          echo ${input_docker_repo:-`echo $default_docker_repo`})"
+        echo "::set-output name=mlrun_docker_registry::$( \
+          input_docker_registry=${{ github.event.inputs.docker_registry }} && \
+          echo ${input_docker_registry:-ghcr.io/})"
+    - name: Docker login
+      run: |
+        echo ${{ secrets.DOCKER_REGISTRY_PASSWORD }} | \
+        docker login ${{ steps.computed_params.outputs.mlrun_docker_registry }} -u ${{ secrets.DOCKER_REGISTRY_USERNAME }} --password-stdin
+    - name: Pull cache, build and push image
+
+      # we don't really want per-commit test image we just want to build and push the cache image so CI will be able
+      # to use it and run much faster
+      if: ${{ matrix.image-name != 'test' }}
+      run: |
+        MLRUN_DOCKER_REGISTRY=${{ steps.computed_params.outputs.mlrun_docker_registry }} \
+        MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
+        MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
+        MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+        make push-${{ matrix.image-name }}
+    - name: Pull cache, build and push test image
+      if: ${{ matrix.image-name == 'test' }}
+      run: |
+        MLRUN_DOCKER_REGISTRY=${{ steps.computed_params.outputs.mlrun_docker_registry }} \
+        MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
+        MLRUN_VERSION=${{ steps.docker_cache.outputs.tag }} \
+        MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+        make push-${{ matrix.image-name }}

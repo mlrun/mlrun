@@ -1,0 +1,144 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+    - development
+    - '[0-9]+.[0-9]+.x'
+
+  # Run CI also on push to master
+  push:
+    branches:
+    - master
+
+jobs:
+  lint:
+    name: Lint code (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.6, 3.7, 3.8]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up python ${{ matrix.python-version }}
+      uses: actions/setup-python@v1
+      with:
+        python-version: ${{ matrix.python-version }}
+    - uses: actions/cache@v2
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('**/dev-requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-${{ matrix.python-version }}-
+          ${{ runner.os }}-pip-
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip~=21.2.0
+        pip install -r dev-requirements.txt
+    - name: Lint
+      run: make lint
+
+  tests:
+    name: Run Dockerized Tests
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    # TODO: re-use the next 2 actions instead of duplicating
+    - name: Extract git branch
+      id: git_info
+      run: |
+        echo "::set-output name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})"
+    - name: Resolve docker cache tag
+      id: docker_cache
+      run: |
+        export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
+        export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
+        echo "::set-output name=tag::$(echo $unstable_tag)"
+    - name: Run Dockerized tests
+      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-dockerized
+
+  integration-tests:
+    name: Run Dockerized Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    # TODO: re-use the next 2 actions instead of duplicating
+    - name: Extract git branch
+      id: git_info
+      run: |
+        echo "::set-output name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})"
+    - name: Resolve docker cache tag
+      id: docker_cache
+      run: |
+        export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
+        export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
+        echo "::set-output name=tag::$(echo $unstable_tag)"
+    - name: Run Dockerized tests
+      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-integration-dockerized
+
+  migrations-tests:
+    name: Run Dockerized Migrations Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      # TODO: re-use the next 2 actions instead of duplicating
+      - name: Extract git branch
+        id: git_info
+        run: |
+          echo "::set-output name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})"
+      - name: Resolve docker cache tag
+        id: docker_cache
+        run: |
+          export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
+          export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
+          echo "::set-output name=tag::$(echo $unstable_tag)"
+      - name: Run Dockerized DB Migration tests
+        run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized
+
+  package-tests:
+    name: Run package tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.6, 3.7, 3.8]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up python ${{ matrix.python-version }}
+      uses: actions/setup-python@v1
+      with:
+        python-version: ${{ matrix.python-version }}
+    - uses: actions/cache@v2
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-${{ matrix.python-version }}-
+          ${{ runner.os }}-pip-
+    - name: Install automation scripts dependencies and add mlrun to dev packages
+      run: pip install -r automation/requirements.txt && pip install -e .
+    - name: Test package
+      run: MLRUN_PYTHON_VERSION=${{ matrix.python-version }} make test-package
+
+  docs:
+    name: Build Project Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      # TODO: re-use the next 2 actions instead of duplicating
+      - name: Extract git branch
+        id: git_info
+        run: |
+          echo "::set-output name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})"
+      - name: Resolve docker cache tag
+        id: docker_cache
+        run: |
+          export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
+          export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
+          echo "::set-output name=tag::$(echo $unstable_tag)"
+      - name: Generate HTML docs
+        run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make html-docs-dockerized
+      - name: Upload generated docs
+        uses: actions/upload-artifact@v2
+        with:
+          name: docs
+          path: docs/_build/html

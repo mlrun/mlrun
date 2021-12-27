@@ -1,0 +1,6 @@
+gnureadline~=8.0
+transformers~=3.0
+xgboost~=1.1
+# The python 3.6 image is for using tensorflow 1.x which requires tensorboard 1.x as well
+tensorboard~=2.5; python_version >= '3.7'
+tensorboard~=1.0; python_version < '3.7'

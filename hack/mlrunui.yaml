@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlrun-ui
+  labels:
+    app: mlrun-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlrun-ui
+  template:
+    metadata:
+      labels:
+        app: mlrun-ui
+    spec:
+      containers:
+      - name: mlrun-ui
+        image: mlrun/mlrun-ui:0.9.0
+        env:
+        - name: MLRUN_API_PROXY_URL
+          value: http://mlrun-api:8080
+        ports:
+        - containerPort: 80
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: mlrun-ui
+spec:
+  type: NodePort
+  selector:
+    app: mlrun-ui
+  ports:
+  - protocol: TCP
+    nodePort: 30088
+    port: 80
+    targetPort: 80

@@ -174,7 +174,7 @@ fs.ingest(
 )
 
 The default value for the ‘overwrite’ parameter in the ingest function for scheduled ingest is `False`, meaning that the target from the previous ingest is not deleted.
-Currently the feature is implemented for ParquetTarget only.
+For storey engine, the feature is currently implemented for ParquetSource only. (CsvSource will be supported in an future release). For Spark engine, other sources are also supported. 
 
 ### Data sources
 

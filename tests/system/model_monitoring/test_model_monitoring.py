@@ -28,8 +28,7 @@ from tests.system.base import TestMLRunSystem
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestModelMonitoringAPI(TestMLRunSystem):
-    project_name = "model-monitor-sys-test5"
-
+    project_name = "model-monitor-sys-test4"
 
     def test_clear_endpoint(self):
         endpoint = self._mock_random_endpoint()
@@ -224,7 +223,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
 
     @pytest.mark.timeout(200)
     def test_model_monitoring_voting_ensemble(self):
-        simulation_time = 20  # 20 seconds
+        simulation_time = 40  # 40 seconds
         project = mlrun.get_run_db().get_project(self.project_name)
         project.set_model_monitoring_credentials(os.environ.get("V3IO_ACCESS_KEY"))
 
@@ -244,8 +243,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
 
         # Import the serving function from the function hub
         serving_fn = mlrun.import_function(
-            "hub://v2_model_server",
-            project=self.project_name
+            "hub://v2_model_server", project=self.project_name
         ).apply(mlrun.auto_mount())
 
         serving_fn.set_topology(
@@ -293,19 +291,16 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         iris_data = iris["data"].tolist()
 
         t_end = monotonic() + simulation_time
-        data_sent = 0
         while monotonic() < t_end:
             data_point = choice(iris_data)
             serving_fn.invoke(
                 "v2/models/VotingEnsemble/infer", json.dumps({"inputs": [data_point]})
             )
             sleep(uniform(0.2, 1.7))
-            data_sent+=1
 
         mlrun.get_run_db().invoke_schedule(self.project_name, "model-monitoring-batch")
 
         sleep(30)
-
         # checking top level methods
         top_level_endpoints = mlrun.get_run_db().list_model_endpoints(
             self.project_name, top_level=True
@@ -326,66 +321,19 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         for child in endpoints_children_list.endpoints:
             assert child.status.endpoint_type == EndpointType.LEAF_EP
 
-#        add  checks for all values of the overview dashboard. for each model_endpoint
-#        "accuracy" ,"drift_status","endpoint_function","endpoint_id","endpoint_model","endpoint_model_class",
-#        "endpoint_tag","error_count","first_request","last_request"
-
         endpoints_list = mlrun.get_run_db().list_model_endpoints(
             self.project_name,
         )
 
         for endpoint in endpoints_list.endpoints:
-#            print(f"FIRST {endpoint.status.first_request} start time {start_time}")
-#            print(f"LAST {endpoint.status.last_request} start time {start_time + timedelta(0, simulation_time)}")
-#            assert datetime.fromisoformat(endpoint.status.first_request) >= start_time
-#            assert datetime.fromisoformat(endpoint.status.last_request) <= start_time + timedelta(0, simulation_time)
             if endpoint.status.endpoint_type == EndpointType.LEAF_EP:
-                # why check only for leaves?????
-                endpoint_with_details = mlrun.get_run_db().get_model_endpoint(
-                    self.project_name, endpoint.metadata.uid, feature_analysis=True
-                )
-                drift_measures = endpoint_with_details.status.drift_measures
-                measures = ["tvd_sum", "tvd_mean", "hellinger_sum", "hellinger_mean", "kld_sum", "kld_mean"]
-                stuff_for_each_column = ["tvd", "hellinger", "kld"]
-                # feature analysis (details dashboard)
-                # for feature in columns:
-                #     assert feature in drift_measures
-                #     calcs = drift_measures[feature]
-                #     for calc in stuff_for_each_column:
-                #         assert calc in calcs
-                #         assert type(calcs[calc]) == float
-                expected = endpoint_with_details.status.feature_stats
-                columns = ["sepal_length_cm",
-                "sepal_width_cm",
-                "petal_length_cm",
-                "petal_width_cm"]
+                assert endpoint.status.drift_status == 'NO_DRIFT'
 
-                for feature in columns:
-                    assert feature in expected
-                    assert expected[feature]["count"] == len(iris_data)
-                    assert expected[feature]["min"] <= expected[feature]["mean"] <= expected[feature]["max"]
-                actual = endpoint_with_details.status.current_stats
-                for feature in columns:
-                    assert feature in actual
-                    print(f"SENT {data_sent}, in actual {actual[feature]['count']}")
-#                    assert actual[feature]["count"] == data_sent ?????????
-                    assert endpoint.status.drift_status == 'NO_DRIFT'
-                    assert actual[feature]["min"] <= actual[feature]["mean"] <= actual[feature]["max"]
-                # overall dritf analysis (details dashboard)
-#                for measure in measures:
-#                    assert measure in drift_measures
-#                    assert type(drift_measures[measure]) == float
-
-        # top_level_endpoints[0].spec.model = 'VotingEnsemble:v1' / sklearn_RandomForestClassifier:latest
-        # top_level_endpoints[0].spec.model_class = 'VotingEnsemble' / ClassifierModel
-        # top_level_endpoints[0].status.accuracy = None
-        # top_level_endpoints[0].status.drift_status = None // 2 in sklearn models. None in the other ones
-        # top_level_endpoints[0].function_uri = 'model-monitor-sys-test4/v2-model-server'
-        # top_level_endpoints[0].status.error_count = None,
-        # status.feature_stats
-
-        print("bla")
-
+    @staticmethod
+    def _get_auth_info() -> mlrun.api.schemas.AuthInfo:
+        return mlrun.api.schemas.AuthInfo(
+            data_session=os.environ.get("V3IO_ACCESS_KEY")
+        )
 
     def _mock_random_endpoint(self, state: Optional[str] = None) -> ModelEndpoint:
         def random_labels():

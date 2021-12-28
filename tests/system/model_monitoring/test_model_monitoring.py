@@ -318,7 +318,6 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         for child in endpoints_children_list.endpoints:
             assert child.status.endpoint_type == EndpointType.LEAF_EP
 
-
     @staticmethod
     def _get_auth_info() -> mlrun.api.schemas.AuthInfo:
         return mlrun.api.schemas.AuthInfo(

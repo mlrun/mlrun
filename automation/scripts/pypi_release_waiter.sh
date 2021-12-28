@@ -6,7 +6,7 @@ version=${version#"v"}
 echo "Waiting for version to be released on Pypi. version:$version"
 while true ; do
   released_versions="$(curl -sf https://pypi.org/pypi/mlrun/json | jq -r '.releases | keys | join(",")')"
-  if [[ "$released_versions" == *"$version"* ]]; then
+  if [[ "$released_versions" == *,"$version",* ]]; then
     echo "Version released: $version"
     break;
   else

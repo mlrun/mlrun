@@ -223,7 +223,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
 
     @pytest.mark.timeout(200)
     def test_model_monitoring_voting_ensemble(self):
-        simulation_time = 40  # 40 seconds
+        simulation_time = 20  # 20 seconds
         project = mlrun.get_run_db().get_project(self.project_name)
         project.set_model_monitoring_credentials(os.environ.get("V3IO_ACCESS_KEY"))
 
@@ -298,9 +298,6 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             )
             sleep(uniform(0.2, 1.7))
 
-        mlrun.get_run_db().invoke_schedule(self.project_name, "model-monitoring-batch")
-
-        sleep(30)
         # checking top level methods
         top_level_endpoints = mlrun.get_run_db().list_model_endpoints(
             self.project_name, top_level=True
@@ -321,13 +318,6 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         for child in endpoints_children_list.endpoints:
             assert child.status.endpoint_type == EndpointType.LEAF_EP
 
-        endpoints_list = mlrun.get_run_db().list_model_endpoints(
-            self.project_name,
-        )
-
-        for endpoint in endpoints_list.endpoints:
-            if endpoint.status.endpoint_type == EndpointType.LEAF_EP:
-                assert endpoint.status.drift_status == 'NO_DRIFT'
 
     @staticmethod
     def _get_auth_info() -> mlrun.api.schemas.AuthInfo:

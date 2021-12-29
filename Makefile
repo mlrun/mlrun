@@ -641,11 +641,13 @@ endif
 ifndef HEAD_PATH
 	$(error HEAD_PATH is undefined)
 endif
-	export OPENAPI_JSON_TARGET_PATH=$(BASE_PATH); \
+	mkdir base && mkdir head ;\
+	export OPENAPI_JSON_TARGET_PATH=$(PWD)/base; \
 	python -m pytest -v $(HEAD_PATH)/mlrun/tests/api/api/test_docs.py::test_save_openapi_json; \
-	export OPENAPI_JSON_TARGET_PATH=$(HEAD_PATH); \
+	export OPENAPI_JSON_TARGET_PATH=$(PWD)/head; \
 	python -m pytest -v $(HEAD_PATH)/mlrun/tests/api/api/test_docs.py::test_save_openapi_json; \
-	docker run --rm -t -v $(PWD):/specs:ro openapitools/openapi-diff:2.0.1 /specs/base/openapi.json /specs/head/openapi.json > diff.output
+	docker run --rm -t -v $(PWD):/specs:ro openapitools/openapi-diff:2.0.1 /specs/base/openapi.json /specs/head/openapi.json > diff.output ; \
+	rmdir base && rmdir head;
 
 .PHONY: release-notes
 release-notes: ## Create release notes

@@ -633,6 +633,22 @@ endif
 	git commit -m "Adding $(MLRUN_VERSION) tag contents" --allow-empty; \
 	git push origin $$BRANCH_NAME
 
+.PHONY: api-backward-compatibility
+api-backward-compatibility: ## Check for api backward compatibility breakage
+ifndef BASE_PATH
+	$(error BASE_PATH is undefined)
+endif
+ifndef HEAD_PATH
+	$(error HEAD_PATH is undefined)
+endif
+##ifndef FAIL_ON_INCOMPATIBILITY
+##	$(error FAIL_ON_INCOMPATIBILITY is undefined)
+##endif
+    OPENAPI_JSON_TARGET_PATH = $(BASE_PATH) \
+    python -m pytest -v $(BASE_PATH)/mlrun/tests/api/api/test_docs.py::test_save_openapi_json
+    OPENAPI_JSON_TARGET_PATH = $(HEAD_PATH) \
+    python -m pytest -v $(HEAD_PATH)/mlrun/tests/api/api/test_docs.py::test_save_openapi_json $(HEAD_PATH) \
+    docker run --rm -t -v $(pwd):/specs:ro openapitools/openapi-diff:2.0.1 /specs/base/openapi.json /specs/head/openapi.json --fail-on-incompatible
 
 .PHONY: release-notes
 release-notes: ## Create release notes

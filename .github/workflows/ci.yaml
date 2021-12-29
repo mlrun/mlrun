@@ -151,7 +151,7 @@ jobs:
     steps:
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true' }}
+#        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true' }}
 
       - name: Checkout Head Branch
         uses: actions/checkout@v2
@@ -168,7 +168,7 @@ jobs:
         # add set -x to print commands before executing to make logs reading easier
         run: |
           set -x
-          ll
+          ls -l
           pwd
           ll base
           set +x

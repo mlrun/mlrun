@@ -641,9 +641,6 @@ endif
 ifndef HEAD_PATH
 	$(error HEAD_PATH is undefined)
 endif
-##ifndef FAIL_ON_INCOMPATIBILITY
-##	$(error FAIL_ON_INCOMPATIBILITY is undefined)
-##endif
     OPENAPI_JSON_TARGET_PATH = $(BASE_PATH) \
     python -m pytest -v $(BASE_PATH)/mlrun/tests/api/api/test_docs.py::test_save_openapi_json
     OPENAPI_JSON_TARGET_PATH = $(HEAD_PATH) \

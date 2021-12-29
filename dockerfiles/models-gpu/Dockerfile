@@ -61,7 +61,7 @@ RUN conda install -n base -c rapidsai -c nvidia -c conda-forge rapids=21.06 pyth
 RUN conda install -n base pytorch::pytorch==1.7.0 pytorch::torchvision==0.8.0 \
     && conda clean -aqy
 
-ARG TENSORFLOW_VERSION=2.4.1
+ARG TENSORFLOW_VERSION=2.7.0
 RUN python -m pip install tensorflow~=${TENSORFLOW_VERSION}
 
 ARG OMPI=4.1.0

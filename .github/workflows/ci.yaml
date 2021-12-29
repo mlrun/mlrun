@@ -152,7 +152,7 @@ jobs:
       - name: Checkout Base Branch
         uses: actions/checkout@v2
         with:
-          path: /head
+          path: head
       - name : Setup python
         uses: actions/setup-python@v1
         with:
@@ -161,7 +161,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           ref: development
-          path: /base
+          path: base
 #        with:
 #          repo
 #          path: /base
@@ -173,6 +173,7 @@ jobs:
           ls -l
           pwd
           ls -l base
+          ls -l head
           set +x
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3

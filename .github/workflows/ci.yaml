@@ -142,3 +142,30 @@ jobs:
         with:
           name: docs
           path: docs/_build/html
+
+
+  api-backward-compatibilty:
+    name: Run Backward Compatibility Checks
+    if: github.event_name == 'pull'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Head Branch
+        uses: actions/checkout@v2
+      - name: Checkout Base Branch
+        uses: actions/checkout@development
+        with:
+          path: /base
+      - name: Output some logs in case of failure
+        if: ${{ failure() }}
+        # add set -x to print commands before executing to make logs reading easier
+        run: |
+          set -x
+          ll
+          pwd
+          set +x
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true' }}
+
+
+

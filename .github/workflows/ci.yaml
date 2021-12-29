@@ -175,7 +175,7 @@ jobs:
           pwd
           ls -l base
           ls -l head
-          cat diff.output
           set +x
       - name: Setup tmate session
+        if: ${{ failure() }}
         uses: mxschmitt/action-tmate@v3

@@ -170,7 +170,7 @@ jobs:
           set -x
           ls -l
           pwd
-          ll base
+          ls -l base
           set +x
 
 

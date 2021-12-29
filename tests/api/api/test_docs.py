@@ -15,8 +15,8 @@ def test_docs(
 
 def does_env_exists(env):
     if os.getenv(env):
-        return True
-    return False
+        return False
+    return True
 
 
 @pytest.mark.skipif(does_env_exists('OPENAPI_JSON_TARGET_PATH'),

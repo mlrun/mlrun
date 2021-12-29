@@ -163,7 +163,7 @@ jobs:
       - name: Checkout Head Branch
         uses: actions/checkout@v2
         with:
-          ref: base_branch
+          ref: ${{ steps.base_branch.outputs.branch }}
           path: base/mlrun
       - name: Install automation scripts dependencies and add mlrun to dev packages
         run: cd head/mlrun && pip install -r requirements.txt -r dev-requirements.txt -r dockerfiles/mlrun-api/requirements.txt && pip install -e .

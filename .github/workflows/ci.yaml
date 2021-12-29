@@ -151,6 +151,8 @@ jobs:
     steps:
       - name: Checkout Base Branch
         uses: actions/checkout@v2
+        with:
+          path: /head
       - name : Setup python
         uses: actions/setup-python@v1
         with:
@@ -159,7 +161,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           ref: development
-          path: ../../base
+          path: /base
 #        with:
 #          repo
 #          path: /base

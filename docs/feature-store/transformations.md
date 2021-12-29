@@ -5,7 +5,7 @@ A feature set contains an execution graph of operations that are performed when 
 when simulating data flow for inferring its metadata. This graph utilizes MLRun's
 [serving graph](../serving/serving-graph.md).
 
-The graph contains steps which represent data sources and targets, and may also contain steps whose
+The graph contains steps that represent data sources and targets, and may also contain steps whose
 purpose is transformations and enrichment of the data passed through the feature set. These transformations
 can be provided in one of 3 ways:
 
@@ -19,9 +19,9 @@ can be provided in one of 3 ways:
 * [**Custom transformations**](#custom-transformations) - It is possible to extend the built-in functionality by 
   adding new classes which perform any custom operation and using them in the serving graph.
 
-Once a feature-set was created, its internal execution graph can be observed by calling the feature-set's 
+Once a feature-set is created, its internal execution graph can be observed by calling the feature-set's 
 {py:func}`~mlrun.feature_store.FeatureSet.plot` function, which generates a `graphviz` plot based on the internal
-graph. This is very useful when running within a Jupyter notebook, and will produce a graph such as the 
+graph. This is very useful when running within a Jupyter notebook, and produces a graph such as the 
 following example:
 
 <br><img src="../_static/images/feature-store-graph.svg" alt="feature-store-graph" width="800"/><br>
@@ -32,14 +32,14 @@ UI, where the full graph can be seen and specific step properties can be observe
 
 <br><img src="../_static/images/mlrun-ui-feature-set-graph.png" alt="ui-feature-set-graph" width="800"/><br>
 
-For a full end-to-end example of feature-store and usage of the functionality described in this page, please refer
+For a full end-to-end example of feature-store and usage of the functionality described in this page, refer
 to the [feature store example](./feature-store-demo.ipynb).
 
 ## Aggregations
 
 Aggregations, being a common tool in data preparation and ML feature engineering, are available directly through
 the MLRun {py:class}`~mlrun.feature_store.FeatureSet` class. These transformations allow adding a new feature to the 
-feature-set which is created by performing some aggregate function over feature's values within a time-based 
+feature-set that is created by performing some aggregate function over feature's values within a time-based 
 sliding window.
 
 For example, if a feature-set contains stock trading data including the specific bid price for each bid at any
@@ -54,10 +54,10 @@ quotes_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")
 quotes_set.add_aggregation("bid", ["min", "max"], ["1h"], "10m")
 ```
 
-Once this is executed, the feature-set will have new features introduced, with their names produced from the aggregate
-parameters, using this format: `{column}_{operation}_{window}`. Thus, the example above will generate two new features:
-`bid_min_1h` and `bid_max_1h`. If the function gets an optional `name` parameter, features will be produced in `{name}_{operation}_{window}` format.
-If the `name` parameter is not specified, features will be produced in `{column_name}_{operation}_{window}` format.
+Once this is executed, the feature-set has new features introduced, with their names produced from the aggregate
+parameters, using this format: `{column}_{operation}_{window}`. Thus, the example above generates two new features:
+`bid_min_1h` and `bid_max_1h`. If the function gets an optional `name` parameter, features are produced in `{name}_{operation}_{window}` format.
+If the `name` parameter is not specified, features are produced in `{column_name}_{operation}_{window}` format.
 These features can then be fed into predictive models or be used for additional 
 processing and feature generation.
 
@@ -66,7 +66,8 @@ Internally, the graph step that is created to perform these aggregations is name
 aggregation steps are needed, a unique name must be provided to each, using the `state_name` parameter.
 ```
 
-Aggregations which are supported using this function are:
+Aggregations that are supported using this function are:
+- `count` 
 - `sum`
 - `sqr` (sum of squares)
 - `max`
@@ -77,7 +78,7 @@ Aggregations which are supported using this function are:
 - `stdvar`
 - `stddev`
 
-For a full documentation of this function, please visit the {py:func}`~mlrun.feature_store.FeatureSet.add_aggregation` 
+For a full documentation of this function, see the {py:func}`~mlrun.feature_store.FeatureSet.add_aggregation` 
 documentation.
 
 ## Built-in transformations
@@ -97,22 +98,22 @@ execution graph that wraps methods and classes which perform the actions. When d
 wraps storey's {py:func}`~storey.writers.WriteToParquet` function.
 ```
 
-To use a function, the following steps need to be taken:
+To use a function:
 
 1. Access the graph from the feature-set object, using the {py:attr}`~mlrun.feature_store.FeatureSet.graph` property.
 2. Add steps to the graph using the various graph functions, such as {py:func}`~mlrun.feature_store.graph.to()`. 
    The function object passed to the step should point at the transformation function being used.
 
-The following is an example for adding a simple `filter` to the graph, that will drop any bid which is lower than
+The following is an example for adding a simple `filter` to the graph, that drops any bid which is lower than
 50USD:
 
 ```python
 quotes_set.graph.to("storey.Filter", "filter", _fn="(event['bid'] > 50)")
 ```
 
-In the example above, the parameter `_fn` denotes a callable expression that will be passed to the `storey.Filter`
-class as the parameter `fn`. The callable parameter may also be a Python function, in which case there's no need for
-parentheses around it. This call generates a step in the graph called `filter` which will call the expression provided
+In the example above, the parameter `_fn` denotes a callable expression that is passed to the `storey.Filter`
+class as the parameter `fn`. The callable parameter can also be a Python function, in which case there's no need for
+parentheses around it. This call generates a step in the graph called `filter` that calls the expression provided
 with the event being propagated through the graph as data is fed to the feature-set.
 
 ## Custom transformations
@@ -148,9 +149,9 @@ that was added previously. The class will be initialized with a multiplier of 3.
 The feature store supports using Spark for ingesting, transforming and writing results to data targets. When 
 using Spark, the internal execution graph is executed synchronously, by utilizing a Spark session to perform read and
 write operations, as well as potential transformations on the data. Note that executing synchronously means that the 
-source data is fully read into a data-frame which is processed, writing the output to the targets defined.
+source data is fully read into a data-frame that is processed, writing the output to the targets defined.
 
-Spark execution may be done locally, utilizing a local Spark session provided to the ingestion call, or remotely. To 
+Spark execution can be done locally, utilizing a local Spark session provided to the ingestion call, or remotely. To 
 use Spark as the transformation engine in ingestion, follow these steps:
 
 1. When constructing the {py:class}`~mlrun.feature_store.FeatureSet` object, pass an `engine` parameter and set it 
@@ -161,21 +162,21 @@ use Spark as the transformation engine in ingestion, follow these steps:
     ```
 
 2. To use a local Spark session, pass a Spark session context when calling the 
-   {py:func}`~mlrun.feature_store.ingest` function, as the `spark_context` parameter. This session will be used for
+   {py:func}`~mlrun.feature_store.ingest` function, as the `spark_context` parameter. This session is used for
    data operations and transformations.
    
 3. To use a remote execution engine, pass a `RunConfig` object as the `run_config` parameter for the `ingest` API. The 
    actual remote function to execute depends on the object passed:
    
-    1. A default `RunConfig`, in which case the ingestion code would generate a new MLRun function runtime
-       of type `remote-spark`, or will utilize the function specified in `feature_set.spec.function` (in which case,
+    1. A default `RunConfig`, in which case the ingestion code either generates a new MLRun function runtime
+       of type `remote-spark`, or utilizes the function specified in `feature_set.spec.function` (in which case,
        it has to be of runtime type `remote-spark`).
       
-    2. A `RunConfig` which has a function configured within it. As mentioned, the function runtime must be of 
+    2. A `RunConfig` that has a function configured within it. As mentioned, the function runtime must be of 
        type `remote-spark`.
        
-For example, the following code will execute data ingestion using a local Spark session
-When using a local Spark session, the `ingest` API would wait for its completion
+For example, the following code executes data ingestion using a local Spark session.
+When using a local Spark session, the `ingest` API would wait for its completion.
 
 ```python
 import mlrun

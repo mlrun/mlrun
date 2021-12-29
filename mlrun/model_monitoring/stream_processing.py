@@ -7,14 +7,29 @@ from typing import Any, Dict, List, Optional, Set, Union
 
 import pandas as pd
 import v3io
+from nuclio import Event
+from storey import (
+    AggregateByKey,
+    FieldAggregator,
+    Filter,
+    FlatMap,
+    Map,
+    MapClass,
+    NoopDriver,
+    ParquetTarget,
+    SyncEmitSource,
+    Table,
+    TSDBTarget,
+    build_flow,
+)
+from storey.dtypes import SlidingWindows
+from storey.steps import SampleWindow
 
 # Constants
 from v3io.dataplane import RaiseForStatus
 
-import mlrun.feature_store as fs
 from mlrun.config import config
-from mlrun.datastore.targets import ParquetTarget
-from mlrun.feature_store.steps import MapClass
+from mlrun.run import MLClientCtx
 from mlrun.utils import logger
 from mlrun.utils.model_monitoring import (
     create_model_endpoint_id,
@@ -126,212 +141,192 @@ class EventStreamProcessor:
             parquet_path=self.parquet_path,
         )
 
-    def create_feature_set(self):
-        feature_set = fs.FeatureSet(
-            "monitoring", entities=[ENDPOINT_ID], timestamp_key=TIMESTAMP
-        )
-        feature_set.graph.to(
-            "ProcessEndpointEvent",
-            kv_container=self.kv_container,
-            kv_path=self.kv_path,
-            v3io_access_key=self.v3io_access_key,
-        ).to("storey.Filter", "filter_none", _fn="(event is not None)").to(
-            "storey.FlatMap", "flatten_events", _fn="(event)"
-        ).to(
-            "MapFeatureNames",
-            name="MapFeatureNames",
-            kv_container=self.kv_container,
-            kv_path=self.kv_path,
-            access_key=self.v3io_access_key,
-            infer_columns_from_data=True,
-        )
-        # kv and tsdb branch
-        feature_set.add_aggregation(
+        self._kv_keys = [
+            FUNCTION_URI,
+            MODEL,
+            MODEL_CLASS,
+            TIMESTAMP,
             ENDPOINT_ID,
-            ["count"],
-            self.aggregate_count_windows,
-            self.aggregate_count_period,
-            name=PREDICTIONS,
-            after="MapFeatureNames",
-            step_name="Aggregates",
-        )
-        feature_set.add_aggregation(
-            LATENCY, ["avg"], self.aggregate_avg_windows, self.aggregate_avg_period,
-        )
-        feature_set.graph.add_step(
-            "storey.steps.SampleWindow",
-            name="sample",
-            after="Aggregates",
-            window_size=self.sample_window,
-            key=ENDPOINT_ID,
-        )
-        # kv
-        feature_set.graph.add_step(
-            "ProcessBeforeKV", name="ProcessBeforeKV", after="sample"
-        )
-        feature_set.graph.add_step(
-            "WriteToKV",
-            name="WriteToKV",
-            after="ProcessBeforeKV",
-            container=self.kv_container,
-            table=self.kv_path,
-        )
-        feature_set.graph.add_step(
-            "InferSchema",
-            name="InferSchema",
-            after="WriteToKV",
-            v3io_access_key=self.v3io_access_key,
-            v3io_framesd=self.v3io_framesd,
-            container=self.kv_container,
-            table=self.kv_path,
-        )
-        # tsdb
-        feature_set.graph.add_step(
-            "ProcessBeforeTSDB", name="ProcessBeforeTSDB", after="sample"
-        )
-        feature_set.graph.add_step(
-            "FilterAndUnpackKeys",
-            name="FilterAndUnpackKeys1",
-            after="ProcessBeforeTSDB",
-            keys=[BASE_METRICS],
-        )
-        feature_set.graph.add_step(
-            "storey.TSDBTarget",
-            name="tsdb1",
-            after="FilterAndUnpackKeys1",
-            path=self.tsdb_path,
-            rate="10/m",
-            time_col=TIMESTAMP,
-            container=self.tsdb_container,
-            access_key=self.v3io_access_key,
-            v3io_frames=self.v3io_framesd,
-            index_cols=[ENDPOINT_ID, RECORD_TYPE],
-            max_events=self.tsdb_batching_max_events,
-            timeout_secs=self.tsdb_batching_timeout_secs,
-            key=ENDPOINT_ID,
-        )
-        feature_set.graph.add_step(
-            "FilterAndUnpackKeys",
-            name="FilterAndUnpackKeys2",
-            after="ProcessBeforeTSDB",
-            keys=[ENDPOINT_FEATURES],
-        )
-        feature_set.graph.add_step(
-            "storey.TSDBTarget",
-            name="tsdb2",
-            after="FilterAndUnpackKeys2",
-            path=self.tsdb_path,
-            rate="10/m",
-            time_col=TIMESTAMP,
-            container=self.tsdb_container,
-            access_key=self.v3io_access_key,
-            v3io_frames=self.v3io_framesd,
-            index_cols=[ENDPOINT_ID, RECORD_TYPE],
-            max_events=self.tsdb_batching_max_events,
-            timeout_secs=self.tsdb_batching_timeout_secs,
-            key=ENDPOINT_ID,
-        )
-        feature_set.graph.add_step(
-            "FilterAndUnpackKeys",
-            name="FilterAndUnpackKeys3",
-            after="ProcessBeforeTSDB",
-            keys=[CUSTOM_METRICS],
-        )
-        feature_set.graph.add_step(
-            "storey.Filter",
-            "FilterNotNone",
-            after="FilterAndUnpackKeys3",
-            _fn="(event is not None)",
-        )
-        feature_set.graph.add_step(
-            "storey.TSDBTarget",
-            name="tsdb3",
-            after="FilterNotNone",
-            path=self.tsdb_path,
-            rate="10/m",
-            time_col=TIMESTAMP,
-            container=self.tsdb_container,
-            access_key=self.v3io_access_key,
-            v3io_frames=self.v3io_framesd,
-            index_cols=[ENDPOINT_ID, RECORD_TYPE],
-            max_events=self.tsdb_batching_max_events,
-            timeout_secs=self.tsdb_batching_timeout_secs,
-            key=ENDPOINT_ID,
-        )
+            LABELS,
+            UNPACKED_LABELS,
+            LATENCY_AVG_5M,
+            LATENCY_AVG_1H,
+            PREDICTIONS_PER_SECOND,
+            PREDICTIONS_COUNT_5M,
+            PREDICTIONS_COUNT_1H,
+            FIRST_REQUEST,
+            LAST_REQUEST,
+            ERROR_COUNT,
+        ]
 
-        # parquet branch
-        feature_set.graph.add_step(
-            "ProcessBeforeParquet",
-            name="ProcessBeforeParquet",
-            after="MapFeatureNames",
-            _fn="(event)",
-        )
-        storage_options = dict(
-            v3io_access_key=self.model_monitoring_access_key, v3io_api=self.v3io_api
-        )
-
-        pq_target = ParquetTarget(
-            path=self.parquet_path,
-            after_step="ProcessBeforeParquet",
-            key_bucketing_number=0,
-            time_partitioning_granularity="hour",
-            max_events=self.parquet_batching_max_events,
-            flush_after_seconds=self.parquet_batching_timeout_secs,
-            storage_options=storage_options,
-            attributes={"infer_columns_from_data": True},
-        )
-
-        feature_set.set_targets(
-            targets=[pq_target],
-            with_defaults=False,
-            default_final_step="ProcessBeforeParquet",
-        )
-        return feature_set
-
-
-# mlrun: start-code
-class ProcessBeforeKV(MapClass):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    def do(self, event):
-        # compute prediction per second
-        event[PREDICTIONS_PER_SECOND] = float(event[PREDICTIONS_COUNT_5M]) / 600
-        # Filter relevant keys
-        e = {
-            k: event[k]
-            for k in [
-                FUNCTION_URI,
-                MODEL,
-                MODEL_CLASS,
-                TIMESTAMP,
-                ENDPOINT_ID,
-                LABELS,
-                UNPACKED_LABELS,
-                LATENCY_AVG_5M,
-                LATENCY_AVG_1H,
-                PREDICTIONS_PER_SECOND,
-                PREDICTIONS_COUNT_5M,
-                PREDICTIONS_COUNT_1H,
-                FIRST_REQUEST,
-                LAST_REQUEST,
-                ERROR_COUNT,
+        self._flow = build_flow(
+            [
+                SyncEmitSource(),
+                ProcessEndpointEvent(
+                    kv_container=self.kv_container,
+                    kv_path=self.kv_path,
+                    v3io_access_key=self.v3io_access_key,
+                ),
+                FilterNotNone(),
+                FlatMap(lambda x: x),
+                MapFeatureNames(
+                    kv_container=self.kv_container,
+                    kv_path=self.kv_path,
+                    access_key=self.v3io_access_key,
+                    infer_columns_from_data=True,
+                ),
+                # Branch 1: Aggregate events, count averages and update TSDB and KV
+                [
+                    AggregateByKey(
+                        aggregates=[
+                            FieldAggregator(
+                                PREDICTIONS,
+                                ENDPOINT_ID,
+                                ["count"],
+                                SlidingWindows(
+                                    self.aggregate_count_windows,
+                                    self.aggregate_count_period,
+                                ),
+                            ),
+                            FieldAggregator(
+                                LATENCY,
+                                LATENCY,
+                                ["avg"],
+                                SlidingWindows(
+                                    self.aggregate_avg_windows,
+                                    self.aggregate_avg_period,
+                                ),
+                            ),
+                        ],
+                        table=Table("notable", NoopDriver()),
+                    ),
+                    SampleWindow(
+                        self.sample_window, key=ENDPOINT_ID,
+                    ),  # Add required gap between event to apply sampling
+                    Map(self.compute_predictions_per_second),
+                    # Branch 1.1: Updated KV
+                    [
+                        Map(self.process_before_kv),
+                        WriteToKV(container=self.kv_container, table=self.kv_path),
+                        InferSchema(
+                            v3io_access_key=self.v3io_access_key,
+                            v3io_framesd=self.v3io_framesd,
+                            container=self.kv_container,
+                            table=self.kv_path,
+                        ),
+                    ],
+                    # Branch 1.2: Update TSDB
+                    [
+                        # Map the event into taggable fields, add record type to each field
+                        Map(self.process_before_events_tsdb),
+                        [
+                            FilterKeys(BASE_METRICS),
+                            UnpackValues(BASE_METRICS),
+                            TSDBTarget(
+                                path=self.tsdb_path,
+                                rate="10/m",
+                                time_col=TIMESTAMP,
+                                container=self.tsdb_container,
+                                access_key=self.v3io_access_key,
+                                v3io_frames=self.v3io_framesd,
+                                index_cols=[ENDPOINT_ID, RECORD_TYPE],
+                                # Settings for _Batching
+                                max_events=self.tsdb_batching_max_events,
+                                timeout_secs=self.tsdb_batching_timeout_secs,
+                                key=ENDPOINT_ID,
+                            ),
+                        ],
+                        [
+                            FilterKeys(ENDPOINT_FEATURES),
+                            UnpackValues(ENDPOINT_FEATURES),
+                            TSDBTarget(
+                                path=self.tsdb_path,
+                                rate="10/m",
+                                time_col=TIMESTAMP,
+                                container=self.tsdb_container,
+                                access_key=self.v3io_access_key,
+                                v3io_frames=self.v3io_framesd,
+                                index_cols=[ENDPOINT_ID, RECORD_TYPE],
+                                # Settings for _Batching
+                                max_events=self.tsdb_batching_max_events,
+                                timeout_secs=self.tsdb_batching_timeout_secs,
+                                key=ENDPOINT_ID,
+                            ),
+                        ],
+                        [
+                            FilterKeys(CUSTOM_METRICS),
+                            FilterNotNone(),
+                            UnpackValues(CUSTOM_METRICS),
+                            TSDBTarget(
+                                path=self.tsdb_path,
+                                rate="10/m",
+                                time_col=TIMESTAMP,
+                                container=self.tsdb_container,
+                                access_key=self.v3io_access_key,
+                                v3io_frames=self.v3io_framesd,
+                                index_cols=[ENDPOINT_ID, RECORD_TYPE],
+                                # Settings for _Batching
+                                max_events=self.tsdb_batching_max_events,
+                                timeout_secs=self.tsdb_batching_timeout_secs,
+                                key=ENDPOINT_ID,
+                            ),
+                        ],
+                    ],
+                ],
+                # Branch 2: Batch events, write to parquet
+                [
+                    Map(self.process_before_parquet),
+                    ParquetTarget(
+                        path=self.parquet_path,
+                        partition_cols=["$key", "$year", "$month", "$day", "$hour"],
+                        infer_columns_from_data=True,
+                        # Settings for _Batching
+                        max_events=self.parquet_batching_max_events,
+                        timeout_secs=self.parquet_batching_timeout_secs,
+                        # Settings for v3io storage
+                        storage_options={
+                            "v3io_api": self.v3io_api,
+                            "v3io_access_key": self.model_monitoring_access_key,
+                        },
+                    ),
+                ],
             ]
-        }
+        ).run()
+
+    def consume(self, event: Dict):
+        events = []
+        if "headers" in event and "values" in event:
+            for values in event["values"]:
+                events.append({k: v for k, v in zip(event["headers"], values)})
+        else:
+            events.append(event)
+
+        for enriched in map(enrich_even_details, events):
+            if enriched is not None:
+                self._flow.emit(
+                    enriched,
+                    key=enriched[ENDPOINT_ID],
+                    event_time=datetime.strptime(enriched["when"], ISO_8061_UTC),
+                )
+            else:
+                pass
+
+    @staticmethod
+    def compute_predictions_per_second(event: dict):
+        event[PREDICTIONS_PER_SECOND] = float(event[PREDICTIONS_COUNT_5M]) / 600
+        return event
+
+    def process_before_kv(self, event: dict):
+        # Filter relevant keys
+        e = {k: event[k] for k in self._kv_keys}
         # Unpack labels dictionary
         e = {**e, **e.pop(UNPACKED_LABELS, {})}
         # Write labels to kv as json string to be presentable later
         e[LABELS] = json.dumps(e[LABELS])
         return e
 
-
-class ProcessBeforeTSDB(MapClass):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    def do(self, event):
-        # compute prediction per second
-        event[PREDICTIONS_PER_SECOND] = float(event[PREDICTIONS_COUNT_5M]) / 600
+    @staticmethod
+    def process_before_events_tsdb(event: Dict):
         base_fields = [TIMESTAMP, ENDPOINT_ID]
 
         base_event = {k: event[k] for k in base_fields}
@@ -367,22 +362,26 @@ class ProcessBeforeTSDB(MapClass):
 
         return processed
 
+    @staticmethod
+    def process_before_parquet(event: dict):
+        def set_none_if_empty(_event: dict, keys: List[str]):
+            for key in keys:
+                if not _event.get(key):
+                    _event[key] = None
 
-class ProcessBeforeParquet(MapClass):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+        def drop_if_exists(_event: dict, keys: List[str]):
+            for key in keys:
+                _event.pop(key, None)
 
-    def do(self, event):
-        logger.info("ProcessBeforeParquet1", event=event)
-        for key in [UNPACKED_LABELS, FEATURES]:
-            event.pop(key, None)
-        value = event.get("entities")
-        if value is not None:
-            event = {**value, **event}
-        for key in [LABELS, METRICS, ENTITIES]:
-            if not event.get(key):
-                event[key] = None
-        logger.info("ProcessBeforeParquet2", event=event)
+        def unpack_if_exists(_event: dict, keys: List[str]):
+            for key in keys:
+                value = _event.get(key)
+                if value is not None:
+                    _event = {**value, **event}
+
+        drop_if_exists(event, [UNPACKED_LABELS, FEATURES])
+        unpack_if_exists(event, [ENTITIES])
+        set_none_if_empty(event, [LABELS, METRICS, ENTITIES])
         return event
 
 
@@ -413,9 +412,7 @@ class ProcessEndpointEvent(MapClass):
         # Validate event fields
         model_class = event.get("model_class") or event.get("class")
         timestamp = event.get("when")
-        request_id = event.get("request", {}).get("id") or event.get("resp", {}).get(
-            "id"
-        )
+        request_id = event.get("request", {}).get("id")
         latency = event.get("microsec")
         features = event.get("request", {}).get("inputs")
         predictions = event.get("resp", {}).get("outputs")
@@ -447,7 +444,7 @@ class ProcessEndpointEvent(MapClass):
         for i, (feature, prediction) in enumerate(zip(features, predictions)):
             if not self.is_valid(
                 endpoint_id,
-                self.is_list_of_numerics,
+                is_list_of_numerics,
                 feature,
                 ["request", "inputs", f"[{i}]"],
             ):
@@ -477,16 +474,6 @@ class ProcessEndpointEvent(MapClass):
                 }
             )
         return events
-
-    def is_list_of_numerics(
-        self, field: List[Union[int, float, dict, list]], dict_path: List[str]
-    ):
-        if all(isinstance(x, int) or isinstance(x, float) for x in field):
-            return True
-        logger.error(
-            f"List does not consist of only numeric values: {field} [Event -> {','.join(dict_path)}]"
-        )
-        return False
 
     def resume_state(self, endpoint_id):
         # Make sure process is resumable, if process fails for any reason, be able to pick things up close to where we
@@ -553,28 +540,54 @@ def is_not_none(field: Any, dict_path: List[str]):
     if field is not None:
         return True
     logger.error(
-        f"Expected event field is missing: {field} [Event -> {','.join(dict_path)}]"
+        f"Expected event field is missing: {field} [Event -> {''.join(dict_path)}]"
     )
     return False
 
 
-class FilterAndUnpackKeys(MapClass):
-    def __init__(self, keys, **kwargs):
+def is_list_of_numerics(
+    field: List[Union[int, float, dict, list]], dict_path: List[str]
+):
+    if all(isinstance(x, int) or isinstance(x, float) for x in field):
+        return True
+    logger.error(
+        f"Expected event field is missing: {field} [Event -> {''.join(dict_path)}]"
+    )
+    return False
+
+
+class FilterNotNone(Filter):
+    def __init__(self, **kwargs):
+        super().__init__(fn=lambda event: event is not None, **kwargs)
+
+
+class FilterKeys(MapClass):
+    def __init__(self, *args, **kwargs):
         super().__init__(**kwargs)
-        self.keys = keys
+        self.keys = list(args)
 
     def do(self, event):
         new_event = {}
         for key in self.keys:
             if key in event:
                 new_event[key] = event[key]
+
+        return new_event if new_event else None
+
+
+class UnpackValues(MapClass):
+    def __init__(self, *args, **kwargs):
+        super().__init__(**kwargs)
+        self.keys_to_unpack = set(args)
+
+    def do(self, event):
         unpacked = {}
-        for key in new_event.keys():
-            if key in self.keys:
-                unpacked = {**unpacked, **new_event[key]}
+        for key in event.keys():
+            if key in self.keys_to_unpack:
+                unpacked = {**unpacked, **event[key]}
             else:
-                unpacked[key] = new_event[key]
-        return unpacked if unpacked else None
+                unpacked[key] = event[key]
+        return unpacked
 
 
 class MapFeatureNames(MapClass):
@@ -756,50 +769,15 @@ def get_endpoint_record(
         return None
 
 
-# mlrun: end-code
-
-
-def init_context(context):
+def init_context(context: MLClientCtx):
     context.logger.info("Initializing EventStreamProcessor")
     parameters = environ.get("MODEL_MONITORING_PARAMETERS")
     parameters = json.loads(parameters) if parameters else {}
     stream_processor = EventStreamProcessor(**parameters)
-    fset = stream_processor.create_feature_set()
-    setattr(context, "fset", fset)
-    setattr(context, "need_to_infer", True)
+    setattr(context, "stream_processor", stream_processor)
 
 
-def handler(context, event):
-    context.logger.debug(event.body)
+def handler(context: MLClientCtx, event: Event):
     event_body = json.loads(event.body)
-
-    options = fs.InferOptions.Null
-    if context.need_to_infer:
-        options = fs.InferOptions.default()
-        context.need_to_infer = False
-
-    events = []
-    if "headers" in event_body and "values" in event_body:
-        for values in event_body["values"]:
-            events.append({k: v for k, v in zip(event_body["headers"], values)})
-    else:
-        events.append(event_body)
-
-    for enriched in map(enrich_even_details, events):
-
-        if enriched is not None:
-            enriched[TIMESTAMP] = datetime.strptime(enriched["when"], ISO_8061_UTC)
-            if enriched.get("class"):
-                # class is illegal column name in pandas df
-                enriched[MODEL_CLASS] = enriched["class"]
-                del enriched["class"]
-
-            fs.ingest(
-                context.fset,
-                pd.DataFrame({k: [v] for k, v in enriched.items()}),
-                infer_options=options,
-                return_df=False,
-                overwrite=False,
-            )
-        else:
-            pass
+    context.logger.debug(event_body)
+    context.stream_processor.consume(event_body)

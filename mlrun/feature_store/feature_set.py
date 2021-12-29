@@ -518,7 +518,7 @@ class FeatureSet(ModelObj):
                               In this case, each record on an in-application stream belongs
                               to a specific window. It is processed only once
                               (when the query processes the window to which the record belongs).
-        :param period:     optional, sliding window granularity, e.g. '10m'
+        :param period:     optional, sliding window granularity, e.g. '20s' '10m'  '3h' '7d'
         :param name:       optional, aggregation name/prefix. Must be unique per feature set.If not passed,
                             the column will be used as name.
         :param step_name: optional, graph step name

@@ -645,7 +645,7 @@ endif
 	python -m pytest -v $(HEAD_PATH)/mlrun/tests/api/api/test_docs.py::test_save_openapi_json; \
 	export OPENAPI_JSON_TARGET_PATH=$(HEAD_PATH); \
 	python -m pytest -v $(HEAD_PATH)/mlrun/tests/api/api/test_docs.py::test_save_openapi_json; \
-	docker run --rm -t -v $(pwd):/specs:ro openapitools/openapi-diff:2.0.1 /specs/base/openapi.json /specs/head/openapi.json > diff.output
+	docker run --rm -t -v $(PWD):/specs:ro openapitools/openapi-diff:2.0.1 /specs/base/openapi.json /specs/head/openapi.json > diff.output
 
 .PHONY: release-notes
 release-notes: ## Create release notes

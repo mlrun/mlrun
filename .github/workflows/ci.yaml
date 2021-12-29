@@ -163,7 +163,7 @@ jobs:
           ref: development
           path: base/mlrun
       - name: Install automation scripts dependencies and add mlrun to dev packages
-        run: pip install -r head/mlrun/requirements.txt && pip install -e .
+        run: pip install -r head/mlrun/requirements.txt && pip install -e head/mlrun
 #      - name: Test package
 #        run: MLRUN_PYTHON_VERSION=3.8 cd base/mlrun make api-backward-compatibility
       - name: Output some logs in case of failure

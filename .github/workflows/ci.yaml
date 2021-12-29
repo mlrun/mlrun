@@ -151,9 +151,6 @@ jobs:
     steps:
       - name: Checkout Base Branch
         uses: actions/checkout@v2
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-#        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true' }}
       - name : Setup python
         uses: actions/setup-python@v1
         with:
@@ -175,5 +172,5 @@ jobs:
           pwd
           ls -l base
           set +x
-
-
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3

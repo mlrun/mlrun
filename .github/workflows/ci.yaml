@@ -152,7 +152,7 @@ jobs:
       - name: Checkout Base Branch
         uses: actions/checkout@v2
         with:
-          path: head
+          path: head/mlrun
       - name : Setup python
         uses: actions/setup-python@v1
         with:
@@ -161,7 +161,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           ref: development
-          path: base
+          path: base/mlrun
       - name: Install automation scripts dependencies and add mlrun to dev packages
         run: pip install -r head/automation/requirements.txt && pip install -e .
       - name: Test package

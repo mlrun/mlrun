@@ -149,17 +149,20 @@ jobs:
 #    if: github.event_name == 'pull'
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout Base Branch
+        uses: actions/checkout@v2
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
 #        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true' }}
-
+      - name : Setup python
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.8
       - name: Checkout Head Branch
         uses: actions/checkout@v2
-      - run : |
-          - mkdir base | cd base
-          - git checkout development
-#      - name: Checkout Base Branch
-#        uses: actions/checkout@v2
+        with:
+          ref: development
+          path: ../../base
 #        with:
 #          repo
 #          path: /base

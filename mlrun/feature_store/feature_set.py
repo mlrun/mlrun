@@ -622,7 +622,7 @@ class FeatureSet(ModelObj):
         """return featureset (offline) data as dataframe
 
         :param columns:      list of columns to select (if not all)
-        :param df_module:    DataFrame class (pd for Pandas, dd for Dask, ..)
+        :param df_module:    py module used to create the DataFrame (pd for Pandas, dd for Dask, ..)
         :param target_name:  select a specific target (material view)
         :param start_time:   filter by start time
         :param end_time:     filter by end time

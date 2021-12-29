@@ -107,7 +107,7 @@ class SparkFeatureMerger(BaseMerger):
             entity_timestamp_column (str): Column name in entity_df which represents
                 event timestamp.
             featureset_df (Dataframe): Spark dataframe representing the feature table.
-            featureset (FeatureSet): Feature set specification, which provide information on
+            featureset (FeatureSet): Feature set specification, which provides information on
                 how the join should be performed, such as the entity primary keys.
         Returns:
             DataFrame: Join result, which contains all the original columns from entity_df, as well

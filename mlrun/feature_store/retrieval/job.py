@@ -83,7 +83,7 @@ class RemoteVectorResponse:
         """return result as a dataframe object (generated from the dataitem).
 
         :param columns:   optional, list of columns to select
-        :param df_module: optional, target dataframe class (e.g. pd, dd, cudf, ..)
+        :param df_module: optional, py module used to create the DataFrame (e.g. pd, dd, cudf, ..)
         :param kwargs:    extended DataItem.as_df() args
         """
         return mlrun.get_dataitem(self.target_uri).as_df(

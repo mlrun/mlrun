@@ -149,6 +149,18 @@ class BaseMerger(abc.ABC):
 
         self._result_df = merged_df
 
+    @abc.abstractmethod
+    def _asof_join(
+        self, entity_df, entity_timestamp_column: str, featureset, featureset_df,
+    ):
+        raise NotImplementedError("_asof_join() operation not implemented in class")
+
+    @abc.abstractmethod
+    def _join(
+        self, entity_df, entity_timestamp_column: str, featureset, featureset_df,
+    ):
+        raise NotImplementedError("_join() operation not implemented in class")
+
     def get_status(self):
         """return the status of the merge operation (in case its asynchrounious)"""
         if self._result_df is None:

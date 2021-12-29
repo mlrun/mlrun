@@ -157,10 +157,13 @@ jobs:
         uses: actions/setup-python@v1
         with:
           python-version: 3.8
+      - id: base_branch
+        run: |
+            echo "::set-output name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})"
       - name: Checkout Head Branch
         uses: actions/checkout@v2
         with:
-          ref: ${GITHUB_BASE_REF}
+          ref: base_branch
           path: base/mlrun
       - name: Install automation scripts dependencies and add mlrun to dev packages
         run: cd head/mlrun && pip install -r requirements.txt -r dev-requirements.txt -r dockerfiles/mlrun-api/requirements.txt && pip install -e .

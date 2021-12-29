@@ -206,7 +206,7 @@ class GraphServer(ModelObj):
         :param silent:     don't raise on error responses (when not 20X)
         :param get_body:   return the body as py object (vs serialize response into json)
         :param event_id:   specify the unique event ID (by default a random value will be generated)
-        :param trigger:    nuclio trigger info (kind and name)
+        :param trigger:    nuclio trigger info or mlrun.serving.server.MockTrigger class (holds kind and name)
         :param offset:     trigger offset (for streams)
         """
         if not self.graph:
@@ -382,7 +382,6 @@ class MockEvent(object):
         self.method = method
         self.path = path or "/"
         self.content_type = content_type
-        self.trigger = None
         self.error = None
         self.trigger = trigger or MockTrigger()
         self.offset = offset or 0

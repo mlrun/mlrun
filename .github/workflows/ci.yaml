@@ -146,7 +146,7 @@ jobs:
 
   api-backward-compatibilty:
     name: Run Backward Compatibility Checks
-    if: github.event_name == 'pull'
+#    if: github.event_name == 'pull'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Head Branch

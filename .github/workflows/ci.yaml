@@ -150,7 +150,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       MLRUN_BC_TESTS_BASE_CODE_PATH: /home/runner/work/mlrun/mlrun/base/mlrun
-      MLRUN_DOCKER_REGISTRY: ghcr.io
+      MLRUN_DOCKER_REGISTRY: ghcr.io/
     steps:
       - id: resolve_base_branch
         run: |

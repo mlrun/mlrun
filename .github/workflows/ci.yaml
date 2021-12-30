@@ -146,7 +146,7 @@ jobs:
 
   api-backward-compatibilty:
     name: Run Backward Compatibility Checks
-#    if: github.event_name == 'pull'
+    if: github.event_name == 'pull'
     runs-on: ubuntu-latest
     steps:
       - id: base_branch
@@ -157,10 +157,7 @@ jobs:
         with:
           ref: ${{ steps.base_branch.outputs.branch }}
           path: base/mlrun
-      - name: Checkout Head Branch
-#        uses: actions/checkout@v2
-#        with:
-#          path: head/mlrun
+      - name: Checkout Head Branch and Stable with the target Branch
         run : |
           mkdir head && cd head
           git init

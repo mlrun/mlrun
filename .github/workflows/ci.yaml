@@ -165,7 +165,7 @@ jobs:
           git config  --global user.email github-actions@mlrun
           export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
           git config github.token ${{ secrets.GITHUB_TOKEN }}
-          git add remote origin $GITHUB_SERVER_URL/$GITHUB_REPOSITORY
+          git remote add origin $GITHUB_SERVER_URL/$GITHUB_REPOSITORY
           git pull origin development
       - name : Setup python
         uses: actions/setup-python@v1

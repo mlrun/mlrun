@@ -637,7 +637,7 @@ endif
 test-backward-compatibility-dockerized: ## Run backward compatibility tests in docker container
     docker run \
         -t \
-        -rm \
+        --rm \
         --network='host' \
         -v /tmp:/tmp \
         -v /home/runner/work/mlrun/mlrun:/home/runner/work/mlrun/mlrun \

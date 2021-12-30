@@ -159,9 +159,8 @@ jobs:
         with:
           path: head/mlrun
       - run : |
-          git init
-          git config user.name github-actions
-          git config user.email github-actions@mlrun
+          git config user.name github-actions --global
+          git config user.email github-actions@mlrun --global
           git init base
           cd head
           git remote add Base ../../base

@@ -159,13 +159,15 @@ jobs:
         with:
           path: head/mlrun
       - run : |
-          git init head
+          git config user.name github-actions
+          git config user.email github-actions@mlrun
           git init base
           cd head
           git remote add Base ../../base
           git commit --allow-empty -m ''
           git pull Base ${{ steps.base_branch.outputs.branch }} master --allow-unrelated-histories
       - name : Setup python
+
         uses: actions/setup-python@v1
         with:
           python-version: 3.8

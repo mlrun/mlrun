@@ -633,6 +633,18 @@ endif
 	git commit -m "Adding $(MLRUN_VERSION) tag contents" --allow-empty; \
 	git push origin $$BRANCH_NAME
 
+.PHONY test-backward-compatibility-dockerized
+test-backward-compatibility-dockerized ## Run backward compatibility tests in docker container
+    docker run \
+        -t \
+        -rm \
+        --network='host' \
+        -v /tmp:/tmp \
+        -v /home/runner/work/mlrun/mlrun:/home/runner/work/mlrun/mlrun \
+        --env MLRUN_BC_TESTS_BASE_CODE_PATH=$(MLRUN_BC_TESTS_BASE_CODE_PATH) \
+        --workdir="/home/runner/work/mlrun/mlrun" \
+         $(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-backward-compatibility
+
 .PHONY: test-backward-compatibility
 test-backward-compatibility: ## Run backward compatibility tests
 ifndef MLRUN_BC_TESTS_BASE_CODE_PATH

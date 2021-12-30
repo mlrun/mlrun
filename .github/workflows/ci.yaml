@@ -148,6 +148,8 @@ jobs:
     name: Run Backward Compatibility Tests
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    env:
+      MLRUN_BC_TESTS_BASE_CODE_PATH: /home/runner/work/mlrun/mlrun/base/mlrun
     steps:
       - id: resolve_base_branch
         run: |
@@ -162,10 +164,5 @@ jobs:
         with:
           path: head/mlrun
       - name : Setup python
-        uses: actions/setup-python@v1
-        with:
-          python-version: 3.7
-      - name: Install automation scripts dependencies and add mlrun to dev packages
-        run: cd head/mlrun && pip install -r requirements.txt -r dev-requirements.txt -r dockerfiles/mlrun-api/requirements.txt && pip install -e .
       - name: Run Backward Compatibility Tests
-        run: MLRUN_PYTHON_VERSION=3.8 cd head/mlrun && make test-backward-compatibility MLRUN_BC_TESTS_BASE_CODE_PATH='/home/runner/work/mlrun/mlrun/base/mlrun'
+        run: cd head/mlrun && make test-backward-compatibility-dockerized

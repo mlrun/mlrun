@@ -161,10 +161,11 @@ jobs:
       - run : |
           cd head
           git init
-          git config user.name github-actions --global
-          git config user.email github-actions@mlrun --global
+          git config  --global user.name github-actions
+          git config  --global user.email github-actions@mlrun
           export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
           git config github.token ${{ secrets.GITHUB_TOKEN }}
+          git add remote origin $GITHUB_SERVER_URL/$GITHUB_REPOSITORY
           git pull origin development
       - name : Setup python
         uses: actions/setup-python@v1

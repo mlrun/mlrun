@@ -193,5 +193,4 @@ jobs:
           cat /home/runner/work/mlrun/mlrun/head/mlrun/d.diff 2>/dev/null
           set +x
       - name: Setup tmate session
-        if: ${{ failure() }}
         uses: mxschmitt/action-tmate@v3

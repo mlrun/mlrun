@@ -633,7 +633,7 @@ endif
 	git commit -m "Adding $(MLRUN_VERSION) tag contents" --allow-empty; \
 	git push origin $$BRANCH_NAME
 
-.PHONY test-backward-compatibility-dockerized
+.PHONY: test-backward-compatibility-dockerized
 test-backward-compatibility-dockerized: ## Run backward compatibility tests in docker container
     docker run \
         -t \

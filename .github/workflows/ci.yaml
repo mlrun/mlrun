@@ -158,6 +158,7 @@ jobs:
           ref: ${{ steps.resolve_base_branch.outputs.branch }}
           path: base/mlrun
       - name: Checkout Merge Commit (requested branch merged with the target branch)
+        uses: actions/checkout@v2
         with:
           path: head/mlrun
       - name : Setup python

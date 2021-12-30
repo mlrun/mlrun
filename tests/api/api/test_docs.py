@@ -15,7 +15,7 @@ def test_docs(
 
 @pytest.mark.skipif(
     os.getenv("MLRUN_OPENAPI_JSON_TARGET_PATH") is None,
-    reason="Supposed to run only for CI backward compatibility test",
+    reason="Supposed to run only for CI backward compatibility tests",
 )
 def test_save_openapi_json(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient

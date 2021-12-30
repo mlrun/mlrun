@@ -155,18 +155,17 @@ jobs:
           ref: ${{ steps.base_branch.outputs.branch }}
           path: base/mlrun
       - name: Checkout Head Branch
-        uses: actions/checkout@v2
-        with:
-          path: head/mlrun
-      - run : |
-          cd head
-          git init
+#        uses: actions/checkout@v2
+#        with:
+#          path: head/mlrun
+        run : |
+          mkdir head && cd head
           git config  --global user.name github-actions
           git config  --global user.email github-actions@mlrun
-          export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
           git config github.token ${{ secrets.GITHUB_TOKEN }}
-          git remote add origin $GITHUB_SERVER_URL/$GITHUB_REPOSITORY
-          git pull origin development
+          git clone $GITHUB_SERVER_URL/$GITHUB_REPOSITORY
+          git checkout $GITHUB_HEAD_REF
+          git pull origin $GITHUB_BASE_REF
       - name : Setup python
         uses: actions/setup-python@v1
         with:

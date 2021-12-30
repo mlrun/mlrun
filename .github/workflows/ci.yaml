@@ -159,10 +159,12 @@ jobs:
         with:
           path: head/mlrun
       - run : |
-          git status
-          cd head/mlrun
-          git remote add Base ../../base/mlrun
-          git pull Base ${{ steps.base_branch.outputs.branch }}
+          git init head
+          git init base
+          cd head
+          git remote add Base ../../base
+          git commit --allow-empty -m ''
+          git pull Base ${{ steps.base_branch.outputs.branch }} master --allow-unrelated-histories
       - name : Setup python
         uses: actions/setup-python@v1
         with:

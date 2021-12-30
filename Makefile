@@ -634,7 +634,7 @@ endif
 	git push origin $$BRANCH_NAME
 
 .PHONY test-backward-compatibility-dockerized
-test-backward-compatibility-dockerized ## Run backward compatibility tests in docker container
+test-backward-compatibility-dockerized: ## Run backward compatibility tests in docker container
     docker run \
         -t \
         -rm \

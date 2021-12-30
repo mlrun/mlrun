@@ -178,14 +178,3 @@ jobs:
         run: cd head/mlrun && pip install -r requirements.txt -r dev-requirements.txt -r dockerfiles/mlrun-api/requirements.txt && pip install -e .
       - name: Run Backward Compatibility Check
         run: MLRUN_PYTHON_VERSION=3.8 cd head/mlrun && make api-backward-compatibility BASE_PATH='/home/runner/work/mlrun/mlrun/base/mlrun'
-      - name: Output some logs in case of failure
-        if: ${{ failure() }}
-        # add set -x to print commands before executing to make logs reading easier
-        run: |
-          set -x
-          ls -l
-          pwd
-          ls -l base
-          ls -l head
-          cat /home/runner/work/mlrun/mlrun/head/mlrun/d.diff 2>/dev/null
-          set +x

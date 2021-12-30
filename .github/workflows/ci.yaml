@@ -189,5 +189,3 @@ jobs:
           ls -l head
           cat /home/runner/work/mlrun/mlrun/head/mlrun/d.diff 2>/dev/null
           set +x
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3

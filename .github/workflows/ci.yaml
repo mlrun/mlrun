@@ -163,6 +163,5 @@ jobs:
         uses: actions/checkout@v2
         with:
           path: head/mlrun
-      - name : Setup python
       - name: Run Backward Compatibility Tests
         run: cd head/mlrun && make test-backward-compatibility-dockerized

@@ -165,6 +165,7 @@ jobs:
           git config  --global user.email github-actions@mlrun
           git config github.token ${{ secrets.GITHUB_TOKEN }}
           git clone $GITHUB_SERVER_URL/$GITHUB_ACTOR/mlrun.git
+          git remote add upstream $GITHUB_SERVER_URL/GITHUB_REPOSITORY
           cd mlrun
           git checkout $GITHUB_HEAD_REF
           git pull upstream $GITHUB_BASE_REF

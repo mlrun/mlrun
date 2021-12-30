@@ -633,15 +633,15 @@ endif
 	git commit -m "Adding $(MLRUN_VERSION) tag contents" --allow-empty; \
 	git push origin $$BRANCH_NAME
 
-.PHONY: api-backward-compatibility
-api-backward-compatibility: ## Check for api backward compatibility breakage
-ifndef BASE_PATH
-	$(error BASE_PATH is undefined)
+.PHONY: test-backward-compatibility
+test-backward-compatibility: ## Run backward compatibility tests
+ifndef MLRUN_BC_TESTS_BASE_CODE_PATH
+	$(error MLRUN_BC_TESTS_BASE_CODE_PATH is undefined)
 endif
 	mkdir base && mkdir head ;\
-	export OPENAPI_JSON_TARGET_PATH=$(PWD)/base &&\
+	export MLRUN_OPENAPI_JSON_TARGET_PATH=$(PWD)/base &&\
 	python -m pytest -v $(BASE_PATH)/tests/api/api/test_docs.py::test_save_openapi_json && \
-	export OPENAPI_JSON_TARGET_PATH=$(PWD)/head && \
+	export MLRUN_OPENAPI_JSON_TARGET_PATH=$(PWD)/head && \
 	python -m pytest -v $(PWD)/tests/api/api/test_docs.py::test_save_openapi_json && \
 	docker run --rm -t -v $(PWD):/specs:ro openapitools/openapi-diff:2.0.1 /specs/base/openapi.json /specs/head/openapi.json --fail-on-incompatible > d.diff
 

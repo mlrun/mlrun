@@ -144,37 +144,27 @@ jobs:
           path: docs/_build/html
 
 
-  api-backward-compatibilty:
-    name: Run Backward Compatibility Checks
+  backward-compatibilty-tests:
+    name: Run Backward Compatibility Tests
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - id: base_branch
+      - id: resolve_base_branch
         run: |
             echo "::set-output name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})"
-      - name: Checkout Base Branch
+      - name: Checkout PR Base (target) Branch
         uses: actions/checkout@v2
         with:
-          ref: ${{ steps.base_branch.outputs.branch }}
+          ref: ${{ steps.resolve_base_branch.outputs.branch }}
           path: base/mlrun
-      - name: Checkout Head Branch and Stable with the target Branch
-        run : |
-          mkdir head && cd head
-          git init
-          git config --global user.name github-actions
-          git config --global user.email github-actions@mlrun
-          git config --global github.token ${{ secrets.GITHUB_TOKEN }}
-          git config --global pull.rebase false
-          git clone $GITHUB_SERVER_URL/$GITHUB_ACTOR/mlrun.git
-          cd mlrun
-          git remote add upstream $GITHUB_SERVER_URL/$GITHUB_REPOSITORY
-          git checkout $GITHUB_HEAD_REF
-          git pull upstream $GITHUB_BASE_REF --commit
+      - name: Checkout Merge Commit (requested branch merged with the target branch)
+        with:
+          path: head/mlrun
       - name : Setup python
         uses: actions/setup-python@v1
         with:
-          python-version: 3.8
+          python-version: 3.7
       - name: Install automation scripts dependencies and add mlrun to dev packages
         run: cd head/mlrun && pip install -r requirements.txt -r dev-requirements.txt -r dockerfiles/mlrun-api/requirements.txt && pip install -e .
-      - name: Run Backward Compatibility Check
-        run: MLRUN_PYTHON_VERSION=3.8 cd head/mlrun && make api-backward-compatibility BASE_PATH='/home/runner/work/mlrun/mlrun/base/mlrun'
+      - name: Run Backward Compatibility Tests
+        run: MLRUN_PYTHON_VERSION=3.8 cd head/mlrun && make test-backward-compatibility MLRUN_BC_TESTS_BASE_CODE_PATH='/home/runner/work/mlrun/mlrun/base/mlrun'

@@ -634,6 +634,7 @@ class ModelEndpoints:
 
         fn = get_model_monitoring_stream_processing_function(project)
         fn.metadata.project = project
+
         stream_path = config.model_endpoint_monitoring.store_prefixes.default.format(
             project=project, kind="stream"
         )

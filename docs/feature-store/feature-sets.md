@@ -100,7 +100,7 @@ print(quotes_set.get_stats_table())
 ## Ingest Data Into The Feature Store
 
 Data can be ingested as a batch process either by running the ingest command on demand or as a scheduled job.
-The data source could be a DataFrame or files (e.g. csv, parquet). Files can be either local files residing on a volume (e.g. v3io) or remote (e.g. S3, Azure blob). If the user defines a transformation graph then when running an ingestion process it runs the graph transformations, infers metadata and stats and writes the results to a target data store.
+The data source could be a DataFrame or files (e.g. csv, parquet). Files can be either local files residing on a volume (e.g. v3io), and remote (e.g. S3, Azure blob). MLRun also supports Google BigQuery as a data source. If you define a transformation graph then when running an ingestion process it runs the graph transformations, infers metadata and stats and writes the results to a target data store.
 When targets are not specified data is stored in the configured default targets (i.e. NoSQL for real-time and Parquet for offline).
 Batch ingestion can be done locally (i.e. running as a python process in the Jupyter pod) or as an MLRun job.
 
@@ -179,7 +179,7 @@ For storey engine, the feature is currently implemented for ParquetSource only. 
 ### Data sources
 
 For batch ingestion the feature store supports dataframes or files (i.e. csv & parquet). <br>
-The files can reside on S3, NFS, Azure blob storage or on Iguazio platform. Please note that for working with S3/Azure extra requirements are needed, you can use pip install mlrun[s3] or pip install mlrun[azure-blob-storage] to install them. When working with Azure, AZURE_STORAGE_CONNECTION_STRING environment variable must be defined. For working with S3, define "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" and "AWS_BUCKET".<br>
+The files can reside on S3, NFS, Azure blob storage, or the Iguazio platform. MLRun also supports Google BigQuery as a data source. Please note that for working with S3/Azure extra requirements are needed, you can use pip install mlrun[s3] or pip install mlrun[azure-blob-storage] to install them. When working with Azure, AZURE_STORAGE_CONNECTION_STRING environment variable must be defined. For working with S3, define "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" and "AWS_BUCKET".<br>
 For real time ingestion the source could be http, kafka or v3io stream, etc.
 When defining a source  it maps to a nuclio event triggers. <br>
 

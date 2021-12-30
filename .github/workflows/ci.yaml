@@ -158,14 +158,11 @@ jobs:
         uses: actions/checkout@v2
         with:
           path: head/mlrun
-      - name: Git merge operation
-        uses: alexrogalskiy/github-action-git-operation@master
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          mode: 'merge-fast-forward'
-          sourceBranch: 'development'
-          targetBranch: 'test'
+      - run : |
+          git status
+          cd head/mlrun
+          git remote add Base ../../base/mlrun
+          git pull Base ${{ steps.base_branch.outputs.branch }}
       - name : Setup python
         uses: actions/setup-python@v1
         with:

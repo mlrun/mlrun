@@ -639,10 +639,10 @@ ifndef BASE_PATH
 	$(error BASE_PATH is undefined)
 endif
 	mkdir base && mkdir head ;\
-	export OPENAPI_JSON_TARGET_PATH=$(PWD)/base; \
-	python -m pytest -v $(BASE_PATH)/tests/api/api/test_docs.py::test_save_openapi_json; \
-	export OPENAPI_JSON_TARGET_PATH=$(PWD)/head; \
-	python -m pytest -v $(PWD)/tests/api/api/test_docs.py::test_save_openapi_json; \
+	export OPENAPI_JSON_TARGET_PATH=$(PWD)/base &&\
+	python -m pytest -v $(BASE_PATH)/tests/api/api/test_docs.py::test_save_openapi_json && \
+	export OPENAPI_JSON_TARGET_PATH=$(PWD)/head && \
+	python -m pytest -v $(PWD)/tests/api/api/test_docs.py::test_save_openapi_json && \
 	docker run --rm -t -v $(PWD):/specs:ro openapitools/openapi-diff:2.0.1 /specs/base/openapi.json /specs/head/openapi.json --fail-on-incompatible > d.diff
 
 .PHONY: release-notes

@@ -164,7 +164,7 @@ jobs:
           git config  --global user.name github-actions
           git config  --global user.email github-actions@mlrun
           git config github.token ${{ secrets.GITHUB_TOKEN }}
-          git clone $GITHUB_SERVER_URL/$GITHUB_REPOSITORY
+          git clone $GITHUB_SERVER_URL/$GITHUB_ACTOR/mlrun.git
           git checkout $GITHUB_HEAD_REF
           git pull origin $GITHUB_BASE_REF
       - name : Setup python

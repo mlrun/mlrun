@@ -161,14 +161,15 @@ jobs:
         run : |
           mkdir head && cd head
           git init
-          git config  --global user.name github-actions
-          git config  --global user.email github-actions@mlrun
-          git config github.token ${{ secrets.GITHUB_TOKEN }}
+          git config --global user.name github-actions
+          git config --global user.email github-actions@mlrun
+          git config --global github.token ${{ secrets.GITHUB_TOKEN }}
+          git config --global pull.rebase false
           git clone $GITHUB_SERVER_URL/$GITHUB_ACTOR/mlrun.git
           cd mlrun
           git remote add upstream $GITHUB_SERVER_URL/$GITHUB_REPOSITORY
           git checkout $GITHUB_HEAD_REF
-          git pull upstream $GITHUB_BASE_REF
+          git pull upstream $GITHUB_BASE_REF --commit
       - name : Setup python
         uses: actions/setup-python@v1
         with:

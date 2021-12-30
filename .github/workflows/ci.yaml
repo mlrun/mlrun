@@ -160,6 +160,7 @@ jobs:
 #          path: head/mlrun
         run : |
           mkdir head && cd head
+          git init
           git config  --global user.name github-actions
           git config  --global user.email github-actions@mlrun
           git config github.token ${{ secrets.GITHUB_TOKEN }}

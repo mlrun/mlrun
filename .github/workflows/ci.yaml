@@ -163,7 +163,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          mode: merge-fast-forward
+          mode: 'merge-fast-forward'
           sourceBranch: 'development'
           targetBranch: 'test'
       - name : Setup python

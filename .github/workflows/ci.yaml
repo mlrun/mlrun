@@ -152,7 +152,17 @@ jobs:
       - name: Checkout Base Branch
         uses: actions/checkout@v2
         with:
+          ref: ${{ steps.base_branch.outputs.branch }}
+          path: base/mlrun
+      - name: Checkout Head Branch
+        uses: actions/checkout@v2
+        with:
           path: head/mlrun
+      - name : Merge Base Branch into Head Branch
+        run : |
+          cd head/mlrun
+          git remote add Base ../../base/mlrun
+          git pull Base ${{ steps.base_branch.outputs.branch }}
       - name : Setup python
         uses: actions/setup-python@v1
         with:
@@ -160,15 +170,10 @@ jobs:
       - id: base_branch
         run: |
             echo "::set-output name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})"
-      - name: Checkout Head Branch
-        uses: actions/checkout@v2
-        with:
-          ref: ${{ steps.base_branch.outputs.branch }}
-          path: base/mlrun
       - name: Install automation scripts dependencies and add mlrun to dev packages
         run: cd head/mlrun && pip install -r requirements.txt -r dev-requirements.txt -r dockerfiles/mlrun-api/requirements.txt && pip install -e .
       - name: Run Backward Compatibility Check
-        run: MLRUN_PYTHON_VERSION=3.8 cd head/mlrun && make api-backward-compatibility BASE_PATH='/home/runner/work/mlrun/mlrun/base' HEAD_PATH='/home/runner/work/mlrun/mlrun/head'
+        run: MLRUN_PYTHON_VERSION=3.8 cd head/mlrun && make api-backward-compatibility BASE_PATH='/home/runner/work/mlrun/mlrun/base/mlrun'
       - name: Output some logs in case of failure
         if: ${{ failure() }}
         # add set -x to print commands before executing to make logs reading easier
@@ -178,6 +183,7 @@ jobs:
           pwd
           ls -l base
           ls -l head
+          cat /home/runner/work/mlrun/mlrun/head/mlrun/d.diff 2>/dev/null
           set +x
       - name: Setup tmate session
         if: ${{ failure() }}

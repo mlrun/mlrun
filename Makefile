@@ -643,7 +643,7 @@ test-backward-compatibility-dockerized: build-test ## Run backward compatibility
         -v /home/runner/work/mlrun/mlrun:/home/runner/work/mlrun/mlrun \
         -v /var/run/docker.sock:/var/run/docker.sock \
         --env MLRUN_BC_TESTS_BASE_CODE_PATH=$(MLRUN_BC_TESTS_BASE_CODE_PATH) \
-        --workdir="/home/runner/work/mlrun/mlrun" \
+        --workdir="/home/runner/work/mlrun/mlrun/head/mlrun" \
          $(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-backward-compatibility
 
 .PHONY: test-backward-compatibility

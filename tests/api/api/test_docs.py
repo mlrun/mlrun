@@ -23,6 +23,6 @@ def test_save_openapi_json(
     """"The purpose of the test is to create an openapi.json file that is used to run backward compatibility tests"""
     response = client.get("/api/openapi.json")
     with open(
-        os.path.join(os.getenv("OPENAPI_JSON_TARGET_PATH"), "openapi.json"), "w"
+        os.path.join(os.getenv("MLRUN_OPENAPI_JSON_TARGET_PATH"), "openapi.json"), "w"
     ) as file:
         file.write(response.text)

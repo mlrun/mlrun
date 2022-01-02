@@ -636,15 +636,15 @@ endif
 .PHONY: test-backward-compatibility-dockerized
 test-backward-compatibility-dockerized: build-test ## Run backward compatibility tests in docker container
 	docker run \
-		-t \
-		--rm \
-        --network='host' \
-        -v /tmp:/tmp \
-        -v /home/runner/work/mlrun/mlrun:/home/runner/work/mlrun/mlrun \
-        -v /var/run/docker.sock:/var/run/docker.sock \
-        --env MLRUN_BC_TESTS_BASE_CODE_PATH=$(MLRUN_BC_TESTS_BASE_CODE_PATH) \
-        --workdir="/home/runner/work/mlrun/mlrun/head/mlrun" \
-         $(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-backward-compatibility
+	    -t \
+	    --rm \
+	    --network='host' \
+	    -v /tmp:/tmp \
+	    -v /home/runner/work/mlrun/mlrun:/home/runner/work/mlrun/mlrun \
+	    -v /var/run/docker.sock:/var/run/docker.sock \
+	    --env MLRUN_BC_TESTS_BASE_CODE_PATH=$(MLRUN_BC_TESTS_BASE_CODE_PATH) \
+	    --workdir="/home/runner/work/mlrun/mlrun/head/mlrun" \
+	    $(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-backward-compatibility
 
 .PHONY: test-backward-compatibility
 test-backward-compatibility: ## Run backward compatibility tests

@@ -307,6 +307,11 @@ run_config.parameters = {
     "s3_region" : "us-east-2"
 }
 
-fstore.ingest(feature_set, source, run_config=config, spark_context=spark_service_name)
+target = ParquetTarget(
+    path = "s3://my-s3-bucket/some/path",
+    partitioned = False,
+)
+
+fstore.ingest(feature_set, source, targets=[target], run_config=config, spark_context=spark_service_name)
 ```
 

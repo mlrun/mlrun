@@ -16,6 +16,7 @@ import warnings
 from typing import Dict, List, Optional, Union
 
 import pandas as pd
+from storey import MapClass
 
 import mlrun
 import mlrun.api.schemas
@@ -41,6 +42,7 @@ from ..model import (
 )
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import BaseStep, RootFlowStep, previous_step
+from ..serving.utils import StepToDict
 from ..utils import StorePrefix
 from .common import verify_feature_set_permissions
 
@@ -660,3 +662,30 @@ class FeatureSet(ModelObj):
         self.status = feature_set.status
         if update_spec:
             self.spec = feature_set.spec
+
+
+class Aggregate(StepToDict, MapClass):
+    def __init__(
+        self, key_column, time_column, column, operations, windows, period, **kwargs
+    ):
+        self.key_column = key_column
+        self.time_column = time_column
+        self.column = column
+        self.operations = operations
+        self.windows = windows
+        self.period = period
+        super().__init__(**kwargs)
+
+    def do(self, event):
+        import pyspark.sql.functions as funcs
+
+        df = event
+        aggs = []
+        for operation in self.operations:
+            func = getattr(funcs, "operation")
+            func(self.column).alias(f"{self.column}_{operation}_{self.windows}"),
+            aggs.append(agg)
+        df = df.groupBy(
+            self.key_column, funcs.window(self.time_column, self.windows, self.period)
+        ).agg(*aggs)
+        return df

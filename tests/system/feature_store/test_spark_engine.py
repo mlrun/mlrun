@@ -1,4 +1,5 @@
 import os
+import uuid
 from datetime import datetime
 from time import sleep
 
@@ -12,6 +13,7 @@ import mlrun.feature_store as fs
 from mlrun import store_manager
 from mlrun.datastore.sources import ParquetSource
 from mlrun.datastore.targets import NoSqlTarget, ParquetTarget
+from mlrun.features import Entity
 from tests.system.base import TestMLRunSystem
 
 
@@ -216,3 +218,66 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         resp = fs.get_offline_features(vec)
         assert len(resp.to_dataframe() == 4)
         assert "uri" not in resp.to_dataframe() and "katya" not in resp.to_dataframe()
+
+    def test_aggregations(self):
+        name = f"measurements_{uuid.uuid4()}"
+
+        test_base_time = datetime.fromisoformat("2020-07-21T21:40:00+00:00")
+
+        df = pd.DataFrame(
+            {
+                "time": [
+                    test_base_time,
+                    test_base_time - pd.Timedelta(minutes=1),
+                    test_base_time - pd.Timedelta(minutes=2),
+                    test_base_time - pd.Timedelta(minutes=3),
+                    test_base_time - pd.Timedelta(minutes=4),
+                    test_base_time - pd.Timedelta(minutes=5),
+                ],
+                "first_name": ["moshe", None, "yosi", "yosi", "moshe", "yosi"],
+                "last_name": ["cohen", "levi", "levi", "levi", "cohen", "levi"],
+                "bid": [2000, 10, 11, 12, 2500, 14],
+            }
+        )
+
+        path = "v3io:///bigdata/test_aggregations.parquet"
+        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        df.to_parquet(path=path, filesystem=fsys)
+
+        cron_trigger = "*/2 * * * *"
+
+        source = ParquetSource(
+            "myparquet", path=path, time_field="time", schedule=cron_trigger
+        )
+
+        data_set = fs.FeatureSet(
+            name, entities=[Entity("first_name"), Entity("last_name")], engine="spark"
+        )
+
+        data_set.add_aggregation(
+            column="bid", operations=["sum", "max"], windows="1h", period="10m",
+        )
+
+        fs.ingest(
+            data_set,
+            source,
+            return_df=True,
+            spark_context=self.spark_service,
+            run_config=fs.RunConfig(local=False),
+        )
+
+        features = [
+            f"{name}.bid_sum_1h",
+        ]
+
+        vector = fs.FeatureVector("my-vec", features)
+        svc = fs.get_online_feature_service(vector)
+
+        try:
+            resp = svc.get([{"first_name": "yosi", "last_name": "levi"}])
+            assert resp[0]["bid_sum_1h"] == 37.0
+        finally:
+            svc.close()
+
+        resp = fs.get_offline_features(vec)
+        assert resp.to_dataframe() == "TODO"

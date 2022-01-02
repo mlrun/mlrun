@@ -635,15 +635,20 @@ endif
 
 .PHONY: test-backward-compatibility-dockerized
 test-backward-compatibility-dockerized: build-test ## Run backward compatibility tests in docker container
+ifndef MLRUN_BC_TESTS_BASE_CODE_PATH
+	$(error MLRUN_BC_TESTS_BASE_CODE_PATH is undefined)
+endif
 	docker run \
 	    -t \
 	    --rm \
 	    --network='host' \
 	    -v /tmp:/tmp \
-	    -v $(MLRUN_BC_TESTS_HOME_PATH):$(MLRUN_BC_TESTS_HOME_PATH) \
+	    -v $(PWD):$(PWD) \
+	    -v $(MLRUN_BC_TESTS_BASE_CODE_PATH):$(MLRUN_BC_TESTS_BASE_CODE_PATH) \
 	    -v /var/run/docker.sock:/var/run/docker.sock \
 	    --env MLRUN_BC_TESTS_BASE_CODE_PATH=$(MLRUN_BC_TESTS_BASE_CODE_PATH) \
-	    --workdir=$(MLRUN_BC_TESTS_HEAD_CODE_PATH) \
+	    --env MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH=$(PWD) \
+	    --workdir=$(PWD) \
 	    $(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-backward-compatibility
 
 .PHONY: test-backward-compatibility
@@ -651,12 +656,15 @@ test-backward-compatibility: ## Run backward compatibility tests
 ifndef MLRUN_BC_TESTS_BASE_CODE_PATH
 	$(error MLRUN_BC_TESTS_BASE_CODE_PATH is undefined)
 endif
-	mkdir base && mkdir head ;\
-	export MLRUN_OPENAPI_JSON_TARGET_PATH=$(PWD)/base && \
+ifndef MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH
+	$(error MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH is undefined)
+endif
+	export MLRUN_OPENAPI_JSON_NAME=mlrun_bc_base_oai.json && \
 	python -m pytest -v $(MLRUN_BC_TESTS_BASE_CODE_PATH)/tests/api/api/test_docs.py::test_save_openapi_json && \
-	export MLRUN_OPENAPI_JSON_TARGET_PATH=$(PWD)/head && \
-	python -m pytest -v $(PWD)/tests/api/api/test_docs.py::test_save_openapi_json && \
-	docker run --rm -t -v $(PWD):/specs:ro openapitools/openapi-diff:2.0.1 /specs/base/openapi.json /specs/head/openapi.json --fail-on-incompatible
+	export MLRUN_OPENAPI_JSON_NAME=mlrun_bc_head_oai.json && \
+	python -m pytest -v tests/api/api/test_docs.py::test_save_openapi_json && \
+	docker run --rm -t -v $(MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH):/specs:ro openapitools/openapi-diff:2.0.1 /specs/mlrun_bc_base_oai.json /specs/mlrun_bc_head_oai.json --fail-on-incompatible
+
 
 .PHONY: release-notes
 release-notes: ## Create release notes

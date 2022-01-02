@@ -223,12 +223,12 @@ def test_list_functions_by_tag(db: DBInterface, db_session: Session):
 @pytest.mark.parametrize(
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
-def test_list_functions_without_tag_by_tag(db: DBInterface, db_session: Session):
+def test_list_functions_with_unexisting_tag(db: DBInterface, db_session: Session):
     names = ["some_name", "some_name2", "some_name3"]
     for name in names:
         function_body = {"metadata": {"name": name}}
         db.store_function(db_session, function_body, name, versioned=True)
-    functions = db.list_functions(db_session, tag="kkkkkkkk")
+    functions = db.list_functions(db_session, tag="unexisting_tag")
     assert len(functions) == 0
 
 

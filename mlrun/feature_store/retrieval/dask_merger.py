@@ -3,6 +3,8 @@ import pandas as pd
 from dask.dataframe.multi import merge, merge_asof
 from dask.distributed import Client
 
+import mlrun
+
 from ..feature_vector import OfflineVectorResponse
 from .base import BaseMerger
 
@@ -10,7 +12,8 @@ from .base import BaseMerger
 class DaskFeatureMerger(BaseMerger):
     def __init__(self, vector, **engine_args):
         super().__init__(vector, **engine_args)
-        self.client = engine_args.get("dask_client", Client())
+        self.client = engine_args.get("dask_client")
+        self._dask_cluster_uri = engine_args.get("dask_cluster_uri")
 
     def _generate_vector(
         self,
@@ -21,6 +24,13 @@ class DaskFeatureMerger(BaseMerger):
         start_time=None,
         end_time=None,
     ):
+        # init the dask client if needed
+        if not self.client:
+            if self._dask_cluster_uri:
+                function = mlrun.import_function(self._dask_cluster_uri)
+                self.client = function.client
+            else:
+                self.client = Client()
 
         # load dataframes
         feature_sets = []

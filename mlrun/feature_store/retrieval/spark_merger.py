@@ -81,7 +81,7 @@ class SparkFeatureMerger(BaseMerger):
             df = df.select([col(name).alias(alias or name) for name, alias in columns])
             dfs.append(df)
 
-        # convert convert pandas entity_rows to spark DF if needed
+        # convert pandas entity_rows to spark DF if needed
         if entity_rows is not None and not hasattr(entity_rows, "rdd"):
             entity_rows = self.spark.createDataFrame(entity_rows)
 
@@ -90,7 +90,10 @@ class SparkFeatureMerger(BaseMerger):
 
         self._result_df = self._result_df.drop(*self._drop_columns)
 
-        # todo: drop rows with null label_column values
+        if self.vector.status.label_column:
+            self._result_df = self._result_df.dropna(
+                subset=[self.vector.status.label_column]
+            )
 
         self._write_to_target()
         return OfflineVectorResponse(self)

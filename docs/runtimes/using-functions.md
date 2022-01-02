@@ -122,7 +122,7 @@ See also [**Execute non Python code**](./code-archive.html#execute-non-python-co
 
 ## Submitting Tasks/Jobs To Functions
 
-MLRun batch Function objects support a {py:meth}`~mlrun.runtimes.BaseRuntime.run` method for invoking a job over them, the run method 
+MLRun batch function objects support a {py:meth}`~mlrun.runtimes.BaseRuntime.run` method for invoking a job over them. The run method 
 accept various parameters such as `name`, `handler`, `params`, `inputs`, `schedule`, etc. 
 Alternatively we can pass a **`Task`** object (see: {py:func}`~mlrun.model.new_task`) that holds all of the parameters plus advanced options. 
 
@@ -134,17 +134,17 @@ method (for batch functions)
 Functions can host multiple methods (handlers). You can set the default handler per function, 
  we need to specify which handle we intend to call in the run command. 
  
-Users can pass data objects to functions using the `inputs` dictionary argument with the data input key (as specified in the function handler)
-and the MLRun data url, the data will be passed into the function as a {py:class}`~mlrun.datastore.DataItem` object which handles data movement, 
-tracking and security in an optimal way (read more about data objects in: [Data Stores & Data Items](../store/datastore.md))
+You can pass data objects to functions using the `inputs` dictionary argument with the data input key (as specified in the function handler)
+and the MLRun data url. The data is passed into the function as a {py:class}`~mlrun.datastore.DataItem` object that handles data movement, 
+tracking and security in an optimal way. Read more about data objects in [Data Stores & Data Items](../store/datastore.md).
 
     run_results = fn.run(params={"label_column": "label"}, inputs={'data': data_url})
 
 MLRun also supports iterative jobs that can run and track multiple child jobs (for hyper-parameter tasks, AutoML, etc.). 
 See [Hyper-Param and Iterative jobs](../hyper-params.ipynb) for details and examples.
  
-The `run()` command returns a run object which allowed us to track our job and its results, when we 
-pass the parameter `watch=True` (default) the {py:meth}`~mlrun.runtimes.BaseRuntime.run` command will block until our job completes.
+The `run()` command returns a run object that you can use to track the job and its results. If you
+pass the parameter `watch=True` (default) the {py:meth}`~mlrun.runtimes.BaseRuntime.run` command blocks until the job completes.
 
 Run object has the following methods/properties:
 - `uid()` &mdash; returns the unique ID.
@@ -167,12 +167,12 @@ Run object has the following methods/properties:
 
 ## MLRun Execution Context
 
-In the function code signature we can add the `context` attribute (first), this provides us access to the 
+In the function code signature you can add the `context` attribute (first), this provides us access to the 
 job metadata, parameters, inputs, secrets, and API for logging and monitoring our results. 
 Alternatively if we don't run inside a function handler (e.g. in Python main or Notebook) we can obtain the `context` 
 object from the environment using the {py:func}`~mlrun.run.get_or_create_ctx` function.
 
-example function and usage of the context object:
+Example function and usage of the context object:
  
 ```python
 from mlrun.artifacts import ChartArtifact
@@ -225,7 +225,7 @@ def my_job(context, p1=1, p2="x"):
     context.log_dataset("mydf", df=df, stats=True)
 ```
 
-example, creating the context objects from the environment:
+Example of creating the context objects from the environment:
 
 ```python
 if __name__ == "__main__":
@@ -253,6 +253,8 @@ if __name__ == "__main__":
 ## Function Runtimes
 
 When you create an MLRun function you need to specify a kind of runtime (e.g. kind=`job`). Each runtime can add specific attributes (e.g. Jars for Spark, Triggers for Nuclio, Auto-scaling for Dask, etc.).
+
+MLRun supports these runtimes:
 
 Real-time runtimes:
 * **nuclio** - real-time serverless functions over Nuclio

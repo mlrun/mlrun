@@ -600,6 +600,7 @@ class QueueStep(BaseStep):
         "path",
         "shards",
         "retention_in_hours",
+        "trigger_args",
         "options",
     ]
 
@@ -610,6 +611,7 @@ class QueueStep(BaseStep):
         after: list = None,
         shards: int = None,
         retention_in_hours: int = None,
+        trigger_args: dict = None,
         **options,
     ):
         super().__init__(name, after)
@@ -617,6 +619,7 @@ class QueueStep(BaseStep):
         self.shards = shards
         self.retention_in_hours = retention_in_hours
         self.options = options
+        self.trigger_args = trigger_args
         self._stream = None
         self._async_object = None
 

@@ -212,9 +212,11 @@ Remote ingestion:
 from mlrun.feature_store.api import ingest
 def ingest_handler(context):
     ingest(mlrun_context=context) # The handler function must call ingest with the mlrun_context
-
+```
+You can run your PySpark code for ingesting data into the feature store by adding:
+```python
 def my_spark_func(df, context=None):
-    return df.filter("bid>55")
+    return df.filter("bid>55") # PySpark code
 ```
 ```python
 # mlrun: end-code
@@ -233,7 +235,7 @@ spark_service_name = "iguazio-spark-service" # As configured & shown in the Igua
 feature_set.graph.to(name="s1", handler="my_spark_func")
 my_func = code_to_function("func", kind="remote-spark")
 config = fstore.RunConfig(local=False, function=my_func, handler="ingest_handler")
-fstore.ingest(feature_set, source, run_config=fstore.RunConfig(), spark_context=spark_service_name)
+fstore.ingest(feature_set, source, run_config=config, spark_context=spark_service_name)
 ```
 
 ### Spark execution engine and S3

@@ -617,8 +617,19 @@ class FeatureSet(ModelObj):
         start_time=None,
         end_time=None,
         time_column=None,
+        **kwargs,
     ):
-        """return featureset (offline) data as dataframe"""
+        """return featureset (offline) data as dataframe
+
+        :param columns:      list of columns to select (if not all)
+        :param df_module:    py module used to create the DataFrame (pd for Pandas, dd for Dask, ..)
+        :param target_name:  select a specific target (material view)
+        :param start_time:   filter by start time
+        :param end_time:     filter by end time
+        :param time_column:  specify the time column name in the file
+        :param kwargs:       additional reader (csv, parquet, ..) args
+        :return: DataFrame
+        """
         entities = list(self.spec.entities.keys())
         if columns:
             if self.spec.timestamp_key and self.spec.timestamp_key not in entities:
@@ -636,6 +647,7 @@ class FeatureSet(ModelObj):
             start_time=start_time,
             end_time=end_time,
             time_column=time_column,
+            **kwargs,
         )
 
     def save(self, tag="", versioned=False):

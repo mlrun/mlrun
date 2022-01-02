@@ -369,7 +369,7 @@ class DataItem:
         """return a dataframe object (generated from the dataitem).
 
         :param columns:   optional, list of columns to select
-        :param df_module: optional, dataframe class (e.g. pd, dd, cudf, ..)
+        :param df_module: optional, py module used to create the DataFrame (e.g. pd, dd, cudf, ..)
         :param format:    file format, if not specified it will be deducted from the suffix
         """
         return self._store.as_df(

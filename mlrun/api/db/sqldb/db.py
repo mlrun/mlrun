@@ -549,6 +549,12 @@ class SQLDB(DBInterface):
         if tag:
             uids = self._resolve_class_tag_uids(session, Function, project, tag, name)
         functions = FunctionList()
+        # the _find_functions bellow searches for functions that contain the tags uids,
+        # and when the uids contains an empty list as a result of a non-existing tag in the database,
+        # it returns all functions because it does not add the uids filter. So, if a tag has been searched
+        # and no corresponding uids have been found, we want to return an empty FunctionList.
+        if tag and not uids:
+            return functions
         for function in self._find_functions(session, name, project, uids, labels):
             function_dict = function.struct
             if not tag:

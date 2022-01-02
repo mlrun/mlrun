@@ -238,32 +238,82 @@ config = fstore.RunConfig(local=False, function=my_func, handler="ingest_handler
 fstore.ingest(feature_set, source, run_config=config, spark_context=spark_service_name)
 ```
 
-### Spark execution engine and S3
+### Spark execution engine over S3 - Full flow example
 
 For Spark to work with S3, it requires several properties to be set. The following example writes a
-feature set to S3 in the parquet format:
+feature set to S3 in the parquet format in a remote k8s job:
+
+One-time setup:
+1. Deploy the default image for your job (this takes several minutes but should be executed only once per cluster for any MLRun/Iguazio upgrade):
 ```python
+from mlrun.runtimes import RemoteSparkRuntime
+RemoteSparkRuntime.deploy_default_image()
+```
+2. Store your S3 credentials in a k8s [secret](../secrets.md):
+```python
+import mlrun
+secrets = {'s3_access_key': AWS_ACCESS_KEY, 's3_secret_key': AWS_SECRET_KEY}
+mlrun.get_run_db().create_project_secrets(
+    project = "uhuh-proj",
+    provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+    secrets=secrets
+)
+```
+
+Ingestion job code (to be executed in the remote pod):
+```python
+# mlrun: start-code
+
 from pyspark import SparkConf
+from pyspark.sql import SparkSession
+
+
+from mlrun.feature_store.api import ingest
+def ingest_handler(context):
+    conf = (SparkConf()
+            .set("spark.hadoop.fs.s3a.path.style.access", True)
+            .set("spark.hadoop.fs.s3a.access.key", context.get_secret('s3_access_key'))
+            .set("spark.hadoop.fs.s3a.secret.key", context.get_secret('s3_secret_key'))
+            .set("spark.hadoop.fs.s3a.endpoint", context.get_param("s3_endpoint"))
+            .set("spark.hadoop.fs.s3a.region", context.get_param("s3_region"))
+            .set("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+            .set("com.amazonaws.services.s3.enableV4", True)
+            .set("spark.driver.extraJavaOptions", "-Dcom.amazonaws.services.s3.enableV4=true"))
+    spark = (
+        SparkSession.builder.config(conf=conf).appName("S3 app").getOrCreate()
+    )
+    
+    ingest(mlrun_context=context, spark_context=spark)
+    
+# mlrun: end-code
+```
+
+Ingestion invocation:
+```python
+from mlrun.datastore.sources import CSVSource
+from mlrun import code_to_function
+import mlrun.feature_store as fstore
+
+feature_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")], engine="spark")
+
+source = CSVSource("mycsv", path="v3io:///projects/quotes.csv")
+
+spark_service_name = "iguazio-spark-service" # As configured & shown in the Iguazio dashboard
+
+fn = code_to_function(kind='remote-spark',  name='func')
+
+run_config=fs.RunConfig(local=False, function=fn, handler="ingest_handler")
+run_config.with_secret('kubernetes', ['s3_access_key', 's3_secret_key'])
+run_config.parameters = {
+    "s3_endpoint" : "s3.us-east-2.amazonaws.com",
+    "s3_region" : "us-east-2"
+}
 
 target = ParquetTarget(
-    path="s3://my-s3-bucket/some/path",
-    partitioned=False,
+    path = "s3://my-s3-bucket/some/path",
+    partitioned = False,
 )
 
-conf = (
-    SparkConf()
-    .set("spark.hadoop.fs.s3a.path.style.access", True)
-    .set("spark.hadoop.fs.s3a.access.key", AWS_ACCESS_KEY)
-    .set("spark.hadoop.fs.s3a.secret.key", AWS_SECRET_KEY)
-    .set("spark.hadoop.fs.s3a.endpoint", "s3.us-east-2.amazonaws.com")
-    .set("spark.hadoop.fs.s3a.region", "us-east-2")
-    .set("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
-    .set("com.amazonaws.services.s3.enableV4", True)
-)
-
-spark = (
-    SparkSession.builder.config(conf=conf).appName("S3 app").getOrCreate()
-)
-
-fs.ingest(fset, source, targets=[target], spark_context=spark)
+fstore.ingest(feature_set, source, targets=[target], run_config=config, spark_context=spark_service_name)
 ```
+

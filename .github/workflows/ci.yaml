@@ -149,7 +149,9 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     env:
+      MLRUN_BC_TESTS_HOME_PATH: /home/runner/work/mlrun/mlrun
       MLRUN_BC_TESTS_BASE_CODE_PATH: /home/runner/work/mlrun/mlrun/base/mlrun
+      MLRUN_BC_TESTS_HEAD_CODE_PATH: /home/runner/work/mlrun/mlrun/head/mlrun
       MLRUN_DOCKER_REGISTRY: ghcr.io/
     steps:
       - id: resolve_base_branch

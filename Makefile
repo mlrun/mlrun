@@ -57,6 +57,7 @@ MLRUN_DOCKER_NO_CACHE_FLAG := $(if $(MLRUN_NO_CACHE),--no-cache,)
 MLRUN_PIP_NO_CACHE_FLAG := $(if $(MLRUN_NO_CACHE),--no-cache-dir,)
 
 MLRUN_OLD_VERSION_ESCAPED = $(shell echo "$(MLRUN_OLD_VERSION)" | sed 's/\./\\\./g')
+MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH ?= $(shell pwd)
 
 .PHONY: help
 help: ## Display available commands
@@ -78,7 +79,7 @@ install-requirements: ## Install all requirements needed for development
 		-r docs/requirements.txt
 
 .PHONY: create-migration-sqlite
-create-migration-sqlite: export MLRUN_HTTPDB__DSN="sqlite:///$(PWD)/mlrun/api/migrations_sqlite/mlrun.db?check_same_thread=false"
+create-migration-sqlite: export MLRUN_HTTPDB__DSN="sqlite:///$(shell pwd)/mlrun/api/migrations_sqlite/mlrun.db?check_same_thread=false"
 create-migration-sqlite: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
 ifndef MLRUN_MIGRATION_MESSAGE
 	$(error MLRUN_MIGRATION_MESSAGE is undefined)
@@ -95,7 +96,7 @@ endif
 	docker run \
 		--name=migration-db \
 		--rm \
-		-v $(PWD):/mlrun \
+		-v $(shell pwd):/mlrun \
 		-p 3306:3306 \
 		-e MYSQL_ROOT_PASSWORD="pass" \
 		-e MYSQL_ROOT_HOST=% \
@@ -563,7 +564,7 @@ run-api: api ## Run mlrun api (dockerized)
 run-test-db:
 	docker run \
 		--name=test-db \
-		-v $(PWD):/mlrun \
+		-v $(shell pwd):/mlrun \
 		-p 3306:3306 \
 		-e MYSQL_ROOT_PASSWORD="" \
 		-e MYSQL_ALLOW_EMPTY_PASSWORD="true" \
@@ -584,7 +585,7 @@ html-docs: ## Build html docs
 html-docs-dockerized: build-test ## Build html docs dockerized
 	docker run \
 		--rm \
-		-v $(PWD)/docs/_build:/mlrun/docs/_build \
+		-v $(shell pwd)/docs/_build:/mlrun/docs/_build \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) \
 		make html-docs
 
@@ -643,12 +644,12 @@ endif
 	    --rm \
 	    --network='host' \
 	    -v /tmp:/tmp \
-	    -v $(PWD):$(PWD) \
+	    -v $(shell pwd):$(shell pwd) \
 	    -v $(MLRUN_BC_TESTS_BASE_CODE_PATH):$(MLRUN_BC_TESTS_BASE_CODE_PATH) \
 	    -v /var/run/docker.sock:/var/run/docker.sock \
 	    --env MLRUN_BC_TESTS_BASE_CODE_PATH=$(MLRUN_BC_TESTS_BASE_CODE_PATH) \
-	    --env MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH=$(PWD) \
-	    --workdir=$(PWD) \
+	    --env MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH=$(shell pwd) \
+	    --workdir=$(shell pwd) \
 	    $(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-backward-compatibility
 
 .PHONY: test-backward-compatibility

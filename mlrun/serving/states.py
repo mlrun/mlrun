@@ -1384,7 +1384,7 @@ def _init_async_objects(context, steps):
                         endpoint, stream_path = parse_v3io_path(step.path)
                         stream_path = stream_path.strip("/")
                     step._async_object = storey.StreamTarget(
-                        storey.V3ioDriver(endpoint), stream_path
+                        storey.V3ioDriver(endpoint), stream_path, context=context,
                     )
                 else:
                     step._async_object = storey.Map(lambda x: x)

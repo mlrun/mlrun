@@ -701,7 +701,7 @@ class SQLDB(DBInterface):
         query = self._add_labels_filter(session, query, Schedule, labels)
 
         schedules = [
-            self._transform_schedule_model_to_scheme(db_schedule)
+            self._transform_schedule_record_to_scheme(db_schedule)
             for db_schedule in query
         ]
         return schedules
@@ -711,7 +711,7 @@ class SQLDB(DBInterface):
     ) -> schemas.ScheduleRecord:
         logger.debug("Getting schedule from db", project=project, name=name)
         schedule_record = self._get_schedule_record(session, project, name)
-        schedule = self._transform_schedule_model_to_scheme(schedule_record)
+        schedule = self._transform_schedule_record_to_scheme(schedule_record)
         return schedule
 
     def _get_schedule_record(
@@ -2457,7 +2457,7 @@ class SQLDB(DBInterface):
             session.commit()
 
     @staticmethod
-    def _transform_schedule_model_to_scheme(
+    def _transform_schedule_record_to_scheme(
         db_schedule: Schedule,
     ) -> schemas.ScheduleRecord:
         schedule = schemas.ScheduleRecord.from_orm(db_schedule)

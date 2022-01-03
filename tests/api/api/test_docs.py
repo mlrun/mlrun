@@ -30,4 +30,4 @@ def test_save_openapi_json(
     file_path = os.path.join(path, os.getenv("MLRUN_OPENAPI_JSON_NAME"))
     with open(file_path, "w") as file:
         file.write(response.text)
-    logger.info(f"Saved openapi file in {file_path}")
+    logger.info("Saved openapi JSON file", file_path=file_path)

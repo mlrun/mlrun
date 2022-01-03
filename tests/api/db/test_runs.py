@@ -148,3 +148,31 @@ def test_list_runs_state_filter(db: DBInterface, db_session: Session):
         project=project,
     )
     assert len(runs) == 0
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_store_run_not_overriding_start_time(db: DBInterface, db_session: Session):
+    project = "project"
+    run_name = "run_name_1"
+    run = {"metadata": {"name": run_name}}
+    run_uid = "run_uid"
+
+    # First store - fills the start_time
+    db.store_run(db_session, run, run_uid, project)
+
+    # get the start time
+    runs = db.list_runs(db_session, project=project)
+    assert len(runs) == 1
+    original_start_time = runs[0]["status"]["start_time"]
+
+    # Second store - shouldn't allow to override the start time
+    run["status"]["start_time"] = datetime.now()
+    db.store_run(db_session, run, run_uid, project)
+
+    # get the start time and verify
+    runs = db.list_runs(db_session, project=project)
+    assert len(runs) == 1
+    assert original_start_time == runs[0]["status"]["start_time"]

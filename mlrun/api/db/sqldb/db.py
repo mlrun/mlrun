@@ -2470,7 +2470,10 @@ class SQLDB(DBInterface):
         sqlalchemy losing timezone information with sqlite so we're returning it
         https://stackoverflow.com/questions/6991457/sqlalchemy-losing-timezone-information-with-sqlite
         """
-        setattr(obj, attribute_name, pytz.utc.localize(getattr(obj, attribute_name)))
+        if isinstance(obj, dict):
+            obj[attribute_name] = pytz.utc.localize(obj[attribute_name])
+        else:
+            setattr(obj, attribute_name, pytz.utc.localize(getattr(obj, attribute_name)))
 
     @staticmethod
     def _transform_feature_set_model_to_schema(

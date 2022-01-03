@@ -81,7 +81,7 @@ RUN mkdir /tmp/openmpi && \
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
-ARG HOROVOD_VERSION=0.22.1
+ARG HOROVOD_VERSION=0.23.0
 # TODO: MAKEFLAGS="-j1" work around some transient concurrency problem with installing horovod remove it when
     #   possible (should be safe to remove if it works ~5 times without it)
 RUN ldconfig /usr/local/cuda-11.0/targets/x86_64-linux/lib/stubs && \

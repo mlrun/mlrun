@@ -114,6 +114,8 @@ class SQLDB(DBInterface):
         if new_state:
             run.state = new_state
         update_labels(run, labels)
+        SQLDB._add_utc_timezone(run, "start_time")
+        run_data.setdefault("status", {})["start_time"] = run.start_time
         run.struct = run_data
         self._upsert(session, run, ignore=True)
 
@@ -2456,7 +2458,6 @@ class SQLDB(DBInterface):
         if commit:
             session.commit()
 
-    @staticmethod
     def _transform_schedule_record_to_scheme(
         self,
         schedule_record: Schedule,

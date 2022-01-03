@@ -173,4 +173,6 @@ jobs:
           export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
           echo "::set-output name=tag::$(echo $unstable_tag)"
       - name: Run Backward Compatibility Tests
-        run: MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} cd head/mlrun && make test-backward-compatibility-dockerized
+        run: |
+          cd head/mlrun
+          MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-backward-compatibility-dockerized

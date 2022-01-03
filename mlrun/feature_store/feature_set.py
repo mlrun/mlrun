@@ -577,9 +577,12 @@ class FeatureSet(ModelObj):
                     **class_args,
                 )
             elif self.spec.engine == "spark":
+                key_columns = []
+                for entity in self.spec.entities:
+                    key_columns.append(entity.name)
                 step = graph.add_step(
                     Aggregate(
-                        self.spec.entities[0].name,
+                        key_columns,
                         self.spec.timestamp_key,
                         column,
                         operations,
@@ -682,9 +685,9 @@ class FeatureSet(ModelObj):
 
 class Aggregate(StepToDict, MapClass):
     def __init__(
-        self, key_column, time_column, column, operations, windows, period, **kwargs
+        self, key_columns, time_column, column, operations, windows, period, **kwargs
     ):
-        self.key_column = key_column
+        self.key_columns = key_columns
         self.time_column = time_column
         self.column = column
         self.operations = operations
@@ -712,6 +715,8 @@ class Aggregate(StepToDict, MapClass):
             unit = "minute"
         elif unit == "s":
             unit = "second"
+        else:
+            raise ValueError(f"Invalid duration '{duration}'")
         return f"{num} {unit}"
 
     def do(self, event):
@@ -730,7 +735,7 @@ class Aggregate(StepToDict, MapClass):
                 )
                 aggs.extend(agg)
             df = input_df.groupBy(
-                self.key_column,
+                *self.key_columns,
                 funcs.window(self.time_column, spark_window, self._spark_period),
             ).agg(*aggs)
             dfs.append(df)

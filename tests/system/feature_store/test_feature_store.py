@@ -3,6 +3,7 @@ import os
 import pathlib
 import random
 import string
+import tempfile
 import uuid
 from datetime import datetime, timedelta, timezone
 from time import sleep
@@ -148,10 +149,10 @@ class TestFeatureStore(TestMLRunSystem):
         self._logger.info(f"output df:\n{df}")
         assert quotes_set.status.stats.get("asks1_sum_1h"), "stats not created"
 
-    def _get_offline_vector(self, features, features_size):
+    def _get_offline_vector(self, features, features_size, engine=None):
         vector = fs.FeatureVector("myvector", features, "stock-quotes.xx")
         resp = fs.get_offline_features(
-            vector, entity_rows=trades, entity_timestamp_column="time",
+            vector, entity_rows=trades, entity_timestamp_column="time", engine=engine
         )
         assert len(vector.spec.features) == len(
             features
@@ -167,12 +168,12 @@ class TestFeatureStore(TestMLRunSystem):
         df = resp.to_dataframe()
         columns = trades.shape[1] + features_size - 2  # - 2 keys
         assert df.shape[1] == columns, "unexpected num of returned df columns"
-        resp.to_parquet(str(self.results_path / "query.parquet"))
+        resp.to_parquet(str(self.results_path / f"query-{engine}.parquet"))
 
         # check simple api without join with other df
         # test the use of vector uri
         vector.save()
-        resp = fs.get_offline_features(vector.uri)
+        resp = fs.get_offline_features(vector.uri, engine=engine)
         df = resp.to_dataframe()
         assert df.shape[1] == features_size, "unexpected num of returned df columns"
 
@@ -230,7 +231,12 @@ class TestFeatureStore(TestMLRunSystem):
         features_size = (
             len(features) + 1 + 1
         )  # (*) returns 2 features, label adds 1 feature
-        self._get_offline_vector(features, features_size)
+
+        # test fetch with the pandas merger engine
+        self._get_offline_vector(features, features_size, engine="local")
+
+        # test fetch with the dask merger engine
+        self._get_offline_vector(features, features_size, engine="dask")
 
         self._logger.debug("Get online feature vector")
         self._get_online_features(features, features_size)
@@ -461,7 +467,7 @@ class TestFeatureStore(TestMLRunSystem):
             }
         )
 
-        csv_path = "/tmp/multiple_time_columns.csv"
+        csv_path = tempfile.mktemp(".csv")
         df.to_csv(path_or_buf=csv_path, index=False)
         source = CSVSource(
             path=csv_path, time_field="time_stamp", parse_dates=["another_time_column"]

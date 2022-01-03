@@ -210,7 +210,7 @@ class V2ModelServer(StepToDict):
     def _check_readiness(self, event):
         if self.ready:
             return
-        if not event.trigger or event.trigger == "http":
+        if not event.trigger or event.trigger.kind in ["http", ""]:
             raise RuntimeError(f"model {self.name} is not ready yet")
         self.context.logger.info(f"waiting for model {self.name} to load")
         for i in range(50):  # wait up to 4.5 minutes

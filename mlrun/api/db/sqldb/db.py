@@ -2459,8 +2459,7 @@ class SQLDB(DBInterface):
             session.commit()
 
     def _transform_schedule_record_to_scheme(
-        self,
-        schedule_record: Schedule,
+        self, schedule_record: Schedule,
     ) -> schemas.ScheduleRecord:
         schedule = schemas.ScheduleRecord.from_orm(schedule_record)
         self._add_utc_timezone(schedule, "creation_time")
@@ -2473,11 +2472,19 @@ class SQLDB(DBInterface):
         https://stackoverflow.com/questions/6991457/sqlalchemy-losing-timezone-information-with-sqlite
         """
         if isinstance(obj, dict):
-            if obj.get(attribute_name) is not None and obj.get(attribute_name).tzinfo is None:
+            if (
+                obj.get(attribute_name) is not None
+                and obj.get(attribute_name).tzinfo is None
+            ):
                 obj[attribute_name] = pytz.utc.localize(obj[attribute_name])
         else:
-            if getattr(obj, attribute_name) is not None and getattr(obj, attribute_name).tzinfo is None:
-                setattr(obj, attribute_name, pytz.utc.localize(getattr(obj, attribute_name)))
+            if (
+                getattr(obj, attribute_name) is not None
+                and getattr(obj, attribute_name).tzinfo is None
+            ):
+                setattr(
+                    obj, attribute_name, pytz.utc.localize(getattr(obj, attribute_name))
+                )
 
     @staticmethod
     def _transform_feature_set_model_to_schema(

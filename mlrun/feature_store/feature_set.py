@@ -704,6 +704,8 @@ class Aggregate(StepToDict, MapClass):
     def _duration_to_spark_format(duration):
         num = duration[:-1]
         unit = duration[-1:]
+        if unit == "d":
+            unit = "day"
         if unit == "h":
             unit = "hour"
         elif unit == "m":
@@ -715,13 +717,24 @@ class Aggregate(StepToDict, MapClass):
     def do(self, event):
         import pyspark.sql.functions as funcs
 
-        df = event
-        aggs = []
-        for operation in self.operations:
-            func = getattr(funcs, operation)
-            agg = func(self.column).alias(f"{self.column}_{operation}_{self.windows[0]}"),
-            aggs.extend(agg)
-        df = df.groupBy(
-            self.key_column, funcs.window(self.time_column, self._spark_windows[0], self._spark_period)
-        ).agg(*aggs)
-        return df
+        input_df = event
+        dfs = []
+        for spark_window in self._spark_windows:
+            aggs = []
+            for operation in self.operations:
+                func = getattr(funcs, operation)
+                agg = (
+                    func(self.column).alias(
+                        f"{self.column}_{operation}_{self.windows[0]}"
+                    ),
+                )
+                aggs.extend(agg)
+            df = input_df.groupBy(
+                self.key_column,
+                funcs.window(self.time_column, spark_window, self._spark_period),
+            ).agg(*aggs)
+            dfs.append(df)
+        union_df = dfs[0]
+        for df in dfs[1:]:
+            union_df = union_df.union(df)
+        return union_df

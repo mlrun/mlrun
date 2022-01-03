@@ -564,17 +564,33 @@ class FeatureSet(ModelObj):
             self._add_agregation_to_existing(aggregation)
             step.class_args["aggregates"] = list(self._aggregations.values())
         else:
-            class_args = {}
-            self._aggregations[aggregation["name"]] = aggregation
-            step = graph.add_step(
-                name=step_name,
-                after=after or previous_step,
-                before=before,
-                class_name="storey.AggregateByKey",
-                aggregates=[aggregation],
-                table=".",
-                **class_args,
-            )
+            if self.spec.engine == "storey":
+                class_args = {}
+                self._aggregations[aggregation["name"]] = aggregation
+                step = graph.add_step(
+                    name=step_name,
+                    after=after or previous_step,
+                    before=before,
+                    class_name="storey.AggregateByKey",
+                    aggregates=[aggregation],
+                    table=".",
+                    **class_args,
+                )
+            elif self.spec.engine == "spark":
+                step = graph.add_step(
+                    Aggregate(
+                        self.spec.entities[0].name,
+                        self.spec.timestamp_key,
+                        column,
+                        operations,
+                        windows,
+                        period,
+                    )
+                )
+            else:
+                raise ValueError(
+                    "Aggregations are only implemented for storey and spark engines."
+                )
 
         for operation in operations:
             for window in windows:
@@ -672,9 +688,29 @@ class Aggregate(StepToDict, MapClass):
         self.time_column = time_column
         self.column = column
         self.operations = operations
+
         self.windows = windows
+        self._spark_windows = []
+        for window in windows:
+            spark_window = self._duration_to_spark_format(window)
+            self._spark_windows.append(spark_window)
+
         self.period = period
+        self._spark_period = self._duration_to_spark_format(period)
+
         super().__init__(**kwargs)
+
+    @staticmethod
+    def _duration_to_spark_format(duration):
+        num = duration[:-1]
+        unit = duration[-1:]
+        if unit == "h":
+            unit = "hour"
+        elif unit == "m":
+            unit = "minute"
+        elif unit == "s":
+            unit = "second"
+        return f"{num} {unit}"
 
     def do(self, event):
         import pyspark.sql.functions as funcs
@@ -682,10 +718,10 @@ class Aggregate(StepToDict, MapClass):
         df = event
         aggs = []
         for operation in self.operations:
-            func = getattr(funcs, "operation")
-            func(self.column).alias(f"{self.column}_{operation}_{self.windows}"),
-            aggs.append(agg)
+            func = getattr(funcs, operation)
+            agg = func(self.column).alias(f"{self.column}_{operation}_{self.windows[0]}"),
+            aggs.extend(agg)
         df = df.groupBy(
-            self.key_column, funcs.window(self.time_column, self.windows, self.period)
+            self.key_column, funcs.window(self.time_column, self._spark_windows[0], self._spark_period)
         ).agg(*aggs)
         return df

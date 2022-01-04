@@ -5,6 +5,8 @@ import fastapi.testclient
 import pytest
 import sqlalchemy.orm
 
+from mlrun.utils import logger
+
 
 def test_docs(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
@@ -25,7 +27,7 @@ def test_save_openapi_json(
     path = os.path.abspath(os.getcwd())
     if os.getenv("MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH"):
         path = os.getenv("MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH")
-    with open(
-        os.path.join(os.path.join(path, os.getenv("MLRUN_OPENAPI_JSON_NAME"))), "w"
-    ) as file:
+    file_path = os.path.join(path, os.getenv("MLRUN_OPENAPI_JSON_NAME"))
+    with open(file_path, "w") as file:
         file.write(response.text)
+    logger.info("Saved openapi JSON file", file_path=file_path)

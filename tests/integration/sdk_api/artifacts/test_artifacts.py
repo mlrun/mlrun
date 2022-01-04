@@ -1,5 +1,3 @@
-import http
-
 import pandas
 
 import mlrun

@@ -740,19 +740,19 @@ class SparkAggregateByKey(StepToDict, MapClass):
                 aggs = []
                 for operation in operations:
                     func = getattr(funcs, operation)
-                    agg = (
-                        func(column).alias(
-                            f"{name if name else column}_{operation}_{window}"
-                        ),
-                    )
-                    aggs.extend(agg)
+                    agg_name = f"{name if name else column}_{operation}_{window}"
+                    agg = func(column).alias(agg_name)
+                    aggs.append(agg)
+                window_column = funcs.window(
+                    self.time_column, spark_window, spark_period
+                )
                 df = input_df.groupBy(
-                    *self.key_columns,
-                    funcs.window(self.time_column, spark_window, spark_period),
+                    *self.key_columns, window_column.end.alias(self.time_column),
                 ).agg(*aggs)
+                df = df.withColumn(f"{self.time_column}_window", funcs.lit(window))
                 dfs.append(df)
 
         union_df = dfs[0]
         for df in dfs[1:]:
-            union_df = union_df.union(df)
+            union_df = union_df.unionByName(df, allowMissingColumns=True)
         return union_df

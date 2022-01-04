@@ -49,8 +49,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         from mlrun.run import new_function
         from mlrun.runtimes import RemoteSparkRuntime
 
+        self._init_env_from_file()
+
         if not self.spark_image_deployed:
-            self._init_env_from_file()
 
             store, _ = store_manager.get_or_create_store(
                 self.get_remote_pq_source_path()
@@ -244,11 +245,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
         df.to_parquet(path=path, filesystem=fsys)
 
-        cron_trigger = "*/2 * * * *"
-
-        source = ParquetSource(
-            "myparquet", path=path, time_field="time", schedule=cron_trigger
-        )
+        source = ParquetSource("myparquet", path=path, time_field="time")
 
         data_set = fs.FeatureSet(
             name, entities=[Entity("first_name"), Entity("last_name")], engine="spark"
@@ -272,12 +269,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         vector = fs.FeatureVector("my-vec", features)
         svc = fs.get_online_feature_service(vector)
-
         try:
             resp = svc.get([{"first_name": "yosi", "last_name": "levi"}])
             assert resp[0]["bid_sum_1h"] == 37.0
         finally:
             svc.close()
 
-        resp = fs.get_offline_features(vec)
+        resp = fs.get_offline_features(vector)
         assert resp.to_dataframe() == "TODO"

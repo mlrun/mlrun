@@ -95,13 +95,15 @@ or simply by setting the `source` attribute in `new_function`). In the CLI, use 
                             source='git://github.com/mlrun/ci-demo.git#master')
     run_results = fn.run(handler='my_func', params={"x": 100})
 
-See more details and examples on [**running jobs with code from Archives or shares**](./code-archive.ipynb)
+See more details and examples on [running jobs with code from Archives or shares](./code-archive.ipynb)
 
 ## Specifying the function execution handler or command
 
 The function is configured with code and dependencies, however you also need to set the main execution code either by command or handler.
 
 **Handler**
+
+A handler is a method (not a script) that executes the function, for either a one-time run or ongoing online services.  
 
 **Command**
 
@@ -117,7 +119,7 @@ If you need to add arguments in the command, use `"mode=args"`  template (`{..}`
     
 where `--x {xparam}` substitutes the `{xparam}` with the value of the `xparam` parameter).
 
-See also [**Execute non Python code**](./code-archive.html#execute-non-python-code) and  [**Inject parameters into command line**](./code-archive.html#inject-parameters-into-command-line).
+See also [Execute non Python code](./code-archive.html#execute-non-python-code) and  [Inject parameters into command line](./code-archive.html#inject-parameters-into-command-line).
 
 
 ## Submitting Tasks/Jobs To Functions

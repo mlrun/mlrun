@@ -496,6 +496,7 @@ class BaseStoreTarget(DataTargetBase):
         start_time=None,
         end_time=None,
         time_column=None,
+        **kwargs,
     ):
         """return the target data as dataframe"""
         return mlrun.get_dataitem(self._target_path).as_df(
@@ -504,6 +505,7 @@ class BaseStoreTarget(DataTargetBase):
             start_time=start_time,
             end_time=end_time,
             time_column=time_column,
+            **kwargs,
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
@@ -738,6 +740,7 @@ class ParquetTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
+        **kwargs,
     ):
         """return the target data as dataframe"""
         return mlrun.get_dataitem(self._target_path).as_df(
@@ -747,6 +750,7 @@ class ParquetTarget(BaseStoreTarget):
             start_time=start_time,
             end_time=end_time,
             time_column=time_column,
+            **kwargs,
         )
 
     def is_single_file(self):
@@ -826,8 +830,11 @@ class CSVTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
+        **kwargs,
     ):
-        df = super().as_df(columns=columns, df_module=df_module, entities=entities)
+        df = super().as_df(
+            columns=columns, df_module=df_module, entities=entities, **kwargs
+        )
         df.set_index(keys=entities, inplace=True)
         return df
 
@@ -921,7 +928,7 @@ class NoSqlTarget(BaseStoreTarget):
     def get_dask_options(self):
         return {"format": "csv"}
 
-    def as_df(self, columns=None, df_module=None):
+    def as_df(self, columns=None, df_module=None, **kwargs):
         raise NotImplementedError()
 
     def write_dataframe(
@@ -993,7 +1000,7 @@ class StreamTarget(BaseStoreTarget):
             **self.attributes,
         )
 
-    def as_df(self, columns=None, df_module=None):
+    def as_df(self, columns=None, df_module=None, **kwargs):
         raise NotImplementedError()
 
 
@@ -1048,7 +1055,7 @@ class TSDBTarget(BaseStoreTarget):
             **self.attributes,
         )
 
-    def as_df(self, columns=None, df_module=None):
+    def as_df(self, columns=None, df_module=None, **kwargs):
         raise NotImplementedError()
 
     def write_dataframe(
@@ -1186,6 +1193,7 @@ class DFTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
+        **kwargs,
     ):
         return self._df
 

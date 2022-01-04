@@ -168,7 +168,7 @@ def server_fixture():
 
 servers = [
     "server",
-    "docker",
+    # "docker",
 ]
 
 
@@ -205,7 +205,15 @@ def test_run(create_server):
     db.store_run(run_as_dict, uid, prj)
 
     data = db.read_run(uid, prj)
-    assert data == run_as_dict, "read_run"
+    assert (
+        deepdiff.DeepDiff(
+            data,
+            run_as_dict,
+            ignore_order=True,
+            exclude_paths={"root['status']['start_time']"},
+        )
+        == {}
+    )
 
     new_c = 4
     updates = {"metadata.C": new_c}

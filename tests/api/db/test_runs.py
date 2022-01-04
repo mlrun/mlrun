@@ -166,7 +166,10 @@ def test_store_run_overriding_start_time(db: DBInterface, db_session: Session):
     # use to internal function to get the record itself to be able to assert the column itself
     runs = db._find_runs(db_session, uid=None, project=project, labels=None).all()
     assert len(runs) == 1
-    assert db._add_utc_timezone(runs[0].start_time).isoformat() == runs[0].struct["status"]["start_time"]
+    assert (
+        db._add_utc_timezone(runs[0].start_time).isoformat()
+        == runs[0].struct["status"]["start_time"]
+    )
 
     # Second store - should allow to override the start time
     run["status"]["start_time"] = datetime.now(timezone.utc).isoformat()
@@ -175,5 +178,8 @@ def test_store_run_overriding_start_time(db: DBInterface, db_session: Session):
     # get the start time and verify
     runs = db._find_runs(db_session, uid=None, project=project, labels=None).all()
     assert len(runs) == 1
-    assert db._add_utc_timezone(runs[0].start_time).isoformat() == runs[0].struct["status"]["start_time"]
+    assert (
+        db._add_utc_timezone(runs[0].start_time).isoformat()
+        == runs[0].struct["status"]["start_time"]
+    )
     assert runs[0].struct["status"]["start_time"] == run["status"]["start_time"]

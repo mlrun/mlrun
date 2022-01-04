@@ -114,8 +114,13 @@ class SQLDB(DBInterface):
         if new_state:
             run.state = new_state
         update_labels(run, labels)
-        SQLDB._add_utc_timezone(run, "start_time")
-        run_data.setdefault("status", {})["start_time"] = run.start_time
+        # Note that this code basically allowing anyone to override the run's start time after it was already set
+        # This is done to enable the context initialization to set the start time to when the user's code actually
+        # started running, and not when the run record was initially created (happening when triggering the job)
+        # In the future we might want to limit who can actually do that
+        start_time = run_start_time(run_data) or SQLDB._add_utc_timezone(run.start_time)
+        run_data.setdefault("status", {})["start_time"] = start_time.isoformat()
+        run.start_time = start_time
         run.struct = run_data
         self._upsert(session, run, ignore=True)
 
@@ -2462,29 +2467,18 @@ class SQLDB(DBInterface):
         self, schedule_record: Schedule,
     ) -> schemas.ScheduleRecord:
         schedule = schemas.ScheduleRecord.from_orm(schedule_record)
-        self._add_utc_timezone(schedule, "creation_time")
+        schedule.creation_time = self._add_utc_timezone(schedule.creation_time)
         return schedule
 
     @staticmethod
-    def _add_utc_timezone(obj, attribute_name):
+    def _add_utc_timezone(time_value: typing.Optional[datetime]):
         """
         sqlalchemy losing timezone information with sqlite so we're returning it
         https://stackoverflow.com/questions/6991457/sqlalchemy-losing-timezone-information-with-sqlite
         """
-        if isinstance(obj, dict):
-            if (
-                obj.get(attribute_name) is not None
-                and obj.get(attribute_name).tzinfo is None
-            ):
-                obj[attribute_name] = pytz.utc.localize(obj[attribute_name])
-        else:
-            if (
-                getattr(obj, attribute_name) is not None
-                and getattr(obj, attribute_name).tzinfo is None
-            ):
-                setattr(
-                    obj, attribute_name, pytz.utc.localize(getattr(obj, attribute_name))
-                )
+        if time_value.tzinfo is None:
+            return pytz.utc.localize(time_value)
+        return time_value
 
     @staticmethod
     def _transform_feature_set_model_to_schema(

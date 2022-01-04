@@ -1,3 +1,5 @@
+import http
+
 import pandas
 
 import mlrun
@@ -55,3 +57,37 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
             project=prj, category=mlrun.api.schemas.ArtifactCategories.dataset
         )
         assert len(artifacts) == 1, "bad number of dataset artifacts"
+
+    def test_store_artifact_with_empty_dict(self):
+        project_name = "prj"
+        project = mlrun.new_project(project_name)
+        project.save_to_db()
+        key = "some-key"
+        uid = "some-uid"
+        tag = "some-tag"
+        mlrun.get_run_db().store_artifact(key, {}, uid, tag=tag, project=project_name)
+        artifact_tags = mlrun.get_run_db().list_artifact_tags(project_name)
+        assert artifact_tags == [tag]
+
+    def test_del_artifacts_with_empty_dict_stored(self):
+        project_name = "prj"
+        project = mlrun.new_project(project_name)
+        project.save_to_db()
+        key1 = "some-key1"
+        uid1 = "some-uid1"
+        tag1 = "some-tag1"
+        mlrun.get_run_db().store_artifact(
+            key1, {}, uid1, tag=tag1, project=project_name
+        )
+
+        key2 = "some-key2"
+        uid2 = "some-uid2"
+        tag2 = "some-tag2"
+        data_frame = pandas.DataFrame({"x": [1, 2]})
+        artifact = mlrun.artifacts.dataset.DatasetArtifact(key2, data_frame)
+        mlrun.get_run_db().store_artifact(
+            key2, artifact.to_dict(), uid2, tag=tag2, project=project_name
+        )
+        mlrun.get_run_db().del_artifacts(project=project_name)
+        artifact_tags = mlrun.get_run_db().list_artifact_tags(project_name)
+        assert artifact_tags == []

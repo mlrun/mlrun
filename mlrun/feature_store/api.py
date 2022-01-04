@@ -55,7 +55,7 @@ from .ingestion import (
     run_ingestion_job,
     run_spark_graph,
 )
-from .retrieval import LocalFeatureMerger, init_feature_vector_graph, run_merge_job
+from .retrieval import get_merger, init_feature_vector_graph, run_merge_job
 
 _v3iofs = None
 spark_transform_handler = "transform"
@@ -93,6 +93,8 @@ def get_offline_features(
     end_time: Optional[pd.Timestamp] = None,
     with_indexes: bool = False,
     update_stats: bool = False,
+    engine: str = None,
+    engine_args: dict = None,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 
@@ -130,6 +132,8 @@ def get_offline_features(
         entity_timestamp_column must be passed when using time filtering.
     :param with_indexes:    return vector with index columns (default False)
     :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
+    :param engine:          processing engine kind ("local", "dask", or "spark")
+    :param engine_args:     kwargs for the processing engine
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
@@ -156,7 +160,8 @@ def get_offline_features(
         raise TypeError(
             "entity_timestamp_column or feature_vector.spec.timestamp_field is required when passing start/end time"
         )
-    merger = LocalFeatureMerger(feature_vector)
+    merger_engine = get_merger(engine)
+    merger = merger_engine(feature_vector, **(engine_args or {}))
     return merger.start(
         entity_rows,
         entity_timestamp_column,

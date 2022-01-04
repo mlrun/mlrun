@@ -187,6 +187,8 @@ class GraphServer(ModelObj):
         silent: bool = False,
         get_body: bool = True,
         event_id: Optional[str] = None,
+        trigger: "MockTrigger" = None,
+        offset=None,
     ):
         """invoke a test event into the server to simulate/test server behavior
 
@@ -204,6 +206,8 @@ class GraphServer(ModelObj):
         :param silent:     don't raise on error responses (when not 20X)
         :param get_body:   return the body as py object (vs serialize response into json)
         :param event_id:   specify the unique event ID (by default a random value will be generated)
+        :param trigger:    nuclio trigger info or mlrun.serving.server.MockTrigger class (holds kind and name)
+        :param offset:     trigger offset (for streams)
         """
         if not self.graph:
             raise MLRunInvalidArgumentError(
@@ -216,6 +220,8 @@ class GraphServer(ModelObj):
             headers=headers,
             content_type=content_type,
             event_id=event_id,
+            trigger=trigger,
+            offset=offset,
         )
         resp = self.run(event, get_body=get_body)
         if hasattr(resp, "status_code") and resp.status_code >= 300 and not silent:
@@ -344,6 +350,14 @@ def create_graph_server(
     return server
 
 
+class MockTrigger(object):
+    """mock nuclio event trigger"""
+
+    def __init__(self, kind="", name=""):
+        self.kind = kind
+        self.name = name
+
+
 class MockEvent(object):
     """mock basic nuclio event object"""
 
@@ -355,6 +369,8 @@ class MockEvent(object):
         method=None,
         path=None,
         event_id=None,
+        trigger: MockTrigger = None,
+        offset=None,
     ):
         self.id = event_id or uuid.uuid4().hex
         self.key = ""
@@ -366,8 +382,9 @@ class MockEvent(object):
         self.method = method
         self.path = path or "/"
         self.content_type = content_type
-        self.trigger = None
         self.error = None
+        self.trigger = trigger or MockTrigger()
+        self.offset = offset or 0
 
     def __str__(self):
         error = f", error={self.error}" if self.error else ""

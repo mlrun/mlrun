@@ -724,6 +724,8 @@ class SparkAggregateByKey(StepToDict, MapClass):
     def do(self, event):
         import pyspark.sql.functions as funcs
 
+        time_column = self.time_column or "time"
+
         dfs = []
         for aggregate in self.aggregates:
             name = aggregate["name"]
@@ -743,13 +745,11 @@ class SparkAggregateByKey(StepToDict, MapClass):
                     agg_name = f"{name if name else column}_{operation}_{window}"
                     agg = func(column).alias(agg_name)
                     aggs.append(agg)
-                window_column = funcs.window(
-                    self.time_column, spark_window, spark_period
-                )
+                window_column = funcs.window(time_column, spark_window, spark_period)
                 df = input_df.groupBy(
-                    *self.key_columns, window_column.end.alias(self.time_column),
+                    *self.key_columns, window_column.end.alias(time_column),
                 ).agg(*aggs)
-                df = df.withColumn(f"{self.time_column}_window", funcs.lit(window))
+                df = df.withColumn(f"{time_column}_window", funcs.lit(window))
                 dfs.append(df)
 
         union_df = dfs[0]

@@ -162,9 +162,9 @@ def nuclio_serving_handler(context, event):
 
     # check if valid route & model
     try:
-        if hasattr(event, "trigger") and event.trigger.kind not in ["http", ""]:
+        if hasattr(event, "trigger") and event.trigger.kind != "http":
             # non http triggers (i.e. stream) are directed to the first model
-            # todo: take model name and action from json if specified
+            # todo: take model name and action from json is specified
             model_name = next(iter(context.models))
             route = "predict"
         else:

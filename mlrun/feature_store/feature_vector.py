@@ -23,7 +23,7 @@ import mlrun
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri
-from ..datastore.targets import get_offline_target
+from ..datastore.targets import CSVTarget, ParquetTarget, get_offline_target
 from ..feature_store.common import (
     get_feature_set_by_uri,
     parse_feature_string,
@@ -505,19 +505,23 @@ class OfflineVectorResponse:
         """vector prep job status (ready, running, error)"""
         return self._merger.get_status()
 
-    def to_dataframe(self, to_pandas=True):
+    def to_dataframe(self):
         """return result as dataframe"""
         if self.status != "completed":
             raise mlrun.errors.MLRunTaskNotReady("feature vector dataset is not ready")
-        return self._merger.get_df(to_pandas=to_pandas)
+        return self._merger.get_df()
 
     def to_parquet(self, target_path, **kw):
         """return results as parquet file"""
-        return self._merger.to_parquet(target_path, **kw)
+        size = ParquetTarget(path=target_path).write_dataframe(
+            self._merger.get_df(), **kw
+        )
+        return size
 
     def to_csv(self, target_path, **kw):
         """return results as csv file"""
-        return self.to_csv(target_path, **kw)
+        size = CSVTarget(path=target_path).write_dataframe(self._merger.get_df(), **kw)
+        return size
 
 
 class FixedWindowType(Enum):

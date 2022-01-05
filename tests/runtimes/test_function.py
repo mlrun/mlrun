@@ -111,7 +111,6 @@ def test_v3io_stream_trigger():
         "v3io:///projects/x/y",
         name="mystream",
         extra_attributes={"yy": "123"},
-        ack_window_size=10,
         access_key="x",
     )
 
@@ -121,4 +120,3 @@ def test_v3io_stream_trigger():
     assert trigger["attributes"]["streamPath"] == "x/y"
     assert trigger["password"] == "x"
     assert trigger["attributes"]["yy"] == "123"
-    assert trigger["attributes"]["ackWindowSize"] == 10

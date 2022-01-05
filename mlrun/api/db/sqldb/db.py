@@ -2378,7 +2378,7 @@ class SQLDB(DBInterface):
         query = self._query(session, Function, project=project)
         if name:
             query = query.filter(generate_query_predicate_for_name(Function.name, name))
-        if uids is not None:
+        if uids:
             query = query.filter(Function.uid.in_(uids))
 
         labels = label_set(labels)

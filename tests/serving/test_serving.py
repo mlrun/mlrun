@@ -8,12 +8,7 @@ import mlrun
 from mlrun.runtimes import nuclio_init_hook
 from mlrun.runtimes.serving import serving_subkind
 from mlrun.serving import V2ModelServer
-from mlrun.serving.server import (
-    GraphContext,
-    MockEvent,
-    MockTrigger,
-    create_graph_server,
-)
+from mlrun.serving.server import GraphContext, MockEvent, create_graph_server
 from mlrun.serving.states import RouterStep, TaskStep
 from mlrun.utils import logger
 
@@ -251,9 +246,8 @@ def test_v2_async_mode():
         resp.status_code != 200
     ), f"expected failure, got {resp.status_code} {resp.body}"
 
-    event = MockEvent(
-        '{"model": "m5", "inputs": [5]}', trigger=MockTrigger(kind="stream")
-    )
+    event = MockEvent('{"model": "m5", "inputs": [5]}')
+    event.trigger = "stream"
     resp = context.mlrun_handler(context, event)
     context.logger.info("model responded")
     logger.info(resp)

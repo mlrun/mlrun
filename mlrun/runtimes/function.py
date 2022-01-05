@@ -513,7 +513,6 @@ class RemoteRuntime(KubeResource):
         seek_to="earliest",
         shards=1,
         extra_attributes=None,
-        ack_window_size=None,
         **kwargs,
     ):
         """add v3io stream trigger to the function
@@ -523,9 +522,7 @@ class RemoteRuntime(KubeResource):
         :param group:          consumer group
         :param seek_to:        start seek from: "earliest", "latest", "time", "sequence"
         :param shards:         number of shards (used to set number of replicas)
-        :param extra_attributes: key/value dict with extra trigger attributes
-        :param ack_window_size:  stream ack window size (the consumer group will be updated with the
-                                 event id - ack_window_size, on failure the events in the window will be retransmitted)
+        :param extra_attributes:  key/value dict with extra trigger attributes
         :param kwargs:         extra V3IOStreamTrigger class attributes
         """
         endpoint = None
@@ -533,9 +530,6 @@ class RemoteRuntime(KubeResource):
             endpoint, stream_path = parse_v3io_path(stream_path, suffix="")
         container, path = split_path(stream_path)
         shards = shards or 1
-        extra_attributes = extra_attributes or {}
-        if ack_window_size:
-            extra_attributes["ackWindowSize"] = ack_window_size
         self.add_trigger(
             name,
             V3IOStreamTrigger(

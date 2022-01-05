@@ -103,6 +103,8 @@ class MLClientCtx(object):
         self._parent = None
         self._handler = None
 
+        self._project_object = None
+
     def __enter__(self):
         return self
 
@@ -430,6 +432,23 @@ class MLClientCtx(object):
                 self._update_db()
             return default
         return self._parameters[key]
+
+    def get_project_param(self, key: str, default=None):
+        """get a parameter from the run's project's parameters"""
+        if not self._project:
+            self.logger.warning("get_project_param called without a project name")
+            return default
+
+        if not self._project_object:
+            if self._rundb:
+                self._project_object = self._rundb.get_project(self._project)
+            else:
+                self.logger.warning(
+                    "cannot retrieve project parameters - MLRun DB is not accessible"
+                )
+                return default
+
+        return self._project_object.get_param(key, default)
 
     def get_secret(self, key: str):
         """get a key based secret e.g. DB password from the context

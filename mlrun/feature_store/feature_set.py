@@ -566,7 +566,7 @@ class FeatureSet(ModelObj):
         else:
             class_args = {}
             self._aggregations[aggregation["name"]] = aggregation
-            if self.spec.engine == "storey":
+            if not self.spec.engine or self.spec.engine == "storey":
                 step = graph.add_step(
                     name=step_name,
                     after=after or previous_step,

@@ -229,15 +229,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             {
                 "time": [
                     test_base_time,
-                    test_base_time - pd.Timedelta(minutes=1),
-                    test_base_time - pd.Timedelta(minutes=2),
-                    test_base_time - pd.Timedelta(minutes=3),
-                    test_base_time - pd.Timedelta(minutes=4),
-                    test_base_time - pd.Timedelta(minutes=5),
+                    test_base_time + pd.Timedelta(minutes=1),
+                    test_base_time + pd.Timedelta(minutes=2),
+                    test_base_time + pd.Timedelta(minutes=3),
+                    test_base_time + pd.Timedelta(minutes=4),
                 ],
-                "first_name": ["moshe", None, "yosi", "yosi", "moshe", "yosi"],
-                "last_name": ["cohen", "levi", "levi", "levi", "cohen", "levi"],
-                "bid": [2000, 10, 11, 12, 2500, 14],
+                "first_name": ["moshe", "yosi", "yosi", "moshe", "yosi"],
+                "last_name": ["cohen", "levi", "levi", "cohen", "levi"],
+                "bid": [2000, 10, 11, 12, 16],
             }
         )
 
@@ -248,7 +247,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource("myparquet", path=path, time_field="time")
 
         data_set = fs.FeatureSet(
-            name, entities=[Entity("first_name"), Entity("last_name")], engine="spark"
+            name, entities=[Entity("first_name"), Entity("last_name")], engine="spark",
         )
 
         data_set.add_aggregation(
@@ -258,22 +257,24 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fs.ingest(
             data_set,
             source,
-            return_df=True,
             spark_context=self.spark_service,
             run_config=fs.RunConfig(local=False),
         )
 
         features = [
-            f"{name}.bid_sum_1h",
+            f"{name}.*",
         ]
 
         vector = fs.FeatureVector("my-vec", features)
-        svc = fs.get_online_feature_service(vector)
-        try:
-            resp = svc.get([{"first_name": "yosi", "last_name": "levi"}])
-            assert resp[0]["bid_sum_1h"] == 37.0
-        finally:
-            svc.close()
-
-        resp = fs.get_offline_features(vector)
-        assert resp.to_dataframe() == "TODO"
+        resp = fs.get_offline_features(
+            vector, entity_timestamp_column="time", with_indexes=True
+        )
+        assert resp.to_dataframe().to_dict() == {
+            "bid_sum_1h": {("moshe", "cohen"): 2012, ("yosi", "levi"): 37},
+            "bid_max_1h": {("moshe", "cohen"): 2000, ("yosi", "levi"): 16},
+            "time": {
+                ("moshe", "cohen"): pd.Timestamp("2020-07-21 22:00:00"),
+                ("yosi", "levi"): pd.Timestamp("2020-07-21 22:30:00"),
+            },
+            "time_window": {("moshe", "cohen"): "1h", ("yosi", "levi"): "1h"},
+        }

@@ -1164,7 +1164,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         # check offline
         resp = fs.get_offline_features(vec)
-        assert len(resp.to_dataframe() == 2)
+        assert len(resp.to_dataframe()) == 2
 
         sleep(30)
 

@@ -696,13 +696,11 @@ class FeatureSet(ModelObj):
 
 class SparkAggregateByKey(StepToDict):
     def __init__(
-        self, key_columns: List[str], time_column: str, aggregates: List[Dict], **kwargs
+        self, key_columns: List[str], time_column: str, aggregates: List[Dict]
     ):
         self.key_columns = key_columns
         self.time_column = time_column
         self.aggregates = aggregates
-
-        super().__init__(**kwargs)
 
     @staticmethod
     def _duration_to_spark_format(duration):

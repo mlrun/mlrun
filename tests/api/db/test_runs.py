@@ -148,3 +148,38 @@ def test_list_runs_state_filter(db: DBInterface, db_session: Session):
         project=project,
     )
     assert len(runs) == 0
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_store_run_overriding_start_time(db: DBInterface, db_session: Session):
+    project = "project"
+    run_name = "run_name_1"
+    run = {"metadata": {"name": run_name}}
+    run_uid = "run_uid"
+
+    # First store - fills the start_time
+    db.store_run(db_session, run, run_uid, project)
+
+    # use to internal function to get the record itself to be able to assert the column itself
+    runs = db._find_runs(db_session, uid=None, project=project, labels=None).all()
+    assert len(runs) == 1
+    assert (
+        db._add_utc_timezone(runs[0].start_time).isoformat()
+        == runs[0].struct["status"]["start_time"]
+    )
+
+    # Second store - should allow to override the start time
+    run["status"]["start_time"] = datetime.now(timezone.utc).isoformat()
+    db.store_run(db_session, run, run_uid, project)
+
+    # get the start time and verify
+    runs = db._find_runs(db_session, uid=None, project=project, labels=None).all()
+    assert len(runs) == 1
+    assert (
+        db._add_utc_timezone(runs[0].start_time).isoformat()
+        == runs[0].struct["status"]["start_time"]
+    )
+    assert runs[0].struct["status"]["start_time"] == run["status"]["start_time"]

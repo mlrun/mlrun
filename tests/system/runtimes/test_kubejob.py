@@ -20,3 +20,24 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
 
         self._logger.debug("Deploying kubejob function")
         function.deploy()
+
+    def test_function_with_param(self):
+        code_path = str(self.assets_path / "function_with_params.py")
+
+        proj = mlrun.get_or_create_project(self.project_name, self.results_path)
+        project_param = "some value"
+        local_param = "my local param"
+        proj.spec.params = {"project_param": project_param}
+        proj.save()
+
+        function = mlrun.code_to_function(
+            name="function-with-params",
+            kind="job",
+            handler="handler",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+        run = function.run(params={"param1": local_param})
+        assert run.status.results["project_param"] == project_param
+        assert run.status.results["param1"] == local_param

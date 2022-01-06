@@ -16,7 +16,6 @@ import warnings
 from typing import Dict, List, Optional, Union
 
 import pandas as pd
-from storey import MapClass
 
 import mlrun
 import mlrun.api.schemas
@@ -695,7 +694,7 @@ class FeatureSet(ModelObj):
             self.spec = feature_set.spec
 
 
-class SparkAggregateByKey(StepToDict, MapClass):
+class SparkAggregateByKey(StepToDict):
     def __init__(
         self, key_columns: List[str], time_column: str, aggregates: List[Dict], **kwargs
     ):

@@ -9,6 +9,7 @@ import sqlalchemy.exc
 import sqlalchemy.orm
 
 import mlrun.api.db.sqldb.db
+import mlrun.api.db.sqldb.helpers
 import mlrun.api.db.sqldb.models
 import mlrun.api.schemas
 import mlrun.artifacts
@@ -72,7 +73,7 @@ def init_data(
 # This is because data version 1 points to to a data migration which was added back in 0.6.0, and
 # upgrading from a version earlier than 0.6.0 to v>=0.8.0 is not supported.
 data_version_prior_to_table_addition = 1
-latest_data_version = 1
+latest_data_version = 2
 
 
 def _is_migration_needed(
@@ -157,6 +158,8 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
             )
             if current_data_version < 1:
                 _perform_version_1_data_migrations(db, db_session)
+            if current_data_version < 2:
+                _perform_version_2_data_migrations(db, db_session)
             db.create_data_version(db_session, str(latest_data_version))
 
 
@@ -329,6 +332,23 @@ def _find_last_updated_artifact(
         last_updated_artifact = artifacts[0]
 
     return last_updated_artifact
+
+
+def _perform_version_2_data_migrations(
+        db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    _align_runs_table(db, db_session)
+
+
+def _align_runs_table(
+        db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    logger.info("Aligning runs")
+    runs = db._find_runs(db_session, None, "*", None).all()
+    for run in runs:
+        run_dict = run.struct
+        run.start_time = mlrun.api.db.sqldb.helpers.run_start_time(run_dict) or run.start_time
+        db._upsert(db_session, run, ignore=True)
 
 
 def _perform_version_1_data_migrations(

@@ -7,10 +7,10 @@ from tests.system.base import TestMLRunSystem
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
-class TestCodeExecutedInRunningJob(TestMLRunSystem):
+class TestAPIBackwardCompatibility(TestMLRunSystem):
     project_name = "db-system-test-project"
 
-    def test_api_backward_compatibility_in_running_runtime(self):
+    def test_endpoints_called_by_sdk_from_inside_jobs(self):
         filename = str(pathlib.Path(__file__).parent / "assets" / "function.py")
         function = mlrun.code_to_function(
             project=self.project_name,

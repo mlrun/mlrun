@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 import pytest
 from sqlalchemy.orm import Session
 
+import mlrun.api.initial_data
+import mlrun.api.db.sqldb.helpers
 from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.models import Run
 from tests.api.db.conftest import dbs
@@ -183,3 +185,35 @@ def test_store_run_overriding_start_time(db: DBInterface, db_session: Session):
         == runs[0].struct["status"]["start_time"]
     )
     assert runs[0].struct["status"]["start_time"] == run["status"]["start_time"]
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_data_migration_align_runs_table(db: DBInterface, db_session: Session):
+    time_before_creation = datetime.now(tz=timezone.utc)
+    # Create runs
+    for project in ["run-project-1", "run-project-2", "run-project-3"]:
+        for name in ["run-name-1", "run-name-2", "run-name-3"]:
+            for uid in ["run-uid-1", "run-uid-2", "run-uid-3"]:
+                for iter in range(3):
+                    run = {"metadata": {"name": name, "uid": uid, "project": project, "iter": iter}}
+                    db.store_run(db_session, run, uid, project, iter)
+    # get all run records, change only the start_time column (and not the field in the body) to be earlier (like runs
+    # will be in the field)
+    runs = db._find_runs(db_session, None, "*", None).all()
+    for run in runs:
+        run_dict = run.struct
+        assert mlrun.api.db.sqldb.helpers.run_start_time(run_dict) > time_before_creation
+        run.start_time = time_before_creation
+        db._upsert(db_session, run, ignore=True)
+
+    mlrun.api.initial_data._align_runs_table(db, db_session)
+
+    # assert after migration column start time aligned to the body start time
+    runs = db._find_runs(db_session, None, "*", None).all()
+    for run in runs:
+        run_dict = run.struct
+        assert mlrun.api.db.sqldb.helpers.run_start_time(run_dict) == db._add_utc_timezone(run.start_time)
+        assert mlrun.api.db.sqldb.helpers.run_start_time(run_dict) > time_before_creation

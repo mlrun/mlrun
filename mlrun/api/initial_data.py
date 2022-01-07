@@ -335,19 +335,21 @@ def _find_last_updated_artifact(
 
 
 def _perform_version_2_data_migrations(
-        db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     _align_runs_table(db, db_session)
 
 
 def _align_runs_table(
-        db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     logger.info("Aligning runs")
     runs = db._find_runs(db_session, None, "*", None).all()
     for run in runs:
         run_dict = run.struct
-        run.start_time = mlrun.api.db.sqldb.helpers.run_start_time(run_dict) or run.start_time
+        run.start_time = (
+            mlrun.api.db.sqldb.helpers.run_start_time(run_dict) or run.start_time
+        )
         db._upsert(db_session, run, ignore=True)
 
 

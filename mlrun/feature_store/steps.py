@@ -1,7 +1,9 @@
 from typing import Any, Dict, List, Union
 
 import pandas as pd
+import numpy as np
 from storey import MapClass
+import copy
 
 from mlrun.serving.utils import StepToDict
 
@@ -63,6 +65,12 @@ class MapValues(StepToDict, MapClass):
 
             # replace the value "U" with '0' in the age column
             graph.to(MapValues(mapping={'age': {'U': '0'}}, with_original_features=True))
+            
+            # replace integers, example
+            graph.to(MapValues(mapping={'not': {0: 1, 1: 0}}))
+            
+            # replace by range, use -inf and inf for extended range
+            graph.to(MapValues(mapping={'age': {'ranges': {'Toddler': [0, 5], 'Boy': [5,12], 'Teenager': [12, 18], 'Adult': [18, inf]}}}))
 
         :param mapping: a dict with entry per column and the associated old/new values map
         :param with_original_features: set to True to keep the original features
@@ -76,19 +84,17 @@ class MapValues(StepToDict, MapClass):
 
     def _map_value(self, feature: str, value):
         feature_map = self.mapping.get(feature, {})
+        
+        # Is this a range replacement?
+        if 'ranges' in feature_map:
+            for val, val_range in feature_map.get("ranges", {}).items():
+                min_val = val_range[0] if val_range[0] != '-inf' else -np.inf
+                max_val = val_range[1] if val_range[1] != 'inf' else np.inf
+                if value >= min_val and value < max_val:
+                    return val
 
-        # Is it a string replacement?
-        if type(value) is str:
-            return feature_map.get(value, value)
-
-        # Is it a range replacement?
-        for feature_range in feature_map.get("ranges", []):
-            current_range = feature_range["range"]
-            if value >= current_range[0] and value < current_range[1]:
-                return feature_range["value"]
-
-        # No replacement was made
-        return value
+        # Is it a regular replacement
+        return feature_map.get(value, value)
 
     def _feature_name(self, feature) -> str:
         return f"{feature}_{self.suffix}" if self.with_original_features else feature
@@ -101,7 +107,8 @@ class MapValues(StepToDict, MapClass):
         }
 
         if self.with_original_features:
-            mapped_values.update(event)
+            event.update(mapped_values)
+            mapped_values = copy.copy(event)
 
         return mapped_values
 

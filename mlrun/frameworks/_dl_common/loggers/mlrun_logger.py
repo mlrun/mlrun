@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 import mlrun
 from mlrun.artifacts import Artifact, PlotlyArtifact
 
-from ..._common.model_handler import ModelHandler
+from ..model_handler import DLModelHandler
 from .logger import Logger, LoggerMode
 
 # All trackable values types:
@@ -140,7 +140,7 @@ class MLRunLogger(Logger):
         # Commit and commit children for MLRun flag bug:
         self._context.commit(completed=False)
 
-    def log_run(self, model_handler: ModelHandler):
+    def log_run(self, model_handler: DLModelHandler):
         """
         Log the run, summarizing the validation metrics and dynamic hyperparameters across all epochs. If 'update' is
         False, the collected logs will be updated to the model inside the given handler, otherwise the model will be

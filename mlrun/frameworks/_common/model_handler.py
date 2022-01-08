@@ -5,8 +5,8 @@ import shutil
 import sys
 import zipfile
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generic, List, Union
-
+from typing import Any, Dict, Generic, List, Union, Type, Callable
+from types import MethodType
 import numpy as np
 
 import mlrun
@@ -15,6 +15,7 @@ from mlrun.data_types import ValueType
 from mlrun.execution import MLClientCtx
 from mlrun.features import Feature
 
+from .mlrun_interface import MLRunInterface
 from .types import ExtraDataType, IOSampleType, ModelType, PathType
 
 
@@ -1197,3 +1198,62 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
                 objects_imports[object_name] = getattr(module, object_name)
 
         return objects_imports
+
+
+def with_mlrun_interface(interface: Type[MLRunInterface]):
+    """
+    Decorator configure for decorating a ModelHandler method (expecting 'self' to be the first argument) to add the
+    given MLRun interface into the model before executing the method and remove it afterwards.
+
+    :param interface: The MLRun interface to add.
+
+    :return: The method decorator.
+    """
+    def decorator(model_handler_method: Callable[[ModelHandler, ...], ...]):
+        def wrapper(model_handler: ModelHandler, *args, **kwargs):
+            # Check if the interface is applied to the model inside the handler:
+            is_applied = interface.is_applied(obj=model_handler.model)
+            # If the interface is not applied, add it:
+            if not is_applied:
+                interface.add_interface(obj=model_handler.model)
+            # Call the method:
+            returned_value = model_handler_method(*args, **kwargs)
+            # If the interface was not applied, remove it:
+            if not is_applied:
+                interface.remove_interface(obj=model_handler.model)
+            return returned_value
+
+        return wrapper
+
+    return decorator
+
+
+def without_mlrun_interface(interface: Type[MLRunInterface]):
+    """
+    Decorator configure for decorating a ModelHandler method (expecting 'self' to be the first argument) to remove the
+    given MLRun interface from the model before executing the method and restore it afterwards.
+
+    :param interface: The MLRun interface to remove.
+
+    :return: The method decorator.
+    """
+    def decorator(model_handler_method: MethodType):
+        def wrapper(model_handler: ModelHandler, *args, **kwargs):
+            # Check if the interface is applied to the model inside the handler:
+            is_applied = interface.is_applied(obj=model_handler.model)
+            # If the interface is applied, remove it:
+            restoration_information = None
+            if is_applied:
+                restoration_information = interface.remove_interface(obj=model_handler.model)
+            # Call the method:
+            returned_value = model_handler_method(*args, **kwargs)
+            # If the interface was applied, add it:
+            if is_applied:
+                interface.add_interface(
+                    obj=model_handler.model, restoration_information=restoration_information
+                )
+            return returned_value
+
+        return wrapper
+
+    return decorator

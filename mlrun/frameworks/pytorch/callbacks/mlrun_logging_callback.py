@@ -15,7 +15,7 @@ class MLRunLoggingCallback(LoggingCallback):
     """
     Callback for logging data during training / validation via mlrun's context. Each tracked hyperparameter and metrics
     results will be logged per epoch and at the end of the run the model will be saved and logged as well. Some plots
-    will be available as well. To summerize, the available data in mlrun will be:
+    will be available as well. To summarize, the available data in mlrun will be:
 
     * For each epoch:
 

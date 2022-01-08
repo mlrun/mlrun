@@ -1,7 +1,8 @@
 import importlib
 import os
 from abc import ABC
-from typing import Any, Dict, Generator, Iterator, List, Sequence, Tuple, Union
+from types import ModuleType
+from typing import Any, Dict, List, Tuple, Union
 
 import tensorflow as tf
 from tensorflow import keras
@@ -17,7 +18,7 @@ from tensorflow.keras.optimizers import Optimizer
 
 import mlrun
 
-from .._common import MLRunInterface
+from .._common import MLRunInterface, RestorationInformation
 from .callbacks import MLRunLoggingCallback, TensorboardLoggingCallback
 
 
@@ -27,21 +28,15 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
     and use auto logging with ease.
     """
 
-    # Typing hints for 'x' and 'y' parameters of 'fit' and 'evaluate':
-    Dataset = Union[
-        tf.data.Dataset, tf.keras.utils.Sequence, Generator, Iterator, Sequence
-    ]
-    GroundTruths = Union[Generator, Iterator, Sequence, None]
-
     # MLRun's context default name:
     DEFAULT_CONTEXT_NAME = "mlrun-tf-keras"
 
-    # Properties attributes to be inserted so the keras mlrun interface will be fully enabled:
+    # Attributes to be inserted so the MLRun interface will be fully enabled.
     _PROPERTIES = {
         # Auto enabled callbacks list:
-        "_auto_log_callbacks": [],
+        "_auto_log_callbacks": [],  # type: List[Callback]
         # Variable to hold the horovod module:
-        "_hvd": None,
+        "_hvd": None,  # type: ModuleType
         # List of all the callbacks that should only be applied on rank 0 when using horovod:
         "_RANK_0_ONLY_CALLBACKS": [
             MLRunLoggingCallback.__name__,
@@ -51,10 +46,8 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
             ProgbarLogger.__name__,
             CSVLogger.__name__,
             BaseLogger.__name__,
-        ],
+        ],  # type: List[str]
     }
-
-    # Methods attributes to be inserted so the keras mlrun interface will be fully enabled:
     _METHODS = [
         "auto_log",
         "use_horovod",
@@ -62,103 +55,128 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
         "_pre_compile",
         "_pre_fit",
         "_pre_evaluate",
-    ]  # type: List[str]
+    ]
+
+    # Attributes to replace so the MLRun interface will be fully enabled.
+    _REPLACED_METHODS = ["compile", "fit", "evaluate"]
 
     @classmethod
-    def add_interface(cls, model: keras.Model):
+    def add_interface(
+        cls, obj: keras.Model, restoration_information: RestorationInformation = None,
+    ):
         """
-        Wrap the given model with MLRun model features, providing it with MLRun model attributes including its
-        parameters and methods.
+        Enrich the object with this interface properties, methods and functions so it will have this framework MLRun's
+        features.
 
-        :param model: The model to wrap.
+        :param obj:                     The object to enrich his interface.
+        :param restoration_information: Restoration information tuple as returned from 'remove_interface' in order to
+                                        add the interface in a certain state.
         """
-        super(TFKerasMLRunInterface, cls).add_interface(model=model)
+        super(TFKerasMLRunInterface, cls).add_interface(
+            obj=obj, restoration_information=restoration_information
+        )
 
-        # Wrap the compile method:
-        def compile_wrapper(compile_method):
-            def wrapper(*args, **kwargs):
-                # Call the pre compile method:
-                (optimizer, experimental_run_tf_function) = model._pre_compile(
-                    optimizer=kwargs["optimizer"]
-                )
-                # Assign parameters:
-                kwargs["optimizer"] = optimizer
-                if experimental_run_tf_function is not None:
-                    kwargs[
-                        "experimental_run_tf_function"
-                    ] = experimental_run_tf_function
-                # Call the original compile method:
-                return compile_method(*args, **kwargs)
+    def mlrun_compile(self, *args, **kwargs):
+        """
+        MLRun's tf.keras.Model.compile wrapper. It will setup the optimizer when using horovod. The optimizer must be
+        passed in a keyword argument and when using horovod, it must be passed as an Optimizer instance, not a string.
 
-            return wrapper
+        :raise MLRunInvalidArgumentError: In case the optimizer provided did not follow the instructions above.
+        """
+        # Validate the optimizer is passed via keyword:
+        if "optimizer" not in kwargs:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "The optimizer must be passed as a keyword argument:\n"
+                "model.compile(\n"
+                "    optimizer=...\n"
+                ")"
+            )
 
-        setattr(model, "compile", compile_wrapper(model.compile))
+        # Call the pre compile method:
+        (optimizer, experimental_run_tf_function) = self._pre_compile(
+            optimizer=kwargs["optimizer"]
+        )
 
-        # Wrap the fit method:
-        def fit_wrapper(fit_method, evaluate_method):
-            def wrapper(*args, **kwargs):
-                # Unwrap the evaluation method as fit will use it:
-                setattr(model, "evaluate", evaluate_method)
-                # Setup the callbacks list:
-                if "callbacks" not in kwargs or kwargs["callbacks"] is None:
-                    kwargs["callbacks"] = []
-                # Add auto log callbacks if they were added:
-                kwargs["callbacks"] = kwargs["callbacks"] + model._auto_log_callbacks
-                # Setup default values if needed:
-                kwargs["verbose"] = kwargs.get("verbose", 1)
-                kwargs["steps_per_epoch"] = kwargs.get("steps_per_epoch", None)
-                kwargs["validation_steps"] = kwargs.get("validation_steps", None)
-                kwargs["validation_data"] = kwargs.get("validation_data", None)
-                # Call the pre fit method:
-                (
-                    callbacks,
-                    verbose,
-                    steps_per_epoch,
-                    validation_steps,
-                ) = model._pre_fit(
-                    callbacks=kwargs["callbacks"],
-                    verbose=kwargs["verbose"],
-                    steps_per_epoch=kwargs["steps_per_epoch"],
-                    validation_steps=kwargs["validation_steps"],
-                )
-                # Assign parameters:
-                kwargs["callbacks"] = callbacks
-                kwargs["verbose"] = verbose
-                kwargs["steps_per_epoch"] = steps_per_epoch
-                kwargs["validation_steps"] = validation_steps
-                # Call the original fit method:
-                result = fit_method(*args, **kwargs)
-                # Wrap the evaluation method again:
-                setattr(model, "evaluate", evaluate_wrapper(evaluate_method))
-                return result
+        # Assign parameters:
+        kwargs["optimizer"] = optimizer
+        if experimental_run_tf_function is not None:
+            kwargs["experimental_run_tf_function"] = experimental_run_tf_function
 
-            return wrapper
+        # Call the original compile method:
+        return self.original_compile(*args, **kwargs)
 
-        setattr(model, "fit", fit_wrapper(model.fit, model.evaluate))
+    @classmethod
+    def mlrun_fit(cls):
+        """
+        MLRun's tf.keras.Model.fit wrapper. It will setup the optimizer when using horovod. The optimizer must be
+        passed in a keyword argument and when using horovod, it must be passed as an Optimizer instance, not a string.
 
-        # Wrap the evaluate method:
-        def evaluate_wrapper(evaluate_method):
-            def wrapper(*args, **kwargs):
-                # Setup the callbacks list:
-                if "callbacks" not in kwargs or kwargs["callbacks"] is None:
-                    kwargs["callbacks"] = []
-                # Add auto log callbacks if they were added:
-                kwargs["callbacks"] = kwargs["callbacks"] + model._auto_log_callbacks
-                # Setup default values if needed:
-                kwargs["steps"] = kwargs.get("steps", None)
-                # Call the pre evaluate method:
-                (callbacks, steps) = model._pre_evaluate(
-                    callbacks=kwargs["callbacks"], steps=kwargs["steps"],
-                )
-                # Assign parameters:
-                kwargs["callbacks"] = callbacks
-                kwargs["steps"] = steps
-                # Call the original fit method:
-                return evaluate_method(*args, **kwargs)
+        :raise MLRunInvalidArgumentError: In case the optimizer provided did not follow the instructions above.
+        """
 
-            return wrapper
+        def wrapper(self: keras.Model, *args, **kwargs):
+            # Restore the evaluation method as fit will use it:
+            cls._restore_attribute(obj=self, attribute_name="evaluate")
 
-        setattr(model, "evaluate", evaluate_wrapper(model.evaluate))
+            # Setup the callbacks list:
+            if "callbacks" not in kwargs or kwargs["callbacks"] is None:
+                kwargs["callbacks"] = []
+
+            # Add auto logging callbacks if they were added:
+            kwargs["callbacks"] = kwargs["callbacks"] + self._auto_log_callbacks
+
+            # Setup default values if needed:
+            kwargs["verbose"] = kwargs.get("verbose", 1)
+            kwargs["steps_per_epoch"] = kwargs.get("steps_per_epoch", None)
+            kwargs["validation_steps"] = kwargs.get("validation_steps", None)
+            kwargs["validation_data"] = kwargs.get("validation_data", None)
+
+            # Call the pre fit method:
+            (callbacks, verbose, steps_per_epoch, validation_steps,) = self._pre_fit(
+                callbacks=kwargs["callbacks"],
+                verbose=kwargs["verbose"],
+                steps_per_epoch=kwargs["steps_per_epoch"],
+                validation_steps=kwargs["validation_steps"],
+            )
+
+            # Assign parameters:
+            kwargs["callbacks"] = callbacks
+            kwargs["verbose"] = verbose
+            kwargs["steps_per_epoch"] = steps_per_epoch
+            kwargs["validation_steps"] = validation_steps
+
+            # Call the original fit method:
+            result = self.original_fit(*args, **kwargs)
+
+            # Replace the evaluation method again:
+            cls._replace_function(obj=self, function_name="evaluate")
+
+            return result
+
+        return wrapper
+
+    def mlrun_evaluate(self, *args, **kwargs):
+        # Setup the callbacks list:
+        if "callbacks" not in kwargs or kwargs["callbacks"] is None:
+            kwargs["callbacks"] = []
+
+        # Add auto log callbacks if they were added:
+        kwargs["callbacks"] = kwargs["callbacks"] + self._auto_log_callbacks
+
+        # Setup default values if needed:
+        kwargs["steps"] = kwargs.get("steps", None)
+
+        # Call the pre evaluate method:
+        (callbacks, steps) = self._pre_evaluate(
+            callbacks=kwargs["callbacks"], steps=kwargs["steps"],
+        )
+
+        # Assign parameters:
+        kwargs["callbacks"] = callbacks
+        kwargs["steps"] = steps
+
+        # Call the original evaluation method:
+        return self.original_evaluate(*args, **kwargs)
 
     def auto_log(
         self,
@@ -338,7 +356,11 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
             self._hvd.callbacks.BroadcastGlobalVariablesCallback(0),
             metric_average_callback,
             self._hvd.callbacks.LearningRateWarmupCallback(
-                initial_lr=float(self.optimizer.lr)
+                initial_lr=float(
+                    self.optimizer.lr
+                    if hasattr(self.optimizer, "lr")
+                    else self.optimizer.learning_rate
+                )
             ),
         ]
         if self._hvd.rank() != 0:

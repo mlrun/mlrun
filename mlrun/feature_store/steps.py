@@ -83,12 +83,12 @@ class MapValues(StepToDict, MapClass):
 
     def _map_value(self, feature: str, value):
         feature_map = self.mapping.get(feature, {})
-        
+
         # Is this a range replacement?
-        if 'ranges' in feature_map:
+        if "ranges" in feature_map:
             for val, val_range in feature_map.get("ranges", {}).items():
-                min_val = val_range[0] if val_range[0] != '-inf' else -np.inf
-                max_val = val_range[1] if val_range[1] != 'inf' else np.inf
+                min_val = val_range[0] if val_range[0] != "-inf" else -np.inf
+                max_val = val_range[1] if val_range[1] != "inf" else np.inf
                 if value >= min_val and value < max_val:
                     return val
 

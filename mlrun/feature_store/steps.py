@@ -3,7 +3,6 @@ from typing import Any, Dict, List, Union
 import pandas as pd
 import numpy as np
 from storey import MapClass
-import copy
 
 from mlrun.serving.utils import StepToDict
 

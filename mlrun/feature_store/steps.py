@@ -107,8 +107,7 @@ class MapValues(StepToDict, MapClass):
         }
 
         if self.with_original_features:
-            event.update(mapped_values)
-            mapped_values = copy.copy(event)
+            mapped_values.update(event)
 
         return mapped_values
 

@@ -14,13 +14,7 @@ class MLMLRunInterface:
 
     @classmethod
     def add_interface(
-        cls,
-        model_handler: MLModelHandler,
-        context,
-        tag,
-        data={},
-        *args,
-        **kwargs
+        cls, model_handler: MLModelHandler, context, tag, data={}, *args, **kwargs
     ):
         """
         Wrap the given model with MLRun model features, providing it with MLRun model attributes including its

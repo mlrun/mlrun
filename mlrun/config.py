@@ -236,7 +236,7 @@ default_config = {
             "default": "v3io:///users/pipelines/{project}/model-endpoints/{kind}",
             "user_space": "v3io:///projects/{project}/model-endpoints/{kind}",
         },
-        "batch_processing_function_branch": "model_monitoring_batch1460-6",
+        "batch_processing_function_branch": "development",
         "parquet_batching_max_events": 10000,
     },
     "secret_stores": {

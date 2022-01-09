@@ -4,13 +4,12 @@ import string
 from random import choice, randint, uniform
 from time import monotonic, sleep
 from typing import Optional
-from datetime import datetime, timezone, timedelta
 
 import fsspec
 import pandas as pd
 import pytest
 import v3iofs
-from sklearn.datasets import load_iris, load_digits
+from sklearn.datasets import load_iris
 
 import mlrun
 import mlrun.api.schemas
@@ -233,19 +232,15 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         iris = load_iris()
 
         columns = [
-                      "sepal_length_cm",
-                      "sepal_width_cm",
-                      "petal_length_cm",
-                      "petal_width_cm",
-                  ]
-#        columns = iris.feature_names
+            "sepal_length_cm",
+            "sepal_width_cm",
+            "petal_length_cm",
+            "petal_width_cm",
+        ]
 
         label_column = "label"
 
-        train_set = pd.DataFrame(
-            iris["data"],
-            columns=columns,
-        )
+        train_set = pd.DataFrame(iris["data"], columns=columns,)
 
         train_set[label_column] = iris["target"]
 
@@ -267,28 +262,25 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         serving_fn.set_tracking()
 
         model_names = {
-            "sklearn_RandomForestClassifier": 'sklearn.ensemble.RandomForestClassifier',
-            "sklearn_LogisticRegression": 'sklearn.linear_model.LogisticRegression',
-            "sklearn_AdaBoostClassifier": 'sklearn.ensemble.AdaBoostClassifier',
+            "sklearn_RandomForestClassifier": "sklearn.ensemble.RandomForestClassifier",
+            "sklearn_LogisticRegression": "sklearn.linear_model.LogisticRegression",
+            "sklearn_AdaBoostClassifier": "sklearn.ensemble.AdaBoostClassifier",
         }
 
         # import the training function from the marketplace (hub://)
-        train = mlrun.import_function('hub://sklearn_classifier')
+        train = mlrun.import_function("hub://sklearn_classifier")
 
         for name, pkg in model_names.items():
 
             # run the function and specify input dataset path and some parameters (algorithm and label column name)
-            train_run = train.run(name=name,
-                                  inputs={'dataset': path},
-                                  params={'model_pkg_class': pkg,
-                                          'label_column': label_column,
-                                          })
+            train_run = train.run(
+                name=name,
+                inputs={"dataset": path},
+                params={"model_pkg_class": pkg, "label_column": label_column},
+            )
 
             # Add the model to the serving function's routing spec
-            serving_fn.add_model(
-                name,
-                model_path=train_run.outputs['model']
-            )
+            serving_fn.add_model(name, model_path=train_run.outputs["model"])
 
         sleep(30)
 
@@ -310,7 +302,6 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         iris_data = iris["data"].tolist()
 
         t_end = monotonic() + simulation_time
-        start_time = datetime.now(timezone.utc)
         data_sent = 0
         while monotonic() < t_end:
             data_point = choice(iris_data)
@@ -346,27 +337,23 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         for child in endpoints_children_list.endpoints:
             assert child.status.endpoint_type == EndpointType.LEAF_EP
 
-#        add  checks for all values of the overview dashboard. for each model_endpoint
-#        "accuracy" ,"drift_status","endpoint_function","endpoint_id","endpoint_model","endpoint_model_class",
-#        "endpoint_tag","error_count","first_request","last_request"
-
-        endpoints_list = mlrun.get_run_db().list_model_endpoints(
-            self.project_name,
-        )
+        endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)
 
         for endpoint in endpoints_list.endpoints:
-            print(f"FIRST {endpoint.status.first_request} start time {start_time}")
-            print(f"LAST {endpoint.status.last_request} start time {start_time + timedelta(0, simulation_time)}")
-#            assert datetime.fromisoformat(endpoint.status.first_request) >= start_time
-#            assert datetime.fromisoformat(endpoint.status.last_request) <= start_time + timedelta(0, simulation_time)
             if endpoint.status.endpoint_type == EndpointType.LEAF_EP:
-                # why check only for leaves?????
-                print(f"DRIFT STATUS IS {endpoint.status.drift_status}")
+                assert endpoint.status.drift_status == "NO_DRIFT"
                 endpoint_with_details = mlrun.get_run_db().get_model_endpoint(
                     self.project_name, endpoint.metadata.uid, feature_analysis=True
                 )
                 drift_measures = endpoint_with_details.status.drift_measures
-                measures = ["tvd_sum", "tvd_mean", "hellinger_sum", "hellinger_mean", "kld_sum", "kld_mean"]
+                measures = [
+                    "tvd_sum",
+                    "tvd_mean",
+                    "hellinger_sum",
+                    "hellinger_mean",
+                    "kld_sum",
+                    "kld_mean",
+                ]
                 stuff_for_each_column = ["tvd", "hellinger", "kld"]
                 # feature analysis (details dashboard)
                 for feature in columns:
@@ -378,29 +365,23 @@ class TestModelMonitoringAPI(TestMLRunSystem):
                 expected = endpoint_with_details.status.feature_stats
                 for feature in columns:
                     assert feature in expected
-#                    assert expected[feature]["count"] == len(iris_data)
-                    assert expected[feature]["min"] <= expected[feature]["mean"] <= expected[feature]["max"]
+                    assert (
+                        expected[feature]["min"]
+                        <= expected[feature]["mean"]
+                        <= expected[feature]["max"]
+                    )
                 actual = endpoint_with_details.status.current_stats
                 for feature in columns:
                     assert feature in actual
-                    print(f"SENT {data_sent}, in actual {actual[feature]['count']}")
-#                    assert actual[feature]["count"] == data_sent ?????????
-                    assert actual[feature]["min"] <= actual[feature]["mean"] <= actual[feature]["max"]
+                    assert (
+                        actual[feature]["min"]
+                        <= actual[feature]["mean"]
+                        <= actual[feature]["max"]
+                    )
                 # overall dritf analysis (details dashboard)
                 for measure in measures:
                     assert measure in drift_measures
                     assert type(drift_measures[measure]) == float
-
-        # top_level_endpoints[0].spec.model = 'VotingEnsemble:v1' / sklearn_RandomForestClassifier:latest
-        # top_level_endpoints[0].spec.model_class = 'VotingEnsemble' / ClassifierModel
-        # top_level_endpoints[0].status.accuracy = None
-        # top_level_endpoints[0].status.drift_status = None // 2 in sklearn models. None in the other ones
-        # top_level_endpoints[0].function_uri = 'model-monitor-sys-test4/v2-model-server'
-        # top_level_endpoints[0].status.error_count = None,
-        # status.feature_stats
-
-        print("bla")
-
 
     @staticmethod
     def _get_auth_info() -> mlrun.api.schemas.AuthInfo:

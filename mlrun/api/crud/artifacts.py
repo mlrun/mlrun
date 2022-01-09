@@ -23,6 +23,15 @@ class Artifacts(metaclass=mlrun.utils.singleton.Singleton,):
         project: str = mlrun.mlconf.default_project,
     ):
         project = project or mlrun.mlconf.default_project
+        # In case project is an empty string the setdefault won't catch it
+        if not data.setdefault("project", project):
+            data["project"] = project
+
+        if data["project"] != project:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Artifact with conflicting project name - {data['project']} while request project : {project}."
+                f"key={key}, uid={uid}, data={data}"
+            )
         mlrun.api.utils.singletons.db.get_db().store_artifact(
             db_session, key, data, uid, iter, tag, project,
         )

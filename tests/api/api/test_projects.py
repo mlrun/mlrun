@@ -23,6 +23,7 @@ import mlrun.api.utils.singletons.scheduler
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
 import mlrun.errors
+import tests.api.conftest
 from mlrun.api.db.sqldb.models import (
     Artifact,
     Entity,
@@ -89,17 +90,28 @@ def test_get_non_existing_project(
 
 
 def test_delete_project_with_resources(
-    db: Session, client: TestClient, project_member_mode: str
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
+    # need to set this to False, otherwise impl will try to delete k8s resources, and will need many more
+    # mocks to overcome this.
+    k8s_secrets_mock.set_is_running_in_k8s_cluster(False)
     project_to_keep = "project-to-keep"
     project_to_remove = "project-to-remove"
-    _create_resources_of_all_kinds(db, project_to_keep)
-    _create_resources_of_all_kinds(db, project_to_remove)
+    _create_resources_of_all_kinds(db, k8s_secrets_mock, project_to_keep)
+    _create_resources_of_all_kinds(db, k8s_secrets_mock, project_to_remove)
+
     (
         project_to_keep_table_name_records_count_map_before_project_removal,
         project_to_keep_object_records_count_map_before_project_removal,
-    ) = _assert_resources_in_project(db, project_member_mode, project_to_keep)
-    _assert_resources_in_project(db, project_member_mode, project_to_remove)
+    ) = _assert_resources_in_project(
+        db, k8s_secrets_mock, project_member_mode, project_to_keep
+    )
+    _assert_resources_in_project(
+        db, k8s_secrets_mock, project_member_mode, project_to_remove
+    )
 
     # deletion strategy - check - should fail because there are resources
     response = client.delete(
@@ -131,9 +143,15 @@ def test_delete_project_with_resources(
     (
         project_to_keep_table_name_records_count_map_after_project_removal,
         project_to_keep_object_records_count_map_after_project_removal,
-    ) = _assert_resources_in_project(db, project_member_mode, project_to_keep)
+    ) = _assert_resources_in_project(
+        db, k8s_secrets_mock, project_member_mode, project_to_keep
+    )
     _assert_resources_in_project(
-        db, project_member_mode, project_to_remove, assert_no_resources=True
+        db,
+        k8s_secrets_mock,
+        project_member_mode,
+        project_to_remove,
+        assert_no_resources=True,
     )
     assert (
         deepdiff.DeepDiff(
@@ -298,7 +316,10 @@ def test_list_and_get_project_summaries(
 
 
 def test_delete_project_deletion_strategy_check(
-    db: Session, client: TestClient, project_member_mode: str
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
     project = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name="project-name"),
@@ -342,6 +363,122 @@ def test_delete_project_deletion_strategy_check(
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
 
 
+def test_delete_project_not_deleting_versioned_objects_multiple_times(
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+) -> None:
+
+    # need to set this to False, otherwise impl will try to delete k8s resources, and will need many more
+    # mocks to overcome this.
+    k8s_secrets_mock.set_is_running_in_k8s_cluster(False)
+    project_name = "project-name"
+    _create_resources_of_all_kinds(db, k8s_secrets_mock, project_name)
+
+    response = client.get("/api/funcs", params={"project": project_name})
+    assert response.status_code == HTTPStatus.OK.value
+    distinct_function_names = {
+        function["metadata"]["name"] for function in response.json()["funcs"]
+    }
+    # ensure there are indeed several versions of the same function name
+    assert len(distinct_function_names) < len(response.json()["funcs"])
+
+    response = client.get(
+        "/api/artifacts", params={"project": project_name, "tag": "*"}
+    )
+    assert response.status_code == HTTPStatus.OK.value
+    # ensure there are indeed several versions of the same artifact key
+    distinct_artifact_keys = {
+        (artifact["db_key"], artifact["iter"])
+        for artifact in response.json()["artifacts"]
+    }
+    assert len(distinct_artifact_keys) < len(response.json()["artifacts"])
+
+    response = client.get(f"/api/projects/{project_name}/feature-sets",)
+    assert response.status_code == HTTPStatus.OK.value
+    distinct_feature_set_names = {
+        feature_set["metadata"]["name"]
+        for feature_set in response.json()["feature_sets"]
+    }
+    # ensure there are indeed several versions of the same feature_set name
+    assert len(distinct_feature_set_names) < len(response.json()["feature_sets"])
+
+    response = client.get(f"/api/projects/{project_name}/feature-vectors",)
+    assert response.status_code == HTTPStatus.OK.value
+    distinct_feature_vector_names = {
+        feature_vector["metadata"]["name"]
+        for feature_vector in response.json()["feature_vectors"]
+    }
+    # ensure there are indeed several versions of the same feature_vector name
+    assert len(distinct_feature_vector_names) < len(response.json()["feature_vectors"])
+
+    mlrun.api.utils.singletons.db.get_db().delete_function = unittest.mock.Mock()
+    mlrun.api.utils.singletons.db.get_db().del_artifact = unittest.mock.Mock()
+    mlrun.api.utils.singletons.db.get_db().delete_feature_set = unittest.mock.Mock()
+    mlrun.api.utils.singletons.db.get_db().delete_feature_vector = unittest.mock.Mock()
+    # deletion strategy - check - should fail because there are resources
+    response = client.delete(
+        f"/api/projects/{project_name}",
+        headers={
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading
+        },
+    )
+    assert response.status_code == HTTPStatus.NO_CONTENT.value
+
+    assert mlrun.api.utils.singletons.db.get_db().delete_function.call_count == len(
+        distinct_function_names
+    )
+    assert mlrun.api.utils.singletons.db.get_db().del_artifact.call_count == len(
+        distinct_artifact_keys
+    )
+    assert mlrun.api.utils.singletons.db.get_db().delete_feature_set.call_count == len(
+        distinct_feature_set_names
+    )
+    assert mlrun.api.utils.singletons.db.get_db().delete_feature_vector.call_count == len(
+        distinct_feature_vector_names
+    )
+
+
+def test_delete_project_deletion_strategy_check_external_resource(
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+) -> None:
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.api.schemas.ProjectSpec(),
+    )
+
+    # create
+    response = client.post("/api/projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+    _assert_project_response(project, response)
+
+    # Set a project secret
+    k8s_secrets_mock.store_project_secrets("project-name", {"secret": "value"})
+
+    # deletion strategy - check - should fail because there's a project secret
+    response = client.delete(
+        f"/api/projects/{project.metadata.name}",
+        headers={
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted
+        },
+    )
+    assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
+    assert "project secrets" in response.text
+
+    k8s_secrets_mock.delete_project_secrets("project-name", None)
+    response = client.delete(
+        f"/api/projects/{project.metadata.name}",
+        headers={
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted
+        },
+    )
+    assert response
+
+
 # leader format is only relevant to follower mode
 @pytest.mark.parametrize("project_member_mode", ["follower"], indirect=True)
 def test_list_projects_leader_format(
@@ -378,8 +515,15 @@ def test_list_projects_leader_format(
 
 
 def test_projects_crud(
-    db: Session, client: TestClient, project_member_mode: str
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
+    # need to set this to False, otherwise impl will try to delete k8s resources, and will need many more
+    # mocks to overcome this.
+    k8s_secrets_mock.set_is_running_in_k8s_cluster(False)
+
     name1 = f"prj-{uuid4().hex}"
     project_1 = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=name1),
@@ -530,7 +674,11 @@ def test_projects_crud(
     _list_project_names_and_assert(client, [name2])
 
 
-def _create_resources_of_all_kinds(db_session: Session, project: str):
+def _create_resources_of_all_kinds(
+    db_session: Session,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+    project: str,
+):
     db = mlrun.api.utils.singletons.db.get_db()
     # add labels to project
     project_schema = mlrun.api.schemas.Project(
@@ -551,20 +699,24 @@ def _create_resources_of_all_kinds(db_session: Session, project: str):
     function = {
         "bla": "blabla",
         "metadata": {"labels": labels},
+        "spec": {"asd": "asdasd"},
         "status": {"bla": "blabla"},
     }
     function_names = ["function_name_1", "function_name_2", "function_name_3"]
     function_tags = ["some_tag", "some_tag2", "some_tag3"]
     for function_name in function_names:
         for function_tag in function_tags:
-            db.store_function(
-                db_session,
-                function,
-                function_name,
-                project,
-                tag=function_tag,
-                versioned=True,
-            )
+            # change spec a bit so different (un-tagged) versions will be created
+            for index in range(3):
+                function["spec"]["index"] = index
+                db.store_function(
+                    db_session,
+                    function,
+                    function_name,
+                    project,
+                    tag=function_tag,
+                    versioned=True,
+                )
 
     # Create several artifacts with several tags
     artifact = {
@@ -579,6 +731,9 @@ def _create_resources_of_all_kinds(db_session: Session, project: str):
         for artifact_uid in artifact_uids:
             for artifact_tag in artifact_tags:
                 for artifact_iter in range(3):
+                    artifact["iter"] = artifact_iter
+                    artifact["tag"] = artifact_tag
+                    artifact["uid"] = artifact_uid
                     db.store_artifact(
                         db_session,
                         artifact_key,
@@ -625,9 +780,13 @@ def _create_resources_of_all_kinds(db_session: Session, project: str):
             labels,
         )
 
+    # Create several feature sets with several tags
+    labels = {
+        "owner": "nobody",
+    }
     feature_set = mlrun.api.schemas.FeatureSet(
         metadata=mlrun.api.schemas.ObjectMetadata(
-            name="dummy", tag="latest", labels={"owner": "nobody"}
+            name="dummy", tag="latest", labels=labels
         ),
         spec=mlrun.api.schemas.FeatureSetSpec(
             entities=[
@@ -643,20 +802,44 @@ def _create_resources_of_all_kinds(db_session: Session, project: str):
         ),
         status={},
     )
-    db.create_feature_set(db_session, project, feature_set)
+    feature_set_names = ["feature_set_1", "feature_set_2", "feature_set_3"]
+    feature_set_tags = ["some_tag", "some_tag2", "some_tag3"]
+    for feature_set_name in feature_set_names:
+        for feature_set_tag in feature_set_tags:
+            # change spec a bit so different (un-tagged) versions will be created
+            for index in range(3):
+                feature_set.metadata.name = feature_set_name
+                feature_set.metadata.tag = feature_set_tag
+                feature_set.spec.index = index
+                db.store_feature_set(db_session, project, feature_set_name, feature_set)
 
     feature_vector = mlrun.api.schemas.FeatureVector(
         metadata=mlrun.api.schemas.ObjectMetadata(
-            name="dummy", tag="latest", labels={"owner": "somebody"}
+            name="dummy", tag="latest", labels=labels
         ),
         spec=mlrun.api.schemas.ObjectSpec(),
         status=mlrun.api.schemas.ObjectStatus(state="created"),
     )
-    db.create_feature_vector(db_session, project, feature_vector)
+    feature_vector_names = ["feature_vector_1", "feature_vector_2", "feature_vector_3"]
+    feature_vector_tags = ["some_tag", "some_tag2", "some_tag3"]
+    for feature_vector_name in feature_vector_names:
+        for feature_vector_tag in feature_vector_tags:
+            # change spec a bit so different (un-tagged) versions will be created
+            for index in range(3):
+                feature_vector.metadata.name = feature_vector_name
+                feature_vector.metadata.tag = feature_vector_tag
+                feature_vector.spec.index = index
+                db.store_feature_vector(
+                    db_session, project, feature_vector_name, feature_vector
+                )
+
+    secrets = {f"secret_{i}": "a secret" for i in range(5)}
+    k8s_secrets_mock.store_project_secrets(project, secrets)
 
 
 def _assert_resources_in_project(
     db_session: Session,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
     project_member_mode: str,
     project: str,
     assert_no_resources: bool = False,
@@ -665,6 +848,12 @@ def _assert_resources_in_project(
         "Logs": _assert_logs_in_project(project, assert_no_resources),
         "Schedules": _assert_schedules_in_project(project, assert_no_resources),
     }
+
+    secrets = (
+        {} if assert_no_resources else {f"secret_{i}": "a secret" for i in range(5)}
+    )
+    assert k8s_secrets_mock.get_project_secret_data(project) == secrets
+
     return (
         _assert_db_resources_in_project(
             db_session, project_member_mode, project, assert_no_resources

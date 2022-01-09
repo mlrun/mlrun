@@ -61,7 +61,7 @@ RUN conda install -n base -c rapidsai -c nvidia -c conda-forge rapids=21.06 pyth
 RUN conda install -n base pytorch::pytorch==1.7.0 pytorch::torchvision==0.8.0 \
     && conda clean -aqy
 
-ARG TENSORFLOW_VERSION=2.4.1
+ARG TENSORFLOW_VERSION=2.7.0
 RUN python -m pip install tensorflow~=${TENSORFLOW_VERSION}
 
 ARG OMPI=4.1.0
@@ -81,7 +81,7 @@ RUN mkdir /tmp/openmpi && \
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
-ARG HOROVOD_VERSION=0.22.1
+ARG HOROVOD_VERSION=0.23.0
 # TODO: MAKEFLAGS="-j1" work around some transient concurrency problem with installing horovod remove it when
     #   possible (should be safe to remove if it works ~5 times without it)
 RUN ldconfig /usr/local/cuda-11.0/targets/x86_64-linux/lib/stubs && \

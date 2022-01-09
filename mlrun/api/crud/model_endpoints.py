@@ -522,6 +522,20 @@ class ModelEndpoints:
             metrics_mapping[metric] = Metric(name=metric, values=values)
         return metrics_mapping
 
+    def verify_project_has_no_model_endpoints(self, project_name: str):
+        auth_info = mlrun.api.schemas.AuthInfo(
+            data_session=os.getenv("V3IO_ACCESS_KEY")
+        )
+
+        if not config.igz_version or not config.v3io_api:
+            return
+
+        endpoints = self.list_endpoints(auth_info, project_name)
+        if endpoints.endpoints:
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                f"Project {project_name} can not be deleted since related resources found: model endpoints"
+            )
+
     def delete_model_endpoints_resources(self, project_name: str):
         auth_info = mlrun.api.schemas.AuthInfo(
             data_session=os.getenv("V3IO_ACCESS_KEY")
@@ -620,6 +634,7 @@ class ModelEndpoints:
 
         fn = get_model_monitoring_stream_processing_function(project)
         fn.metadata.project = project
+
         stream_path = config.model_endpoint_monitoring.store_prefixes.default.format(
             project=project, kind="stream"
         )

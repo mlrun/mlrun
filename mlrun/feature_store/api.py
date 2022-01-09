@@ -55,7 +55,7 @@ from .ingestion import (
     run_ingestion_job,
     run_spark_graph,
 )
-from .retrieval import LocalFeatureMerger, init_feature_vector_graph, run_merge_job
+from .retrieval import get_merger, init_feature_vector_graph, run_merge_job
 
 _v3iofs = None
 spark_transform_handler = "transform"
@@ -93,6 +93,8 @@ def get_offline_features(
     end_time: Optional[pd.Timestamp] = None,
     with_indexes: bool = False,
     update_stats: bool = False,
+    engine: str = None,
+    engine_args: dict = None,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 
@@ -130,6 +132,8 @@ def get_offline_features(
         entity_timestamp_column must be passed when using time filtering.
     :param with_indexes:    return vector with index columns (default False)
     :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
+    :param engine:          processing engine kind ("local", "dask", or "spark")
+    :param engine_args:     kwargs for the processing engine
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
@@ -156,7 +160,8 @@ def get_offline_features(
         raise TypeError(
             "entity_timestamp_column or feature_vector.spec.timestamp_field is required when passing start/end time"
         )
-    merger = LocalFeatureMerger(feature_vector)
+    merger_engine = get_merger(engine)
+    merger = merger_engine(feature_vector, **(engine_args or {}))
     return merger.start(
         entity_rows,
         entity_timestamp_column,
@@ -296,6 +301,10 @@ def ingest(
         )
 
     if run_config:
+        if isinstance(source, pd.DataFrame):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "DataFrame source is illegal in with RunConfig"
+            )
         # remote job execution
         verify_feature_set_permissions(
             featureset, mlrun.api.schemas.AuthorizationAction.update
@@ -311,6 +320,10 @@ def ingest(
 
     if mlrun_context:
         # extract ingestion parameters from mlrun context
+        if isinstance(source, pd.DataFrame):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "DataFrame source is illegal when running ingest remotely"
+            )
         if featureset or source is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot specify mlrun_context with feature set or source"
@@ -386,6 +399,10 @@ def ingest(
             "featureset.spec.engine must be set to 'spark' to ingest with spark"
         )
     if featureset.spec.engine == "spark":
+        if isinstance(source, pd.DataFrame) and run_config is not None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "DataFrame source is illegal when ingesting with spark"
+            )
         # use local spark session to ingest
         return _ingest_with_spark(
             spark_context,
@@ -519,6 +536,7 @@ def preview(
     df = infer_from_static_df(
         source, featureset, entity_columns, options, sample_size=sample_size
     )
+    featureset.save()
     return df
 
 
@@ -643,6 +661,7 @@ def _ingest_with_spark(
             df = spark.createDataFrame(source)
         else:
             df = source.to_spark_df(spark)
+            df = source.filter_df_start_end_time(df)
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
         infer_from_static_df(df, featureset, options=infer_options)
@@ -704,6 +723,9 @@ def _ingest_with_spark(
 
         if isinstance(source, BaseSourceDriver) and source.schedule:
             max_time = df.agg({timestamp_key: "max"}).collect()[0][0]
+            if not max_time:
+                # if max_time is None(no data), next scheduled run should be with same start_time
+                max_time = source.start_time
             for target in featureset.status.targets:
                 featureset.status.update_last_written_for_target(target.path, max_time)
 

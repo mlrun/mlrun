@@ -53,6 +53,7 @@ class ReleaseNotesGenerator:
             "guy1992l": "guy1992l",
             "Nick Brown": "ihs-nick",
             "Oded Messer": "omesser",
+            "Tom Tankilevitch": "tankilevitch",
         }
 
     def run(self):
@@ -105,14 +106,15 @@ class ReleaseNotesGenerator:
     def _generate_release_notes_from_commits(
         self, commits_for_highlights, commits_for_pull_requests
     ):
-        highlight_notes = self._generate_highlight_notes_from_commits(
-            commits_for_highlights
-        )
+        (
+            highlight_notes,
+            failed_parsing_commits,
+        ) = self._generate_highlight_notes_from_commits(commits_for_highlights)
         # currently we just put everything under features / enhancements
         # TODO: enforce a commit message convention which will allow to parse whether it's a feature/enhancement or
         #  bug fix
-        print(
-            f"""
+        failed_commits = "\n".join(failed_parsing_commits)
+        release_notes = f"""
 ### Features / Enhancements
 {highlight_notes}
 * **UI**: [Features & enhancement](https://github.com/mlrun/ui/releases/tag/{self._release}#features-and-enhancements)
@@ -123,25 +125,38 @@ class ReleaseNotesGenerator:
 
 #### Pull requests:
 {commits_for_pull_requests}
-        """
-        )
+"""
+
+        if failed_parsing_commits:
+            failed_parsing_template = f"""
+#### Failed parsing:
+{failed_commits}
+"""
+
+            print(release_notes + failed_parsing_template)
+            raise ValueError(
+                "Failed parsing some of the commits, added them at the end of the release notes"
+            )
+
+        print(release_notes)
 
     def _generate_highlight_notes_from_commits(self, commits):
         highlighted_notes = ""
+        failed_parsing_commits = []
         for commit in commits.split("\n"):
             match = re.fullmatch(self.commit_regex, commit)
-            assert match is not None, f"Commit did not matched regex. {commit}"
-            scope = match.groupdict()["scope"] or "Unknown"
-            message = match.groupdict()["commitMessage"]
-            pull_request_number = match.groupdict()["pullRequestNumber"]
-            commit_id = match.groupdict()["commitId"]
-            username = match.groupdict()["username"]
-            github_username = self._resolve_github_username(commit_id, username)
-            highlighted_notes += (
-                f"* **{scope}**: {message}, {pull_request_number}, @{github_username}\n"
-            )
+            if match:
+                scope = match.groupdict()["scope"] or "Unknown"
+                message = match.groupdict()["commitMessage"]
+                pull_request_number = match.groupdict()["pullRequestNumber"]
+                commit_id = match.groupdict()["commitId"]
+                username = match.groupdict()["username"]
+                github_username = self._resolve_github_username(commit_id, username)
+                highlighted_notes += f"* **{scope}**: {message}, {pull_request_number}, @{github_username}\n"
+            else:
+                failed_parsing_commits.append(commit)
 
-        return highlighted_notes
+        return highlighted_notes, failed_parsing_commits
 
     def _resolve_github_username(self, commit_id, username):
         """

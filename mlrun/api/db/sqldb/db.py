@@ -114,6 +114,13 @@ class SQLDB(DBInterface):
         if new_state:
             run.state = new_state
         update_labels(run, labels)
+        # Note that this code basically allowing anyone to override the run's start time after it was already set
+        # This is done to enable the context initialization to set the start time to when the user's code actually
+        # started running, and not when the run record was initially created (happening when triggering the job)
+        # In the future we might want to limit who can actually do that
+        start_time = run_start_time(run_data) or SQLDB._add_utc_timezone(run.start_time)
+        run_data.setdefault("status", {})["start_time"] = start_time.isoformat()
+        run.start_time = start_time
         run.struct = run_data
         self._upsert(session, run, ignore=True)
 
@@ -133,10 +140,7 @@ class SQLDB(DBInterface):
         start_time = run_start_time(struct)
         if start_time:
             run.start_time = start_time
-        run.labels.clear()
-        for name, value in run_labels(struct).items():
-            lbl = Run.Label(name=name, value=value, parent=run.id)
-            run.labels.append(lbl)
+        update_labels(run, run_labels(struct))
         session.merge(run)
         session.commit()
         self._delete_empty_labels(session, Run.Label)
@@ -419,8 +423,14 @@ class SQLDB(DBInterface):
         ids = "*"
         if tag and tag != "*":
             ids = self._resolve_tag(session, Artifact, project, tag)
-        for artifact in self._find_artifacts(session, project, ids, labels, name=name):
-            self.del_artifact(session, artifact.key, "", project)
+        distinct_keys = {
+            artifact.key
+            for artifact in self._find_artifacts(
+                session, project, ids, labels, name=name
+            )
+        }
+        for key in distinct_keys:
+            self.del_artifact(session, key, "", project)
 
     def store_function(
         self, session, function, name, project="", tag="", versioned=False,
@@ -518,11 +528,18 @@ class SQLDB(DBInterface):
         self._delete(session, Function, project=project, name=name)
 
     def _delete_functions(self, session: Session, project: str):
-        for function in self._list_project_functions(session, project):
-            self.delete_function(session, project, function.name)
+        for function_name in self._list_project_function_names(session, project):
+            self.delete_function(session, project, function_name)
 
-    def _list_project_functions(self, session: Session, project: str):
-        return self._query(session, Function, project=project).all()
+    def _list_project_function_names(
+        self, session: Session, project: str
+    ) -> typing.List[str]:
+        return [
+            name
+            for name, in self._query(
+                session, distinct(Function.name), project=project
+            ).all()
+        ]
 
     def _delete_resources_tags(self, session: Session, project: str):
         for tagged_class in _tagged:
@@ -691,7 +708,7 @@ class SQLDB(DBInterface):
         query = self._add_labels_filter(session, query, Schedule, labels)
 
         schedules = [
-            self._transform_schedule_model_to_scheme(db_schedule)
+            self._transform_schedule_record_to_scheme(db_schedule)
             for db_schedule in query
         ]
         return schedules
@@ -701,7 +718,7 @@ class SQLDB(DBInterface):
     ) -> schemas.ScheduleRecord:
         logger.debug("Getting schedule from db", project=project, name=name)
         schedule_record = self._get_schedule_record(session, project, name)
-        schedule = self._transform_schedule_model_to_scheme(schedule_record)
+        schedule = self._transform_schedule_record_to_scheme(schedule_record)
         return schedule
 
     def _get_schedule_record(
@@ -729,15 +746,35 @@ class SQLDB(DBInterface):
 
     def _delete_feature_sets(self, session: Session, project: str):
         logger.debug("Removing feature-sets from db", project=project)
-        for feature_set in self.list_feature_sets(session, project).feature_sets:
-            self.delete_feature_set(session, project, feature_set.metadata.name)
+        for feature_set_name in self._list_project_feature_set_names(session, project):
+            self.delete_feature_set(session, project, feature_set_name)
+
+    def _list_project_feature_set_names(
+        self, session: Session, project: str
+    ) -> typing.List[str]:
+        return [
+            name
+            for name, in self._query(
+                session, distinct(FeatureSet.name), project=project
+            ).all()
+        ]
 
     def _delete_feature_vectors(self, session: Session, project: str):
         logger.debug("Removing feature-vectors from db", project=project)
-        for feature_vector in self.list_feature_vectors(
+        for feature_vector_name in self._list_project_feature_vector_names(
             session, project
-        ).feature_vectors:
-            self.delete_feature_vector(session, project, feature_vector.metadata.name)
+        ):
+            self.delete_feature_vector(session, project, feature_vector_name)
+
+    def _list_project_feature_vector_names(
+        self, session: Session, project: str
+    ) -> typing.List[str]:
+        return [
+            name
+            for name, in self._query(
+                session, distinct(FeatureVector.name), project=project
+            ).all()
+        ]
 
     def tag_artifacts(self, session, artifacts, project: str, name: str):
         for artifact in artifacts:
@@ -1126,15 +1163,15 @@ class SQLDB(DBInterface):
         self._verify_empty_list_of_project_related_resources(
             name, schedules, "schedules"
         )
-        functions = self._list_project_functions(session, name)
+        functions = self._list_project_function_names(session, name)
         self._verify_empty_list_of_project_related_resources(
             name, functions, "functions"
         )
-        feature_sets = self.list_feature_sets(session, name).feature_sets
+        feature_sets = self._list_project_feature_set_names(session, name)
         self._verify_empty_list_of_project_related_resources(
             name, feature_sets, "feature_sets"
         )
-        feature_vectors = self.list_feature_vectors(session, name).feature_vectors
+        feature_vectors = self._list_project_feature_vector_names(session, name)
         self._verify_empty_list_of_project_related_resources(
             name, feature_vectors, "feature_vectors"
         )
@@ -2348,7 +2385,7 @@ class SQLDB(DBInterface):
         query = self._query(session, Function, project=project)
         if name:
             query = query.filter(generate_query_predicate_for_name(Function.name, name))
-        if uids:
+        if uids is not None:
             query = query.filter(Function.uid.in_(uids))
 
         labels = label_set(labels)
@@ -2426,21 +2463,22 @@ class SQLDB(DBInterface):
         if commit:
             session.commit()
 
-    @staticmethod
-    def _transform_schedule_model_to_scheme(
-        db_schedule: Schedule,
+    def _transform_schedule_record_to_scheme(
+        self, schedule_record: Schedule,
     ) -> schemas.ScheduleRecord:
-        schedule = schemas.ScheduleRecord.from_orm(db_schedule)
-        SQLDB._add_utc_timezone(schedule, "creation_time")
+        schedule = schemas.ScheduleRecord.from_orm(schedule_record)
+        schedule.creation_time = self._add_utc_timezone(schedule.creation_time)
         return schedule
 
     @staticmethod
-    def _add_utc_timezone(obj, attribute_name):
+    def _add_utc_timezone(time_value: typing.Optional[datetime]):
         """
         sqlalchemy losing timezone information with sqlite so we're returning it
         https://stackoverflow.com/questions/6991457/sqlalchemy-losing-timezone-information-with-sqlite
         """
-        setattr(obj, attribute_name, pytz.utc.localize(getattr(obj, attribute_name)))
+        if time_value.tzinfo is None:
+            return pytz.utc.localize(time_value)
+        return time_value
 
     @staticmethod
     def _transform_feature_set_model_to_schema(

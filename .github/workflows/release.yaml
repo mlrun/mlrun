@@ -42,12 +42,10 @@ jobs:
         run: sudo apt-get install curl jq
       - name: Run script file
         timeout-minutes: 240
-        # sleep 60 at the end to give pypi cache chance to refresh
         run: |
           export tag=$(echo ${GITHUB_REF#refs/tags/})
           chmod +x ./automation/scripts/pypi_release_waiter.sh
           ./automation/scripts/pypi_release_waiter.sh $tag
-          sleep 60
         shell: bash
       - uses: benc-uk/workflow-dispatch@v1
         with:

@@ -100,8 +100,7 @@ def test_remote_step_bad_status_code(httpserver, engine):
     server = _new_server(None, engine, method="GET", url_expression="event['myurl']")
     with pytest.raises(RuntimeError):
         server.test(body={"myurl": httpserver.url_for("/foo")})
-    with pytest.raises(ValueError):
-        server.wait_for_completion()
+    server.wait_for_completion()
 
 
 @pytest.mark.parametrize("engine", ["sync", "async"])
@@ -126,6 +125,33 @@ def test_remote_class(httpserver, engine):
     resp = server.test(body={"req": {"x": 5}})
     server.wait_for_completion()
     assert resp == {"req": {"x": 5}, "resp": {"cat": "ok"}}
+
+
+def test_remote_class_to_dict(httpserver):
+    from mlrun.serving.remote import RemoteStep
+
+    url = httpserver.url_for("/cat")
+    step = RemoteStep(
+        name="remote_echo",
+        url=url,
+        method="GET",
+        input_path="req",
+        result_path="resp",
+        max_in_flight=1,
+    )
+    assert step.to_dict() == {
+        "class_args": {
+            "max_in_flight": 1,
+            "method": "GET",
+            "retries": 6,
+            "return_json": True,
+            "url": url,
+        },
+        "class_name": "mlrun.serving.remote.RemoteStep",
+        "input_path": "req",
+        "name": "remote_echo",
+        "result_path": "resp",
+    }
 
 
 # ML-1394

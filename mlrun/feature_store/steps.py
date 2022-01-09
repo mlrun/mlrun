@@ -64,12 +64,12 @@ class MapValues(StepToDict, MapClass):
 
             # replace the value "U" with '0' in the age column
             graph.to(MapValues(mapping={'age': {'U': '0'}}, with_original_features=True))
-            
+
             # replace integers, example
             graph.to(MapValues(mapping={'not': {0: 1, 1: 0}}))
-            
+
             # replace by range, use -inf and inf for extended range
-            graph.to(MapValues(mapping={'age': {'ranges': {'Toddler': [0, 5], 'Boy': [5,12], 'Teenager': [12, 18], 'Adult': [18, inf]}}}))
+            graph.to(MapValues(mapping={'numbers': {'ranges': {'negative': [-inf, 0], 'positive': [0, inf]}}}))
 
         :param mapping: a dict with entry per column and the associated old/new values map
         :param with_original_features: set to True to keep the original features

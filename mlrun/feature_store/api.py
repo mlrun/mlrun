@@ -250,7 +250,7 @@ def ingest(
         df = ingest(stocks_set, stocks, infer_options=fstore.InferOptions.default())
 
         # for running as remote job
-        config = RunConfig(image='mlrun/mlrun').apply(mount_v3io())
+        config = RunConfig(image='mlrun/mlrun')
         df = ingest(stocks_set, stocks, run_config=config)
 
         # specify source and targets

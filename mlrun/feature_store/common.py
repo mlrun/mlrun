@@ -17,8 +17,10 @@ from copy import copy
 import mlrun
 import mlrun.errors
 from mlrun.api.schemas import AuthorizationVerificationInput
+from mlrun.runtimes import BaseRuntime
 from mlrun.runtimes.function_reference import FunctionReference
-from mlrun.utils import StorePrefix, mlconf, parse_versioned_object_uri
+from mlrun.runtimes.utils import enrich_function_from_dict
+from mlrun.utils import StorePrefix, logger, mlconf, parse_versioned_object_uri
 
 from ..config import config
 
@@ -158,36 +160,61 @@ def verify_feature_vector_permissions(
 
 
 class RunConfig:
-    """remote job/service run configuration
-
-    when running feature ingestion or merging tasks we use the RunConfig class to pass
-    the desired function and job configuration.
-    the apply() method is used to set resources like volumes, the with_secret() method adds secrets
-
-    Parameters:
-        function:      this can be function uri or function object or path to function code (.py/.ipynb) or
-                       a :py:class:`~mlrun.runtimes.function_reference.FunctionReference`
-                       the function define the code, dependencies, and resources
-        image (str):   function container image
-        kind (str):    mlrun function kind (job, serving, remote-spark, ..), required when function points to code
-        handler (str): the function handler to execute
-        local (bool):  use True to simulate local job run or mock service
-        watch (bool):  in batch jobs will wait for the job completion and print job logs to the console
-        parameters (dict): optional parameters
-    """
+    """class for holding function and run specs for jobs and serving functions"""
 
     def __init__(
         self,
-        function=None,
-        local=None,
-        image=None,
-        kind=None,
-        handler=None,
-        parameters=None,
-        watch=None,
+        function: typing.Union[str, FunctionReference, BaseRuntime] = None,
+        local: bool = None,
+        image: str = None,
+        kind: str = None,
+        handler: str = None,
+        parameters: dict = None,
+        watch: bool = None,
         owner=None,
         credentials: typing.Optional[mlrun.model.Credentials] = None,
+        code: str = None,
+        requirements: typing.Union[str, typing.List[str]] = None,
+        extra_spec: dict = None,
     ):
+        """class for holding function and run specs for jobs and serving functions
+
+        when running feature ingestion or merging tasks we use the RunConfig class to pass
+        the desired function and job configuration.
+        the apply() method is used to set resources like volumes, the with_secret() method adds secrets
+
+        Most attributes are optional, if not specified a proper default value will be set
+
+        exsamples:
+
+            # config for local run emulation
+            config = RunConfig(local=True)
+
+            # config for using empty/default code
+            config = RunConfig()
+
+            # config for using .py/.ipynb file with image and extra package requirements
+            config = RunConfig("mycode.py", image="mlrun/mlrun", requirements=["spacy"])
+
+            # config for using function object
+            function = mlrun.import_function("hub://some_function")
+            config = RunConfig(function)
+
+        :param function:    this can be function uri or function object or path to function code (.py/.ipynb)
+                            or a :py:class:`~mlrun.runtimes.function_reference.FunctionReference`
+                            the function define the code, dependencies, and resources
+        :param local:       use True to simulate local job run or mock service
+        :param image:       function container image
+        :param kind:        function runtime kind (job, serving, spark, ..), required when function points to code
+        :param handler:     the function handler to execute (for jobs or nuclio)
+        :param parameters:  job parameters
+        :param watch:       in batch jobs will wait for the job completion and print job logs to the console
+        :param owner:       job owner
+        :param credentials: job credentials
+        :param code:        function source code (as string)
+        :param requirements: python requirements file path or list of packages
+        :param extra_spec:  additional dict with function spec fields/values to add to the function
+        """
         self._function = None
         self._modifiers = []
         self.secret_sources = []
@@ -201,6 +228,9 @@ class RunConfig:
         self.watch = True if watch is None else watch
         self.owner = owner
         self.credentials = credentials
+        self.code = code or ""
+        self.requirements = requirements
+        self.extra_spec = extra_spec
 
     @property
     def function(self):
@@ -246,16 +276,40 @@ class RunConfig:
         return self
 
     def to_function(self, default_kind=None, default_image=None):
+        """internal, generate function object"""
         if isinstance(self.function, FunctionReference):
-            function = self.function.to_function(default_kind)
+            if self.code:
+                self.function.code = self.code
+            if self.requirements:
+                self.function.requirements = self.requirements
+            if self.extra_spec:
+                self.function.spec = self.extra_spec
+            function = self.function.to_function(default_kind, default_image)
         elif hasattr(self.function, "apply"):
             function = copy(self.function)
+            if self.code:
+                function.with_code(body=self.code)
+            if self.requirements:
+                self.function.with_requirements(self.requirements)
+            if self.extra_spec:
+                self.function = enrich_function_from_dict(
+                    self.function, self.extra_spec
+                )
+            function.spec.image = function.spec.image or default_image
         else:
             function = FunctionReference(
-                self.function, image=self.image, kind=self.kind
-            ).to_function(default_kind)
+                self.function,
+                image=self.image,
+                kind=self.kind,
+                code=self.code,
+                requirements=self.requirements,
+                spec=self.extra_spec,
+            ).to_function(default_kind, default_image)
 
-        function.spec.image = function.spec.image or default_image
+        if not function.is_deployed:
+            # todo: handle build for job functions
+            logger.warn("cannot run function, it must be built/deployed first")
+
         for modifier in self._modifiers:
             function.apply(modifier)
         function.metadata.credentials = self.credentials

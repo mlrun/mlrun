@@ -1019,9 +1019,9 @@ class MlrunProject(ModelObj):
         if not artifact:
             artifact = Artifact()
         artifact.target_path = target_path or artifact.target_path
-        if not artifact.target_path:
+        if not artifact.target_path or "://" not in artifact.target_path:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "an absolute target_path url must be specified"
+                "absolute target_path url to a shared/object storage must be specified"
             )
         self.spec.set_artifact(key, artifact)
 

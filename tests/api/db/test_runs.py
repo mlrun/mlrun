@@ -20,8 +20,8 @@ def test_list_runs_name_filter(db: DBInterface, db_session: Session):
     run_name_2 = "run_name_2"
     run_1 = {"metadata": {"name": run_name_1}, "status": {"bla": "blabla"}}
     run_2 = {"metadata": {"name": run_name_2}, "status": {"bla": "blabla"}}
-    # run with no name
-    run_3 = {"metadata": {}, "status": {"bla": "blabla"}}
+    # run with no name (had name but filled with no-name after version 2 data migration)
+    run_3 = {"metadata": {"name": "no-name"}, "status": {"bla": "blabla"}}
     run_uid_1 = "run_uid_1"
     run_uid_2 = "run_uid_2"
     run_uid_3 = "run_uid_3"

@@ -172,6 +172,8 @@ class SQLDB(DBInterface):
     ):
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
+        if name:
+            query = self._add_run_name_query(query, name)
         if start_time_from:
             query = query.filter(Run.start_time >= start_time_from)
         if start_time_to:
@@ -207,10 +209,20 @@ class SQLDB(DBInterface):
         if days_ago:
             since = datetime.now(timezone.utc) - timedelta(days=days_ago)
             query = query.filter(Run.start_time >= since)
+        if name:
+            query = self._add_run_name_query(query, name)
         filtered_runs = self._post_query_runs_filter(query, name, state)
         for run in filtered_runs:  # Can not use query.delete with join
             session.delete(run)
         session.commit()
+
+    def _add_run_name_query(self, query, name):
+        exact_name = self._escape_characters_for_like_query(name)
+        if name.startswith("~"):
+            query = query.filter(Run.name.ilike(f"%{exact_name[1:]}%", escape="\\"))
+        else:
+            query = query.filter(Run.name == name)
+        return query
 
     @staticmethod
     def _ensure_run_name_on_update(run_record: Run, run_dict: dict):
@@ -2184,16 +2196,6 @@ class SQLDB(DBInterface):
         filtered_runs = []
         for run in query:
             run_json = run.struct
-            if name:
-                if not run_json or not isinstance(run_json, dict):
-                    continue
-
-                run_name = run_json.get("metadata", {}).get("name", "")
-                if name.startswith("~"):
-                    if name[1:].casefold() not in run_name.casefold():
-                        continue
-                elif name != run_name:
-                    continue
             if state:
                 if not self._is_run_matching_state(run, run_json, state):
                     continue
@@ -2254,6 +2256,12 @@ class SQLDB(DBInterface):
             ),
         )
 
+    @staticmethod
+    def _escape_characters_for_like_query(value: str) -> str:
+        return (
+            value.translate(value.maketrans({"_": r"\_", "%": r"\%"})) if value else ""
+        )
+
     def _add_artifact_name_and_iter_query(self, query, name=None, iter=None):
         if not name and not iter:
             return query
@@ -2261,9 +2269,7 @@ class SQLDB(DBInterface):
         # Escape special chars (_,%) since we still need to do a like query because of the iter.
         # Also limit length to len(str) + 3, assuming iter is < 100 (two iter digits + hyphen)
         # this helps filter the situations where we match a suffix by mistake due to the like query.
-        exact_name = (
-            name.translate(name.maketrans({"_": r"\_", "%": r"\%"})) if name else ""
-        )
+        exact_name = self._escape_characters_for_like_query(name)
 
         if name and name.startswith("~"):
             # Like query

@@ -189,7 +189,7 @@ def test_log(create_server):
     server: Server = create_server()
     db = server.conn
     prj, uid, body = "p19", "3920", b"log data"
-    db.store_run({"asd": "asd"}, uid, prj)
+    db.store_run({"metadata": {"name": "run-name"}, "asd": "asd"}, uid, prj)
     db.store_log(uid, prj, body)
 
     state, data = db.get_log(uid, prj)
@@ -201,7 +201,7 @@ def test_run(create_server):
     db = server.conn
     prj, uid = "p18", "3i920"
     run_as_dict = RunObject().to_dict()
-    run_as_dict["metadata"].update({"algorithm": "svm", "C": 3})
+    run_as_dict["metadata"].update({"name": "run-name", "algorithm": "svm", "C": 3})
     db.store_run(run_as_dict, uid, prj)
 
     data = db.read_run(uid, prj)
@@ -236,6 +236,7 @@ def test_runs(create_server):
     run_as_dict = RunObject().to_dict()
     for i in range(count):
         uid = f"uid_{i}"
+        run_as_dict["metadata"]["name"] = "run-name"
         db.store_run(run_as_dict, uid, prj)
 
     runs = db.list_runs(project=prj)

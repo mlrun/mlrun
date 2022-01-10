@@ -4,6 +4,7 @@ import os
 import pathlib
 import typing
 
+import dateutil.parser
 import pymysql.err
 import sqlalchemy.exc
 import sqlalchemy.orm
@@ -347,9 +348,27 @@ def _align_runs_table(
     runs = db._find_runs(db_session, None, "*", None).all()
     for run in runs:
         run_dict = run.struct
+
+        # Align run start_time column to the start time from the body
         run.start_time = (
             mlrun.api.db.sqldb.helpers.run_start_time(run_dict) or run.start_time
         )
+
+        # New name column added, fill it up from the body
+        run.name = run_dict.get("metadata", {}).get("name", "no-name")
+
+        # State field used to have a bug causing only the body to be updated, align the column
+        run.state = run_dict.get("status", {}).get(
+            "state", mlrun.runtimes.constants.RunStates.created
+        )
+
+        # New updated column added, fill it up from the body
+        updated = datetime.datetime.now(tz=datetime.timezone.utc)
+        if run_dict.get("status", {}).get("last_update"):
+            updated = dateutil.parser.parse(
+                run_dict.get("status", {}).get("last_update")
+            )
+        run.updated = updated
         db._upsert(db_session, run, ignore=True)
 
 

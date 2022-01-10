@@ -1,10 +1,19 @@
-import pandas as pd
-
 import mlrun
+from mlrun import DataItem
 from mlrun.artifacts import ChartArtifact
 
 
-def api_backward_compatibility_tests_succeeding_function(context: mlrun.MLClientCtx):
+def api_backward_compatibility_tests_succeeding_function(
+    context: mlrun.MLClientCtx, dataset_src: DataItem
+):
+    # Dataset loading
+    df = dataset_src.as_df()
+
+    # Dataset logging, this is for test purposes only, most of the times user will won't save the df with exactly the
+    # same data but rather, do some transformation on the data, or use it for training.
+    logged_dataset = context.log_dataset("mydf", df=df, stats=True)
+    context.logger.info("Logged dataset", dataset_artifact=logged_dataset.base_dict())
+
     # Simple artifact logging
     logged_artifact = context.log_artifact(
         "model",
@@ -13,8 +22,6 @@ def api_backward_compatibility_tests_succeeding_function(context: mlrun.MLClient
         labels={"framework": "xgboost"},
     )
     context.logger.info("Logged artifact", artifact=logged_artifact.base_dict())
-    artifact = context.get_store_resource(logged_artifact.uri)
-    context.logger.info("Got artifact", artifact=artifact.uri)
 
     # logging ChartArtifact
     chart = ChartArtifact("chart")
@@ -26,14 +33,6 @@ def api_backward_compatibility_tests_succeeding_function(context: mlrun.MLClient
     context.logger.info(
         "Logged chart artifact", chart_artifact=logged_chart.base_dict()
     )
-
-    # DataSet logging
-    raw_data = {
-        "first_name": ["Jason", "Molly", "Tina", "Jake", "Amy"],
-    }
-    df = pd.DataFrame(raw_data, columns=["first_name"])
-    logged_dataset = context.log_dataset("mydf", df=df, stats=True)
-    context.logger.info("Logged dataset", dataset_artifact=logged_dataset.base_dict())
 
     # Model logging
     logged_model = context.log_model(

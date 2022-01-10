@@ -101,18 +101,19 @@ class SQLDB(DBInterface):
             "Storing run to db", project=project, uid=uid, iter=iter, run=run_data
         )
         run = self._get_run(session, uid, project, iter)
+        now = datetime.now(timezone.utc)
         if not run:
             run = Run(
+                name=run_data["metadata"]["name"],
                 uid=uid,
                 project=project,
                 iteration=iter,
                 state=run_state(run_data),
-                start_time=run_start_time(run_data) or datetime.now(timezone.utc),
+                start_time=run_start_time(run_data) or now,
             )
+        self._ensure_run_name_on_update(run, run_data)
         labels = run_labels(run_data)
-        new_state = run_state(run_data)
-        if new_state:
-            run.state = new_state
+        self._update_run_state(run, run_data)
         update_labels(run, labels)
         # Note that this code basically allowing anyone to override the run's start time after it was already set
         # This is done to enable the context initialization to set the start time to when the user's code actually
@@ -121,6 +122,7 @@ class SQLDB(DBInterface):
         start_time = run_start_time(run_data) or SQLDB._add_utc_timezone(run.start_time)
         run_data.setdefault("status", {})["start_time"] = start_time.isoformat()
         run.start_time = start_time
+        self._update_run_updated_time(run, run_data, now)
         run.struct = run_data
         self._upsert(session, run, ignore=True)
 
@@ -133,14 +135,14 @@ class SQLDB(DBInterface):
         struct = run.struct
         for key, val in updates.items():
             update_in(struct, key, val)
-        run.struct = struct
-        new_state = run_state(struct)
-        if new_state:
-            run.state = new_state
+        self._ensure_run_name_on_update(run, struct)
+        self._update_run_state(run, struct)
         start_time = run_start_time(struct)
         if start_time:
             run.start_time = start_time
         update_labels(run, run_labels(struct))
+        self._update_run_updated_time(run, struct)
+        run.struct = struct
         session.merge(run)
         session.commit()
         self._delete_empty_labels(session, Run.Label)
@@ -209,6 +211,29 @@ class SQLDB(DBInterface):
         for run in filtered_runs:  # Can not use query.delete with join
             session.delete(run)
         session.commit()
+
+    @staticmethod
+    def _ensure_run_name_on_update(run_record: Run, run_dict: dict):
+        body_name = run_dict["metadata"]["name"]
+        if body_name != run_record.name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Changing name for an existing run is invalid"
+            )
+
+    @staticmethod
+    def _update_run_updated_time(
+        run_record: Run, run_dict: dict, now: typing.Optional[datetime] = None
+    ):
+        if now is None:
+            now = datetime.now(timezone.utc)
+        run_record.updated = now
+        run_dict.setdefault("status", {})["last_update"] = now.isoformat()
+
+    @staticmethod
+    def _update_run_state(run_record: Run, run_dict: dict):
+        state = run_state(run_dict)
+        run_record.state = state
+        run_dict.setdefault("status", {})["state"] = state
 
     def store_artifact(
         self, session, key, artifact, uid, iter=None, tag="", project="",

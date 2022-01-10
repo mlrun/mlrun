@@ -174,6 +174,8 @@ class SQLDB(DBInterface):
         query = self._find_runs(session, uid, project, labels)
         if name:
             query = self._add_run_name_query(query, name)
+        if state:
+            query = query.filter(Run.state == state)
         if start_time_from:
             query = query.filter(Run.start_time >= start_time_from)
         if start_time_to:
@@ -211,8 +213,9 @@ class SQLDB(DBInterface):
             query = query.filter(Run.start_time >= since)
         if name:
             query = self._add_run_name_query(query, name)
-        filtered_runs = self._post_query_runs_filter(query, name, state)
-        for run in filtered_runs:  # Can not use query.delete with join
+        if state:
+            query = query.filter(Run.state == state)
+        for run in query:  # Can not use query.delete with join
             session.delete(run)
         session.commit()
 
@@ -1056,7 +1059,7 @@ class SQLDB(DBInterface):
         for run in runs:
             run_json = run.struct
             if self._is_run_matching_state(
-                run, run_json, mlrun.runtimes.constants.RunStates.non_terminal_states(),
+                run, mlrun.runtimes.constants.RunStates.non_terminal_states(),
             ):
                 if (
                     run_json.get("metadata", {}).get("name")
@@ -1069,7 +1072,6 @@ class SQLDB(DBInterface):
                     project_to_running_runs_count[run.project] += 1
             if self._is_run_matching_state(
                 run,
-                run_json,
                 [
                     mlrun.runtimes.constants.RunStates.error,
                     mlrun.runtimes.constants.RunStates.aborted,
@@ -2196,9 +2198,6 @@ class SQLDB(DBInterface):
         filtered_runs = []
         for run in query:
             run_json = run.struct
-            if state:
-                if not self._is_run_matching_state(run, run_json, state):
-                    continue
             if last_update_time_from or last_update_time_to:
                 if not match_times(
                     last_update_time_from,
@@ -2212,25 +2211,13 @@ class SQLDB(DBInterface):
 
         return filtered_runs
 
-    def _is_run_matching_state(self, run, run_json, state):
+    def _is_run_matching_state(self, run, state):
         requested_states = as_list(state)
         record_state = run.state
-        json_state = None
-        if (
-            run_json
-            and isinstance(run_json, dict)
-            and run_json.get("status", {}).get("state")
-        ):
-            json_state = run_json.get("status", {}).get("state")
-        if not record_state and not json_state:
+        if not record_state:
             return False
-        # json_state has precedence over record state
-        if json_state:
-            if json_state in requested_states:
-                return True
-        else:
-            if record_state in requested_states:
-                return True
+        if record_state in requested_states:
+            return True
         return False
 
     def _latest_uid_filter(self, session, query):

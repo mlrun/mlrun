@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 import mlrun.api.db.sqldb.helpers
 import mlrun.api.initial_data
 from mlrun.api.db.base import DBInterface
-from mlrun.api.db.sqldb.models import Run
 from tests.api.db.conftest import dbs
 
 
@@ -49,107 +48,37 @@ def test_list_runs_name_filter(db: DBInterface, db_session: Session):
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
 def test_list_runs_state_filter(db: DBInterface, db_session: Session):
-    project = "project-name"
-    run_without_state_uid = "run_without_state_uid"
-    run_without_state = {"metadata": {"uid": run_without_state_uid}, "bla": "blabla"}
-    db.store_run(db_session, run_without_state, run_without_state_uid, project)
-
-    run_with_json_state_state = "some_json_state"
-    run_with_json_state_uid = "run_with_json_state_uid"
-    run_with_json_state = {
-        "metadata": {"uid": run_with_json_state_uid},
-        "status": {"state": run_with_json_state_state},
-    }
-    run = Run(
-        uid=run_with_json_state_uid,
-        project=project,
-        iteration=0,
-        start_time=datetime.now(timezone.utc),
-    )
-    run.struct = run_with_json_state
-    db._upsert(db_session, run, ignore=True)
-
-    run_with_record_state_state = "some_record_state"
-    run_with_record_state_uid = "run_with_record_state_uid"
-    run_with_record_state = {
-        "metadata": {"uid": run_with_record_state_uid},
-        "bla": "blabla",
-    }
-    run = Run(
-        uid=run_with_record_state_uid,
-        project=project,
-        iteration=0,
-        state=run_with_record_state_state,
-        start_time=datetime.now(timezone.utc),
-    )
-    run.struct = run_with_record_state
-    db._upsert(db_session, run, ignore=True)
-
-    run_with_equal_json_and_record_state_state = "some_equal_json_and_record_state"
-    run_with_equal_json_and_record_state_uid = (
-        "run_with_equal_json_and_record_state_uid"
-    )
-    run_with_equal_json_and_record_state = {
-        "metadata": {"uid": run_with_equal_json_and_record_state_uid},
-        "status": {"state": run_with_equal_json_and_record_state_state},
-    }
-    db.store_run(
+    project = "project"
+    run_uid_running = "run-running"
+    run_uid_completed = "run-completed"
+    _create_new_run(
+        db,
         db_session,
-        run_with_equal_json_and_record_state,
-        run_with_equal_json_and_record_state_uid,
         project,
+        uid=run_uid_running,
+        state=mlrun.runtimes.constants.RunStates.running,
     )
-
-    run_with_unequal_json_and_record_state_json_state = "some_unequal_json_state"
-    run_with_unequal_json_and_record_state_record_state = "some_unequal_record_state"
-    run_with_unequal_json_and_record_state_uid = (
-        "run_with_unequal_json_and_record_state_uid"
+    _create_new_run(
+        db,
+        db_session,
+        project,
+        uid=run_uid_completed,
+        state=mlrun.runtimes.constants.RunStates.completed,
     )
-    run_with_unequal_json_and_record_state = {
-        "metadata": {"uid": run_with_unequal_json_and_record_state_uid},
-        "status": {"state": run_with_unequal_json_and_record_state_json_state},
-    }
-    run = Run(
-        uid=run_with_unequal_json_and_record_state_uid,
-        project=project,
-        iteration=0,
-        state=run_with_unequal_json_and_record_state_record_state,
-        start_time=datetime.now(timezone.utc),
-    )
-    run.struct = run_with_unequal_json_and_record_state
-    db._upsert(db_session, run, ignore=True)
-
     runs = db.list_runs(db_session, project=project)
-    assert len(runs) == 5
-
-    runs = db.list_runs(db_session, state=run_with_json_state_state, project=project)
-    assert len(runs) == 1
-    assert runs[0]["metadata"]["uid"] == run_with_json_state_uid
-
-    runs = db.list_runs(db_session, state=run_with_record_state_state, project=project)
-    assert len(runs) == 1
-    assert runs[0]["metadata"]["uid"] == run_with_record_state_uid
+    assert len(runs) == 2
 
     runs = db.list_runs(
-        db_session, state=run_with_equal_json_and_record_state_state, project=project
+        db_session, project=project, state=mlrun.runtimes.constants.RunStates.running
     )
     assert len(runs) == 1
-    assert runs[0]["metadata"]["uid"] == run_with_equal_json_and_record_state_uid
+    assert runs[0]["metadata"]["uid"] == run_uid_running
 
     runs = db.list_runs(
-        db_session,
-        state=run_with_unequal_json_and_record_state_json_state,
-        project=project,
+        db_session, project=project, state=mlrun.runtimes.constants.RunStates.completed
     )
     assert len(runs) == 1
-    assert runs[0]["metadata"]["uid"] == run_with_unequal_json_and_record_state_uid
-
-    runs = db.list_runs(
-        db_session,
-        state=run_with_unequal_json_and_record_state_record_state,
-        project=project,
-    )
-    assert len(runs) == 0
+    assert runs[0]["metadata"]["uid"] == run_uid_completed
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
@@ -274,10 +203,12 @@ def _create_new_run(
     project="project",
     name="run-name-1",
     uid="run-uid",
-    iteration=3,
+    iteration=0,
+    state=mlrun.runtimes.constants.RunStates.created,
 ):
     run = {
-        "metadata": {"name": name, "uid": uid, "project": project, "iter": iteration}
+        "metadata": {"name": name, "uid": uid, "project": project, "iter": iteration},
+        "status": {"state": state},
     }
 
     db.store_run(db_session, run, uid, project, iter=iteration)

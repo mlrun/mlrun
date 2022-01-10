@@ -1813,6 +1813,117 @@ class TestFeatureStore(TestMLRunSystem):
             "aug": {"mykey1": "1", "mykey2": "2"},
         }
 
+    def test_get_offline_features_with_tag(self):
+        def validate_result(test_vector, test_keys):
+            res_set = fs.get_offline_features(test_vector)
+            assert res_set is not None
+            res_keys = list(res_set.vector.status.stats.keys())
+            assert res_keys.sort() == test_keys.sort()
+
+        data = quotes
+        name = "quotes"
+        tag = "test"
+        project = self.project_name
+
+        test_set = fs.FeatureSet(name, entities=[Entity("ticker", ValueType.STRING)])
+
+        df = fs.ingest(test_set, data)
+        assert df is not None
+
+        # change feature set and save with tag
+        test_set.add_aggregation(
+            "bid", ["avg"], "1h",
+        )
+        new_column = "bid_avg_1h"
+        test_set.metadata.tag = tag
+        fs.ingest(test_set, data)
+
+        # retrieve feature set with feature vector and check for changes
+        vector = fs.FeatureVector("vector", [f"{name}.*"], with_indexes=True)
+        vector_with_tag = fs.FeatureVector(
+            "vector_with_tag", [f"{name}:{tag}.*"], with_indexes=True
+        )
+        vector_with_project = fs.FeatureVector(
+            "vector_with_project", [f"{project}/{name}.*"], with_indexes=True
+        )
+        # vector_with_project.metadata.project = "bs"
+        vector_with_features = fs.FeatureVector(
+            "vector_with_features", [f"{name}.bid", f"{name}.time"], with_indexes=True
+        )
+        vector_with_project_tag_and_features = fs.FeatureVector(
+            "vector_with_project_tag_and_features",
+            [f"{project}/{name}:{tag}.bid", f"{project}/{name}:{tag}.{new_column}"],
+            with_indexes=True,
+        )
+
+        expected_keys = ["time", "bid", "ask"]
+
+        for vec, keys in [
+            (vector, expected_keys),
+            (vector_with_tag, expected_keys + [new_column]),
+            (vector_with_project, expected_keys),
+            (vector_with_features, ["bid", "time"]),
+            (vector_with_project_tag_and_features, ["bid", new_column]),
+        ]:
+            validate_result(vec, keys)
+
+    def test_get_online_feature_service_with_tag(self):
+        def validate_result(test_vector, test_keys):
+            svc = fs.get_online_feature_service(test_vector)
+            sleep(5)
+            resp = svc.get([{"ticker": "AAPL"}])
+            svc.close()
+            assert resp is not None
+            resp_keys = list(resp[0].keys())
+            assert resp_keys.sort() == test_keys.sort()
+
+        data = quotes
+        name = "quotes"
+        tag = "test"
+        project = self.project_name
+
+        test_set = fs.FeatureSet(name, entities=[Entity("ticker", ValueType.STRING)])
+
+        df = fs.ingest(test_set, data)
+        assert df is not None
+
+        # change feature set and save with tag
+        test_set.add_aggregation(
+            "bid", ["avg"], "1h",
+        )
+        new_column = "bid_avg_1h"
+        test_set.metadata.tag = tag
+        fs.ingest(test_set, data)
+
+        # retrieve feature set with feature vector and check for changes
+        vector = fs.FeatureVector("vector", [f"{name}.*"], with_indexes=True)
+        vector_with_tag = fs.FeatureVector(
+            "vector_with_tag", [f"{name}:{tag}.*"], with_indexes=True
+        )
+        vector_with_project = fs.FeatureVector(
+            "vector_with_project", [f"{project}/{name}.*"], with_indexes=True
+        )
+        # vector_with_project.metadata.project = "bs"
+        vector_with_features = fs.FeatureVector(
+            "vector_with_features", [f"{name}.bid", f"{name}.time"], with_indexes=True
+        )
+        vector_with_project_tag_and_features = fs.FeatureVector(
+            "vector_with_project_tag_and_features",
+            [f"{project}/{name}:{tag}.bid", f"{project}/{name}:{tag}.{new_column}"],
+            with_indexes=True,
+        )
+
+        expected_keys = ["ticker", "time", "bid", "ask"]
+
+        for vec, keys in [
+            (vector, expected_keys),
+            (vector_with_tag, expected_keys + [new_column]),
+            (vector_with_project, expected_keys),
+            (vector_with_features, ["bid", "time"]),
+            (vector_with_project_tag_and_features, ["bid", new_column]),
+        ]:
+            validate_result(vec, keys)
+
     def test_preview_saves_changes(self):
         name = "update-on-preview"
         v3io_source = StreamSource(key_field="ticker", time_field="time")

@@ -295,7 +295,7 @@ class FeatureVector(ModelObj):
             _, name, alias = parse_feature_string(self.spec.label_feature)
             self.status.label_column = alias or name
 
-        def add_feature(name, alias, feature_set_object):
+        def add_feature(name, alias, feature_set_object, feature_set_full_name):
             if alias in processed_features.keys():
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"feature name/alias {alias} already specified,"
@@ -303,8 +303,7 @@ class FeatureVector(ModelObj):
                 )
             feature = feature_set_object[name]
             processed_features[alias or name] = (feature_set_object, feature)
-            featureset_name = feature_set_object.metadata.name
-            feature_set_fields[featureset_name].append((name, alias))
+            feature_set_fields[feature_set_full_name].append((name, alias))
 
         for feature in features:
             project_name, feature = parse_project_name_from_feature_string(feature)
@@ -321,15 +320,20 @@ class FeatureVector(ModelObj):
                 for field in feature_fields:
                     if field != feature_set_object.spec.timestamp_key:
                         if alias:
-                            add_feature(field, alias + "_" + field, feature_set_object)
+                            add_feature(
+                                field,
+                                alias + "_" + field,
+                                feature_set_object,
+                                feature_set,
+                            )
                         else:
-                            add_feature(field, field, feature_set_object)
+                            add_feature(field, field, feature_set_object, feature_set)
             else:
                 if feature_name not in feature_fields:
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         f"feature {feature} not found in feature set {feature_set}"
                     )
-                add_feature(feature_name, alias, feature_set_object)
+                add_feature(feature_name, alias, feature_set_object, feature_set)
 
         for feature_set_name, fields in feature_set_fields.items():
             feature_set = feature_set_objects[feature_set_name]

@@ -14,26 +14,18 @@ class MLMLRunInterface:
 
     @classmethod
     def add_interface(
-        cls,
-        model_handler: MLModelHandler,
-        context,
-        model_name,
-        data={},
-        *args,
-        **kwargs
+        cls, model_handler: MLModelHandler, context, tag, data={}, *args, **kwargs
     ):
         """
         Wrap the given model with MLRun model features, providing it with MLRun model attributes including its
         parameters and methods.
 
-        :param model:       The model to wrap.
-        :param context:     MLRun context to work with. If no context is given it will be retrieved via
-                            'mlrun.get_or_create_ctx(None)'
-        :param model_name:  name under whcih the model will be saved within the databse.
-        :param data:        Optional: The train_test_split X_train, X_test, y_train, y_test can be passed,
-                                      or the test data X_test, y_test can be passed.
-
-        :return: The wrapped model.
+        :param model_handler: The model to wrap.
+        :param context:       MLRun context to work with. If no context is given it will be retrieved via
+                              'mlrun.get_or_create_ctx(None)'
+        :param tag:           Tag for the model to log with.
+        :param data:          The train_test_split X_train, X_test, y_train, y_test can be passed, or the test data
+                              X_test, y_test can be passed.
         """
         model = model_handler.model
 
@@ -102,6 +94,7 @@ class MLMLRunInterface:
                     raise ValueError("No column name for y was specified")
 
             model_handler.log(
+                tag=tag,
                 algorithm=str(model.__class__.__name__),
                 training_set=train_set,
                 label_column=label_column,

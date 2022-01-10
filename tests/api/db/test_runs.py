@@ -157,13 +157,8 @@ def test_list_runs_state_filter(db: DBInterface, db_session: Session):
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
 def test_store_run_overriding_start_time(db: DBInterface, db_session: Session):
-    project = "project"
-    run_name = "run_name_1"
-    run = {"metadata": {"name": run_name}}
-    run_uid = "run_uid"
-
     # First store - fills the start_time
-    db.store_run(db_session, run, run_uid, project)
+    project, name, uid, iteration, run = _create_new_run(db, db_session)
 
     # use to internal function to get the record itself to be able to assert the column itself
     runs = db._find_runs(db_session, uid=None, project=project, labels=None).all()
@@ -175,7 +170,7 @@ def test_store_run_overriding_start_time(db: DBInterface, db_session: Session):
 
     # Second store - should allow to override the start time
     run["status"]["start_time"] = datetime.now(timezone.utc).isoformat()
-    db.store_run(db_session, run, run_uid, project)
+    db.store_run(db_session, run, uid, project)
 
     # get the start time and verify
     runs = db._find_runs(db_session, uid=None, project=project, labels=None).all()
@@ -197,16 +192,8 @@ def test_data_migration_align_runs_table(db: DBInterface, db_session: Session):
     for project in ["run-project-1", "run-project-2", "run-project-3"]:
         for name in ["run-name-1", "run-name-2", "run-name-3"]:
             for uid in ["run-uid-1", "run-uid-2", "run-uid-3"]:
-                for iter in range(3):
-                    run = {
-                        "metadata": {
-                            "name": name,
-                            "uid": uid,
-                            "project": project,
-                            "iter": iter,
-                        }
-                    }
-                    db.store_run(db_session, run, uid, project, iter)
+                for iteration in range(3):
+                    _create_new_run(db, db_session, project, name, uid, iteration)
     # get all run records, change only the start_time column (and not the field in the body) to be earlier (like runs
     # will be in the field)
     runs = db._find_runs(db_session, None, "*", None).all()
@@ -230,3 +217,47 @@ def test_data_migration_align_runs_table(db: DBInterface, db_session: Session):
         assert (
             mlrun.api.db.sqldb.helpers.run_start_time(run_dict) > time_before_creation
         )
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_store_run_success(db: DBInterface, db_session: Session):
+    project, name, uid, iteration, run = _create_new_run(db, db_session)
+
+    # use to internal function to get the record itself to be able to assert columns
+    runs = db._find_runs(db_session, uid=None, project=project, labels=None).all()
+    assert len(runs) == 1
+    run = runs[0]
+    assert run.project == project
+    assert run.name == name
+    assert run.uid == uid
+    assert run.iteration == iteration
+    assert run.state == mlrun.runtimes.constants.RunStates.created
+    assert run.state == run.struct["status"]["state"]
+    assert (
+        db._add_utc_timezone(run.start_time).isoformat()
+        == run.struct["status"]["start_time"]
+    )
+
+    assert (
+        db._add_utc_timezone(run.updated).isoformat()
+        == run.struct["status"]["last_update"]
+    )
+
+
+def _create_new_run(
+    db: DBInterface,
+    db_session: Session,
+    project="project",
+    name="run-name-1",
+    uid="run-uid",
+    iteration=3,
+):
+    run = {
+        "metadata": {"name": name, "uid": uid, "project": project, "iter": iteration}
+    }
+
+    db.store_run(db_session, run, uid, project, iter=iteration)
+    return project, name, uid, iteration, run

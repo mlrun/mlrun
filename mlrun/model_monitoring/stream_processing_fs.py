@@ -294,7 +294,6 @@ class EventStreamProcessor:
         return feature_set
 
 
-# mlrun: start-code
 class ProcessBeforeKV(MapClass):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -779,6 +778,3 @@ def get_endpoint_record(
         return endpoint_record
     except Exception:
         return None
-
-
-# mlrun: end-code

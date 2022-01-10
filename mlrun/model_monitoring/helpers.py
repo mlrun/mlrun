@@ -1,9 +1,10 @@
 from pathlib import Path
 
 import mlrun
-from mlrun import code_to_function
+import mlrun.feature_store as fs
+from mlrun import code_to_function, v3io_cred
+from mlrun.api.crud.secrets import Secrets
 from mlrun.config import config
-from mlrun.feature_store.api import set_task_params
 from mlrun.model_monitoring.stream_processing_fs import EventStreamProcessor
 
 HELPERS_FILE_PATH = Path(__file__)
@@ -41,7 +42,6 @@ def get_model_monitoring_stream_processing_function(
     function.add_v3io_stream_trigger(
         stream_path=stream_path, name="monitoring_stream_trigger"
     )
-    from mlrun.api.crud.secrets import Secrets
 
     function.set_env_from_secret(
         "MODEL_MONITORING_ACCESS_KEY",
@@ -49,10 +49,8 @@ def get_model_monitoring_stream_processing_function(
         Secrets().generate_model_monitoring_secret_key("MODEL_MONITORING_ACCESS_KEY"),
     )
 
-    import mlrun.feature_store as fs
-
     run_config = fs.RunConfig(function=function, local=False)
-    _, run_config.parameters = set_task_params(
+    _, run_config.parameters = fs.api.set_task_params(
         fset, http_source, fset.spec.targets, run_config.parameters
     )
 
@@ -63,6 +61,6 @@ def get_model_monitoring_stream_processing_function(
     )
     function = http_source.add_nuclio_trigger(function)
     function.metadata.credentials.access_key = model_monitoring_access_key
-    function.apply(mlrun.mount_v3io())
+    function.apply(v3io_cred())
 
     return function

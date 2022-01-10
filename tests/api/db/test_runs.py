@@ -120,18 +120,38 @@ def test_data_migration_align_runs_table(db: DBInterface, db_session: Session):
     # Create runs
     for project in ["run-project-1", "run-project-2", "run-project-3"]:
         for name in ["run-name-1", "run-name-2", "run-name-3"]:
-            for uid in ["run-uid-1", "run-uid-2", "run-uid-3"]:
+            for index in range(3):
+                uid = f"{name}-uid-{index}"
                 for iteration in range(3):
-                    _create_new_run(db, db_session, project, name, uid, iteration)
-    # get all run records, change only the start_time column (and not the field in the body) to be earlier (like runs
-    # will be in the field)
+                    _create_new_run(
+                        db,
+                        db_session,
+                        project,
+                        name,
+                        uid,
+                        iteration,
+                        state=mlrun.runtimes.constants.RunStates.completed,
+                    )
+    # get all run records, and change to be as they will be in field (before the migration)
     runs = db._find_runs(db_session, None, "*", None).all()
     for run in runs:
         run_dict = run.struct
+
+        # change only the start_time column (and not the field in the body) to be earlier
         assert (
             mlrun.api.db.sqldb.helpers.run_start_time(run_dict) > time_before_creation
         )
         run.start_time = time_before_creation
+
+        # change name column to be empty
+        run.name = None
+
+        # change state column to be empty created (should be completed)
+        run.state = mlrun.runtimes.constants.RunStates.created
+
+        # change updated column to be empty
+        run.updated = None
+
         db._upsert(db_session, run, ignore=True)
 
     mlrun.api.initial_data._align_runs_table(db, db_session)
@@ -140,11 +160,25 @@ def test_data_migration_align_runs_table(db: DBInterface, db_session: Session):
     runs = db._find_runs(db_session, None, "*", None).all()
     for run in runs:
         run_dict = run.struct
+
+        # ensure start time aligned
         assert mlrun.api.db.sqldb.helpers.run_start_time(
             run_dict
         ) == db._add_utc_timezone(run.start_time)
         assert (
             mlrun.api.db.sqldb.helpers.run_start_time(run_dict) > time_before_creation
+        )
+
+        # ensure name column filled
+        assert run_dict["metadata"]["name"] == run.name
+
+        # ensure state column aligned
+        assert run_dict["status"]["state"] == run.state
+
+        # ensure updated column filled
+        assert (
+            run_dict["status"]["last_update"]
+            == db._add_utc_timezone(run.updated).isoformat()
         )
 
 

@@ -15,6 +15,7 @@ def api_backward_compatibility_tests_succeeding_function(context: mlrun.MLClient
     context.logger.info("Logged artifact", artifact=logged_artifact.base_dict())
     artifact = context.get_store_resource(logged_artifact.uri)
     context.logger.info("Got artifact", artifact=artifact.uri)
+
     # logging ChartArtifact
     chart = ChartArtifact("chart")
     chart.labels = {"type": "roc"}
@@ -31,10 +32,9 @@ def api_backward_compatibility_tests_succeeding_function(context: mlrun.MLClient
         "first_name": ["Jason", "Molly", "Tina", "Jake", "Amy"],
     }
     df = pd.DataFrame(raw_data, columns=["first_name"])
-    # df = src_data.as_df()
     logged_dataset = context.log_dataset("mydf", df=df, stats=True)
     context.logger.info("Logged dataset", dataset_artifact=logged_dataset.base_dict())
-    # context.get_dataitem(src_data).as_df()
+
     # Model logging
     logged_model = context.log_model(
         "model",

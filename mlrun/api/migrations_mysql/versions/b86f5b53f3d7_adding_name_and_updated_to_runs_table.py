@@ -5,6 +5,8 @@ Revises: 4903aef6a91d
 Create Date: 2022-01-08 19:28:45.141873
 
 """
+import datetime
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -27,10 +29,12 @@ def upgrade():
                 length=255,
                 collation=mlrun.api.utils.db.sql_collation.SQLCollationUtil.collation(),
             ),
-            nullable=False,
+            default="no-name",
         ),
     )
-    op.add_column("runs", sa.Column("updated", sa.TIMESTAMP(), nullable=False))
+    op.add_column(
+        "runs", sa.Column("updated", sa.TIMESTAMP(), default=datetime.datetime.utcnow)
+    )
     # ### end Alembic commands ###
 
 

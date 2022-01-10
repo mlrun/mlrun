@@ -1098,7 +1098,7 @@ class MlrunProject(ModelObj):
         target_path="",
         extra_data=None,
         **kwargs,
-    ):
+    ) -> DatasetArtifact:
         """
         log a dataset artifact and optionally upload it to datastore
 

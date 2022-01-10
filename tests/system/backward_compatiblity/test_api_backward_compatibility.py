@@ -12,19 +12,20 @@ class TestAPIBackwardCompatibility(TestMLRunSystem):
 
     def test_endpoints_called_by_sdk_from_inside_jobs(self):
         filename = str(pathlib.Path(__file__).parent / "assets" / "function.py")
+        success_handler = "api_backward_compatibility_tests_succeeding_function"
+        failure_handler = "api_backward_compatibility_tests_failing_function"
+
         function = mlrun.code_to_function(
             project=self.project_name,
             filename=filename,
             kind="job",
-            image="mlrun/ml-models",
+            image="mlrun/mlrun",
         )
         function.run(
-            name="test-backward-compatibility-in-running-job-success",
-            handler="backward_compatibility_test_in_runtime_success",
+            name=f"test_{success_handler}", handler=success_handler,
         )
 
         with pytest.raises(mlrun.runtimes.utils.RunError):
             function.run(
-                name="test-backward-compatibility-in-running-job-failure",
-                handler="backward_compatibility_test_in_runtime_failure",
+                name=f"test_{failure_handler}", handler=failure_handler,
             )

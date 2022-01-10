@@ -98,7 +98,7 @@ def run_now():
 
 def new_run(state, labels, uid=None, **kw):
     obj = {
-        "metadata": {"labels": labels},
+        "metadata": {"name": "run-name", "labels": labels},
         "status": {"state": state, "start_time": run_now()},
     }
     if uid:

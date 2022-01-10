@@ -117,7 +117,8 @@ If you need to add arguments in the command, use `"mode=args"`  template (`{..}`
 
     new_function(... command='mycode.py' --x {xparam}", mode="args")
     
-where `--x {xparam}` substitutes the `{xparam}` with the value of the `xparam` parameter).
+where `{xparam}` is substituted with the value of the `xparam` parameter).<br>
+It is possible to use argument templates also when using `mode="pass"`.
 
 See also [Execute non Python code](./code-archive.html#execute-non-python-code) and  [Inject parameters into command line](./code-archive.html#inject-parameters-into-command-line).
 

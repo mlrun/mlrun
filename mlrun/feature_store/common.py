@@ -185,7 +185,7 @@ class RunConfig:
 
         Most attributes are optional, if not specified a proper default value will be set
 
-        exsamples:
+        examples:
 
             # config for local run emulation
             config = RunConfig(local=True)

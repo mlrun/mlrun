@@ -21,7 +21,7 @@ def get_model_monitoring_stream_processing_function(
     fset = stream_processor.create_feature_set()
     fset._override_run_db(db_session)
 
-    http_source = mlrun.datastore.sources.HttpSource(pass_key_time=False)
+    http_source = mlrun.datastore.sources.HttpSource()
     fset.spec.source = http_source
 
     function = code_to_function(

@@ -54,7 +54,6 @@ from mlrun.utils import (
     generate_object_uri,
     get_in,
     logger,
-    match_times,
     update_in,
 )
 
@@ -180,6 +179,10 @@ class SQLDB(DBInterface):
             query = query.filter(Run.start_time >= start_time_from)
         if start_time_to:
             query = query.filter(Run.start_time <= start_time_to)
+        if last_update_time_from:
+            query = query.filter(Run.updated >= last_update_time_from)
+        if last_update_time_to:
+            query = query.filter(Run.updated <= last_update_time_to)
         if sort:
             query = query.order_by(Run.start_time.desc())
         if last:
@@ -187,12 +190,8 @@ class SQLDB(DBInterface):
         if not iter:
             query = query.filter(Run.iteration == 0)
 
-        filtered_runs = self._post_query_runs_filter(
-            query, name, state, last_update_time_from, last_update_time_to
-        )
-
         runs = RunList()
-        for run in filtered_runs:
+        for run in query:
             runs.append(run.struct)
 
         return runs
@@ -2167,49 +2166,6 @@ class SQLDB(DBInterface):
             project = None
         query = self._query(session, Run, uid=uid, project=project)
         return self._add_labels_filter(session, query, Run, labels)
-
-    def _post_query_runs_filter(
-        self,
-        query,
-        name=None,
-        state=None,
-        last_update_time_from=None,
-        last_update_time_to=None,
-    ):
-        """
-        This function is hacky and exists to cover on bugs we had with how we save our data in the DB
-        We're doing it the hacky way since:
-        1. SQLDB is about to be replaced
-        2. Schema + Data migration are complicated and as long we can avoid them, we prefer to (also because of 1)
-        name - the name is only saved in the json itself, therefore we can't use the SQL query filter and have to filter
-        it ourselves
-        state - the state is saved in a column, but, there was a bug in which the state was only getting updated in the
-        json itself, therefore, in field systems, most runs records will have an empty or not updated data in the state
-        column
-        """
-        if (
-            not name
-            and not state
-            and not last_update_time_from
-            and not last_update_time_to
-        ):
-            return query.all()
-
-        filtered_runs = []
-        for run in query:
-            run_json = run.struct
-            if last_update_time_from or last_update_time_to:
-                if not match_times(
-                    last_update_time_from,
-                    last_update_time_to,
-                    run_json,
-                    "status.last_update",
-                ):
-                    continue
-
-            filtered_runs.append(run)
-
-        return filtered_runs
 
     def _is_run_matching_state(self, run, state):
         requested_states = as_list(state)

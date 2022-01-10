@@ -48,7 +48,7 @@ class TestMLRunSystem:
 
         if not self._skip_set_environment():
             set_environment(project=self.project_name)
-            self.project = mlrun.get_or_create_project(self.project_name, './')
+            self.project = mlrun.get_or_create_project(self.project_name, "./")
 
         self.custom_setup()
 
@@ -119,14 +119,14 @@ class TestMLRunSystem:
         return pytest.mark.skipif(
             not configured,
             reason=f"This is a system test, add the needed environment variables {*mandatory_env_vars,} "
-                   "in tests/system/env.yml to run it",
+            "in tests/system/env.yml to run it",
         )(test)
 
     @property
     def assets_path(self):
         return (
-                pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
-                / "assets"
+            pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
+            / "assets"
         )
 
     @classmethod
@@ -167,16 +167,16 @@ class TestMLRunSystem:
         return prefix + str(path)
 
     def _verify_run_spec(
-            self,
-            run_spec,
-            parameters: dict = None,
-            inputs: dict = None,
-            outputs: list = None,
-            output_path: str = None,
-            function: str = None,
-            secret_sources: list = None,
-            data_stores: list = None,
-            scrape_metrics: bool = None,
+        self,
+        run_spec,
+        parameters: dict = None,
+        inputs: dict = None,
+        outputs: list = None,
+        output_path: str = None,
+        function: str = None,
+        secret_sources: list = None,
+        data_stores: list = None,
+        scrape_metrics: bool = None,
     ):
         self._logger.debug("Verifying run spec", spec=run_spec)
         if parameters:
@@ -197,13 +197,13 @@ class TestMLRunSystem:
             assert run_spec["scrape_metrics"] == scrape_metrics
 
     def _verify_run_metadata(
-            self,
-            run_metadata,
-            uid: str = None,
-            name: str = None,
-            project: str = None,
-            labels: dict = None,
-            iteration: int = None,
+        self,
+        run_metadata,
+        uid: str = None,
+        name: str = None,
+        project: str = None,
+        labels: dict = None,
+        iteration: int = None,
     ):
         self._logger.debug("Verifying run metadata", spec=run_metadata)
         if uid:
@@ -220,16 +220,16 @@ class TestMLRunSystem:
                 assert run_metadata["labels"][label] == label_value
 
     def _verify_run_outputs(
-            self,
-            run_outputs,
-            uid: str,
-            name: str,
-            project: str,
-            output_path: pathlib.Path,
-            accuracy: int = None,
-            loss: int = None,
-            best_iteration: int = None,
-            iteration_results: bool = False,
+        self,
+        run_outputs,
+        uid: str,
+        name: str,
+        project: str,
+        output_path: pathlib.Path,
+        accuracy: int = None,
+        loss: int = None,
+        best_iteration: int = None,
+        iteration_results: bool = False,
     ):
         self._logger.debug("Verifying run outputs", spec=run_outputs)
         iterpath = str(best_iteration) if best_iteration else ""
@@ -252,7 +252,7 @@ class TestMLRunSystem:
     def _has_marker(test: typing.Callable, marker_name: str) -> bool:
         try:
             return (
-                    len([mark for mark in test.pytestmark if mark.name == marker_name]) > 0
+                len([mark for mark in test.pytestmark if mark.name == marker_name]) > 0
             )
         except AttributeError:
             return False

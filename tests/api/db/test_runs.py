@@ -247,6 +247,27 @@ def test_store_run_success(db: DBInterface, db_session: Session):
     )
 
 
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_update_run_success(db: DBInterface, db_session: Session):
+    project, name, uid, iteration, run = _create_new_run(db, db_session)
+
+    db.update_run(
+        db_session,
+        {"metadata.some-new-field": "value", "spec.another-new-field": "value"},
+        uid,
+        project,
+        iteration,
+    )
+    run = db.read_run(db_session, uid, project, iteration)
+    assert run["metadata"]["project"] == project
+    assert run["metadata"]["name"] == name
+    assert run["metadata"]["some-new-field"] == "value"
+    assert run["spec"]["another-new-field"] == "value"
+
+
 def _create_new_run(
     db: DBInterface,
     db_session: Session,

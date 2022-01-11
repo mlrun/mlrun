@@ -168,7 +168,7 @@ def server_fixture():
 
 servers = [
     "server",
-    # "docker",
+    "docker",
 ]
 
 

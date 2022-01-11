@@ -134,7 +134,6 @@ class TestMLRunSystem:
                     return False
             return True
 
-
     @property
     def assets_path(self):
         return (

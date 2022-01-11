@@ -69,13 +69,15 @@ def test_list_runs_state_filter(db: DBInterface, db_session: Session):
     assert len(runs) == 2
 
     runs = db.list_runs(
-        db_session, project=project, state=mlrun.runtimes.constants.RunStates.running
+        db_session, project=project, states=[mlrun.runtimes.constants.RunStates.running]
     )
     assert len(runs) == 1
     assert runs[0]["metadata"]["uid"] == run_uid_running
 
     runs = db.list_runs(
-        db_session, project=project, state=mlrun.runtimes.constants.RunStates.completed
+        db_session,
+        project=project,
+        states=[mlrun.runtimes.constants.RunStates.completed],
     )
     assert len(runs) == 1
     assert runs[0]["metadata"]["uid"] == run_uid_completed

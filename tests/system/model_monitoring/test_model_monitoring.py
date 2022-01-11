@@ -1,6 +1,7 @@
 import json
 import os
 import string
+from  datetime import datetime, timedelta, timezone
 from random import choice, randint, uniform
 from time import monotonic, sleep
 from typing import Optional
@@ -9,7 +10,7 @@ import fsspec
 import pandas as pd
 import pytest
 import v3iofs
-from sklearn.datasets import load_iris
+from sklearn.datasets import load_iris, load_wine, load_breast_cancer, load_diabetes, load_boston
 
 import mlrun
 import mlrun.api.schemas
@@ -30,7 +31,7 @@ from tests.system.base import TestMLRunSystem
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestModelMonitoringAPI(TestMLRunSystem):
-    project_name = "model-monitor-sys-test4"
+    project_name = "bak5"
 
     def test_clear_endpoint(self):
         endpoint = self._mock_random_endpoint()
@@ -229,14 +230,9 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         project = mlrun.get_run_db().get_project(self.project_name)
         project.set_model_monitoring_credentials(os.environ.get("V3IO_ACCESS_KEY"))
 
-        iris = load_iris()
-
-        columns = [
-            "sepal_length_cm",
-            "sepal_width_cm",
-            "petal_length_cm",
-            "petal_width_cm",
-        ]
+        iris = load_boston()#load_breast_cancer()#load_wine()#load_iris()
+        #load_diabetes -> error> not  mine
+        columns = [x.replace(" ", "_").replace("(", "").replace(")", "") for x in iris["feature_names"]]
 
         label_column = "label"
 
@@ -300,6 +296,8 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         iris_data = iris["data"].tolist()
 
         t_end = monotonic() + simulation_time
+        start_time = datetime.now(timezone.utc)
+        print(f"start time is  {start_time}")
         data_sent = 0
         while monotonic() < t_end:
             data_point = choice(iris_data)
@@ -339,6 +337,8 @@ class TestModelMonitoringAPI(TestMLRunSystem):
 
         for endpoint in endpoints_list.endpoints:
             if endpoint.status.endpoint_type == EndpointType.LEAF_EP:
+                assert datetime.fromisoformat(endpoint.status.first_request) >= start_time
+                assert datetime.fromisoformat(endpoint.status.last_request) <= start_time + timedelta(0, simulation_time)
                 assert endpoint.status.drift_status == "NO_DRIFT"
                 endpoint_with_details = mlrun.get_run_db().get_model_endpoint(
                     self.project_name, endpoint.metadata.uid, feature_analysis=True
@@ -355,6 +355,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
                 stuff_for_each_column = ["tvd", "hellinger", "kld"]
                 # feature analysis (details dashboard)
                 for feature in columns:
+                    print(f"drft measures are {drift_measures}")
                     assert feature in drift_measures
                     calcs = drift_measures[feature]
                     for calc in stuff_for_each_column:

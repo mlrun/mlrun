@@ -237,6 +237,7 @@ default_config = {
             "user_space": "v3io:///projects/{project}/model-endpoints/{kind}",
         },
         "batch_processing_function_branch": "master",
+        "parquet_batching_max_events": 10000,
     },
     "secret_stores": {
         "vault": {

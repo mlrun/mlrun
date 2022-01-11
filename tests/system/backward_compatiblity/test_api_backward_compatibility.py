@@ -25,7 +25,7 @@ class TestAPIBackwardCompatibility(TestMLRunSystem):
             image="mlrun/mlrun",
         )
         artifact_path = ""
-        if "not enterprise" not in sys.argv:
+        if TestMLRunSystem.is_enterprise_environment():
             artifact_path = f"v3io:///projects/{self.project_name}/artifacts"
 
         run = function.run(

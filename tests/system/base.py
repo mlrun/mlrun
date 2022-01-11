@@ -122,6 +122,19 @@ class TestMLRunSystem:
             "in tests/system/env.yml to run it",
         )(test)
 
+    @classmethod
+    def is_enterprise_environment(cls):
+        try:
+            env = cls._get_env_from_file()
+        except FileNotFoundError:
+            return False
+        else:
+            for env_var in cls.mandatory_enterprise_env_vars:
+                if env_var not in env or env[env_var] is None:
+                    return False
+            return True
+
+
     @property
     def assets_path(self):
         return (

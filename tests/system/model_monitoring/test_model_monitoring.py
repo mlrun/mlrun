@@ -223,9 +223,9 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         total = sum((m[1] for m in predictions_per_second.values))
         assert total > 0
 
-    @pytest.mark.timeout(600)
+    @pytest.mark.timeout(300)
     def test_model_monitoring_voting_ensemble(self):
-        simulation_time = 120  # 60 seconds
+        simulation_time = 60  # 60 seconds
         project = mlrun.get_run_db().get_project(self.project_name)
         project.set_model_monitoring_credentials(os.environ.get("V3IO_ACCESS_KEY"))
 
@@ -282,8 +282,6 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             # Add the model to the serving function's routing spec
             serving_fn.add_model(name, model_path=train_run.outputs["model"])
 
-        sleep(30)
-
         # Enable model monitoring
         serving_fn.deploy()
 
@@ -315,8 +313,8 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         sleep(20)
 
         mlrun.get_run_db().invoke_schedule(self.project_name, "model-monitoring-batch")
-
-        sleep(30)
+        # it can take ~1 minute for the batch pod to finish running
+        sleep(75)
         # checking top level methods
         top_level_endpoints = mlrun.get_run_db().list_model_endpoints(
             self.project_name, top_level=True

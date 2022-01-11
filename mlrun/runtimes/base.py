@@ -1380,7 +1380,7 @@ class BaseRuntimeHandler(ABC):
         def _verify_crds_underlying_pods_removed():
             project_uid_crd_map = {}
             for crd in deleted_crds:
-                project, uid = self._resolve_runtime_resource_run(crd)
+                project, uid, _ = self._resolve_runtime_resource_run(crd)
                 if not uid or not project:
                     logger.warning(
                         "Could not resolve run uid from crd. Skipping waiting for pods deletion",
@@ -1577,7 +1577,7 @@ class BaseRuntimeHandler(ABC):
         runtime_resource: Dict,
         run_state: str,
     ):
-        project, uid = self._resolve_runtime_resource_run(runtime_resource)
+        project, uid, name = self._resolve_runtime_resource_run(runtime_resource)
 
         # if cannot resolve related run nothing to do
         if not uid:
@@ -1596,7 +1596,7 @@ class BaseRuntimeHandler(ABC):
             uid=uid,
         )
 
-        self._ensure_run_state(db, db_session, project, uid, run_state)
+        self._ensure_run_state(db, db_session, project, uid, name, run_state)
 
         self._ensure_run_logs_collected(db, db_session, project, uid)
 
@@ -1612,7 +1612,7 @@ class BaseRuntimeHandler(ABC):
 
         :returns: bool determining whether the run in terminal state, and the last update time if it exists
         """
-        project, uid = self._resolve_runtime_resource_run(runtime_resource)
+        project, uid, _ = self._resolve_runtime_resource_run(runtime_resource)
 
         # if no uid, assume in terminal state
         if not uid:
@@ -1680,7 +1680,7 @@ class BaseRuntimeHandler(ABC):
         runtime_resource_is_crd: bool,
         namespace: str,
     ):
-        project, uid = self._resolve_runtime_resource_run(runtime_resource)
+        project, uid, name = self._resolve_runtime_resource_run(runtime_resource)
         if not project or not uid:
             # Currently any build pod won't have UID and therefore will cause this log message to be printed which
             # spams the log
@@ -1704,7 +1704,7 @@ class BaseRuntimeHandler(ABC):
             )
         self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
         _, updated_run_state = self._ensure_run_state(
-            db, db_session, project, uid, run_state, run, search_run=False,
+            db, db_session, project, uid, name, run_state, run, search_run=False,
         )
         if updated_run_state in RunStates.terminal_states():
             self._ensure_run_logs_collected(db, db_session, project, uid)
@@ -1863,6 +1863,7 @@ class BaseRuntimeHandler(ABC):
         db_session: Session,
         project: str,
         uid: str,
+        name: str,
         run_state: str,
         run: Dict = None,
         search_run: bool = True,
@@ -1882,7 +1883,7 @@ class BaseRuntimeHandler(ABC):
                 desired_run_state=run_state,
                 search_run=search_run,
             )
-            run = {"metadata": {"project": project, "uid": uid}}
+            run = {"metadata": {"project": project, "name": name, "uid": uid}}
         db_run_state = run.get("status", {}).get("state")
         if db_run_state:
             if db_run_state == run_state:
@@ -1930,14 +1931,19 @@ class BaseRuntimeHandler(ABC):
         return True, run_state
 
     @staticmethod
-    def _resolve_runtime_resource_run(runtime_resource: Dict) -> Tuple[str, str]:
+    def _resolve_runtime_resource_run(runtime_resource: Dict) -> Tuple[str, str, str]:
         project = (
             runtime_resource.get("metadata", {}).get("labels", {}).get("mlrun/project")
         )
         if not project:
             project = config.default_project
         uid = runtime_resource.get("metadata", {}).get("labels", {}).get("mlrun/uid")
-        return project, uid
+        name = (
+            runtime_resource.get("metadata", {})
+            .get("labels", {})
+            .get("mlrun/name", "no-name")
+        )
+        return project, uid, name
 
     @staticmethod
     def _delete_crd(namespace, crd_group, crd_version, crd_plural, crd_object):

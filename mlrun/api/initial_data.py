@@ -4,11 +4,13 @@ import os
 import pathlib
 import typing
 
+import dateutil.parser
 import pymysql.err
 import sqlalchemy.exc
 import sqlalchemy.orm
 
 import mlrun.api.db.sqldb.db
+import mlrun.api.db.sqldb.helpers
 import mlrun.api.db.sqldb.models
 import mlrun.api.schemas
 import mlrun.artifacts
@@ -72,7 +74,7 @@ def init_data(
 # This is because data version 1 points to to a data migration which was added back in 0.6.0, and
 # upgrading from a version earlier than 0.6.0 to v>=0.8.0 is not supported.
 data_version_prior_to_table_addition = 1
-latest_data_version = 1
+latest_data_version = 2
 
 
 def _is_migration_needed(
@@ -157,6 +159,8 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
             )
             if current_data_version < 1:
                 _perform_version_1_data_migrations(db, db_session)
+            if current_data_version < 2:
+                _perform_version_2_data_migrations(db, db_session)
             db.create_data_version(db_session, str(latest_data_version))
 
 
@@ -329,6 +333,53 @@ def _find_last_updated_artifact(
         last_updated_artifact = artifacts[0]
 
     return last_updated_artifact
+
+
+def _perform_version_2_data_migrations(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    _align_runs_table(db, db_session)
+
+
+def _align_runs_table(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    logger.info("Aligning runs")
+    runs = db._find_runs(db_session, None, "*", None).all()
+    for run in runs:
+        run_dict = run.struct
+
+        # Align run start_time column to the start time from the body
+        run.start_time = (
+            mlrun.api.db.sqldb.helpers.run_start_time(run_dict) or run.start_time
+        )
+        # in case no start time was in the body, we took the time from thecolumn, let's make sure the body will have it
+        # as well
+        run_dict.setdefault("status", {})["start_time"] = (
+            db._add_utc_timezone(run.start_time).isoformat() if run.start_time else None
+        )
+
+        # New name column added, fill it up from the body
+        run.name = run_dict.get("metadata", {}).get("name", "no-name")
+        # in case no name was in the body, we defaulted to "no-name", let's make sure the body will have it as well
+        run_dict.setdefault("metadata", {})["name"] = run.name
+
+        # State field used to have a bug causing only the body to be updated, align the column
+        run.state = run_dict.get("status", {}).get(
+            "state", mlrun.runtimes.constants.RunStates.created
+        )
+        # in case no name was in the body, we defaulted to created, let's make sure the body will have it as well
+        run_dict.setdefault("status", {})["state"] = run.state
+
+        # New updated column added, fill it up from the body
+        updated = datetime.datetime.now(tz=datetime.timezone.utc)
+        if run_dict.get("status", {}).get("last_update"):
+            updated = dateutil.parser.parse(
+                run_dict.get("status", {}).get("last_update")
+            )
+        db._update_run_updated_time(run, run_dict, updated)
+        run.struct = run_dict
+        db._upsert(db_session, run, ignore=True)
 
 
 def _perform_version_1_data_migrations(

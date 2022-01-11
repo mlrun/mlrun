@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.crud
 import mlrun.api.schemas
+import tests.conftest
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds, get_runtime_handler
@@ -299,9 +300,17 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
         # Mocking the SDK updating the Run's state to terminal state
         self.run["status"]["state"] = RunStates.completed
-        self.run["status"]["last_update"] = now_date().isoformat()
+        original_update_run_updated_time = (
+            mlrun.api.utils.singletons.db.get_db()._update_run_updated_time
+        )
+        mlrun.api.utils.singletons.db.get_db()._update_run_updated_time = tests.conftest.freeze(
+            original_update_run_updated_time, now=now_date()
+        )
         mlrun.api.crud.Runs().store_run(
             db, self.run, self.run_uid, project=self.project
+        )
+        mlrun.api.utils.singletons.db.get_db()._update_run_updated_time = (
+            original_update_run_updated_time
         )
 
         # Mocking pod that is still in non-terminal state
@@ -317,11 +326,15 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
         # Mocking that update occurred before debounced period
         debounce_period = config.runs_monitoring_interval
-        self.run["status"]["last_update"] = (
-            now_date() - timedelta(seconds=float(2 * debounce_period))
-        ).isoformat()
+        mlrun.api.utils.singletons.db.get_db()._update_run_updated_time = tests.conftest.freeze(
+            original_update_run_updated_time,
+            now=now_date() - timedelta(seconds=float(2 * debounce_period)),
+        )
         mlrun.api.crud.Runs().store_run(
             db, self.run, self.run_uid, project=self.project
+        )
+        mlrun.api.utils.singletons.db.get_db()._update_run_updated_time = (
+            original_update_run_updated_time
         )
 
         # Mocking pod that is still in non-terminal state

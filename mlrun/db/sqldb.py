@@ -104,7 +104,7 @@ class SQLDB(RunDBInterface):
             uid,
             project,
             labels,
-            state,
+            mlrun.utils.helpers.as_list(state) if state is not None else None,
             sort,
             last,
             iter,

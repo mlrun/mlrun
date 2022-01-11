@@ -14,7 +14,6 @@ logger = create_logger(level="debug", name="test-system")
 
 
 class TestMLRunSystem:
-
     project_name = "system-test-project"
     root_path = pathlib.Path(__file__).absolute().parent.parent.parent
     env_file_path = root_path / "tests" / "system" / "env.yml"
@@ -49,6 +48,7 @@ class TestMLRunSystem:
 
         if not self._skip_set_environment():
             set_environment(project=self.project_name)
+            self.project = mlrun.get_or_create_project(self.project_name, "./")
 
         self.custom_setup()
 

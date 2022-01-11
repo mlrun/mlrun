@@ -107,6 +107,16 @@ def new_run(state, labels, uid=None, **kw):
     return obj
 
 
+def freeze(f, **kwargs):
+    frozen = kwargs
+
+    def wrapper(*args, **kwargs):
+        kwargs.update(frozen)
+        return f(*args, **kwargs)
+
+    return wrapper
+
+
 def init_sqldb(dsn):
     engine = create_engine(dsn)
     Base.metadata.create_all(bind=engine)

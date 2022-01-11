@@ -121,7 +121,7 @@ class SQLDB(DBInterface):
         start_time = run_start_time(run_data) or SQLDB._add_utc_timezone(run.start_time)
         run_data.setdefault("status", {})["start_time"] = start_time.isoformat()
         run.start_time = start_time
-        self._update_run_updated_time(run, run_data, now)
+        self._update_run_updated_time(run, run_data, now=now)
         run.struct = run_data
         self._upsert(session, run, ignore=True)
 

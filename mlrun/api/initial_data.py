@@ -353,14 +353,23 @@ def _align_runs_table(
         run.start_time = (
             mlrun.api.db.sqldb.helpers.run_start_time(run_dict) or run.start_time
         )
+        # in case no start time was in the body, we took the time from thecolumn, let's make sure the body will have it
+        # as well
+        run_dict.setdefault("status", {})["start_time"] = (
+            db._add_utc_timezone(run.start_time).isoformat() if run.start_time else None
+        )
 
         # New name column added, fill it up from the body
         run.name = run_dict.get("metadata", {}).get("name", "no-name")
+        # in case no name was in the body, we defaulted to "no-name", let's make sure the body will have it as well
+        run_dict.setdefault("metadata", {})["name"] = run.name
 
         # State field used to have a bug causing only the body to be updated, align the column
         run.state = run_dict.get("status", {}).get(
             "state", mlrun.runtimes.constants.RunStates.created
         )
+        # in case no name was in the body, we defaulted to created, let's make sure the body will have it as well
+        run_dict.setdefault("status", {})["state"] = run.state
 
         # New updated column added, fill it up from the body
         updated = datetime.datetime.now(tz=datetime.timezone.utc)
@@ -369,6 +378,7 @@ def _align_runs_table(
                 run_dict.get("status", {}).get("last_update")
             )
         db._update_run_updated_time(run, run_dict, updated)
+        run.struct = run_dict
         db._upsert(db_session, run, ignore=True)
 
 

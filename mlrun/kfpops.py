@@ -773,8 +773,10 @@ def show_kfp_run(run, clear_output=False):
 
             run_id = run["run"]["id"]
             url = get_workflow_url(run["run"]["project"], run_id)
-            href = f'<a href="{url}" target="_blank">click here to view progress</a>'
-            html = IPython.display.HTML(f"<div>Pipeline id {run_id}, {href}</div>")
+            href = f'<a href="{url}" target="_blank">click here to view</a>'
+            html = IPython.display.HTML(
+                f"<div>Pipeline running (id={run_id}), {href} the details in MLRun UI</div>"
+            )
             IPython.display.display(html, dag)
         except Exception as exc:
             logger.warning(f"failed to plot graph, {exc}")

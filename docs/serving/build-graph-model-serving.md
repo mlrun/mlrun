@@ -2,7 +2,7 @@
 
 ```{toctree}
 :maxdepth: 1
-model-get-start
+model-serving-get-started
 advanced-routing
 custom-model-serving-class
 model-api

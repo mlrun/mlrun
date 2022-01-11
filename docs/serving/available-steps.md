@@ -1,31 +1,41 @@
 # Built-in steps
 
+MlRun provides you with many built-in stapes that you can use when building your graph. 
+
+Click on the step names in the following sections to see the full usage.
+
+- [Base Operators](#base-operators)
+- [Data Transformations](#data-transformations)
+- [External IO and data enrichment](#external-io-and-data-enrichment)
+- [Sources](#sources)
+- [Targets](#targets)
+- [Models](#models)
+- [Routers](#routers)
+- [Other](#other)
+
 ## Base Operators
 
 | Class name                                       | Description          |   
 |--------------------------------------------------|---------------------------------------------------------------------------|      
-| [storey.transformations.Batch](../api/storey.transformations.html#storey.transformations.Batch) | Batches events. This step emits a batch every `max_events` events, or when `timeout` seconds have passed since the first event in the batch was received. | | 
-| [storey.transformations.Choice](../api/storey.transformations.html#storey.transformations.Choice) | Redirects each input element into one of the multiple downstreams.  |
-| [Complete]()  |     |
-| [storey.Extend]() |                  | 
-| [storey.transformations.Filter](../api/storey.transformations.html#storey.transformations.Filter) | Filters events based on a user-provided function. | 
-| [storey.transformations.FlatMap](../api/storey.transformations.html#storey.transformations.FlatMap)  | Maps, or transforms, each incoming event into any number of events.  |
-| [storey.steps.Flatten]()  |                              | 
-| [storey.transformations.ForEach](../api/storey.transformations.html#storey.transformations.ForEach) | Applies the given function on each event in the stream, and passes the original event downstream. |
-| [storey.transformations.Map](../api/storey.transformations.html#storey.transformations.Map)  | Maps, or transforms, incoming events using a user-provided function.  | 
-| [storey.transformations.MapClass](../api/storey.transformations.html#storey.transformations.MapClass) | Similar to Map, but instead of a function argument, this class should be extended and its do() method overridden.<<<<<what does should be mean?>>>>>  |
-| [storey.transformations.MapWithState](../api/storey.transformations.html#storey.transformations.MapWithState)  | Maps, or transforms, incoming events using a stateful user-provided function, and an initial state, which can be a database table.   |
-
-| [storey.transformations.Partition](../api/storey.transformations.html#storey.transformations.Partition) | Partitions events by calling a predicate function on each event. Each processed event results in a Partitioned namedtuple of (left=Optional[Event], right=Optional[Event]). |
+| [storey.transformations.Batch](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.Batch) | Batches events. This step emits a batch every `max_events` events, or when `timeout` seconds have passed since the first event in the batch was received. | | 
+| [storey.transformations.Choice](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.Choice) | Redirects each input element into one of the multiple downstreams.  |
+| [storey.Extend](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.Extend) |                  | 
+| [storey.transformations.Filter](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.Filter) | Filters events based on a user-provided function. | 
+| [storey.transformations.FlatMap](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.FlatMap)  | Maps, or transforms, each incoming event into any number of events.  |
+| [storey.steps.Flatten](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.Flatten)  |                              | 
+| [storey.transformations.ForEach](https://storey.readthedocs.io/en/latest/api.html#storey.transformations..ForEach) | Applies the given function on each event in the stream, and passes the original event downstream. |
+| [storey.transformations.MapClass](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.MapClass) | Similar to Map, but instead of a function argument, this class should be extended and its do() method overridden.<<<<<what does should be mean?>>>>>  |
+| [storey.transformations.MapWithState](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.MapWithState)  | Maps, or transforms, incoming events using a stateful user-provided function, and an initial state, which can be a database table.   |
+| [storey.transformations.Partition](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.Partition) | Partitions events by calling a predicate function on each event. Each processed event results in a Partitioned namedtuple of (left=Optional[Event], right=Optional[Event]). |
 | [storey.Reduce]() | Reduces incoming events into a single value that is returned upon the successful termination of the flow. |
-[storey.transformations.SampleWindow](../api/storey.transformations.html#storey.transformations.SampleWindow) | Emits a single event in a window of `window_size` events, in accordance with `emit_period` and `emit_before_termination`.   | 
+[storey.transformations.SampleWindow](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.SampleWindow) | Emits a single event in a window of `window_size` events, in accordance with `emit_period` and `emit_before_termination`.   | 
 
 
 ## Data Transformations
 
 | Class name            | Description                           |  
 |----------------------------|--------------------------------------------------------------|   
-| [storey.AggregateByKey]() | Aggregates the data into the table object provided for later persistence, and outputs an event enriched with the requested aggregation features. |
+| [storey.AggregateByKey](https://storey.readthedocs.io/en/latest/api.html#storey.aggregations.AggregateByKey) | Aggregates the data into the table object provided for later persistence, and outputs an event enriched with the requested aggregation features. |
 | [DateExtractor]()  |              |
 | [mlrun.feature_store.Imputer]() | Replace None values with default values.   |
 | [mlrun.feature_store.MapValues]() | Map column values to new values.   |
@@ -36,35 +46,34 @@
 |--------------------------------------------------|---------------------------------|
 | [BatchHttpRequests]() |                    | 
 | [mlrun.datastore.DataItem](../api/mlrun.datastore.html#mlrun.datastore.DataItem) | Data input/output class abstracting access to various local/remote data sources |
-| [storey.transformations.JoinWithTable](../api/storey.transformations.html#storey.transformations.JoinWithTable) | Joins each event with data from the given table.  |
-| [JoinWithV3IOTable]() |                    | 
-| [QueryByKey]() | Similar to to AggregateByKey, but this step is for serving only and does not aggregate the event. | 
-| [RemoteStep]() |                    | 
-| [storey.transformations.SendToHttp](../api/storey.transformations.html#storey.transformations.SendToHttp) | Joins each event with data from any HTTP source. Used for event augmentation. |
+| [storey.transformations.JoinWithTable](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.JoinWithTable) | Joins each event with data from the given table.  |
+| [JoinWithV3IOTable]() | Joins each event with a V3IO table. Used for event augmentation.  | 
+| [QueryByKey](https://storey.readthedocs.io/en/latest/api.html#module-storey.drivers.QueryByKey) | Similar to to AggregateByKey, but this step is for serving only and does not aggregate the event. | 
+| [RemoteStep]() | Class for calling remote endpoints. | 
+| [storey.transformations.SendToHttp](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.SendToHttp) | Joins each event with data from any HTTP source. Used for event augmentation. |
  
 
 ## Sources
 | Class name                                       | Description                                   |   
 |--------------------------------------------------|---------------------------------|
-| [AsyncEmitSource]() |                                                           | 
+ 
 | [mlrun.datastore.BigQuerySource](../api/mlrun.datastore.html#mlrun.datastore.BigQuerySource) | Reads Google BigQuery query results as input source for a flow.  |
-| [mlrun.datastore.CSVSource](../api/mlrun.datastore.html#mlrun.datastore.CSVSource) | Reads a CSV file as input source for a flow.   |
-| [DataframeSource]() |                                                | 
+| [mlrun.datastore.CSVSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.CSVSource) | Reads a CSV file as input source for a flow.   |
+| [DataframeSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.DataframeSource) | Reads data frame as input source for a flow. | 
 | [mlrun.datastore.HttpSource](../api/mlrun.datastore.html#mlrun.datastore.HttpSource) |             |
 | [mlrun.datastore.KafkaSource](../api/mlrun.datastore.html#mlrun.datastore.KafkaSource) | Sets the kafka source for the flow. |
-| [mlrun.datastore.ParquetSource](../api/mlrun.datastore.html#mlrun.datastore.ParquetSource) | Reads the Parquet file/dir as the input source for a flow.  |
+| [mlrun.datastore.ParquetSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.ParquetSource) | Reads the Parquet file/dir as the input source for a flow.  |
 | [mlrun.datastore.StreamSource](../api/mlrun.datastore.html#mlrun.datastore.StreamSource) | Sets the stream source for the flow. If the stream doesn’t exist it creates it.  | 
-| [SyncEmitSource]() |                                    |
 
 
 ## Targets
 | Class name                                       | Description                                   |   
 |--------------------------------------------------|---------------------------------|
-| [mlrun.datastore.CSVTarget](../api/mlrun.datastore.html#mlrun.datastore.CSVTarget) |                         |
-| [mlrun.datastore.NoSqlTarget](../api/mlrun.datastore.html#mlrun.datastore.NoSqlTarget)  |              |
-| [mlrun.datastore.ParquetTarget](../api/mlrun.datastore.html#mlrun.datastore.ParquetTarget) | The Parquet target storage driver, used to materialize feature set/vector data into parquet files. |
-| [mlrun.datastore.StreamTarget](../api/mlrun.datastore.html#mlrun.datastore.StreamTarget) |                 |
-| [storey.transformations.ToDataFrame](../api/storey.transformations.htm#storey.transformations.ToDataFrame)  | Create pandas data frame from events. Can appear in the middle of the flow, as opposed to ReduceToDataFrame.| 
+| [mlrun.datastore.CSVTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.CSVTarget) |                         |
+| [mlrun.datastore.NoSqlTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.NoSQLTarget)  |              |
+| [mlrun.datastore.ParquetTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.ParquetTarget) | The Parquet target storage driver, used to materialize feature set/vector data into parquet files. |
+| [mlrun.datastore.StreamTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.StreamTarget) |                 |
+| [storey.transformations.ToDataFrame](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.ToDataFrame)  | Create pandas data frame from events. Can appear in the middle of the flow, as opposed to ReduceToDataFrame.| 
 | [mlrun.datastore.TSBDTarget]() |  |
 
 ## Models

@@ -1,6 +1,7 @@
 .. _serving:
 
 Real-time serving pipelines (graphs)
+--------------------------------------------------
 
 MLRun serving graphs allow to easily build real-time data processing and 
 advanced model serving pipelines, and deploy them quickly to production with
@@ -17,8 +18,8 @@ MLRun graph capabilities include:
 - Advanced applications including streaming, machine learning, deep-learning, NLP
 - Debug in the IDE/Notebook, deploy to production using a single command
 
-Accelerate performance and time to production
---------------------------------------------------
+**Accelerate performance and time to production**
+
 
 The underlying Nuclio serverless engine uses a high-performance parallel processing 
 engine that maximizes the utilization of CPUs and GPUs, supports 13 protocols and 

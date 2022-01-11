@@ -190,7 +190,8 @@ class TestProject(TestMLRunSystem):
         shutil.rmtree(project_dir, ignore_errors=True)
         project = self._create_project(name, True)
         run = project.run(
-            artifact_path=f"v3io:///projects/{name}", workflow_handler=pipe_test,
+            artifact_path=f"v3io:///projects/{name}/artifacts",
+            workflow_handler=pipe_test,
         )
         run.wait_for_completion()
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"

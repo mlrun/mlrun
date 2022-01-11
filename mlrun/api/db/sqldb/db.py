@@ -208,7 +208,6 @@ class SQLDB(DBInterface):
     def del_runs(
         self, session, name=None, project=None, labels=None, state=None, days_ago=0
     ):
-        # FIXME: Run has no `name`
         project = project or config.default_project
         query = self._find_runs(session, None, project, labels)
         if days_ago:

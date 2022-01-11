@@ -104,7 +104,7 @@ class SQLDB(RunDBInterface):
             uid,
             project,
             labels,
-            state,
+            [state] if state is not None else None,
             sort,
             last,
             iter,

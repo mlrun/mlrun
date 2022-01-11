@@ -160,7 +160,7 @@ class SQLDB(DBInterface):
         uid=None,
         project=None,
         labels=None,
-        state=None,
+        states=None,
         sort=True,
         last=0,
         iter=False,
@@ -173,8 +173,7 @@ class SQLDB(DBInterface):
         query = self._find_runs(session, uid, project, labels)
         if name:
             query = self._add_run_name_query(query, name)
-        if state is not None:
-            states = as_list(state)
+        if states is not None:
             query = query.filter(Run.state.in_(states))
         if start_time_from:
             query = query.filter(Run.start_time >= start_time_from)

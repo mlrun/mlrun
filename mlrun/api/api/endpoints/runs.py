@@ -152,7 +152,7 @@ def list_runs(
         uid=uid,
         project=project,
         labels=labels,
-        state=state,
+        states=[state] if state is not None else None,
         sort=sort,
         last=last,
         iter=iter,
@@ -193,7 +193,7 @@ def delete_runs(
         name,
         project=project,
         labels=labels,
-        state=state,
+        states=[state] if state is not None else None,
         start_time_from=start_time_from,
     )
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(

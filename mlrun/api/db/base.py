@@ -60,7 +60,7 @@ class DBInterface(ABC):
         uid=None,
         project="",
         labels=None,
-        state="",
+        states=None,
         sort=True,
         last=0,
         iter=False,

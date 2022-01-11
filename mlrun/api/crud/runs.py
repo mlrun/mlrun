@@ -1,3 +1,5 @@
+import typing
+
 import sqlalchemy.orm
 
 import mlrun.api.schemas
@@ -90,7 +92,7 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
         uid=None,
         project: str = mlrun.mlconf.default_project,
         labels=None,
-        state=None,
+        states: typing.Optional[typing.List[str]]=None,
         sort=True,
         last=0,
         iter=False,
@@ -106,7 +108,7 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
             uid=uid,
             project=project,
             labels=labels,
-            state=state,
+            states=states,
             sort=sort,
             last=last,
             iter=iter,

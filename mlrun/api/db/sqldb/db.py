@@ -171,17 +171,17 @@ class SQLDB(DBInterface):
     ):
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
-        if name:
+        if name is not None:
             query = self._add_run_name_query(query, name)
         if states is not None:
             query = query.filter(Run.state.in_(states))
-        if start_time_from:
+        if start_time_from is not None:
             query = query.filter(Run.start_time >= start_time_from)
-        if start_time_to:
+        if start_time_to is not None:
             query = query.filter(Run.start_time <= start_time_to)
-        if last_update_time_from:
+        if last_update_time_from is not None:
             query = query.filter(Run.updated >= last_update_time_from)
-        if last_update_time_to:
+        if last_update_time_to is not None:
             query = query.filter(Run.updated <= last_update_time_to)
         if sort:
             query = query.order_by(Run.start_time.desc())

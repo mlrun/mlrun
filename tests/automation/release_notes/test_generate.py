@@ -157,11 +157,7 @@ fd6c5a86 [Requirements] Bump storey to 0.8.15 and v3io-frames to 0.10.2 (#1553)
 """,
         },
         {
-            "_run_command": [
-                None,
-                "",
-                "",
-            ],
+            "_run_command": [None, "", ""],
             "_resolve_github_username": None,
             "expect_failure": False,
             "expected_response": f"""

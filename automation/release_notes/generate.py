@@ -28,7 +28,7 @@ class ReleaseNotesGenerator:
     )
 
     def __init__(
-            self, release: str, previous_release: str, release_branch: str,
+        self, release: str, previous_release: str, release_branch: str,
     ):
         self._logger = logger
         self._release = release
@@ -65,7 +65,7 @@ class ReleaseNotesGenerator:
         )
 
         with tempfile.TemporaryDirectory(
-                suffix="mlrun-release-notes-clone"
+            suffix="mlrun-release-notes-clone"
         ) as repo_dir:
             self._logger.info("Cloning repo", repo_dir=repo_dir)
             self._run_command(
@@ -104,7 +104,7 @@ class ReleaseNotesGenerator:
         )
 
     def _generate_release_notes_from_commits(
-            self, commits_for_highlights, commits_for_pull_requests
+        self, commits_for_highlights, commits_for_pull_requests
     ):
         (
             highlight_notes,
@@ -217,7 +217,7 @@ def main():
 @click.argument("previous-release", type=str, required=True)
 @click.argument("release-branch", type=str, required=False, default="master")
 def run(
-        release: str, previous_release: str, release_branch: str,
+    release: str, previous_release: str, release_branch: str,
 ):
     release_notes_generator = ReleaseNotesGenerator(
         release, previous_release, release_branch

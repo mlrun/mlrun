@@ -368,7 +368,7 @@ def _align_runs_table(
             updated = dateutil.parser.parse(
                 run_dict.get("status", {}).get("last_update")
             )
-        run.updated = updated
+        db._update_run_updated_time(run, run_dict, updated)
         db._upsert(db_session, run, ignore=True)
 
 

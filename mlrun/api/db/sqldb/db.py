@@ -47,7 +47,6 @@ from mlrun.config import config
 from mlrun.lists import ArtifactList, FunctionList, RunList
 from mlrun.model import RunObject
 from mlrun.utils import (
-    as_list,
     fill_function_hash,
     fill_object_hash,
     generate_artifact_uri,
@@ -1060,9 +1059,7 @@ class SQLDB(DBInterface):
         runs = runs.all()
         for run in runs:
             run_json = run.struct
-            if self._is_run_matching_state(
-                run, mlrun.runtimes.constants.RunStates.non_terminal_states(),
-            ):
+            if run.state in mlrun.runtimes.constants.RunStates.non_terminal_states():
                 if (
                     run_json.get("metadata", {}).get("name")
                     and run_json["metadata"]["name"]
@@ -1072,13 +1069,10 @@ class SQLDB(DBInterface):
                         run_json["metadata"]["name"]
                     )
                     project_to_running_runs_count[run.project] += 1
-            if self._is_run_matching_state(
-                run,
-                [
-                    mlrun.runtimes.constants.RunStates.error,
-                    mlrun.runtimes.constants.RunStates.aborted,
-                ],
-            ):
+            if run.state in [
+                mlrun.runtimes.constants.RunStates.error,
+                mlrun.runtimes.constants.RunStates.aborted,
+            ]:
                 one_day_ago = datetime.now() - timedelta(hours=24)
                 if run.start_time and run.start_time >= one_day_ago:
                     if (
@@ -2169,15 +2163,6 @@ class SQLDB(DBInterface):
             project = None
         query = self._query(session, Run, uid=uid, project=project)
         return self._add_labels_filter(session, query, Run, labels)
-
-    def _is_run_matching_state(self, run, state):
-        requested_states = as_list(state)
-        record_state = run.state
-        if not record_state:
-            return False
-        if record_state in requested_states:
-            return True
-        return False
 
     def _latest_uid_filter(self, session, query):
         # Create a sub query of latest uid (by updated) per (project,key)

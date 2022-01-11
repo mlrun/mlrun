@@ -210,7 +210,10 @@ def test_run(create_server):
             data,
             run_as_dict,
             ignore_order=True,
-            exclude_paths={"root['status']['start_time']"},
+            exclude_paths={
+                "root['status']['start_time']",
+                "root['status']['last_update']",
+            },
         )
         == {}
     )

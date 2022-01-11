@@ -25,9 +25,18 @@ class TestNewProject:
             image="mlrun/mlrun",
             # kind="job"
         )
-        proj.set_artifact("data", mlrun.artifacts.Artifact(target_path=data_url))
+        proj.set_artifact("data", target_path=data_url)
         proj.spec.params = {"label_column": "label"}
         return proj
+
+    def test_set_artifact(self):
+        project = mlrun.new_project("test-sa")
+        project.set_artifact("data1", mlrun.artifacts.Artifact(target_path=data_url))
+        project.set_artifact("data2", target_path=data_url)  # test the short form
+
+        for artifact in project.spec.artifacts:
+            assert artifact["key"] in ["data1", "data2"]
+            assert artifact["target_path"] == data_url
 
     def test_run_alone(self):
         mlrun.projects.pipeline_context.clear(with_project=True)

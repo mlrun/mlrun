@@ -1,5 +1,4 @@
 import pandas as pd
-
 import mlrun
 from mlrun import DataItem
 from mlrun.artifacts import ChartArtifact

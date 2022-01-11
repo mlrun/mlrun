@@ -18,12 +18,14 @@ class TestAPIBackwardCompatibility(TestMLRunSystem):
         failure_handler = "api_backward_compatibility_tests_failing_function"
         dataset_name = "test_dataset"
 
+
         function = mlrun.code_to_function(
             project=self.project_name,
             filename=filename,
             kind="job",
             image="mlrun/mlrun",
         )
+
         artifact_path = ""
         if "not enterprise" not in sys.argv:
             artifact_path = f"v3io:///projects/{self.project_name}/artifacts"

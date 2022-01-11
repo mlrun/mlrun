@@ -456,6 +456,8 @@ def uxjoin(base, local_path, key="", iter=None, is_dir=False):
     if base and not base.endswith("/"):
         base += "/"
     base_str = base or ""
+    if local_path.startswith("./"):
+        local_path = local_path[len("./") :]
     return f"{base_str}{local_path}"
 
 

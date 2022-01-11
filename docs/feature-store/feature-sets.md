@@ -135,7 +135,7 @@ It also enables users to schedule the job or use bigger/faster resources.
 ```python
 # running as remote job
 stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
-config = RunConfig(image='mlrun/mlrun').apply(mount_v3io())
+config = RunConfig(image='mlrun/mlrun')
 df = ingest(stocks_set, stocks, run_config=config)
 ```
 
@@ -170,7 +170,7 @@ feature_set = fs.FeatureSet(
   name=name, entities=[fs.Entity("first_name")], timestamp_key="time",
 )
 fs.ingest(
-  feature_set, source, run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io())
+  feature_set, source, run_config=fs.RunConfig()
 )
 
 The default value for the ‘overwrite’ parameter in the ingest function for scheduled ingest is `False`, meaning that the target from the previous ingest is not deleted.

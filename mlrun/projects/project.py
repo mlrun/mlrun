@@ -27,7 +27,7 @@ import mlrun.api.schemas
 import mlrun.errors
 import mlrun.utils.regex
 
-from ..artifacts import ArtifactProducer, DatasetArtifact, ModelArtifact
+from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifact
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
 from ..datastore import store_manager
 from ..db import get_run_db
@@ -1002,16 +1002,27 @@ class MlrunProject(ModelObj):
         )
         self.spec.artifacts = artifacts
 
-    def set_artifact(self, key, artifact):
+    def set_artifact(self, key, artifact=None, target_path=None):
         """add/set an artifact in the project spec (will be registered on load)
 
         example::
 
-            project.set_artifact('data', Artifact(target_path=data_url))
+            # register a simple file artifact
+            project.set_artifact('data', target_path=data_url)
+            # register a model artifact
+            project.set_artifact('model', ModelArtifact(model_file="model.pkl"), target_path=model_dir_url)
 
         :param key:  artifact key/name
         :param artifact:  mlrun Artifact object (or its subclasses)
+        :param target_path: absolute target path url (point to the artifact content location)
         """
+        if not artifact:
+            artifact = Artifact()
+        artifact.target_path = target_path or artifact.target_path
+        if not artifact.target_path or "://" not in artifact.target_path:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "absolute target_path url to a shared/object storage must be specified"
+            )
         self.spec.set_artifact(key, artifact)
 
     def register_artifacts(self):
@@ -1055,6 +1066,33 @@ class MlrunProject(ModelObj):
         labels=None,
         target_path=None,
     ):
+        """log an output artifact and optionally upload it to datastore
+
+        example::
+
+            project.log_artifact(
+                "some-data",
+                body=b"abc is 123",
+                local_path="model.txt",
+                labels={"framework": "xgboost"},
+            )
+
+
+        :param item:          artifact key or artifact class ()
+        :param body:          will use the body as the artifact content
+        :param local_path:    path to the local file we upload, will also be use
+                              as the destination subpath (under "artifact_path")
+        :param artifact_path: target artifact path (when not using the default)
+                              to define a subpath under the default location use:
+                              `artifact_path=context.artifact_subpath('data')`
+        :param format:        artifact file format: csv, png, ..
+        :param tag:           version tag
+        :param target_path:   absolute target path (instead of using artifact_path + local_path)
+        :param upload:        upload to datastore (default is True)
+        :param labels:        a set of key/value labels to tag the artifact with
+
+        :returns: artifact object
+        """
         am = self._get_artifact_manager()
         artifact_path = extend_artifact_path(
             artifact_path, self.spec.artifact_path or mlrun.mlconf.artifact_path
@@ -1080,7 +1118,6 @@ class MlrunProject(ModelObj):
             labels=labels,
             target_path=target_path,
         )
-        self.spec.set_artifact(item.key, item)
         return item
 
     def log_dataset(
@@ -1111,7 +1148,7 @@ class MlrunProject(ModelObj):
                 "testScore": [25, 94, 57, 62, 70],
             }
             df = pd.DataFrame(raw_data, columns=["first_name", "last_name", "age", "testScore"])
-            context.log_dataset("mydf", df=df, stats=True)
+            project.log_dataset("mydf", df=df, stats=True)
 
         :param key:           artifact key
         :param df:            dataframe object
@@ -1179,7 +1216,7 @@ class MlrunProject(ModelObj):
 
         example::
 
-            context.log_model("model", body=dumps(model),
+            project.log_model("model", body=dumps(model),
                               model_file="model.pkl",
                               metrics=context.results,
                               training_set=training_df,

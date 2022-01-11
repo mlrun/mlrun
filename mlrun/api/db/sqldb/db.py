@@ -186,6 +186,10 @@ class SQLDB(DBInterface):
         if sort:
             query = query.order_by(Run.start_time.desc())
         if last:
+            if not sort:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Limiting the number of returned records without sorting will provide non-deterministic results"
+                )
             query = query.limit(last)
         if not iter:
             query = query.filter(Run.iteration == 0)

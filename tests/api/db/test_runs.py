@@ -258,6 +258,20 @@ def test_store_and_update_run_update_name_failure(db: DBInterface, db_session: S
         )
 
 
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_list_runs_limited_unsorted_failure(db: DBInterface, db_session: Session):
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError,
+                       match="Limiting the number of returned records without sorting will provide non-deterministic results"):
+        db.list_runs(
+            db_session,
+            sort=False,
+            last=1,
+        )
+
+
 def _create_new_run(
     db: DBInterface,
     db_session: Session,

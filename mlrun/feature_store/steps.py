@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Union
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 from storey import MapClass
 
 from mlrun.serving.utils import StepToDict

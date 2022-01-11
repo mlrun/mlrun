@@ -78,6 +78,10 @@ def test_noparams():
     assert result.output("accuracy") == 2, "failed to run"
     assert result.status.artifacts[0].get("key") == "chart", "failed to run"
 
+    # verify the DF artifact was created and stored
+    df = result.artifact("mydf").as_df()
+    df.shape
+
 
 def test_failed_schedule_not_creating_run():
     function = new_function()

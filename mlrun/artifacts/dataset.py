@@ -136,10 +136,20 @@ class DatasetArtifact(Artifact):
         self._kw = kwargs
 
     def upload(self):
+        suffix = pathlib.Path(self.target_path).suffix
+        format = self.format
+        if not format:
+            if suffix and suffix in [".csv", ".parquet", ".pq"]:
+                format = "csv" if suffix == ".csv" else "parquet"
+            else:
+                format = "parquet"
+        if not suffix and not self.target_path.startswith("memory://"):
+            self.target_path = self.target_path + "." + format
+
         self.size, self.hash = upload_dataframe(
             self._df,
             self.target_path,
-            format=self.format,
+            format=format,
             src_path=self.src_path,
             **self._kw,
         )
@@ -281,13 +291,6 @@ def update_dataset_meta(
 def upload_dataframe(
     df, target_path, format, src_path=None, **kw
 ) -> typing.Tuple[typing.Optional[int], typing.Optional[str]]:
-    suffix = pathlib.Path(target_path).suffix
-    if not format:
-        if suffix and suffix in [".csv", ".parquet", ".pq"]:
-            format = "csv" if suffix == ".csv" else "parquet"
-        else:
-            format = "parquet"
-
     if src_path and os.path.isfile(src_path):
         store_manager.object(url=target_path).upload(src_path)
         return (
@@ -303,8 +306,6 @@ def upload_dataframe(
         return None, None
 
     if format in ["csv", "parquet"]:
-        if not suffix:
-            target_path = target_path + "." + format
         target_class = mlrun.datastore.targets.kind_to_driver[format]
         size = target_class(path=target_path).write_dataframe(df, **kw)
         return size, None

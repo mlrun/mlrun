@@ -231,6 +231,33 @@ def test_update_run_success(db: DBInterface, db_session: Session):
     assert run["spec"]["another-new-field"] == "value"
 
 
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_store_and_update_run_update_name_failure(db: DBInterface, db_session: Session):
+    project, name, uid, iteration, run = _create_new_run(db, db_session)
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="Changing name for an existing run is invalid"):
+        run["metadata"]["name"] = "new-name"
+        db.store_run(
+            db_session,
+            run,
+            uid,
+            project,
+            iteration,
+        )
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="Changing name for an existing run is invalid"):
+        db.update_run(
+            db_session,
+            {"metadata.name": "new-name"},
+            uid,
+            project,
+            iteration,
+        )
+
+
 def _create_new_run(
     db: DBInterface,
     db_session: Session,

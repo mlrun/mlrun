@@ -238,23 +238,21 @@ def test_update_run_success(db: DBInterface, db_session: Session):
 def test_store_and_update_run_update_name_failure(db: DBInterface, db_session: Session):
     project, name, uid, iteration, run = _create_new_run(db, db_session)
 
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="Changing name for an existing run is invalid"):
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="Changing name for an existing run is invalid",
+    ):
         run["metadata"]["name"] = "new-name"
         db.store_run(
-            db_session,
-            run,
-            uid,
-            project,
-            iteration,
+            db_session, run, uid, project, iteration,
         )
 
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="Changing name for an existing run is invalid"):
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="Changing name for an existing run is invalid",
+    ):
         db.update_run(
-            db_session,
-            {"metadata.name": "new-name"},
-            uid,
-            project,
-            iteration,
+            db_session, {"metadata.name": "new-name"}, uid, project, iteration,
         )
 
 
@@ -263,12 +261,12 @@ def test_store_and_update_run_update_name_failure(db: DBInterface, db_session: S
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
 def test_list_runs_limited_unsorted_failure(db: DBInterface, db_session: Session):
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError,
-                       match="Limiting the number of returned records without sorting will provide non-deterministic results"):
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="Limiting the number of returned records without sorting will provide non-deterministic results",
+    ):
         db.list_runs(
-            db_session,
-            sort=False,
-            last=1,
+            db_session, sort=False, last=1,
         )
 
 

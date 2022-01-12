@@ -108,11 +108,14 @@ class SortField(str, Enum):
     created = "created"
     updated = "updated"
 
-    def to_run_record_field(self):
+    def to_db_field(self, db_cls):
         if self.value == SortField.created:
-            return "start_time"
+            # not doing type check to prevent import that will cause a cycle
+            if db_cls.__name__ == "Run":
+                return db_cls.start_time
+            return db_cls.created
         elif self.value == SortField.updated:
-            return "updated"
+            return db_cls.updated
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unknown sort by field: {self.value}"

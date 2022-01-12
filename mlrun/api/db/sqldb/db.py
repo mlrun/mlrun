@@ -202,7 +202,7 @@ class SQLDB(DBInterface):
                 schemas.RunPartitionByField, partition_by, partition_sort
             )
             query = self._create_partitioned_query(
-                session, query, Run, partition_by, partition_order, rows_per_partition,
+                session, query, Run, partition_by, rows_per_partition, partition_sort, partition_order,
             )
 
         runs = RunList()
@@ -1498,21 +1498,29 @@ class SQLDB(DBInterface):
             )
 
     @staticmethod
-    def _create_partitioned_query(session, query, cls, group_by, order, rows_per_group):
+    def _create_partitioned_query(session,
+                                  query,
+                                  cls,
+                                  partition_by: typing.Union[schemas.FeatureStorePartitionByField, schemas.RunPartitionByField],
+                                  rows_per_partition: int,
+                                  partition_sort: schemas.SortField,
+                                  partition_order: schemas.OrderType):
+
         row_number_column = (
             func.row_number()
             .over(
-                partition_by=group_by.to_partition_by_db_field(cls),
-                order_by=order.to_order_by_predicate(cls.updated),
+                partition_by=partition_by.to_partition_by_db_field(cls),
+                order_by=partition_order.to_order_by_predicate(partition_sort.to_db_field(cls),
             )
             .label("row_number")
+        )
         )
 
         # Need to generate a subquery so we can filter based on the row_number, since it
         # is a window function using over().
         subquery = query.add_column(row_number_column).subquery()
         return session.query(aliased(cls, subquery)).filter(
-            subquery.c.row_number <= rows_per_group
+            subquery.c.row_number <= rows_per_partition
         )
 
     def list_feature_sets(
@@ -1558,9 +1566,7 @@ class SQLDB(DBInterface):
                 session,
                 query,
                 FeatureSet,
-                partition_by,
-                partition_order,
-                rows_per_partition,
+                partition_by, rows_per_partition, partition_sort, partition_order
             )
 
         feature_sets = []
@@ -1931,9 +1937,7 @@ class SQLDB(DBInterface):
                 session,
                 query,
                 FeatureVector,
-                partition_by,
-                partition_order,
-                rows_per_partition,
+                partition_by, rows_per_partition, partition_sort_by, partition_order
             )
 
         feature_vectors = []

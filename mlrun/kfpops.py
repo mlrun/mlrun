@@ -773,7 +773,7 @@ def show_kfp_run(run, clear_output=False):
 
             run_id = run["run"]["id"]
             url = get_workflow_url(run["run"]["project"], run_id)
-            href = f'<a href="{url}" target="_blank">click here</a>'
+            href = f'<a href="{url}" target="_blank"><b>click here</b></a>'
             html = IPython.display.HTML(
                 f"<div>Pipeline running (id={run_id}), {href} to view the details in MLRun UI</div>"
             )

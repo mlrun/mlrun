@@ -240,6 +240,8 @@ def enrich_function_object(
             f.spec.build.source = project.spec.source
             f.spec.build.load_source_on_run = project.spec.load_source_on_run
 
+    if project.spec.default_requirements:
+        f.with_requirements(project.spec.default_requirements)
     if decorator:
         decorator(f)
 

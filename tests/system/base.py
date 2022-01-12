@@ -14,7 +14,6 @@ logger = create_logger(level="debug", name="test-system")
 
 
 class TestMLRunSystem:
-
     project_name = "system-test-project"
     root_path = pathlib.Path(__file__).absolute().parent.parent.parent
     env_file_path = root_path / "tests" / "system" / "env.yml"
@@ -49,6 +48,7 @@ class TestMLRunSystem:
 
         if not self._skip_set_environment():
             set_environment(project=self.project_name)
+            self.project = mlrun.get_or_create_project(self.project_name, "./")
 
         self.custom_setup()
 
@@ -121,6 +121,18 @@ class TestMLRunSystem:
             reason=f"This is a system test, add the needed environment variables {*mandatory_env_vars,} "
             "in tests/system/env.yml to run it",
         )(test)
+
+    @classmethod
+    def is_enterprise_environment(cls):
+        try:
+            env = cls._get_env_from_file()
+        except FileNotFoundError:
+            return False
+        else:
+            for env_var in cls.mandatory_enterprise_env_vars:
+                if env_var not in env or env[env_var] is None:
+                    return False
+            return True
 
     @property
     def assets_path(self):

@@ -47,14 +47,12 @@ from mlrun.config import config
 from mlrun.lists import ArtifactList, FunctionList, RunList
 from mlrun.model import RunObject
 from mlrun.utils import (
-    as_list,
     fill_function_hash,
     fill_object_hash,
     generate_artifact_uri,
     generate_object_uri,
     get_in,
     logger,
-    match_times,
     update_in,
 )
 
@@ -101,18 +99,19 @@ class SQLDB(DBInterface):
             "Storing run to db", project=project, uid=uid, iter=iter, run=run_data
         )
         run = self._get_run(session, uid, project, iter)
+        now = datetime.now(timezone.utc)
         if not run:
             run = Run(
+                name=run_data["metadata"]["name"],
                 uid=uid,
                 project=project,
                 iteration=iter,
                 state=run_state(run_data),
-                start_time=run_start_time(run_data) or datetime.now(timezone.utc),
+                start_time=run_start_time(run_data) or now,
             )
+        self._ensure_run_name_on_update(run, run_data)
         labels = run_labels(run_data)
-        new_state = run_state(run_data)
-        if new_state:
-            run.state = new_state
+        self._update_run_state(run, run_data)
         update_labels(run, labels)
         # Note that this code basically allowing anyone to override the run's start time after it was already set
         # This is done to enable the context initialization to set the start time to when the user's code actually
@@ -121,6 +120,7 @@ class SQLDB(DBInterface):
         start_time = run_start_time(run_data) or SQLDB._add_utc_timezone(run.start_time)
         run_data.setdefault("status", {})["start_time"] = start_time.isoformat()
         run.start_time = start_time
+        self._update_run_updated_time(run, run_data, now=now)
         run.struct = run_data
         self._upsert(session, run, ignore=True)
 
@@ -133,14 +133,14 @@ class SQLDB(DBInterface):
         struct = run.struct
         for key, val in updates.items():
             update_in(struct, key, val)
-        run.struct = struct
-        new_state = run_state(struct)
-        if new_state:
-            run.state = new_state
+        self._ensure_run_name_on_update(run, struct)
+        self._update_run_state(run, struct)
         start_time = run_start_time(struct)
         if start_time:
             run.start_time = start_time
         update_labels(run, run_labels(struct))
+        self._update_run_updated_time(run, struct)
+        run.struct = struct
         session.merge(run)
         session.commit()
         self._delete_empty_labels(session, Run.Label)
@@ -159,7 +159,7 @@ class SQLDB(DBInterface):
         uid=None,
         project=None,
         labels=None,
-        state=None,
+        states=None,
         sort=True,
         last=0,
         iter=False,
@@ -170,23 +170,31 @@ class SQLDB(DBInterface):
     ):
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
-        if start_time_from:
+        if name is not None:
+            query = self._add_run_name_query(query, name)
+        if states is not None:
+            query = query.filter(Run.state.in_(states))
+        if start_time_from is not None:
             query = query.filter(Run.start_time >= start_time_from)
-        if start_time_to:
+        if start_time_to is not None:
             query = query.filter(Run.start_time <= start_time_to)
+        if last_update_time_from is not None:
+            query = query.filter(Run.updated >= last_update_time_from)
+        if last_update_time_to is not None:
+            query = query.filter(Run.updated <= last_update_time_to)
         if sort:
             query = query.order_by(Run.start_time.desc())
         if last:
+            if not sort:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Limiting the number of returned records without sorting will provide non-deterministic results"
+                )
             query = query.limit(last)
         if not iter:
             query = query.filter(Run.iteration == 0)
 
-        filtered_runs = self._post_query_runs_filter(
-            query, name, state, last_update_time_from, last_update_time_to
-        )
-
         runs = RunList()
-        for run in filtered_runs:
+        for run in query:
             runs.append(run.struct)
 
         return runs
@@ -199,16 +207,49 @@ class SQLDB(DBInterface):
     def del_runs(
         self, session, name=None, project=None, labels=None, state=None, days_ago=0
     ):
-        # FIXME: Run has no `name`
         project = project or config.default_project
         query = self._find_runs(session, None, project, labels)
         if days_ago:
             since = datetime.now(timezone.utc) - timedelta(days=days_ago)
             query = query.filter(Run.start_time >= since)
-        filtered_runs = self._post_query_runs_filter(query, name, state)
-        for run in filtered_runs:  # Can not use query.delete with join
+        if name:
+            query = self._add_run_name_query(query, name)
+        if state:
+            query = query.filter(Run.state == state)
+        for run in query:  # Can not use query.delete with join
             session.delete(run)
         session.commit()
+
+    def _add_run_name_query(self, query, name):
+        exact_name = self._escape_characters_for_like_query(name)
+        if name.startswith("~"):
+            query = query.filter(Run.name.ilike(f"%{exact_name[1:]}%", escape="\\"))
+        else:
+            query = query.filter(Run.name == name)
+        return query
+
+    @staticmethod
+    def _ensure_run_name_on_update(run_record: Run, run_dict: dict):
+        body_name = run_dict["metadata"]["name"]
+        if body_name != run_record.name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Changing name for an existing run is invalid"
+            )
+
+    @staticmethod
+    def _update_run_updated_time(
+        run_record: Run, run_dict: dict, now: typing.Optional[datetime] = None
+    ):
+        if now is None:
+            now = datetime.now(timezone.utc)
+        run_record.updated = now
+        run_dict.setdefault("status", {})["last_update"] = now.isoformat()
+
+    @staticmethod
+    def _update_run_state(run_record: Run, run_dict: dict):
+        state = run_state(run_dict)
+        run_record.state = state
+        run_dict.setdefault("status", {})["state"] = state
 
     def store_artifact(
         self, session, key, artifact, uid, iter=None, tag="", project="",
@@ -1018,9 +1059,7 @@ class SQLDB(DBInterface):
         runs = runs.all()
         for run in runs:
             run_json = run.struct
-            if self._is_run_matching_state(
-                run, run_json, mlrun.runtimes.constants.RunStates.non_terminal_states(),
-            ):
+            if run.state in mlrun.runtimes.constants.RunStates.non_terminal_states():
                 if (
                     run_json.get("metadata", {}).get("name")
                     and run_json["metadata"]["name"]
@@ -1030,14 +1069,10 @@ class SQLDB(DBInterface):
                         run_json["metadata"]["name"]
                     )
                     project_to_running_runs_count[run.project] += 1
-            if self._is_run_matching_state(
-                run,
-                run_json,
-                [
-                    mlrun.runtimes.constants.RunStates.error,
-                    mlrun.runtimes.constants.RunStates.aborted,
-                ],
-            ):
+            if run.state in [
+                mlrun.runtimes.constants.RunStates.error,
+                mlrun.runtimes.constants.RunStates.aborted,
+            ]:
                 one_day_ago = datetime.now() - timedelta(hours=24)
                 if run.start_time and run.start_time >= one_day_ago:
                     if (
@@ -2129,83 +2164,6 @@ class SQLDB(DBInterface):
         query = self._query(session, Run, uid=uid, project=project)
         return self._add_labels_filter(session, query, Run, labels)
 
-    def _post_query_runs_filter(
-        self,
-        query,
-        name=None,
-        state=None,
-        last_update_time_from=None,
-        last_update_time_to=None,
-    ):
-        """
-        This function is hacky and exists to cover on bugs we had with how we save our data in the DB
-        We're doing it the hacky way since:
-        1. SQLDB is about to be replaced
-        2. Schema + Data migration are complicated and as long we can avoid them, we prefer to (also because of 1)
-        name - the name is only saved in the json itself, therefore we can't use the SQL query filter and have to filter
-        it ourselves
-        state - the state is saved in a column, but, there was a bug in which the state was only getting updated in the
-        json itself, therefore, in field systems, most runs records will have an empty or not updated data in the state
-        column
-        """
-        if (
-            not name
-            and not state
-            and not last_update_time_from
-            and not last_update_time_to
-        ):
-            return query.all()
-
-        filtered_runs = []
-        for run in query:
-            run_json = run.struct
-            if name:
-                if not run_json or not isinstance(run_json, dict):
-                    continue
-
-                run_name = run_json.get("metadata", {}).get("name", "")
-                if name.startswith("~"):
-                    if name[1:].casefold() not in run_name.casefold():
-                        continue
-                elif name != run_name:
-                    continue
-            if state:
-                if not self._is_run_matching_state(run, run_json, state):
-                    continue
-            if last_update_time_from or last_update_time_to:
-                if not match_times(
-                    last_update_time_from,
-                    last_update_time_to,
-                    run_json,
-                    "status.last_update",
-                ):
-                    continue
-
-            filtered_runs.append(run)
-
-        return filtered_runs
-
-    def _is_run_matching_state(self, run, run_json, state):
-        requested_states = as_list(state)
-        record_state = run.state
-        json_state = None
-        if (
-            run_json
-            and isinstance(run_json, dict)
-            and run_json.get("status", {}).get("state")
-        ):
-            json_state = run_json.get("status", {}).get("state")
-        if not record_state and not json_state:
-            return False
-        # json_state has precedence over record state
-        if json_state:
-            if json_state in requested_states:
-                return True
-        else:
-            if record_state in requested_states:
-                return True
-        return False
-
     def _latest_uid_filter(self, session, query):
         # Create a sub query of latest uid (by updated) per (project,key)
         subq = (
@@ -2229,6 +2187,12 @@ class SQLDB(DBInterface):
             ),
         )
 
+    @staticmethod
+    def _escape_characters_for_like_query(value: str) -> str:
+        return (
+            value.translate(value.maketrans({"_": r"\_", "%": r"\%"})) if value else ""
+        )
+
     def _add_artifact_name_and_iter_query(self, query, name=None, iter=None):
         if not name and not iter:
             return query
@@ -2236,9 +2200,7 @@ class SQLDB(DBInterface):
         # Escape special chars (_,%) since we still need to do a like query because of the iter.
         # Also limit length to len(str) + 3, assuming iter is < 100 (two iter digits + hyphen)
         # this helps filter the situations where we match a suffix by mistake due to the like query.
-        exact_name = (
-            name.translate(name.maketrans({"_": r"\_", "%": r"\%"})) if name else ""
-        )
+        exact_name = self._escape_characters_for_like_query(name)
 
         if name and name.startswith("~"):
             # Like query

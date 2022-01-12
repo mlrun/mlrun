@@ -243,6 +243,9 @@ def ingest(
     when targets are not specified data is stored in the configured default targets
     (will usually be NoSQL for real-time and Parquet for offline).
 
+    the `run_config` parameter allow specifying the function and job configuration,
+    see: :py:class:`~mlrun.feature_store.RunConfig`
+
     example::
 
         stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
@@ -250,7 +253,7 @@ def ingest(
         df = ingest(stocks_set, stocks, infer_options=fstore.InferOptions.default())
 
         # for running as remote job
-        config = RunConfig(image='mlrun/mlrun').apply(mount_v3io())
+        config = RunConfig(image='mlrun/mlrun')
         df = ingest(stocks_set, stocks, run_config=config)
 
         # specify source and targets
@@ -571,6 +574,9 @@ def deploy_ingestion_service(
 
     Deploy a real-time function implementing feature ingestion pipeline
     the source maps to Nuclio event triggers (http, kafka, v3io stream, etc.)
+
+    the `run_config` parameter allow specifying the function and job configuration,
+    see: :py:class:`~mlrun.feature_store.RunConfig`
 
     example::
 

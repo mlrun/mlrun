@@ -632,28 +632,9 @@ class ModelEndpoints:
                 f"Deploying model monitoring stream processing function [{project}]"
             )
 
-        fn = get_model_monitoring_stream_processing_function(project)
-        fn.metadata.project = project
-
-        stream_path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind="stream"
+        fn = get_model_monitoring_stream_processing_function(
+            project, model_monitoring_access_key, db_session
         )
-
-        fn.add_v3io_stream_trigger(
-            stream_path=stream_path, name="monitoring_stream_trigger"
-        )
-
-        fn.set_env_from_secret(
-            "MODEL_MONITORING_ACCESS_KEY",
-            mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
-            Secrets().generate_model_monitoring_secret_key(
-                "MODEL_MONITORING_ACCESS_KEY"
-            ),
-        )
-        fn.metadata.credentials.access_key = model_monitoring_access_key
-        fn.set_env("MODEL_MONITORING_PARAMETERS", json.dumps({"project": project}))
-
-        fn.apply(mlrun.mount_v3io())
 
         _build_function(db_session=db_session, auth_info=auto_info, function=fn)
 

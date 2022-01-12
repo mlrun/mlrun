@@ -456,6 +456,8 @@ def uxjoin(base, local_path, key="", iter=None, is_dir=False):
     if base and not base.endswith("/"):
         base += "/"
     base_str = base or ""
+    if local_path.startswith("./"):
+        local_path = local_path[len("./") :]
     return f"{base_str}{local_path}"
 
 
@@ -810,6 +812,15 @@ def get_ui_url(project, uid=None):
     return url
 
 
+def get_workflow_url(project, id=None):
+    url = ""
+    if mlrun.mlconf.resolve_ui_url():
+        url = "{}/{}/{}/jobs/monitor-workflows/workflow/{}".format(
+            mlrun.mlconf.resolve_ui_url(), mlrun.mlconf.ui.projects_prefix, project, id
+        )
+    return url
+
+
 class RunNotifications:
     def __init__(self, with_ipython=True, with_slack=False, secrets=None):
         self._hooks = []
@@ -821,7 +832,9 @@ class RunNotifications:
             self.slack()
         self.print(skip_ipython=True)
 
-    def push_start_message(self, project, commit_id=None, id=None):
+    def push_start_message(
+        self, project, commit_id=None, id=None, has_workflow_url=False
+    ):
         message = f"Pipeline started in project {project}"
         if id:
             message += f" id={id}"
@@ -830,12 +843,15 @@ class RunNotifications:
         )
         if commit_id:
             message += f", commit={commit_id}"
-        url = get_ui_url(project)
+        if has_workflow_url:
+            url = get_workflow_url(project, id)
+        else:
+            url = get_ui_url(project)
         html = ""
         if url:
             html = (
                 message
-                + f'<div><a href="{url}" target="_blank">click here to check progress</a></div>'
+                + f'<div><a href="{url}" target="_blank">click here to view progress</a></div>'
             )
             message = message + f", check progress in {url}"
         self.push(message, html=html)

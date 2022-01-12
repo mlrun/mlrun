@@ -4,7 +4,6 @@ from mlrun import (
     build_function,
     deploy_function,
     get_current_project,
-    import_function,
     run_function,
 )
 from mlrun.model import HyperParamOptions
@@ -78,9 +77,8 @@ def newpipe():
     )
 
     # test out new model server (via REST API calls), use imported function
-    tester = import_function("hub://v2_model_tester", new_name="live_tester")
     run_function(
-        tester,
+        "hub://v2_model_tester",
         name="model-tester",
         params={"addr": deploy.outputs["endpoint"], "model": f"{DATASET}:v1"},
         inputs={"table": train.outputs["test_set"]},

@@ -169,7 +169,7 @@ class SQLDB(DBInterface):
         last_update_time_to=None,
         partition_by: schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
-        partition_sort: schemas.SortField = None,
+        partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
     ):
         project = project or config.default_project
@@ -202,7 +202,7 @@ class SQLDB(DBInterface):
                 schemas.RunPartitionByField, partition_by, partition_sort
             )
             query = self._create_partitioned_query(
-                session, query, Run, partition_by, rows_per_partition, partition_sort, partition_order,
+                session, query, Run, partition_by, rows_per_partition, partition_sort_by, partition_order,
             )
 
         runs = RunList()
@@ -1503,14 +1503,14 @@ class SQLDB(DBInterface):
                                   cls,
                                   partition_by: typing.Union[schemas.FeatureStorePartitionByField, schemas.RunPartitionByField],
                                   rows_per_partition: int,
-                                  partition_sort: schemas.SortField,
+                                  partition_sort_by: schemas.SortField,
                                   partition_order: schemas.OrderType):
 
         row_number_column = (
             func.row_number()
             .over(
                 partition_by=partition_by.to_partition_by_db_field(cls),
-                order_by=partition_order.to_order_by_predicate(partition_sort.to_db_field(cls),
+                order_by=partition_order.to_order_by_predicate(partition_sort_by.to_db_field(cls),
             )
             .label("row_number")
         )
@@ -1535,7 +1535,7 @@ class SQLDB(DBInterface):
         labels: List[str] = None,
         partition_by: schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
-        partition_sort: schemas.SortField = None,
+        partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureSetsOutput:
         obj_id_tags = self._get_records_to_tags_map(
@@ -1560,13 +1560,13 @@ class SQLDB(DBInterface):
 
         if partition_by:
             self._assert_partition_by_parameters(
-                schemas.FeatureStorePartitionByField, partition_by, partition_sort
+                schemas.FeatureStorePartitionByField, partition_by, partition_sort_by
             )
             query = self._create_partitioned_query(
                 session,
                 query,
                 FeatureSet,
-                partition_by, rows_per_partition, partition_sort, partition_order
+                partition_by, rows_per_partition, partition_sort_by, partition_order
             )
 
         feature_sets = []

@@ -143,7 +143,7 @@ def list_runs(
         None, alias="partition-by"
     ),
     rows_per_partition: int = Query(1, alias="rows-per-partition", gt=0),
-    partition_sort: mlrun.api.schemas.SortField = Query(
+    partition_sort_by: mlrun.api.schemas.SortField = Query(
         None, alias="partition-sort-by"
     ),
     partition_order: mlrun.api.schemas.OrderType = Query(
@@ -172,7 +172,7 @@ def list_runs(
         datetime_from_iso(last_update_time_to),
         partition_by,
         rows_per_partition,
-        partition_sort,
+        partition_sort_by,
         partition_order,
     )
     filtered_runs = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(

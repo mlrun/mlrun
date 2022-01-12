@@ -102,7 +102,7 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
         last_update_time_to=None,
         partition_by: mlrun.api.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
-        partition_sort: mlrun.api.schemas.SortField = None,
+        partition_sort_by: mlrun.api.schemas.SortField = None,
         partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
     ):
         project = project or mlrun.mlconf.default_project
@@ -122,7 +122,7 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
             last_update_time_to,
             partition_by,
             rows_per_partition,
-            partition_sort,
+            partition_sort_by,
             partition_order,
         )
 

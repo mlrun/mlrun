@@ -199,10 +199,16 @@ class SQLDB(DBInterface):
 
         if partition_by:
             self._assert_partition_by_parameters(
-                schemas.RunPartitionByField, partition_by, partition_sort
+                schemas.RunPartitionByField, partition_by, partition_sort_by
             )
             query = self._create_partitioned_query(
-                session, query, Run, partition_by, rows_per_partition, partition_sort_by, partition_order,
+                session,
+                query,
+                Run,
+                partition_by,
+                rows_per_partition,
+                partition_sort_by,
+                partition_order,
             )
 
         runs = RunList()
@@ -1489,7 +1495,7 @@ class SQLDB(DBInterface):
                 "sort parameter must be provided when partition_by is used."
             )
         # For now, name is the only supported value. Remove once more fields are added.
-        if partition_by in partition_by_enum_cls:
+        if partition_by not in partition_by_enum_cls:
             valid_enum_values = [
                 enum_value.value for enum_value in partition_by_enum_cls
             ]
@@ -1498,22 +1504,23 @@ class SQLDB(DBInterface):
             )
 
     @staticmethod
-    def _create_partitioned_query(session,
-                                  query,
-                                  cls,
-                                  partition_by: typing.Union[schemas.FeatureStorePartitionByField, schemas.RunPartitionByField],
-                                  rows_per_partition: int,
-                                  partition_sort_by: schemas.SortField,
-                                  partition_order: schemas.OrderType):
+    def _create_partitioned_query(
+        session,
+        query,
+        cls,
+        partition_by: typing.Union[
+            schemas.FeatureStorePartitionByField, schemas.RunPartitionByField
+        ],
+        rows_per_partition: int,
+        partition_sort_by: schemas.SortField,
+        partition_order: schemas.OrderType,
+    ):
 
-        row_number_column = (
-            func.row_number()
-            .over(
-                partition_by=partition_by.to_partition_by_db_field(cls),
-                order_by=partition_order.to_order_by_predicate(partition_sort_by.to_db_field(cls),
-            )
-            .label("row_number")
-        )
+        row_number_column = func.row_number().over(
+            partition_by=partition_by.to_partition_by_db_field(cls),
+            order_by=partition_order.to_order_by_predicate(
+                partition_sort_by.to_db_field(cls),
+            ).label("row_number"),
         )
 
         # Need to generate a subquery so we can filter based on the row_number, since it
@@ -1566,7 +1573,10 @@ class SQLDB(DBInterface):
                 session,
                 query,
                 FeatureSet,
-                partition_by, rows_per_partition, partition_sort_by, partition_order
+                partition_by,
+                rows_per_partition,
+                partition_sort_by,
+                partition_order,
             )
 
         feature_sets = []
@@ -1937,7 +1947,10 @@ class SQLDB(DBInterface):
                 session,
                 query,
                 FeatureVector,
-                partition_by, rows_per_partition, partition_sort_by, partition_order
+                partition_by,
+                rows_per_partition,
+                partition_sort_by,
+                partition_order,
             )
 
         feature_vectors = []

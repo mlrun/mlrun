@@ -28,6 +28,7 @@ from .utils import (
     gen_md_table,
     get_artifact_target,
     get_in,
+    get_workflow_url,
     is_ipython,
     logger,
     run_keys,
@@ -769,6 +770,13 @@ def show_kfp_run(run, clear_output=False):
 
             if clear_output:
                 IPython.display.clear_output(wait=True)
-            IPython.display.display(dag)
+
+            run_id = run["run"]["id"]
+            url = get_workflow_url(run["run"]["project"], run_id)
+            href = f'<a href="{url}" target="_blank"><b>click here</b></a>'
+            html = IPython.display.HTML(
+                f"<div>Pipeline running (id={run_id}), {href} to view the details in MLRun UI</div>"
+            )
+            IPython.display.display(html, dag)
         except Exception as exc:
             logger.warning(f"failed to plot graph, {exc}")

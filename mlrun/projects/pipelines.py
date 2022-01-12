@@ -381,7 +381,7 @@ class _KFPRunner(_PipelineRunner):
             ttl=workflow_spec.ttl,
         )
         project.notifiers.push_start_message(
-            project.metadata.name, project.get_param("commit_id", None), id
+            project.metadata.name, project.get_param("commit_id", None), id, True,
         )
         pipeline_context.clear()
         return _PipelineRunStatus(id, cls, project=project, workflow=workflow_spec)

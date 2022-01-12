@@ -255,7 +255,7 @@ def ingest(
 
     :param featureset:    feature set object or featureset.uri. (uri must be of a feature set that is in the DB,
                           call `.save()` if it's not)
-    :param source:        source dataframe or file path
+    :param source:        source dataframe or other sources (e.g. parquet source see: :py:class:`~mlrun.datastore.ParquetSource` and other classes based on notation mlrun.datastore.*Source)
     :param targets:       optional list of data target objects
     :param namespace:     namespace or module containing graph classes
     :param return_df:     indicate if to return a dataframe with the graph results

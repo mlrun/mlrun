@@ -91,9 +91,32 @@ class FeatureStorePartitionByField(str, Enum):
             )
 
 
+class RunPartitionByField(str, Enum):
+    name = "name"  # Supported for runs objects
+
+    def to_partition_by_db_field(self, db_cls):
+        if self.value == RunPartitionByField.name:
+            return db_cls.name
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unknown group by field: {self.value}"
+            )
+
+
 # For now, we only support sorting by updated field
 class SortField(str, Enum):
+    created = "created"
     updated = "updated"
+
+    def to_run_record_field(self):
+        if self.value == SortField.created:
+            return "start_time"
+        elif self.value == SortField.updated:
+            return "updated"
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unknown sort by field: {self.value}"
+            )
 
 
 class OrderType(str, Enum):

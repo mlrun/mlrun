@@ -68,6 +68,10 @@ class DBInterface(ABC):
         start_time_to=None,
         last_update_time_from=None,
         last_update_time_to=None,
+        partition_by: schemas.RunPartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
     ):
         pass
 

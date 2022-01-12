@@ -167,6 +167,10 @@ class SQLDB(DBInterface):
         start_time_to=None,
         last_update_time_from=None,
         last_update_time_to=None,
+        partition_by: schemas.RunPartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
     ):
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
@@ -192,6 +196,14 @@ class SQLDB(DBInterface):
             query = query.limit(last)
         if not iter:
             query = query.filter(Run.iteration == 0)
+
+        if partition_by:
+            self._assert_partition_by_parameters(
+                schemas.RunPartitionByField, partition_by, partition_sort
+            )
+            query = self._create_partitioned_query(
+                session, query, Run, partition_by, partition_order, rows_per_partition,
+            )
 
         runs = RunList()
         for run in query:
@@ -1471,15 +1483,18 @@ class SQLDB(DBInterface):
         return schemas.EntitiesOutput(entities=entities_results)
 
     @staticmethod
-    def _assert_partition_by_parameters(partition_by, sort):
+    def _assert_partition_by_parameters(partition_by_enum_cls, partition_by, sort):
         if sort is None:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "sort parameter must be provided when partition_by is used."
             )
         # For now, name is the only supported value. Remove once more fields are added.
-        if partition_by != schemas.FeatureStorePartitionByField.name:
+        if partition_by in partition_by_enum_cls:
+            valid_enum_values = [
+                enum_value.value for enum_value in partition_by_enum_cls
+            ]
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"partition_by for feature-store objects must be 'name'. Value given: '{partition_by.value}'"
+                f"Invalid partition_by given: '{partition_by.value}'. Must be one of {valid_enum_values}"
             )
 
     @staticmethod
@@ -1536,7 +1551,9 @@ class SQLDB(DBInterface):
             query = self._add_labels_filter(session, query, FeatureSet, labels)
 
         if partition_by:
-            self._assert_partition_by_parameters(partition_by, partition_sort)
+            self._assert_partition_by_parameters(
+                schemas.FeatureStorePartitionByField, partition_by, partition_sort
+            )
             query = self._create_partitioned_query(
                 session,
                 query,
@@ -1907,7 +1924,9 @@ class SQLDB(DBInterface):
             query = self._add_labels_filter(session, query, FeatureVector, labels)
 
         if partition_by:
-            self._assert_partition_by_parameters(partition_by, partition_sort_by)
+            self._assert_partition_by_parameters(
+                schemas.FeatureStorePartitionByField, partition_by, partition_sort_by
+            )
             query = self._create_partitioned_query(
                 session,
                 query,

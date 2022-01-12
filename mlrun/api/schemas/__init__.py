@@ -24,6 +24,7 @@ from .constants import (
     HeaderNames,
     OrderType,
     PatchMode,
+    RunPartitionByField,
     SortField,
 )
 from .feature_store import (

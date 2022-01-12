@@ -847,10 +847,10 @@ class TestFeatureStore(TestMLRunSystem):
                 "string": ["ab", "cd", "ef"],
             }
         )
-
-        data_set1 = fs.FeatureSet("fs1", entities=[Entity("string")])
+        feature_set_name = "fs1"
+        data_set1 = fs.FeatureSet(feature_set_name, entities=[Entity("string")])
         fs.ingest(data_set1, data, infer_options=fs.InferOptions.default())
-        features = ["fs1.*"]
+        features = [f"{feature_set_name}.*"]
         vector = fs.FeatureVector("vector", features)
         vector.spec.with_indexes = True
 
@@ -874,6 +874,15 @@ class TestFeatureStore(TestMLRunSystem):
         expected.set_index(keys="string", inplace=True)
 
         assert expected.equals(resp.to_dataframe())
+
+        resp = fs.get_feature_set(
+            f"store://feature-sets/{self.project_name}/{feature_set_name}:latest"
+        )
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            resp.to_dataframe(
+                start_time=pd.Timestamp("2021-06-09 09:30:00"),
+                end_time=pd.Timestamp("2021-06-09 10:30:00"),
+            )
 
     def test_filter_offline_multiple_featuresets(self):
         data = pd.DataFrame(

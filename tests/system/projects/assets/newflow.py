@@ -1,11 +1,6 @@
 from kfp import dsl
 
-from mlrun import (
-    build_function,
-    deploy_function,
-    get_current_project,
-    run_function,
-)
+from mlrun import build_function, deploy_function, get_current_project, run_function
 from mlrun.model import HyperParamOptions
 
 funcs = {}

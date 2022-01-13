@@ -23,7 +23,7 @@ def test_add_or_refresh_credentials_iguazio_2_8_success(monkeypatch):
     def mock_get(*args, **kwargs):
         not_found_response_mock = Mock()
         not_found_response_mock.ok = False
-        not_found_response_mock.status_code = HTTPStatus.NOT_FOUND.value
+        not_found_response_mock.status_code = HTTPStatus.NOT_FOUND
         return not_found_response_mock
 
     def mock_session(*args, **kwargs):

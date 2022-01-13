@@ -84,7 +84,7 @@ def wait_for_server(url, timeout_sec):
     while monotonic() - start <= timeout_sec:
         try:
             with urlopen(url) as resp:
-                if resp.status == HTTPStatus.OK.value:
+                if resp.status == HTTPStatus.OK:
                     return True
         except (URLError, ConnectionError):
             pass

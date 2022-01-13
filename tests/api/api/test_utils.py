@@ -395,7 +395,7 @@ def _mock_original_function(client, access_key=None):
         json=original_function,
         params={"tag": function_tag},
     )
-    assert resp.status_code == HTTPStatus.OK.value
+    assert resp.status_code == HTTPStatus.OK
     return project, function_name, function_tag, original_function
 
 

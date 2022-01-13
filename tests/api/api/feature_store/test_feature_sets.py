@@ -68,7 +68,7 @@ def _feature_set_create_and_assert(
     response = client.post(
         f"projects/{project}/feature-sets?versioned={versioned}", json=feature_set
     )
-    assert response.status_code == HTTPStatus.OK.value
+    assert response.status_code == HTTPStatus.OK
     return response.json()
 
 
@@ -130,7 +130,7 @@ def test_feature_set_create_with_extra_fields(db: Session, client: TestClient) -
     response = client.get(
         f"projects/{project_name}/feature-sets/{name}/references/latest"
     )
-    assert response.status_code == HTTPStatus.OK.value
+    assert response.status_code == HTTPStatus.OK
     json_response = response.json()
     _assert_extra_fields_exist(json_response)
 
@@ -154,7 +154,7 @@ def test_feature_set_create_and_list(db: Session, client: TestClient) -> None:
     response = client.get(
         f"projects/{project_name}/feature-sets/{name}/references/latest"
     )
-    assert response.status_code == HTTPStatus.OK.value
+    assert response.status_code == HTTPStatus.OK
 
     name = "feature_set2"
     feature_set = _generate_feature_set(name)
@@ -286,13 +286,13 @@ def test_feature_set_get_by_reference(db: Session, client: TestClient) -> None:
     response = client.get(
         f"projects/{project_name}/feature-sets/{name}/references/latest"
     )
-    assert response.status_code == HTTPStatus.OK.value
+    assert response.status_code == HTTPStatus.OK
     assert response.json()["metadata"]["uid"] == uid
 
     response = client.get(
         f"projects/{project_name}/feature-sets/{name}/references/{uid}"
     )
-    assert response.status_code == HTTPStatus.OK.value
+    assert response.status_code == HTTPStatus.OK
     assert response.json()["metadata"]["name"] == name
 
 
@@ -310,12 +310,12 @@ def test_feature_set_delete(db: Session, client: TestClient) -> None:
     response = client.delete(
         f"projects/{project_name}/feature-sets/feature_set_{count-1}"
     )
-    assert response.status_code == HTTPStatus.NO_CONTENT.value
+    assert response.status_code == HTTPStatus.NO_CONTENT
     _list_and_assert_objects(client, "feature_sets", project_name, None, count - 1)
 
     # Delete the first fs
     response = client.delete(f"projects/{project_name}/feature-sets/feature_set_0")
-    assert response.status_code == HTTPStatus.NO_CONTENT.value
+    assert response.status_code == HTTPStatus.NO_CONTENT
     _list_and_assert_objects(client, "feature_sets", project_name, None, count - 2)
 
 
@@ -349,7 +349,7 @@ def test_feature_set_delete_version(db: Session, client: TestClient) -> None:
         response = client.delete(
             f"projects/{project_name}/feature-sets/{name}/references/{reference}"
         )
-        assert response.status_code == HTTPStatus.NO_CONTENT.value
+        assert response.status_code == HTTPStatus.NO_CONTENT
         objects_left = objects_left - 1
         _list_and_assert_objects(
             client, "feature_sets", project_name, f"name={name}", objects_left
@@ -363,7 +363,7 @@ def test_feature_set_delete_version(db: Session, client: TestClient) -> None:
 
     # Now delete by name
     response = client.delete(f"projects/{project_name}/feature-sets/{name}")
-    assert response.status_code == HTTPStatus.NO_CONTENT.value
+    assert response.status_code == HTTPStatus.NO_CONTENT
     _list_and_assert_objects(client, "feature_sets", project_name, f"name={name}", 0)
 
 
@@ -379,7 +379,7 @@ def test_feature_set_create_failure_already_exists(
     response = client.post(
         f"projects/{project_name}/feature-sets?versioned=True", json=feature_set
     )
-    assert response.status_code == HTTPStatus.CONFLICT.value
+    assert response.status_code == HTTPStatus.CONFLICT
 
     # Now test not-versioned add
     name = "feature_set2"
@@ -392,7 +392,7 @@ def test_feature_set_create_failure_already_exists(
     response = client.post(
         f"projects/{project_name}/feature-sets?versioned=False", json=feature_set
     )
-    assert response.status_code == HTTPStatus.CONFLICT.value
+    assert response.status_code == HTTPStatus.CONFLICT
 
 
 def test_feature_set_multiple_creates_and_patches(
@@ -413,7 +413,7 @@ def test_feature_set_multiple_creates_and_patches(
         f"projects/{project_name}/feature-sets/{name}/references/latest",
         json=feature_set_patch,
     )
-    assert response.status_code == HTTPStatus.OK.value
+    assert response.status_code == HTTPStatus.OK
 
     response = _list_and_assert_objects(
         client, "feature_sets", project_name, None, count
@@ -469,7 +469,7 @@ def test_feature_set_store(db: Session, client: TestClient) -> None:
         f"projects/{project_name}/feature-sets/{name}/references/{modified_uid}",
         json=feature_set,
     )
-    assert response.status_code == HTTPStatus.BAD_REQUEST.value
+    assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
 def test_feature_set_tagging_with_re_store(db: Session, client: TestClient) -> None:
@@ -559,7 +559,7 @@ def test_feature_set_project_name_mismatch_failure(
     response = client.post(
         f"projects/{project_name}/feature-sets", json=feature_set
     )
-    assert response.status_code == HTTPStatus.BAD_REQUEST.value
+    assert response.status_code == HTTPStatus.BAD_REQUEST
 
     # When POSTing without project name, project name should be implanted in the response
     feature_set["metadata"].pop("project")
@@ -574,7 +574,7 @@ def test_feature_set_project_name_mismatch_failure(
         f"projects/{project_name}/feature-sets/{name}/references/latest",
         json=feature_set,
     )
-    assert response.status_code == HTTPStatus.BAD_REQUEST.value
+    assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
 def test_feature_set_wrong_kind_failure(db: Session, client: TestClient) -> None:
@@ -585,7 +585,7 @@ def test_feature_set_wrong_kind_failure(db: Session, client: TestClient) -> None
     response = client.post(
         f"projects/{project_name}/feature-sets", json=feature_set
     )
-    assert response.status_code != HTTPStatus.OK.value
+    assert response.status_code != HTTPStatus.OK
 
 
 def test_entities_list(db: Session, client: TestClient) -> None:
@@ -702,7 +702,7 @@ def test_no_feature_leftovers_when_storing_feature_sets(
         )
 
     response = client.delete(f"projects/{project_name}/feature-sets/{name}")
-    assert response.status_code == HTTPStatus.NO_CONTENT.value
+    assert response.status_code == HTTPStatus.NO_CONTENT
 
     # When working on a versioned object, features will be multiplied, since they belong to different versions
     # (different features change the uid)

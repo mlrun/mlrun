@@ -12,7 +12,7 @@ def test_docs(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
     response = client.get("openapi.json")
-    assert response.status_code == http.HTTPStatus.OK.value
+    assert response.status_code == http.HTTPStatus.OK
 
 
 @pytest.mark.skipif(

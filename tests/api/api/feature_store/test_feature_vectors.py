@@ -53,7 +53,7 @@ def _create_and_assert_feature_vector(
         f"projects/{project}/feature-vectors?versioned={versioned}",
         json=feature_vector,
     )
-    assert response.status_code == HTTPStatus.OK.value
+    assert response.status_code == HTTPStatus.OK
     return response.json()
 
 
@@ -78,7 +78,7 @@ def test_feature_vector_create(db: Session, client: TestClient) -> None:
     feature_vector_response = client.get(
         f"projects/{project_name}/feature-vectors/{name}/references/latest"
     )
-    assert feature_vector_response.status_code == HTTPStatus.OK.value
+    assert feature_vector_response.status_code == HTTPStatus.OK
     _assert_diff_as_expected_except_for_specific_metadata(
         feature_vector, feature_vector_response.json(), allowed_added_fields
     )
@@ -86,7 +86,7 @@ def test_feature_vector_create(db: Session, client: TestClient) -> None:
     feature_vector_response = client.get(
         f"projects/{project_name}/feature-vectors/{name}/references/{uid}"
     )
-    assert feature_vector_response.status_code == HTTPStatus.OK.value
+    assert feature_vector_response.status_code == HTTPStatus.OK
     # When querying by uid, tag will not be returned
     _assert_diff_as_expected_except_for_specific_metadata(
         feature_vector, feature_vector_response.json(), allowed_added_fields
@@ -198,7 +198,7 @@ def test_feature_vector_store(db: Session, client: TestClient) -> None:
         f"projects/{project_name}/feature-vectors/{name}/references/{modified_uid}",
         json=feature_vector,
     )
-    assert response.status_code == HTTPStatus.BAD_REQUEST.value
+    assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
 def test_feature_vector_re_tag_using_store(db: Session, client: TestClient) -> None:
@@ -287,14 +287,14 @@ def test_feature_vector_delete(db: Session, client: TestClient) -> None:
     response = client.delete(
         f"projects/{project_name}/feature-vectors/feature_vector_{count-1}"
     )
-    assert response.status_code == HTTPStatus.NO_CONTENT.value
+    assert response.status_code == HTTPStatus.NO_CONTENT
     _list_and_assert_objects(client, "feature_vectors", project_name, None, count - 1)
 
     # Delete the first fs
     response = client.delete(
         f"projects/{project_name}/feature-vectors/feature_vector_0"
     )
-    assert response.status_code == HTTPStatus.NO_CONTENT.value
+    assert response.status_code == HTTPStatus.NO_CONTENT
     _list_and_assert_objects(client, "feature_vectors", project_name, None, count - 2)
 
 
@@ -328,7 +328,7 @@ def test_feature_vector_delete_version(db: Session, client: TestClient) -> None:
         response = client.delete(
             f"projects/{project_name}/feature-vectors/{name}/references/{reference}"
         )
-        assert response.status_code == HTTPStatus.NO_CONTENT.value
+        assert response.status_code == HTTPStatus.NO_CONTENT
         objects_left = objects_left - 1
         _list_and_assert_objects(
             client, "feature_vectors", project_name, f"name={name}", objects_left
@@ -340,7 +340,7 @@ def test_feature_vector_delete_version(db: Session, client: TestClient) -> None:
 
     # Now delete by name
     response = client.delete(f"projects/{project_name}/feature-vectors/{name}")
-    assert response.status_code == HTTPStatus.NO_CONTENT.value
+    assert response.status_code == HTTPStatus.NO_CONTENT
     _list_and_assert_objects(client, "feature_vectors", project_name, f"name={name}", 0)
 
 

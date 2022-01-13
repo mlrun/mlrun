@@ -29,7 +29,7 @@ def test_vault_create_project_secrets(db: Session, client: TestClient):
 
     # Test project secrets
     response = client.post(f"projects/{project_name}/secrets", json=data)
-    assert response.status_code == HTTPStatus.CREATED.value
+    assert response.status_code == HTTPStatus.CREATED
 
     params = {"provider": schemas.SecretProviderName.vault.value, "secrets": None}
     headers = {schemas.HeaderNames.secret_store_token: user_token}

@@ -27,7 +27,7 @@ class UnhandledException(Exception):
 @app.exception_handler(HandledException1)
 async def handler_returning_response(request: fastapi.Request, exc: HandledException1):
     logger.warning("Handler caught HandledException1 exception, returning 204 response")
-    return fastapi.Response(status_code=HTTPStatus.NO_CONTENT.value)
+    return fastapi.Response(status_code=HTTPStatus.NO_CONTENT)
 
 
 @app.exception_handler(HandledException2)
@@ -38,7 +38,7 @@ async def handler_returning_http_exception(
         "Handler caught HandledException2 exception, returning HTTPException with 401"
     )
     return await http_exception_handler(
-        request, fastapi.HTTPException(status_code=HTTPStatus.UNAUTHORIZED.value)
+        request, fastapi.HTTPException(status_code=HTTPStatus.UNAUTHORIZED)
     )
 
 
@@ -102,16 +102,16 @@ def client(request) -> typing.Generator:
 
 def test_logging_middleware(db: Session, client: TestClient) -> None:
     resp = client.get("/test/success")
-    assert resp.status_code == HTTPStatus.ACCEPTED.value
+    assert resp.status_code == HTTPStatus.ACCEPTED
 
     resp = client.get("/test/handled_exception_1")
-    assert resp.status_code == HTTPStatus.NO_CONTENT.value
+    assert resp.status_code == HTTPStatus.NO_CONTENT
 
     resp = client.get("/test/handled_exception_2")
-    assert resp.status_code == HTTPStatus.UNAUTHORIZED.value
+    assert resp.status_code == HTTPStatus.UNAUTHORIZED
 
     resp = client.post("/test/fastapi_handled_exception")
-    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
+    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
     with pytest.raises(UnhandledException):
         # In a real fastapi (and not test) unhandled exception returns 500

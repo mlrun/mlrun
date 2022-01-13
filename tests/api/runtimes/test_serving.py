@@ -236,7 +236,7 @@ class TestServingRuntime(TestNuclioRuntime):
         }
         response = client.post("/api/build/function", json=req)
 
-        assert response.status_code == HTTPStatus.OK.value
+        assert response.status_code == HTTPStatus.OK
 
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
 

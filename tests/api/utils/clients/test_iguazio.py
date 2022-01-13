@@ -72,7 +72,7 @@ def test_verify_request_session_failure(
 
     requests_mock.post(
         f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}",
-        status_code=http.HTTPStatus.UNAUTHORIZED.value,
+        status_code=http.HTTPStatus.UNAUTHORIZED,
     )
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
         iguazio_client.verify_request_session(mock_request)
@@ -193,7 +193,7 @@ def test_get_or_create_access_key_success(
     requests_mock.post(
         f"{api_url}/api/self/get_or_create_access_key",
         json=functools.partial(
-            _get_or_create_access_key_mock, http.HTTPStatus.CREATED.value
+            _get_or_create_access_key_mock, http.HTTPStatus.CREATED
         ),
     )
     returned_access_key = iguazio_client.get_or_create_access_key(session, planes)
@@ -203,7 +203,7 @@ def test_get_or_create_access_key_success(
     requests_mock.post(
         f"{api_url}/api/self/get_or_create_access_key",
         json=functools.partial(
-            _get_or_create_access_key_mock, http.HTTPStatus.OK.value
+            _get_or_create_access_key_mock, http.HTTPStatus.OK
         ),
     )
     returned_access_key = iguazio_client.get_or_create_access_key(session, planes)
@@ -225,7 +225,7 @@ def test_get_project_owner(
             "include": ["owner"],
             "enrich_owner_access_key": ["true"],
         }
-        context.status_code = http.HTTPStatus.OK.value
+        context.status_code = http.HTTPStatus.OK
         _verify_project_request_headers(request.headers, session)
         return {
             "data": _build_project_response(
@@ -263,7 +263,7 @@ def test_list_project_with_updated_after(
                 )
             ],
         }
-        context.status_code = http.HTTPStatus.OK.value
+        context.status_code = http.HTTPStatus.OK
         _verify_project_request_headers(request.headers, session)
         return {"data": [_build_project_response(iguazio_client, project)]}
 
@@ -369,10 +369,10 @@ def test_create_project_failures(
     error_message = "project name invalid or something"
     requests_mock.post(
         f"{api_url}/api/projects",
-        status_code=http.HTTPStatus.BAD_REQUEST.value,
+        status_code=http.HTTPStatus.BAD_REQUEST,
         json={
             "errors": [
-                {"status": http.HTTPStatus.BAD_REQUEST.value, "detail": error_message}
+                {"status": http.HTTPStatus.BAD_REQUEST, "detail": error_message}
             ]
         },
     )
@@ -395,7 +395,7 @@ def test_create_project_failures(
     )
     error_message = "failed creating project in Nuclio for example"
     job_result = json.dumps(
-        {"status": http.HTTPStatus.BAD_REQUEST.value, "message": error_message}
+        {"status": http.HTTPStatus.BAD_REQUEST, "message": error_message}
     )
     _mock_job_progress(
         api_url,
@@ -470,7 +470,7 @@ def test_update_project(
 
     def verify_store_update(request, context):
         _assert_project_creation(iguazio_client, request.json(), project)
-        context.status_code = http.HTTPStatus.OK.value
+        context.status_code = http.HTTPStatus.OK
         _verify_project_request_headers(request.headers, session)
         return {"data": _build_project_response(iguazio_client, project)}
 
@@ -505,14 +505,14 @@ def test_delete_project(
 
     # assert ignoring (and not exploding) on not found
     requests_mock.delete(
-        f"{api_url}/api/projects", status_code=http.HTTPStatus.NOT_FOUND.value
+        f"{api_url}/api/projects", status_code=http.HTTPStatus.NOT_FOUND
     )
     iguazio_client.delete_project(session, project_name)
 
     # TODO: not sure really needed
     # assert correctly propagating 412 errors (will be returned when project has resources)
     requests_mock.delete(
-        f"{api_url}/api/projects", status_code=http.HTTPStatus.PRECONDITION_FAILED.value
+        f"{api_url}/api/projects", status_code=http.HTTPStatus.PRECONDITION_FAILED
     )
     with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
         iguazio_client.delete_project(session, project_name)
@@ -635,13 +635,13 @@ def _verify_deletion(project_name, session, job_id, request, context):
         == mlrun.api.schemas.DeletionStrategy.default().to_iguazio_deletion_strategy()
     )
     _verify_project_request_headers(request.headers, session)
-    context.status_code = http.HTTPStatus.ACCEPTED.value
+    context.status_code = http.HTTPStatus.ACCEPTED
     return {"data": {"type": "job", "id": job_id}}
 
 
 def _verify_creation(iguazio_client, project, session, job_id, request, context):
     _assert_project_creation(iguazio_client, request.json(), project)
-    context.status_code = http.HTTPStatus.CREATED.value
+    context.status_code = http.HTTPStatus.CREATED
     _verify_project_request_headers(request.headers, session)
     return {
         "data": _build_project_response(
@@ -668,7 +668,7 @@ def _mock_job_progress(
     job_result: str = "",
 ):
     def _mock_get_job(state, result, session, request, context):
-        context.status_code = http.HTTPStatus.OK.value
+        context.status_code = http.HTTPStatus.OK
         assert request.headers["Cookie"] == f'session=j:{{"sid": "{session}"}}'
         return {"data": {"attributes": {"state": state, "result": result}}}
 

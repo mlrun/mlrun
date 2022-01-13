@@ -24,4 +24,4 @@ def test_verify_authorization(
     response = client.post(
         "authorization/verifications", json=authorization_verification_input.dict()
     )
-    assert response.status_code == http.HTTPStatus.OK.value
+    assert response.status_code == http.HTTPStatus.OK

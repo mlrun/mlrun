@@ -473,7 +473,7 @@ def _mock_get_run(
 def _assert_list_pipelines_response(
     expected_response: mlrun.api.schemas.PipelinesOutput, response
 ):
-    assert response.status_code == http.HTTPStatus.OK.value
+    assert response.status_code == http.HTTPStatus.OK
     assert (
         deepdiff.DeepDiff(expected_response.dict(), response.json(), ignore_order=True,)
         == {}
@@ -481,7 +481,7 @@ def _assert_list_pipelines_response(
 
 
 def _assert_get_pipeline_response(expected_response: dict, response):
-    assert response.status_code == http.HTTPStatus.OK.value
+    assert response.status_code == http.HTTPStatus.OK
     assert (
         deepdiff.DeepDiff(expected_response, response.json(), ignore_order=True,) == {}
     )

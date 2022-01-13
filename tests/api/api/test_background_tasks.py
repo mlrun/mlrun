@@ -61,7 +61,7 @@ def test_create_project_background_task_success(
     response = client.get(
         f"projects/{project}/background-tasks/{background_task.metadata.name}"
     )
-    assert response.status_code == http.HTTPStatus.OK
+    assert response.status_code == http.HTTPStatus.OK.value
     background_task = mlrun.api.schemas.BackgroundTask(**response.json())
     assert (
         background_task.status.state == mlrun.api.schemas.BackgroundTaskState.succeeded
@@ -81,7 +81,7 @@ def test_create_project_background_task_failure(
     response = client.get(
         f"projects/{project}/background-tasks/{background_task.metadata.name}"
     )
-    assert response.status_code == http.HTTPStatus.OK
+    assert response.status_code == http.HTTPStatus.OK.value
     background_task = mlrun.api.schemas.BackgroundTask(**response.json())
     assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.failed
     assert background_task.metadata.updated is not None
@@ -93,7 +93,7 @@ def test_get_project_background_task_not_exists(
     project = "project"
     name = "task-name"
     response = client.get(f"projects/{project}/background-tasks/{name}")
-    assert response.status_code == http.HTTPStatus.OK
+    assert response.status_code == http.HTTPStatus.OK.value
     background_task = mlrun.api.schemas.BackgroundTask(**response.json())
     assert background_task.metadata.project == project
     assert background_task.metadata.name == name
@@ -108,7 +108,7 @@ def test_get_background_task_auth_skip(
     )
     mlrun.mlconf.igz_version = "3.2.0-b26.20210904121245"
     response = client.get("background-tasks/some-task-name")
-    assert response.status_code == http.HTTPStatus.OK
+    assert response.status_code == http.HTTPStatus.OK.value
     assert (
         mlrun.api.utils.auth.verifier.AuthVerifier().query_resource_permissions.call_count
         == 0
@@ -116,7 +116,7 @@ def test_get_background_task_auth_skip(
 
     mlrun.mlconf.igz_version = "3.5.0-b26.20210904121245"
     response = client.get("background-tasks/some-task-name")
-    assert response.status_code == http.HTTPStatus.OK
+    assert response.status_code == http.HTTPStatus.OK.value
     assert (
         mlrun.api.utils.auth.verifier.AuthVerifier().query_resource_permissions.call_count
         == 1
@@ -124,7 +124,7 @@ def test_get_background_task_auth_skip(
 
 
 def _assert_background_task_creation(expected_project, response):
-    assert response.status_code == http.HTTPStatus.OK
+    assert response.status_code == http.HTTPStatus.OK.value
     background_task = mlrun.api.schemas.BackgroundTask(**response.json())
     assert background_task.kind == mlrun.api.schemas.ObjectKind.background_task
     assert background_task.metadata.project == expected_project

@@ -318,7 +318,7 @@ def test_delete_runtime_resources_opa_filtering(
 
     # legacy endpoint
     response = client.delete("runtimes",)
-    assert response.status_code == http.HTTPStatus.NO_CONTENT
+    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
 
 def test_delete_runtime_resources_with_legacy_builder_pod_opa_filtering(
@@ -353,7 +353,7 @@ def test_delete_runtime_resources_with_legacy_builder_pod_opa_filtering(
 
     # legacy endpoint
     response = client.delete("runtimes",)
-    assert response.status_code == http.HTTPStatus.NO_CONTENT
+    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
 
 def test_delete_runtime_resources_with_kind(
@@ -394,7 +394,7 @@ def test_delete_runtime_resources_with_kind(
 
     # legacy endpoint
     response = client.delete(f"runtimes/{kind}",)
-    assert response.status_code == http.HTTPStatus.NO_CONTENT
+    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
 
 def test_delete_runtime_resources_with_object_id(
@@ -441,7 +441,7 @@ def test_delete_runtime_resources_with_object_id(
 
     # legacy endpoint
     response = client.delete(f"runtimes/{kind}/{object_id}",)
-    assert response.status_code == http.HTTPStatus.NO_CONTENT
+    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
 
 def _mock_runtime_handlers_delete_resources(
@@ -476,15 +476,15 @@ def _assert_empty_responses_in_delete_endpoints(client: fastapi.testclient.TestC
 
     # legacy endpoints
     response = client.delete("runtimes",)
-    assert response.status_code == http.HTTPStatus.NO_CONTENT
+    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
     response = client.delete(f"runtimes/{mlrun.runtimes.RuntimeKinds.job}",)
-    assert response.status_code == http.HTTPStatus.NO_CONTENT
+    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
     response = client.delete(
         f"runtimes/{mlrun.runtimes.RuntimeKinds.job}/some-id",
     )
-    assert response.status_code == http.HTTPStatus.NO_CONTENT
+    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
 
 def _generate_grouped_by_project_runtime_resources_with_legacy_builder_output():

@@ -33,7 +33,7 @@ def _assert_sources_in_correct_order(client, expected_order, exclude_paths=None)
         "root['metadata']['created']",
     ]
     response = client.get("marketplace/sources")
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.OK.value
     json_response = response.json()
     # Default source is not in the expected data
     assert len(json_response) == len(expected_order) + 1
@@ -56,7 +56,7 @@ def test_marketplace_source_apis(
 ) -> None:
     # Make sure the default source is there.
     response = client.get("marketplace/sources")
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.OK.value
     json_response = response.json()
     assert (
         len(json_response) == 1
@@ -67,12 +67,12 @@ def test_marketplace_source_apis(
 
     source_1 = _generate_source_dict(1, "source_1")
     response = client.post("marketplace/sources", json=source_1)
-    assert response.status_code == HTTPStatus.CREATED
+    assert response.status_code == HTTPStatus.CREATED.value
 
     # Modify existing source with a new field
     source_1["source"]["metadata"]["something_new"] = 42
     response = client.put("marketplace/sources/source_1", json=source_1)
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.OK.value
     exclude_paths = ["root['metadata']['updated']", "root['metadata']['created']"]
     assert (
         deepdiff.DeepDiff(
@@ -84,12 +84,12 @@ def test_marketplace_source_apis(
     # Insert in 1st place, pushing source_1 to be #2
     source_2 = _generate_source_dict(1, "source_2")
     response = client.put("marketplace/sources/source_2", json=source_2)
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.OK.value
 
     # Insert last, making it #3
     source_3 = _generate_source_dict(-1, "source_3")
     response = client.post("marketplace/sources", json=source_3)
-    assert response.status_code == HTTPStatus.CREATED
+    assert response.status_code == HTTPStatus.CREATED.value
 
     expected_response = {
         1: source_2,
@@ -101,7 +101,7 @@ def test_marketplace_source_apis(
     # Change order for existing source (3->1)
     source_3["index"] = 1
     response = client.put("marketplace/sources/source_3", json=source_3)
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.OK.value
     expected_response = {
         1: source_3,
         2: source_2,
@@ -110,7 +110,7 @@ def test_marketplace_source_apis(
     _assert_sources_in_correct_order(client, expected_response)
 
     response = client.delete("marketplace/sources/source_2")
-    assert response.status_code == HTTPStatus.NO_CONTENT
+    assert response.status_code == HTTPStatus.NO_CONTENT.value
 
     expected_response = {
         1: source_3,
@@ -123,11 +123,11 @@ def test_marketplace_source_apis(
     response = client.delete(
         f"marketplace/sources/{config.marketplace.default_source.name}"
     )
-    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert response.status_code == HTTPStatus.BAD_REQUEST.value
     # Try to store an object with invalid order
     source_2["index"] = 42
     response = client.post("marketplace/sources", json=source_2)
-    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert response.status_code == HTTPStatus.BAD_REQUEST.value
 
 
 def test_marketplace_credentials_removed_from_db(
@@ -138,10 +138,10 @@ def test_marketplace_credentials_removed_from_db(
     credentials = {"secret1": "value1", "another-secret": "42"}
     source_1 = _generate_source_dict(-1, "source_1", credentials)
     response = client.post("marketplace/sources", json=source_1)
-    assert response.status_code == HTTPStatus.CREATED
+    assert response.status_code == HTTPStatus.CREATED.value
 
     response = client.get("marketplace/sources/source_1")
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.OK.value
     object_dict = response.json()
 
     expected_response = source_1["source"]

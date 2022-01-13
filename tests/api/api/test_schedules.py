@@ -14,7 +14,7 @@ async def do_nothing():
 
 def test_list_schedules(db: Session, client: TestClient) -> None:
     resp = client.get("projects/default/schedules")
-    assert resp.status_code == HTTPStatus.OK, "status"
+    assert resp.status_code == HTTPStatus.OK.value, "status"
     assert "schedules" in resp.json(), "no schedules"
 
     labels_1 = {
@@ -61,7 +61,7 @@ def _get_and_assert_single_schedule(
     client: TestClient, get_params: dict, schedule_name: str
 ):
     resp = client.get("projects/default/schedules", params=get_params)
-    assert resp.status_code == HTTPStatus.OK, "status"
+    assert resp.status_code == HTTPStatus.OK.value, "status"
     result = resp.json()["schedules"]
     assert len(result) == 1
     assert result[0]["name"] == schedule_name

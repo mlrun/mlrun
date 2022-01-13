@@ -14,7 +14,7 @@ def _list_and_assert_objects(
     if query:
         url = url + f"?{query}"
     response = client.get(url)
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.OK.value
     response_body = response.json()
     assert entity_name in response_body
     number_of_entities = len(response_body[entity_name])
@@ -28,7 +28,7 @@ def _list_tags_and_assert(client: TestClient, entity_name, project, expected_tag
     entity_url_name = entity_name.replace("_", "-")
     url = f"projects/{project}/{entity_url_name}/*/tags"
     response = client.get(url)
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.OK.value
     response_body = response.json()
 
     assert (
@@ -60,7 +60,7 @@ def _patch_object(
         json=object_update,
         headers=headers,
     )
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.OK.value
     response = client.get(
         f"projects/{project_name}/{object_url_path}/{name}/references/{reference}"
     )
@@ -139,9 +139,9 @@ def _test_partition_by_for_feature_store_objects(
     response = client.get(
         f"projects/{project_name}/{object_url_name}?partition-by=name"
     )
-    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert response.status_code == HTTPStatus.BAD_REQUEST.value
     # An invalid group-by field - will be failed by fastapi due to schema validation.
     response = client.get(
         f"projects/{project_name}/{object_url_name}?partition-by=key&partition-sort-by=updated"
     )
-    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value

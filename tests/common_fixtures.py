@@ -110,7 +110,7 @@ def patch_file_forbidden(monkeypatch):
         def get_container_contents(self, *args, **kwargs):
             raise RuntimeError("Permission denied")
 
-    mock_get = mock_failed_get_func(HTTPStatus.FORBIDDEN)
+    mock_get = mock_failed_get_func(HTTPStatus.FORBIDDEN.value)
 
     monkeypatch.setattr(requests, "get", mock_get)
     monkeypatch.setattr(requests, "head", mock_get)
@@ -126,7 +126,7 @@ def patch_file_not_found(monkeypatch):
         def get_container_contents(self, *args, **kwargs):
             raise FileNotFoundError
 
-    mock_get = mock_failed_get_func(HTTPStatus.NOT_FOUND)
+    mock_get = mock_failed_get_func(HTTPStatus.NOT_FOUND.value)
 
     monkeypatch.setattr(requests, "get", mock_get)
     monkeypatch.setattr(requests, "head", mock_get)

@@ -69,7 +69,7 @@ def test_query_permissions_success(
             )
             == {}
         )
-        context.status_code = http.HTTPStatus.OK
+        context.status_code = http.HTTPStatus.OK.value
         return {"result": True}
 
     requests_mock.post(
@@ -122,7 +122,7 @@ def test_filter_by_permission(
             )
             == {}
         )
-        context.status_code = http.HTTPStatus.OK
+        context.status_code = http.HTTPStatus.OK.value
         return {"result": allowed_opa_resources}
 
     requests_mock.post(
@@ -162,7 +162,7 @@ def test_query_permissions_failure(
             )
             == {}
         )
-        context.status_code = http.HTTPStatus.OK
+        context.status_code = http.HTTPStatus.OK.value
         return {"result": False}
 
     requests_mock.post(

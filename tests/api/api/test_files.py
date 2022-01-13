@@ -13,12 +13,12 @@ from tests.common_fixtures import (  # noqa: F401
 
 @pytest.mark.usefixtures("patch_file_forbidden")
 def test_files_forbidden(db: Session, client: TestClient) -> None:
-    validate_files_status_code(client, HTTPStatus.FORBIDDEN)
+    validate_files_status_code(client, HTTPStatus.FORBIDDEN.value)
 
 
 @pytest.mark.usefixtures("patch_file_not_found")
 def test_files_not_found(db: Session, client: TestClient) -> None:
-    validate_files_status_code(client, HTTPStatus.NOT_FOUND)
+    validate_files_status_code(client, HTTPStatus.NOT_FOUND.value)
 
 
 def validate_files_status_code(client: TestClient, status_code: int):

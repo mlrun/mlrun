@@ -38,7 +38,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         response = self._run_db.api_call(
             "POST", f"projects/{self.project_name}/secrets", json=data
         )
-        assert response.status_code == HTTPStatus.CREATED
+        assert response.status_code == HTTPStatus.CREATED.value
 
         response = self._run_db.api_call(
             "GET", f"projects/{self.project_name}/secret-keys?provider=kubernetes"
@@ -53,7 +53,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         response = self._run_db.api_call(
             "POST", f"projects/{self.project_name}/secrets", json=add_secret_data
         )
-        assert response.status_code == HTTPStatus.CREATED
+        assert response.status_code == HTTPStatus.CREATED.value
 
         expected_results["secret_keys"].append("secret3")
         response = self._run_db.api_call(
@@ -66,7 +66,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             "DELETE",
             f"projects/{self.project_name}/secrets?provider=kubernetes&secret=secret1",
         )
-        assert response.status_code == HTTPStatus.NO_CONTENT
+        assert response.status_code == HTTPStatus.NO_CONTENT.value
 
         expected_results["secret_keys"].remove("secret1")
         response = self._run_db.api_call(
@@ -78,7 +78,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         response = self._run_db.api_call(
             "DELETE", f"projects/{self.project_name}/secrets?provider=kubernetes"
         )
-        assert response.status_code == HTTPStatus.NO_CONTENT
+        assert response.status_code == HTTPStatus.NO_CONTENT.value
 
     def test_k8s_project_secrets_using_httpdb(self):
         secrets = {"secret1": "value1", "secret2": "value2"}

@@ -27,7 +27,7 @@ def test_run_with_nan_in_body(db: Session, client: TestClient) -> None:
     project = "some-project"
     mlrun.api.crud.Runs().store_run(db, run_with_nan_float, uid, project=project)
     resp = client.get(f"run/{project}/{uid}")
-    assert resp.status_code == HTTPStatus.OK
+    assert resp.status_code == HTTPStatus.OK.value
 
 
 def test_abort_run(db: Session, client: TestClient) -> None:
@@ -64,18 +64,18 @@ def test_abort_run(db: Session, client: TestClient) -> None:
     abort_body = {"status.state": mlrun.runtimes.constants.RunStates.aborted}
     # completed is terminal state - should fail
     response = client.patch(f"run/{project}/{run_completed_uid}", json=abort_body)
-    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.status_code == HTTPStatus.CONFLICT.value
     # aborted is terminal state - should fail
     response = client.patch(f"run/{project}/{run_aborted_uid}", json=abort_body)
-    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.status_code == HTTPStatus.CONFLICT.value
     # dask kind not abortable - should fail
     response = client.patch(f"run/{project}/{run_dask_uid}", json=abort_body)
-    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert response.status_code == HTTPStatus.BAD_REQUEST.value
     # running is ok - should succeed
     response = client.patch(
         f"run/{project}/{run_in_progress_uid}", json=abort_body
     )
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.OK.value
     mlrun.api.crud.RuntimeResources().delete_runtime_resources.assert_called_once()
 
 
@@ -204,7 +204,7 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
 
 def assert_time_range_request(client: TestClient, expected_run_uids: list, **filters):
     resp = client.get("runs", params=filters)
-    assert resp.status_code == HTTPStatus.OK
+    assert resp.status_code == HTTPStatus.OK.value
 
     runs = resp.json()["runs"]
     assert len(runs) == len(expected_run_uids)

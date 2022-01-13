@@ -152,7 +152,7 @@ def test_create_project(
             )
             == {}
         )
-        context.status_code = http.HTTPStatus.CREATED
+        context.status_code = http.HTTPStatus.CREATED.value
 
     requests_mock.post(f"{api_url}/api/projects", json=verify_creation)
     nuclio_client.create_project(
@@ -197,12 +197,12 @@ def test_store_project_creation(
             )
             == {}
         )
-        context.status_code = http.HTTPStatus.NO_CONTENT
+        context.status_code = http.HTTPStatus.NO_CONTENT.value
 
     # mock project not found so store will create
     requests_mock.get(
         f"{api_url}/api/projects/{project_name}",
-        status_code=http.HTTPStatus.NOT_FOUND,
+        status_code=http.HTTPStatus.NOT_FOUND.value,
     )
     requests_mock.post(f"{api_url}/api/projects", json=verify_store_creation)
     nuclio_client.store_project(
@@ -249,7 +249,7 @@ def test_store_project_update(
             )
             == {}
         )
-        context.status_code = http.HTTPStatus.NO_CONTENT
+        context.status_code = http.HTTPStatus.NO_CONTENT.value
 
     # mock project response so store will update
     requests_mock.get(
@@ -299,7 +299,7 @@ def test_patch_project(
         assert (
             deepdiff.DeepDiff(expected_body, request.json(), ignore_order=True,) == {}
         )
-        context.status_code = http.HTTPStatus.NO_CONTENT
+        context.status_code = http.HTTPStatus.NO_CONTENT.value
 
     requests_mock.get(
         f"{api_url}/api/projects/{project_name}", json=mocked_project_body
@@ -335,7 +335,7 @@ def test_patch_project_only_labels(
         assert (
             deepdiff.DeepDiff(expected_body, request.json(), ignore_order=True,) == {}
         )
-        context.status_code = http.HTTPStatus.NO_CONTENT
+        context.status_code = http.HTTPStatus.NO_CONTENT.value
 
     requests_mock.get(
         f"{api_url}/api/projects/{project_name}", json=mocked_project_body
@@ -366,20 +366,20 @@ def test_delete_project(
             request.headers["x-nuclio-delete-project-strategy"]
             == mlrun.api.schemas.DeletionStrategy.default().to_nuclio_deletion_strategy()
         )
-        context.status_code = http.HTTPStatus.NO_CONTENT
+        context.status_code = http.HTTPStatus.NO_CONTENT.value
 
     requests_mock.delete(f"{api_url}/api/projects", json=verify_deletion)
     nuclio_client.delete_project(None, project_name)
 
     # assert ignoring (and not exploding) on not found
     requests_mock.delete(
-        f"{api_url}/api/projects", status_code=http.HTTPStatus.NOT_FOUND
+        f"{api_url}/api/projects", status_code=http.HTTPStatus.NOT_FOUND.value
     )
     nuclio_client.delete_project(None, project_name)
 
     # assert correctly propagating 412 errors (will be returned when project has functions)
     requests_mock.delete(
-        f"{api_url}/api/projects", status_code=http.HTTPStatus.PRECONDITION_FAILED
+        f"{api_url}/api/projects", status_code=http.HTTPStatus.PRECONDITION_FAILED.value
     )
     with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
         nuclio_client.delete_project(None, project_name)

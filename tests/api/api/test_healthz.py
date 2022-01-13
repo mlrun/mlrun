@@ -19,7 +19,7 @@ def test_health(
     nuclio_version = "x.x.x"
     mlrun.mlconf.nuclio_version = nuclio_version
     response = client.get("healthz")
-    assert response.status_code == http.HTTPStatus.OK
+    assert response.status_code == http.HTTPStatus.OK.value
     response_body = response.json()
     for key in ["scrape_metrics", "hub_url"]:
         assert response_body[key] is None

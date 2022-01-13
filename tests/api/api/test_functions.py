@@ -29,12 +29,12 @@ def test_build_status_pod_not_found(db: Session, client: TestClient):
         f"func/{function['metadata']['project']}/{function['metadata']['name']}",
         json=function,
     )
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.OK.value
 
     mlrun.api.utils.singletons.k8s.get_k8s().v1api = unittest.mock.Mock()
     mlrun.api.utils.singletons.k8s.get_k8s().v1api.read_namespaced_pod = unittest.mock.Mock(
         side_effect=kubernetes.client.rest.ApiException(
-            status=HTTPStatus.NOT_FOUND
+            status=HTTPStatus.NOT_FOUND.value
         )
     )
     response = client.get(
@@ -45,7 +45,7 @@ def test_build_status_pod_not_found(db: Session, client: TestClient):
             "tag": function["metadata"]["tag"],
         },
     )
-    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert response.status_code == HTTPStatus.NOT_FOUND.value
 
 
 def test_build_function_with_mlrun_bool(db: Session, client: TestClient):
@@ -68,7 +68,7 @@ def test_build_function_with_mlrun_bool(db: Session, client: TestClient):
             return_value=(function, True)
         )
         response = client.post("build/function", json=request_body,)
-        assert response.status_code == HTTPStatus.OK
+        assert response.status_code == HTTPStatus.OK.value
         assert (
             mlrun.api.api.endpoints.functions._build_function.call_args[0][3]
             == with_mlrun

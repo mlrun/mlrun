@@ -139,12 +139,14 @@ class SystemTestPreparer:
         try:
             if local:
                 stdout, stderr, exit_status = self._run_command_locally(
-                    command, args, workdir, stdin, live, suppress_errors
+                    command, args, workdir, stdin, live
                 )
             else:
                 stdout, stderr, exit_status = self._run_command_remotely(
-                    command, args, workdir, stdin, live, suppress_errors
+                    command, args, workdir, stdin, live
                 )
+            if exit_status != 0 and not suppress_errors:
+                raise RuntimeError(f"Command failed with exit status: {exit_status}")
         except (paramiko.SSHException, RuntimeError) as exc:
             self._logger.error(
                 f"Failed running command {log_command_location}",
@@ -172,7 +174,6 @@ class SystemTestPreparer:
         workdir: str = None,
         stdin: str = None,
         live: bool = True,
-        suppress_errors: bool = False,
     ) -> (str, str, int):
         workdir = workdir or self.Constants.workdir
         stdout, stderr, exit_status = "", "", 0
@@ -201,8 +202,6 @@ class SystemTestPreparer:
         stderr = stderr_stream.read()
 
         exit_status = stdout_stream.channel.recv_exit_status()
-        if exit_status != 0 and not suppress_errors:
-            raise RuntimeError(f"Command failed with exit status: {exit_status}")
 
         return stdout, stderr, exit_status
 
@@ -213,7 +212,6 @@ class SystemTestPreparer:
         workdir: str = None,
         stdin: str = None,
         live: bool = True,
-        suppress_errors: bool = False,
     ) -> (str, str, int):
         stdout, stderr, exit_status = "", "", 0
         if workdir:
@@ -243,8 +241,6 @@ class SystemTestPreparer:
         stderr = process.stderr.read()
 
         exit_status = process.wait()
-        if exit_status != 0 and not suppress_errors:
-            raise RuntimeError(f"Command failed with exit status: {exit_status}")
 
         return stdout, stderr, exit_status
 

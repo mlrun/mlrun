@@ -47,8 +47,10 @@ def db() -> Generator:
     db_file.close()
 
 
-def set_base_url_for_test_client(client: TestClient):
-    client.base_url = client.base_url + BASE_VERSIONED_API_PREFIX
+def set_base_url_for_test_client(
+    client: TestClient, prefix: str = BASE_VERSIONED_API_PREFIX
+):
+    client.base_url = client.base_url + prefix
 
     # https://stackoverflow.com/questions/10893374/python-confusions-with-urljoin/10893427#10893427
     client.base_url = client.base_url.rstrip("/") + "/"

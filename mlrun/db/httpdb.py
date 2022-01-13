@@ -1534,7 +1534,7 @@ class HTTPRunDB(RunDBInterface):
     def _generate_partition_by_params(
         partition_by_cls, partition_by, rows_per_partition, sort_by, order
     ):
-        if isinstance(partition_by, schemas.FeatureStorePartitionByField):
+        if isinstance(partition_by, partition_by_cls):
             partition_by = partition_by.value
         if isinstance(sort_by, schemas.SortField):
             sort_by = sort_by.value

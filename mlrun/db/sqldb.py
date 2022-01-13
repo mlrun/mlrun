@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 from typing import List, Optional, Union
 
 import mlrun.api.schemas
@@ -94,6 +95,14 @@ class SQLDB(RunDBInterface):
         sort=True,
         last=0,
         iter=None,
+        start_time_from: datetime.datetime = None,
+        start_time_to: datetime.datetime = None,
+        last_update_time_from: datetime.datetime = None,
+        last_update_time_to: datetime.datetime = None,
+        partition_by: Union[schemas.RunPartitionByField, str] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Union[schemas.SortField, str] = None,
+        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
     ):
         import mlrun.api.crud
 
@@ -108,6 +117,14 @@ class SQLDB(RunDBInterface):
             sort,
             last,
             iter,
+            start_time_from,
+            start_time_to,
+            last_update_time_from,
+            last_update_time_to,
+            partition_by,
+            rows_per_partition,
+            partition_sort_by,
+            partition_order,
         )
 
     def del_run(self, uid, project=None, iter=None):

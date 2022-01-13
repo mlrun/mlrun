@@ -65,12 +65,12 @@ def test_create_project_failure_already_exists(
     )
 
     # create
-    response = client.post("/api/projects", json=project_1.dict())
+    response = client.post("projects", json=project_1.dict())
     assert response.status_code == HTTPStatus.CREATED.value
     _assert_project_response(project_1, response)
 
     # create again
-    response = client.post("/api/projects", json=project_1.dict())
+    response = client.post("projects", json=project_1.dict())
     assert response.status_code == HTTPStatus.CONFLICT.value
 
 
@@ -85,7 +85,7 @@ def test_get_non_existing_project(
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions = unittest.mock.Mock(
         side_effect=mlrun.errors.MLRunUnauthorizedError("bla")
     )
-    response = client.get(f"/api/projects/{project}")
+    response = client.get(f"projects/{project}")
     assert response.status_code == HTTPStatus.NOT_FOUND.value
 
 
@@ -115,7 +115,7 @@ def test_delete_project_with_resources(
 
     # deletion strategy - check - should fail because there are resources
     response = client.delete(
-        f"/api/projects/{project_to_remove}",
+        f"projects/{project_to_remove}",
         headers={
             mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check
         },
@@ -124,7 +124,7 @@ def test_delete_project_with_resources(
 
     # deletion strategy - restricted - should fail because there are resources
     response = client.delete(
-        f"/api/projects/{project_to_remove}",
+        f"projects/{project_to_remove}",
         headers={
             mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted
         },
@@ -133,7 +133,7 @@ def test_delete_project_with_resources(
 
     # deletion strategy - cascading - should succeed and remove all related resources
     response = client.delete(
-        f"/api/projects/{project_to_remove}",
+        f"projects/{project_to_remove}",
         headers={
             mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading
         },
@@ -172,7 +172,7 @@ def test_delete_project_with_resources(
 
     # deletion strategy - check - should succeed cause no project
     response = client.delete(
-        f"/api/projects/{project_to_remove}",
+        f"projects/{project_to_remove}",
         headers={
             mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check
         },
@@ -181,7 +181,7 @@ def test_delete_project_with_resources(
 
     # deletion strategy - restricted - should succeed cause no project
     response = client.delete(
-        f"/api/projects/{project_to_remove}",
+        f"projects/{project_to_remove}",
         headers={
             mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted
         },
@@ -197,7 +197,7 @@ def test_list_and_get_project_summaries(
     empty_project = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=empty_project_name),
     )
-    response = client.post("/api/projects", json=empty_project.dict())
+    response = client.post("projects", json=empty_project.dict())
     assert response.status_code == HTTPStatus.CREATED.value
 
     # create project with resources
@@ -205,7 +205,7 @@ def test_list_and_get_project_summaries(
     project = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
     )
-    response = client.post("/api/projects", json=project.dict())
+    response = client.post("projects", json=project.dict())
     assert response.status_code == HTTPStatus.CREATED.value
 
     # create files for the project
@@ -279,7 +279,7 @@ def test_list_and_get_project_summaries(
     running_pipelines_count = _mock_pipelines(project_name,)
 
     # list project summaries
-    response = client.get("/api/project-summaries")
+    response = client.get("project-summaries")
     project_summaries_output = mlrun.api.schemas.ProjectSummariesOutput(
         **response.json()
     )
@@ -301,7 +301,7 @@ def test_list_and_get_project_summaries(
             pytest.fail(f"Unexpected project summary returned: {project_summary}")
 
     # get project summary
-    response = client.get(f"/api/project-summaries/{project_name}")
+    response = client.get(f"project-summaries/{project_name}")
     project_summary = mlrun.api.schemas.ProjectSummary(**response.json())
     _assert_project_summary(
         project_summary,
@@ -327,13 +327,13 @@ def test_delete_project_deletion_strategy_check(
     )
 
     # create
-    response = client.post("/api/projects", json=project.dict())
+    response = client.post("projects", json=project.dict())
     assert response.status_code == HTTPStatus.CREATED.value
     _assert_project_response(project, response)
 
     # deletion strategy - check - should succeed because there are no resources
     response = client.delete(
-        f"/api/projects/{project.metadata.name}",
+        f"projects/{project.metadata.name}",
         headers={
             mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check
         },
@@ -341,7 +341,7 @@ def test_delete_project_deletion_strategy_check(
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
     # ensure project not deleted
-    response = client.get(f"/api/projects/{project.metadata.name}")
+    response = client.get(f"projects/{project.metadata.name}")
     assert response.status_code == HTTPStatus.OK.value
     _assert_project_response(project, response)
 
@@ -349,13 +349,13 @@ def test_delete_project_deletion_strategy_check(
     function_name = "function-name"
     function = {"metadata": {"name": function_name}}
     response = client.post(
-        f"/api/func/{project.metadata.name}/{function_name}", json=function
+        f"func/{project.metadata.name}/{function_name}", json=function
     )
     assert response.status_code == HTTPStatus.OK.value
 
     # deletion strategy - check - should fail because there are resources
     response = client.delete(
-        f"/api/projects/{project.metadata.name}",
+        f"projects/{project.metadata.name}",
         headers={
             mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check
         },
@@ -376,7 +376,7 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     project_name = "project-name"
     _create_resources_of_all_kinds(db, k8s_secrets_mock, project_name)
 
-    response = client.get("/api/funcs", params={"project": project_name})
+    response = client.get("funcs", params={"project": project_name})
     assert response.status_code == HTTPStatus.OK.value
     distinct_function_names = {
         function["metadata"]["name"] for function in response.json()["funcs"]
@@ -385,7 +385,7 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     assert len(distinct_function_names) < len(response.json()["funcs"])
 
     response = client.get(
-        "/api/artifacts", params={"project": project_name, "tag": "*"}
+        "artifacts", params={"project": project_name, "tag": "*"}
     )
     assert response.status_code == HTTPStatus.OK.value
     # ensure there are indeed several versions of the same artifact key
@@ -395,7 +395,7 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     }
     assert len(distinct_artifact_keys) < len(response.json()["artifacts"])
 
-    response = client.get(f"/api/projects/{project_name}/feature-sets",)
+    response = client.get(f"projects/{project_name}/feature-sets",)
     assert response.status_code == HTTPStatus.OK.value
     distinct_feature_set_names = {
         feature_set["metadata"]["name"]
@@ -404,7 +404,7 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     # ensure there are indeed several versions of the same feature_set name
     assert len(distinct_feature_set_names) < len(response.json()["feature_sets"])
 
-    response = client.get(f"/api/projects/{project_name}/feature-vectors",)
+    response = client.get(f"projects/{project_name}/feature-vectors",)
     assert response.status_code == HTTPStatus.OK.value
     distinct_feature_vector_names = {
         feature_vector["metadata"]["name"]
@@ -419,7 +419,7 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     mlrun.api.utils.singletons.db.get_db().delete_feature_vector = unittest.mock.Mock()
     # deletion strategy - check - should fail because there are resources
     response = client.delete(
-        f"/api/projects/{project_name}",
+        f"projects/{project_name}",
         headers={
             mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading
         },
@@ -452,7 +452,7 @@ def test_delete_project_deletion_strategy_check_external_resource(
     )
 
     # create
-    response = client.post("/api/projects", json=project.dict())
+    response = client.post("projects", json=project.dict())
     assert response.status_code == HTTPStatus.CREATED.value
     _assert_project_response(project, response)
 
@@ -461,7 +461,7 @@ def test_delete_project_deletion_strategy_check_external_resource(
 
     # deletion strategy - check - should fail because there's a project secret
     response = client.delete(
-        f"/api/projects/{project.metadata.name}",
+        f"projects/{project.metadata.name}",
         headers={
             mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted
         },
@@ -471,7 +471,7 @@ def test_delete_project_deletion_strategy_check_external_resource(
 
     k8s_secrets_mock.delete_project_secrets("project-name", None)
     response = client.delete(
-        f"/api/projects/{project.metadata.name}",
+        f"projects/{project.metadata.name}",
         headers={
             mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted
         },
@@ -499,7 +499,7 @@ def test_list_projects_leader_format(
 
     # list in leader format
     response = client.get(
-        "/api/projects",
+        "projects",
         params={"format": mlrun.api.schemas.ProjectsFormat.leader},
         headers={
             mlrun.api.schemas.HeaderNames.projects_role: mlrun.mlconf.httpdb.projects.leader
@@ -533,12 +533,12 @@ def test_projects_crud(
     )
 
     # create
-    response = client.post("/api/projects", json=project_1.dict())
+    response = client.post("projects", json=project_1.dict())
     assert response.status_code == HTTPStatus.CREATED.value
     _assert_project_response(project_1, response)
 
     # read
-    response = client.get(f"/api/projects/{name1}")
+    response = client.get(f"projects/{name1}")
     _assert_project_response(project_1, response)
 
     # patch
@@ -548,7 +548,7 @@ def test_projects_crud(
             "desired_state": mlrun.api.schemas.ProjectState.archived,
         }
     }
-    response = client.patch(f"/api/projects/{name1}", json=project_patch)
+    response = client.patch(f"projects/{name1}", json=project_patch)
     assert response.status_code == HTTPStatus.OK.value
     _assert_project_response(
         project_1, response, extra_exclude={"spec": {"description", "desired_state"}}
@@ -570,7 +570,7 @@ def test_projects_crud(
     )
 
     # store
-    response = client.put(f"/api/projects/{name2}", json=project_2.dict())
+    response = client.put(f"projects/{name2}", json=project_2.dict())
     assert response.status_code == HTTPStatus.OK.value
     _assert_project_response(project_2, response)
 
@@ -591,7 +591,7 @@ def test_projects_crud(
 
     # list - full
     response = client.get(
-        "/api/projects", params={"format": mlrun.api.schemas.ProjectsFormat.full}
+        "projects", params={"format": mlrun.api.schemas.ProjectsFormat.full}
     )
     projects_output = mlrun.api.schemas.ProjectsOutput(**response.json())
     expected = [project_1, project_2]
@@ -610,7 +610,7 @@ def test_projects_crud(
     labels_1 = copy.deepcopy(labels_2)
     labels_1.update({"another-label": "another-label-value"})
     project_patch = {"metadata": {"labels": labels_1}}
-    response = client.patch(f"/api/projects/{name1}", json=project_patch)
+    response = client.patch(f"projects/{name1}", json=project_patch)
     assert response.status_code == HTTPStatus.OK.value
     _assert_project_response(
         project_1,
@@ -645,12 +645,12 @@ def test_projects_crud(
     # add function to project 1
     function_name = "function-name"
     function = {"metadata": {"name": function_name}}
-    response = client.post(f"/api/func/{name1}/{function_name}", json=function)
+    response = client.post(f"func/{name1}/{function_name}", json=function)
     assert response.status_code == HTTPStatus.OK.value
 
     # delete - restricted strategy, will fail because function exists
     response = client.delete(
-        f"/api/projects/{name1}",
+        f"projects/{name1}",
         headers={
             mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted
         },
@@ -659,7 +659,7 @@ def test_projects_crud(
 
     # delete - cascading strategy, will succeed and delete function
     response = client.delete(
-        f"/api/projects/{name1}",
+        f"projects/{name1}",
         headers={
             mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading
         },
@@ -667,7 +667,7 @@ def test_projects_crud(
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
     # ensure function is gone
-    response = client.get(f"/api/func/{name1}/{function_name}")
+    response = client.get(f"func/{name1}/{function_name}")
     assert response.status_code == HTTPStatus.NOT_FOUND.value
 
     # list
@@ -1024,7 +1024,7 @@ def _list_project_names_and_assert(
     params = params or {}
     params["format"] = mlrun.api.schemas.ProjectsFormat.name_only
     # list - names only - filter by state
-    response = client.get("/api/projects", params=params,)
+    response = client.get("projects", params=params,)
     assert (
         deepdiff.DeepDiff(
             expected_names, response.json()["projects"], ignore_order=True,
@@ -1089,7 +1089,7 @@ def _create_artifacts(client: TestClient, project_name, artifacts_count, kind):
                 "metadata": {"key": key, "project": project_name},
             }
             response = client.post(
-                f"/api/artifact/{project_name}/{uid}/{key}", json=artifact
+                f"artifact/{project_name}/{uid}/{key}", json=artifact
             )
             assert response.status_code == HTTPStatus.OK.value, response.json()
 
@@ -1106,7 +1106,7 @@ def _create_feature_sets(client: TestClient, project_name, feature_sets_count):
                 "status": {},
             }
             response = client.post(
-                f"/api/projects/{project_name}/feature-sets", json=feature_set
+                f"projects/{project_name}/feature-sets", json=feature_set
             )
             assert response.status_code == HTTPStatus.OK.value, response.json()
 
@@ -1122,7 +1122,7 @@ def _create_functions(client: TestClient, project_name, functions_count):
                 "spec": {"some_field": str(uuid4())},
             }
             response = client.post(
-                f"/api/func/{project_name}/{function_name}",
+                f"func/{project_name}/{function_name}",
                 json=function,
                 params={"versioned": True},
             )
@@ -1151,7 +1151,7 @@ def _create_runs(
                 }
             if start_time:
                 run.setdefault("status", {})["start_time"] = start_time.isoformat()
-            response = client.post(f"/api/run/{project_name}/{run_uid}", json=run)
+            response = client.post(f"run/{project_name}/{run_uid}", json=run)
             assert response.status_code == HTTPStatus.OK.value, response.json()
 
 
@@ -1165,7 +1165,7 @@ def _create_schedules(client: TestClient, project_name, schedules_count):
             cron_trigger=mlrun.api.schemas.ScheduleCronTrigger(year=1999),
         )
         response = client.post(
-            f"/api/projects/{project_name}/schedules", json=schedule.dict()
+            f"projects/{project_name}/schedules", json=schedule.dict()
         )
         assert response.status_code == HTTPStatus.CREATED.value, response.json()
 

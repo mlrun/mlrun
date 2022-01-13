@@ -19,7 +19,7 @@ def test_get_frontend_spec(
         unittest.mock.Mock()
     )
     mlrun.mlconf.httpdb.builder.docker_registry = "quay.io/some-repo"
-    response = client.get("/api/frontend-spec")
+    response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
     assert (
@@ -56,7 +56,7 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
         unittest.mock.Mock()
     )
     # no cookie so no url
-    response = client.get("/api/frontend-spec")
+    response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
     assert frontend_spec.jobs_dashboard_url is None
@@ -74,7 +74,7 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
     mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url = unittest.mock.Mock(
         return_value=None
     )
-    response = client.get("/api/frontend-spec")
+    response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
     assert frontend_spec.jobs_dashboard_url is None
@@ -86,7 +86,7 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
         return_value=grafana_url
     )
 
-    response = client.get("/api/frontend-spec")
+    response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
     assert (
@@ -100,7 +100,7 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
     mlrun.mlconf.httpdb.authentication.mode = "none"
     mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url.reset_mock()
     response = client.get(
-        "/api/frontend-spec", cookies={"session": "some-session-cookie"}
+        "frontend-spec", cookies={"session": "some-session-cookie"}
     )
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())

@@ -9,9 +9,9 @@ PROJECT = "prj"
 KEY = "some-key"
 UID = "some-uid"
 TAG = "some-tag"
-API_PROJECTS_PATH = "/api/projects"
-API_ARTIFACT_PATH = "/api/artifact"
-API_ARTIFACTS_PATH = "/api/artifacts"
+API_PROJECTS_PATH = "projects"
+API_ARTIFACT_PATH = "artifact"
+API_ARTIFACTS_PATH = "artifacts"
 
 
 def test_list_artifact_tags(db: Session, client: TestClient) -> None:

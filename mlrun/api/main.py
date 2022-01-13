@@ -32,19 +32,23 @@ from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes import RuntimeKinds, get_runtime_handler
 from mlrun.utils import logger
 
+API_PREFIX = "/api"
+BASE_VERSIONED_API_PREFIX = f"{API_PREFIX}/{mlrun.mlconf.api_base_version}"
+
 app = fastapi.FastAPI(
     title="MLRun",
     description="Machine Learning automation and tracking",
     version=config.version,
     debug=config.httpdb.debug,
     # adding /api prefix
-    openapi_url="/api/openapi.json",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
+    openapi_url=f"{BASE_VERSIONED_API_PREFIX}/openapi.json",
+    docs_url=f"{BASE_VERSIONED_API_PREFIX}/docs",
+    redoc_url=f"{BASE_VERSIONED_API_PREFIX}/redoc",
     default_response_class=fastapi.responses.ORJSONResponse,
 )
 
-app.include_router(api_router, prefix="/api")
+app.include_router(api_router, prefix=API_PREFIX, include_in_schema=False)
+app.include_router(api_router, prefix=BASE_VERSIONED_API_PREFIX)
 
 
 @app.exception_handler(Exception)

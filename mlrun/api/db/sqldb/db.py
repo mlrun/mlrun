@@ -1516,11 +1516,15 @@ class SQLDB(DBInterface):
         partition_order: schemas.OrderType,
     ):
 
-        row_number_column = func.row_number().over(
-            partition_by=partition_by.to_partition_by_db_field(cls),
-            order_by=partition_order.to_order_by_predicate(
-                partition_sort_by.to_db_field(cls),
-            ).label("row_number"),
+        row_number_column = (
+            func.row_number()
+            .over(
+                partition_by=partition_by.to_partition_by_db_field(cls),
+                order_by=partition_order.to_order_by_predicate(
+                    partition_sort_by.to_db_field(cls),
+                ),
+            )
+            .label("row_number")
         )
 
         # Need to generate a subquery so we can filter based on the row_number, since it

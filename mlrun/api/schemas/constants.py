@@ -103,7 +103,6 @@ class RunPartitionByField(str, Enum):
             )
 
 
-# For now, we only support sorting by updated field
 class SortField(str, Enum):
     created = "created"
     updated = "updated"

@@ -240,6 +240,8 @@ def enrich_function_object(
             f.spec.build.source = project.spec.source
             f.spec.build.load_source_on_run = project.spec.load_source_on_run
 
+    if project.spec.default_requirements:
+        f.with_requirements(project.spec.default_requirements)
     if decorator:
         decorator(f)
 
@@ -381,7 +383,7 @@ class _KFPRunner(_PipelineRunner):
             ttl=workflow_spec.ttl,
         )
         project.notifiers.push_start_message(
-            project.metadata.name, project.get_param("commit_id", None), id
+            project.metadata.name, project.get_param("commit_id", None), id, True,
         )
         pipeline_context.clear()
         return _PipelineRunStatus(id, cls, project=project, workflow=workflow_spec)

@@ -1,6 +1,16 @@
+import pandas as pd
+
 import mlrun
 from mlrun import DataItem
 from mlrun.artifacts import ChartArtifact
+
+
+def log_dataset(context: mlrun.MLClientCtx, dataset_name: str):
+    raw_data = {
+        "first_name": ["Jason", "Molly", "Tina", "Jake", "Amy"],
+    }
+    df = pd.DataFrame(raw_data, columns=["first_name"])
+    context.log_dataset(dataset_name, df=df, stats=True, format="parquet")
 
 
 def api_backward_compatibility_tests_succeeding_function(

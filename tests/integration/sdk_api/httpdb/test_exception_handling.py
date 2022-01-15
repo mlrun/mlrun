@@ -18,7 +18,8 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         # This is practically verifies that log_and_raise puts the kwargs under the details.reason
         with pytest.raises(
             mlrun.errors.MLRunNotFoundError,
-            match=r"404 Client Error: Not Found for url: http:\/\/(.*)\/api\/files\?path=file%3A%2F%2F%2Fpath%2Fdoes%2F"
+            match=fr"404 Client Error: Not Found for url: http:\/\/(.*)\/{mlrun.get_run_db().get_api_prefix_url()}"
+            r"\/files\?path=file%3A%2F%2F%2Fpath%2Fdoes%2F"
             r"not%2Fexist: details: {'reason': {'path': 'file:\/\/\/path\/does\/not\/exist', 'err': \"\[Errno 2] No suc"
             r"h file or directory: '\/path\/does\/not\/exist'\"}}",
         ):
@@ -35,7 +36,8 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         )
         with pytest.raises(
             mlrun.errors.MLRunBadRequestError,
-            match=r"400 Client Error: Bad Request for url: http:\/\/(.*)\/api\/projects: Failed creating project some_p"
+            match=fr"400 Client Error: Bad Request for url: http:\/\/(.*)\/{mlrun.get_run_db().get_api_prefix_url()}"
+            r"\/projects: Failed creating project some_p"
             r"roject details: {'reason': 'MLRunInvalidArgumentError\(\"Field \\'project\.metadata\.name\\' is malformed"
             r"\. Does not match required pattern: (.*)\"\)'}",
         ):
@@ -47,11 +49,12 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         invalid_deletion_strategy = "some_strategy"
         with pytest.raises(
             mlrun.errors.MLRunHTTPError,
-            match=r"422 Client Error: Unprocessable Entity for url: http:\/\/(.*)\/api\/projects\/some-project-name: Fa"
-            r"iled deleting project some-project-name details: \[{'loc': \['header', 'x-mlrun-deletion-strategy'], 'msg"
-            r"': \"value is not a valid enumeration member; permitted: 'restrict', 'restricted', 'cascade', 'cascading'"
-            r", 'check'\", 'type': 'type_error.enum', 'ctx': {'enum_values': \['restrict', 'restricted', 'cascade', 'ca"
-            r"scading', 'check']}}]",
+            match=r"422 Client Error: Unprocessable Entity for url: "
+            fr"http:\/\/(.*)\/{mlrun.get_run_db().get_api_prefix_url()}\/projects\/some-project-name: "
+            r"Failed deleting project some-project-name details: \[{'loc':"
+            r" \['header', 'x-mlrun-deletion-strategy'], 'msg': \"value is not a valid enumeration member; "
+            r"permitted: 'restrict', 'restricted', 'cascade', 'cascading', 'check'\", 'type': 'type_error.enum',"
+            r" 'ctx': {'enum_values': \['restrict', 'restricted', 'cascade', 'cascading', 'check']}}]",
         ):
             mlrun.get_run_db().delete_project(
                 "some-project-name", deletion_strategy=invalid_deletion_strategy
@@ -62,7 +65,8 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         # This is handled in the mlrun/api/main.py::generic_error_handler
         with pytest.raises(
             mlrun.errors.MLRunInternalServerError,
-            match=r"500 Server Error: Internal Server Error for url: http:\/\/(.*)\/api\/projects\/some-project\/model-"
+            match=r"500 Server Error: Internal Server Error for url: http:\/\/(.*)"
+            fr"\/{mlrun.get_run_db().get_api_prefix_url()}\/projects\/some-project\/model-"
             r"endpoints\?start=now-1h&end=now&top-level=False: details: {\'reason\': \"ValueError\(\'Access key must be"
             r" provided in Client\(\) arguments or in the V3IO_ACCESS_KEY environment variable\'\)\"}",
         ):
@@ -74,8 +78,9 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         mlrun.get_run_db().base_url = "http://does-not-exist"
         with pytest.raises(
             mlrun.errors.MLRunRuntimeError,
-            match=r"HTTPConnectionPool\(host='does-not-exist', port=80\): Max retries exceeded with url: \/api\/project"
-            r"s\/some-project \(Caused by NewConnectionError\('<urllib3\.connection\.HTTPConnection object at (\S*)>: F"
-            r"ailed to establish a new connection: \[Errno (.*)'\)\): Failed retrieving project some-project",
+            match=r"HTTPConnectionPool\(host='does-not-exist', port=80\): Max retries exceeded with url: "
+            fr"\/{mlrun.get_run_db().get_api_prefix_url()}\/projects\/some-project \(Caused by NewConnectionError"
+            r"\('<urllib3\.connection\.HTTPConnection object at (\S*)>: Failed to establish a new connection:"
+            r" \[Errno (.*)'\)\): Failed retrieving project some-project",
         ):
             mlrun.get_run_db().get_project("some-project")

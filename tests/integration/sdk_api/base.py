@@ -9,6 +9,7 @@ import pymysql
 import mlrun
 import mlrun.api.schemas
 import tests.conftest
+from mlrun.db.httpdb import HTTPRunDB
 from mlrun.utils import create_logger, retry_until_successful
 
 logger = create_logger(level="debug", name="test-integration")
@@ -180,7 +181,7 @@ class TestMLRunIntegration:
 
     @staticmethod
     def _check_api_is_healthy(url):
-        health_url = f"{url}/api/healthz"
+        health_url = f"{url}/{HTTPRunDB.get_api_prefix_url()}/healthz"
         timeout = 30
         if not tests.conftest.wait_for_server(health_url, timeout):
             raise RuntimeError(f"API did not start after {timeout} sec")

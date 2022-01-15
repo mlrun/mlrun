@@ -98,13 +98,23 @@ def run_now():
 
 def new_run(state, labels, uid=None, **kw):
     obj = {
-        "metadata": {"labels": labels},
+        "metadata": {"name": "run-name", "labels": labels},
         "status": {"state": state, "start_time": run_now()},
     }
     if uid:
         obj["metadata"]["uid"] = uid
     obj.update(kw)
     return obj
+
+
+def freeze(f, **kwargs):
+    frozen = kwargs
+
+    def wrapper(*args, **kwargs):
+        kwargs.update(frozen)
+        return f(*args, **kwargs)
+
+    return wrapper
 
 
 def init_sqldb(dsn):

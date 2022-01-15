@@ -196,11 +196,15 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         uid = Column(String(255, collation=SQLCollationUtil.collation()))
         project = Column(String(255, collation=SQLCollationUtil.collation()))
+        name = Column(
+            String(255, collation=SQLCollationUtil.collation()), default="no-name"
+        )
         iteration = Column(Integer)
         state = Column(String(255, collation=SQLCollationUtil.collation()))
         # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
         body = Column(sqlalchemy.dialects.mysql.MEDIUMBLOB)
         start_time = Column(TIMESTAMP)
+        updated = Column(TIMESTAMP, default=datetime.utcnow)
 
         labels = relationship(Label, cascade="all, delete-orphan")
         tags = relationship(Tag, cascade="all, delete-orphan")

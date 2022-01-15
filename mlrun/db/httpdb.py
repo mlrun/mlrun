@@ -479,6 +479,10 @@ class HTTPRunDB(RunDBInterface):
         start_time_to: datetime = None,
         last_update_time_from: datetime = None,
         last_update_time_to: datetime = None,
+        partition_by: Union[schemas.RunPartitionByField, str] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Union[schemas.SortField, str] = None,
+        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
     ) -> RunList:
         """ Retrieve a list of runs, filtered by various options.
         Example::
@@ -503,6 +507,13 @@ class HTTPRunDB(RunDBInterface):
         :param last_update_time_from: Filter by run last update time in ``(last_update_time_from,
             last_update_time_to)``.
         :param last_update_time_to: Filter by run last update time in ``(last_update_time_from, last_update_time_to)``.
+        :param partition_by: Field to group results by. Only allowed value is `name`. When `partition_by` is specified,
+            the `partition_sort_by` parameter must be provided as well.
+        :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
+            to return per group. Default value is 1.
+        :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
+            Currently the only allowed values are `created` and `updated`.
+        :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         """
 
         project = project or config.default_project
@@ -519,6 +530,17 @@ class HTTPRunDB(RunDBInterface):
             "last_update_time_from": datetime_to_iso(last_update_time_from),
             "last_update_time_to": datetime_to_iso(last_update_time_to),
         }
+
+        if partition_by:
+            params.update(
+                self._generate_partition_by_params(
+                    schemas.RunPartitionByField,
+                    partition_by,
+                    rows_per_partition,
+                    partition_sort_by,
+                    partition_order,
+                )
+            )
         error = "list runs"
         resp = self.api_call("GET", "runs", error, params=params)
         return RunList(resp.json()["runs"])
@@ -1530,8 +1552,10 @@ class HTTPRunDB(RunDBInterface):
         return resp.json()["entities"]
 
     @staticmethod
-    def _generate_partition_by_params(partition_by, rows_per_partition, sort_by, order):
-        if isinstance(partition_by, schemas.FeatureStorePartitionByField):
+    def _generate_partition_by_params(
+        partition_by_cls, partition_by, rows_per_partition, sort_by, order
+    ):
+        if isinstance(partition_by, partition_by_cls):
             partition_by = partition_by.value
         if isinstance(sort_by, schemas.SortField):
             sort_by = sort_by.value
@@ -1573,7 +1597,7 @@ class HTTPRunDB(RunDBInterface):
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
             to return per group. Default value is 1.
         :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
-            Currently the only allowed value is `updated`.
+            Currently the only allowed value are `created` and `updated`.
         :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         :returns: List of matching :py:class:`~mlrun.feature_store.FeatureSet` objects.
         """
@@ -1591,7 +1615,11 @@ class HTTPRunDB(RunDBInterface):
         if partition_by:
             params.update(
                 self._generate_partition_by_params(
-                    partition_by, rows_per_partition, partition_sort_by, partition_order
+                    schemas.FeatureStorePartitionByField,
+                    partition_by,
+                    rows_per_partition,
+                    partition_sort_by,
+                    partition_order,
                 )
             )
 
@@ -1777,7 +1805,7 @@ class HTTPRunDB(RunDBInterface):
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
             to return per group. Default value is 1.
         :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
-            Currently the only allowed value is `updated`.
+            Currently the only allowed values are `created` and `updated`.
         :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         :returns: List of matching :py:class:`~mlrun.feature_store.FeatureVector` objects.
         """
@@ -1793,7 +1821,11 @@ class HTTPRunDB(RunDBInterface):
         if partition_by:
             params.update(
                 self._generate_partition_by_params(
-                    partition_by, rows_per_partition, partition_sort_by, partition_order
+                    schemas.FeatureStorePartitionByField,
+                    partition_by,
+                    rows_per_partition,
+                    partition_sort_by,
+                    partition_order,
                 )
             )
 

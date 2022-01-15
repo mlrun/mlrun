@@ -87,7 +87,7 @@ def _test_partition_by_for_feature_store_objects(
     # Each object should have 3 versions, tagged "older", "newer" and "newest"
     _list_and_assert_objects(client, object_name, project_name, None, count * 3)
 
-    # Testing group-by with desc order (newest first)
+    # Testing partition-by with desc order (newest first)
     results = _list_and_assert_objects(
         client,
         object_name,
@@ -99,7 +99,7 @@ def _test_partition_by_for_feature_store_objects(
     for result_object in results:
         assert result_object["metadata"]["tag"] == "newest"
 
-    # Testing group-by with asc order (oldest first)
+    # Testing partition-by with asc order (oldest first)
     results = _list_and_assert_objects(
         client,
         object_name,
@@ -134,13 +134,13 @@ def _test_partition_by_for_feature_store_objects(
     for result_object in results:
         assert result_object["metadata"]["tag"] == "newest"
 
-    # Some negative testing - no sort field
+    # Some negative testing - no sort by field
     object_url_name = object_name.replace("_", "-")
     response = client.get(
         f"projects/{project_name}/{object_url_name}?partition-by=name"
     )
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
-    # An invalid group-by field - will be failed by fastapi due to schema validation.
+    # An invalid partition-by field - will be failed by fastapi due to schema validation.
     response = client.get(
         f"projects/{project_name}/{object_url_name}?partition-by=key&partition-sort-by=updated"
     )

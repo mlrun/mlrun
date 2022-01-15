@@ -75,7 +75,7 @@ Table Of Contents
 
 .. toctree::
    :maxdepth: 1
-   :caption: Feature Store (beta):
+   :caption: Feature Store:
 
    feature-store/feature-store
    feature-store/feature-sets

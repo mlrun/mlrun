@@ -99,9 +99,7 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
     # now one time with the 3.0 iguazio auth way
     mlrun.mlconf.httpdb.authentication.mode = "none"
     mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url.reset_mock()
-    response = client.get(
-        "frontend-spec", cookies={"session": "some-session-cookie"}
-    )
+    response = client.get("frontend-spec", cookies={"session": "some-session-cookie"})
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
     assert (

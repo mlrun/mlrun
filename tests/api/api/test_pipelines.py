@@ -87,8 +87,7 @@ def test_get_pipeline_formats(
         api_run_detail = _generate_get_run_mock()
         _mock_get_run(kfp_client_mock, api_run_detail)
         response = client.get(
-            f"projects/*/pipelines/{api_run_detail.run.id}",
-            params={"format": format_},
+            f"projects/*/pipelines/{api_run_detail.run.id}", params={"format": format_},
         )
         expected_run = mlrun.api.crud.Pipelines()._format_run(
             db, api_run_detail.to_dict()["run"], format_, api_run_detail.to_dict()
@@ -112,8 +111,7 @@ def test_get_pipeline_no_project_opa_validation(
     api_run_detail = _generate_get_run_mock()
     _mock_get_run(kfp_client_mock, api_run_detail)
     response = client.get(
-        f"projects/*/pipelines/{api_run_detail.run.id}",
-        params={"format": format_},
+        f"projects/*/pipelines/{api_run_detail.run.id}", params={"format": format_},
     )
     assert (
         mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions.call_args[
@@ -222,9 +220,7 @@ def test_create_pipeline_legacy(
         contents = file.read()
     _mock_pipelines_creation(kfp_client_mock)
     response = client.post(
-        "submit_pipeline",
-        data=contents,
-        headers={"content-type": "application/yaml"},
+        "submit_pipeline", data=contents, headers={"content-type": "application/yaml"},
     )
     response_body = response.json()
     assert response_body["id"] == "some-run-id"

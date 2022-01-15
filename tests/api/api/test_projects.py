@@ -384,9 +384,7 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     # ensure there are indeed several versions of the same function name
     assert len(distinct_function_names) < len(response.json()["funcs"])
 
-    response = client.get(
-        "artifacts", params={"project": project_name, "tag": "*"}
-    )
+    response = client.get("artifacts", params={"project": project_name, "tag": "*"})
     assert response.status_code == HTTPStatus.OK.value
     # ensure there are indeed several versions of the same artifact key
     distinct_artifact_keys = {

@@ -72,9 +72,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
     response = client.patch(f"run/{project}/{run_dask_uid}", json=abort_body)
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
     # running is ok - should succeed
-    response = client.patch(
-        f"run/{project}/{run_in_progress_uid}", json=abort_body
-    )
+    response = client.patch(f"run/{project}/{run_in_progress_uid}", json=abort_body)
     assert response.status_code == HTTPStatus.OK.value
     mlrun.api.crud.RuntimeResources().delete_runtime_resources.assert_called_once()
 

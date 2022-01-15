@@ -556,9 +556,7 @@ def test_feature_set_project_name_mismatch_failure(
     feature_set = _generate_feature_set(name)
     feature_set["metadata"]["project"] = "booboo"
     # Calling POST with a different project name in object metadata should fail
-    response = client.post(
-        f"projects/{project_name}/feature-sets", json=feature_set
-    )
+    response = client.post(f"projects/{project_name}/feature-sets", json=feature_set)
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
 
     # When POSTing without project name, project name should be implanted in the response
@@ -582,9 +580,7 @@ def test_feature_set_wrong_kind_failure(db: Session, client: TestClient) -> None
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
     feature_set["kind"] = "wrong"
-    response = client.post(
-        f"projects/{project_name}/feature-sets", json=feature_set
-    )
+    response = client.post(f"projects/{project_name}/feature-sets", json=feature_set)
     assert response.status_code != HTTPStatus.OK.value
 
 

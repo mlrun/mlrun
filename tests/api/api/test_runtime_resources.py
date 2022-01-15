@@ -383,9 +383,7 @@ def test_delete_runtime_resources_with_kind(
         return_value=allowed_projects
     )
     _mock_runtime_handlers_delete_resources([kind], allowed_projects)
-    response = client.delete(
-        "projects/*/runtime-resources", params={"kind": kind},
-    )
+    response = client.delete("projects/*/runtime-resources", params={"kind": kind},)
     body = response.json()
     expected_body = _filter_allowed_projects_and_kind_from_grouped_by_project_runtime_resources_output(
         allowed_projects, kind, grouped_by_project_runtime_resources_output
@@ -430,8 +428,7 @@ def test_delete_runtime_resources_with_object_id(
     )
     _mock_runtime_handlers_delete_resources([kind], [project_1])
     response = client.delete(
-        "projects/*/runtime-resources",
-        params={"kind": kind, "object-id": object_id},
+        "projects/*/runtime-resources", params={"kind": kind, "object-id": object_id},
     )
     body = response.json()
     expected_body = _filter_allowed_projects_and_kind_from_grouped_by_project_runtime_resources_output(
@@ -481,9 +478,7 @@ def _assert_empty_responses_in_delete_endpoints(client: fastapi.testclient.TestC
     response = client.delete(f"runtimes/{mlrun.runtimes.RuntimeKinds.job}",)
     assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
-    response = client.delete(
-        f"runtimes/{mlrun.runtimes.RuntimeKinds.job}/some-id",
-    )
+    response = client.delete(f"runtimes/{mlrun.runtimes.RuntimeKinds.job}/some-id",)
     assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
 

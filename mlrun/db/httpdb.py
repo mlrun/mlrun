@@ -119,6 +119,23 @@ class HTTPRunDB(RunDBInterface):
         cls = self.__class__.__name__
         return f"{cls}({self.base_url!r})"
 
+    @staticmethod
+    def get_api_prefix_url(version: str = None, versioned: bool = True) -> str:
+        if not versioned:
+            return "api"
+        version = version if version else mlrun.mlconf.api_base_version
+        # The next line will be removed right when we stop support un-versioned api
+        # TODO: remove line when un-versioned api is deprecated
+        api_version_path = f"api/{version}" if version else "api"
+        return api_version_path
+
+    def get_base_api_url(
+        self, path: str, version: str = None, versioned: bool = True
+    ) -> str:
+        api_version_path = self.get_api_prefix_url(version, versioned)
+        url = f"{self.base_url}/{api_version_path}/{path}"
+        return url
+
     def api_call(
         self,
         method,
@@ -129,6 +146,8 @@ class HTTPRunDB(RunDBInterface):
         json=None,
         headers=None,
         timeout=45,
+        version=None,
+        versioned: bool = True,
     ):
         """ Perform a direct REST API call on the :py:mod:`mlrun` API server.
 
@@ -143,10 +162,12 @@ class HTTPRunDB(RunDBInterface):
             :param json: JSON payload to be passed in the call
             :param headers: REST headers, passed as a dictionary: ``{"<header-name>": "<header-value>"}``
             :param timeout: API call timeout
+            :param version: API version
+            :param versioned: If the call is to a versioned API
 
             :return: Python HTTP response object
         """
-        url = f"{self.base_url}/api/{path}"
+        url = self.get_base_api_url(path, version, versioned)
         kw = {
             key: value
             for key, value in (

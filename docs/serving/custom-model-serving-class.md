@@ -1,7 +1,7 @@
 # Creating a custom model serving class
 
 Model serving classes implement the full model serving functionality which include
-loading models, pre and post processing, prediction, explainability, and model monitoring.
+loading models, pre- and post-processing, prediction, explainability, and model monitoring.
 
 Model serving classes must inherit from `mlrun.serving.V2ModelServer`, and at the minimum 
 implement the `load()` (download the model file(s) and load the model into memory) 
@@ -15,11 +15,11 @@ You need to implement two mandatory methods:
   note this can be done synchronously or asynchronously 
   * **predict()**  - accept request payload and return prediction/inference results
 
-you can override additional methods : `preprocess`, `validate`, `postprocess`, `explain`<br>
-you can add custom api endpoint by adding method `op_xx(event)`, it can be invoked by
-calling the <model-url>/xx (operation = xx)
+You can override additional methods : `preprocess`, `validate`, `postprocess`, `explain`.<br>
+You can add a custom api endpoint by adding method `op_xx(event)`. Invoke it by
+calling the <model-url>/xx (operation = xx).
 
-**minimal sklearn serving function example:**
+**Minimal sklearn serving function example:**
 
 ```python
 from cloudpickle import load
@@ -42,45 +42,45 @@ class ClassifierModel(mlrun.serving.V2ModelServer):
 
 ## Load() method
 
-in the load method we download the model from external store, run the algorithm/framework
+In the load method, download the model from external store, run the algorithm/framework
 `load()` call, and do any other initialization logic. 
 
-load will run synchronously (the deploy will be stalled until load completes), 
-this can be an issue for large models and cause a readiness timeout, we can increase the 
-function `spec.readiness_timeout`, or alternatively choose async loading (load () will 
-run in the background) by setting the function `spec.load_mode = "async"`.  
+The load runs synchronously (the deploy is stalled until load completes). 
+This can be an issue for large models and cause a readiness timeout. You can increase the 
+function `spec.readiness_timeout`, or alternatively choose async loading (load () 
+runs in the background) by setting the function `spec.load_mode = "async"`.  
 
-the function `self.get_model()` downloads the model metadata object and main file (into `model_file` path),
-additional files can be accessed using the returned `extra_data` (dict of dataitem objects).
+The function `self.get_model()` downloads the model metadata object and main file (into `model_file` path).
+Additional files can be accessed using the returned `extra_data` (dict of dataitem objects).
 
-the model metadata object is stored in `self.model_spec` and provide model parameters, metrics, schema, etc.
-parameters can be accessed using `self.get_param(key)`, the parameters can be specified in the model or during 
+The model metadata object is stored in `self.model_spec` and provides model parameters, metrics, schema, etc.
+Parameters can be accessed using `self.get_param(key)`. The parameters can be specified in the model or during 
 the function/model deployment.  
 
 ## predict() method
 
-the predict method is called when we access the `/infer` or `/predict` url suffix (operation).
-the method accepts the request object (as dict), see [API doc](#model-server-api) below.
-and should return the specified response object.
+The predict method is called when you access the `/infer` or `/predict` url suffix (operation).
+The method accepts the request object (as dict), see [Model server API](#model-api).
+And it should return the specified response object.
 
 ## explain() method
 
-the explain method provides a hook for model explainability, and is accessed using the `/explain` operation. .
+The explain method provides a hook for model explainability, and is accessed using the `/explain` operation.
 
 ## pre/post and validate hooks
 
-users can overwrite the `preprocess`, `validate`, `postprocess` methods for additional control 
+You can overwrite the `preprocess`, `validate`, and `postprocess` methods for additional control 
 The call flow is:
 
     pre-process -> validate -> predict/explain -> post-process 
     
 ## Models, Routers And Graphs
 
-Every serving function can host multiple models and logical steps, multiple functions 
+Every serving function can host multiple models and logical steps. Multiple functions 
 can connect in a graph to form complex real-time pipelines.
 
-The basic serving function has a logical `router` with routes to multiple child `models`, 
-the url or the message will determine which model is selected, e.g. using the url schema:
+The basic serving function has a logical `router` with routes to multiple child `models`. 
+The url or the message determines which model is selected, e.g. using the url schema:
 
     /v2/models/<model>[/versions/<ver>]/operation
 
@@ -91,14 +91,14 @@ More complex routers can be used to support ensembles (send the request to all c
 and aggregate the result), multi-armed-bandit, etc. 
 
 You can use a pre-defined Router class, or write your own custom router. 
-Router can route to models on the same function or access models on a separate function.
+Routera can route to models on the same function or access models on a separate function.
 
-to specify the topology, router class and class args use `.set_topology()` with your function.
+To specify the topology, router class and class args use `.set_topology()` with your function.
 
-## Creating Model Serving Function (Service)
+## Creating a Model Serving Function (Service)
 
-In order to provision a serving function we need to create an MLRun function of type `serving`
-, this can be done by using the `code_to_function()` call from a notebook. We can also import 
+To provision a serving function you need to create an MLRun function of type `serving`.
+This can be done by using the `code_to_function()` call from a notebook. You can also import 
 an existing serving function/template from the marketplace.
 
 Example (run inside a notebook): this code converts a notebook to a serving function and adding a model to it:
@@ -109,39 +109,37 @@ fn = code_to_function('my-function', kind='serving')
 fn.add_model('m1', model_path=<model-artifact/dir>, class_name='MyClass', x=100)
 ``` 
 
-See `.add_model()` docstring for help and parameters
+See [`.add_model()`](../api/mlrun.runtimes.html#mlrun.runtimes.ServingRuntime.add_model) docstring for help and parameters.
 
 > See the full [Model Server example](https://github.com/mlrun/functions/blob/master/v2_model_server/v2_model_server.ipynb).
 
-If we want to use multiple versions for the same model, we use `:` to separate the name from the version, 
-e.g. if the name is `mymodel:v2` it means model name `mymodel` version `v2`.
+If you want to use multiple versions for the same model, use `:` to separate the name from the version. 
+For example, if the name is `mymodel:v2` it means model name `mymodel` version `v2`.
 
-User should specify the `model_path` (url of the model artifact/dir) and the `class_name` name 
-(or class `module.submodule.class`), alternatively you can set the `model_url` for calling a 
-model which is served by another function (can be used for ensembles).
+You should specify the `model_path` (url of the model artifact/dir) and the `class_name` name 
+(or class `module.submodule.class`). Alternatively you can set the `model_url` for calling a 
+model that is served by another function (can be used for ensembles).
 
-the function object(fn) accepts many options, you can specify replicas range (auto-scaling), cpu/gpu/mem resources, add shared 
+The function object(fn) accepts many options. You can specify replicas range (auto-scaling), cpu/gpu/mem resources, add shared 
 volume mounts, secrets, and any other Kubernetes resource through the `fn.spec` object or fn methods.
 
-e.g. `fn.gpu(1)` means each replica will use one GPU.
+e.g. `fn.gpu(1)` means each replica uses one GPU.
 
-to deploy a model we can simply call:
+To deploy a model, simply call:
 
 ```python
 fn.deploy()
 ```
 
-we can also deploy a model from within an ML pipeline (check the various demos for details).
+You can also deploy a model from within an ML pipeline (check the various demos for details).
 
 ## Model Monitoring
 
-Model activities can be tracked into a real-time stream and time-series DB, the monitoring data
-used to create real-time dashboards and track model accuracy and drift. 
-to set the streaming option specify the following function spec attributes:
+Model activities can be tracked into a real-time stream and time-series DB. The monitoring data
+is used to create real-time dashboards and track model accuracy and drift. 
+To set the tracking stream options, specify the following function spec attributes:
 
-to add tracking to your model add tracking parameters to your function:
-
-    fn.set_tracking(stream_path, batch, sample)
+        fn.set_tracking(stream_path, batch, sample)
 
 * **stream_path** - the v3io stream path (e.g. `v3io:///users/..`)
 * **sample** -  optional, sample every N requests

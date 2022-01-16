@@ -39,6 +39,6 @@ to production with minimal work.
    writing-custom-steps
    available-steps
    build-graph-model-serving
-   best-practice
+   <!-- best-practice -->
    demos
   

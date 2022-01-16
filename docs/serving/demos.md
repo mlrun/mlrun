@@ -1,7 +1,9 @@
 # Demos and Tutorials
 
+Read these tutorials to get an even better understanding of serving graphs.
+
 ```{toctree}
 :maxdepth: 1
-nlp-distributed-graph
-serving-graph-example
+distributed-graph
+graph-example
 ```

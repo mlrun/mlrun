@@ -3,8 +3,8 @@
 ```{toctree}
 :maxdepth: 1
 model-serving-get-started
-advanced-routing
+<!-- advanced-routing -->
 custom-model-serving-class
 model-api
-model-best-practices
+<!-- model-best-practices -->
 ```

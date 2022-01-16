@@ -2,6 +2,8 @@
 
 MlRun provides you with many built-in stapes that you can use when building your graph. 
 
+<!-- ##Using built-in steps -->
+
 Click on the step names in the following sections to see the full usage.
 
 - [Base Operators](#base-operators)
@@ -19,12 +21,12 @@ Click on the step names in the following sections to see the full usage.
 |--------------------------------------------------|---------------------------------------------------------------------------|      
 | [storey.transformations.Batch](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.Batch) | Batches events. This step emits a batch every `max_events` events, or when `timeout` seconds have passed since the first event in the batch was received. | | 
 | [storey.transformations.Choice](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.Choice) | Redirects each input element into one of the multiple downstreams.  |
-| [storey.Extend](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.Extend) |                  | 
+| [storey.Extend](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.Extend) | Adds fields to each incoming event. | 
 | [storey.transformations.Filter](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.Filter) | Filters events based on a user-provided function. | 
 | [storey.transformations.FlatMap](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.FlatMap)  | Maps, or transforms, each incoming event into any number of events.  |
 | [storey.steps.Flatten](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.Flatten)  |                              | 
 | [storey.transformations.ForEach](https://storey.readthedocs.io/en/latest/api.html#storey.transformations..ForEach) | Applies the given function on each event in the stream, and passes the original event downstream. |
-| [storey.transformations.MapClass](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.MapClass) | Similar to Map, but instead of a function argument, this class should be extended and its do() method overridden.<<<<<what does should be mean?>>>>>  |
+| [storey.transformations.MapClass](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.MapClass) | Similar to Map, but instead of a function argument, this class should be extended and its do() method overridden.  |
 | [storey.transformations.MapWithState](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.MapWithState)  | Maps, or transforms, incoming events using a stateful user-provided function, and an initial state, which can be a database table.   |
 | [storey.transformations.Partition](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.Partition) | Partitions events by calling a predicate function on each event. Each processed event results in a Partitioned namedtuple of (left=Optional[Event], right=Optional[Event]). |
 | [storey.Reduce]() | Reduces incoming events into a single value that is returned upon the successful termination of the flow. |
@@ -68,10 +70,10 @@ Click on the step names in the following sections to see the full usage.
 ## Targets
 | Class name                                       | Description                                   |   
 |--------------------------------------------------|---------------------------------|
-| [mlrun.datastore.CSVTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.CSVTarget) |                         |
+| [mlrun.datastore.CSVTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.CSVTarget) | Writes events to a CSV file. |
 | [mlrun.datastore.NoSqlTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.NoSQLTarget)  |              |
 | [mlrun.datastore.ParquetTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.ParquetTarget) | The Parquet target storage driver, used to materialize feature set/vector data into parquet files. |
-| [mlrun.datastore.StreamTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.StreamTarget) |                 |
+| [mlrun.datastore.StreamTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.StreamTarget) | Writes all incoming events into a V3IO stream. |
 | [storey.transformations.ToDataFrame](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.ToDataFrame)  | Create pandas data frame from events. Can appear in the middle of the flow, as opposed to ReduceToDataFrame.| 
 | [mlrun.datastore.TSBDTarget]() |  |
 

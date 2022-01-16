@@ -1,12 +1,10 @@
 # Use cases
 
-## Data preparation 
-
-## Model serving
+<!-- ## Data preparation, ## Model serving -->
 
 ## Feature store
 
-High-level transformation logic is automatically converted to real-time serverless processing engines which can read 
+High-level transformation logic is automatically converted to real-time serverless processing engines that can read 
 from any online or offline source, handle any type of structures or unstructured data, run complex computation graphs 
 and native user code. Iguazio’s solution uses a unique multi-model database, serving the computed features consistently 
 through many different APIs and formats (like files, SQL queries, pandas, real-time REST APIs, time-series, streaming), 
@@ -34,11 +32,11 @@ add models to it, and then deploy it.
 The Serving function supports the same protocol used in KFServing V2 and Triton Serving framework. 
 To invoke the model, to use following url: `<function-host>/v2/models/model1/infer`.
 
-See the [**serving protocol specification**](https://docs.mlrun.org/en/latest/serving/model-api.html) for details.
+See the [**serving protocol specification**](./model-api.html) for details.
 
 ```{note}
 Model url is either an MLRun model store object (starts with `store://`) or URL of a model directory 
-(in NFS, s3, v3io, azure, .. e.g. s3://{bucket}/{model-dir}), note that credentials may need to 
+(in NFS, s3, v3io, azure, for example s3://{bucket}/{model-dir}). Note that credentials might need to 
 be added to the serving function via environment variables or MLRun secrets.
 ```
 
@@ -104,7 +102,7 @@ MLRun Serving graphs can host advanced pipelines that handle event/data processi
  or any custom task. The following example demonstrates an asynchronous pipeline that pre-processes data, 
 passes the data into a model ensemble, and finishes off with post processing. 
 
-**Check out the advanced [graph example notebook](https://docs.mlrun.org/en/latest/serving/graph-example.html).**
+**Check out the [advanced graph example notebook](./graph-example.ipynb).**
 
 Create a new function of type serving from code and set the graph topology to `async flow`.
 
@@ -125,7 +123,7 @@ use the `graph.error_handler()` (apply to all steps) or `step.error_handler()`
 (apply to a specific step).
 
 Specify which step is the responder (returns the HTTP response) using the `step.respond()` method. 
-If the responder is not specified, the graph is be non-blocking.
+If the responder is not specified, the graph is non-blocking.
 
 ```python
 # use built-in storey class or our custom Echo class to create and link Task steps
@@ -163,7 +161,7 @@ And deploy the graph as a real-time Nuclio serverless function with one command:
     function.deploy()
 
 ```{note}
-If you test a Nuclio function that has a serving graph with the async engine via the Nuclio UI, the UI may not display the logs in the output.
+If you test a Nuclio function that has a serving graph with the async engine via the Nuclio UI, the UI might not display the logs in the output.
 ```
 
 ## Example: NLP processing pipeline with real-time streaming 
@@ -199,4 +197,4 @@ child.spec.build.commands = ["python -m pip install spacy",
 graph.plot()
 ```
 
-> Currently queues only support iguazio v3io stream, Kafka support will soon be added 
+> Currently queues only support iguazio v3io stream, Kafka support will soon be added.

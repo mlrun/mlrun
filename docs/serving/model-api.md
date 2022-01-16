@@ -50,7 +50,7 @@ Request body:
 - **data_url**: Option to load the `inputs` from an external file/s3/v3io/.. object.
 - **parameters**: Optional request parameters.
 - **inputs**: List of input elements (numeric values, arrays, or dicts).
-- **outputs:**: Optional, requested output values.
+- **outputs:** Optional, requested output values.
 
 > **Note:** You can also send binary data to the function, for example, a JPEG image. The serving engine pre-processor 
 detects it based on the HTTP content-type and converts it to the above request structure, placing the 

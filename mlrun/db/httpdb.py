@@ -120,7 +120,7 @@ class HTTPRunDB(RunDBInterface):
         return f"{cls}({self.base_url!r})"
 
     @staticmethod
-    def get_api_prefix_url(version: str = None, versioned: bool = True) -> str:
+    def get_api_path_prefix(version: str = None, versioned: bool = True) -> str:
         if not versioned:
             return "api"
         version = version if version else mlrun.mlconf.api_base_version
@@ -132,7 +132,7 @@ class HTTPRunDB(RunDBInterface):
     def get_base_api_url(
         self, path: str, version: str = None, versioned: bool = True
     ) -> str:
-        api_version_path = self.get_api_prefix_url(version, versioned)
+        api_version_path = self.get_api_path_prefix(version, versioned)
         url = f"{self.base_url}/{api_version_path}/{path}"
         return url
 

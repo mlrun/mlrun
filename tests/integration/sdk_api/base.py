@@ -181,7 +181,7 @@ class TestMLRunIntegration:
 
     @staticmethod
     def _check_api_is_healthy(url):
-        health_url = f"{url}/{HTTPRunDB.get_api_prefix_url()}/healthz"
+        health_url = f"{url}/{HTTPRunDB.get_api_path_prefix()}/healthz"
         timeout = 30
         if not tests.conftest.wait_for_server(health_url, timeout):
             raise RuntimeError(f"API did not start after {timeout} sec")

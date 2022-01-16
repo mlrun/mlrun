@@ -128,7 +128,11 @@ class HTTPRunDB(RunDBInterface):
         if version is not None:
             return f"api/{version}" if version else "api"
 
-        api_version_path = f"api/{mlrun.mlconf.api_base_version}" if mlrun.mlconf.api_base_version else "api"
+        api_version_path = (
+            f"api/{mlrun.mlconf.api_base_version}"
+            if mlrun.mlconf.api_base_version
+            else "api"
+        )
         return api_version_path
 
     def get_base_api_url(self, path: str, version: str = None) -> str:

@@ -1,10 +1,10 @@
+import http
 import json
 
 import pytest
 
 import mlrun
 import mlrun.api.schemas
-import http
 import tests.integration.sdk_api.base
 
 
@@ -104,7 +104,10 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
                 partition_by="key",
                 partition_sort_by=mlrun.api.schemas.SortField.updated,
             )
-        assert excinfo.value.response.status_code == http.HTTPStatus.UNPROCESSABLE_ENTITY.value
+        assert (
+            excinfo.value.response.status_code
+            == http.HTTPStatus.UNPROCESSABLE_ENTITY.value
+        )
 
 
 def _list_and_assert_objects(expected_number_of_runs: int, **kwargs):

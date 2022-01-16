@@ -203,7 +203,9 @@ with warnings.catch_warnings():
         # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
         body = Column(sqlalchemy.dialects.mysql.MEDIUMBLOB)
         start_time = Column(sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3))
-        updated = Column(sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), default=datetime.utcnow)
+        updated = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), default=datetime.utcnow
+        )
 
         labels = relationship(Label, cascade="all, delete-orphan")
         tags = relationship(Tag, cascade="all, delete-orphan")
@@ -283,7 +285,9 @@ with warnings.catch_warnings():
         # leaving the column as is to prevent redundant migration
         # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
         _full_object = Column("spec", sqlalchemy.dialects.mysql.MEDIUMBLOB)
-        created = Column(sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), default=datetime.utcnow)
+        created = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), default=datetime.utcnow
+        )
         state = Column(String(255, collation=SQLCollationUtil.collation()))
         users = relationship(User, secondary=project_users)
 
@@ -340,8 +344,14 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         name = Column(String(255, collation=SQLCollationUtil.collation()))
         project = Column(String(255, collation=SQLCollationUtil.collation()))
-        created = Column(sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), default=datetime.now(timezone.utc))
-        updated = Column(sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), default=datetime.now(timezone.utc))
+        created = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+            default=datetime.now(timezone.utc),
+        )
+        updated = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+            default=datetime.now(timezone.utc),
+        )
         state = Column(String(255, collation=SQLCollationUtil.collation()))
         uid = Column(String(255, collation=SQLCollationUtil.collation()))
 
@@ -377,8 +387,14 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         name = Column(String(255, collation=SQLCollationUtil.collation()))
         project = Column(String(255, collation=SQLCollationUtil.collation()))
-        created = Column(sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), default=datetime.now(timezone.utc))
-        updated = Column(sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), default=datetime.now(timezone.utc))
+        created = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+            default=datetime.now(timezone.utc),
+        )
+        updated = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+            default=datetime.now(timezone.utc),
+        )
         state = Column(String(255, collation=SQLCollationUtil.collation()))
         uid = Column(String(255, collation=SQLCollationUtil.collation()))
 
@@ -409,8 +425,14 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         name = Column(String(255, collation=SQLCollationUtil.collation()))
         index = Column(Integer)
-        created = Column(sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), default=datetime.now(timezone.utc))
-        updated = Column(sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), default=datetime.now(timezone.utc))
+        created = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+            default=datetime.now(timezone.utc),
+        )
+        updated = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+            default=datetime.now(timezone.utc),
+        )
 
         _full_object = Column("object", JSON)
 
@@ -432,7 +454,10 @@ with warnings.catch_warnings():
 
         id = Column(Integer, primary_key=True)
         version = Column(String(255, collation=SQLCollationUtil.collation()))
-        created = Column(sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), default=datetime.now(timezone.utc))
+        created = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+            default=datetime.now(timezone.utc),
+        )
 
 
 # Must be after all table definitions

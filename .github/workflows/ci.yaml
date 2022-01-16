@@ -162,11 +162,8 @@ jobs:
         with:
           ref: ${{ steps.resolve_base_branch.outputs.branch }}
           path: base/mlrun
-#      - name: Checkout Merge Commit (requested branch merged with the target branch)
-#        uses: actions/checkout@v2
-#        with:
-#          path: head/mlrun
-      - run: |
+      - name: Checkout PR Head
+        run: |
           mkdir head && cd head
           git init
           git config --global user.name github-actions
@@ -176,7 +173,8 @@ jobs:
           cd mlrun
           git remote add upstream $GITHUB_SERVER_URL/$GITHUB_REPOSITORY
           git checkout $GITHUB_HEAD_REF
-          git pull upstream $GITHUB_BASE_REF --no-rebase --commit
+      - name: Merge Head with Base branch
+        run: git pull upstream $GITHUB_BASE_REF --no-rebase --commit
       - name: Resolve docker cache tag
         id: docker_cache
         run: |

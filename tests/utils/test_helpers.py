@@ -425,7 +425,6 @@ def test_str_to_timestamp():
             None,
         ),
     ]
-    print(now_time)
     for time_str, expected, exception in cases:
         if exception is not None:
             with pytest.raises(exception):

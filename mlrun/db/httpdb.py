@@ -120,20 +120,20 @@ class HTTPRunDB(RunDBInterface):
         return f"{cls}({self.base_url!r})"
 
     @staticmethod
-    def get_api_path_prefix(version: str = None, versioned: bool = True) -> str:
-        if not versioned:
-            return "api"
-        version = version if version else mlrun.mlconf.api_base_version
-        # The next line will be removed right when we stop support un-versioned api
-        # TODO: remove line when un-versioned api is deprecated
-        api_version_path = f"api/{version}" if version else "api"
+    def get_api_path_prefix(version: str = None) -> str:
+        """
+            :param version: API version to use, None (the default) will mean to use the default value from mlconf,
+             for un-versioned api set an empty string.
+        """
+        if version is not None:
+            return f"api/{version}" if version else "api"
+
+        api_version_path = f"api/{mlrun.mlconf.api_base_version}" if mlrun.mlconf.api_base_version else "api"
         return api_version_path
 
-    def get_base_api_url(
-        self, path: str, version: str = None, versioned: bool = True
-    ) -> str:
-        api_version_path = self.get_api_path_prefix(version, versioned)
-        url = f"{self.base_url}/{api_version_path}/{path}"
+    def get_base_api_url(self, path: str, version: str = None) -> str:
+        path_prefix = self.get_api_path_prefix(version)
+        url = f"{self.base_url}/{path_prefix}/{path}"
         return url
 
     def api_call(
@@ -147,7 +147,6 @@ class HTTPRunDB(RunDBInterface):
         headers=None,
         timeout=45,
         version=None,
-        versioned: bool = True,
     ):
         """ Perform a direct REST API call on the :py:mod:`mlrun` API server.
 
@@ -162,12 +161,12 @@ class HTTPRunDB(RunDBInterface):
             :param json: JSON payload to be passed in the call
             :param headers: REST headers, passed as a dictionary: ``{"<header-name>": "<header-value>"}``
             :param timeout: API call timeout
-            :param version: API version
-            :param versioned: If the call is to a versioned API
+            :param version: API version to use, None (the default) will mean to use the default value from mlconf,
+             for un-versioned api set an empty string.
 
             :return: Python HTTP response object
         """
-        url = self.get_base_api_url(path, version, versioned)
+        url = self.get_base_api_url(path, version)
         kw = {
             key: value
             for key, value in (

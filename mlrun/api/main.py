@@ -33,11 +33,8 @@ from mlrun.runtimes import RuntimeKinds, get_runtime_handler
 from mlrun.utils import logger
 
 API_PREFIX = "/api"
-BASE_VERSIONED_API_PREFIX = (
-    f"{API_PREFIX}/{mlrun.mlconf.api_base_version}"
-    if mlrun.mlconf.api_base_version
-    else API_PREFIX
-)
+BASE_VERSIONED_API_PREFIX = f"{API_PREFIX}/v1"
+
 
 app = fastapi.FastAPI(
     title="MLRun",

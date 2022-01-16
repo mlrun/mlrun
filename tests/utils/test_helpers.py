@@ -1,6 +1,7 @@
 import unittest.mock
 
 import pytest
+from pandas import Timedelta, Timestamp
 
 import mlrun.errors
 import mlrun.utils.version
@@ -14,6 +15,7 @@ from mlrun.utils.helpers import (
     fill_artifact_path_template,
     get_parsed_docker_registry,
     get_pretty_types_names,
+    str_to_timestamp,
     verify_field_regex,
     verify_list_items_type,
 )
@@ -399,3 +401,35 @@ def test_get_pretty_types_names():
     for types, expected in cases:
         pretty_result = get_pretty_types_names(types)
         assert pretty_result == expected
+
+
+def test_str_to_timestamp():
+    now_time = Timestamp("2021-01-01 00:00:00")
+    cases = [
+        (None, None, None),
+        ("1/1/2022", Timestamp("2022-01-01 00:00:00"), None),
+        (Timestamp("1/1/2022"), Timestamp("1/1/2022"), None),
+        ("not now", None, ValueError),
+        (" now ", now_time, None),
+        ("now - 1d1h", now_time - Timedelta("1d1h"), None),
+        ("now +1d1m", now_time + Timedelta("1d1m"), None),
+        ("now * 1d1m", None, mlrun.errors.MLRunInvalidArgumentError),
+        (
+            "2022-01-11T18:28:00+00:00",
+            Timestamp("2022-01-11 18:28:00+0000", tz="UTC"),
+            None,
+        ),
+        (
+            "2022-01-11T18:28:00-06:00",
+            Timestamp("2022-01-11 18:28:00", tz="US/Central"),
+            None,
+        ),
+    ]
+    print(now_time)
+    for time_str, expected, exception in cases:
+        if exception is not None:
+            with pytest.raises(exception):
+                str_to_timestamp(time_str, now_time=now_time)
+        else:
+            timestamp = str_to_timestamp(time_str, now_time=now_time)
+            assert timestamp == expected

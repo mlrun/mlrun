@@ -166,7 +166,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           path: head/mlrun
-      - run: cd head/mlrun && git pull origin development
+      - run: cd head/mlrun && git pull origin development --no-rebase
       - name: Resolve docker cache tag
         id: docker_cache
         run: |

@@ -142,6 +142,6 @@ def _test_partition_by_for_feature_store_objects(
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
     # An invalid group-by field - will be failed by fastapi due to schema validation.
     response = client.get(
-        f"projects/{project_name}/{object_url_name}?partition-by=key&partition-sort-by=updated"
+        f"projects/{project_name}/{object_url_name}?partition-by=key&partition-sort-by=name"
     )
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value

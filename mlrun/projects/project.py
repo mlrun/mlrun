@@ -448,6 +448,7 @@ class ProjectSpec(ModelObj):
         origin_url=None,
         goals=None,
         load_source_on_run=None,
+        default_requirements: typing.Union[str, typing.List[str]] = None,
         desired_state=mlrun.api.schemas.ProjectState.online.value,
         owner=None,
         disable_auto_mount=False,
@@ -472,6 +473,7 @@ class ProjectSpec(ModelObj):
         self.artifact_path = artifact_path
         self._artifacts = {}
         self.artifacts = artifacts or []
+        self.default_requirements = default_requirements
 
         self._workflows = {}
         self.workflows = workflows or []
@@ -663,6 +665,7 @@ class MlrunProject(ModelObj):
         # all except these 2 are for backwards compatibility with MlrunProjectLegacy
         metadata=None,
         spec=None,
+        default_requirements: typing.Union[str, typing.List[str]] = None,
     ):
         self._metadata = None
         self.metadata = metadata
@@ -680,6 +683,9 @@ class MlrunProject(ModelObj):
         self.spec.artifacts = artifacts or self.spec.artifacts
         self.spec.artifact_path = artifact_path or self.spec.artifact_path
         self.spec.conda = conda or self.spec.conda
+        self.spec.default_requirements = (
+            default_requirements or self.spec.default_requirements
+        )
 
         self._initialized = False
         self._secrets = SecretsStore()
@@ -1135,7 +1141,7 @@ class MlrunProject(ModelObj):
         target_path="",
         extra_data=None,
         **kwargs,
-    ):
+    ) -> DatasetArtifact:
         """
         log a dataset artifact and optionally upload it to datastore
 
@@ -1308,8 +1314,15 @@ class MlrunProject(ModelObj):
         return project
 
     def set_function(
-        self, func, name="", kind="", image=None, handler=None, with_repo=None
-    ):
+        self,
+        func: typing.Union[str, mlrun.runtimes.BaseRuntime],
+        name: str = "",
+        kind: str = "",
+        image: str = None,
+        handler=None,
+        with_repo: bool = None,
+        requirements: typing.Union[str, typing.List[str]] = None,
+    ) -> mlrun.runtimes.BaseRuntime:
         """update or add a function object to the project
 
         function can be provided as an object (func) or a .py/.ipynb/.yaml url
@@ -1336,6 +1349,7 @@ class MlrunProject(ModelObj):
                           the function object/yaml
         :param handler:   default function handler to invoke (can only be set with .py/.ipynb files)
         :param with_repo: add (clone) the current repo to the build source
+        :param requirements:    list of python packages or pip requirements file path
 
         :returns: project object
         """
@@ -1350,6 +1364,7 @@ class MlrunProject(ModelObj):
                 "image": image,
                 "handler": handler,
                 "with_repo": with_repo,
+                "requirements": requirements,
             }
             func = {k: v for k, v in function_dict.items() if v}
             name, function_object = _init_function_from_dict(func, self)
@@ -1364,6 +1379,8 @@ class MlrunProject(ModelObj):
                 function_object.spec.image = image
             if with_repo:
                 function_object.spec.build.source = "./"
+            if requirements:
+                function_object.with_requirements(requirements)
             if not name:
                 raise ValueError("function name must be specified")
         else:
@@ -2085,7 +2102,14 @@ class MlrunProjectLegacy(ModelObj):
         self._workflows[name] = workflow
 
     # needed for tests
-    def set_function(self, func, name="", kind="", image=None, with_repo=None):
+    def set_function(
+        self,
+        func: typing.Union[str, mlrun.runtimes.BaseRuntime],
+        name: str = "",
+        kind: str = "",
+        image: str = None,
+        with_repo: bool = None,
+    ):
         """update or add a function object to the project
 
         function can be provided as an object (func) or a .py/.ipynb/.yaml url
@@ -2158,6 +2182,7 @@ def _init_function_from_dict(f, project):
     image = f.get("image", None)
     handler = f.get("handler", None)
     with_repo = f.get("with_repo", False)
+    requirements = f.get("requirements", None)
 
     in_context = False
     if not url and "spec" not in f:
@@ -2203,6 +2228,8 @@ def _init_function_from_dict(f, project):
 
     if with_repo:
         func.spec.build.source = "./"
+    if requirements:
+        func.with_requirements(requirements)
 
     return _init_function_from_obj(func, project, name)
 

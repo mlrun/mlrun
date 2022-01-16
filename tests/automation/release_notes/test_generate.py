@@ -156,6 +156,24 @@ fd6c5a86 [Requirements] Bump storey to 0.8.15 and v3io-frames to 0.10.2 (#1553)
 
 """,
         },
+        {
+            "_run_command": [None, "", ""],
+            "_resolve_github_username": None,
+            "expect_failure": False,
+            "expected_response": f"""
+### Features / Enhancements
+
+* **UI**: [Features & enhancement](https://github.com/mlrun/ui/releases/tag/{release}#features-and-enhancements)
+
+### Bug fixes
+* **UI**: [Bug fixes](https://github.com/mlrun/ui/releases/tag/{release}#bug-fixes)
+
+
+#### Pull requests:
+
+
+""",
+        },
     ]
     automation.release_notes.generate.tempfile = unittest.mock.MagicMock()
     for case in cases:

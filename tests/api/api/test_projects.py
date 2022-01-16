@@ -745,7 +745,7 @@ def _create_resources_of_all_kinds(
     # Create several runs
     run = {
         "bla": "blabla",
-        "metadata": {"labels": labels},
+        "metadata": {"name": "run-name", "labels": labels},
         "status": {"bla": "blabla"},
     }
     run_uids = ["some_uid", "some_uid2", "some_uid3"]

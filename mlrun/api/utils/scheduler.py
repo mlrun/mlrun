@@ -624,7 +624,7 @@ class Scheduler:
 
         active_runs = mlrun.api.crud.Runs().list_runs(
             db_session,
-            state=RunStates.non_terminal_states(),
+            states=RunStates.non_terminal_states(),
             project=project_name,
             labels=f"{schemas.constants.LabelNames.schedule_name}={schedule_name}",
         )

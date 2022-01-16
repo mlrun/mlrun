@@ -174,7 +174,9 @@ jobs:
           git remote add upstream $GITHUB_SERVER_URL/$GITHUB_REPOSITORY
           git checkout $GITHUB_HEAD_REF
       - name: Merge Head with Base branch
-        run: git pull upstream $GITHUB_BASE_REF --no-rebase --commit
+        run: |
+          cd head/mlrun
+          git pull upstream $GITHUB_BASE_REF --no-rebase --commit
       - name: Resolve docker cache tag
         id: docker_cache
         run: |

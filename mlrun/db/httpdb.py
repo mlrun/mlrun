@@ -129,9 +129,7 @@ class HTTPRunDB(RunDBInterface):
             return f"api/{version}" if version else "api"
 
         api_version_path = (
-            f"api/{config.api_base_version}"
-            if config.api_base_version
-            else "api"
+            f"api/{config.api_base_version}" if config.api_base_version else "api"
         )
         return api_version_path
 

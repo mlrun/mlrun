@@ -26,7 +26,7 @@ def test_build_status_pod_not_found(db: Session, client: TestClient):
         "status": {"build_pod": "some-pod-name"},
     }
     response = client.post(
-        f"/api/func/{function['metadata']['project']}/{function['metadata']['name']}",
+        f"func/{function['metadata']['project']}/{function['metadata']['name']}",
         json=function,
     )
     assert response.status_code == HTTPStatus.OK.value
@@ -38,7 +38,7 @@ def test_build_status_pod_not_found(db: Session, client: TestClient):
         )
     )
     response = client.get(
-        "/api/build/status",
+        "build/status",
         params={
             "project": function["metadata"]["project"],
             "name": function["metadata"]["name"],
@@ -67,7 +67,7 @@ def test_build_function_with_mlrun_bool(db: Session, client: TestClient):
         mlrun.api.api.endpoints.functions._build_function = unittest.mock.Mock(
             return_value=(function, True)
         )
-        response = client.post("/api/build/function", json=request_body,)
+        response = client.post("build/function", json=request_body,)
         assert response.status_code == HTTPStatus.OK.value
         assert (
             mlrun.api.api.endpoints.functions._build_function.call_args[0][3]

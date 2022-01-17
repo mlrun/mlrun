@@ -871,7 +871,10 @@ class BaseRuntime(ModelObj):
             with open(requirements, "r") as fp:
                 requirements = fp.read().splitlines()
         commands = self.spec.build.commands or []
-        commands.append("python -m pip install " + " ".join(requirements))
+        new_command = "python -m pip install " + " ".join(requirements)
+        # make sure we dont append the same line twice
+        if new_command not in commands:
+            commands.append(new_command)
         self.spec.build.commands = commands
         return self
 

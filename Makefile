@@ -102,7 +102,7 @@ endif
 		-e MYSQL_ROOT_HOST=% \
 		-e MYSQL_DATABASE="mlrun" \
 		-d \
-		mysql/mysql-server:5.7 \
+		mysql/mysql-server:8.0 \
 		--character-set-server=utf8 \
 		--collation-server=utf8_bin
 	alembic -c ./mlrun/api/alembic_mysql.ini upgrade head
@@ -571,7 +571,7 @@ run-test-db:
 		-e MYSQL_ROOT_HOST=% \
 		-e MYSQL_DATABASE="mlrun" \
 		-d \
-		mysql/mysql-server:5.7 \
+		mysql/mysql-server:8.0 \
 		--character-set-server=utf8 \
 		--collation-server=utf8_bin \
 		--sql_mode=""

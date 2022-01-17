@@ -167,6 +167,10 @@ class SQLDB(DBInterface):
         start_time_to=None,
         last_update_time_from=None,
         last_update_time_to=None,
+        partition_by: schemas.RunPartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
     ):
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
@@ -192,6 +196,20 @@ class SQLDB(DBInterface):
             query = query.limit(last)
         if not iter:
             query = query.filter(Run.iteration == 0)
+
+        if partition_by:
+            self._assert_partition_by_parameters(
+                schemas.RunPartitionByField, partition_by, partition_sort_by
+            )
+            query = self._create_partitioned_query(
+                session,
+                query,
+                Run,
+                partition_by,
+                rows_per_partition,
+                partition_sort_by,
+                partition_order,
+            )
 
         runs = RunList()
         for run in query:
@@ -1471,24 +1489,40 @@ class SQLDB(DBInterface):
         return schemas.EntitiesOutput(entities=entities_results)
 
     @staticmethod
-    def _assert_partition_by_parameters(partition_by, sort):
+    def _assert_partition_by_parameters(partition_by_enum_cls, partition_by, sort):
         if sort is None:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "sort parameter must be provided when partition_by is used."
             )
         # For now, name is the only supported value. Remove once more fields are added.
-        if partition_by != schemas.FeatureStorePartitionByField.name:
+        if partition_by not in partition_by_enum_cls:
+            valid_enum_values = [
+                enum_value.value for enum_value in partition_by_enum_cls
+            ]
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"partition_by for feature-store objects must be 'name'. Value given: '{partition_by.value}'"
+                f"Invalid partition_by given: '{partition_by.value}'. Must be one of {valid_enum_values}"
             )
 
     @staticmethod
-    def _create_partitioned_query(session, query, cls, group_by, order, rows_per_group):
+    def _create_partitioned_query(
+        session,
+        query,
+        cls,
+        partition_by: typing.Union[
+            schemas.FeatureStorePartitionByField, schemas.RunPartitionByField
+        ],
+        rows_per_partition: int,
+        partition_sort_by: schemas.SortField,
+        partition_order: schemas.OrderType,
+    ):
+
         row_number_column = (
             func.row_number()
             .over(
-                partition_by=group_by.to_partition_by_db_field(cls),
-                order_by=order.to_order_by_predicate(cls.updated),
+                partition_by=partition_by.to_partition_by_db_field(cls),
+                order_by=partition_order.to_order_by_predicate(
+                    partition_sort_by.to_db_field(cls),
+                ),
             )
             .label("row_number")
         )
@@ -1497,7 +1531,7 @@ class SQLDB(DBInterface):
         # is a window function using over().
         subquery = query.add_column(row_number_column).subquery()
         return session.query(aliased(cls, subquery)).filter(
-            subquery.c.row_number <= rows_per_group
+            subquery.c.row_number <= rows_per_partition
         )
 
     def list_feature_sets(
@@ -1512,7 +1546,7 @@ class SQLDB(DBInterface):
         labels: List[str] = None,
         partition_by: schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
-        partition_sort: schemas.SortField = None,
+        partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureSetsOutput:
         obj_id_tags = self._get_records_to_tags_map(
@@ -1536,14 +1570,17 @@ class SQLDB(DBInterface):
             query = self._add_labels_filter(session, query, FeatureSet, labels)
 
         if partition_by:
-            self._assert_partition_by_parameters(partition_by, partition_sort)
+            self._assert_partition_by_parameters(
+                schemas.FeatureStorePartitionByField, partition_by, partition_sort_by
+            )
             query = self._create_partitioned_query(
                 session,
                 query,
                 FeatureSet,
                 partition_by,
-                partition_order,
                 rows_per_partition,
+                partition_sort_by,
+                partition_order,
             )
 
         feature_sets = []
@@ -1907,14 +1944,17 @@ class SQLDB(DBInterface):
             query = self._add_labels_filter(session, query, FeatureVector, labels)
 
         if partition_by:
-            self._assert_partition_by_parameters(partition_by, partition_sort_by)
+            self._assert_partition_by_parameters(
+                schemas.FeatureStorePartitionByField, partition_by, partition_sort_by
+            )
             query = self._create_partitioned_query(
                 session,
                 query,
                 FeatureVector,
                 partition_by,
-                partition_order,
                 rows_per_partition,
+                partition_sort_by,
+                partition_order,
             )
 
         feature_vectors = []

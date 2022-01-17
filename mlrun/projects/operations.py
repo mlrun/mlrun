@@ -3,6 +3,7 @@ from typing import List, Union
 import kfp
 
 import mlrun
+from mlrun.utils import hub_prefix
 
 from .pipelines import enrich_function_object, pipeline_context
 
@@ -11,12 +12,17 @@ def _get_engine_and_function(function, project=None):
     is_function_object = not isinstance(function, str)
     project = project or pipeline_context.project
     if not is_function_object:
-        if not project:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "function name (str) can only be used in a project context, you must create, "
-                "load or get a project first or provide function object instead of its name"
-            )
-        function = pipeline_context.functions[function]
+        if function.startswith(hub_prefix):
+            function = mlrun.import_function(function)
+            if project:
+                function = enrich_function_object(project, function)
+        else:
+            if not project:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "function name (str) can only be used in a project context, you must create, "
+                    "load or get a project first or provide function object instead of its name"
+                )
+            function = pipeline_context.functions[function]
     elif project:
         function = enrich_function_object(project, function)
 

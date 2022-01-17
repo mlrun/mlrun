@@ -1160,9 +1160,7 @@ def str_to_timestamp(time_str: str, now_time: Timestamp = None):
         split = time_str.split("floor")
         time_str = split[0].strip()
 
-        if not time_str:
-            return timestamp
-        if time_str[0] in ["+", "-"]:
+        if time_str and time_str[0] in ["+", "-"]:
             timestamp = timestamp + Timedelta(time_str)
         elif time_str:
             raise mlrun.errors.MLRunInvalidArgumentError(

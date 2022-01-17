@@ -404,17 +404,17 @@ def test_get_pretty_types_names():
 
 
 def test_str_to_timestamp():
-    now_time = Timestamp("2021-01-01 00:00:00")
+    now_time = Timestamp("2021-01-01 00:01:00")
     cases = [
         (None, None, None),
         ("1/1/2022", Timestamp("2022-01-01 00:00:00"), None),
         (Timestamp("1/1/2022"), Timestamp("1/1/2022"), None),
         ("not now", None, ValueError),
         (" now ", now_time, None),
-        (" now floor 1H", now_time, None),
+        (" now floor 1H", now_time - Timedelta("1m"), None),
         ("now - 1d1h", now_time - Timedelta("1d1h"), None),
         ("now +1d1m", now_time + Timedelta("1d1m"), None),
-        ("now +1d1m floor 1D", now_time + Timedelta("1d"), None),
+        ("now +1d1m floor 1D", now_time + Timedelta("1d") - Timedelta("1m"), None),
         ("now * 1d1m", None, mlrun.errors.MLRunInvalidArgumentError),
         (
             "2022-01-11T18:28:00+00:00",
@@ -433,4 +433,5 @@ def test_str_to_timestamp():
                 str_to_timestamp(time_str, now_time=now_time)
         else:
             timestamp = str_to_timestamp(time_str, now_time=now_time)
+            print(time_str, timestamp, expected)
             assert timestamp == expected

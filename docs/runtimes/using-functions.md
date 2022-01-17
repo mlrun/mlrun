@@ -5,7 +5,7 @@
 
 - **{py:func}`~mlrun.run.new_function`**: creates a function from code repository/archive.
 - **{py:func}`~mlrun.run.code_to_function`**: creates a function from local or remote source code (single file) or from 
-- a notebook (code file will be embedded in the function object).
+ a notebook (code file will be embedded in the function object).
 - **{py:func}`~mlrun.run.import_function`**: imports a function from a local or remote YAML function-configuration file or 
   from a function object in the MLRun database (using a DB address of the format `db://<project>/<name>[:<tag>]`)
   or from the function marketplace (e.g. `hub://describe`). See [MLRun Functions Marketplace](./load-from-marketplace.md).
@@ -44,15 +44,8 @@ This method is great for small and single file functions or for using code deriv
 For more on how to create functions from notebook code, see [converting notebook code to a function](./mlrun_code_annotations.ipynb).
 
     # create a function from py or notebook (ipynb) file, specify the default function handler
-    my_func = mlrun.code_to_function(name='prep_data', filename="./prep_data.py", 
-                                     kind='job', image='mlrun/mlrun', handler='my_func')
-
-    # add shared storage volume to it for reading/writing data.
-    # only needed if specific storage configuration is needed, that is not supplied by auto-mount
-    # my_func.apply(mount_v3io())
-
-    # run the function
-    run_results = my_func.run(params={"label_column": "label"}, inputs={'data': data_url})
+    my_func = mlrun.code_to_function(name='prep_data', filename='./prep_data.py', kind='job', 
+    image='mlrun/mlrun', handler='my_func')
 
 ### Provide code as part of the function image
 
@@ -107,7 +100,7 @@ See more details and examples on [running jobs with code from Archives or shares
 ## Specifying the function execution handler or command
 
 The function is configured with code and dependencies, however you also need to set the main execution code 
-either by command or handler.
+either by handler or command.
 
 **Handler**
 
@@ -127,7 +120,7 @@ task parameters as arguments for the execution command, for example:
 
     new_function(... command='mycode.py' --x {xparam}", mode="args")
     
-where `{xparam}` is substituted with the value of the `xparam` parameter).<br>
+where `{xparam}` is substituted with the value of the `xparam` parameter.<br>
 It is possible to use argument templates also when using `mode="pass"`.
 
 See also [Execute non Python code](./code-archive.html#execute-non-python-code) and 
@@ -268,7 +261,7 @@ if __name__ == "__main__":
 (Function_runtimes)=
 ## Function Runtimes
 
-When you create an MLRun function you need to specify a runtime kind (e.g. {kind='job'}). Each runtime supports 
+When you create an MLRun function you need to specify a runtime kind (e.g. `kind='job'`). Each runtime supports 
 its own specific attributes (e.g. Jars for Spark, Triggers for Nuclio, Auto-scaling for Dask, etc.).
 
 MLRun supports these runtimes:

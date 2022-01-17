@@ -153,7 +153,7 @@ class FeatureVectorStatus(ModelObj):
 class FeatureVector(ModelObj):
     """Feature vector, specify selected features, their metadata and material views"""
 
-    kind = kind = mlrun.api.schemas.ObjectKind.feature_vector.value
+    kind = mlrun.api.schemas.ObjectKind.feature_vector.value
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
     def __init__(

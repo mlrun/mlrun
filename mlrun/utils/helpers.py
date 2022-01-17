@@ -1137,14 +1137,17 @@ def fill_artifact_path_template(artifact_path, project):
     return artifact_path
 
 
-def str_to_timestamp(time_str: str, now_time=None):
+def str_to_timestamp(time_str: str, now_time: Timestamp = None):
     """convert fixed/relative time string to Pandas Timestamp
+
+    can use relative times using the "now" verb, and align to floor using the "floor" verb
 
     time string examples::
 
         1/1/2021
         now
         now + 1d2h
+        now -1d floor 1H
     """
     if not isinstance(time_str, str):
         return time_str
@@ -1152,16 +1155,23 @@ def str_to_timestamp(time_str: str, now_time=None):
     time_str = time_str.strip()
     if time_str.lower().startswith("now"):
         # handle now +/- timedelta
-        timestamp = now_time or Timestamp.now()
+        timestamp: Timestamp = now_time or Timestamp.now()
         time_str = time_str[len("now") :].lstrip()
+        split = time_str.split("floor")
+        time_str = split[0].strip()
+
         if not time_str:
             return timestamp
         if time_str[0] in ["+", "-"]:
-            return timestamp + Timedelta(time_str)
-        else:
+            timestamp = timestamp + Timedelta(time_str)
+        elif time_str:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"illegal time string expression now{time_str}, "
                 'use "now +/- <timestring>" for relative times'
             )
+
+        if len(split) > 1:
+            timestamp = timestamp.floor(split[1].strip())
+        return timestamp
 
     return Timestamp(time_str)

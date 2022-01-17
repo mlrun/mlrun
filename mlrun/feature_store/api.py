@@ -102,9 +102,11 @@ def get_offline_features(
     and statistics. returns :py:class:`~mlrun.feature_store.OfflineVectorResponse`,
     results can be returned as a dataframe or written to a target
 
-    The start_time and end_time attributed allow filtering the data to a given time range, they accept
+    The start_time and end_time attributes allow filtering the data to a given time range, they accept
     string values or pandas `Timestamp` objects, string values can also be relative, for example:
-    "now", "now - 1d2h", "now+5m", where a valid pandas Timedelta string follows the verb "now"
+    "now", "now - 1d2h", "now+5m", where a valid pandas Timedelta string follows the verb "now",
+    for time alignment you can use the verb "floor" e.g. "now -1d floor 1H" will align the time to the last hour
+    (the floor string is passed to pandas.Timestamp.floor(), can use D, H, T, S for day, hour, min, sec alignment).
 
     example::
 

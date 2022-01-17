@@ -164,7 +164,7 @@ jobs:
           path: base/mlrun
       - name: Checkout head Branch
         uses: actions/checkout@v2
-      - run: git pull origin development --no-rebase --no-tags
+      - run: git pull origin development --allow-unrelated-histories --no-rebase --no-tags
 #      - name: Checkout PR Head
 #        run: |
 #          mkdir head && cd head

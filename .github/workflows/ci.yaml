@@ -167,7 +167,7 @@ jobs:
       - run: |
           git config --global user.name github-actions
           git config --global user.email github-actions@mlrun
-          git pull origin development --allow-unrelated-histories --no-rebase --no-tags
+          git pull development --allow-unrelated-histories --no-rebase --no-tags
 #      - name: Checkout PR Head
 #        run: |
 #          mkdir head && cd head

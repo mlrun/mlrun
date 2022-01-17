@@ -129,8 +129,8 @@ class HTTPRunDB(RunDBInterface):
             return f"api/{version}" if version else "api"
 
         api_version_path = (
-            f"api/{mlrun.mlconf.api_base_version}"
-            if mlrun.mlconf.api_base_version
+            f"api/{config.api_base_version}"
+            if config.api_base_version
             else "api"
         )
         return api_version_path
@@ -165,7 +165,7 @@ class HTTPRunDB(RunDBInterface):
             :param json: JSON payload to be passed in the call
             :param headers: REST headers, passed as a dictionary: ``{"<header-name>": "<header-value>"}``
             :param timeout: API call timeout
-            :param version: API version to use, None (the default) will mean to use the default value from mlconf,
+            :param version: API version to use, None (the default) will mean to use the default value from config,
              for un-versioned api set an empty string.
 
             :return: Python HTTP response object

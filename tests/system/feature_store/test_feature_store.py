@@ -614,7 +614,7 @@ class TestFeatureStore(TestMLRunSystem):
         resp = fs.get_offline_features(
             vector,
             start_time=datetime(2020, 12, 1, 17, 33, 15),
-            end_time=datetime(2020, 12, 1, 17, 33, 16),
+            end_time="2020-12-01 17:33:16",
             entity_timestamp_column="timestamp",
         )
         resp2 = resp.to_dataframe()
@@ -857,7 +857,7 @@ class TestFeatureStore(TestMLRunSystem):
         resp = fs.get_offline_features(
             vector,
             entity_timestamp_column="time_stamp",
-            start_time=datetime(2021, 6, 9, 9, 30),
+            start_time="2021-06-09 09:30",
             end_time=datetime(2021, 6, 9, 10, 30),
         )
 

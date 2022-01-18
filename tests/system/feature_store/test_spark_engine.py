@@ -247,7 +247,31 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource("myparquet", path=path, time_field="time")
 
         data_set = fs.FeatureSet(
-            name, entities=[Entity("first_name"), Entity("last_name")], engine="spark",
+            f"{name}_storey", entities=[Entity("first_name"), Entity("last_name")],
+        )
+
+        data_set.add_aggregation(
+            column="bid", operations=["sum", "max"], windows="1h", period="10m",
+        )
+
+        df = fs.ingest(data_set, source, targets=[])
+
+        assert df.to_dict() == {
+            "bid": {("moshe", "cohen"): 12, ("yosi", "levi"): 16},
+            "bid_sum_1h": {("moshe", "cohen"): 2012, ("yosi", "levi"): 37},
+            "bid_max_1h": {("moshe", "cohen"): 2000, ("yosi", "levi"): 16},
+            "time": {
+                ("moshe", "cohen"): pd.Timestamp("2020-07-21 21:43:00Z"),
+                ("yosi", "levi"): pd.Timestamp("2020-07-21 21:44:00Z"),
+            },
+        }
+
+        name_spark = f"{name}_spark"
+
+        data_set = fs.FeatureSet(
+            name_spark,
+            entities=[Entity("first_name"), Entity("last_name")],
+            engine="spark",
         )
 
         data_set.add_aggregation(
@@ -262,7 +286,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
 
         features = [
-            f"{name}.*",
+            f"{name_spark}.*",
         ]
 
         vector = fs.FeatureVector("my-vec", features)

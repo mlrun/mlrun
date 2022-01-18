@@ -41,4 +41,5 @@ to production with minimal work.
    build-graph-model-serving
    <!-- best-practice -->
    demos
+   graph-ha-cfg
   

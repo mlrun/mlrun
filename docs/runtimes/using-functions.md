@@ -42,7 +42,7 @@ When using `code_to_function()` or `new_function()`, you can provide code in sev
 ### Provide code as part of the function object
 This method is great for small and single file functions or for using code derived from notebooks. This example uses the mlrun 
 {py:func}`~mlrun.code_to_function` method to create functions from code files or notebooks. 
-For more on how to create functions from notebook code, see [converting notebook code to a function](./mlrun_code_annotations.ipynb).
+For more on how to create functions from notebook code, see [Converting notebook code to a function](./mlrun_code_annotations.ipynb).
 
     # create a function from py or notebook (ipynb) file, specify the default function handler
     my_func = mlrun.code_to_function(name='prep_data', filename='./prep_data.py', kind='job', 

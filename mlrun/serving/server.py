@@ -316,8 +316,13 @@ def v2_serving_init(context, namespace=None):
 
 def v2_serving_handler(context, event, get_body=False):
     """hook for nuclio handler()"""
-    if not context._server.http_trigger:
+    if context._server.http_trigger:
+        # Workaround for IG-19780
+        if event.body == b"":
+            event.body = None
+    else:
         event.path = "/"  # fix the issue that non http returns "Unsupported"
+
     return context._server.run(event, context, get_body)
 
 

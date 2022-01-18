@@ -12,5 +12,6 @@ See the following sections for details and examples.
 
    serving-graph
    model-api
+   graph-ha-cfg
    graph-example
    distributed-graph

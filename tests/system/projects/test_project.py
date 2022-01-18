@@ -84,6 +84,7 @@ class TestProject(TestMLRunSystem):
         )
         proj.set_workflow("main", "./kflow.py", args_schema=[arg])
         proj.set_workflow("newflow", "./newflow.py", handler="newpipe")
+        proj.spec.artifact_path = "v3io:///projects/{{run.project}}"
         proj.save()
         return proj
 
@@ -96,6 +97,28 @@ class TestProject(TestMLRunSystem):
         project2 = mlrun.load_project(str(self.assets_path), name=name)
         run = project2.run("main", watch=True, artifact_path=f"v3io:///projects/{name}")
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        self._delete_test_project(name)
+
+    def test_run_artifact_path(self):
+        name = "pipe1"
+        # create project in context
+        self._create_project(name)
+
+        # load project from context dir and run a workflow
+        project = mlrun.load_project(str(self.assets_path), name=name)
+        # Don't provide an artifact-path, to verify that the run-id is added by default
+        workflow_run = project.run("main", watch=True)
+        assert workflow_run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+
+        # check that the functions running in the workflow had the output_path set correctly
+        db = mlrun.get_run_db()
+        run_id = workflow_run.run_id
+        pipeline = db.get_pipeline(run_id, project=name)
+        for graph_step in pipeline["graph"].values():
+            if "run_uid" in graph_step:
+                run_object = db.read_run(uid=graph_step["run_uid"], project=name)
+                output_path = run_object["spec"]["output_path"]
+                assert output_path == f"v3io:///projects/{name}/{run_id}"
         self._delete_test_project(name)
 
     def test_run_git_load(self):
@@ -117,7 +140,7 @@ class TestProject(TestMLRunSystem):
         self._delete_test_project(name)
 
     def test_run_git_build(self):
-        name = "pipe3"
+        name = "pip e3"
         project_dir = f"{projects_dir}/{name}"
         shutil.rmtree(project_dir, ignore_errors=True)
 

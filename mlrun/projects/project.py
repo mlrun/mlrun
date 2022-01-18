@@ -1597,6 +1597,16 @@ class MlrunProject(ModelObj):
             return self.spec.params.get(key, default)
         return default
 
+    def _enrich_artifact_path_with_workflow_uid(self):
+        artifact_path = self.spec.artifact_path or mlrun.mlconf.artifact_path
+        if not mlrun.mlconf.enrich_artifact_path_with_workflow_id:
+            return artifact_path
+        workflow_uid_string = "{{workflow.uid}}"
+        if workflow_uid_string in artifact_path:
+            return artifact_path
+
+        return path.join(artifact_path, workflow_uid_string)
+
     def run(
         self,
         name=None,
@@ -1667,7 +1677,7 @@ class MlrunProject(ModelObj):
         workflow_spec.run_local = local
 
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name
-        artifact_path = artifact_path or self.spec.artifact_path
+        artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
         workflow_engine = get_workflow_engine(engine or workflow_spec.engine, local)
         workflow_spec.engine = workflow_engine.engine
 

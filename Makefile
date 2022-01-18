@@ -471,6 +471,7 @@ test: clean ## Run mlrun tests
 		--disable-warnings \
 		--durations=100 \
 		--ignore=tests/integration \
+		--ignore=tests/system \
 		--ignore=tests/test_notebooks.py \
 		--ignore=tests/rundb/test_httpdb.py \
 		-rf \

@@ -357,8 +357,7 @@ class AbstractSparkRuntime(KubejobRuntime):
 
         update_in(job, "spec.volumes", self.spec.volumes)
 
-        extra_env = self._generate_runtime_env(runobj)
-        extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
+        _, _, extra_env = self._get_cmd_args(runobj)
 
         update_in(job, "spec.driver.env", extra_env + self.spec.env)
         update_in(job, "spec.executor.env", extra_env + self.spec.env)

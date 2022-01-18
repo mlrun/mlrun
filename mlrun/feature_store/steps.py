@@ -1,3 +1,4 @@
+import uuid
 from typing import Any, Dict, List, Union
 
 import pandas as pd
@@ -273,6 +274,7 @@ class SetEventMetadata(MapClass):
         id_path: str = None,
         key_path: str = None,
         time_path: str = None,
+        random_id: bool = None,
         **kwargs,
     ):
         """Set the event metadata (id, key, timestamp) from the event body
@@ -297,12 +299,14 @@ class SetEventMetadata(MapClass):
         :param id_path:   path to the id value
         :param key_path:  path to the key value
         :param time_path: path to the time value (value should be of type str or datetime)
+        :param random_id: if True will set the event.id to a random value
         """
         kwargs["full_event"] = True
         super().__init__(**kwargs)
         self.id_path = id_path
         self.key_path = key_path
         self.time_path = time_path
+        self.random_id = random_id
 
         self._tagging_funcs = []
 
@@ -314,6 +318,9 @@ class SetEventMetadata(MapClass):
 
             return _add_meta
 
+        def set_random_id(event):
+            event.id = uuid.uuid4().hex
+
         self._tagging_funcs = []
         if self.id_path:
             self._tagging_funcs.append(add_metadata("id", self.id_path))
@@ -323,6 +330,8 @@ class SetEventMetadata(MapClass):
             self._tagging_funcs.append(
                 add_metadata("time", self.time_path, get_event_time)
             )
+        if self.random_id:
+            self._tagging_funcs.append(set_random_id)
 
     def do(self, event):
         for func in self._tagging_funcs:

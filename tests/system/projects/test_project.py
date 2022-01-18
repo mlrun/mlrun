@@ -140,7 +140,7 @@ class TestProject(TestMLRunSystem):
         self._delete_test_project(name)
 
     def test_run_git_build(self):
-        name = "pip e3"
+        name = "pipe3"
         project_dir = f"{projects_dir}/{name}"
         shutil.rmtree(project_dir, ignore_errors=True)
 

@@ -2065,6 +2065,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert resp[0]["data2"] == 4
         assert resp[0]["data_max_1h"] == 60
         assert resp[0]["data_avg_1h"] == 30
+        svc.close()
 
         # check without impute
         vector = fs.FeatureVector("vectori2", features)
@@ -2072,6 +2073,7 @@ class TestFeatureStore(TestMLRunSystem):
         resp = svc.get([{"name": "cd"}])
         assert np.isnan(resp[0]["data2"])
         assert np.isnan(resp[0]["data_avg_1h"])
+        svc.close()
 
 
 def verify_purge(fset, targets):

@@ -1886,7 +1886,6 @@ class MlrunProject(ModelObj):
                                 e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
         """
         return build_function(
-            self,
             function,
             with_mlrun=with_mlrun,
             skip_deployed=skip_deployed,

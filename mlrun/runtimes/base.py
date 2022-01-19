@@ -876,7 +876,23 @@ class BaseRuntime(ModelObj):
         if new_command not in commands:
             commands.append(new_command)
         self.spec.build.commands = commands
+        self.verify_base_image()
         return self
+
+    def verify_base_image(self):
+        build = self.spec.build
+        require_build = build.commands or (
+            build.source and not build.load_source_on_run
+        )
+        if (
+            self.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
+            and require_build
+            and self.spec.image
+            and not self.spec.build.base_image
+        ):
+            # when the function require build use the image as the base_image for the build
+            self.spec.build.base_image = self.spec.image
+            self.spec.image = ""
 
     def export(self, target="", format=".yaml", secrets=None, strip=True):
         """save function spec to a local/remote path (default to./function.yaml)

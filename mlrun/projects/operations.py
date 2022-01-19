@@ -24,7 +24,9 @@ def _get_engine_and_function(function, project=None):
                 )
             function = pipeline_context.functions[function]
     elif project:
-        function = enrich_function_object(project, function)
+        # if a user provide the function object we enrich in-place so build, deploy, etc.
+        # will update the original function object status/image, and not the copy (may fail fn.run())
+        function = enrich_function_object(project, function, copy_function=False)
 
     if not pipeline_context.workflow:
         return "local", function

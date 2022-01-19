@@ -283,3 +283,35 @@ class TestProject(TestMLRunSystem):
         print("OUT:\n", out)
         assert out.find("pipeline run finished, state=Succeeded"), "pipeline failed"
         self._delete_test_project(name)
+
+    def test_build_and_run(self):
+        # test that build creates a proper image and run will use the updated function (with the built image)
+        project = mlrun.new_project("buildandrun", context=str(self.assets_path))
+
+        # test with user provided function object
+        fn = mlrun.code_to_function(
+            "scores",
+            filename=str(self.assets_path / "sentiment.py"),
+            kind="job",
+            image="mlrun/mlrun",
+            requirements=["vaderSentiment"],
+            handler="handler",
+        )
+        assert fn.spec.build.base_image == "mlrun/mlrun" and not fn.spec.image
+
+        project.build_function(fn, with_mlrun=False)
+        run_result = project.run_function(fn, params={"text": "good morning"})
+        assert run_result.output("score")
+
+        # test with function from project spec
+        project.set_function(
+            "./sentiment.py",
+            "scores2",
+            kind="job",
+            image="mlrun/mlrun",
+            requirements=["vaderSentiment"],
+            handler="handler",
+        )
+        project.build_function("scores2", with_mlrun=False)
+        run_result = project.run_function("scores2", params={"text": "good morning"})
+        assert run_result.output("score")

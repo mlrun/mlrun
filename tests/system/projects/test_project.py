@@ -286,7 +286,8 @@ class TestProject(TestMLRunSystem):
 
     def test_build_and_run(self):
         # test that build creates a proper image and run will use the updated function (with the built image)
-        project = mlrun.new_project("buildandrun", context=str(self.assets_path))
+        name = "buildandrun"
+        project = mlrun.new_project(name, context=str(self.assets_path))
 
         # test with user provided function object
         fn = mlrun.code_to_function(
@@ -315,3 +316,4 @@ class TestProject(TestMLRunSystem):
         project.build_function("scores2", with_mlrun=False)
         run_result = project.run_function("scores2", params={"text": "good morning"})
         assert run_result.output("score")
+        self._delete_test_project(name)

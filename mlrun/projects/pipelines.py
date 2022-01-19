@@ -434,6 +434,9 @@ class _LocalRunner(_PipelineRunner):
 
         workflow_id = uuid.uuid4().hex
         pipeline_context.workflow_id = workflow_id
+        # When using KFP, it would do this replacement. When running locally, we need to take care of it.
+        if artifact_path:
+            artifact_path = artifact_path.replace("{{workflow.uid}}", workflow_id)
         pipeline_context.workflow_artifact_path = artifact_path
         project.notifiers.push_start_message(project.metadata.name, id=workflow_id)
         try:

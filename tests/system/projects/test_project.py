@@ -321,6 +321,7 @@ class TestProject(TestMLRunSystem):
 
         # test auto build option (the function will be built on the first time, then run)
         fn = base_fn.copy()
+        fn.metadata.name = "scores3"
         fn.spec.build.auto_build = True
         run_result = project.run_function(fn, params={"text": "good morning"})
         assert fn.status.state == "ready"

@@ -847,7 +847,6 @@ class TestFeatureStore(TestMLRunSystem):
                 "string": ["ab", "cd", "ef"],
             }
         )
-
         data_set1 = fs.FeatureSet("fs1", entities=[Entity("string")])
         fs.ingest(data_set1, data, infer_options=fs.InferOptions.default())
         features = ["fs1.*"]

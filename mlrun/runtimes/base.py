@@ -401,9 +401,15 @@ class BaseRuntime(ModelObj):
         db = self._get_db()
 
         if not self.is_deployed:
-            raise RunError(
-                "function image is not built/ready, use .deploy() method first"
-            )
+            if self.spec.build.auto_build:
+                logger.info(
+                    "Function is not deployed and auto_build flag is set, starting deploy..."
+                )
+                self.deploy(skip_deployed=True)
+            else:
+                raise RunError(
+                    "function image is not built/ready, use .deploy() method first"
+                )
 
         if self.verbose:
             logger.info(f"runspec:\n{runspec.to_yaml()}")

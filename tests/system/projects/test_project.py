@@ -290,7 +290,7 @@ class TestProject(TestMLRunSystem):
         project = mlrun.new_project(name, context=str(self.assets_path))
 
         # test with user provided function object
-        fn = mlrun.code_to_function(
+        base_fn = mlrun.code_to_function(
             "scores",
             filename=str(self.assets_path / "sentiment.py"),
             kind="job",
@@ -298,9 +298,11 @@ class TestProject(TestMLRunSystem):
             requirements=["vaderSentiment"],
             handler="handler",
         )
-        assert fn.spec.build.base_image == "mlrun/mlrun" and not fn.spec.image
 
-        project.build_function(fn, with_mlrun=False)
+        fn = base_fn.copy()
+        assert fn.spec.build.base_image == "mlrun/mlrun" and not fn.spec.image
+        fn.spec.build.with_mlrun = False
+        project.build_function(fn)
         run_result = project.run_function(fn, params={"text": "good morning"})
         assert run_result.output("score")
 
@@ -313,7 +315,15 @@ class TestProject(TestMLRunSystem):
             requirements=["vaderSentiment"],
             handler="handler",
         )
-        project.build_function("scores2", with_mlrun=False)
+        project.build_function("scores2")
         run_result = project.run_function("scores2", params={"text": "good morning"})
         assert run_result.output("score")
+
+        # test auto build option (the function will be built on the first time, then run)
+        fn = base_fn.copy()
+        fn.spec.build.auto_build = True
+        run_result = project.run_function(fn, params={"text": "good morning"})
+        assert fn.status.state == "ready"
+        assert run_result.output("score")
+
         self._delete_test_project(name)

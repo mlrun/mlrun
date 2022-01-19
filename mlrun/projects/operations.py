@@ -161,7 +161,7 @@ class BuildStatus:
 
 def build_function(
     function: Union[str, mlrun.runtimes.BaseRuntime],
-    with_mlrun: bool = True,
+    with_mlrun: bool = None,
     skip_deployed: bool = False,
     image=None,
     base_image=None,

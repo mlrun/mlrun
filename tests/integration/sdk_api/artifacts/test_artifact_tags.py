@@ -27,4 +27,4 @@ class TestArtifactTags(tests.integration.sdk_api.base.TestMLRunIntegration):
             key, artifact.to_dict(), uid_2, tag=tag_2, project=project_name
         )
         artifact_tags = mlrun.get_run_db().list_artifact_tags(project_name)
-        assert deepdiff.DeepDiff(artifact_tags, [tag, tag_2], ignore_order=True,) == {}
+        assert not deepdiff.DeepDiff(artifact_tags, [tag, tag_2], ignore_order=True)

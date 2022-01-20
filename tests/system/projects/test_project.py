@@ -283,3 +283,48 @@ class TestProject(TestMLRunSystem):
         print("OUT:\n", out)
         assert out.find("pipeline run finished, state=Succeeded"), "pipeline failed"
         self._delete_test_project(name)
+
+    def test_build_and_run(self):
+        # test that build creates a proper image and run will use the updated function (with the built image)
+        name = "buildandrun"
+        project = mlrun.new_project(name, context=str(self.assets_path))
+
+        # test with user provided function object
+        base_fn = mlrun.code_to_function(
+            "scores",
+            filename=str(self.assets_path / "sentiment.py"),
+            kind="job",
+            image="mlrun/mlrun",
+            requirements=["vaderSentiment"],
+            handler="handler",
+        )
+
+        fn = base_fn.copy()
+        assert fn.spec.build.base_image == "mlrun/mlrun" and not fn.spec.image
+        fn.spec.build.with_mlrun = False
+        project.build_function(fn)
+        run_result = project.run_function(fn, params={"text": "good morning"})
+        assert run_result.output("score")
+
+        # test with function from project spec
+        project.set_function(
+            "./sentiment.py",
+            "scores2",
+            kind="job",
+            image="mlrun/mlrun",
+            requirements=["vaderSentiment"],
+            handler="handler",
+        )
+        project.build_function("scores2")
+        run_result = project.run_function("scores2", params={"text": "good morning"})
+        assert run_result.output("score")
+
+        # test auto build option (the function will be built on the first time, then run)
+        fn = base_fn.copy()
+        fn.metadata.name = "scores3"
+        fn.spec.build.auto_build = True
+        run_result = project.run_function(fn, params={"text": "good morning"})
+        assert fn.status.state == "ready"
+        assert run_result.output("score")
+
+        self._delete_test_project(name)

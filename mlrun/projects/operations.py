@@ -24,7 +24,9 @@ def _get_engine_and_function(function, project=None):
                 )
             function = pipeline_context.functions[function]
     elif project:
-        function = enrich_function_object(project, function)
+        # if a user provide the function object we enrich in-place so build, deploy, etc.
+        # will update the original function object status/image, and not the copy (may fail fn.run())
+        function = enrich_function_object(project, function, copy_function=False)
 
     if not pipeline_context.workflow:
         return "local", function
@@ -48,6 +50,7 @@ def run_function(
     local: bool = False,
     verbose: bool = None,
     project_object=None,
+    auto_build=None,
 ) -> Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -101,6 +104,8 @@ def run_function(
     :param watch:           watch/follow run log, True by default
     :param local:           run the function locally vs on the runtime/cluster
     :param verbose:         add verbose prints/logs
+    :param auto_build:      when set to True and the function require build it will be built on the first
+                            function run, use only if you dont plan on changing the build config between runs
 
     :return: MLRun RunObject or KubeFlow containerOp
     """
@@ -132,6 +137,7 @@ def run_function(
             watch=watch,
             local=local,
             artifact_path=pipeline_context.workflow_artifact_path,
+            auto_build=auto_build,
         )
         if run_result:
             run_result._notified = False
@@ -159,7 +165,7 @@ class BuildStatus:
 
 def build_function(
     function: Union[str, mlrun.runtimes.BaseRuntime],
-    with_mlrun: bool = True,
+    with_mlrun: bool = None,
     skip_deployed: bool = False,
     image=None,
     base_image=None,

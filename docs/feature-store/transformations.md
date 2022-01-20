@@ -187,6 +187,9 @@ from pyspark.sql import SparkSession
 mlrun.set_environment(project="stocks")
 feature_set = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")], engine="spark")
 
+# add_aggregation can be used in conjunction with Spark
+feature_set.add_aggregation("price", ["min", "max"], ["1h"], "10m")
+
 source = CSVSource("mycsv", path="v3io:///projects/stocks.csv")
 
 # Execution using a local Spark session
@@ -194,7 +197,7 @@ spark = SparkSession.builder.appName("Spark function").getOrCreate()
 fstore.ingest(feature_set, source, spark_context=spark)
 ```
 
-Remote Iguazio spark ingestion example
+### Remote Iguazio spark ingestion example
 When using remote execution the MLRun run execution details would be returned, allowing tracking of its status and results.
 
 The following code should be executed only once to build the remote spark image before running the first ingest

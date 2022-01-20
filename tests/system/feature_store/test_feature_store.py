@@ -847,7 +847,6 @@ class TestFeatureStore(TestMLRunSystem):
                 "string": ["ab", "cd", "ef"],
             }
         )
-
         data_set1 = fs.FeatureSet("fs1", entities=[Entity("string")])
         fs.ingest(data_set1, data, infer_options=fs.InferOptions.default())
         features = ["fs1.*"]
@@ -1164,7 +1163,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         # check offline
         resp = fs.get_offline_features(vec)
-        assert len(resp.to_dataframe() == 2)
+        assert len(resp.to_dataframe()) == 2
 
         sleep(30)
 
@@ -2065,6 +2064,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert resp[0]["data2"] == 4
         assert resp[0]["data_max_1h"] == 60
         assert resp[0]["data_avg_1h"] == 30
+        svc.close()
 
         # check without impute
         vector = fs.FeatureVector("vectori2", features)
@@ -2072,6 +2072,7 @@ class TestFeatureStore(TestMLRunSystem):
         resp = svc.get([{"name": "cd"}])
         assert np.isnan(resp[0]["data2"])
         assert np.isnan(resp[0]["data_avg_1h"])
+        svc.close()
 
 
 def verify_purge(fset, targets):

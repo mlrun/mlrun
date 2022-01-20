@@ -116,3 +116,36 @@ class TestNewProject:
         assert (
             run_result.output("p1") == 6 and run_result.output("p2") == "xy"
         ), "wrong arg values"
+
+    def test_run_pipeline_artifact_path(self):
+        mlrun.projects.pipeline_context.clear(with_project=True)
+        project = self._create_project("localpipe2")
+        generic_path = "/path/without/workflow/id"
+        project.spec.artifact_path = generic_path
+
+        project.run(
+            "p4",
+            workflow_path=str(f'{self.assets_path / "localpipe.py"}'),
+            workflow_handler="my_pipe",
+            arguments={"param1": 7},
+            local=True,
+            artifact_path=generic_path,
+        )
+
+        # When user provided a path, it will be used as-is
+        assert mlrun.projects.pipeline_context._artifact_path == generic_path
+
+        mlrun.projects.pipeline_context.clear(with_project=True)
+        run_status = project.run(
+            "p4",
+            workflow_path=str(f'{self.assets_path / "localpipe.py"}'),
+            workflow_handler="my_pipe",
+            arguments={"param1": 7},
+            local=True,
+        )
+
+        # Otherwise, the artifact_path should automatically have the run id injected in it.
+        assert (
+            mlrun.projects.pipeline_context._artifact_path
+            == f"{generic_path}/{run_status.run_id}"
+        )

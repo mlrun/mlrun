@@ -604,6 +604,7 @@ def new_function(
         runner.with_source_archive(source)
     if requirements:
         runner.with_requirements(requirements)
+    runner.verify_base_image()
     if handler:
         runner.spec.default_handler = handler
         if kind.startswith("nuclio"):
@@ -863,6 +864,7 @@ def code_to_function(
     build.secret = get_in(spec, "spec.build.secret")
     if requirements:
         r.with_requirements(requirements)
+    r.verify_base_image()
 
     if r.kind != "local":
         r.spec.env = get_in(spec, "spec.env")

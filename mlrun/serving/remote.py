@@ -216,7 +216,9 @@ class RemoteStep(storey.SendToHttp):
                 url = url + "/" + striped_path
             if striped_path:
                 headers[event_path_key] = event.path
-        headers[event_id_key] = event.id
+
+        if event.id:
+            headers[event_id_key] = event.id
 
         if method == "GET":
             body = None

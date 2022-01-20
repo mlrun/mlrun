@@ -54,8 +54,8 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         self._logger.debug("Deploying nuclio function")
         function.deploy()
 
-    # IG-19780
-    def test_ig_19780_workaround(self):
+    # Nuclio sometimes passes b'' instead of None due to dirty memory
+    def test_workaround_for_nuclio_bug(self):
         code_path = str(self.assets_path / "nuclio_function_for_IG_19780.py")
 
         self._logger.debug("Creating nuclio function")

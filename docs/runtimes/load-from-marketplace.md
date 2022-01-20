@@ -22,7 +22,7 @@ Functions can be easily imported into your project and therefore help users to s
 
 ## Searching for functions
 
-The Marketplace is stored in this GitHub repo: <https://github.com/mlrun/functions> <br>
+The Marketplace is stored in this GitHub repo: <https://github.com/mlrun/marketplace/tree/master/functions/master> <br>
 In the README file you can view the list of functions in the marketplace and their categories.
 
 ## Setting the project configuration

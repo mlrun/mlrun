@@ -72,4 +72,4 @@ MLRun has the following main components that are used throughout the system:
 - <a id="def-artifact"></a>**Artifact** &mdash; versioned data artifacts (such as data sets, files and models) that are produced or consumed by functions, runs, and workflows.
 
 - <a id="def-workflow"></a>**Workflow** &mdash; defines a functions pipeline or a directed acyclic graph (DAG) to execute using [Kubeflow Pipelines](https://www.kubeflow.org/docs/pipelines/pipelines-quickstart/).
-  or MLRun [Real-time Serving Graphs](./serving/serving-graph.md)
+  or MLRun [Real-time Serving Graphs](./serving/index.rst)

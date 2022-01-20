@@ -34,7 +34,7 @@ from ..db import RunDBError
 from ..model import DataSource, DataTargetBase
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
-from ..utils import get_caller_globals, logger, str_to_timestamp
+from ..utils import get_caller_globals, logger, normalize_name, str_to_timestamp
 from .common import (
     RunConfig,
     get_feature_set_by_uri,
@@ -620,7 +620,7 @@ def deploy_ingestion_service(
         featureset, source, targets, run_config.parameters
     )
 
-    name = name or f"{featureset.metadata.name}-ingest"
+    name = normalize_name(name or f"{featureset.metadata.name}-ingest")
     if not run_config.function:
         function_ref = featureset.spec.function.copy()
         if function_ref.is_empty():

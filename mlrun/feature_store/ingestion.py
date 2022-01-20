@@ -28,7 +28,7 @@ from ..datastore.store_resources import ResourceCache
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
 from ..serving.server import MockEvent, create_graph_server
-from ..utils import logger
+from ..utils import logger, normalize_name
 
 
 def init_featureset_graph(
@@ -194,7 +194,7 @@ def _add_data_steps(
 
 
 def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service=None):
-    name = name or f"{featureset.metadata.name}_ingest"
+    name = normalize_name(name or f"{featureset.metadata.name}-ingest-job")
     use_spark = featureset.spec.engine == "spark"
     if use_spark and not run_config.local and not spark_service:
         raise mlrun.errors.MLRunInvalidArgumentError(

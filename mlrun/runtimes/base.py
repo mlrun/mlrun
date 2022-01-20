@@ -257,6 +257,7 @@ class BaseRuntime(ModelObj):
         scrape_metrics: bool = None,
         local=False,
         local_code_path=None,
+        auto_build=None,
     ) -> RunObject:
         """Run a local or remote task.
 
@@ -283,6 +284,8 @@ class BaseRuntime(ModelObj):
         :param scrape_metrics: whether to add the `mlrun/scrape-metrics` label to this run's resources
         :param local:      run the function locally vs on the runtime/cluster
         :param local_code_path: path of the code for local runs & debug
+        :param auto_build: when set to True and the function require build it will be built on the first
+                           function run, use only if you dont plan on changing the build config between runs
 
         :return: run context object (RunObject) with run metadata, results and status
         """
@@ -401,7 +404,7 @@ class BaseRuntime(ModelObj):
         db = self._get_db()
 
         if not self.is_deployed:
-            if self.spec.build.auto_build:
+            if self.spec.build.auto_build or auto_build:
                 logger.info(
                     "Function is not deployed and auto_build flag is set, starting deploy..."
                 )

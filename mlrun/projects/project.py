@@ -1810,6 +1810,7 @@ class MlrunProject(ModelObj):
         watch: bool = True,
         local: bool = False,
         verbose: bool = None,
+        auto_build=None,
     ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -1839,6 +1840,8 @@ class MlrunProject(ModelObj):
         :param watch:           watch/follow run log, True by default
         :param local:           run the function locally vs on the runtime/cluster
         :param verbose:         add verbose prints/logs
+        :param auto_build:      when set to True and the function require build it will be built on the first
+                                function run, use only if you dont plan on changing the build config between runs
 
         :return: MLRun RunObject or KubeFlow containerOp
         """
@@ -1858,6 +1861,7 @@ class MlrunProject(ModelObj):
             local=local,
             verbose=verbose,
             project_object=self,
+            auto_build=auto_build,
         )
 
     def build_function(

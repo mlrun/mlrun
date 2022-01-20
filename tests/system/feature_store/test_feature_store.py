@@ -2074,6 +2074,33 @@ class TestFeatureStore(TestMLRunSystem):
         assert np.isnan(resp[0]["data_avg_1h"])
         svc.close()
 
+    def test_map_with_state_with_table(self):
+        table_url = (
+            "v3io:///bigdata/system-test-project/nosql/test_map_with_state_with_table"
+        )
+
+        df = pd.DataFrame({"name": ["a", "b"], "sum": [11, 22]})
+        fset = fs.FeatureSet(
+            name="test_map_with_state_with_table_fset", entities=[fs.Entity("name")]
+        )
+        fs.ingest(fset, df, targets=[NoSqlTarget(path=table_url)])
+
+        df = pd.DataFrame({"key": ["a", "a", "b"], "x": [2, 3, 4]})
+
+        fset = fs.FeatureSet("myfset", entities=[Entity("key")])
+        fset.set_targets([], with_defaults=False)
+        fset.graph.to(
+            "storey.MapWithState",
+            initial_state=table_url,
+            group_by_key=True,
+            _fn="map_with_state_test_function",
+        )
+        df = fs.ingest(fset, df, targets=[], infer_options=fs.InferOptions.default())
+        assert df.to_dict() == {
+            "name": {"a": "a", "b": "b"},
+            "sum": {"a": 16, "b": 26},
+        }
+
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)
@@ -2142,3 +2169,8 @@ def prepare_feature_set(
     feature_set.set_targets(targets=targets, with_defaults=False if targets else True)
     df = fs.ingest(feature_set, df_source, infer_options=fs.InferOptions.default())
     return feature_set, df
+
+
+def map_with_state_test_function(x, state):
+    state["sum"] += x["x"]
+    return state, state

@@ -20,6 +20,8 @@ Each function has a docstring that explains how to use it and in addition the fu
 
 Functions can be easily imported into your project and therefore help users to speed up their development cycle by reusing built-in code.
 
+![Function Marketplace](./mlrun_function_marketplace.png)
+
 ## Searching for functions
 
 The Marketplace is stored in this GitHub repo: <https://github.com/mlrun/marketplace/tree/master/functions/master> <br>

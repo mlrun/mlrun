@@ -56,11 +56,11 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
 
     # Nuclio sometimes passes b'' instead of None due to dirty memory
     def test_workaround_for_nuclio_bug(self):
-        code_path = str(self.assets_path / "nuclio_function_for_IG_19780.py")
+        code_path = str(self.assets_path / "nuclio_function_to_print_type.py")
 
         self._logger.debug("Creating nuclio function")
         function = mlrun.code_to_function(
-            name="IG-19780-workaround-test-function",
+            name="nuclio-bug-workaround-test-function",
             kind="serving",
             project=self.project_name,
             filename=code_path,

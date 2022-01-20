@@ -317,7 +317,7 @@ def v2_serving_init(context, namespace=None):
 def v2_serving_handler(context, event, get_body=False):
     """hook for nuclio handler()"""
     if context._server.http_trigger:
-        # Workaround for IG-19780
+        # Workaround for a Nuclio bug where it sometimes passes b'' instead of None due to dirty memory
         if event.body == b"":
             event.body = None
     else:

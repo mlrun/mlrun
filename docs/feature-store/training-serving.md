@@ -98,7 +98,7 @@ It enables you to define a serving model class and the computational graph requi
 
 To embed the online feature service in your model server, all you need to do is create the feature vector service once when the model initializes and then use it to retrieve the feature vectors of incoming keys.
 
-You can import ready-made classes and functions from our [function marketplace](https://github.com/mlrun/functions) or write your own.
+You can import ready-made classes and functions from our [function marketplace](https://www.mlrun.org/marketplace/) or write your own.
 As example of a scikit-learn based model server (taken from our feature store demo):
 
 ```python

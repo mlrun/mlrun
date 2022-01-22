@@ -42,24 +42,24 @@ def init_data(
 
     logger.info("Creating initial data")
     config.httpdb.state = mlrun.api.schemas.APIStates.migrations_in_progress
-
-    try:
-        _perform_schema_migrations(alembic_util)
-
-        _perform_database_migration(sqlite_migration_util)
-
-        db_session = create_session()
+    if is_migration_needed:
         try:
-            init_db(db_session)
-            _add_initial_data(db_session)
-            _perform_data_migrations(db_session)
-        finally:
-            close_session(db_session)
-    except Exception:
-        state = mlrun.api.schemas.APIStates.migrations_failed
-        logger.warning("Migrations failed, changing API state", state=state)
-        config.httpdb.state = state
-        raise
+            _perform_schema_migrations(alembic_util)
+
+            _perform_database_migration(sqlite_migration_util)
+
+            db_session = create_session()
+            try:
+                init_db(db_session)
+                _add_initial_data(db_session)
+                _perform_data_migrations(db_session)
+            finally:
+                close_session(db_session)
+        except Exception:
+            state = mlrun.api.schemas.APIStates.migrations_failed
+            logger.warning("Migrations failed, changing API state", state=state)
+            config.httpdb.state = state
+            raise
     # if the above process actually ran a migration - initializations that were skipped on the API initialization
     # should happen - we can't do it here because it requires an asyncio loop which can't be accessible here
     # therefore moving to migration_completed state, and other component will take care of moving to online

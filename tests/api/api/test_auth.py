@@ -22,6 +22,6 @@ def test_verify_authorization(
         _mock_successful_query_permissions
     )
     response = client.post(
-        "/api/authorization/verifications", json=authorization_verification_input.dict()
+        "authorization/verifications", json=authorization_verification_input.dict()
     )
     assert response.status_code == http.HTTPStatus.OK.value

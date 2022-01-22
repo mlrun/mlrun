@@ -24,7 +24,7 @@ def test_submit_job_failure_function_not_found(db: Session, client: TestClient) 
             "spec": {"function": function_reference},
         },
     }
-    resp = client.post("/api/submit_job", json=body)
+    resp = client.post("submit_job", json=body)
     assert resp.status_code == HTTPStatus.NOT_FOUND.value
     assert f"Function not found {function_reference}" in resp.json()["detail"]["reason"]
 
@@ -115,7 +115,7 @@ def test_submit_job_auto_mount(
     )
     submit_job_body = _create_submit_job_body(function, project)
 
-    resp = client.post("/api/submit_job", json=submit_job_body)
+    resp = client.post("submit_job", json=submit_job_body)
     assert resp
     expected_env_vars = {
         "V3IO_API": api_url,
@@ -140,7 +140,7 @@ def test_submit_job_ensure_function_has_auth_set(
     access_key = "some-access-key"
     function.metadata.credentials.access_key = access_key
     submit_job_body = _create_submit_job_body(function, project)
-    resp = client.post("/api/submit_job", json=submit_job_body)
+    resp = client.post("submit_job", json=submit_job_body)
     assert resp
 
     expected_env_vars = {
@@ -171,7 +171,7 @@ def test_submit_job_service_accounts(
     )
     submit_job_body = _create_submit_job_body(function, project)
 
-    resp = client.post("/api/submit_job", json=submit_job_body)
+    resp = client.post("submit_job", json=submit_job_body)
     assert resp
     _assert_pod_service_account(pod_create_mock, "sa1")
 
@@ -179,7 +179,7 @@ def test_submit_job_service_accounts(
     function.spec.service_account = "sa2"
     submit_job_body = _create_submit_job_body(function, project)
 
-    resp = client.post("/api/submit_job", json=submit_job_body)
+    resp = client.post("submit_job", json=submit_job_body)
     assert resp
     _assert_pod_service_account(pod_create_mock, "sa2")
 
@@ -187,13 +187,13 @@ def test_submit_job_service_accounts(
     pod_create_mock.reset_mock()
     function.spec.service_account = "sa3"
     submit_job_body = _create_submit_job_body(function, project)
-    resp = client.post("/api/submit_job", json=submit_job_body)
+    resp = client.post("submit_job", json=submit_job_body)
     assert resp.status_code == HTTPStatus.BAD_REQUEST.value
 
     # Validate that without setting the secrets, any SA is allowed
     k8s_secrets_mock.delete_project_secrets(project, None)
     pod_create_mock.reset_mock()
-    resp = client.post("/api/submit_job", json=submit_job_body)
+    resp = client.post("submit_job", json=submit_job_body)
     assert resp
     _assert_pod_service_account(pod_create_mock, "sa3")
 

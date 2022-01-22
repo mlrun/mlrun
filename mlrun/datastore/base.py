@@ -162,6 +162,11 @@ class DataStore:
                             f"feature not supported for python version {sys.version_info}"
                         )
 
+                    if time_column is None:
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            "When providing start_time or end_time, must provide time_column"
+                        )
+
                     from storey.utils import find_filters, find_partitions
 
                     filters = []

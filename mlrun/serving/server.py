@@ -21,6 +21,7 @@ import socket
 import sys
 import traceback
 import uuid
+from datetime import datetime, timezone
 from typing import Optional, Union
 
 import mlrun
@@ -189,6 +190,7 @@ class GraphServer(ModelObj):
         event_id: Optional[str] = None,
         trigger: "MockTrigger" = None,
         offset=None,
+        time=None,
     ):
         """invoke a test event into the server to simulate/test server behavior
 
@@ -208,6 +210,7 @@ class GraphServer(ModelObj):
         :param event_id:   specify the unique event ID (by default a random value will be generated)
         :param trigger:    nuclio trigger info or mlrun.serving.server.MockTrigger class (holds kind and name)
         :param offset:     trigger offset (for streams)
+        :param time:       event time Datetime or str, default to now()
         """
         if not self.graph:
             raise MLRunInvalidArgumentError(
@@ -222,6 +225,7 @@ class GraphServer(ModelObj):
             event_id=event_id,
             trigger=trigger,
             offset=offset,
+            time=time,
         )
         resp = self.run(event, get_body=get_body)
         if hasattr(resp, "status_code") and resp.status_code >= 300 and not silent:
@@ -316,8 +320,13 @@ def v2_serving_init(context, namespace=None):
 
 def v2_serving_handler(context, event, get_body=False):
     """hook for nuclio handler()"""
-    if not context._server.http_trigger:
+    if context._server.http_trigger:
+        # Workaround for a Nuclio bug where it sometimes passes b'' instead of None due to dirty memory
+        if event.body == b"":
+            event.body = None
+    else:
         event.path = "/"  # fix the issue that non http returns "Unsupported"
+
     return context._server.run(event, context, get_body)
 
 
@@ -371,11 +380,12 @@ class MockEvent(object):
         event_id=None,
         trigger: MockTrigger = None,
         offset=None,
+        time=None,
     ):
         self.id = event_id or uuid.uuid4().hex
         self.key = ""
         self.body = body
-        self.time = None
+        self.time = get_event_time(time) or datetime.now(timezone.utc)
 
         # optional
         self.headers = headers or {}
@@ -502,3 +512,17 @@ def format_error(server, context, source, event, message, args):
         "message": message,
         "args": args,
     }
+
+
+def get_event_time(time):
+    # init the event time from time, date, or str (similar to storey)
+    if time is not None and not isinstance(time, datetime):
+        if isinstance(time, str):
+            time = datetime.fromisoformat(time)
+        elif isinstance(time, int):
+            time = datetime.utcfromtimestamp(time)
+        else:
+            raise TypeError(
+                f"Event time parameter must be a datetime, string, or int. Got {type(time)} instead."
+            )
+    return time

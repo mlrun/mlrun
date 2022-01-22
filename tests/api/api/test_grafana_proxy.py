@@ -54,7 +54,7 @@ def test_grafana_proxy_model_endpoints_check_connection(
             )
         )
     )
-    response = client.get(url="/api/grafana-proxy/model-endpoints",)
+    response = client.get(url="grafana-proxy/model-endpoints",)
     assert response.status_code == 200
 
 
@@ -70,7 +70,7 @@ def test_grafana_list_endpoints(db: Session, client: TestClient):
         )
 
     response = client.post(
-        url="/api/grafana-proxy/model-endpoints/query",
+        url="grafana-proxy/model-endpoints/query",
         headers={"X-V3io-Session-Key": _get_access_key()},
         json={
             "targets": [
@@ -135,7 +135,7 @@ def test_grafana_individual_feature_analysis(db: Session, client: TestClient):
     )
 
     response = client.post(
-        url="/api/grafana-proxy/model-endpoints/query",
+        url="grafana-proxy/model-endpoints/query",
         headers={"X-V3io-Session-Key": _get_access_key()},
         json={
             "targets": [
@@ -191,7 +191,7 @@ def test_grafana_individual_feature_analysis_missing_field_doesnt_fail(
     )
 
     response = client.post(
-        url="/api/grafana-proxy/model-endpoints/query",
+        url="grafana-proxy/model-endpoints/query",
         headers={"X-V3io-Session-Key": _get_access_key()},
         json={
             "targets": [
@@ -250,7 +250,7 @@ def test_grafana_overall_feature_analysis(db: Session, client: TestClient):
     )
 
     response = client.post(
-        url="/api/grafana-proxy/model-endpoints/query",
+        url="grafana-proxy/model-endpoints/query",
         headers={"X-V3io-Session-Key": _get_access_key()},
         json={
             "targets": [
@@ -428,7 +428,7 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
 
     for endpoint in endpoints:
         response = client.post(
-            url="/api/grafana-proxy/model-endpoints/query",
+            url="grafana-proxy/model-endpoints/query",
             headers={"X-V3io-Session-Key": _get_access_key()},
             json={
                 "targets": [

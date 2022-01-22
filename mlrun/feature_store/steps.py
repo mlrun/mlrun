@@ -1,9 +1,12 @@
+import uuid
 from typing import Any, Dict, List, Union
 
 import pandas as pd
 from storey import MapClass
 
+from mlrun.serving.server import get_event_time
 from mlrun.serving.utils import StepToDict
+from mlrun.utils import get_in
 
 
 class FeaturesetValidator(StepToDict, MapClass):
@@ -260,4 +263,77 @@ class DateExtractor(StepToDict, MapClass):
             extracted_part = getattr(timestamp, part)
             # Add to event
             event[self._get_key_name(part, self.timestamp_col)] = extracted_part
+        return event
+
+
+class SetEventMetadata(MapClass):
+    """Set the event metadata (id, key, timestamp) from the event body"""
+
+    def __init__(
+        self,
+        id_path: str = None,
+        key_path: str = None,
+        time_path: str = None,
+        random_id: bool = None,
+        **kwargs,
+    ):
+        """Set the event metadata (id, key, timestamp) from the event body
+
+        set the event metadata fields (id, key, and time) from the event body data structure
+        the xx_path attribute defines the key or path to the value in the body dict, "." in the path string
+        indicate the value is in a nested dict e.g. `"x.y"` means `{"x": {"y": value}}`
+
+        example::
+
+            flow = function.set_topology("flow")
+            # build a graph and use the SetEventMetadata step to extract the id, key and path from the event body
+            # ("myid", "mykey" and "mytime" fields), the metadata will be used for following data processing steps
+            # (e.g. feature store ops, time/key aggregations, write to databases/streams, etc.)
+            flow.to(SetEventMetadata(id_path="myid", key_path="mykey", time_path="mytime"))
+                .to(...)  # additional steps
+
+            server = function.to_mock_server()
+            event = {"myid": "34", "mykey": "123", "mytime": "2022-01-18 15:01"}
+            resp = server.test(body=event)
+
+        :param id_path:   path to the id value
+        :param key_path:  path to the key value
+        :param time_path: path to the time value (value should be of type str or datetime)
+        :param random_id: if True will set the event.id to a random value
+        """
+        kwargs["full_event"] = True
+        super().__init__(**kwargs)
+        self.id_path = id_path
+        self.key_path = key_path
+        self.time_path = time_path
+        self.random_id = random_id
+
+        self._tagging_funcs = []
+
+    def post_init(self, mode="sync"):
+        def add_metadata(name, path, operator=str):
+            def _add_meta(event):
+                value = get_in(event.body, path)
+                setattr(event, name, operator(value))
+
+            return _add_meta
+
+        def set_random_id(event):
+            event.id = uuid.uuid4().hex
+
+        self._tagging_funcs = []
+        if self.id_path:
+            self._tagging_funcs.append(add_metadata("id", self.id_path))
+        if self.key_path:
+            self._tagging_funcs.append(add_metadata("key", self.key_path))
+        if self.time_path:
+            self._tagging_funcs.append(
+                add_metadata("time", self.time_path, get_event_time)
+            )
+        if self.random_id:
+            self._tagging_funcs.append(set_random_id)
+
+    def do(self, event):
+        for func in self._tagging_funcs:
+            func(event)
         return event

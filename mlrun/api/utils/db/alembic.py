@@ -55,7 +55,7 @@ class AlembicUtil(object):
 
     def is_migration_from_scratch(self):
         current_revision = self._get_current_revision()
-        return current_revision != self._initial_revision
+        return current_revision == self._initial_revision
 
     @staticmethod
     def _get_db_file_path() -> str:

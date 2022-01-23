@@ -80,6 +80,8 @@ class KubejobRuntime(KubeResource):
         source=None,
         extra=None,
         load_source_on_run=None,
+        with_mlrun=None,
+        auto_build=None,
     ):
         """specify builder configuration for the deploy operation
 
@@ -91,6 +93,9 @@ class KubejobRuntime(KubeResource):
                            e.g. git://github.com/mlrun/something.git#development
         :param extra:      extra Dockerfile lines
         :param load_source_on_run: load the archive code into the container at runtime vs at build time
+        :param with_mlrun: add the current mlrun package to the container build
+        :param auto_build: when set to True and the function require build it will be built on the first
+                           function run, use only if you dont plan on changing the build config between runs
         """
         if image:
             self.spec.build.image = image
@@ -109,16 +114,20 @@ class KubejobRuntime(KubeResource):
             self.spec.build.source = source
         if load_source_on_run:
             self.spec.build.load_source_on_run = load_source_on_run
+        if with_mlrun is not None:
+            self.spec.build.with_mlrun = with_mlrun
+        if auto_build:
+            self.spec.build.auto_build = auto_build
 
     def deploy(
         self,
         watch=True,
-        with_mlrun=True,
+        with_mlrun=None,
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
         builder_env: dict = None,
-    ):
+    ) -> bool:
         """deploy function, build container with dependencies
 
         :param watch:      wait for the deploy to complete (and print build logs)
@@ -127,9 +136,19 @@ class KubejobRuntime(KubeResource):
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
                               e.g. builder_env={"GIT_TOKEN": token}
+
+        :return True if the function is ready (deployed)
         """
 
         build = self.spec.build
+        if with_mlrun is None:
+            if build.with_mlrun is not None:
+                with_mlrun = build.with_mlrun
+            else:
+                with_mlrun = not (
+                    build.base_image.startswith("mlrun/")
+                    or "/mlrun/" in build.base_image
+                )
 
         if not build.source and not build.commands and not build.extra and with_mlrun:
             logger.info(
@@ -137,7 +156,6 @@ class KubejobRuntime(KubeResource):
                 "with_mlrun=False to skip if its already in the image"
             )
         self.status.state = ""
-
         # When we're in pipelines context we must watch otherwise the pipelines pod will exit before the operation
         # is actually done. (when a pipelines pod exits, the pipeline step marked as done)
         if is_kfp:

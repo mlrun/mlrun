@@ -31,7 +31,10 @@ def run_labels(run) -> dict:
 
 
 def run_state(run):
-    return get_in(run, "status.state", "")
+    # import here to avoid circular imports
+    import mlrun.runtimes.constants
+
+    return get_in(run, "status.state", mlrun.runtimes.constants.RunStates.created)
 
 
 def update_labels(obj, labels: dict):

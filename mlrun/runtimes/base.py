@@ -257,6 +257,7 @@ class BaseRuntime(ModelObj):
         scrape_metrics: bool = None,
         local=False,
         local_code_path=None,
+        auto_build=None,
     ) -> RunObject:
         """Run a local or remote task.
 
@@ -283,6 +284,8 @@ class BaseRuntime(ModelObj):
         :param scrape_metrics: whether to add the `mlrun/scrape-metrics` label to this run's resources
         :param local:      run the function locally vs on the runtime/cluster
         :param local_code_path: path of the code for local runs & debug
+        :param auto_build: when set to True and the function require build it will be built on the first
+                           function run, use only if you dont plan on changing the build config between runs
 
         :return: run context object (RunObject) with run metadata, results and status
         """
@@ -401,9 +404,15 @@ class BaseRuntime(ModelObj):
         db = self._get_db()
 
         if not self.is_deployed:
-            raise RunError(
-                "function image is not built/ready, use .deploy() method first"
-            )
+            if self.spec.build.auto_build or auto_build:
+                logger.info(
+                    "Function is not deployed and auto_build flag is set, starting deploy..."
+                )
+                self.deploy(skip_deployed=True)
+            else:
+                raise RunError(
+                    "function image is not built/ready, use .deploy() method first"
+                )
 
         if self.verbose:
             logger.info(f"runspec:\n{runspec.to_yaml()}")
@@ -871,9 +880,28 @@ class BaseRuntime(ModelObj):
             with open(requirements, "r") as fp:
                 requirements = fp.read().splitlines()
         commands = self.spec.build.commands or []
-        commands.append("python -m pip install " + " ".join(requirements))
+        new_command = "python -m pip install " + " ".join(requirements)
+        # make sure we dont append the same line twice
+        if new_command not in commands:
+            commands.append(new_command)
         self.spec.build.commands = commands
+        self.verify_base_image()
         return self
+
+    def verify_base_image(self):
+        build = self.spec.build
+        require_build = build.commands or (
+            build.source and not build.load_source_on_run
+        )
+        if (
+            self.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
+            and require_build
+            and self.spec.image
+            and not self.spec.build.base_image
+        ):
+            # when the function require build use the image as the base_image for the build
+            self.spec.build.base_image = self.spec.image
+            self.spec.image = ""
 
     def export(self, target="", format=".yaml", secrets=None, strip=True):
         """save function spec to a local/remote path (default to./function.yaml)
@@ -1380,7 +1408,7 @@ class BaseRuntimeHandler(ABC):
         def _verify_crds_underlying_pods_removed():
             project_uid_crd_map = {}
             for crd in deleted_crds:
-                project, uid = self._resolve_runtime_resource_run(crd)
+                project, uid, _ = self._resolve_runtime_resource_run(crd)
                 if not uid or not project:
                     logger.warning(
                         "Could not resolve run uid from crd. Skipping waiting for pods deletion",
@@ -1577,7 +1605,7 @@ class BaseRuntimeHandler(ABC):
         runtime_resource: Dict,
         run_state: str,
     ):
-        project, uid = self._resolve_runtime_resource_run(runtime_resource)
+        project, uid, name = self._resolve_runtime_resource_run(runtime_resource)
 
         # if cannot resolve related run nothing to do
         if not uid:
@@ -1596,7 +1624,7 @@ class BaseRuntimeHandler(ABC):
             uid=uid,
         )
 
-        self._ensure_run_state(db, db_session, project, uid, run_state)
+        self._ensure_run_state(db, db_session, project, uid, name, run_state)
 
         self._ensure_run_logs_collected(db, db_session, project, uid)
 
@@ -1612,7 +1640,7 @@ class BaseRuntimeHandler(ABC):
 
         :returns: bool determining whether the run in terminal state, and the last update time if it exists
         """
-        project, uid = self._resolve_runtime_resource_run(runtime_resource)
+        project, uid, _ = self._resolve_runtime_resource_run(runtime_resource)
 
         # if no uid, assume in terminal state
         if not uid:
@@ -1680,7 +1708,7 @@ class BaseRuntimeHandler(ABC):
         runtime_resource_is_crd: bool,
         namespace: str,
     ):
-        project, uid = self._resolve_runtime_resource_run(runtime_resource)
+        project, uid, name = self._resolve_runtime_resource_run(runtime_resource)
         if not project or not uid:
             # Currently any build pod won't have UID and therefore will cause this log message to be printed which
             # spams the log
@@ -1704,7 +1732,7 @@ class BaseRuntimeHandler(ABC):
             )
         self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
         _, updated_run_state = self._ensure_run_state(
-            db, db_session, project, uid, run_state, run, search_run=False,
+            db, db_session, project, uid, name, run_state, run, search_run=False,
         )
         if updated_run_state in RunStates.terminal_states():
             self._ensure_run_logs_collected(db, db_session, project, uid)
@@ -1863,6 +1891,7 @@ class BaseRuntimeHandler(ABC):
         db_session: Session,
         project: str,
         uid: str,
+        name: str,
         run_state: str,
         run: Dict = None,
         search_run: bool = True,
@@ -1882,7 +1911,7 @@ class BaseRuntimeHandler(ABC):
                 desired_run_state=run_state,
                 search_run=search_run,
             )
-            run = {"metadata": {"project": project, "uid": uid}}
+            run = {"metadata": {"project": project, "name": name, "uid": uid}}
         db_run_state = run.get("status", {}).get("state")
         if db_run_state:
             if db_run_state == run_state:
@@ -1930,14 +1959,19 @@ class BaseRuntimeHandler(ABC):
         return True, run_state
 
     @staticmethod
-    def _resolve_runtime_resource_run(runtime_resource: Dict) -> Tuple[str, str]:
+    def _resolve_runtime_resource_run(runtime_resource: Dict) -> Tuple[str, str, str]:
         project = (
             runtime_resource.get("metadata", {}).get("labels", {}).get("mlrun/project")
         )
         if not project:
             project = config.default_project
         uid = runtime_resource.get("metadata", {}).get("labels", {}).get("mlrun/uid")
-        return project, uid
+        name = (
+            runtime_resource.get("metadata", {})
+            .get("labels", {})
+            .get("mlrun/name", "no-name")
+        )
+        return project, uid, name
 
     @staticmethod
     def _delete_crd(namespace, crd_group, crd_version, crd_plural, crd_object):

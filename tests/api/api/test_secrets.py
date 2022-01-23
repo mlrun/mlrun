@@ -28,14 +28,14 @@ def test_vault_create_project_secrets(db: Session, client: TestClient):
     data = {"provider": "vault", "secrets": {"secret1": "value1", "secret2": "value2"}}
 
     # Test project secrets
-    response = client.post(f"/api/projects/{project_name}/secrets", json=data)
+    response = client.post(f"projects/{project_name}/secrets", json=data)
     assert response.status_code == HTTPStatus.CREATED.value
 
     params = {"provider": schemas.SecretProviderName.vault.value, "secrets": None}
     headers = {schemas.HeaderNames.secret_store_token: user_token}
 
     response = client.get(
-        f"/api/projects/{project_name}/secrets", headers=headers, params=params
+        f"projects/{project_name}/secrets", headers=headers, params=params
     )
     secrets = response.json()["secrets"]
     assert secrets == data["secrets"]

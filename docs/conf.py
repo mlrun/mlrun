@@ -96,6 +96,7 @@ html_favicon = "./favicon.ico"
 extra_navbar = "<p>Your HTML</p>"
 jupyter_execute_notebooks = "off"
 html_sourcelink_suffix = ""
+autoclass_content = "both"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

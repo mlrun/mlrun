@@ -500,13 +500,16 @@ class OnlineSource(BaseSourceDriver):
             else storey.SyncEmitSource
         )
         source_args = self.attributes.get("source_args", {})
-        return source_class(
+
+        src_class = source_class(
             context=context,
-            key_field=self.key_field or key_field,
-            time_field=self.time_field or time_field,
+            key_field=self.key_field,
+            time_field=self.time_field,
             full_event=True,
             **source_args,
         )
+
+        return src_class
 
     def add_nuclio_trigger(self, function):
         raise mlrun.errors.MLRunInvalidArgumentError(

@@ -282,6 +282,7 @@ class BaseStoreTarget(DataTargetBase):
         after_state=None,
         max_events: typing.Optional[int] = None,
         flush_after_seconds: typing.Optional[int] = None,
+        storage_options: typing.Dict[str, str] = None,
     ):
         if after_state:
             warnings.warn(
@@ -302,6 +303,7 @@ class BaseStoreTarget(DataTargetBase):
         self.time_partitioning_granularity = time_partitioning_granularity
         self.max_events = max_events
         self.flush_after_seconds = flush_after_seconds
+        self.storage_options = storage_options
 
         self._target = None
         self._resource = None
@@ -437,6 +439,7 @@ class BaseStoreTarget(DataTargetBase):
         driver.time_partitioning_granularity = spec.time_partitioning_granularity
         driver.max_events = spec.max_events
         driver.flush_after_seconds = spec.flush_after_seconds
+        driver.storage_options = spec.storage_options
 
         driver._resource = resource
         return driver
@@ -562,6 +565,7 @@ class ParquetTarget(BaseStoreTarget):
         after_state=None,
         max_events: typing.Optional[int] = 10000,
         flush_after_seconds: typing.Optional[int] = 900,
+        storage_options: typing.Dict[str, str] = None,
     ):
         if after_state:
             warnings.warn(
@@ -596,6 +600,7 @@ class ParquetTarget(BaseStoreTarget):
             time_partitioning_granularity,
             max_events=max_events,
             flush_after_seconds=flush_after_seconds,
+            storage_options=storage_options,
         )
 
         if (
@@ -637,12 +642,15 @@ class ParquetTarget(BaseStoreTarget):
         timestamp_key=None,
         featureset_status=None,
     ):
-        column_list = self._get_column_list(
-            features=features,
-            timestamp_key=timestamp_key,
-            key_columns=None,
-            with_type=True,
-        )
+        if self.attributes.get("infer_columns_from_data"):
+            column_list = None
+        else:
+            column_list = self._get_column_list(
+                features=features,
+                timestamp_key=timestamp_key,
+                key_columns=None,
+                with_type=True,
+            )
 
         # need to extract types from features as part of column list
 
@@ -698,7 +706,8 @@ class ParquetTarget(BaseStoreTarget):
             columns=column_list,
             index_cols=tuple_key_columns,
             partition_cols=partition_cols,
-            storage_options=self._get_store().get_storage_options(),
+            storage_options=self.storage_options
+            or self._get_store().get_storage_options(),
             max_events=self.max_events,
             flush_after_seconds=self.flush_after_seconds,
             **self.attributes,

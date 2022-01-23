@@ -315,6 +315,8 @@ class ImageBuilder(ModelObj):
         registry=None,
         load_source_on_run=None,
         origin_filename=None,
+        with_mlrun=None,
+        auto_build=None,
     ):
         self.functionSourceCode = functionSourceCode  #: functionSourceCode
         self.codeEntryType = ""  #: codeEntryType
@@ -329,6 +331,8 @@ class ImageBuilder(ModelObj):
         self.secret = secret  #: secret
         self.registry = registry  #: registry
         self.load_source_on_run = load_source_on_run  #: load_source_on_run
+        self.with_mlrun = with_mlrun  #: with_mlrun
+        self.auto_build = auto_build  #: auto_build
         self.build_pod = None
 
 
@@ -1076,6 +1080,7 @@ class DataTargetBase(ModelObj):
         "time_partitioning_granularity",
         "max_events",
         "flush_after_seconds",
+        "storage_options",
     ]
 
     # TODO - remove once "after_state" is fully deprecated
@@ -1099,6 +1104,7 @@ class DataTargetBase(ModelObj):
         max_events: Optional[int] = None,
         flush_after_seconds: Optional[int] = None,
         after_state=None,
+        storage_options: Dict[str, str] = None,
     ):
         if after_state:
             warnings.warn(
@@ -1120,6 +1126,7 @@ class DataTargetBase(ModelObj):
         self.time_partitioning_granularity = time_partitioning_granularity
         self.max_events = max_events
         self.flush_after_seconds = flush_after_seconds
+        self.storage_options = storage_options
 
 
 class FeatureSetProducer(ModelObj):

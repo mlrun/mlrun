@@ -175,8 +175,10 @@ def list_feature_sets(
         None, alias="partition-by"
     ),
     rows_per_partition: int = Query(1, alias="rows-per-partition", gt=0),
-    sort: schemas.SortField = Query(None, alias="partition-sort-by"),
-    order: schemas.OrderType = Query(schemas.OrderType.desc, alias="partition-order"),
+    partition_sort_by: schemas.SortField = Query(None, alias="partition-sort-by"),
+    partition_order: schemas.OrderType = Query(
+        schemas.OrderType.desc, alias="partition-order"
+    ),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -194,8 +196,8 @@ def list_feature_sets(
         labels,
         partition_by,
         rows_per_partition,
-        sort,
-        order,
+        partition_sort_by,
+        partition_order,
     )
     feature_sets = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
@@ -497,8 +499,10 @@ def list_feature_vectors(
         None, alias="partition-by"
     ),
     rows_per_partition: int = Query(1, alias="rows-per-partition", gt=0),
-    sort: schemas.SortField = Query(None, alias="partition-sort-by"),
-    order: schemas.OrderType = Query(schemas.OrderType.desc, alias="partition-order"),
+    partition_sort_by: schemas.SortField = Query(None, alias="partition-sort-by"),
+    partition_order: schemas.OrderType = Query(
+        schemas.OrderType.desc, alias="partition-order"
+    ),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -514,8 +518,8 @@ def list_feature_vectors(
         labels,
         partition_by,
         rows_per_partition,
-        sort,
-        order,
+        partition_sort_by,
+        partition_order,
     )
     feature_vectors = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,

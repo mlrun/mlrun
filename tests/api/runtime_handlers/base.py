@@ -47,7 +47,11 @@ class TestRuntimeHandlerBase:
                 "state": RunStates.created,
                 "last_update": now_date().isoformat(),
             },
-            "metadata": {"project": self.project, "uid": self.run_uid},
+            "metadata": {
+                "project": self.project,
+                "name": "some-run-name",
+                "uid": self.run_uid,
+            },
         }
         mlrun.api.crud.Runs().store_run(
             db, self.run, self.run_uid, project=self.project

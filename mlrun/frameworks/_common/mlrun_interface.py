@@ -1,11 +1,11 @@
 import copy
+import functools
+import inspect
 from abc import ABC
 from types import MethodType
 from typing import Any, Dict, Generic, List, Tuple
-import inspect
-import functools
 
-from .types import MLRunInterfaceableType
+from .utils import MLRunInterfaceableType
 
 RestorationInformation = Tuple[
     Dict[str, Any],  # Interface properties.

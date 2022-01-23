@@ -7,11 +7,9 @@ import plotly.graph_objects as go
 import mlrun
 from mlrun.artifacts import Artifact, PlotlyArtifact
 
+from ..._common import TrackableType
 from ..model_handler import DLModelHandler
 from .logger import Logger, LoggerMode
-
-# All trackable values types:
-TrackableType = Union[str, bool, float, int]
 
 
 class MLRunLogger(Logger):
@@ -41,30 +39,15 @@ class MLRunLogger(Logger):
         EVALUATION = "evaluation"
 
     def __init__(
-        self,
-        context: mlrun.MLClientCtx,
-        log_model_tag: str,
-        log_model_labels: Dict[str, TrackableType],
-        log_model_parameters: Dict[str, TrackableType],
-        log_model_extra_data: Dict[str, Union[TrackableType, Artifact]],
+        self, context: mlrun.MLClientCtx,
     ):
         """
         Initialize the MLRun logging interface to work with the given context.
 
         :param context:              MLRun context to log to. The context parameters can be logged as static
                                      hyperparameters.
-        :param log_model_tag:        Version tag to give the logged model.
-        :param log_model_labels:     Labels to log with the model.
-        :param log_model_parameters: Parameters to log with the model.
-        :param log_model_extra_data: Extra data to log with the model.
         """
         super(MLRunLogger, self).__init__(context=context)
-
-        # Store the attributes to log along the model:
-        self._log_model_tag = log_model_tag
-        self._log_model_labels = log_model_labels
-        self._log_model_parameters = log_model_parameters
-        self._log_model_extra_data = log_model_extra_data
 
         # Prepare the artifacts collection:
         self._artifacts = {}  # type: Dict[str, Artifact]
@@ -140,7 +123,14 @@ class MLRunLogger(Logger):
         # Commit and commit children for MLRun flag bug:
         self._context.commit(completed=False)
 
-    def log_run(self, model_handler: DLModelHandler):
+    def log_run(
+        self,
+        model_handler: DLModelHandler,
+        tag: str = "",
+        labels: Dict[str, TrackableType] = None,
+        parameters: Dict[str, TrackableType] = None,
+        extra_data: Dict[str, Union[TrackableType, Artifact]] = None,
+    ):
         """
         Log the run, summarizing the validation metrics and dynamic hyperparameters across all epochs. If 'update' is
         False, the collected logs will be updated to the model inside the given handler, otherwise the model will be
@@ -155,6 +145,10 @@ class MLRunLogger(Logger):
                                                   of this logger.
 
         :param model_handler: The model handler object holding the model to save and log.
+        :param tag:           Version tag to give the logged model.
+        :param labels:        Labels to log with the model.
+        :param parameters:    Parameters to log with the model.
+        :param extra_data:    Extra data to log with the model.
         """
         # If in training mode, log the summaries and hyperparameters artifacts:
         if self._mode == LoggerMode.TRAINING:
@@ -195,19 +189,19 @@ class MLRunLogger(Logger):
         model_handler.set_context(context=self._context)
         if self._mode == LoggerMode.EVALUATION:
             model_handler.update(
-                labels=self._log_model_labels,
-                parameters=self._log_model_parameters,
+                labels=labels,
+                parameters=parameters,
                 metrics=metrics,
-                extra_data=self._log_model_extra_data,
+                extra_data=extra_data,
                 artifacts=self._artifacts,
             )
         else:
             model_handler.log(
-                tag=self._log_model_tag,
-                labels=self._log_model_labels,
-                parameters=self._log_model_parameters,
+                tag=tag,
+                labels=labels,
+                parameters=parameters,
                 metrics=metrics,
-                extra_data=self._log_model_extra_data,
+                extra_data=extra_data,
                 artifacts=self._artifacts,
             )
 

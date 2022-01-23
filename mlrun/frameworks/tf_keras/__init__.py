@@ -27,8 +27,7 @@ def apply_mlrun(
     use_horovod: bool = None,
 ) -> TFKerasModelHandler:
     """
-    Wrap the given model with MLRun model, saving the model's attributes and methods while giving it mlrun's additional
-    features.
+    Wrap the given model with MLRun's interface providing it with mlrun's additional features.
 
     :param model:                       The model to wrap.
     :param model_name:                  The model name to use for storing the model artifact. If not given, the
@@ -117,7 +116,7 @@ def apply_mlrun(
     )
 
     # Add MLRun's interface to the model:
-    TFKerasMLRunInterface.add_interface(model=model)
+    TFKerasMLRunInterface.add_interface(obj=model)
 
     # Initialize horovod if needed:
     if use_horovod is True:

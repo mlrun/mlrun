@@ -87,13 +87,13 @@ class MLRunLoggingCallback(LoggingCallback):
 
         # Replace the logger with an MLRunLogger:
         del self._logger
-        self._logger = MLRunLogger(
-            context=context,
-            log_model_tag=log_model_tag,
-            log_model_labels=log_model_labels,
-            log_model_parameters=log_model_parameters,
-            log_model_extra_data=log_model_extra_data,
-        )
+        self._logger = MLRunLogger(context=context)
+
+        # Store the attributes to log along the model:
+        self._log_model_tag = log_model_tag
+        self._log_model_labels = log_model_labels
+        self._log_model_parameters = log_model_parameters
+        self._log_model_extra_data = log_model_extra_data
 
         # Store the model handler:
         self._model_handler = model_handler
@@ -151,4 +151,10 @@ class MLRunLoggingCallback(LoggingCallback):
             self._model_handler.read_outputs_from_model()
 
         # Log the model:
-        self._logger.log_run(model_handler=self._model_handler)
+        self._logger.log_run(
+            model_handler=self._model_handler,
+            tag=self._log_model_tag,
+            labels=self._log_model_labels,
+            parameters=self._log_model_parameters,
+            extra_data=self._log_model_extra_data,
+        )

@@ -1,36 +1,19 @@
-from abc import abstractmethod
-
 import pandas as pd
 import plotly.graph_objects as go
-from IPython.core.display import HTML, display
 
 from mlrun.artifacts import Artifact
 
-from ..._common.plan import Plan
+from ..plan import MLPlotPlan
 
 
-class FeatureImportancePlan(MLPlan):
+class FeatureImportancePlan(MLPlotPlan):
     """
     """
 
-    def __init__(self, **kwargs):
-        self.kwargs = kwargs
-        self._extra_data = {}
-
-    @abstractmethod
-    def validate(self, *args, **kwargs):
-        """
-        Validate this plan has the required data to produce its artifact.
-        :raise ValueError: In case this plan is missing information in order to produce its artifact.
-        """
-        pass
-
-    @abstractmethod
     def is_ready(self, stage: ProductionStages) -> bool:
         return stage == ProductionStages.POST_FIT
 
-    @abstractmethod
-    def produce(self, model, apply_args, *args, **kwargs) -> Artifact:
+    def produce(self, model, apply_args, *args, **kwargs) -> Dict[str, Artifact]:
         """
         Produce the artifact according to this plan.
         :return: The produced artifact.

@@ -1,53 +1,102 @@
-from typing import Dict
+from typing import Dict, List
 
 import numpy as np
-from IPython.core.display import HTML, display
 from plotly.figure_factory import create_annotated_heatmap
 from sklearn.metrics import confusion_matrix
 
-from mlrun.artifacts import PlotlyArtifact
+from mlrun.artifacts import Artifact, PlotlyArtifact
+
+from ..._common import ModelType
+from ..plan import MLPlanStages, MLPlotPlan
+from ..utils import DatasetType
 
 
-class ConfusionMatrixPlan(MLPlan):
+class ConfusionMatrixPlan(MLPlotPlan):
+    """
+    Plan for producing a confusion matrix.
+    """
 
     _ARTIFACT_NAME = "confusion_matrix"
 
     def __init__(
-        self, labels=None, sample_weight=None, normalize=None, y_test=None, y_pred=None
+        self,
+        labels: List[str] = None,
+        sample_weight: np.ndarray = None,
+        normalize: str = None,
     ):
-        # confusion_matrix() parameters
+        """
+        Initialize a confusion matrix plan with the given configuration. To read further more about the attributes, go
+        to: https://scikit-learn.org/stable/modules/generated/sklearn.metrics.confusion_matrix.html
+
+        :param labels:        List of labels to index the matrix.
+        :param sample_weight: Sample weights to apply.
+        :param normalize:     One of {'true', 'pred', 'all'} to normalize the confusion matrix over the true values
+                              (rows), the predicted values (columns) or all. If None, confusion matrix will not be
+                              normalized. Defaulted to None.
+        """
+        # Store the parameters:
         self._labels = labels
         self._sample_weight = sample_weight
         self._normalize = normalize
-        super(ConfusionMatrixPlan, self).__init__(y_test=y_test, y_pred=y_pred)
 
-    def is_ready(self, stage: PlanStages) -> bool:
-        return stage == PlanStages.POST_EVALUATION
+        # Continue the initialization for the MLPlan:
+        super(ConfusionMatrixPlan, self).__init__()
 
-    def produce(self, y_test, y_pred, **kwargs) -> Dict[str, PlotlyArtifact]:
+    def is_ready(self, stage: MLPlanStages, is_probabilities: bool) -> bool:
         """
-        Produce the artifact according to this plan.
-        :return: The produced artifact.
+        Check whether or not the plan is fit for production by the given stage and prediction probabilities. The
+        confusion matrix is ready only post prediction.
+
+        :param stage:            The stage to check if the plan is ready.
+        :param is_probabilities: True if the 'y_pred' that will be sent to 'produce' is a prediction of probabilities
+                                 (from 'predict_proba') and False if not.
+
+        :return: True if the plan is producible and False otherwise.
         """
+        return stage == MLPlanStages.POST_PREDICT and not is_probabilities
+
+    def produce(
+        self,
+        y: DatasetType,
+        y_pred: DatasetType = None,
+        model: ModelType = None,
+        x: DatasetType = None,
+        **kwargs
+    ) -> Dict[str, Artifact]:
+        """
+        Produce the confusion matrix according to the ground truth (y) and predictions (y_pred) values. If predictions
+        are not available, the model and a dataset can be given to produce them.
+
+        :param y:      The ground truth values.
+        :param y_pred: The predictions values.
+        :param model:  Model to produce the predictions.
+        :param x:      Input dataset to produce the predictions.
+
+        :return: The produced confusion matrix artifact in an artifacts dictionary.
+        """
+        # Calculate the predictions if needed:
+        y_pred = self._calculate_predictions(y_pred=y_pred, model=model, x=x)
+
+        # Calculate the confusion matrix:
         cm = confusion_matrix(
-            y_test,
+            y,
             y_pred,
             labels=self._labels,
             sample_weight=self._sample_weight,
             normalize=self._normalize,
         )
 
-        x = np.sort(y_test[y_test.columns[0]].unique()).tolist()
+        x = np.sort(y[y.columns[0]].unique()).tolist()
 
-        # set up figure
+        # Initialize a plotly figure:
         figure = create_annotated_heatmap(
             cm, x=x, y=x, annotation_text=cm.astype(str), colorscale="Blues"
         )
 
-        # add title
+        # Add title:
         figure.update_layout(title_text="Confusion matrix",)
 
-        # add custom xaxis title
+        # Add custom x-axis title:
         figure.add_annotation(
             dict(
                 font=dict(color="black", size=14),
@@ -59,8 +108,9 @@ class ConfusionMatrixPlan(MLPlan):
                 yref="paper",
             )
         )
+        figure.update_xaxes(showline=True, linewidth=1, linecolor="black", mirror=True)
 
-        # add custom yaxis title
+        # Add custom y-axis title:
         figure.add_annotation(
             dict(
                 font=dict(color="black", size=14),
@@ -73,25 +123,18 @@ class ConfusionMatrixPlan(MLPlan):
                 yref="paper",
             )
         )
-
-        figure.update_xaxes(showline=True, linewidth=1, linecolor="black", mirror=True)
         figure.update_yaxes(showline=True, linewidth=1, linecolor="black", mirror=True)
 
-        # adjust margins to make room for yaxis title
+        # Adjust margins to make room for the y-axis title:
         figure.update_layout(margin=dict(t=100, l=100), width=500, height=500)
 
-        # add colorbar
+        # Add a color bar:
         figure["data"][0]["showscale"] = True
         figure["layout"]["yaxis"]["autorange"] = "reversed"
 
-        # Creating an html rendering of the plot
+        # Create the plot's artifact:
         self._artifacts[self._ARTIFACT_NAME] = PlotlyArtifact(
             figure=figure, key=self._ARTIFACT_NAME
         )
-        return self._artifacts
 
-    def display(self):
-        if self._artifacts:
-            display(HTML(self._artifacts[self._ARTIFACT_NAME].get_body()))
-        else:
-            super(ConfusionMatrixPlan, self).display()
+        return self._artifacts

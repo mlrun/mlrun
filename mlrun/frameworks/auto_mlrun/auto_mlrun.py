@@ -211,7 +211,7 @@ def framework_to_apply_mlrun(framework: str) -> Callable[..., ModelHandler]:
         return apply_mlrun
     if framework == "pytorch":
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "PyTorch has no 'apply_mlrun' shortcut yet. Please use the MLRunPyTorchInterface "
+            "PyTorch has no 'apply_mlrun' shortcut yet. Please use the PyTorchMLRunInterface "
             "from mlrun.frameworks.pytorch instead."
         )
     if framework == "sklearn":
@@ -228,7 +228,7 @@ def framework_to_apply_mlrun(framework: str) -> Callable[..., ModelHandler]:
         return apply_mlrun
     if framework == "onnx":
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "ONNX has no 'apply_mlrun' shortcut yet. Please use the MLRunONNXInterface from mlrun.frameworks.onnx "
+            "ONNX has no 'apply_mlrun' shortcut yet. Please use the ONNXMLRunInterface from mlrun.frameworks.onnx "
             "instead."
         )
 

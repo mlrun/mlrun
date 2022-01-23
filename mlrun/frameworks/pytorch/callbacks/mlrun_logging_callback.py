@@ -6,7 +6,8 @@ from torch import Tensor
 import mlrun
 from mlrun.artifacts import Artifact
 
-from ..._dl_common.loggers import LoggerMode, MLRunLogger, TrackableType
+from ..._common import TrackableType
+from ..._dl_common.loggers import LoggerMode, MLRunLogger
 from ..model_handler import PyTorchModelHandler
 from .logging_callback import LoggingCallback
 
@@ -93,18 +94,18 @@ class MLRunLoggingCallback(LoggingCallback):
 
         # Replace the logger with an MLRunLogger:
         del self._logger
-        self._logger = MLRunLogger(
-            context=context,
-            log_model_tag=log_model_tag,
-            log_model_labels=log_model_labels,
-            log_model_parameters=log_model_parameters,
-            log_model_extra_data=log_model_extra_data,
-        )
+        self._logger = MLRunLogger(context=context)
 
         # Store the given handler:
         self._model_handler = model_handler
 
-        # Store the additional PyTorchModelHandler parameters for logging the model later:
+        # Store the attributes to log along the model:
+        self._log_model_tag = log_model_tag
+        self._log_model_labels = log_model_labels
+        self._log_model_parameters = log_model_parameters
+        self._log_model_extra_data = log_model_extra_data
+
+        # Setup the additional PyTorchModelHandler parameters for logging the model later:
         self._input_sample = None  # type: PyTorchModelHandler.IOSample
         self._output_sample = None  # type: PyTorchModelHandler.IOSample
 
@@ -123,7 +124,13 @@ class MLRunLoggingCallback(LoggingCallback):
             self._model_handler.set_outputs(from_sample=self._output_sample)
 
         # End the run:
-        self._logger.log_run(model_handler=self._model_handler)
+        self._logger.log_run(
+            model_handler=self._model_handler,
+            tag=self._log_model_tag,
+            labels=self._log_model_labels,
+            parameters=self._log_model_parameters,
+            extra_data=self._log_model_extra_data,
+        )
 
     def on_epoch_end(self, epoch: int):
         """

@@ -24,8 +24,7 @@ from .callbacks import MLRunLoggingCallback, TensorboardLoggingCallback
 
 class TFKerasMLRunInterface(MLRunInterface, ABC):
     """
-    MLRun model is for enabling additional features supported by MLRun in keras. With MLRun model one can apply horovod
-    and use auto logging with ease.
+    Interface for adding MLRun features for tensorflow keras API.
     """
 
     # MLRun's context default name:
@@ -156,6 +155,9 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
         return wrapper
 
     def mlrun_evaluate(self, *args, **kwargs):
+        """
+        MLRun tf.keras.Model.evaluate wrapper. Will enable automatic logging if set.
+        """
         # Setup the callbacks list:
         if "callbacks" not in kwargs or kwargs["callbacks"] is None:
             kwargs["callbacks"] = []

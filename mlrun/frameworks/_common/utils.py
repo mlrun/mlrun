@@ -16,7 +16,8 @@ MLRunInterfaceableType = TypeVar(
 )  # A generic object type for what can be wrapped with a framework MLRun interface (examples: xgb, xgb.XGBModel).
 
 # Common types:
-PathType = Union[str, Path]  # For receiving a path from 'pathlib' or 'os.path'
+PathType = Union[str, Path]  # For receiving a path from 'pathlib' or 'os.path'.
+TrackableType = Union[str, bool, float, int]  # All trackable values types for a logger.
 ExtraDataType = Union[
     str, bytes, Artifact, DataItem
 ]  # Types available in the extra data dictionary of an artifact.

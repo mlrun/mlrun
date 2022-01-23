@@ -4,7 +4,8 @@ from typing import Dict, List, Union
 from mlrun.artifacts import Artifact
 from mlrun.features import Feature
 
-from .._common import ExtraDataType, IOSampleType, ModelHandler
+from .._common import ExtraDataType, ModelHandler
+from .utils import DatasetType
 
 
 class MLModelHandler(ModelHandler, ABC):
@@ -23,7 +24,7 @@ class MLModelHandler(ModelHandler, ABC):
         artifacts: Dict[str, Artifact] = None,
         extra_data: Dict[str, ExtraDataType] = None,
         algorithm: str = None,
-        training_set: IOSampleType = None,
+        training_set: DatasetType = None,
         label_column: Union[str, List[str]] = None,
         feature_vector: str = None,
         feature_weights: List[float] = None,
@@ -58,7 +59,9 @@ class MLModelHandler(ModelHandler, ABC):
             metrics=metrics,
             artifacts=artifacts,
             extra_data=extra_data,
-            algorithm=algorithm,
+            algorithm=(
+                algorithm if algorithm is not None else self._model.__class__.__name__
+            ),
             training_set=training_set,
             label_column=label_column,
             feature_vector=feature_vector,

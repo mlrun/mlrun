@@ -1,130 +1,13 @@
-import importlib
-import sys
-from abc import ABC, abstractmethod
-from types import ModuleType
-from typing import Callable, Dict, List, Tuple, Type, Union
+from abc import ABC
+from typing import Dict, List, Type, Union
+
+import sklearn
 
 import mlrun.errors
 
-# Type for a metric entry, can be passed as the metric function itself, as a callable object, a string of the name of
-# the function and the full module path to the function to import. Arguments to use when calling the metric can be
-# joined by wrapping it as a tuple:
-MetricEntry = Union[Tuple[Union[Callable, str], dict], Callable, str]
-
-
-class Metric:
-    """
-    A metric handling class to call a metric with additional keyword arguments later during a run and log the results to
-    MLRun.
-    """
-
-    def __init__(
-        self,
-        metric: Union[Callable, str],
-        name: str = None,
-        additional_arguments: dict = None,
-        need_probabilities: bool = False,
-    ):
-        """
-        Initialize a metric object to be used with the MLRun logger.
-
-        :param metric:               The metric to use. Can be passed as a string of an imported function or a full
-                                     module path to import from.
-        :param name:                 The metric name to use for logging it to MLRun.
-        :param additional_arguments: Additional arguments to pass for the metric function when calculating it.
-        :param need_probabilities:   Whether this metric expects 'y_pred' to be from the 'predict_proba' method or from
-                                     'predict'.
-        """
-        self._metric = (
-            self._from_string(metric=metric) if isinstance(metric, str) else metric
-        )
-        self._arguments = {} if additional_arguments is None else additional_arguments
-        self._need_probabilities = need_probabilities
-        self._name = name if name is not None else self._get_default_name()
-
-    def __call__(self, y_true, y_pred) -> float:
-        """
-        Call the metric function on the provided y_true and y_pred values using the stored additional arguments.
-
-        :param y_true: The ground truth values.
-        :param y_pred: The model predictions.
-
-        :return: The metric result.
-        """
-        return self._metric(y_true, y_pred, **self._arguments)
-
-    @property
-    def name(self) -> str:
-        """
-        Get the name of the metric.
-
-        :return: The name of the metric.
-        """
-        return self._name
-
-    @property
-    def need_probabilities(self) -> bool:
-        """
-        Return whether this metric expects 'y_pred' to be from the 'model.predict_proba' method or from 'model.predict'.
-
-        :return: True if probabilities are required and False if not.
-        """
-        return self._need_probabilities
-
-    def _get_default_name(self) -> str:
-        """
-        Get the default name for this metric by the following rules:
-
-        * If metric is a function, the function's name.
-        * If metric is a callable object, the object's class name.
-
-        :return: The metric default name.
-        """
-        # Function object have __name__ where classes instances have __class__.__name__:
-        name = getattr(self._metric, "__name__", None)
-        return name if name is not None else self._metric.__class__.__name__
-
-    @staticmethod
-    def _from_string(metric: str) -> Callable:
-        """
-        Look for the metric by name in the globally imported objects. If the given metric is a full module path, it will
-        be imported from the path.
-
-        :param metric: The metric name or a full module path to import the metric.
-
-        :return: The imported metric function.
-
-        :raise MLRunInvalidArgumentError: If the metric name was not found within the global imports.
-        """
-        # Check if the metric is inside a module path:
-        module = None  # type: Union[ModuleType, str, None]
-        if "." in metric:
-            module, metric = metric.rsplit(".", 1)
-
-        # Look for the metric in the globals dictionary (it was imported before):
-        if metric in globals():
-            return globals()[metric]
-
-        # Import the metric from the given module:
-        if module is not None:
-            # Check if the module is already imported:
-            if module in sys.modules:
-                # It is already imported:
-                module = sys.modules[module]
-            else:
-                # Import the module:
-                module = importlib.import_module(module)
-            imported_metric = getattr(module, metric)
-            globals().update({metric: imported_metric})
-            return imported_metric
-
-        # Metric string was not provided properly:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"The metric {metric} was not found in the global imports dictionary meaning it was not "
-            f"imported. In order to import it during the run, please provide the full module path to the"
-            f"metric. For example: 'module.sub_module.metric' will be parsed as "
-            f"from module.sub_module import metric."
-        )
+from .._common.utils import ModelType
+from .metric import Metric
+from .utils import AlgorithmFunctionality, DatasetType, MetricEntry
 
 
 class MetricsLibrary(ABC):
@@ -135,7 +18,7 @@ class MetricsLibrary(ABC):
     _NEED_PROBABILITIES_KEYWORD = "need_probabilities"
 
     @staticmethod
-    def from_list(metrics_list: List[MetricEntry]) -> List[Metric]:
+    def from_list(metrics_list: List[Union[Metric, MetricEntry]]) -> List[Metric]:
         """
         Collect the given metrics configurations from a list. The metrics names will be chosen by the following rules:
 
@@ -153,7 +36,9 @@ class MetricsLibrary(ABC):
         :return: A list of metrics objects.
         """
         return [
-            MetricsLibrary._to_metric_class(metric_entry=metric)
+            metric
+            if isinstance(metric, Metric)
+            else MetricsLibrary._to_metric_class(metric_entry=metric)
             for metric in metrics_list
         ]
 
@@ -179,14 +64,37 @@ class MetricsLibrary(ABC):
         ]
 
     @classmethod
-    @abstractmethod
-    def default(cls, **kwargs) -> List[Metric]:
+    def default(cls, model: ModelType, y: DatasetType = None, **kwargs) -> List[Metric]:
         """
-        Get the default artifacts plans list of this framework's library.
+        Get the default metrics list of this framework's library.
+
+        :param model: The model to check if its a regression model or a classification model.
+        :param y:     The ground truth values to check if its multiclass and / or multi output.
 
         :return: The default metrics list.
         """
-        pass
+        algorithm_functionality = AlgorithmFunctionality.get_algorithm_functionality(
+            model=model, y=y
+        )
+        metrics = []  # type: List[Metric]
+        if algorithm_functionality.is_classification():
+            if algorithm_functionality.is_binary_classification():
+                metrics += [
+                    Metric(metric=sklearn.metrics.accuracy_score),
+                    Metric(metric=sklearn.metrics.precision_score),
+                    Metric(metric=sklearn.metrics.recall_score),
+                ]
+        if algorithm_functionality.is_regression():
+            if algorithm_functionality.is_single_output():
+                metrics += [
+                    Metric(metric=sklearn.metrics.r2_score),
+                    Metric(
+                        metric=sklearn.metrics.mean_squared_error,
+                        additional_arguments={"squared": False},
+                    ),
+                    Metric(metric=sklearn.metrics.mean_absolute_error),
+                ]
+        return metrics
 
     @staticmethod
     def _to_metric_class(metric_entry: MetricEntry, metric_name: str = None,) -> Metric:
@@ -227,7 +135,7 @@ METRICS_CONTEXT_PARAMETER = "metrics"
 
 def get_metrics(
     metrics_library: Type[MetricsLibrary],
-    metrics: Union[List[MetricEntry], Dict[str, MetricEntry]] = None,
+    metrics: Union[List[Metric], List[MetricEntry], Dict[str, MetricEntry]] = None,
     context: mlrun.MLClientCtx = None,
     **default_kwargs,
 ) -> List[Metric]:
@@ -251,8 +159,7 @@ def get_metrics(
     """
     # Look for available metrics prioritizing provided argument to the function over parameter passed via the context:
     if metrics is None and context is not None:
-        context_parameters = context.parameters
-        if METRICS_CONTEXT_PARAMETER in context_parameters:
+        if METRICS_CONTEXT_PARAMETER in context.parameters:
             metrics = context.parameters[METRICS_CONTEXT_PARAMETER]
 
     # Parse the metrics if available:

@@ -5,8 +5,9 @@ import shutil
 import sys
 import zipfile
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generic, List, Union, Type, Callable
 from types import MethodType
+from typing import Any, Callable, Dict, Generic, List, Type, Union
+
 import numpy as np
 
 import mlrun
@@ -16,7 +17,7 @@ from mlrun.execution import MLClientCtx
 from mlrun.features import Feature
 
 from .mlrun_interface import MLRunInterface
-from .types import ExtraDataType, IOSampleType, ModelType, PathType
+from .utils import ExtraDataType, IOSampleType, ModelType, PathType
 
 
 class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
@@ -1209,6 +1210,7 @@ def with_mlrun_interface(interface: Type[MLRunInterface]):
 
     :return: The method decorator.
     """
+
     def decorator(model_handler_method: Callable[[ModelHandler, ...], ...]):
         def wrapper(model_handler: ModelHandler, *args, **kwargs):
             # Check if the interface is applied to the model inside the handler:
@@ -1237,6 +1239,7 @@ def without_mlrun_interface(interface: Type[MLRunInterface]):
 
     :return: The method decorator.
     """
+
     def decorator(model_handler_method: MethodType):
         def wrapper(model_handler: ModelHandler, *args, **kwargs):
             # Check if the interface is applied to the model inside the handler:
@@ -1244,13 +1247,16 @@ def without_mlrun_interface(interface: Type[MLRunInterface]):
             # If the interface is applied, remove it:
             restoration_information = None
             if is_applied:
-                restoration_information = interface.remove_interface(obj=model_handler.model)
+                restoration_information = interface.remove_interface(
+                    obj=model_handler.model
+                )
             # Call the method:
             returned_value = model_handler_method(*args, **kwargs)
             # If the interface was applied, add it:
             if is_applied:
                 interface.add_interface(
-                    obj=model_handler.model, restoration_information=restoration_information
+                    obj=model_handler.model,
+                    restoration_information=restoration_information,
                 )
             return returned_value
 

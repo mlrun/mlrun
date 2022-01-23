@@ -1,68 +1,16 @@
-from abc import ABC, abstractmethod
-from enum import Enum
+from abc import ABC
 from typing import List
 
-from sklearn.base import is_classifier, is_regressor
-
-import mlrun.errors
 from .._common import ModelType
-from .._common.artifacts_library import ArtifactLibrary, Plan
+from .._common.artifacts_library import ArtifactsLibrary, Plan
+from .plans import (  # FeatureImportancePlan,; LearningCurvesPlan,; ROCCurvePlan,
+    ConfusionMatrixPlan,
+    DatasetPlan,
+)
+from .utils import AlgorithmFunctionality, DatasetType
 
 
-class MLPlanStages(Enum):
-    """
-    Stages for a machine learning plan to be produced.
-    """
-
-    PRE_FIT = "pre_fit"
-    POST_FIT = "post_fit"
-    PRE_PREDICT = "pre_predict"
-    POST_PREDICT = "post_predict"
-
-
-class MLPlan(Plan, ABC):
-    """
-    An abstract class for describing a ML plan. A ML plan is used to produce artifact in a given time using the MLLogger
-    or a direct call from the user using the MLArtifactsLibrary.
-    """
-
-    def __init__(
-        self, need_probabilities: bool = False, auto_produce: bool = True, **produce_arguments
-    ):
-        """
-        Initialize a new ML plan. The plan will be automatically produced if all of the required arguments to the
-        produce method are given.
-
-        :param need_probabilities: Whether this plan will need the predictions return from 'model.predict()' or
-                                   'model.predict_proba()'. True means predict_proba and False predict. Defaulted to
-                                   False.
-        :param auto_produce:       Whether to automatically produce the artifact if all of the required arguments are
-                                   given. Defaulted to True.
-        :param produce_arguments:  The provided arguments to the produce method in kwargs style.
-        """
-        self._need_probabilities = need_probabilities
-        super(MLPlan, self).__init__(auto_produce=auto_produce, **produce_arguments)
-
-    @property
-    def need_probabilities(self) -> bool:
-        """
-        Whether this plan require predictions returned from 'model.predict()' or 'model.predict_proba()'.
-
-        :return: True if predict_proba and False if predict.
-        """
-        return self._need_probabilities
-
-    @abstractmethod
-    def is_ready(self, stage: MLPlanStages) -> bool:
-        """
-        Check whether or not the plan is fit for production by the given stage.
-
-        :return: True if the plan is producible and False otherwise.
-        """
-        pass
-
-
-class MLArtifactLibrary(ArtifactLibrary, ABC):
+class MLArtifactsLibrary(ArtifactsLibrary, ABC):
     """
     An abstract class for a ML framework artifacts library. Each ML framework should have an artifacts library for
     knowing what artifacts can be produced and their configurations. The default method must be implemented for when the
@@ -74,39 +22,47 @@ class MLArtifactLibrary(ArtifactLibrary, ABC):
     some_artifact = SomeArtifactPlan
     """
 
+    dataset = DatasetPlan
+    # feature_importance = FeatureImportancePlan
+    confusion_matrix = ConfusionMatrixPlan
+    # roc_curve = ROCCurvePlan
+    # learning_curves = LearningCurvesPlan
+
     @classmethod
-    def default(cls, model: ModelType, **kwargs) -> List[Plan]:
+    def default(
+        cls, model: ModelType, y: DatasetType = None, *args, **kwargs
+    ) -> List[Plan]:
         """
         Get the default artifacts plans list of this framework's library.
 
+        :param model: The model to check if its a regression model or a classification model.
+        :param y:     The ground truth values to check if its multiclass and / or multi output.
+
         :return: The default artifacts plans list.
         """
-        if is_classifier(model):
-            return cls._default_classification()
-        if is_regressor(model):
-            return cls._default_regression()
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Could not figure out if the given model '{type(model)}' is a classifier or regressor. Please contact us "
-            f"on GitHub at https://github.com/mlrun/mlrun with the type of model that failed being recognized. You can "
-            f"also use an explicit list of desired artifacts instead of calling the default method."
+        # Discover the algorithm functionality of the provided model:
+        algorithm_functionality = AlgorithmFunctionality.get_algorithm_functionality(
+            model=model, y=y
         )
 
-    @classmethod
-    @abstractmethod
-    def _default_classification(cls) -> List[Plan]:
-        """
-        Get the default artifacts plans list of this framework's library for classification model.
+        # Initialize the plans list:
+        plans = [DatasetPlan(purpose=DatasetPlan.Purposes.TEST)]
 
-        :return: The default artifacts plans list.
-        """
-        pass
+        # Add classification plans:
+        if algorithm_functionality.is_classification():
+            # Add binary classification plans:
+            if algorithm_functionality.is_binary_classification():
+                plans += [
+                    # FeatureImportancePlan(),
+                    ConfusionMatrixPlan(),
+                    # ROCCurvePlan(),
+                    # LearningCurvesPlan(),
+                ]
 
-    @classmethod
-    @abstractmethod
-    def _default_regression(cls) -> List[Plan]:
-        """
-        Get the default artifacts plans list of this framework's library for regression model.
-
-        :return: The default artifacts plans list.
-        """
-        pass
+        # Add regression plans:
+        if algorithm_functionality.is_regression():
+            # Add single output regression plans:
+            if algorithm_functionality.is_single_output():
+                # plans += [FeatureImportancePlan()]
+                pass  # TODO: Wait for Alex to correct the plans and uncomment all of these.
+        return plans

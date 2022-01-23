@@ -115,7 +115,6 @@ def test_requirement_specifiers_convention():
         "google-auth": {">=1.25.0, <2.0dev"},
         "ipython": {"~=7.0, <7.17"},
         "numpy": {">=1.16.5, <1.22.0"},
-        "tabulate": {">=0.8.0, <=0.8.3"},
         "orjson": {">=3,<3.4"},
         "alembic": {"~=1.4,<1.6.0"},
         "boto3": {"~=1.9, <1.17.107"},

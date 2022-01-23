@@ -818,14 +818,13 @@ def get_feature_set(uri, project=None):
     return get_feature_set_by_uri(uri, project)
 
 
-def get_feature_vector(uri, project=None, update_permissions=False):
+def get_feature_vector(uri, project=None):
     """get feature vector object from the db
 
     :param uri:  a feature vector uri([{project}/{name}[:version])
     :param project:  project name if not specified in uri or not using the current/default
-    :param update_permissions: by default the feature vector will be retrieved with read permissions
     """
-    return get_feature_vector_by_uri(uri, project, update_permissions)
+    return get_feature_vector_by_uri(uri, project, update=False)
 
 
 def delete_feature_set(name, project="", tag=None, uid=None, force=False):

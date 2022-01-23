@@ -28,18 +28,13 @@ RUN python -m pip install --upgrade pip~=21.2.0
 
 COPY ./dockerfiles/test-system/requirements.txt /tmp/mlrun-requirements/test-system-requirements.txt
 COPY ./dockerfiles/mlrun-api/requirements.txt /tmp/mlrun-requirements/mlrun-api-requirements.txt
+COPY ./extras-requirements.txt /tmp/mlrun-requirements
 COPY ./requirements.txt /tmp/mlrun-requirements
 RUN python -m pip install \
   -r /tmp/mlrun-requirements/requirements.txt \
+  -r /tmp/mlrun-requirements/extras-requirements.txt \
   -r /tmp/mlrun-requirements/mlrun-api-requirements.txt \
   -r /tmp/mlrun-requirements/test-system-requirements.txt
-
-# if we give all the requirements together pip resolver go nuts so separating between the package and the image
-# requirements
-COPY ./extras-requirements.txt /tmp/mlrun-requirements
-RUN python -m pip install \
-  -r /tmp/mlrun-requirements/extras-requirements.txt
-
 COPY . /tmp/mlrun
 RUN cd /tmp/mlrun && python -m pip install ".[complete]" && mv tests /tests && mv Makefile /Makefile
 

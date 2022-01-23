@@ -1,10 +1,9 @@
 # Images and their usage in MLRun
 
-## Supported images
 Every release of MLRun includes several images for different usages.
 All images are published to [dockerhub](https://hub.docker.com/u/mlrun) and [quay.io](https://quay.io/organization/mlrun).
 
-The images are:
+## Images you can use in jobs
 * `mlrun/mlrun` - The most basic (and smallest) image, can be used for simple jobs. Basically just MLRun installed on 
   top of a python image
 * `mlrun/ml-base` - Image for file acquisition, compression, dask jobs, simple training jobs and other utilities. Like 
@@ -15,6 +14,8 @@ The images are:
   [TensorFlow](https://www.tensorflow.org/), [Horovod](https://horovod.ai/) and other [python packages](
   ./models/requirements.txt)
 * `mlrun/ml-models-gpu` - Same as `mlrun/ml-models` but for GPUs
+
+## MLRun infrastructure images
 * `mlrun/jupyter` - An image with [Jupyter](https://jupyter.org/) giving a playground to use MLRun in the open source.
   Built on top of [`jupyter/scipy-notebook`](
   https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html#jupyter-scipy-notebook), with the addition
@@ -64,26 +65,6 @@ The supported commands are:
 
 To run an image locally and explore its contents: `docker run -it <image-name>:<image-tag> /bin/bash`<br>
 or to load python (or run a script): `docker run -it <image-name>:<image-tag> python`.
-
-## MLRun images vs. external docker images
-
-There is no difference in the usage between the MLRun images and external docker images. However, MLRun images:
-- Resolve auto tags: If you specify `image="mlrun/mlrun"` the API fills in the tag by its version, e.g. changes it to `mlrun/mlrun:0.9.2`. 
-And if the API gets upgraded you'll automatically get a new API image. 
-- Append the registry prefix, saving the image in the datanode registry, except for any third party k8s installations. This pulls the image more 
-quickly, and also supports air-gapped sites. When you specify an MLRun image, for example `mlrun/mlrun:0.9.1` the actual image used is similar to 
-datanode-registry.iguazio-platform.app.vm.
-
-These characteristics are great when you’re working in a POC or development environment. But MLRun typically upgrades packages as part of the image, and therefore 
-the default MLRun images can break your product flow. 
-
-For production you should create your own images:
-- Pin the image tag, e.g. `image="mlrun/mlrun:0.10.0"`. This maintains the image tag at 0.10.0 even when the API is upgraded. Otherwise, an upgrade of the API 
-would also upgrade the image. (If you specify `mlrun/mlrun` the result is the docker/k8s default behavior, which defaults to `latest` when the tag is not provided. 
-By providing tags, you ensure that the image is fixed.)
-- Specify the exact packages (e.g. specific tensorflow or pytorch package) your system uses.
-- Pin the versions of requirements, again to avoid breakages, e.g. pandas==1.4.0. (If you only specify the package name, e.g. pandas, 
-then pip/conda (python's package managers) just pick up the latest version.)
 
 ## Using images
 

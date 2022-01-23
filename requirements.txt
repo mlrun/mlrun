@@ -48,7 +48,8 @@ dask~=2021.3.0; python_version < '3.7'
 # after 2021.3.0 distributed dropped support for python 3.6
 distributed~=2021.11.2; python_version >= '3.7'
 distributed~=2021.3.0; python_version < '3.7'
-kubernetes~=18.20
+# iguazio systems are running 1.17-1.21 so ideally we would use 17.X or later, but kfp limiting to <13.0
+kubernetes~=12.0
 # TODO: move to API requirements (shouldn't really be here, the sql run db using the API sqldb is preventing us from
 #  separating the SDK and API code) (referring to humanfriendly and fastapi)
 humanfriendly~=8.2

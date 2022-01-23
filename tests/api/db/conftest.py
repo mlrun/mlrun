@@ -65,7 +65,7 @@ def data_migration_db(request) -> Generator:
         # memory sqldb remove it self when all session closed, this session will keep it up during all test
         db_session = create_session()
         try:
-            init_data()
+            init_data(from_scratch=True)
             db = SQLDB(dsn)
             db.initialize(db_session)
             initialize_db(db)

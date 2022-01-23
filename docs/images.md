@@ -29,7 +29,7 @@ Note: For compatibility with some packages requiring py36, there is also a tag w
 ## Building images
 To build all images, run this command from the root directory of the mlrun repository:<br>
 
-    MLRUN_VERSION=X MLRUN_DOCKER_REPO=X MLRUN_DOCKER_REGISTRY=X make docker-images
+    `MLRUN_VERSION=X MLRUN_DOCKER_REPO=X MLRUN_DOCKER_REGISTRY=X make docker-images`
 
 Where:<br>
 * `MLRUN_VERSION` is used as the tag of the image and is also the version injected into the code (e.g. `latest` or `0.9.0` or `0.9.2-rc1`, defaults to `unstable`)

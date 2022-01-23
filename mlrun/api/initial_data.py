@@ -33,7 +33,8 @@ def init_data(
     if not from_scratch and config.httpdb.db.database_migration_mode == "enabled":
         sqlite_migration_util = SQLiteMigrationUtil()
     alembic_util = _create_alembic_util()
-    is_migration_needed = _is_migration_needed(alembic_util, sqlite_migration_util)
+    is_migration_needed, is_migration_from_scratch = _is_migration_needed(alembic_util, sqlite_migration_util)
+    from_scratch = from_scratch or is_migration_from_scratch
     if not from_scratch and not perform_migrations_if_needed and is_migration_needed:
         state = mlrun.api.schemas.APIStates.waiting_for_migrations
         logger.info("Migration is needed, changing API state", state=state)
@@ -42,7 +43,7 @@ def init_data(
 
     logger.info("Creating initial data")
     config.httpdb.state = mlrun.api.schemas.APIStates.migrations_in_progress
-    if is_migration_needed:
+    if from_scratch or is_migration_needed:
         try:
             _perform_schema_migrations(alembic_util)
 
@@ -80,7 +81,7 @@ latest_data_version = 2
 def _is_migration_needed(
     alembic_util: AlembicUtil,
     sqlite_migration_util: typing.Optional[SQLiteMigrationUtil],
-) -> bool:
+) -> typing.Tuple[bool, bool]:
     is_database_migration_needed = False
     if sqlite_migration_util is not None:
         is_database_migration_needed = (
@@ -105,7 +106,7 @@ def _is_migration_needed(
         is_migration_needed=is_migration_needed,
     )
 
-    return is_migration_needed
+    return is_migration_needed, is_migration_from_scratch
 
 
 def _create_alembic_util() -> AlembicUtil:

@@ -26,6 +26,10 @@ All images are published to [dockerhub](https://hub.docker.com/u/mlrun) and [qua
 Note: For compatibility with some packages requiring py36, there is also a tag with the `-py36` suffix (e.g. 
 `0.7.0-py36`) for the ml images (`mlrun/ml-base`, `mlrun/ml-models`, `mlrun/ml-models-gpu`).
 
+## Using images
+
+See [Kubernetes Jobs & Images](./runtimes/mlrun_jobs.ipynb)
+
 ## Building images
 To build all images, run this command from the root directory of the mlrun repository:<br>
 
@@ -65,7 +69,3 @@ The supported commands are:
 
 To run an image locally and explore its contents: `docker run -it <image-name>:<image-tag> /bin/bash`<br>
 or to load python (or run a script): `docker run -it <image-name>:<image-tag> python`.
-
-## Using images
-
-See [Kubernetes Jobs & Images](./runtimes/mlrun_jobs.ipynb)

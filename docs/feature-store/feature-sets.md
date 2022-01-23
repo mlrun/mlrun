@@ -26,9 +26,13 @@ Creating a feature set comprises of the following steps:
 
 ### Create a FeatureSet:
 * **name** &mdash; The feature set name is a unique name within a project. 
-* **entities** &mdash; Each feature set must be associated with one or more index column. when joining feature sets the entity is used as the key column.
-* **timestamp_key** &mdash; (optional) - it is used for specifying the time field when joining by time
-* **engine** &mdash; the processing engine type (storey, pandas, spark)
+* **entities** &mdash; Each feature set must be associated with one or more index column. When joining feature sets the entity is used as the key column.
+* **timestamp_key** &mdash; (optional). This is used for specifying the time field when joining by time.
+* **engine**:
+   * spark
+   * pandas
+   * storey (some advanced functionalities are in Beta state)
+
 
 Example:
 ```python

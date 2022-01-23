@@ -92,16 +92,18 @@ RUN ldconfig /usr/local/cuda-11.0/targets/x86_64-linux/lib/stubs && \
 WORKDIR /mlrun
 
 COPY ./requirements.txt ./
-COPY ./extras-requirements.txt ./extras-requirements.txt
 COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
 
 RUN python -m pip install \
     -r requirements.txt \
-    -r extras-requirements.txt \
     -r mlrun-image-requirements.txt
 
 # if we give all the requirements together pip resolver go nuts so separating between the package and the image
 # requirements
+COPY ./extras-requirements.txt ./extras-requirements.txt
+RUN python -m pip install \
+    -r extras-requirements.txt
+
 COPY ./dockerfiles/base/requirements.txt ./base-image-requirements.txt
 RUN python -m pip install \
     -r base-image-requirements.txt

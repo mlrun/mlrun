@@ -25,13 +25,17 @@ RUN mkdir data
 
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/requirements.txt /tmp/requirements/jupyter-requirements.txt
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/mlrun-api/requirements.txt /tmp/requirements/mlrun-api-requirements.txt
-COPY --chown=$NB_UID:$NB_GID ./extras-requirements.txt /tmp/requirements/extras-requirement.txt
 COPY --chown=$NB_UID:$NB_GID ./requirements.txt /tmp/requirements/requirement.txt
 RUN python -m pip install \
     -r /tmp/requirements/jupyter-requirements.txt \
     -r /tmp/requirements/mlrun-api-requirements.txt \
-    -r /tmp/requirements/extras-requirement.txt \
     -r /tmp/requirements/requirement.txt
+
+# if we give all the requirements together pip resolver go nuts so separating between the package and the image
+# requirements
+COPY --chown=$NB_UID:$NB_GID ./extras-requirements.txt /tmp/requirements/extras-requirement.txt
+RUN python -m pip install \
+    -r /tmp/requirements/extras-requirement.txt
 
 COPY --chown=$NB_UID:$NB_GID . /tmp/mlrun
 RUN cd /tmp/mlrun && python -m pip install ".[complete-api]"

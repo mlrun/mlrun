@@ -33,7 +33,9 @@ def init_data(
     if not from_scratch and config.httpdb.db.database_migration_mode == "enabled":
         sqlite_migration_util = SQLiteMigrationUtil()
     alembic_util = _create_alembic_util()
-    is_migration_needed, is_migration_from_scratch = _is_migration_needed(alembic_util, sqlite_migration_util)
+    is_migration_needed, is_migration_from_scratch = _is_migration_needed(
+        alembic_util, sqlite_migration_util
+    )
     from_scratch = from_scratch or is_migration_from_scratch
     if not from_scratch and not perform_migrations_if_needed and is_migration_needed:
         state = mlrun.api.schemas.APIStates.waiting_for_migrations

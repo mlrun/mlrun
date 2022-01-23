@@ -3,6 +3,7 @@ import os
 import traceback
 from typing import Any, Dict, List, Optional
 
+import v3io_frames
 from nuclio.utils import DeployError
 from sqlalchemy.orm import Session
 from v3io.dataplane import RaiseForStatus
@@ -522,7 +523,7 @@ class ModelEndpoints:
                     (str(timestamp), value) for timestamp, value in metric_data.items()
                 ]
                 metrics_mapping[metric] = Metric(name=metric, values=values)
-        except:
+        except v3io_frames.errors.ReadError:
             logger.warn(f"failed to read tsdb for endpoint {endpoint_id}")
         return metrics_mapping
 

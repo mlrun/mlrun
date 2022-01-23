@@ -91,7 +91,7 @@ class ArtifactManager:
         upload=None,
         labels=None,
         db_key=None,
-    ):
+    ) -> Artifact:
         if isinstance(item, str):
             key = item
             if local_path and isdir(local_path):

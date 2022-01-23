@@ -18,7 +18,7 @@ def test_client_spec(
     mlrun.mlconf.ui.projects_prefix = overridden_ui_projects_prefix
     nuclio_version = "x.x.x"
     mlrun.mlconf.nuclio_version = nuclio_version
-    response = client.get("/api/client-spec")
+    response = client.get("client-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     response_body = response.json()
     for key in ["scrape_metrics", "hub_url"]:
@@ -28,7 +28,7 @@ def test_client_spec(
 
     # check nuclio_version cache
     mlrun.mlconf.nuclio_version = "y.y.y"
-    response = client.get("/api/client-spec")
+    response = client.get("client-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     response_body = response.json()
     assert response_body["nuclio_version"] == nuclio_version

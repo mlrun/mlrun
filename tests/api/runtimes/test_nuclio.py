@@ -63,6 +63,7 @@ class TestNuclioRuntime(TestRuntimeBase):
     def _get_expected_struct_for_http_trigger(parameters):
         expected_struct = {
             "kind": "http",
+            "name": "http",
             "maxWorkers": parameters["workers"],
             "attributes": {
                 "ingresses": {
@@ -123,6 +124,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         expected_labels=None,
         expected_env_from_secrets=None,
         expected_service_account=None,
+        expected_build_base_image=None,
     ):
         if expected_labels is None:
             expected_labels = {}
@@ -164,7 +166,11 @@ class TestNuclioRuntime(TestRuntimeBase):
             ).decode("utf-8")
             assert spec_source_code.startswith(original_source_code)
 
-            assert build_info["baseImage"] == self.image_name
+            if self.image_name or expected_build_base_image:
+                assert (
+                    build_info["baseImage"] == self.image_name
+                    or expected_build_base_image
+                )
 
             if expected_env_from_secrets:
                 env_vars = deploy_config["spec"]["env"]
@@ -270,7 +276,6 @@ class TestNuclioRuntime(TestRuntimeBase):
                 == {}
             )
         if expected_affinity:
-
             # deploy_spec returns affinity in CamelCase, V1Affinity is in snake_case
             assert (
                 deepdiff.DeepDiff(
@@ -423,6 +428,43 @@ class TestNuclioRuntime(TestRuntimeBase):
         function = self._generate_runtime(self.runtime_kind)
 
         self._serialize_and_deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(expected_class=self.class_name)
+
+    def test_deploy_build_base_image(
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+    ):
+        expected_build_base_image = "mlrun/base_mlrun:latest"
+        self.image_name = None
+
+        function = self._generate_runtime(self.runtime_kind)
+        function.spec.build.base_image = expected_build_base_image
+
+        self._serialize_and_deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(
+            expected_class=self.class_name,
+            expected_build_base_image=expected_build_base_image,
+        )
+
+    def test_deploy_image_name_and_build_base_image(
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+    ):
+        """When spec.image and also spec.build.base_image are both defined the spec.image should be applied
+         to spec.baseImage in nuclio."""
+
+        function = self._generate_runtime(self.runtime_kind)
+        function.spec.build.base_image = "mlrun/base_mlrun:latest"
+
+        self._serialize_and_deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(expected_class=self.class_name)
+
+    def test_deploy_without_image_and_build_base_image(
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+    ):
+        self.image_name = None
+
+        function = self._generate_runtime(self.runtime_kind)
+        self._serialize_and_deploy_nuclio_function(function)
+
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
 
     def test_deploy_function_with_labels(self, db: Session, client: TestClient):

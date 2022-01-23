@@ -84,6 +84,7 @@ class TestProject(TestMLRunSystem):
         )
         proj.set_workflow("main", "./kflow.py", args_schema=[arg])
         proj.set_workflow("newflow", "./newflow.py", handler="newpipe")
+        proj.spec.artifact_path = "v3io:///projects/{{run.project}}"
         proj.save()
         return proj
 
@@ -96,6 +97,28 @@ class TestProject(TestMLRunSystem):
         project2 = mlrun.load_project(str(self.assets_path), name=name)
         run = project2.run("main", watch=True, artifact_path=f"v3io:///projects/{name}")
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        self._delete_test_project(name)
+
+    def test_run_artifact_path(self):
+        name = "pipe1"
+        # create project in context
+        self._create_project(name)
+
+        # load project from context dir and run a workflow
+        project = mlrun.load_project(str(self.assets_path), name=name)
+        # Don't provide an artifact-path, to verify that the run-id is added by default
+        workflow_run = project.run("main", watch=True)
+        assert workflow_run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+
+        # check that the functions running in the workflow had the output_path set correctly
+        db = mlrun.get_run_db()
+        run_id = workflow_run.run_id
+        pipeline = db.get_pipeline(run_id, project=name)
+        for graph_step in pipeline["graph"].values():
+            if "run_uid" in graph_step:
+                run_object = db.read_run(uid=graph_step["run_uid"], project=name)
+                output_path = run_object["spec"]["output_path"]
+                assert output_path == f"v3io:///projects/{name}/{run_id}"
         self._delete_test_project(name)
 
     def test_run_git_load(self):
@@ -190,7 +213,8 @@ class TestProject(TestMLRunSystem):
         shutil.rmtree(project_dir, ignore_errors=True)
         project = self._create_project(name, True)
         run = project.run(
-            artifact_path=f"v3io:///projects/{name}", workflow_handler=pipe_test,
+            artifact_path=f"v3io:///projects/{name}/artifacts",
+            workflow_handler=pipe_test,
         )
         run.wait_for_completion()
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
@@ -258,4 +282,49 @@ class TestProject(TestMLRunSystem):
         out = exec_project(args, projects_dir)
         print("OUT:\n", out)
         assert out.find("pipeline run finished, state=Succeeded"), "pipeline failed"
+        self._delete_test_project(name)
+
+    def test_build_and_run(self):
+        # test that build creates a proper image and run will use the updated function (with the built image)
+        name = "buildandrun"
+        project = mlrun.new_project(name, context=str(self.assets_path))
+
+        # test with user provided function object
+        base_fn = mlrun.code_to_function(
+            "scores",
+            filename=str(self.assets_path / "sentiment.py"),
+            kind="job",
+            image="mlrun/mlrun",
+            requirements=["vaderSentiment"],
+            handler="handler",
+        )
+
+        fn = base_fn.copy()
+        assert fn.spec.build.base_image == "mlrun/mlrun" and not fn.spec.image
+        fn.spec.build.with_mlrun = False
+        project.build_function(fn)
+        run_result = project.run_function(fn, params={"text": "good morning"})
+        assert run_result.output("score")
+
+        # test with function from project spec
+        project.set_function(
+            "./sentiment.py",
+            "scores2",
+            kind="job",
+            image="mlrun/mlrun",
+            requirements=["vaderSentiment"],
+            handler="handler",
+        )
+        project.build_function("scores2")
+        run_result = project.run_function("scores2", params={"text": "good morning"})
+        assert run_result.output("score")
+
+        # test auto build option (the function will be built on the first time, then run)
+        fn = base_fn.copy()
+        fn.metadata.name = "scores3"
+        fn.spec.build.auto_build = True
+        run_result = project.run_function(fn, params={"text": "good morning"})
+        assert fn.status.state == "ready"
+        assert run_result.output("score")
+
         self._delete_test_project(name)

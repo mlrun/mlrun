@@ -41,6 +41,7 @@ from ..model import (
 )
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import BaseStep, RootFlowStep, previous_step
+from ..serving.utils import StepToDict
 from ..utils import StorePrefix
 from .common import verify_feature_set_permissions
 
@@ -454,7 +455,7 @@ class FeatureSet(ModelObj):
         """feature set transformation graph/DAG"""
         return self.spec.graph
 
-    def _add_agregation_to_existing(self, new_aggregation):
+    def _add_aggregation_to_existing(self, new_aggregation):
         name = new_aggregation["name"]
         if name in self._aggregations:
             current_aggr = self._aggregations[name]
@@ -518,7 +519,7 @@ class FeatureSet(ModelObj):
                               In this case, each record on an in-application stream belongs
                               to a specific window. It is processed only once
                               (when the query processes the window to which the record belongs).
-        :param period:     optional, sliding window granularity, e.g. '10m'
+        :param period:     optional, sliding window granularity, e.g. '20s' '10m'  '3h' '7d'
         :param name:       optional, aggregation name/prefix. Must be unique per feature set.If not passed,
                             the column will be used as name.
         :param step_name: optional, graph step name
@@ -559,20 +560,39 @@ class FeatureSet(ModelObj):
         graph = self.spec.graph
         if step_name in graph.steps:
             step = graph.steps[step_name]
-            self._add_agregation_to_existing(aggregation)
+            self._add_aggregation_to_existing(aggregation)
             step.class_args["aggregates"] = list(self._aggregations.values())
         else:
             class_args = {}
             self._aggregations[aggregation["name"]] = aggregation
-            step = graph.add_step(
-                name=step_name,
-                after=after or previous_step,
-                before=before,
-                class_name="storey.AggregateByKey",
-                aggregates=[aggregation],
-                table=".",
-                **class_args,
-            )
+            if not self.spec.engine or self.spec.engine == "storey":
+                step = graph.add_step(
+                    name=step_name,
+                    after=after or previous_step,
+                    before=before,
+                    class_name="storey.AggregateByKey",
+                    aggregates=[aggregation],
+                    table=".",
+                    **class_args,
+                )
+            elif self.spec.engine == "spark":
+                key_columns = []
+                for entity in self.spec.entities:
+                    key_columns.append(entity.name)
+                step = graph.add_step(
+                    name=step_name,
+                    key_columns=key_columns,
+                    time_column=self.spec.timestamp_key,
+                    aggregates=[aggregation],
+                    after=after or previous_step,
+                    before=before,
+                    class_name="mlrun.feature_store.feature_set.SparkAggregateByKey",
+                    **class_args,
+                )
+            else:
+                raise ValueError(
+                    "Aggregations are only implemented for storey and spark engines."
+                )
 
         for operation in operations:
             for window in windows:
@@ -617,8 +637,19 @@ class FeatureSet(ModelObj):
         start_time=None,
         end_time=None,
         time_column=None,
+        **kwargs,
     ):
-        """return featureset (offline) data as dataframe"""
+        """return featureset (offline) data as dataframe
+
+        :param columns:      list of columns to select (if not all)
+        :param df_module:    py module used to create the DataFrame (pd for Pandas, dd for Dask, ..)
+        :param target_name:  select a specific target (material view)
+        :param start_time:   filter by start time
+        :param end_time:     filter by end time
+        :param time_column:  specify the time column name in the file
+        :param kwargs:       additional reader (csv, parquet, ..) args
+        :return: DataFrame
+        """
         entities = list(self.spec.entities.keys())
         if columns:
             if self.spec.timestamp_key and self.spec.timestamp_key not in entities:
@@ -636,6 +667,7 @@ class FeatureSet(ModelObj):
             start_time=start_time,
             end_time=end_time,
             time_column=time_column,
+            **kwargs,
         )
 
     def save(self, tag="", versioned=False):
@@ -660,3 +692,64 @@ class FeatureSet(ModelObj):
         self.status = feature_set.status
         if update_spec:
             self.spec = feature_set.spec
+
+
+class SparkAggregateByKey(StepToDict):
+    def __init__(
+        self, key_columns: List[str], time_column: str, aggregates: List[Dict]
+    ):
+        self.key_columns = key_columns
+        self.time_column = time_column
+        self.aggregates = aggregates
+
+    @staticmethod
+    def _duration_to_spark_format(duration):
+        num = duration[:-1]
+        unit = duration[-1:]
+        if unit == "d":
+            unit = "day"
+        if unit == "h":
+            unit = "hour"
+        elif unit == "m":
+            unit = "minute"
+        elif unit == "s":
+            unit = "second"
+        else:
+            raise ValueError(f"Invalid duration '{duration}'")
+        return f"{num} {unit}"
+
+    def do(self, event):
+        import pyspark.sql.functions as funcs
+
+        time_column = self.time_column or "time"
+
+        dfs = []
+        for aggregate in self.aggregates:
+            name = aggregate["name"]
+            column = aggregate["column"]
+            operations = aggregate["operations"]
+            windows = aggregate["windows"]
+            period = aggregate["period"]
+
+            spark_period = self._duration_to_spark_format(period)
+
+            input_df = event
+            for window in windows:
+                spark_window = self._duration_to_spark_format(window)
+                aggs = []
+                for operation in operations:
+                    func = getattr(funcs, operation)
+                    agg_name = f"{name if name else column}_{operation}_{window}"
+                    agg = func(column).alias(agg_name)
+                    aggs.append(agg)
+                window_column = funcs.window(time_column, spark_window, spark_period)
+                df = input_df.groupBy(
+                    *self.key_columns, window_column.end.alias(time_column),
+                ).agg(*aggs)
+                df = df.withColumn(f"{time_column}_window", funcs.lit(window))
+                dfs.append(df)
+
+        union_df = dfs[0]
+        for df in dfs[1:]:
+            union_df = union_df.unionByName(df, allowMissingColumns=True)
+        return union_df

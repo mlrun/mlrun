@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from datetime import datetime
-from typing import List, Optional, Union
+from typing import List, Union
 from urllib.parse import urlparse
 
 import pandas as pd
@@ -34,7 +34,7 @@ from ..db import RunDBError
 from ..model import DataSource, DataTargetBase
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
-from ..utils import get_caller_globals, logger
+from ..utils import get_caller_globals, logger, normalize_name, str_to_timestamp
 from .common import (
     RunConfig,
     get_feature_set_by_uri,
@@ -55,7 +55,7 @@ from .ingestion import (
     run_ingestion_job,
     run_spark_graph,
 )
-from .retrieval import LocalFeatureMerger, init_feature_vector_graph, run_merge_job
+from .retrieval import get_merger, init_feature_vector_graph, run_merge_job
 
 _v3iofs = None
 spark_transform_handler = "transform"
@@ -89,16 +89,24 @@ def get_offline_features(
     target: DataTargetBase = None,
     run_config: RunConfig = None,
     drop_columns: List[str] = None,
-    start_time: Optional[pd.Timestamp] = None,
-    end_time: Optional[pd.Timestamp] = None,
+    start_time: Union[str, pd.Timestamp] = None,
+    end_time: Union[str, pd.Timestamp] = None,
     with_indexes: bool = False,
     update_stats: bool = False,
+    engine: str = None,
+    engine_args: dict = None,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 
     specify a feature vector object/uri and retrieve the desired features, their metadata
     and statistics. returns :py:class:`~mlrun.feature_store.OfflineVectorResponse`,
     results can be returned as a dataframe or written to a target
+
+    The start_time and end_time attributes allow filtering the data to a given time range, they accept
+    string values or pandas `Timestamp` objects, string values can also be relative, for example:
+    "now", "now - 1d2h", "now+5m", where a valid pandas Timedelta string follows the verb "now",
+    for time alignment you can use the verb "floor" e.g. "now -1d floor 1H" will align the time to the last hour
+    (the floor string is passed to pandas.Timestamp.floor(), can use D, H, T, S for day, hour, min, sec alignment).
 
     example::
 
@@ -130,6 +138,8 @@ def get_offline_features(
         entity_timestamp_column must be passed when using time filtering.
     :param with_indexes:    return vector with index columns (default False)
     :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
+    :param engine:          processing engine kind ("local", "dask", or "spark")
+    :param engine_args:     kwargs for the processing engine
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
@@ -152,11 +162,14 @@ def get_offline_features(
             with_indexes=with_indexes,
         )
 
+    start_time = str_to_timestamp(start_time)
+    end_time = str_to_timestamp(end_time)
     if (start_time or end_time) and not entity_timestamp_column:
         raise TypeError(
             "entity_timestamp_column or feature_vector.spec.timestamp_field is required when passing start/end time"
         )
-    merger = LocalFeatureMerger(feature_vector)
+    merger_engine = get_merger(engine)
+    merger = merger_engine(feature_vector, **(engine_args or {}))
     return merger.start(
         entity_rows,
         entity_timestamp_column,
@@ -238,6 +251,9 @@ def ingest(
     when targets are not specified data is stored in the configured default targets
     (will usually be NoSQL for real-time and Parquet for offline).
 
+    the `run_config` parameter allow specifying the function and job configuration,
+    see: :py:class:`~mlrun.feature_store.RunConfig`
+
     example::
 
         stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
@@ -245,7 +261,7 @@ def ingest(
         df = ingest(stocks_set, stocks, infer_options=fstore.InferOptions.default())
 
         # for running as remote job
-        config = RunConfig(image='mlrun/mlrun').apply(mount_v3io())
+        config = RunConfig(image='mlrun/mlrun')
         df = ingest(stocks_set, stocks, run_config=config)
 
         # specify source and targets
@@ -255,7 +271,9 @@ def ingest(
 
     :param featureset:    feature set object or featureset.uri. (uri must be of a feature set that is in the DB,
                           call `.save()` if it's not)
-    :param source:        source dataframe or file path
+    :param source:        source dataframe or other sources (e.g. parquet source see:
+                          :py:class:`~mlrun.datastore.ParquetSource` and other classes in mlrun.datastore with suffix
+                          Source)
     :param targets:       optional list of data target objects
     :param namespace:     namespace or module containing graph classes
     :param return_df:     indicate if to return a dataframe with the graph results
@@ -567,6 +585,9 @@ def deploy_ingestion_service(
     Deploy a real-time function implementing feature ingestion pipeline
     the source maps to Nuclio event triggers (http, kafka, v3io stream, etc.)
 
+    the `run_config` parameter allow specifying the function and job configuration,
+    see: :py:class:`~mlrun.feature_store.RunConfig`
+
     example::
 
         source = HTTPSource()
@@ -599,7 +620,7 @@ def deploy_ingestion_service(
         featureset, source, targets, run_config.parameters
     )
 
-    name = name or f"{featureset.metadata.name}-ingest"
+    name = normalize_name(name or f"{featureset.metadata.name}-ingest")
     if not run_config.function:
         function_ref = featureset.spec.function.copy()
         if function_ref.is_empty():
@@ -718,6 +739,9 @@ def _ingest_with_spark(
 
         if isinstance(source, BaseSourceDriver) and source.schedule:
             max_time = df.agg({timestamp_key: "max"}).collect()[0][0]
+            if not max_time:
+                # if max_time is None(no data), next scheduled run should be with same start_time
+                max_time = source.start_time
             for target in featureset.status.targets:
                 featureset.status.update_last_written_for_target(target.path, max_time)
 
@@ -808,7 +832,7 @@ def get_feature_vector(uri, project=None):
     :param uri:  a feature vector uri([{project}/{name}[:version])
     :param project:  project name if not specified in uri or not using the current/default
     """
-    return get_feature_vector_by_uri(uri, project)
+    return get_feature_vector_by_uri(uri, project, update=False)
 
 
 def delete_feature_set(name, project="", tag=None, uid=None, force=False):

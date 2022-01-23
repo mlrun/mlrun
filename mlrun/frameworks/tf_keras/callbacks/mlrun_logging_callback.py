@@ -32,15 +32,8 @@ class MLRunLoggingCallback(LoggingCallback):
     def __init__(
         self,
         context: mlrun.MLClientCtx,
-        model_name: str = None,
-        model_path: str = None,
-        modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
-        custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
-        custom_objects_directory: str = None,
-        model_format: str = TFKerasModelHandler.ModelFormats.SAVED_MODEL,
-        save_traces: bool = False,
-        input_sample: TFKerasModelHandler.IOSample = None,
-        output_sample: TFKerasModelHandler.IOSample = None,
+        model_handler: TFKerasModelHandler,
+        log_model_tag: str = "",
         log_model_labels: Dict[str, TrackableType] = None,
         log_model_parameters: Dict[str, TrackableType] = None,
         log_model_extra_data: Dict[str, Union[TrackableType, Artifact]] = None,
@@ -57,56 +50,9 @@ class MLRunLoggingCallback(LoggingCallback):
 
         :param context:                  MLRun context to log to. Its parameters will be logged automatically  if
                                          'auto_log' is True.
-        :param model_name:               The model name to use for storing the model artifact. If not given, the
-                                         tf.keras.Model.name will be used.
-        :param model_path:               The model's store object path. Mandatory for evaluation (to know which model to
-                                         update).
-        :param modules_map:              A dictionary of all the modules required for loading the model. Each key
-                                         is a path to a module and its value is the object name to import from it. All
-                                         the modules will be imported globally. If multiple objects needed to be
-                                         imported from the same module a list can be given. The map can be passed as a
-                                         path to a json file as well. For example:
-                                         {
-                                             "module1": None,  # => import module1
-                                             "module2": ["func1", "func2"],  # => from module2 import func1, func2
-                                             "module3.sub_module": "func3",  # => from module3.sub_module import func3
-                                         }
-                                         If the model path given is of a store object, the modules map will be read from
-                                         the logged modules map artifact of the model.
-        :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key
-                                         is a path to a python file and its value is the custom object name to import
-                                         from it. If multiple objects needed to be imported from the same py file a list
-                                         can be given. The map can be passed as a path to a json file as well. For
-                                         example:
-                                         {
-                                             "/.../custom_optimizer.py": "optimizer",
-                                             "/.../custom_layers.py": ["layer1", "layer2"]
-                                         }
-                                         All the paths will be accessed from the given 'custom_objects_directory',
-                                         meaning each py file will be read from 'custom_objects_directory/<MAP VALUE>'.
-                                         If the model path given is of a store object, the custom objects map will be
-                                         read from the logged custom object map artifact of the model.
-                                         Notice: The custom objects will be imported in the order they came in this
-                                         dictionary (or json). If a custom object is depended on another, make sure to
-                                         put it below the one it relies on.
-        :param custom_objects_directory: Path to the directory with all the python files required for the custom
-                                         objects. Can be passed as a zip file as well (will be extracted during the run
-                                         before loading the model). If the model path given is of a store object, the
-                                         custom objects files will be read from the logged custom object artifact of the
-                                         model.
-        :param model_format:             The format to use for saving and loading the model. Should be passed as a
-                                         member of the class 'ModelFormats'. Defaulted to
-                                         'ModelFormats.JSON_ARCHITECTURE_H5'.
-        :param save_traces:              Whether or not to use functions saving (only available for the 'SavedModel'
-                                         format) for loading the model later without the custom objects dictionary. Only
-                                         from tensorflow version >= 2.4.0. Using this setting will increase the model
-                                         saving size.
-        :param input_sample:             Input sample to the model for logging additional data regarding the input ports
-                                         of the model. If None, the input sample will be read automatically from the
-                                         model.
-        :param output_sample:            Output sample of the model for logging additional data regarding the output
-                                         ports of the model. If None, the input sample will be read automatically from
-                                         the model.
+        :param model_handler:            A TFKerasModelHandler initialized with the model to be trained. The model must
+                                         be loaded. The logs will be applied to it.
+        :param log_model_tag:            Version tag to give the logged model.
         :param log_model_labels:         Labels to log with the model.
         :param log_model_parameters:     Parameters to log with the model.
         :param log_model_extra_data:     Extra data to log with the model.
@@ -143,21 +89,14 @@ class MLRunLoggingCallback(LoggingCallback):
         del self._logger
         self._logger = MLRunLogger(
             context=context,
+            log_model_tag=log_model_tag,
             log_model_labels=log_model_labels,
             log_model_parameters=log_model_parameters,
             log_model_extra_data=log_model_extra_data,
         )
 
-        # Store the additional TFKerasModelHandler parameters for logging the model later:
-        self._model_name = model_name
-        self._model_path = model_path
-        self._modules_map = modules_map
-        self._custom_objects_map = custom_objects_map
-        self._custom_objects_directory = custom_objects_directory
-        self._model_format = model_format
-        self._save_traces = save_traces
-        self._input_sample = input_sample
-        self._output_sample = output_sample
+        # Store the model handler:
+        self._model_handler = model_handler
 
     def on_train_end(self, logs: dict = None):
         """
@@ -203,34 +142,13 @@ class MLRunLoggingCallback(LoggingCallback):
         """
         End the run, logging the collected artifacts.
         """
-        # Set the model name:
-        self._model_name = (
-            self.model.name if self._model_name is None else self._model_name
-        )
+        # Set the inputs information if needed:
+        if self._model_handler.inputs is None:
+            self._model_handler.read_inputs_from_model()
 
-        # Create the model handler:
-        model_handler = TFKerasModelHandler(
-            model_name=self._model_name,
-            model_path=self._model_path,
-            model=self.model,
-            modules_map=self._modules_map,
-            custom_objects_map=self._custom_objects_map,
-            custom_objects_directory=self._custom_objects_directory,
-            model_format=self._model_format,
-            save_traces=self._save_traces,
-        )
-
-        # Set the inputs information if available:
-        if self._input_sample is not None:
-            model_handler.set_inputs(from_sample=self._input_sample)
-        else:
-            model_handler.read_inputs_from_model()
-
-        # Set the outputs information if available:
-        if self._output_sample is not None:
-            model_handler.set_outputs(from_sample=self._output_sample)
-        else:
-            model_handler.read_outputs_from_model()
+        # Set the outputs information if needed:
+        if self._model_handler.outputs is None:
+            self._model_handler.read_outputs_from_model()
 
         # Log the model:
-        self._logger.log_run(model_handler=model_handler)
+        self._logger.log_run(model_handler=self._model_handler)

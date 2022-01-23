@@ -47,14 +47,12 @@ from mlrun.config import config
 from mlrun.lists import ArtifactList, FunctionList, RunList
 from mlrun.model import RunObject
 from mlrun.utils import (
-    as_list,
     fill_function_hash,
     fill_object_hash,
     generate_artifact_uri,
     generate_object_uri,
     get_in,
     logger,
-    match_times,
     update_in,
 )
 
@@ -101,19 +99,28 @@ class SQLDB(DBInterface):
             "Storing run to db", project=project, uid=uid, iter=iter, run=run_data
         )
         run = self._get_run(session, uid, project, iter)
+        now = datetime.now(timezone.utc)
         if not run:
             run = Run(
+                name=run_data["metadata"]["name"],
                 uid=uid,
                 project=project,
                 iteration=iter,
                 state=run_state(run_data),
-                start_time=run_start_time(run_data) or datetime.now(timezone.utc),
+                start_time=run_start_time(run_data) or now,
             )
+        self._ensure_run_name_on_update(run, run_data)
         labels = run_labels(run_data)
-        new_state = run_state(run_data)
-        if new_state:
-            run.state = new_state
+        self._update_run_state(run, run_data)
         update_labels(run, labels)
+        # Note that this code basically allowing anyone to override the run's start time after it was already set
+        # This is done to enable the context initialization to set the start time to when the user's code actually
+        # started running, and not when the run record was initially created (happening when triggering the job)
+        # In the future we might want to limit who can actually do that
+        start_time = run_start_time(run_data) or SQLDB._add_utc_timezone(run.start_time)
+        run_data.setdefault("status", {})["start_time"] = start_time.isoformat()
+        run.start_time = start_time
+        self._update_run_updated_time(run, run_data, now=now)
         run.struct = run_data
         self._upsert(session, run, ignore=True)
 
@@ -126,14 +133,14 @@ class SQLDB(DBInterface):
         struct = run.struct
         for key, val in updates.items():
             update_in(struct, key, val)
-        run.struct = struct
-        new_state = run_state(struct)
-        if new_state:
-            run.state = new_state
+        self._ensure_run_name_on_update(run, struct)
+        self._update_run_state(run, struct)
         start_time = run_start_time(struct)
         if start_time:
             run.start_time = start_time
         update_labels(run, run_labels(struct))
+        self._update_run_updated_time(run, struct)
+        run.struct = struct
         session.merge(run)
         session.commit()
         self._delete_empty_labels(session, Run.Label)
@@ -152,7 +159,7 @@ class SQLDB(DBInterface):
         uid=None,
         project=None,
         labels=None,
-        state=None,
+        states=None,
         sort=True,
         last=0,
         iter=False,
@@ -160,26 +167,52 @@ class SQLDB(DBInterface):
         start_time_to=None,
         last_update_time_from=None,
         last_update_time_to=None,
+        partition_by: schemas.RunPartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
     ):
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
-        if start_time_from:
+        if name is not None:
+            query = self._add_run_name_query(query, name)
+        if states is not None:
+            query = query.filter(Run.state.in_(states))
+        if start_time_from is not None:
             query = query.filter(Run.start_time >= start_time_from)
-        if start_time_to:
+        if start_time_to is not None:
             query = query.filter(Run.start_time <= start_time_to)
+        if last_update_time_from is not None:
+            query = query.filter(Run.updated >= last_update_time_from)
+        if last_update_time_to is not None:
+            query = query.filter(Run.updated <= last_update_time_to)
         if sort:
             query = query.order_by(Run.start_time.desc())
         if last:
+            if not sort:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Limiting the number of returned records without sorting will provide non-deterministic results"
+                )
             query = query.limit(last)
         if not iter:
             query = query.filter(Run.iteration == 0)
 
-        filtered_runs = self._post_query_runs_filter(
-            query, name, state, last_update_time_from, last_update_time_to
-        )
+        if partition_by:
+            self._assert_partition_by_parameters(
+                schemas.RunPartitionByField, partition_by, partition_sort_by
+            )
+            query = self._create_partitioned_query(
+                session,
+                query,
+                Run,
+                partition_by,
+                rows_per_partition,
+                partition_sort_by,
+                partition_order,
+            )
 
         runs = RunList()
-        for run in filtered_runs:
+        for run in query:
             runs.append(run.struct)
 
         return runs
@@ -192,16 +225,49 @@ class SQLDB(DBInterface):
     def del_runs(
         self, session, name=None, project=None, labels=None, state=None, days_ago=0
     ):
-        # FIXME: Run has no `name`
         project = project or config.default_project
         query = self._find_runs(session, None, project, labels)
         if days_ago:
             since = datetime.now(timezone.utc) - timedelta(days=days_ago)
             query = query.filter(Run.start_time >= since)
-        filtered_runs = self._post_query_runs_filter(query, name, state)
-        for run in filtered_runs:  # Can not use query.delete with join
+        if name:
+            query = self._add_run_name_query(query, name)
+        if state:
+            query = query.filter(Run.state == state)
+        for run in query:  # Can not use query.delete with join
             session.delete(run)
         session.commit()
+
+    def _add_run_name_query(self, query, name):
+        exact_name = self._escape_characters_for_like_query(name)
+        if name.startswith("~"):
+            query = query.filter(Run.name.ilike(f"%{exact_name[1:]}%", escape="\\"))
+        else:
+            query = query.filter(Run.name == name)
+        return query
+
+    @staticmethod
+    def _ensure_run_name_on_update(run_record: Run, run_dict: dict):
+        body_name = run_dict["metadata"]["name"]
+        if body_name != run_record.name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Changing name for an existing run is invalid"
+            )
+
+    @staticmethod
+    def _update_run_updated_time(
+        run_record: Run, run_dict: dict, now: typing.Optional[datetime] = None
+    ):
+        if now is None:
+            now = datetime.now(timezone.utc)
+        run_record.updated = now
+        run_dict.setdefault("status", {})["last_update"] = now.isoformat()
+
+    @staticmethod
+    def _update_run_state(run_record: Run, run_dict: dict):
+        state = run_state(run_dict)
+        run_record.state = state
+        run_dict.setdefault("status", {})["state"] = state
 
     def store_artifact(
         self, session, key, artifact, uid, iter=None, tag="", project="",
@@ -416,8 +482,14 @@ class SQLDB(DBInterface):
         ids = "*"
         if tag and tag != "*":
             ids = self._resolve_tag(session, Artifact, project, tag)
-        for artifact in self._find_artifacts(session, project, ids, labels, name=name):
-            self.del_artifact(session, artifact.key, "", project)
+        distinct_keys = {
+            artifact.key
+            for artifact in self._find_artifacts(
+                session, project, ids, labels, name=name
+            )
+        }
+        for key in distinct_keys:
+            self.del_artifact(session, key, "", project)
 
     def store_function(
         self, session, function, name, project="", tag="", versioned=False,
@@ -515,11 +587,18 @@ class SQLDB(DBInterface):
         self._delete(session, Function, project=project, name=name)
 
     def _delete_functions(self, session: Session, project: str):
-        for function in self._list_project_functions(session, project):
-            self.delete_function(session, project, function.name)
+        for function_name in self._list_project_function_names(session, project):
+            self.delete_function(session, project, function_name)
 
-    def _list_project_functions(self, session: Session, project: str):
-        return self._query(session, Function, project=project).all()
+    def _list_project_function_names(
+        self, session: Session, project: str
+    ) -> typing.List[str]:
+        return [
+            name
+            for name, in self._query(
+                session, distinct(Function.name), project=project
+            ).all()
+        ]
 
     def _delete_resources_tags(self, session: Session, project: str):
         for tagged_class in _tagged:
@@ -688,7 +767,7 @@ class SQLDB(DBInterface):
         query = self._add_labels_filter(session, query, Schedule, labels)
 
         schedules = [
-            self._transform_schedule_model_to_scheme(db_schedule)
+            self._transform_schedule_record_to_scheme(db_schedule)
             for db_schedule in query
         ]
         return schedules
@@ -698,7 +777,7 @@ class SQLDB(DBInterface):
     ) -> schemas.ScheduleRecord:
         logger.debug("Getting schedule from db", project=project, name=name)
         schedule_record = self._get_schedule_record(session, project, name)
-        schedule = self._transform_schedule_model_to_scheme(schedule_record)
+        schedule = self._transform_schedule_record_to_scheme(schedule_record)
         return schedule
 
     def _get_schedule_record(
@@ -726,15 +805,35 @@ class SQLDB(DBInterface):
 
     def _delete_feature_sets(self, session: Session, project: str):
         logger.debug("Removing feature-sets from db", project=project)
-        for feature_set in self.list_feature_sets(session, project).feature_sets:
-            self.delete_feature_set(session, project, feature_set.metadata.name)
+        for feature_set_name in self._list_project_feature_set_names(session, project):
+            self.delete_feature_set(session, project, feature_set_name)
+
+    def _list_project_feature_set_names(
+        self, session: Session, project: str
+    ) -> typing.List[str]:
+        return [
+            name
+            for name, in self._query(
+                session, distinct(FeatureSet.name), project=project
+            ).all()
+        ]
 
     def _delete_feature_vectors(self, session: Session, project: str):
         logger.debug("Removing feature-vectors from db", project=project)
-        for feature_vector in self.list_feature_vectors(
+        for feature_vector_name in self._list_project_feature_vector_names(
             session, project
-        ).feature_vectors:
-            self.delete_feature_vector(session, project, feature_vector.metadata.name)
+        ):
+            self.delete_feature_vector(session, project, feature_vector_name)
+
+    def _list_project_feature_vector_names(
+        self, session: Session, project: str
+    ) -> typing.List[str]:
+        return [
+            name
+            for name, in self._query(
+                session, distinct(FeatureVector.name), project=project
+            ).all()
+        ]
 
     def tag_artifacts(self, session, artifacts, project: str, name: str):
         for artifact in artifacts:
@@ -978,9 +1077,7 @@ class SQLDB(DBInterface):
         runs = runs.all()
         for run in runs:
             run_json = run.struct
-            if self._is_run_matching_state(
-                run, run_json, mlrun.runtimes.constants.RunStates.non_terminal_states(),
-            ):
+            if run.state in mlrun.runtimes.constants.RunStates.non_terminal_states():
                 if (
                     run_json.get("metadata", {}).get("name")
                     and run_json["metadata"]["name"]
@@ -990,14 +1087,10 @@ class SQLDB(DBInterface):
                         run_json["metadata"]["name"]
                     )
                     project_to_running_runs_count[run.project] += 1
-            if self._is_run_matching_state(
-                run,
-                run_json,
-                [
-                    mlrun.runtimes.constants.RunStates.error,
-                    mlrun.runtimes.constants.RunStates.aborted,
-                ],
-            ):
+            if run.state in [
+                mlrun.runtimes.constants.RunStates.error,
+                mlrun.runtimes.constants.RunStates.aborted,
+            ]:
                 one_day_ago = datetime.now() - timedelta(hours=24)
                 if run.start_time and run.start_time >= one_day_ago:
                     if (
@@ -1123,15 +1216,15 @@ class SQLDB(DBInterface):
         self._verify_empty_list_of_project_related_resources(
             name, schedules, "schedules"
         )
-        functions = self._list_project_functions(session, name)
+        functions = self._list_project_function_names(session, name)
         self._verify_empty_list_of_project_related_resources(
             name, functions, "functions"
         )
-        feature_sets = self.list_feature_sets(session, name).feature_sets
+        feature_sets = self._list_project_feature_set_names(session, name)
         self._verify_empty_list_of_project_related_resources(
             name, feature_sets, "feature_sets"
         )
-        feature_vectors = self.list_feature_vectors(session, name).feature_vectors
+        feature_vectors = self._list_project_feature_vector_names(session, name)
         self._verify_empty_list_of_project_related_resources(
             name, feature_vectors, "feature_vectors"
         )
@@ -1396,24 +1489,40 @@ class SQLDB(DBInterface):
         return schemas.EntitiesOutput(entities=entities_results)
 
     @staticmethod
-    def _assert_partition_by_parameters(partition_by, sort):
+    def _assert_partition_by_parameters(partition_by_enum_cls, partition_by, sort):
         if sort is None:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "sort parameter must be provided when partition_by is used."
             )
         # For now, name is the only supported value. Remove once more fields are added.
-        if partition_by != schemas.FeatureStorePartitionByField.name:
+        if partition_by not in partition_by_enum_cls:
+            valid_enum_values = [
+                enum_value.value for enum_value in partition_by_enum_cls
+            ]
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"partition_by for feature-store objects must be 'name'. Value given: '{partition_by.value}'"
+                f"Invalid partition_by given: '{partition_by.value}'. Must be one of {valid_enum_values}"
             )
 
     @staticmethod
-    def _create_partitioned_query(session, query, cls, group_by, order, rows_per_group):
+    def _create_partitioned_query(
+        session,
+        query,
+        cls,
+        partition_by: typing.Union[
+            schemas.FeatureStorePartitionByField, schemas.RunPartitionByField
+        ],
+        rows_per_partition: int,
+        partition_sort_by: schemas.SortField,
+        partition_order: schemas.OrderType,
+    ):
+
         row_number_column = (
             func.row_number()
             .over(
-                partition_by=group_by.to_partition_by_db_field(cls),
-                order_by=order.to_order_by_predicate(cls.updated),
+                partition_by=partition_by.to_partition_by_db_field(cls),
+                order_by=partition_order.to_order_by_predicate(
+                    partition_sort_by.to_db_field(cls),
+                ),
             )
             .label("row_number")
         )
@@ -1422,7 +1531,7 @@ class SQLDB(DBInterface):
         # is a window function using over().
         subquery = query.add_column(row_number_column).subquery()
         return session.query(aliased(cls, subquery)).filter(
-            subquery.c.row_number <= rows_per_group
+            subquery.c.row_number <= rows_per_partition
         )
 
     def list_feature_sets(
@@ -1437,7 +1546,7 @@ class SQLDB(DBInterface):
         labels: List[str] = None,
         partition_by: schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
-        partition_sort: schemas.SortField = None,
+        partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureSetsOutput:
         obj_id_tags = self._get_records_to_tags_map(
@@ -1461,14 +1570,17 @@ class SQLDB(DBInterface):
             query = self._add_labels_filter(session, query, FeatureSet, labels)
 
         if partition_by:
-            self._assert_partition_by_parameters(partition_by, partition_sort)
+            self._assert_partition_by_parameters(
+                schemas.FeatureStorePartitionByField, partition_by, partition_sort_by
+            )
             query = self._create_partitioned_query(
                 session,
                 query,
                 FeatureSet,
                 partition_by,
-                partition_order,
                 rows_per_partition,
+                partition_sort_by,
+                partition_order,
             )
 
         feature_sets = []
@@ -1832,14 +1944,17 @@ class SQLDB(DBInterface):
             query = self._add_labels_filter(session, query, FeatureVector, labels)
 
         if partition_by:
-            self._assert_partition_by_parameters(partition_by, partition_sort_by)
+            self._assert_partition_by_parameters(
+                schemas.FeatureStorePartitionByField, partition_by, partition_sort_by
+            )
             query = self._create_partitioned_query(
                 session,
                 query,
                 FeatureVector,
                 partition_by,
-                partition_order,
                 rows_per_partition,
+                partition_sort_by,
+                partition_order,
             )
 
         feature_vectors = []
@@ -2089,83 +2204,6 @@ class SQLDB(DBInterface):
         query = self._query(session, Run, uid=uid, project=project)
         return self._add_labels_filter(session, query, Run, labels)
 
-    def _post_query_runs_filter(
-        self,
-        query,
-        name=None,
-        state=None,
-        last_update_time_from=None,
-        last_update_time_to=None,
-    ):
-        """
-        This function is hacky and exists to cover on bugs we had with how we save our data in the DB
-        We're doing it the hacky way since:
-        1. SQLDB is about to be replaced
-        2. Schema + Data migration are complicated and as long we can avoid them, we prefer to (also because of 1)
-        name - the name is only saved in the json itself, therefore we can't use the SQL query filter and have to filter
-        it ourselves
-        state - the state is saved in a column, but, there was a bug in which the state was only getting updated in the
-        json itself, therefore, in field systems, most runs records will have an empty or not updated data in the state
-        column
-        """
-        if (
-            not name
-            and not state
-            and not last_update_time_from
-            and not last_update_time_to
-        ):
-            return query.all()
-
-        filtered_runs = []
-        for run in query:
-            run_json = run.struct
-            if name:
-                if not run_json or not isinstance(run_json, dict):
-                    continue
-
-                run_name = run_json.get("metadata", {}).get("name", "")
-                if name.startswith("~"):
-                    if name[1:].casefold() not in run_name.casefold():
-                        continue
-                elif name != run_name:
-                    continue
-            if state:
-                if not self._is_run_matching_state(run, run_json, state):
-                    continue
-            if last_update_time_from or last_update_time_to:
-                if not match_times(
-                    last_update_time_from,
-                    last_update_time_to,
-                    run_json,
-                    "status.last_update",
-                ):
-                    continue
-
-            filtered_runs.append(run)
-
-        return filtered_runs
-
-    def _is_run_matching_state(self, run, run_json, state):
-        requested_states = as_list(state)
-        record_state = run.state
-        json_state = None
-        if (
-            run_json
-            and isinstance(run_json, dict)
-            and run_json.get("status", {}).get("state")
-        ):
-            json_state = run_json.get("status", {}).get("state")
-        if not record_state and not json_state:
-            return False
-        # json_state has precedence over record state
-        if json_state:
-            if json_state in requested_states:
-                return True
-        else:
-            if record_state in requested_states:
-                return True
-        return False
-
     def _latest_uid_filter(self, session, query):
         # Create a sub query of latest uid (by updated) per (project,key)
         subq = (
@@ -2189,6 +2227,12 @@ class SQLDB(DBInterface):
             ),
         )
 
+    @staticmethod
+    def _escape_characters_for_like_query(value: str) -> str:
+        return (
+            value.translate(value.maketrans({"_": r"\_", "%": r"\%"})) if value else ""
+        )
+
     def _add_artifact_name_and_iter_query(self, query, name=None, iter=None):
         if not name and not iter:
             return query
@@ -2196,9 +2240,7 @@ class SQLDB(DBInterface):
         # Escape special chars (_,%) since we still need to do a like query because of the iter.
         # Also limit length to len(str) + 3, assuming iter is < 100 (two iter digits + hyphen)
         # this helps filter the situations where we match a suffix by mistake due to the like query.
-        exact_name = (
-            name.translate(name.maketrans({"_": r"\_", "%": r"\%"})) if name else ""
-        )
+        exact_name = self._escape_characters_for_like_query(name)
 
         if name and name.startswith("~"):
             # Like query
@@ -2345,7 +2387,7 @@ class SQLDB(DBInterface):
         query = self._query(session, Function, project=project)
         if name:
             query = query.filter(generate_query_predicate_for_name(Function.name, name))
-        if uids:
+        if uids is not None:
             query = query.filter(Function.uid.in_(uids))
 
         labels = label_set(labels)
@@ -2423,21 +2465,22 @@ class SQLDB(DBInterface):
         if commit:
             session.commit()
 
-    @staticmethod
-    def _transform_schedule_model_to_scheme(
-        db_schedule: Schedule,
+    def _transform_schedule_record_to_scheme(
+        self, schedule_record: Schedule,
     ) -> schemas.ScheduleRecord:
-        schedule = schemas.ScheduleRecord.from_orm(db_schedule)
-        SQLDB._add_utc_timezone(schedule, "creation_time")
+        schedule = schemas.ScheduleRecord.from_orm(schedule_record)
+        schedule.creation_time = self._add_utc_timezone(schedule.creation_time)
         return schedule
 
     @staticmethod
-    def _add_utc_timezone(obj, attribute_name):
+    def _add_utc_timezone(time_value: typing.Optional[datetime]):
         """
         sqlalchemy losing timezone information with sqlite so we're returning it
         https://stackoverflow.com/questions/6991457/sqlalchemy-losing-timezone-information-with-sqlite
         """
-        setattr(obj, attribute_name, pytz.utc.localize(getattr(obj, attribute_name)))
+        if time_value.tzinfo is None:
+            return pytz.utc.localize(time_value)
+        return time_value
 
     @staticmethod
     def _transform_feature_set_model_to_schema(

@@ -139,6 +139,16 @@ def list_runs(
     start_time_to: str = None,
     last_update_time_from: str = None,
     last_update_time_to: str = None,
+    partition_by: mlrun.api.schemas.RunPartitionByField = Query(
+        None, alias="partition-by"
+    ),
+    rows_per_partition: int = Query(1, alias="rows-per-partition", gt=0),
+    partition_sort_by: mlrun.api.schemas.SortField = Query(
+        None, alias="partition-sort-by"
+    ),
+    partition_order: mlrun.api.schemas.OrderType = Query(
+        mlrun.api.schemas.OrderType.desc, alias="partition-order"
+    ),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -148,18 +158,22 @@ def list_runs(
         )
     runs = mlrun.api.crud.Runs().list_runs(
         db_session,
-        name=name,
-        uid=uid,
-        project=project,
-        labels=labels,
-        state=state,
-        sort=sort,
-        last=last,
-        iter=iter,
-        start_time_from=datetime_from_iso(start_time_from),
-        start_time_to=datetime_from_iso(start_time_to),
-        last_update_time_from=datetime_from_iso(last_update_time_from),
-        last_update_time_to=datetime_from_iso(last_update_time_to),
+        name,
+        uid,
+        project,
+        labels,
+        [state] if state is not None else None,
+        sort,
+        last,
+        iter,
+        datetime_from_iso(start_time_from),
+        datetime_from_iso(start_time_to),
+        datetime_from_iso(last_update_time_from),
+        datetime_from_iso(last_update_time_to),
+        partition_by,
+        rows_per_partition,
+        partition_sort_by,
+        partition_order,
     )
     filtered_runs = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.run,
@@ -193,7 +207,7 @@ def delete_runs(
         name,
         project=project,
         labels=labels,
-        state=state,
+        states=[state] if state is not None else None,
         start_time_from=start_time_from,
     )
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(

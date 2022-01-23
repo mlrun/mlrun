@@ -23,11 +23,10 @@ ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 RUN python -m pip install torch==1.7.0+cpu torchvision==0.8.1+cpu \
     -f https://download.pytorch.org/whl/torch_stable.html
 
-ARG TENSORFLOW_VERSION=2.4.1
-# Not using intel-tensorflow (unlike py36 image) cause they have only 2.4.0 and we need 2.4.1
-RUN python -m pip install -U tensorflow~=${TENSORFLOW_VERSION} mxnet
+ARG TENSORFLOW_VERSION=2.7.0
+RUN python -m pip install -U intel-tensorflow~=${TENSORFLOW_VERSION} mxnet
 
-ARG HOROVOD_VERSION=0.22.1
+ARG HOROVOD_VERSION=0.23.0
 RUN HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
     python -m pip install horovod~=${HOROVOD_VERSION}
 

@@ -94,11 +94,15 @@ def test_http_trigger():
     )
 
     trigger = function.spec.config["spec.triggers.http"]
+    print(trigger)
     assert trigger["maxWorkers"] == 2
     assert trigger["attributes"]["ingresses"] == {"0": {"host": "x", "paths": ["/"]}}
     assert trigger["attributes"]["yy"] == "123"
-    assert trigger["attributes"]["workerAvailabilityTimeoutMilliseconds"] == 5000
-    assert trigger["annotations"]["nginx.org/proxy-connect-timeout"] == "65s"
+    assert trigger["workerAvailabilityTimeoutMilliseconds"] == 5000
+    assert (
+        trigger["annotations"]["nginx.ingress.kubernetes.io/proxy-connect-timeout"]
+        == "65"
+    )
 
 
 def test_v3io_stream_trigger():
@@ -107,6 +111,7 @@ def test_v3io_stream_trigger():
         "v3io:///projects/x/y",
         name="mystream",
         extra_attributes={"yy": "123"},
+        ack_window_size=10,
         access_key="x",
     )
 
@@ -116,3 +121,4 @@ def test_v3io_stream_trigger():
     assert trigger["attributes"]["streamPath"] == "x/y"
     assert trigger["password"] == "x"
     assert trigger["attributes"]["yy"] == "123"
+    assert trigger["attributes"]["ackWindowSize"] == 10

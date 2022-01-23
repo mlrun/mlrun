@@ -15,6 +15,7 @@
 import asyncio
 import json
 import typing
+import warnings
 from datetime import datetime
 from os import getenv
 from time import sleep
@@ -249,8 +250,14 @@ class RemoteRuntime(KubeResource):
         raise Exception("deprecated, use .apply(mount_v3io())")
 
     def add_trigger(self, name, spec):
+        """add a nuclio trigger object/dict
+
+        :param name: trigger name
+        :param spec: trigger object or dict
+        """
         if hasattr(spec, "to_dict"):
             spec = spec.to_dict()
+        spec["name"] = name
         self.spec.config[f"spec.triggers.{name}"] = spec
         return self
 
@@ -362,6 +369,11 @@ class RemoteRuntime(KubeResource):
         return self
 
     def with_v3io(self, local="", remote=""):
+        """Add v3io volume to the function
+
+        :param local: local path (mount path inside the function container)
+        :param remote: v3io path
+        """
         if local and remote:
             self.apply(mount_v3io(remote=remote, mount_path=local))
         else:
@@ -378,40 +390,71 @@ class RemoteRuntime(KubeResource):
         secret=None,
         worker_timeout: int = None,
         gateway_timeout: int = None,
+        trigger_name=None,
         annotations=None,
         extra_attributes=None,
     ):
+        """update/add nuclio HTTP trigger settings
+
+        Note: gateway timeout is the maximum request time before an error is returned, while the worker timeout
+        if the max time a request will wait for until it will start processing, gateway_timeout must be greater than
+        the worker_timeout.
+
+        :param workers:    number of worker processes (default=8)
+        :param port:       TCP port
+        :param host:       hostname
+        :param paths:      list of sub paths
+        :param canary:     k8s ingress canary (% traffic value between 0 to 100)
+        :param secret:     k8s secret name for SSL certificate
+        :param worker_timeout:  worker wait timeout in sec (how long a message should wait in the worker queue
+                                before an error is returned)
+        :param gateway_timeout: nginx ingress timeout in sec (request timeout, when will the gateway return an error)
+        :param trigger_name:    alternative nuclio trigger name
+        :param annotations:     key/value dict of ingress annotations
+        :param extra_attributes: key/value dict of extra nuclio trigger attributes
+        :return: function object (self)
+        """
         annotations = annotations or {}
-        extra_attributes = extra_attributes or {}
         if worker_timeout:
-            extra_attributes["workerAvailabilityTimeoutMilliseconds"] = (
-                worker_timeout
-            ) * 1000
             gateway_timeout = gateway_timeout or (worker_timeout + 60)
         if gateway_timeout:
             if worker_timeout and worker_timeout >= gateway_timeout:
                 raise ValueError(
                     "gateway timeout must be greater than the worker timeout"
                 )
-            annotations["nginx.org/proxy-connect-timeout"] = f"{gateway_timeout}s"
-            annotations["nginx.org/proxy-read-timeout"] = f"{gateway_timeout}s"
-            annotations["nginx.org/proxy-send-timeout"] = f"{gateway_timeout}s"
-        self.add_trigger(
-            "http",
-            nuclio.HttpTrigger(
-                workers,
-                port=port,
-                host=host,
-                paths=paths,
-                canary=canary,
-                secret=secret,
-                annotations=annotations,
-                extra_attributes=extra_attributes,
-            ),
+            annotations[
+                "nginx.ingress.kubernetes.io/proxy-connect-timeout"
+            ] = f"{gateway_timeout}"
+            annotations[
+                "nginx.ingress.kubernetes.io/proxy-read-timeout"
+            ] = f"{gateway_timeout}"
+            annotations[
+                "nginx.ingress.kubernetes.io/proxy-send-timeout"
+            ] = f"{gateway_timeout}"
+
+        trigger = nuclio.HttpTrigger(
+            workers,
+            port=port,
+            host=host,
+            paths=paths,
+            canary=canary,
+            secret=secret,
+            annotations=annotations,
+            extra_attributes=extra_attributes,
         )
+        if worker_timeout:
+            trigger._struct["workerAvailabilityTimeoutMilliseconds"] = (
+                worker_timeout
+            ) * 1000
+        self.add_trigger(trigger_name or "http", trigger)
         return self
 
     def add_model(self, name, model_path, **kw):
+        warnings.warn(
+            'This method is deprecated and will be removed in 0.10.0. Use the "serving" runtime instead',
+            # TODO: remove in 0.10.0
+            DeprecationWarning,
+        )
         if model_path.startswith("v3io://"):
             model = "/User/" + "/".join(model_path.split("/")[5:])
         else:
@@ -439,6 +482,11 @@ class RemoteRuntime(KubeResource):
         workers=8,
         canary=None,
     ):
+        warnings.warn(
+            'This method is deprecated and will be removed in 0.10.0. Use the "serving" runtime instead',
+            # TODO: remove in 0.10.0
+            DeprecationWarning,
+        )
 
         if models:
             for k, v in models.items():
@@ -465,14 +513,29 @@ class RemoteRuntime(KubeResource):
         seek_to="earliest",
         shards=1,
         extra_attributes=None,
+        ack_window_size=None,
         **kwargs,
     ):
-        """add v3io stream trigger to the function"""
+        """add v3io stream trigger to the function
+
+        :param stream_path:    v3io stream path (e.g. 'v3io:///projects/myproj/stream1'
+        :param name:           trigger name
+        :param group:          consumer group
+        :param seek_to:        start seek from: "earliest", "latest", "time", "sequence"
+        :param shards:         number of shards (used to set number of replicas)
+        :param extra_attributes: key/value dict with extra trigger attributes
+        :param ack_window_size:  stream ack window size (the consumer group will be updated with the
+                                 event id - ack_window_size, on failure the events in the window will be retransmitted)
+        :param kwargs:         extra V3IOStreamTrigger class attributes
+        """
         endpoint = None
         if "://" in stream_path:
             endpoint, stream_path = parse_v3io_path(stream_path, suffix="")
         container, path = split_path(stream_path)
         shards = shards or 1
+        extra_attributes = extra_attributes or {}
+        if ack_window_size:
+            extra_attributes["ackWindowSize"] = ack_window_size
         self.add_trigger(
             name,
             V3IOStreamTrigger(
@@ -505,6 +568,14 @@ class RemoteRuntime(KubeResource):
         verbose=False,
         auth_info: AuthInfo = None,
     ):
+        """Deploy the nuclio function to the cluster
+
+        :param dashboard:  address of the nuclio dashboard service (keep blank for current cluster)
+        :param project:    project name
+        :param tag:        function tag
+        :param verbose:    set True for verbose logging
+        :param auth_info:  service AuthInfo
+        """
         # todo: verify that the function name is normalized
 
         verbose = verbose or self.verbose
@@ -599,10 +670,12 @@ class RemoteRuntime(KubeResource):
         node_selector: typing.Optional[typing.Dict[str, str]] = None,
         affinity: typing.Optional[client.V1Affinity] = None,
     ):
+        """k8s node selection attributes"""
         super().with_node_selection(node_name, node_selector, affinity)
 
     @min_nuclio_versions("1.6.18")
     def with_priority_class(self, name: typing.Optional[str] = None):
+        """k8s priority class"""
         super().with_priority_class(name)
 
     def _get_state(
@@ -747,6 +820,7 @@ class RemoteRuntime(KubeResource):
         verbose=None,
         use_function_from_db=True,
     ):
+        """return as a Kubeflow pipeline step (ContainerOp), recommended to use mlrun.deploy_function() instead"""
         models = {} if models is None else models
         function_name = self.metadata.name or "function"
         name = f"deploy_{function_name}"
@@ -773,14 +847,28 @@ class RemoteRuntime(KubeResource):
 
     def invoke(
         self,
-        path,
-        body=None,
-        method=None,
-        headers=None,
-        dashboard="",
-        force_external_address=False,
+        path: str,
+        body: typing.Union[str, bytes, dict] = None,
+        method: str = None,
+        headers: dict = None,
+        dashboard: str = "",
+        force_external_address: bool = False,
         auth_info: AuthInfo = None,
     ):
+        """Invoke the remote (live) function and return the results
+
+        example::
+
+            function.invoke("/api", body={"inputs": x})
+
+        :param path:     request sub path (e.g. /images)
+        :param body:     request body (str, bytes or a dict for json requests)
+        :param method:   HTTP method (GET, PUT, ..)
+        :param headers:  key/value dict with http headers
+        :param dashboard: nuclio dashboard address
+        :param force_external_address:   use the external ingress URL
+        :param auth_info: service AuthInfo
+        """
         if not method:
             method = "POST" if body else "GET"
         if "://" not in path:
@@ -1131,7 +1219,11 @@ def compile_function_config(function: RemoteRuntime):
         )
         update_in(config, "metadata.name", function.metadata.name)
         update_in(config, "spec.volumes", function.spec.generate_nuclio_volumes())
-        base_image = get_in(config, "spec.build.baseImage") or function.spec.image
+        base_image = (
+            get_in(config, "spec.build.baseImage")
+            or function.spec.image
+            or function.spec.build.base_image
+        )
         if base_image:
             update_in(config, "spec.build.baseImage", enrich_image_url(base_image))
 
@@ -1153,10 +1245,12 @@ def compile_function_config(function: RemoteRuntime):
         )
 
         update_in(config, "spec.volumes", function.spec.generate_nuclio_volumes())
-        if function.spec.image:
+        base_image = function.spec.image or function.spec.build.base_image
+        if base_image:
             update_in(
-                config, "spec.build.baseImage", enrich_image_url(function.spec.image)
+                config, "spec.build.baseImage", enrich_image_url(base_image),
             )
+
         name = get_fullname(name, project, tag)
         function.status.nuclio_name = name
 
@@ -1166,7 +1260,6 @@ def compile_function_config(function: RemoteRuntime):
 
 
 def enrich_function_with_ingress(config, mode, service_type):
-
     # do not enrich with an ingress
     if mode == NuclioIngressAddTemplatedIngressModes.never:
         return
@@ -1181,7 +1274,6 @@ def enrich_function_with_ingress(config, mode, service_type):
     # we would enrich it with an ingress
     http_trigger = resolve_function_http_trigger(config["spec"])
     if not http_trigger:
-
         # function has an HTTP trigger without an ingress
         # TODO: read from nuclio-api frontend-spec
         http_trigger = {

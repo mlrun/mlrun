@@ -52,6 +52,7 @@ default_config = {
     "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
     "ui_url": "",  # remote/external mlrun UI url (for hyperlinks) (This is deprecated in favor of the ui block)
     "remote_host": "",
+    "api_base_version": "v1",
     "version": "",  # will be set to current version
     "images_tag": "",  # tag to use with mlrun images e.g. mlrun/mlrun (defaults to version)
     "images_registry": "",  # registry to use with mlrun images e.g. quay.io/ (defaults to empty, for dockerhub)
@@ -91,6 +92,8 @@ default_config = {
     # sets the background color that is used in printed tables in jupyter
     "background_color": "#4EC64B",
     "artifact_path": "",  # default artifacts path/url
+    # Add {{workflow.uid}} to artifact_path unless user specified a path manually
+    "enrich_artifact_path_with_workflow_id": True,
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
     #  configure this values on field systems, for newer system this will be configured correctly
     "v3io_api": "http://v3io-webapi:8081",
@@ -143,6 +146,8 @@ default_config = {
             "database_migration_mode": "enabled",
             # Whether or not to use db backups on initialization
             "database_backup_mode": "enabled",
+            "connections_pool_size": 20,
+            "connections_pool_max_overflow": 50,
         },
         "jobs": {
             # whether to allow to run local runtimes in the API - configurable to allow the scheduler testing to work
@@ -235,6 +240,7 @@ default_config = {
             "user_space": "v3io:///projects/{project}/model-endpoints/{kind}",
         },
         "batch_processing_function_branch": "master",
+        "parquet_batching_max_events": 10000,
     },
     "secret_stores": {
         "vault": {

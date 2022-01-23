@@ -14,7 +14,7 @@ from .._ml_common import (
 )
 from .mlrun_interface import SKLearnMLRunInterface
 from .model_handler import SKLearnModelHandler
-from .type_hints import SKLearnModelType
+from .utils import SKLearnModelType
 
 # Placeholders as the SciKit-Learn API is commonly used among all of the ML frameworks:
 SKLearnArtifactLibrary = MLArtifactsLibrary

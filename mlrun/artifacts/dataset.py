@@ -310,7 +310,7 @@ def update_dataset_meta(
 
 def upload_dataframe(
     df, target_path, format, src_path=None, **kw
-) -> typing.Tuple[typing.Optional[int], typing.Optional[str]]:
+) -> Tuple[Optional[int], Optional[str]]:
     if src_path and os.path.isfile(src_path):
         store_manager.object(url=target_path).upload(src_path)
         return (

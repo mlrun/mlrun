@@ -78,7 +78,7 @@ def test_requirement_specifiers_convention():
 
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
-        "kfp": {"~=1.0.1"},
+        "kfp": {"~=1.8.0"},
         "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
         "aiohttp": {">=3.6,<3.8"},
@@ -99,6 +99,14 @@ def test_requirement_specifiers_convention():
         "adlfs": {"~=2021.8.1"},
         "s3fs": {"~=2021.8.1"},
         "gcsfs": {"~=2021.8.1"},
+        "distributed": {
+            "~=2021.11.2; python_version >= '3.7'",
+            "~=2021.3.0; python_version < '3.7'",
+        },
+        "dask": {
+            "~=2021.11.2; python_version >= '3.7'",
+            "~=2021.3.0; python_version < '3.7'",
+        },
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that
         # TODO: make test smart enough to understand that
         "urllib3": {">=1.25.4, <1.27"},
@@ -110,7 +118,6 @@ def test_requirement_specifiers_convention():
         "tabulate": {">=0.8.0, <=0.8.3"},
         "orjson": {">=3,<3.4"},
         "alembic": {"~=1.4,<1.6.0"},
-        "distributed": {">=2.23, <3"},
         "boto3": {"~=1.9, <1.17.107"},
         "azure-storage-blob": {"~=12.0, <12.7.0"},
         "dask-ml": {"~=1.4,<1.9.0"},
@@ -148,6 +155,14 @@ def test_requirement_specifiers_inconsistencies():
         "tensorboard": {
             "~=2.5; python_version >= '3.7'",
             "~=1.0; python_version < '3.7'",
+        },
+        "distributed": {
+            "~=2021.11.2; python_version >= '3.7'",
+            "~=2021.3.0; python_version < '3.7'",
+        },
+        "dask": {
+            "~=2021.11.2; python_version >= '3.7'",
+            "~=2021.3.0; python_version < '3.7'",
         },
         # The empty specifier is from tests/runtimes/assets/requirements.txt which is there specifically to test the
         # scenario of requirements without version specifiers

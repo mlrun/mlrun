@@ -832,7 +832,7 @@ def get_feature_vector(uri, project=None):
     :param uri:  a feature vector uri([{project}/{name}[:version])
     :param project:  project name if not specified in uri or not using the current/default
     """
-    return get_feature_vector_by_uri(uri, project)
+    return get_feature_vector_by_uri(uri, project, update=False)
 
 
 def delete_feature_set(name, project="", tag=None, uid=None, force=False):

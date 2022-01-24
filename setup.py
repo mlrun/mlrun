@@ -95,7 +95,8 @@ extras_require["complete"] = sorted(
     {
         requirement
         for extra_key, requirement_list in extras_require.items()
-        for requirement in requirement_list if extra_key != "bokeh"
+        for requirement in requirement_list
+        if extra_key != "bokeh"
     }
 )
 extras_require["api"] = api_deps

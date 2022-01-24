@@ -67,7 +67,7 @@ class DBBackupUtil(object):
         dsn_data = mlrun.api.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
         self._run_shell_command(
             "mysqldump "
-            f"-h f{dsn_data['host']} "
+            f"-h {dsn_data['host']} "
             f"-P {dsn_data['port']} "
             f"-u {dsn_data['username']} "
             f"{dsn_data['database']} > {backup_path}"
@@ -87,7 +87,7 @@ class DBBackupUtil(object):
         dsn_data = mlrun.api.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
         self._run_shell_command(
             "mysql "
-            f"-h f{dsn_data['host']} "
+            f"-h {dsn_data['host']} "
             f"-P {dsn_data['port']} "
             f"-u {dsn_data['username']} "
             f"{dsn_data['database']} < {backup_path}"

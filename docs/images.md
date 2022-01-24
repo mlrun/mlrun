@@ -3,28 +3,24 @@
 Every release of MLRun includes several images for different usages.
 All images are published to [dockerhub](https://hub.docker.com/u/mlrun) and [quay.io](https://quay.io/organization/mlrun).
 
-## Images you can use in jobs
-* `mlrun/mlrun` - The most basic (and smallest) image, can be used for simple jobs. Basically just MLRun installed on 
-  top of a python image
-* `mlrun/ml-base` - Image for file acquisition, compression, dask jobs, simple training jobs and other utilities. Like 
-  `mlrun/mlrun` with the addition of [Miniconda](https://docs.conda.io/en/latest/miniconda.html) and other [python 
-  packages](./base/requirements.txt) 
-* `mlrun/ml-models` - Image for analyzing data, model training and deep learning on CPUs. Built on top of 
+## Images for use in the jobs' pods
+
+* `mlrun/mlrun`: The most basic (and smallest) image, can be used for simple jobs. Basically just MLRun installed on 
+  top of a python image.
+* `mlrun/ml-base`: Image for file acquisition, compression, dask jobs, simple training jobs and other utilities. Like
+`mlrun/mlrun` with the addition of [Miniconda](https://docs.conda.io/en/latest/miniconda.html) and other [python 
+  packages](./base/requirements.txt).
+* `mlrun/ml-models`: Image for analyzing data, model training and deep learning on CPUs. Built on top of 
   `mlrun/ml-base` with the addition of [Open MPI](https://www.open-mpi.org/), [PyTorch](https://pytorch.org/), 
   [TensorFlow](https://www.tensorflow.org/), [Horovod](https://horovod.ai/) and other [python packages](
-  ./models/requirements.txt)
-* `mlrun/ml-models-gpu` - Same as `mlrun/ml-models` but for GPUs
+  ./models/requirements.txt).
+* `mlrun/ml-models-gpu`: Same as `mlrun/ml-models` but for GPUs.
+
+The files are located in [MLRun Dockerfiles](https://github.com/mlrun/mlrun/tree/development/dockerfiles).
 
 ## MLRun infrastructure images
-* `mlrun/jupyter` - An image with [Jupyter](https://jupyter.org/) giving a playground to use MLRun in the open source.
-  Built on top of [`jupyter/scipy-notebook`](
-  https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html#jupyter-scipy-notebook), with the addition
-  of MLRun and several demos and examples
-* `mlrun/mlrun-api` - The image used for running the MLRun API
-* `mlrun/mlrun-ui` - The image used for running the MLRun UI
 
-Note: For compatibility with some packages requiring py36, there is also a tag with the `-py36` suffix (e.g. 
-`0.7.0-py36`) for the ml images (`mlrun/ml-base`, `mlrun/ml-models`, `mlrun/ml-models-gpu`).
+See [README](https://github.com/mlrun/mlrun/blob/development/dockerfiles/README.md).
 
 ## Using images
 

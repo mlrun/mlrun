@@ -8,7 +8,7 @@ from mlrun.artifacts import Artifact, PlotlyArtifact
 
 from ..._common import ModelType
 from ..plan import MLPlanStages, MLPlotPlan
-from ..utils import DatasetType
+from ..utils import DatasetType, to_dataframe
 
 
 class ConfusionMatrixPlan(MLPlotPlan):
@@ -77,6 +77,10 @@ class ConfusionMatrixPlan(MLPlotPlan):
         # Calculate the predictions if needed:
         y_pred = self._calculate_predictions(y_pred=y_pred, model=model, x=x)
 
+        # Convert to DataFrame:
+        y = to_dataframe(dataset=y)
+        y_pred = to_dataframe(dataset=y_pred)
+
         # Calculate the confusion matrix:
         cm = confusion_matrix(
             y,
@@ -86,11 +90,10 @@ class ConfusionMatrixPlan(MLPlotPlan):
             normalize=self._normalize,
         )
 
-        x = np.sort(y[y.columns[0]].unique()).tolist()
-
-        # Initialize a plotly figure:
+        # Initialize a plotly figure according to the targets (classes):
+        targets = np.sort(y[y.columns[0]].unique()).tolist()
         figure = create_annotated_heatmap(
-            cm, x=x, y=x, annotation_text=cm.astype(str), colorscale="Blues"
+            cm, x=targets, y=targets, annotation_text=cm.astype(str), colorscale="Blues"
         )
 
         # Add title:

@@ -78,7 +78,7 @@ class MLPlotPlan(MLPlan, ABC):
             )
         )
 
-    def _visual_display(self):
+    def _gui_display(self):
         """
         Plot the plot.
         """

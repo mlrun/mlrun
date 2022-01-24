@@ -48,16 +48,18 @@ def concatenate_x_y(
     x: DatasetType,
     y: DatasetType = None,
     y_columns: Union[List[str], List[int]] = None,
+    default_y_column_prefix: str = "y_",
 ) -> Tuple[pd.DataFrame, Union[List[str], List[int], None]]:
     """
     Concatenating the provided x and y data into a single pd.DataFrame, casting from np.ndarray and renaming y's
     columns if provided (y_columns). The concatenated dataset index level will be reset to 0 (multi-level indexes
     will be dropped using pandas 'reset_index' method).
 
-    :param x:         A collection of inputs to a model.
-    :param y:         A collection of ground truth labels corresponding to the inputs.
-    :param y_columns: List of names or indices to give the columns of the ground truth labels.
-
+    :param x:                       A collection of inputs to a model.
+    :param y:                       A collection of ground truth labels corresponding to the inputs.
+    :param y_columns:               List of names or indices to give the columns of the ground truth labels.
+    :param default_y_column_prefix: A default value to join the y columns in case one of them is found in x (so there
+                                    won't be any duplicates). Defaulted to: "y_".
     :return: A tuple of:
              [0] = The concatenated x and y as a single DataFrame.
              [1] = The y columns names / indices.
@@ -72,13 +74,15 @@ def concatenate_x_y(
     # Cast y to a DataFrame (from np.ndarray and pd.Series):
     y = to_dataframe(dataset=y)
 
-    # Check if y's columns are given:
-    if y_columns is not None:
-        # Override the columns with the names the user provided:
-        y.columns = y_columns
-    else:
-        # Get the y columns:
-        y_columns = list(y.columns)
+    # Check if y's columns are given, if not set the default avoiding duplicates with x's columns:
+    if y_columns is None:
+        y_columns = [
+            column if column not in x.columns else f"{default_y_column_prefix}{column}"
+            for column in list(y.columns)
+        ]
+
+    # Override the columns with the names the user provided:
+    y.columns = y_columns
 
     # Concatenate the x and y into a single dataset:
     dataset = pd.concat([x, y], axis=1)
@@ -138,7 +142,7 @@ class AlgorithmFunctionality(Enum):
             # Check amount of columns:
             if len(y.columns) == 1:
                 # Check amount of classes:
-                if len(pd.unique(y)) <= 2:
+                if len(pd.unique(y.to_numpy().flatten())) <= 2:
                     return cls.BINARY_CLASSIFICATION
                 return cls.MULTICLASS_CLASSIFICATION
             # More than one column, check amount of classes:

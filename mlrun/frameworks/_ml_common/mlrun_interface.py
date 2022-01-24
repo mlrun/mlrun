@@ -27,10 +27,10 @@ class MLMLRunInterface(MLRunInterface, ABC):
         # The logger that is logging this model's training / evaluation:
         "_logger": None,  # type: Logger
         # The validation set in case of training:
-        "_x_validation": None,  # type: MLModelHandler.IOSample
-        "_y_validation": None,  # type: MLModelHandler.IOSample
+        "_x_validation": None,  # type: DatasetType
+        "_y_validation": None,  # type: DatasetType
         # The test ground truth in case of prediction:
-        "_y_test": None,  # type: MLModelHandler.IOSample
+        "_y_test": None,  # type: DatasetType
         # Column names / indices for the ground truth labels data (y):
         "_y_columns": None,  # type: Union[List[str], List[int]]
         # Version tag to give the logged model:
@@ -141,9 +141,9 @@ class MLMLRunInterface(MLRunInterface, ABC):
         model_handler: MLModelHandler = None,
         plans: List[MLPlan] = None,
         metrics: List[Metric] = None,
-        x_validation: MLModelHandler.IOSample = None,
-        y_validation: MLModelHandler.IOSample = None,
-        y_test: MLModelHandler.IOSample = None,
+        x_validation: DatasetType = None,
+        y_validation: DatasetType = None,
+        y_test: DatasetType = None,
         y_columns: Union[List[str], List[int]] = None,
         tag: str = "",
         labels: Dict[str, TrackableType] = None,

@@ -72,19 +72,19 @@ class Plan(ABC):
 
         # Call the correct display method according to the kernel:
         if is_ipython:
-            self._visual_display()
+            self._gui_display()
         else:
             self._cli_display()
 
     @abstractmethod
     def _cli_display(self):
         """
-        How the plan's products would be presented on a cli kernel.
+        How the plan's products would be presented on a command line kernel.
         """
         pass
 
     @abstractmethod
-    def _visual_display(self):
+    def _gui_display(self):
         """
         How the plan's products would be presented on a graphic IPython kernel (like a Jupyter notebook).
         """

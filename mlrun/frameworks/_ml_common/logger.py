@@ -5,12 +5,13 @@ import numpy as np
 import pandas as pd
 
 import mlrun
-from mlrun.artifacts import Artifact, DatasetArtifact
+from mlrun.artifacts import Artifact
 
 from .._common import TrackableType
 from .metric import Metric
 from .model_handler import MLModelHandler
 from .plan import MLPlan, MLPlanStages
+from .utils import concatenate_x_y
 
 
 class LoggerMode(Enum):
@@ -178,7 +179,7 @@ class Logger:
         """
         training_set = None
         if x_train is not None:
-            training_set, y_columns = DatasetArtifact.concatenate_x_y(
+            training_set, y_columns = concatenate_x_y(
                 x=x_train, y=y_train, y_columns=y_columns
             )
 

@@ -1251,7 +1251,7 @@ def without_mlrun_interface(interface: Type[MLRunInterface]):
                     obj=model_handler.model
                 )
             # Call the method:
-            returned_value = model_handler_method(*args, **kwargs)
+            returned_value = model_handler_method(self=model_handler, *args, **kwargs)
             # If the interface was applied, add it:
             if is_applied:
                 interface.add_interface(

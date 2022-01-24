@@ -159,7 +159,7 @@ class DatasetPlan(MLPlan):
         """
         print(self._artifacts[self._name].df)
 
-    def _visual_display(self):
+    def _gui_display(self):
         """
         How the plan's products would be presented on a graphic IPython kernel (like a Jupyter notebook).
         """

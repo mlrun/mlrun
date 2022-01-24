@@ -2,6 +2,14 @@
 
 <!-- ## Data preparation, ## Model serving -->
 
+This section presents:
+* [Feature store](#feature-store)
+* [Example of Simple model serving router](#example-of-a-simple-model-serving-router)
+* [Example of Advanced data processing and serving ensemble](#example-of-advanced-data-processing-and-serving-ensemble)
+* [Example of NLP processing pipeline with real-time streaming](#example-of-nlp-processing-pipeline-with-real-time-streaming)
+
+In addition to these built-in examples, see the [demos repository](https://github.com/mlrun/demos) for additional use cases and full end-to-end examples, including Fraud Prevention using the Iguazio Feature Store, a Mask Detection Demo, and How to converting existing ML code to an MLRun project.
+
 ## Feature store
 
 High-level transformation logic is automatically converted to real-time serverless processing engines that can read 
@@ -10,7 +18,7 @@ and native user code. Iguazio’s solution uses a unique multi-model database, s
 through many different APIs and formats (like files, SQL queries, pandas, real-time REST APIs, time-series, streaming), 
 resulting in better accuracy and simpler integration.
 
-## Example: Simple model serving router
+## Example of a simple model serving router
 
 To deploy a serving function you need to import or create the serving function, 
 add models to it, and then deploy it.  
@@ -32,11 +40,11 @@ add models to it, and then deploy it.
 The Serving function supports the same protocol used in KFServing V2 and Triton Serving framework. 
 To invoke the model, to use following url: `<function-host>/v2/models/model1/infer`.
 
-See the [**serving protocol specification**](./model-api.html) for details.
+See the [**serving protocol specification**](./model-api.md) for details.
 
 ```{note}
 Model url is either an MLRun model store object (starts with `store://`) or URL of a model directory 
-(in NFS, s3, v3io, azure, for example s3://{bucket}/{model-dir}). Note that credentials might need to 
+(in NFS, s3, v3io, azure, for example `s3://{bucket}/{model-dir}`). Note that credentials might need to 
 be added to the serving function via environment variables or MLRun secrets.
 ```
 
@@ -55,54 +63,18 @@ You can override additional methods: `preprocess`, `validate`, `postprocess`, `e
 You can add custom API endpoints by adding the method `op_xx(event)` (which can be invoked by
 calling the `<model-url>/xx`, where operation = xx). See [model class API](https://docs.mlrun.org/en/latest/api/mlrun.model.html).
 
-### Minimal sklearn serving function example
+For an example of writing the minimal serving functions, see [Minimal sklearn serving function example](./custom-model-serving-class.html#minimal-sklearn-serving-function-example).
 
-See the full [Model Server example](https://github.com/mlrun/functions/blob/master/v2_model_server/v2_model_server.ipynb).
+See the full [V2 Model Server (SKLearn) example](https://github.com/mlrun/functions/blob/master/v2_model_server/v2_model_server.ipynb) that 
+tests one or more classifier models against a held-out dataset.
 
-```python
-from cloudpickle import load
-import numpy as np
-import mlrun
-
-class ClassifierModel(mlrun.serving.V2ModelServer):
-    def load(self):
-        """load and initialize the model and/or other elements"""
-        model_file, extra_data = self.get_model('.pkl')
-        self.model = load(open(model_file, 'rb'))
-
-    def predict(self, body: dict) -> list:
-        """Generate model predictions from sample"""
-        feats = np.asarray(body['inputs'])
-        result: np.ndarray = self.model.predict(feats)
-        return result.tolist()
-```
-
-**To test the function locally use the mock server:**
-
-```python
-import mlrun
-from sklearn.datasets import load_iris
-
-fn = mlrun.new_function('my_server', kind='serving')
-
-# set the topology/router and add models
-graph = fn.set_topology("router")
-fn.add_model("model1", class_name="ClassifierModel", model_path="<path1>")
-fn.add_model("model2", class_name="ClassifierModel", model_path="<path2>")
-
-# create and use the graph simulator
-server = fn.to_mock_server()
-x = load_iris()['data'].tolist()
-result = server.test("/v2/models/model1/infer", {"inputs": x})
-```
-
-## Example: Advanced data processing and serving ensemble
+## Example of advanced data processing and serving ensemble
 
 MLRun Serving graphs can host advanced pipelines that handle event/data processing, ML functionality, 
  or any custom task. The following example demonstrates an asynchronous pipeline that pre-processes data, 
 passes the data into a model ensemble, and finishes off with post processing. 
 
-**Check out the [advanced graph example notebook](./graph-example.ipynb).**
+**For a complete example, see the [Advanced graph example notebook](./graph-example.ipynb).**
 
 Create a new function of type serving from code and set the graph topology to `async flow`.
 
@@ -164,14 +136,14 @@ And deploy the graph as a real-time Nuclio serverless function with one command:
 If you test a Nuclio function that has a serving graph with the async engine via the Nuclio UI, the UI might not display the logs in the output.
 ```
 
-## Example: NLP processing pipeline with real-time streaming 
+## Example of NLP processing pipeline with real-time streaming 
 
 In some cases it's useful to split your processing to multiple functions and use 
 streaming protocols to connect those functions. In this example the data 
 processing is in the first function/container and the NLP processing is in the second function. 
 In this example the GPU contained in the second function.
 
-See the [full notebook example](./distributed-graph.ipynb)
+See the [full notebook example](./distributed-graph.ipynb).
 
 ```python
 # define a new real-time serving function (from code) with an async graph

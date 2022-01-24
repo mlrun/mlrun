@@ -38,20 +38,20 @@ Click on the step names in the following sections to see the full usage.
 | Class name            | Description                           |  
 |----------------------------|--------------------------------------------------------------|   
 | [storey.AggregateByKey](https://storey.readthedocs.io/en/latest/api.html#storey.aggregations.AggregateByKey) | Aggregates the data into the table object provided for later persistence, and outputs an event enriched with the requested aggregation features. |
-| [DateExtractor]()  |              |
-| [mlrun.feature_store.Imputer]() | Replace None values with default values.   |
-| [mlrun.feature_store.MapValues]() | Map column values to new values.   |
-| [mlrun.feature_store.OneHotEncoder]() | Create new binary fields, one per category (one hot encoded).  | 
+| [DateExtractor](../api/mlrun.feature_store.md#mlrun.feature_store.steps.DateExtractor)  |              |
+| [mlrun.feature_store.Imputer](../api/mlrun.feature_store.md#mlrun.feature_store.steps.Imputer) | Replace None values with default values.   |
+| [mlrun.feature_store.MapValues](../api/mlrun.feature_store.md#mlrun.feature_store.steps.MapValues) | Map column values to new values.   |
+| [mlrun.feature_store.OneHotEncoder](../api/mlrun.feature_store.md#mlrun.feature_store.steps.OneHotEncoder) | Create new binary fields, one per category (one hot encoded).  | 
 
 ## External IO and data enrichment
 | Class name                                       | Description                                   |   
 |--------------------------------------------------|---------------------------------|
-| [BatchHttpRequests]() |                    | 
+| [BatchHttpRequests](../api/mlrun.serving.html#mlrun.serving.remote.BatchHttpRequests) | A class for calling remote endpoints in parallel. | 
 | [mlrun.datastore.DataItem](../api/mlrun.datastore.html#mlrun.datastore.DataItem) | Data input/output class abstracting access to various local/remote data sources |
 | [storey.transformations.JoinWithTable](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.JoinWithTable) | Joins each event with data from the given table.  |
 | [JoinWithV3IOTable]() | Joins each event with a V3IO table. Used for event augmentation.  | 
 | [QueryByKey](https://storey.readthedocs.io/en/latest/api.html#module-storey.drivers.QueryByKey) | Similar to to AggregateByKey, but this step is for serving only and does not aggregate the event. | 
-| [RemoteStep]() | Class for calling remote endpoints. | 
+| [RemoteStep](../api/mlrun.serving.htmlmlrun.serving.remote.RemoteStep) | Class for calling remote endpoints. | 
 | [storey.transformations.SendToHttp](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.SendToHttp) | Joins each event with data from any HTTP source. Used for event augmentation. |
  
 
@@ -99,5 +99,5 @@ Click on the step names in the following sections to see the full usage.
 ## Other
 | Class name                                       | Description                                   |   
 |--------------------------------------------------|---------------------------------|
-| [mlrun.feature_store.FeaturesetValidator]() | Validate feature values according to the feature set validation policy. | 
+| [mlrun.feature_store.FeaturesetValidator](../api/mlrun.feature_store.mdmlrun.feature_store.steps.FeaturesetValidator) | Validate feature values according to the feature set validation policy. | 
 | [ReduceToDataFrame]() |          |

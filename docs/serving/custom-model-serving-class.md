@@ -18,8 +18,18 @@ You need to implement two mandatory methods:
 You can override additional methods : `preprocess`, `validate`, `postprocess`, `explain`.<br>
 You can add a custom api endpoint by adding method `op_xx(event)`. Invoke it by
 calling the <model-url>/xx (operation = xx).
-
-**Minimal sklearn serving function example:**
+    
+This section presents:
+* [Minimal sklearn serving function example](#minimal-sklearn-serving-function-example)
+* [load() method](#load-method)
+* [predict() method](#predict-method)
+* [explain() method](#explain-method)
+* [pre/post and validate hooks](#pre-post-and-validate-hooks)
+* [Models, Routers And Graphs](#models-routers-and-graphs)
+* [Creating a Model Serving Function (Service)](#creating-a-model-serving-function-service)
+* [Model Monitoring](#model-monitoring)
+    
+## Minimal sklearn serving function example
 
 ```python
 from cloudpickle import load
@@ -38,7 +48,25 @@ class ClassifierModel(mlrun.serving.V2ModelServer):
         result: np.ndarray = self.model.predict(feats)
         return result.tolist()
 ```
+    
+**Test the function locally using the mock server:**
 
+```python
+import mlrun
+from sklearn.datasets import load_iris
+
+fn = mlrun.new_function('my_server', kind='serving')
+
+# set the topology/router and add models
+graph = fn.set_topology("router")
+fn.add_model("model1", class_name="ClassifierModel", model_path="<path1>")
+fn.add_model("model2", class_name="ClassifierModel", model_path="<path2>")
+
+# create and use the graph simulator
+server = fn.to_mock_server()
+x = load_iris()['data'].tolist()
+result = server.test("/v2/models/model1/infer", {"inputs": x})
+```
 
 ## Load() method
 
@@ -95,7 +123,7 @@ Routera can route to models on the same function or access models on a separate 
 
 To specify the topology, router class and class args use `.set_topology()` with your function.
 
-## Creating a Model Serving Function (Service)
+## Creating a model serving function (service)
 
 To provision a serving function you need to create an MLRun function of type `serving`.
 This can be done by using the `code_to_function()` call from a notebook. You can also import 

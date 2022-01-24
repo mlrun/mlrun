@@ -17,7 +17,7 @@ from .model_handler import SKLearnModelHandler
 from .utils import SKLearnModelType
 
 # Placeholders as the SciKit-Learn API is commonly used among all of the ML frameworks:
-SKLearnArtifactLibrary = MLArtifactsLibrary
+SKLearnArtifactsLibrary = MLArtifactsLibrary
 SKLearnMetricsLibrary = MetricsLibrary
 SklearnModelServer = PickleModelServer
 

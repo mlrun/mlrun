@@ -26,7 +26,7 @@ This section presents:
 * [explain() method](#explain-method)
 * [pre/post and validate hooks](#pre-post-and-validate-hooks)
 * [Models, routers and graphs](#models-routers-and-graphs)
-* [Creating a model serving function (Service)](#creating-a-model-serving-function-service)
+* [Creating a model serving function (service)](#creating-a-model-serving-function-service)
 * [Model monitoring](#model-monitoring)
     
 ## Minimal sklearn serving function example

@@ -43,7 +43,7 @@ def init_data(
 
     if is_backup_needed:
         logger.info("DB Backup is needed, backing up...")
-        backup_file_name = datetime.datetime.now().strftime("%Y%m%d%H%M.db")
+        backup_file_name = datetime.datetime.now().strftime("db_backup_%Y%m%d%H%M.db")
         db_backup = DBBackup()
         db_backup.backup_database(backup_file_name)
 
@@ -143,7 +143,7 @@ def _create_alembic_util() -> AlembicUtil:
 
 def _perform_schema_migrations(alembic_util: AlembicUtil):
     logger.info("Performing schema migration")
-    alembic_util.init_alembic(config.httpdb.db.database_backup_mode == "enabled")
+    alembic_util.init_alembic()
 
 
 def _is_latest_data_version():

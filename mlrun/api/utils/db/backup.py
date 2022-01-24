@@ -72,7 +72,7 @@ class DBBackup(object):
         if ":memory:" in mlconf.httpdb.dsn:
             return
         elif "mysql" in mlconf.httpdb.dsn:
-            db_dir_path = pathlib.Path(mlconf.httpdb.dirpath)
+            db_dir_path = pathlib.Path(mlconf.httpdb.dirpath) / "mysql"
         else:
             db_file_path = self._get_sqlite_db_file_path()
             db_dir_path = pathlib.Path(os.path.dirname(db_file_path))

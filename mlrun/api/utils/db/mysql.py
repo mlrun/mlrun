@@ -92,28 +92,6 @@ class MySQLUtil(object):
             **extra_flags,
         )
 
-    def dump_database_to_file(self, filepath: pathlib.Path):
-        connection = self._create_connection()
-        try:
-            with connection.cursor() as cursor:
-                database_dump = self._get_database_dump(cursor)
-        finally:
-            connection.close()
-        with open(str(filepath), "w") as f:
-            f.writelines(database_dump)
-
-    def load_database_from_file(self, filepath: pathlib.Path):
-        """
-        To run this operation manually, you can enter the mysql pod and run:
-        mysql -S /var/run/mysqld/mysql.sock -p mlrun < FILE_PATH
-        """
-        with open(str(filepath), "r") as f:
-            database_dump = f.read()
-
-        connection = self._create_connection(multi_statements=True)
-        with connection.cursor() as cursor:
-            cursor.execute(database_dump)
-
     @staticmethod
     def get_dsn() -> str:
         return os.environ.get(MySQLUtil.dsn_env_var, "")

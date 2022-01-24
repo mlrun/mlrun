@@ -1,6 +1,7 @@
 import os
 import pathlib
 import shutil
+import subprocess
 import typing
 
 import mlrun.api.utils.db.mysql
@@ -57,14 +58,32 @@ class DBBackup(object):
         backup_path = self._get_backup_file_path(backup_file_name)
 
         logger.debug("Backing up mysql DB file", backup_path=backup_path)
+        dsn_data = mlrun.api.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
 
-        mysql_util = mlrun.api.utils.db.mysql.MySQLUtil()
-        mysql_util.dump_database_to_file(backup_path)
+        self._run_shell_command(
+            "mysqldump "
+            f"-h f{dsn_data['host']} "
+            f"-P {dsn_data['port']} "
+            f"-u {dsn_data['username']} "
+            f"{dsn_data['database']} > {backup_path}"
+        )
 
     def _load_database_backup_mysql(self, backup_file_name: str) -> None:
+        """
+        To run this operation manually, you can either run the command below from the mlrun-api pod or
+        enter the mysql pod and run:
+        mysql -S /var/run/mysqld/mysql.sock -p mlrun < FILE_PATH
+        """
         backup_path = self._get_backup_file_path(backup_file_name)
-        mysql_util = mlrun.api.utils.db.mysql.MySQLUtil()
-        mysql_util.load_database_from_file(backup_path)
+
+        dsn_data = mlrun.api.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
+        self._run_shell_command(
+            "mysql "
+            f"-h f{dsn_data['host']} "
+            f"-P {dsn_data['port']} "
+            f"-u {dsn_data['username']} "
+            f"{dsn_data['database']} < {backup_path}"
+        )
 
     def _get_backup_file_path(
         self, backup_file_name: str
@@ -87,3 +106,14 @@ class DBBackup(object):
         if mysql is used returns empty string
         """
         return mlconf.httpdb.dsn.split("?")[0].split("sqlite:///")[-1]
+
+    @staticmethod
+    def _run_shell_command(command):
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.PIPE,
+            shell=True,
+        )
+        return process.wait()

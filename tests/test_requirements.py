@@ -81,6 +81,7 @@ def test_requirement_specifiers_convention():
         "kfp": {"~=1.0.1"},
         "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
+        "aiohttp": {">=3.6,<3.8"},
         "bokeh": {"~=2.3.0"},
         "storey": {"~=0.8.11, <0.8.12; python_version >= '3.7'"},
         # Black is not stable yet and does not have a release that is not beta, so can't be used with ~=

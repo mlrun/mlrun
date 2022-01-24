@@ -50,7 +50,7 @@ def _create_and_assert_feature_vector(
     client: TestClient, project, feature_vector, versioned=True
 ):
     response = client.post(
-        f"/api/projects/{project}/feature-vectors?versioned={versioned}",
+        f"projects/{project}/feature-vectors?versioned={versioned}",
         json=feature_vector,
     )
     assert response.status_code == HTTPStatus.OK.value
@@ -76,7 +76,7 @@ def test_feature_vector_create(db: Session, client: TestClient) -> None:
     uid = feature_vector_response["metadata"]["uid"]
 
     feature_vector_response = client.get(
-        f"/api/projects/{project_name}/feature-vectors/{name}/references/latest"
+        f"projects/{project_name}/feature-vectors/{name}/references/latest"
     )
     assert feature_vector_response.status_code == HTTPStatus.OK.value
     _assert_diff_as_expected_except_for_specific_metadata(
@@ -84,7 +84,7 @@ def test_feature_vector_create(db: Session, client: TestClient) -> None:
     )
 
     feature_vector_response = client.get(
-        f"/api/projects/{project_name}/feature-vectors/{name}/references/{uid}"
+        f"projects/{project_name}/feature-vectors/{name}/references/{uid}"
     )
     assert feature_vector_response.status_code == HTTPStatus.OK.value
     # When querying by uid, tag will not be returned
@@ -152,7 +152,7 @@ def _store_feature_vector(
     client: TestClient, project, name, reference, feature_vector, versioned=True
 ):
     response = client.put(
-        f"/api/projects/{project}/feature-vectors/{name}/references/{reference}?versioned={versioned}",
+        f"projects/{project}/feature-vectors/{name}/references/{reference}?versioned={versioned}",
         json=feature_vector,
     )
     assert response
@@ -195,7 +195,7 @@ def test_feature_vector_store(db: Session, client: TestClient) -> None:
     # Do the same, but reference the object by its uid - this should fail the request
     feature_vector["metadata"]["new_metadata"] = "something else"
     response = client.put(
-        f"/api/projects/{project_name}/feature-vectors/{name}/references/{modified_uid}",
+        f"projects/{project_name}/feature-vectors/{name}/references/{modified_uid}",
         json=feature_vector,
     )
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
@@ -285,14 +285,14 @@ def test_feature_vector_delete(db: Session, client: TestClient) -> None:
 
     # Delete the last feature vector
     response = client.delete(
-        f"/api/projects/{project_name}/feature-vectors/feature_vector_{count-1}"
+        f"projects/{project_name}/feature-vectors/feature_vector_{count-1}"
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
     _list_and_assert_objects(client, "feature_vectors", project_name, None, count - 1)
 
     # Delete the first fs
     response = client.delete(
-        f"/api/projects/{project_name}/feature-vectors/feature_vector_0"
+        f"projects/{project_name}/feature-vectors/feature_vector_0"
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
     _list_and_assert_objects(client, "feature_vectors", project_name, None, count - 2)
@@ -326,7 +326,7 @@ def test_feature_vector_delete_version(db: Session, client: TestClient) -> None:
         delete_by_tag = not delete_by_tag
 
         response = client.delete(
-            f"/api/projects/{project_name}/feature-vectors/{name}/references/{reference}"
+            f"projects/{project_name}/feature-vectors/{name}/references/{reference}"
         )
         assert response.status_code == HTTPStatus.NO_CONTENT.value
         objects_left = objects_left - 1
@@ -339,7 +339,7 @@ def test_feature_vector_delete_version(db: Session, client: TestClient) -> None:
         _store_feature_vector(client, project_name, name, f"tag{i}", feature_vector)
 
     # Now delete by name
-    response = client.delete(f"/api/projects/{project_name}/feature-vectors/{name}")
+    response = client.delete(f"projects/{project_name}/feature-vectors/{name}")
     assert response.status_code == HTTPStatus.NO_CONTENT.value
     _list_and_assert_objects(client, "feature_vectors", project_name, f"name={name}", 0)
 

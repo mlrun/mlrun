@@ -337,7 +337,7 @@ class DaskCluster(KubejobRuntime):
     def deploy(
         self,
         watch=True,
-        with_mlrun=True,
+        with_mlrun=None,
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
@@ -445,7 +445,7 @@ def deploy_function(function: DaskCluster, secrets=None):
         import dask
         from dask.distributed import Client, default_client  # noqa: F401
         from dask_kubernetes import KubeCluster, make_pod_spec  # noqa: F401
-        from kubernetes_asyncio import client
+        from kubernetes import client
     except ImportError as exc:
         print(
             "missing dask or dask_kubernetes, please run "

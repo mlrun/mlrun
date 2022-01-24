@@ -29,7 +29,7 @@ import numpy as np
 import requests
 import yaml
 from dateutil import parser
-from pandas._libs.tslibs.timestamps import Timestamp
+from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
 from tabulate import tabulate
 from yaml.representer import RepresenterError
 
@@ -1204,3 +1204,41 @@ def fill_artifact_path_template(artifact_path, project):
         artifact_path = artifact_path.replace("{{run.project}}", project)
         artifact_path = artifact_path.replace("{{project}}", project)
     return artifact_path
+
+
+def str_to_timestamp(time_str: str, now_time: Timestamp = None):
+    """convert fixed/relative time string to Pandas Timestamp
+
+    can use relative times using the "now" verb, and align to floor using the "floor" verb
+
+    time string examples::
+
+        1/1/2021
+        now
+        now + 1d2h
+        now -1d floor 1H
+    """
+    if not isinstance(time_str, str):
+        return time_str
+
+    time_str = time_str.strip()
+    if time_str.lower().startswith("now"):
+        # handle now +/- timedelta
+        timestamp: Timestamp = now_time or Timestamp.now()
+        time_str = time_str[len("now") :].lstrip()
+        split = time_str.split("floor")
+        time_str = split[0].strip()
+
+        if time_str and time_str[0] in ["+", "-"]:
+            timestamp = timestamp + Timedelta(time_str)
+        elif time_str:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"illegal time string expression now{time_str}, "
+                'use "now +/- <timestring>" for relative times'
+            )
+
+        if len(split) > 1:
+            timestamp = timestamp.floor(split[1].strip())
+        return timestamp
+
+    return Timestamp(time_str)

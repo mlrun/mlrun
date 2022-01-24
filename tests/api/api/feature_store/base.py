@@ -10,7 +10,7 @@ def _list_and_assert_objects(
     client: TestClient, entity_name, project, query, expected_number_of_entities
 ):
     entity_url_name = entity_name.replace("_", "-")
-    url = f"/api/projects/{project}/{entity_url_name}"
+    url = f"projects/{project}/{entity_url_name}"
     if query:
         url = url + f"?{query}"
     response = client.get(url)
@@ -26,7 +26,7 @@ def _list_and_assert_objects(
 
 def _list_tags_and_assert(client: TestClient, entity_name, project, expected_tags):
     entity_url_name = entity_name.replace("_", "-")
-    url = f"/api/projects/{project}/{entity_url_name}/*/tags"
+    url = f"projects/{project}/{entity_url_name}/*/tags"
     response = client.get(url)
     assert response.status_code == HTTPStatus.OK.value
     response_body = response.json()
@@ -56,13 +56,13 @@ def _patch_object(
         patch_mode = "additive"
     headers = {mlrun.api.schemas.HeaderNames.patch_mode: patch_mode}
     response = client.patch(
-        f"/api/projects/{project_name}/{object_url_path}/{name}/references/{reference}",
+        f"projects/{project_name}/{object_url_path}/{name}/references/{reference}",
         json=object_update,
         headers=headers,
     )
     assert response.status_code == HTTPStatus.OK.value
     response = client.get(
-        f"/api/projects/{project_name}/{object_url_path}/{name}/references/{reference}"
+        f"projects/{project_name}/{object_url_path}/{name}/references/{reference}"
     )
     return response.json()
 
@@ -137,11 +137,11 @@ def _test_partition_by_for_feature_store_objects(
     # Some negative testing - no sort by field
     object_url_name = object_name.replace("_", "-")
     response = client.get(
-        f"/api/projects/{project_name}/{object_url_name}?partition-by=name"
+        f"projects/{project_name}/{object_url_name}?partition-by=name"
     )
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
     # An invalid partition-by field - will be failed by fastapi due to schema validation.
     response = client.get(
-        f"/api/projects/{project_name}/{object_url_name}?partition-by=key&partition-sort-by=name"
+        f"projects/{project_name}/{object_url_name}?partition-by=key&partition-sort-by=name"
     )
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value

@@ -3,6 +3,7 @@ import os
 import traceback
 from typing import Any, Dict, List, Optional
 
+import v3io_frames
 from nuclio.utils import DeployError
 from sqlalchemy.orm import Session
 from v3io.dataplane import RaiseForStatus
@@ -500,26 +501,30 @@ class ModelEndpoints:
             token=access_key, address=config.v3io_framesd, container=container,
         )
 
-        data = client.read(
-            backend="tsdb",
-            table=path,
-            columns=["endpoint_id", *metrics],
-            filter=f"endpoint_id=='{endpoint_id}'",
-            start=start,
-            end=end,
-        )
-
-        data_dict = data.to_dict()
         metrics_mapping = {}
-        for metric in metrics:
-            metric_data = data_dict.get(metric)
-            if metric_data is None:
-                continue
 
-            values = [
-                (str(timestamp), value) for timestamp, value in metric_data.items()
-            ]
-            metrics_mapping[metric] = Metric(name=metric, values=values)
+        try:
+            data = client.read(
+                backend="tsdb",
+                table=path,
+                columns=["endpoint_id", *metrics],
+                filter=f"endpoint_id=='{endpoint_id}'",
+                start=start,
+                end=end,
+            )
+
+            data_dict = data.to_dict()
+            for metric in metrics:
+                metric_data = data_dict.get(metric)
+                if metric_data is None:
+                    continue
+
+                values = [
+                    (str(timestamp), value) for timestamp, value in metric_data.items()
+                ]
+                metrics_mapping[metric] = Metric(name=metric, values=values)
+        except v3io_frames.errors.ReadError:
+            logger.warn(f"failed to read tsdb for endpoint {endpoint_id}")
         return metrics_mapping
 
     def verify_project_has_no_model_endpoints(self, project_name: str):

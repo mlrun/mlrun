@@ -257,6 +257,7 @@ class BaseRuntime(ModelObj):
         scrape_metrics: bool = None,
         local=False,
         local_code_path=None,
+        auto_build=None,
     ) -> RunObject:
         """Run a local or remote task.
 
@@ -283,6 +284,8 @@ class BaseRuntime(ModelObj):
         :param scrape_metrics: whether to add the `mlrun/scrape-metrics` label to this run's resources
         :param local:      run the function locally vs on the runtime/cluster
         :param local_code_path: path of the code for local runs & debug
+        :param auto_build: when set to True and the function require build it will be built on the first
+                           function run, use only if you dont plan on changing the build config between runs
 
         :return: run context object (RunObject) with run metadata, results and status
         """
@@ -401,9 +404,15 @@ class BaseRuntime(ModelObj):
         db = self._get_db()
 
         if not self.is_deployed:
-            raise RunError(
-                "function image is not built/ready, use .deploy() method first"
-            )
+            if self.spec.build.auto_build or auto_build:
+                logger.info(
+                    "Function is not deployed and auto_build flag is set, starting deploy..."
+                )
+                self.deploy(skip_deployed=True)
+            else:
+                raise RunError(
+                    "function image is not built/ready, use .deploy() method first"
+                )
 
         if self.verbose:
             logger.info(f"runspec:\n{runspec.to_yaml()}")
@@ -876,7 +885,23 @@ class BaseRuntime(ModelObj):
         if new_command not in commands:
             commands.append(new_command)
         self.spec.build.commands = commands
+        self.verify_base_image()
         return self
+
+    def verify_base_image(self):
+        build = self.spec.build
+        require_build = build.commands or (
+            build.source and not build.load_source_on_run
+        )
+        if (
+            self.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
+            and require_build
+            and self.spec.image
+            and not self.spec.build.base_image
+        ):
+            # when the function require build use the image as the base_image for the build
+            self.spec.build.base_image = self.spec.image
+            self.spec.image = ""
 
     def export(self, target="", format=".yaml", secrets=None, strip=True):
         """save function spec to a local/remote path (default to./function.yaml)

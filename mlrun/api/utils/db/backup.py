@@ -117,6 +117,9 @@ class DBBackupUtil(object):
 
     @staticmethod
     def _run_shell_command(command):
+        logger.debug(
+            "Running shell command", command=command,
+        )
         process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,

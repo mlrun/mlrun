@@ -43,6 +43,7 @@ from .sources import (
     StreamSource,
 )
 from .store_resources import (
+    allow_empty_targets,
     get_store_resource,
     get_store_uri,
     is_store_uri,

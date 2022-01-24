@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from urllib.parse import urlparse
 
 import mlrun
@@ -143,7 +144,9 @@ class StoreManager:
         except Exception as exc:
             raise OSError(f"artifact {url} not found, {exc}")
         target = resource.get_target_path()
-        if not target:
+        # the env var allow us to have functions which dont depend on having targets e.g. a function which
+        # accepts a feature vector uri and generate the offline vector (parquet) for it if it doesnt exist
+        if not target and not os.environ.get("ALLOW_EMPTY_RESOURCE_TARGET", ""):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"resource {url} does not have a valid/persistent offline target"
             )

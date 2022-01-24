@@ -2101,6 +2101,18 @@ class TestFeatureStore(TestMLRunSystem):
             "sum": {"a": 16, "b": 26},
         }
 
+    def test_allow_empty_vector(self):
+        # test that we can pass an non materialized vector to function using special flag
+        vector = fs.FeatureVector("dummy-vec", [])
+        vector.save()
+
+        func = mlrun.new_function("myfunc", kind="job", handler="myfunc").with_code(
+            body=myfunc
+        )
+        func.apply(mlrun.datastore.allow_empty_targets())
+        run = func.run(inputs={"data": vector.uri}, local=True)
+        assert run.output("uri") == vector.uri
+
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)
@@ -2174,3 +2186,11 @@ def prepare_feature_set(
 def map_with_state_test_function(x, state):
     state["sum"] += x["x"]
     return state, state
+
+
+myfunc = """
+def myfunc(context, data):
+    print('DATA:', data.artifact_url)
+    assert data.meta
+    context.log_result('uri', data.artifact_url)
+"""

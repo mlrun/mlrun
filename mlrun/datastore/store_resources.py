@@ -165,3 +165,27 @@ def get_store_resource(uri, db=None, secrets=None, project=None):
     else:
         stores = mlrun.store_manager.set(secrets, db=db)
         return stores.object(url=uri)
+
+
+def allow_empty_targets():
+    """
+    Modifier function to allow resource (feature vector/set) uris without material targets
+
+    Usage::
+
+        train = train_op(...)
+        train.apply(allow_empty_targets())
+        train.run(inputs={"data": vector.uri})
+    """
+
+    def _allow_empty_targets(task):
+        from os import environ
+
+        from kubernetes import client as k8s_client
+
+        environ["ALLOW_EMPTY_RESOURCE_TARGET"] = "1"  # for local runs
+        return task.add_env_variable(
+            k8s_client.V1EnvVar(name="ALLOW_EMPTY_RESOURCE_TARGET", value="1")
+        )
+
+    return _allow_empty_targets

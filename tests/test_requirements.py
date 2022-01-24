@@ -106,7 +106,7 @@ def test_requirement_specifiers_convention():
             "~=2021.11.2; python_version >= '3.7'",
             "~=2021.3.0; python_version < '3.7'",
         },
-        "bokeh": {"~=2.4; python_version >= '3.7'", "~=2.3; python_version < '3.7'"},
+        "bokeh": {"~=2.4, >=2.4.2; python_version >= '3.7'"},
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that
         # TODO: make test smart enough to understand that
         "urllib3": {">=1.25.4, <1.27"},
@@ -163,7 +163,10 @@ def test_requirement_specifiers_inconsistencies():
             "~=2021.11.2; python_version >= '3.7'",
             "~=2021.3.0; python_version < '3.7'",
         },
-        "bokeh": {"~=2.4; python_version >= '3.7'", "~=2.3; python_version < '3.7'"},
+        "bokeh": {
+            "~=2.4, >=2.4.2; python_version >= '3.7'",
+            "~=2.3; python_version < '3.7'",
+        },
         # The empty specifier is from tests/runtimes/assets/requirements.txt which is there specifically to test the
         # scenario of requirements without version specifiers
         "python-dotenv": {"", "~=0.17.0"},

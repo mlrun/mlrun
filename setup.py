@@ -86,7 +86,8 @@ extras_require = {
     "azure-blob-storage": ["azure-storage-blob~=12.0", "adlfs~=2021.8.1"],
     "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
     "bokeh": [
-        "bokeh~=2.4; python_version >= '3.7'",
+        # >=2.4.2 to force having a security fix done in 2.4.2
+        "bokeh~=2.4, >=2.4.2; python_version >= '3.7'",
         "bokeh~=2.3; python_version < '3.7'",
     ],
     "plotly": ["plotly~=5.4"],

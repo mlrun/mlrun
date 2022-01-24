@@ -1,26 +1,6 @@
 # Images and their usage in MLRun
 
-Every release of MLRun includes several images for different usages.
-All images are published to [dockerhub](https://hub.docker.com/u/mlrun) and [quay.io](https://quay.io/organization/mlrun).
-
-## MLRun building images
-
-* `mlrun/mlrun`: The most basic (and smallest) image, can be used for simple jobs. Basically just MLRun installed on 
-  top of a python image.
-* `mlrun/ml-base`: Image for file acquisition, compression, dask jobs, simple training jobs and other utilities. Like
-`mlrun/mlrun` with the addition of [Miniconda](https://docs.conda.io/en/latest/miniconda.html) and other [python 
-  packages](./base/requirements.txt).
-* `mlrun/ml-models`: Image for analyzing data, model training and deep learning on CPUs. Built on top of 
-  `mlrun/ml-base` with the addition of [Open MPI](https://www.open-mpi.org/), [PyTorch](https://pytorch.org/), 
-  [TensorFlow](https://www.tensorflow.org/), [Horovod](https://horovod.ai/) and other [python packages](
-  ./models/requirements.txt).
-* `mlrun/ml-models-gpu`: Same as `mlrun/ml-models` but for GPUs.
-
-The files are located in [MLRun Dockerfiles](https://github.com/mlrun/mlrun/tree/development/dockerfiles).
-
-## MLRun infrastructure images
-
-See [README](https://github.com/mlrun/mlrun/blob/development/dockerfiles/README.md).
+Every release of MLRun includes several images for different usages. The build and the infrastructure images are described and located in located in the [README](https://github.com/mlrun/mlrun/blob/development/dockerfiles/README.md). They are also published to [dockerhub](https://hub.docker.com/u/mlrun) and [quay.io](https://quay.io/organization/mlrun).
 
 ## Using images
 

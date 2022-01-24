@@ -20,6 +20,7 @@ from mlrun.config import config
 from mlrun.utils import logger
 
 from .utils.db.alembic import AlembicUtil
+from .utils.db.backup import DBBackup
 from .utils.db.mysql import MySQLUtil
 from .utils.db.sqlite_migration import SQLiteMigrationUtil
 
@@ -33,9 +34,11 @@ def init_data(
     if not from_scratch and config.httpdb.db.database_migration_mode == "enabled":
         sqlite_migration_util = SQLiteMigrationUtil()
     alembic_util = _create_alembic_util()
-    is_migration_needed, is_migration_from_scratch = _is_migration_needed(
-        alembic_util, sqlite_migration_util
-    )
+    (
+        is_migration_needed,
+        is_migration_from_scratch,
+        is_backup_needed,
+    ) = _is_migration_needed(alembic_util, sqlite_migration_util)
     from_scratch = from_scratch or is_migration_from_scratch
     if not from_scratch and not perform_migrations_if_needed and is_migration_needed:
         state = mlrun.api.schemas.APIStates.waiting_for_migrations
@@ -45,6 +48,11 @@ def init_data(
 
     logger.info("Creating initial data")
     config.httpdb.state = mlrun.api.schemas.APIStates.migrations_in_progress
+    if is_backup_needed:
+        backup_file_name = datetime.datetime.now().strftime("%Y%m%d%H%M.db")
+        db_backup = DBBackup()
+        db_backup.backup_database(backup_file_name)
+
     if from_scratch or is_migration_needed:
         try:
             _perform_schema_migrations(alembic_util)
@@ -83,7 +91,7 @@ latest_data_version = 2
 def _is_migration_needed(
     alembic_util: AlembicUtil,
     sqlite_migration_util: typing.Optional[SQLiteMigrationUtil],
-) -> typing.Tuple[bool, bool]:
+) -> typing.Tuple[bool, bool, bool]:
     is_database_migration_needed = False
     if sqlite_migration_util is not None:
         is_database_migration_needed = (
@@ -99,16 +107,22 @@ def _is_migration_needed(
         not is_migration_from_scratch
         and (is_schema_migration_needed or is_data_migration_needed)
     )
+    is_backup_needed = (
+        is_migration_needed
+        and not is_migration_from_scratch
+        and not is_database_migration_needed
+    )
     logger.info(
         "Checking if migration is needed",
         is_migration_from_scratch=is_migration_from_scratch,
         is_schema_migration_needed=is_schema_migration_needed,
         is_data_migration_needed=is_data_migration_needed,
         is_database_migration_needed=is_database_migration_needed,
+        is_backup_needed=is_backup_needed,
         is_migration_needed=is_migration_needed,
     )
 
-    return is_migration_needed, is_migration_from_scratch
+    return is_migration_needed, is_migration_from_scratch, is_backup_needed
 
 
 def _create_alembic_util() -> AlembicUtil:

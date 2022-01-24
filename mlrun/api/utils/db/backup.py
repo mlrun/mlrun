@@ -73,11 +73,10 @@ class DBBackup(object):
             return
         elif "mysql" in mlconf.httpdb.dsn:
             db_dir_path = pathlib.Path(mlconf.httpdb.dirpath)
-            return db_dir_path / backup_file_name
         else:
             db_file_path = self._get_sqlite_db_file_path()
             db_dir_path = pathlib.Path(os.path.dirname(db_file_path))
-            return db_dir_path / backup_file_name
+        return db_dir_path / backup_file_name
 
     @staticmethod
     def _get_sqlite_db_file_path() -> str:

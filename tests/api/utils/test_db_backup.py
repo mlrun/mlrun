@@ -21,7 +21,7 @@ def test_backup_and_load_sqlite(mock_db_dsn, mock_shutil_copy, mock_is_file_resu
     dsn = f"sqlite:///{Constants.sqlite_db_file_path}"
     mock_db_dsn(dsn)
 
-    db_backup = mlrun.api.utils.db.backup.DBBackup()
+    db_backup = mlrun.api.utils.db.backup.DBBackupUtil()
     db_backup.backup_database(Constants.backup_file)
 
     mock_is_file_result(True)
@@ -50,7 +50,7 @@ def test_backup_and_load_mysql(mock_db_dsn, mock_mysql_util, mock_is_file_result
     dsn = "mysql://mysql-dsn"
     mock_db_dsn(dsn)
 
-    db_backup = mlrun.api.utils.db.backup.DBBackup()
+    db_backup = mlrun.api.utils.db.backup.DBBackupUtil()
     db_backup.backup_database(Constants.backup_file)
 
     mock_is_file_result(True)
@@ -58,8 +58,8 @@ def test_backup_and_load_mysql(mock_db_dsn, mock_mysql_util, mock_is_file_result
         Constants.backup_file, Constants.new_backup_file
     )
 
-    backup_file_path = f"{mlrun.api.utils.db.backup.DBBackup.mysql_database_dir}/{Constants.backup_file}"
-    new_backup_file_path = f"{mlrun.api.utils.db.backup.DBBackup.mysql_database_dir}/{Constants.new_backup_file}"
+    backup_file_path = f"{mlrun.api.utils.db.backup.DBBackupUtil.mysql_database_dir}/{Constants.backup_file}"
+    new_backup_file_path = f"{mlrun.api.utils.db.backup.DBBackupUtil.mysql_database_dir}/{Constants.new_backup_file}"
 
     mysql_util_calls = [
         # first backup - backup via the `backup_database` call
@@ -79,7 +79,7 @@ def test_load_backup_file_does_not_exist_sqlite(
     dsn = f"sqlite:///{Constants.sqlite_db_file_path}"
     mock_db_dsn(dsn)
 
-    db_backup = mlrun.api.utils.db.backup.DBBackup()
+    db_backup = mlrun.api.utils.db.backup.DBBackupUtil()
 
     mock_is_file_result(False)
 
@@ -100,7 +100,7 @@ def test_load_backup_file_does_not_exist_mysql(
     dsn = "mysql://mysql-dsn"
     mock_db_dsn(dsn)
 
-    db_backup = mlrun.api.utils.db.backup.DBBackup()
+    db_backup = mlrun.api.utils.db.backup.DBBackupUtil()
 
     mock_is_file_result(False)
 

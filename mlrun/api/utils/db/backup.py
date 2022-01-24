@@ -9,7 +9,7 @@ from mlrun import mlconf
 from mlrun.utils import logger
 
 
-class DBBackup(object):
+class DBBackupUtil(object):
     def backup_database(self, backup_file_name: str) -> None:
         if ":memory:" in mlconf.httpdb.dsn:
             return
@@ -52,14 +52,19 @@ class DBBackup(object):
     def _load_database_backup_sqlite(self, backup_file_name: str) -> None:
         db_file_path = self._get_sqlite_db_file_path()
         backup_path = self._get_backup_file_path(backup_file_name)
+
+        logger.debug(
+            "Loading sqlite DB backup file",
+            db_file_path=db_file_path,
+            backup_path=backup_path,
+        )
         shutil.copy2(backup_path, db_file_path)
 
     def _backup_database_mysql(self, backup_file_name: str) -> None:
         backup_path = self._get_backup_file_path(backup_file_name)
 
-        logger.debug("Backing up mysql DB file", backup_path=backup_path)
+        logger.debug("Backing up mysql DB data", backup_path=backup_path)
         dsn_data = mlrun.api.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
-
         self._run_shell_command(
             "mysqldump "
             f"-h f{dsn_data['host']} "
@@ -76,6 +81,9 @@ class DBBackup(object):
         """
         backup_path = self._get_backup_file_path(backup_file_name)
 
+        logger.debug(
+            "Loading mysql DB backup data", backup_path=backup_path,
+        )
         dsn_data = mlrun.api.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
         self._run_shell_command(
             "mysql "

@@ -1,10 +1,8 @@
 import os
-import pathlib
 import re
 import typing
 
 import pymysql
-from pymysql.constants import CLIENT
 
 import mlrun.utils
 
@@ -74,22 +72,16 @@ class MySQLUtil(object):
         finally:
             connection.close()
 
-    def _create_connection(self, multi_statements=False):
+    def _create_connection(self):
         mysql_dsn_data = self.get_mysql_dsn_data()
         if not mysql_dsn_data:
             raise RuntimeError(f"Invalid mysql dsn: {self.get_dsn()}")
-
-        extra_flags = {}
-
-        if multi_statements:
-            extra_flags["client_flag"] = CLIENT.MULTI_STATEMENTS
 
         return pymysql.connect(
             host=mysql_dsn_data["host"],
             user=mysql_dsn_data["username"],
             port=int(mysql_dsn_data["port"]),
             database=mysql_dsn_data["database"],
-            **extra_flags,
         )
 
     @staticmethod

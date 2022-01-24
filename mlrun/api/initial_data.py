@@ -20,7 +20,7 @@ from mlrun.config import config
 from mlrun.utils import logger
 
 from .utils.db.alembic import AlembicUtil
-from .utils.db.backup import DBBackup
+from .utils.db.backup import DBBackupUtil
 from .utils.db.mysql import MySQLUtil
 from .utils.db.sqlite_migration import SQLiteMigrationUtil
 
@@ -38,16 +38,21 @@ def init_data(
         is_migration_needed,
         is_migration_from_scratch,
         is_backup_needed,
-    ) = _is_migration_needed(alembic_util, sqlite_migration_util)
-    from_scratch = from_scratch or is_migration_from_scratch
+    ) = _resolve_needed_operations(alembic_util, sqlite_migration_util, from_scratch)
 
     if is_backup_needed:
         logger.info("DB Backup is needed, backing up...")
-        backup_file_name = datetime.datetime.now().strftime("db_backup_%Y%m%d%H%M.db")
-        db_backup = DBBackup()
+        backup_file_name = datetime.datetime.now(tz=datetime.timezone.utc).strftime(
+            "db_backup_%Y%m%d%H%M.db"
+        )
+        db_backup = DBBackupUtil()
         db_backup.backup_database(backup_file_name)
 
-    if not from_scratch and not perform_migrations_if_needed and is_migration_needed:
+    if (
+        not is_migration_from_scratch
+        and not perform_migrations_if_needed
+        and is_migration_needed
+    ):
         state = mlrun.api.schemas.APIStates.waiting_for_migrations
         logger.info("Migration is needed, changing API state", state=state)
         config.httpdb.state = state
@@ -56,7 +61,7 @@ def init_data(
     logger.info("Creating initial data")
     config.httpdb.state = mlrun.api.schemas.APIStates.migrations_in_progress
 
-    if from_scratch or is_migration_needed:
+    if is_migration_from_scratch or is_migration_needed:
         try:
             _perform_schema_migrations(alembic_util)
 
@@ -77,7 +82,7 @@ def init_data(
     # if the above process actually ran a migration - initializations that were skipped on the API initialization
     # should happen - we can't do it here because it requires an asyncio loop which can't be accessible here
     # therefore moving to migration_completed state, and other component will take care of moving to online
-    if not from_scratch and is_migration_needed:
+    if not is_migration_from_scratch and is_migration_needed:
         config.httpdb.state = mlrun.api.schemas.APIStates.migrations_completed
     else:
         config.httpdb.state = mlrun.api.schemas.APIStates.online
@@ -91,16 +96,19 @@ data_version_prior_to_table_addition = 1
 latest_data_version = 2
 
 
-def _is_migration_needed(
+def _resolve_needed_operations(
     alembic_util: AlembicUtil,
     sqlite_migration_util: typing.Optional[SQLiteMigrationUtil],
+    force_from_scratch: bool = False,
 ) -> typing.Tuple[bool, bool, bool]:
     is_database_migration_needed = False
     if sqlite_migration_util is not None:
         is_database_migration_needed = (
             sqlite_migration_util.is_database_migration_needed()
         )
-    is_migration_from_scratch = alembic_util.is_migration_from_scratch()
+    is_migration_from_scratch = (
+        force_from_scratch or alembic_util.is_migration_from_scratch()
+    )
     is_schema_migration_needed = alembic_util.is_schema_migration_needed()
     is_data_migration_needed = (
         not _is_latest_data_version()

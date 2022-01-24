@@ -912,7 +912,7 @@ class TestFeatureStore(TestMLRunSystem):
             vector,
             entity_timestamp_column="time_stamp",
             start_time=datetime(2021, 6, 9, 9, 30),
-            end_time=datetime(2021, 6, 9, 10, 30),
+            end_time=None,  # will translate to now()
         )
         assert len(resp.to_dataframe()) == 2
 

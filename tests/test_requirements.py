@@ -78,11 +78,10 @@ def test_requirement_specifiers_convention():
 
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
-        "kfp": {"~=1.0.1"},
+        "kfp": {"~=1.8.0"},
         "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
         "aiohttp": {">=3.6,<3.8"},
-        "bokeh": {"~=2.3.0"},
         "storey": {"~=0.8.11, <0.8.12; python_version >= '3.7'"},
         # Black is not stable yet and does not have a release that is not beta, so can't be used with ~=
         "black": {"<=19.10b0"},
@@ -99,6 +98,15 @@ def test_requirement_specifiers_convention():
         "adlfs": {"~=2021.8.1"},
         "s3fs": {"~=2021.8.1"},
         "gcsfs": {"~=2021.8.1"},
+        "distributed": {
+            "~=2021.11.2; python_version >= '3.7'",
+            "~=2021.3.0; python_version < '3.7'",
+        },
+        "dask": {
+            "~=2021.11.2; python_version >= '3.7'",
+            "~=2021.3.0; python_version < '3.7'",
+        },
+        "bokeh": {"~=2.4, >=2.4.2; python_version >= '3.7'"},
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that
         # TODO: make test smart enough to understand that
         "urllib3": {">=1.25.4, <1.27"},
@@ -107,10 +115,8 @@ def test_requirement_specifiers_convention():
         "google-auth": {">=1.25.0, <2.0dev"},
         "ipython": {"~=7.0, <7.17"},
         "numpy": {">=1.16.5, <1.22.0"},
-        "tabulate": {">=0.8.0, <=0.8.3"},
         "orjson": {">=3,<3.4"},
         "alembic": {"~=1.4,<1.6.0"},
-        "distributed": {">=2.23, <3"},
         "boto3": {"~=1.9, <1.17.107"},
         "azure-storage-blob": {"~=12.0, <12.7.0"},
         "dask-ml": {"~=1.4,<1.9.0"},
@@ -148,6 +154,18 @@ def test_requirement_specifiers_inconsistencies():
         "tensorboard": {
             "~=2.5; python_version >= '3.7'",
             "~=1.0; python_version < '3.7'",
+        },
+        "distributed": {
+            "~=2021.11.2; python_version >= '3.7'",
+            "~=2021.3.0; python_version < '3.7'",
+        },
+        "dask": {
+            "~=2021.11.2; python_version >= '3.7'",
+            "~=2021.3.0; python_version < '3.7'",
+        },
+        "bokeh": {
+            "~=2.4, >=2.4.2; python_version >= '3.7'",
+            "~=2.3; python_version < '3.7'",
         },
         # The empty specifier is from tests/runtimes/assets/requirements.txt which is there specifically to test the
         # scenario of requirements without version specifiers

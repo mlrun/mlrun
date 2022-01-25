@@ -144,8 +144,13 @@ default_config = {
             "data_migrations_mode": "enabled",
             # Whether or not to perform database migration from sqlite to mysql on initialization
             "database_migration_mode": "enabled",
-            # Whether or not to use db backups on initialization
-            "database_backup_mode": "enabled",
+            "backup": {
+                # Whether or not to use db backups on initialization
+                "mode": "enabled",
+                "file_format": "db_backup_%Y%m%d%H%M.db",
+                "use_rotation": True,
+                "rotation_limit": 3,
+            },
             "connections_pool_size": 20,
             "connections_pool_max_overflow": 50,
         },

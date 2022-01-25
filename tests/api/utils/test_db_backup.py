@@ -138,15 +138,19 @@ def test_backup_file_rotation(mock_db_dsn, mock_listdir_result, mock_os_remove):
 
 @pytest.fixture()
 def mock_db_dsn(monkeypatch) -> typing.Callable:
-    old_dsn_value = os.environ.get("MLRUN_HTTPDB__DSN", None)
+    dsn_env_var = "MLRUN_HTTPDB__DSN"
+    old_dsn_value = os.environ.get(dsn_env_var, None)
 
     def _mock_db_dsn(dsn):
         monkeypatch.setattr(mlconf.httpdb, "dsn", dsn)
-        os.environ["MLRUN_HTTPDB__DSN"] = dsn
+        os.environ[dsn_env_var] = dsn
 
     yield _mock_db_dsn
 
-    os.environ["MLRUN_HTTPDB__DSN"] = old_dsn_value
+    if old_dsn_value is None:
+        os.environ.pop(dsn_env_var)
+    else:
+        os.environ[dsn_env_var] = old_dsn_value
 
 
 @pytest.fixture()

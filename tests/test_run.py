@@ -361,4 +361,6 @@ def test_args_integrity():
     db = get_run_db()
     state, log = db.get_log(result.metadata.uid)
     log = str(log)
-    assert log.find("It's, a, nice, day!") != -1, f"params not detected in {log}"
+    print(state)
+    print(log)
+    assert log.find("It's, a, nice, day!") != -1, "params not detected in argv"

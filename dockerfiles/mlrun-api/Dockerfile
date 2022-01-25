@@ -26,6 +26,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   procps \
   sqlite3 \
   vim \
+  mariadb-client \
  && rm -rf /var/lib/apt/lists/*
 
 RUN python -m pip install --upgrade pip~=21.2.0

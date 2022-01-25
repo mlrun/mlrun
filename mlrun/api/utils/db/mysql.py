@@ -1,5 +1,4 @@
 import os
-import pathlib
 import re
 import typing
 
@@ -84,16 +83,6 @@ class MySQLUtil(object):
             database=mysql_dsn_data["database"],
         )
 
-    def dump_database_to_file(self, filepath: pathlib.Path):
-        connection = self._create_connection()
-        try:
-            with connection.cursor() as cursor:
-                database_dump = self._get_database_dump(cursor)
-        finally:
-            connection.close()
-        with open(str(filepath), "w") as f:
-            f.writelines(database_dump)
-
     @staticmethod
     def get_dsn() -> str:
         return os.environ.get(MySQLUtil.dsn_env_var, "")
@@ -105,26 +94,3 @@ class MySQLUtil(object):
             return None
 
         return match.groupdict()
-
-    @staticmethod
-    def _get_database_dump(cursor) -> str:
-        cursor.execute("SHOW TABLES")
-        data = ""
-        table_names = []
-        for table_name in cursor.fetchall():
-            table_names.append(table_name[0])
-
-        for table_name in table_names:
-            data += f"DROP TABLE IF EXISTS `{table_name}`;"
-
-            cursor.execute(f"SHOW CREATE TABLE `{table_name}`;")
-            table_definition = cursor.fetchone()[1]
-            data += f"\n{table_definition};\n\n"
-
-            cursor.execute(f"SELECT * FROM `{table_name}`;")
-            for row in cursor.fetchall():
-                values = ", ".join([f'"{field}"' for field in row])
-                data += f"INSERT INTO `{table_name}` VALUES({values});\n"
-            data += "\n\n"
-
-        return data

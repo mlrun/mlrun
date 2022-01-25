@@ -16,7 +16,6 @@ import importlib.util as imputil
 import inspect
 import json
 import os
-import shlex
 import socket
 import sys
 import tempfile
@@ -267,7 +266,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 new_args = []
                 for arg in args:
                     arg = arg.format(**runobj.spec.parameters)
-                    new_args.append(shlex.quote(arg))
+                    new_args.append(arg)
                 args = new_args
 
             sout, serr = run_exec(cmd, args, env=env, cwd=execution._current_workdir)

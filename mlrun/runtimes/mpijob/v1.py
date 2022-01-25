@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import shlex
 import typing
 from copy import deepcopy
 from datetime import datetime
@@ -140,7 +139,7 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
         quoted_args = args or []
         quoted_mpi_args = []
         for arg in self.spec.mpi_args:
-            quoted_mpi_args.append(shlex.quote(arg))
+            quoted_mpi_args.append(arg)
         self._update_container(
             launcher_pod_template,
             "command",

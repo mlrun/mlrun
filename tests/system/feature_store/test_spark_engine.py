@@ -1,4 +1,5 @@
 import os
+import uuid
 from datetime import datetime
 from time import sleep
 
@@ -12,6 +13,7 @@ import mlrun.feature_store as fs
 from mlrun import store_manager
 from mlrun.datastore.sources import ParquetSource
 from mlrun.datastore.targets import NoSqlTarget, ParquetTarget
+from mlrun.features import Entity
 from tests.system.base import TestMLRunSystem
 
 
@@ -47,8 +49,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         from mlrun.run import new_function
         from mlrun.runtimes import RemoteSparkRuntime
 
+        self._init_env_from_file()
+
         if not self.spark_image_deployed:
-            self._init_env_from_file()
 
             store, _ = store_manager.get_or_create_store(
                 self.get_remote_pq_source_path()
@@ -216,3 +219,86 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         resp = fs.get_offline_features(vec)
         assert len(resp.to_dataframe() == 4)
         assert "uri" not in resp.to_dataframe() and "katya" not in resp.to_dataframe()
+
+    def test_aggregations(self):
+        name = f"measurements_{uuid.uuid4()}"
+
+        test_base_time = datetime.fromisoformat("2020-07-21T21:40:00+00:00")
+
+        df = pd.DataFrame(
+            {
+                "time": [
+                    test_base_time,
+                    test_base_time + pd.Timedelta(minutes=1),
+                    test_base_time + pd.Timedelta(minutes=2),
+                    test_base_time + pd.Timedelta(minutes=3),
+                    test_base_time + pd.Timedelta(minutes=4),
+                ],
+                "first_name": ["moshe", "yosi", "yosi", "moshe", "yosi"],
+                "last_name": ["cohen", "levi", "levi", "cohen", "levi"],
+                "bid": [2000, 10, 11, 12, 16],
+            }
+        )
+
+        path = "v3io:///bigdata/test_aggregations.parquet"
+        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        df.to_parquet(path=path, filesystem=fsys)
+
+        source = ParquetSource("myparquet", path=path, time_field="time")
+
+        data_set = fs.FeatureSet(
+            f"{name}_storey", entities=[Entity("first_name"), Entity("last_name")],
+        )
+
+        data_set.add_aggregation(
+            column="bid", operations=["sum", "max"], windows="1h", period="10m",
+        )
+
+        df = fs.ingest(data_set, source, targets=[])
+
+        assert df.to_dict() == {
+            "bid": {("moshe", "cohen"): 12, ("yosi", "levi"): 16},
+            "bid_sum_1h": {("moshe", "cohen"): 2012, ("yosi", "levi"): 37},
+            "bid_max_1h": {("moshe", "cohen"): 2000, ("yosi", "levi"): 16},
+            "time": {
+                ("moshe", "cohen"): pd.Timestamp("2020-07-21 21:43:00Z"),
+                ("yosi", "levi"): pd.Timestamp("2020-07-21 21:44:00Z"),
+            },
+        }
+
+        name_spark = f"{name}_spark"
+
+        data_set = fs.FeatureSet(
+            name_spark,
+            entities=[Entity("first_name"), Entity("last_name")],
+            engine="spark",
+        )
+
+        data_set.add_aggregation(
+            column="bid", operations=["sum", "max"], windows="1h", period="10m",
+        )
+
+        fs.ingest(
+            data_set,
+            source,
+            spark_context=self.spark_service,
+            run_config=fs.RunConfig(local=False),
+        )
+
+        features = [
+            f"{name_spark}.*",
+        ]
+
+        vector = fs.FeatureVector("my-vec", features)
+        resp = fs.get_offline_features(
+            vector, entity_timestamp_column="time", with_indexes=True
+        )
+        assert resp.to_dataframe().to_dict() == {
+            "bid_sum_1h": {("moshe", "cohen"): 2012, ("yosi", "levi"): 37},
+            "bid_max_1h": {("moshe", "cohen"): 2000, ("yosi", "levi"): 16},
+            "time": {
+                ("moshe", "cohen"): pd.Timestamp("2020-07-21 22:00:00"),
+                ("yosi", "levi"): pd.Timestamp("2020-07-21 22:30:00"),
+            },
+            "time_window": {("moshe", "cohen"): "1h", ("yosi", "levi"): "1h"},
+        }

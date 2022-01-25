@@ -1,6 +1,7 @@
 import json
 import os
 import string
+from datetime import datetime, timedelta, timezone
 from random import choice, randint, uniform
 from time import monotonic, sleep
 from typing import Optional
@@ -23,6 +24,7 @@ from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
 from mlrun.runtimes import BaseRuntime
 from mlrun.utils.model_monitoring import EndpointType
+from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
 
 
@@ -225,12 +227,11 @@ class TestModelMonitoringAPI(TestMLRunSystem):
 
     @pytest.mark.timeout(300)
     def test_model_monitoring_voting_ensemble(self):
-        simulation_time = 60  # 60 seconds
+        simulation_time = 120  # 120 seconds to allow tsdb batching
         project = mlrun.get_run_db().get_project(self.project_name)
         project.set_model_monitoring_credentials(os.environ.get("V3IO_ACCESS_KEY"))
 
         iris = load_iris()
-
         columns = [
             "sepal_length_cm",
             "sepal_width_cm",
@@ -277,6 +278,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
                 name=name,
                 inputs={"dataset": path},
                 params={"model_pkg_class": pkg, "label_column": label_column},
+                artifact_path=f"v3io:///projects/{name}/artifacts",
             )
 
             # Add the model to the serving function's routing spec
@@ -300,6 +302,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         iris_data = iris["data"].tolist()
 
         t_end = monotonic() + simulation_time
+        start_time = datetime.now(timezone.utc)
         data_sent = 0
         while monotonic() < t_end:
             data_point = choice(iris_data)
@@ -315,6 +318,14 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         mlrun.get_run_db().invoke_schedule(self.project_name, "model-monitoring-batch")
         # it can take ~1 minute for the batch pod to finish running
         sleep(75)
+
+        tsdb_path = f"/pipelines/{self.project_name}/model-endpoints/events/"
+        client = get_frames_client(
+            token=os.environ.get("V3IO_ACCESS_KEY"),
+            address=os.environ.get("V3IO_FRAMESD"),
+            container="users",
+        )
+
         # checking top level methods
         top_level_endpoints = mlrun.get_run_db().list_model_endpoints(
             self.project_name, top_level=True
@@ -338,7 +349,20 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)
 
         for endpoint in endpoints_list.endpoints:
+            data = client.read(
+                backend="tsdb",
+                table=tsdb_path,
+                filter=f"endpoint_id=='{endpoint.metadata.uid}'",
+            )
+            assert data.empty is False
+
             if endpoint.status.endpoint_type == EndpointType.LEAF_EP:
+                assert (
+                    datetime.fromisoformat(endpoint.status.first_request) >= start_time
+                )
+                assert datetime.fromisoformat(
+                    endpoint.status.last_request
+                ) <= start_time + timedelta(0, simulation_time)
                 assert endpoint.status.drift_status == "NO_DRIFT"
                 endpoint_with_details = mlrun.get_run_db().get_model_endpoint(
                     self.project_name, endpoint.metadata.uid, feature_analysis=True

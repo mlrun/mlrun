@@ -106,6 +106,15 @@ def test_backwards_compatibility_step_vs_state():
     )
 
 
+def test_target_no_time_column():
+    t = ParquetTarget(path="jhjhjhj")
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        t.as_df(
+            start_time=pd.Timestamp("2021-06-09 09:30:00"),
+            end_time=pd.Timestamp("2021-06-09 10:30:00"),
+        )
+
+
 def test_check_permissions():
     data = pd.DataFrame(
         {

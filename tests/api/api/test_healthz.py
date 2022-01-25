@@ -18,7 +18,7 @@ def test_health(
     mlrun.mlconf.ui.projects_prefix = overridden_ui_projects_prefix
     nuclio_version = "x.x.x"
     mlrun.mlconf.nuclio_version = nuclio_version
-    response = client.get("/api/healthz")
+    response = client.get("healthz")
     assert response.status_code == http.HTTPStatus.OK.value
     response_body = response.json()
     for key in ["scrape_metrics", "hub_url"]:

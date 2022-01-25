@@ -152,7 +152,7 @@ class RemoteSparkRuntime(KubejobRuntime):
     def deploy(
         self,
         watch=True,
-        with_mlrun=True,
+        with_mlrun=None,
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,

@@ -32,7 +32,7 @@ def _assert_sources_in_correct_order(client, expected_order, exclude_paths=None)
         "root['metadata']['updated']",
         "root['metadata']['created']",
     ]
-    response = client.get("/api/marketplace/sources")
+    response = client.get("marketplace/sources")
     assert response.status_code == HTTPStatus.OK.value
     json_response = response.json()
     # Default source is not in the expected data
@@ -55,7 +55,7 @@ def test_marketplace_source_apis(
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
     # Make sure the default source is there.
-    response = client.get("/api/marketplace/sources")
+    response = client.get("marketplace/sources")
     assert response.status_code == HTTPStatus.OK.value
     json_response = response.json()
     assert (
@@ -66,12 +66,12 @@ def test_marketplace_source_apis(
     )
 
     source_1 = _generate_source_dict(1, "source_1")
-    response = client.post("/api/marketplace/sources", json=source_1)
+    response = client.post("marketplace/sources", json=source_1)
     assert response.status_code == HTTPStatus.CREATED.value
 
     # Modify existing source with a new field
     source_1["source"]["metadata"]["something_new"] = 42
-    response = client.put("/api/marketplace/sources/source_1", json=source_1)
+    response = client.put("marketplace/sources/source_1", json=source_1)
     assert response.status_code == HTTPStatus.OK.value
     exclude_paths = ["root['metadata']['updated']", "root['metadata']['created']"]
     assert (
@@ -83,12 +83,12 @@ def test_marketplace_source_apis(
 
     # Insert in 1st place, pushing source_1 to be #2
     source_2 = _generate_source_dict(1, "source_2")
-    response = client.put("/api/marketplace/sources/source_2", json=source_2)
+    response = client.put("marketplace/sources/source_2", json=source_2)
     assert response.status_code == HTTPStatus.OK.value
 
     # Insert last, making it #3
     source_3 = _generate_source_dict(-1, "source_3")
-    response = client.post("/api/marketplace/sources", json=source_3)
+    response = client.post("marketplace/sources", json=source_3)
     assert response.status_code == HTTPStatus.CREATED.value
 
     expected_response = {
@@ -100,7 +100,7 @@ def test_marketplace_source_apis(
 
     # Change order for existing source (3->1)
     source_3["index"] = 1
-    response = client.put("/api/marketplace/sources/source_3", json=source_3)
+    response = client.put("marketplace/sources/source_3", json=source_3)
     assert response.status_code == HTTPStatus.OK.value
     expected_response = {
         1: source_3,
@@ -109,7 +109,7 @@ def test_marketplace_source_apis(
     }
     _assert_sources_in_correct_order(client, expected_response)
 
-    response = client.delete("/api/marketplace/sources/source_2")
+    response = client.delete("marketplace/sources/source_2")
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
     expected_response = {
@@ -121,12 +121,12 @@ def test_marketplace_source_apis(
     # Negative tests
     # Try to delete the default source.
     response = client.delete(
-        f"/api/marketplace/sources/{config.marketplace.default_source.name}"
+        f"marketplace/sources/{config.marketplace.default_source.name}"
     )
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
     # Try to store an object with invalid order
     source_2["index"] = 42
-    response = client.post("/api/marketplace/sources", json=source_2)
+    response = client.post("marketplace/sources", json=source_2)
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
 
 
@@ -137,10 +137,10 @@ def test_marketplace_credentials_removed_from_db(
     # are stored in the k8s secret.
     credentials = {"secret1": "value1", "another-secret": "42"}
     source_1 = _generate_source_dict(-1, "source_1", credentials)
-    response = client.post("/api/marketplace/sources", json=source_1)
+    response = client.post("marketplace/sources", json=source_1)
     assert response.status_code == HTTPStatus.CREATED.value
 
-    response = client.get("/api/marketplace/sources/source_1")
+    response = client.get("marketplace/sources/source_1")
     assert response.status_code == HTTPStatus.OK.value
     object_dict = response.json()
 
@@ -257,15 +257,15 @@ def test_marketplace_catalog_apis(
     db: Session, client: TestClient, k8s_secrets_mock: tests.api.conftest.K8sSecretsMock
 ) -> None:
     # Get the global hub source-name
-    sources = client.get("/api/marketplace/sources").json()
+    sources = client.get("marketplace/sources").json()
     source_name = sources[0]["source"]["metadata"]["name"]
 
-    catalog = client.get(f"/api/marketplace/sources/{source_name}/items").json()
+    catalog = client.get(f"marketplace/sources/{source_name}/items").json()
     item = random.choice(catalog["catalog"])
     url = item["spec"]["item_uri"] + "src/function.yaml"
 
     function_yaml = client.get(
-        f"/api/marketplace/sources/{source_name}/item-object", params={"url": url}
+        f"marketplace/sources/{source_name}/item-object", params={"url": url}
     )
 
     function_dict = yaml.safe_load(function_yaml.content)

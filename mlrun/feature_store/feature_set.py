@@ -262,6 +262,12 @@ class FeatureSet(ModelObj):
             timestamp_key=timestamp_key,
             engine=engine,
         )
+
+        if timestamp_key in self.spec.entities.keys():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "timestamp key can not be entity"
+            )
+
         self.metadata = VersionedObjMetadata(name=name)
         self.status = None
         self._last_state = ""

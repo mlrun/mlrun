@@ -1,3 +1,4 @@
+import datetime
 import os
 import pathlib
 import shutil
@@ -10,7 +11,18 @@ from mlrun.utils import logger
 
 
 class DBBackupUtil(object):
-    def backup_database(self, backup_file_name: str) -> None:
+    def __init__(
+        self,
+        backup_file_format: str = mlconf.httpdb.db.backup.file_format,
+        backup_rotation: bool = mlconf.httpdb.db.backup.use_rotation,
+        backup_rotation_limit: int = mlconf.httpdb.db.backup.rotation_limit,
+    ) -> None:
+        self._backup_file_format = backup_file_format
+        self._backup_rotation = backup_rotation
+        self._backup_rotation_limit = backup_rotation_limit
+
+    def backup_database(self, backup_file_name: str = None) -> None:
+        backup_file_name = backup_file_name or self._generate_backup_file_name()
         if ":memory:" in mlconf.httpdb.dsn:
             return
         elif "mysql" in mlconf.httpdb.dsn:
@@ -18,9 +30,13 @@ class DBBackupUtil(object):
         else:
             self._backup_database_sqlite(backup_file_name)
 
+        if self._backup_rotation:
+            self._rotate_backup()
+
     def load_database_from_backup(
-        self, backup_file_name: str, new_backup_file_name: str
+        self, backup_file_name: str, new_backup_file_name: str = None
     ) -> None:
+        new_backup_file_name = new_backup_file_name or self._generate_backup_file_name()
 
         backup_path = self._get_backup_file_path(backup_file_name)
         if not backup_path or not os.path.isfile(backup_path):
@@ -93,9 +109,50 @@ class DBBackupUtil(object):
             f"{dsn_data['database']} < {backup_path}"
         )
 
+    def _rotate_backup(self) -> None:
+        db_dir_path = self._get_db_dir_path()
+        dir_content = os.listdir(db_dir_path)
+        backup_files = []
+        for file_name in dir_content:
+            try:
+                date_metadata = datetime.datetime.strptime(
+                    file_name, self._backup_file_format
+                )
+            except ValueError:
+                continue
+
+            backup_files.append((file_name, date_metadata))
+
+        if len(backup_files) <= self._backup_rotation_limit:
+            return
+
+        backup_files = sorted(backup_files, key=lambda file_data: file_data[1])
+        files_to_delete = [
+            file_data[0] for file_data in backup_files[: -self._backup_rotation_limit]
+        ]
+        logger.debug("Rotating old backup files", files_to_delete=files_to_delete)
+        for file_name in files_to_delete:
+            try:
+                os.remove(db_dir_path / file_name)
+            except FileNotFoundError:
+                logger.debug(
+                    "Backup file doesn't exist, skipping...", file_name=file_name
+                )
+
+    def _generate_backup_file_name(self) -> str:
+        return datetime.datetime.now(tz=datetime.timezone.utc).strftime(
+            self._backup_file_format
+        )
+
     def _get_backup_file_path(
         self, backup_file_name: str
     ) -> typing.Optional[pathlib.Path]:
+        if ":memory:" in mlconf.httpdb.dsn:
+            return
+
+        return self._get_db_dir_path() / backup_file_name
+
+    def _get_db_dir_path(self) -> typing.Optional[pathlib.Path]:
         if ":memory:" in mlconf.httpdb.dsn:
             return
         elif "mysql" in mlconf.httpdb.dsn:
@@ -103,7 +160,7 @@ class DBBackupUtil(object):
         else:
             db_file_path = self._get_sqlite_db_file_path()
             db_dir_path = pathlib.Path(os.path.dirname(db_file_path))
-        return db_dir_path / backup_file_name
+        return db_dir_path
 
     @staticmethod
     def _get_sqlite_db_file_path() -> str:
@@ -127,4 +184,28 @@ class DBBackupUtil(object):
             stdin=subprocess.PIPE,
             shell=True,
         )
-        return process.wait()
+        stdout = process.stdout.read()
+        stderr = process.stderr.read()
+        return_code = process.wait()
+
+        if return_code != 0:
+            logger.error(
+                "Failed running shell command",
+                command=command,
+                stdout=stdout,
+                stderr=stderr,
+                exit_status=return_code,
+            )
+            raise RuntimeError(
+                f"Got non-zero return code ({return_code}) on running shell command: {command}"
+            )
+
+        logger.debug(
+            "Ran command successfully",
+            command=command,
+            stdout=stdout,
+            stderr=stderr,
+            exit_status=return_code,
+        )
+
+        return return_code

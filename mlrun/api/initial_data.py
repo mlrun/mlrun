@@ -42,11 +42,8 @@ def init_data(
 
     if is_backup_needed:
         logger.info("DB Backup is needed, backing up...")
-        backup_file_name = datetime.datetime.now(tz=datetime.timezone.utc).strftime(
-            "db_backup_%Y%m%d%H%M.db"
-        )
         db_backup = DBBackupUtil()
-        db_backup.backup_database(backup_file_name)
+        db_backup.backup_database()
 
     if (
         not is_migration_from_scratch
@@ -119,7 +116,8 @@ def _resolve_needed_operations(
         and (is_schema_migration_needed or is_data_migration_needed)
     )
     is_backup_needed = (
-        is_migration_needed
+        config.httpdb.db.backup.mode == "enabled"
+        and is_migration_needed
         and not is_migration_from_scratch
         and not is_database_migration_needed
     )

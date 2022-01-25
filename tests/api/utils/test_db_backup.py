@@ -16,12 +16,16 @@ class Constants:
     backup_file = "backup.db"
     new_backup_file = "new_backup.db"
 
+    mysql_dsn = "mysql+pymysql://root@mlrun-db:3306/mlrun"
+    mysql_backup_command = "mysqldump -h mlrun-db -P 3306 -u root mlrun > {0}"
+    mysql_load_backup_command = "mysql -h mlrun-db -P 3306 -u root mlrun < {0}"
+
 
 def test_backup_and_load_sqlite(mock_db_dsn, mock_shutil_copy, mock_is_file_result):
     dsn = f"sqlite:///{Constants.sqlite_db_file_path}"
     mock_db_dsn(dsn)
 
-    db_backup = mlrun.api.utils.db.backup.DBBackupUtil()
+    db_backup = mlrun.api.utils.db.backup.DBBackupUtil(backup_rotation=False)
     db_backup.backup_database(Constants.backup_file)
 
     mock_is_file_result(True)
@@ -46,11 +50,11 @@ def test_backup_and_load_sqlite(mock_db_dsn, mock_shutil_copy, mock_is_file_resu
     mock_shutil_copy.assert_has_calls(copy_calls)
 
 
-def test_backup_and_load_mysql(mock_db_dsn, mock_mysql_util, mock_is_file_result):
-    dsn = "mysql://mysql-dsn"
-    mock_db_dsn(dsn)
+def test_backup_and_load_mysql(mock_db_dsn, mock_is_file_result):
+    mock_db_dsn(Constants.mysql_dsn)
 
-    db_backup = mlrun.api.utils.db.backup.DBBackupUtil()
+    db_backup = mlrun.api.utils.db.backup.DBBackupUtil(backup_rotation=False)
+    db_backup._run_shell_command = unittest.mock.Mock(return_value=0)
     db_backup.backup_database(Constants.backup_file)
 
     mock_is_file_result(True)
@@ -58,19 +62,20 @@ def test_backup_and_load_mysql(mock_db_dsn, mock_mysql_util, mock_is_file_result
         Constants.backup_file, Constants.new_backup_file
     )
 
-    backup_file_path = f"{mlrun.api.utils.db.backup.DBBackupUtil.mysql_database_dir}/{Constants.backup_file}"
-    new_backup_file_path = f"{mlrun.api.utils.db.backup.DBBackupUtil.mysql_database_dir}/{Constants.new_backup_file}"
+    backup_file_path = f"{mlconf.httpdb.dirpath}/mysql/{Constants.backup_file}"
+    new_backup_file_path = f"{mlconf.httpdb.dirpath}/mysql/{Constants.new_backup_file}"
 
-    mysql_util_calls = [
+    run_shell_command_calls = [
         # first backup - backup via the `backup_database` call
-        unittest.mock.call(pathlib.PosixPath(backup_file_path)),
+        unittest.mock.call(Constants.mysql_backup_command.format(backup_file_path)),
         # second backup - via `load_database_from_backup`, backup the current database before loading backup
-        unittest.mock.call(pathlib.PosixPath(new_backup_file_path)),
+        unittest.mock.call(Constants.mysql_backup_command.format(new_backup_file_path)),
+        # load from backup
+        unittest.mock.call(
+            Constants.mysql_load_backup_command.format(backup_file_path)
+        ),
     ]
-    mock_mysql_util.dump_database_to_file.assert_has_calls(mysql_util_calls)
-    mock_mysql_util.load_database_from_file.assert_called_once_with(
-        pathlib.PosixPath(backup_file_path),
-    )
+    db_backup._run_shell_command.assert_has_calls(run_shell_command_calls)
 
 
 def test_load_backup_file_does_not_exist_sqlite(
@@ -79,7 +84,7 @@ def test_load_backup_file_does_not_exist_sqlite(
     dsn = f"sqlite:///{Constants.sqlite_db_file_path}"
     mock_db_dsn(dsn)
 
-    db_backup = mlrun.api.utils.db.backup.DBBackupUtil()
+    db_backup = mlrun.api.utils.db.backup.DBBackupUtil(backup_rotation=False)
 
     mock_is_file_result(False)
 
@@ -94,13 +99,11 @@ def test_load_backup_file_does_not_exist_sqlite(
     mock_shutil_copy.assert_not_called()
 
 
-def test_load_backup_file_does_not_exist_mysql(
-    mock_db_dsn, mock_mysql_util, mock_is_file_result
-):
-    dsn = "mysql://mysql-dsn"
-    mock_db_dsn(dsn)
+def test_load_backup_file_does_not_exist_mysql(mock_db_dsn, mock_is_file_result):
+    mock_db_dsn(Constants.mysql_dsn)
 
-    db_backup = mlrun.api.utils.db.backup.DBBackupUtil()
+    db_backup = mlrun.api.utils.db.backup.DBBackupUtil(backup_rotation=False)
+    db_backup._run_shell_command = unittest.mock.Mock(return_value=0)
 
     mock_is_file_result(False)
 
@@ -112,14 +115,32 @@ def test_load_backup_file_does_not_exist_mysql(
             Constants.backup_file, Constants.new_backup_file
         )
 
-    mock_mysql_util.dump_database_to_file.assert_not_called()
-    mock_mysql_util.load_database_from_file.assert_not_called()
+    db_backup._run_shell_command.assert_not_called()
+
+
+def test_backup_file_rotation(mock_db_dsn, mock_listdir_result, mock_os_remove):
+    mock_db_dsn(Constants.mysql_dsn)
+
+    db_backup = mlrun.api.utils.db.backup.DBBackupUtil(
+        backup_rotation=True, backup_rotation_limit=3
+    )
+
+    existing_backup_files = [
+        "db_backup_2022012510{0}.db".format(minute) for minute in [10, 11, 12, 13]
+    ]
+    mock_listdir_result(existing_backup_files)
+    db_backup._rotate_backup()
+
+    mock_os_remove.assert_called_once_with(
+        pathlib.Path(mlconf.httpdb.dirpath) / "mysql" / existing_backup_files[0]
+    )
 
 
 @pytest.fixture()
 def mock_db_dsn(monkeypatch) -> typing.Callable:
     def _mock_db_dsn(dsn):
         monkeypatch.setattr(mlconf.httpdb, "dsn", dsn)
+        os.environ["MLRUN_HTTPDB__DSN"] = dsn
 
     return _mock_db_dsn
 
@@ -136,18 +157,25 @@ def mock_is_file_result(monkeypatch) -> typing.Callable:
 
 
 @pytest.fixture()
+def mock_listdir_result(monkeypatch) -> typing.Callable:
+    def _mock_listdir_result(result):
+        def _listdir(_):
+            return result
+
+        monkeypatch.setattr(os, "listdir", _listdir)
+
+    return _mock_listdir_result
+
+
+@pytest.fixture()
+def mock_os_remove(monkeypatch) -> unittest.mock.Mock:
+    remove = unittest.mock.Mock()
+    monkeypatch.setattr(os, "remove", remove)
+    return remove
+
+
+@pytest.fixture()
 def mock_shutil_copy(monkeypatch) -> unittest.mock.Mock:
     copy = unittest.mock.Mock()
     monkeypatch.setattr(shutil, "copy2", copy)
     return copy
-
-
-@pytest.fixture()
-def mock_mysql_util(monkeypatch) -> unittest.mock.Mock:
-    mysql_util = unittest.mock.Mock()
-
-    def _mysql_util():
-        return mysql_util
-
-    monkeypatch.setattr(mlrun.api.utils.db.mysql, "MySQLUtil", _mysql_util)
-    return mysql_util

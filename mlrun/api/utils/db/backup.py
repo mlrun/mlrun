@@ -173,7 +173,7 @@ class DBBackupUtil(object):
         return mlconf.httpdb.dsn.split("?")[0].split("sqlite:///")[-1]
 
     @staticmethod
-    def _run_shell_command(command):
+    def _run_shell_command(command: str) -> int:
         logger.debug(
             "Running shell command", command=command,
         )

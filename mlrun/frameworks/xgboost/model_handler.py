@@ -1,15 +1,16 @@
 import os
 import pickle
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Union
 
 import cloudpickle
-import numpy as np
-import pandas as pd
 import xgboost as xgb
 
 import mlrun
 
+from .._common import without_mlrun_interface
 from .._ml_common import MLModelHandler
+from .mlrun_interface import XGBoostModelMLRunInterface
+from .utils import DatasetType
 
 
 class XGBoostModelHandler(MLModelHandler):
@@ -19,9 +20,6 @@ class XGBoostModelHandler(MLModelHandler):
 
     # Framework name:
     FRAMEWORK_NAME = "xgboost"
-
-    # Declare a type of an input sample:
-    IOSample = Union[xgb.DMatrix, pd.DataFrame, np.ndarray, List[Tuple[str, str]]]
 
     class ModelFormats:
         """
@@ -140,6 +138,7 @@ class XGBoostModelHandler(MLModelHandler):
                     f"'{self._model_path}'"
                 )
 
+    @without_mlrun_interface(interface=XGBoostModelMLRunInterface)
     def save(self, output_path: str = None, **kwargs):
         """
         Save the handled model at the given output path. If a MLRun context is available, the saved model files will be
@@ -176,7 +175,7 @@ class XGBoostModelHandler(MLModelHandler):
         self,
         model_name: str = None,
         optimize: bool = True,
-        input_sample: IOSample = None,
+        input_sample: DatasetType = None,
         log: bool = None,
     ):
         """

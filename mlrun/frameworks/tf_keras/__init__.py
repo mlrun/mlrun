@@ -13,6 +13,7 @@ from .model_server import TFKerasModelServer
 def apply_mlrun(
     model: keras.Model,
     model_name: str = None,
+    tag: str = "",
     model_path: str = None,
     model_format: str = TFKerasModelHandler.ModelFormats.SAVED_MODEL,
     save_traces: bool = False,
@@ -32,6 +33,7 @@ def apply_mlrun(
     :param model:                       The model to wrap.
     :param model_name:                  The model name to use for storing the model artifact. If not given, the
                                         tf.keras.Model.name will be used.
+    :param tag:                         The model's tag to log with.
     :param model_path:                  The model's store object path. Mandatory for evaluation (to know which model to
                                         update).
     :param model_format:                The format to use for saving and loading the model. Should be passed as a
@@ -135,6 +137,7 @@ def apply_mlrun(
         tensorboard_callback_kwargs["tensorboard_directory"] = tensorboard_directory
         # Add the additional parameters to MLRun's callback kwargs dictionary:
         mlrun_callback_kwargs["model_handler"] = handler
+        mlrun_callback_kwargs["log_model_tag"] = tag
         # Add the logging callbacks with the provided parameters:
         model.auto_log(
             context=context,

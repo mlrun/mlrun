@@ -1211,7 +1211,7 @@ def with_mlrun_interface(interface: Type[MLRunInterface]):
     :return: The method decorator.
     """
 
-    def decorator(model_handler_method: Callable[[ModelHandler, ...], ...]):
+    def decorator(model_handler_method: MethodType):
         def wrapper(model_handler: ModelHandler, *args, **kwargs):
             # Check if the interface is applied to the model inside the handler:
             is_applied = interface.is_applied(obj=model_handler.model)
@@ -1219,7 +1219,7 @@ def with_mlrun_interface(interface: Type[MLRunInterface]):
             if not is_applied:
                 interface.add_interface(obj=model_handler.model)
             # Call the method:
-            returned_value = model_handler_method(*args, **kwargs)
+            returned_value = model_handler_method(self=model_handler, *args, **kwargs)
             # If the interface was not applied, remove it:
             if not is_applied:
                 interface.remove_interface(obj=model_handler.model)

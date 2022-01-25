@@ -78,22 +78,54 @@ class MetricsLibrary(ABC):
         )
         metrics = []  # type: List[Metric]
         if algorithm_functionality.is_classification():
+            metrics += [Metric(metric=sklearn.metrics.accuracy_score)]
             if algorithm_functionality.is_binary_classification():
                 metrics += [
-                    Metric(metric=sklearn.metrics.accuracy_score),
+                    Metric(metric=sklearn.metrics.f1_score),
                     Metric(metric=sklearn.metrics.precision_score),
                     Metric(metric=sklearn.metrics.recall_score),
                 ]
-        if algorithm_functionality.is_regression():
-            if algorithm_functionality.is_single_output():
+            if algorithm_functionality.is_multiclass_classification():
                 metrics += [
-                    Metric(metric=sklearn.metrics.r2_score),
                     Metric(
-                        metric=sklearn.metrics.mean_squared_error,
-                        additional_arguments={"squared": False},
+                        name="auc_macro",
+                        metric=sklearn.metrics.roc_auc_score,
+                        additional_arguments={"multi_class": "ovo", "average": "macro"},
+                        need_probabilities=True,
                     ),
-                    Metric(metric=sklearn.metrics.mean_absolute_error),
+                    Metric(
+                        name="auc_weighted",
+                        metric=sklearn.metrics.roc_auc_score,
+                        additional_arguments={
+                            "multi_class": "ovo",
+                            "average": "weighted",
+                        },
+                        need_probabilities=True,
+                    ),
+                    Metric(
+                        metric=sklearn.metrics.f1_score,
+                        additional_arguments={"average": "macro"},
+                    ),
+                    Metric(
+                        metric=sklearn.metrics.precision_score,
+                        additional_arguments={"average": "macro"},
+                    ),
+                    Metric(
+                        metric=sklearn.metrics.recall_score,
+                        additional_arguments={"average": "macro"},
+                    ),
                 ]
+        if algorithm_functionality.is_regression():
+            # if algorithm_functionality.is_single_output():
+            metrics += [
+                Metric(metric=sklearn.metrics.r2_score),
+                Metric(metric=sklearn.metrics.mean_absolute_error),
+                Metric(
+                    metric=sklearn.metrics.mean_squared_error,
+                    additional_arguments={"squared": False},
+                ),
+                Metric(metric=sklearn.metrics.mean_absolute_error),
+            ]
         return metrics
 
     @staticmethod

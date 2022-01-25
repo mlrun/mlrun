@@ -24,7 +24,7 @@ SklearnModelServer = PickleModelServer
 
 def apply_mlrun(
     model: SKLearnModelType,
-    model_name: str = None,
+    model_name: str = "model",
     tag: str = "",
     model_path: str = None,
     modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
@@ -44,8 +44,7 @@ def apply_mlrun(
     Wrap the given model with MLRun's interface providing it with mlrun's additional features.
 
     :param model:                    The model to wrap.
-    :param model_name:               The model name to use for storing the model artifact. If not given, the
-                                     tf.keras.Model.name will be used.
+    :param model_name:               The model name to use for storing the model artifact. Defaulted to "model".
     :param tag:                      The model's tag to log with.
     :param model_path:               The model's store object path. Mandatory for evaluation (to know which model to
                                      update).
@@ -125,14 +124,14 @@ def apply_mlrun(
         # Get the artifacts plans and metrics lists:
         y = y_test if y_test is not None else y_validation
         plans = get_plans(
-            artifacts_library=SKLearnArtifactLibrary,
+            artifacts_library=SKLearnArtifactsLibrary,
             artifacts=artifacts,
             context=context,
             model=model,
             y=y,
         )
         metrics = get_metrics(
-            metrics_library=MetricsLibrary,
+            metrics_library=SKLearnMetricsLibrary,
             metrics=metrics,
             context=context,
             model=model,

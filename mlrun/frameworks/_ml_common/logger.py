@@ -257,6 +257,11 @@ class Logger:
         :param is_probabilities: True if the 'y_pred' is a prediction of probabilities (from 'predict_proba') and False
                                  if not.
         """
+        # Use squeeze to remove redundant dimensions:
+        y_true = np.squeeze(y_true)
+        y_pred = np.squeeze(y_pred)
+
+        # Calculate the metrics:
         for metric in self._metrics:
             if metric.need_probabilities == is_probabilities:
                 self._not_logged_results[metric.name] = metric(y_true, y_pred)

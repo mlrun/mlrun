@@ -1605,7 +1605,9 @@ class MlrunProject(ModelObj):
         if workflow_uid_string in artifact_path:
             return artifact_path
 
-        return path.join(artifact_path, workflow_uid_string)
+        # join paths and replace "\" with "/" (in case of windows clients)
+        artifact_path = path.join(artifact_path, workflow_uid_string).replace("\\", "/")
+        return artifact_path
 
     def run(
         self,

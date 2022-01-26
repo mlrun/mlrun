@@ -1069,9 +1069,11 @@ class SQLDB(DBInterface):
     ) -> Tuple[Dict[str, int], Dict[str, int]]:
         running_runs_count_per_project = (
             session.query(Run.project, func.count(distinct(Run.name)))
-                .filter(Run.state.in_(mlrun.runtimes.constants.RunStates.non_terminal_states()))
-                .group_by(Run.project)
-                .all()
+            .filter(
+                Run.state.in_(mlrun.runtimes.constants.RunStates.non_terminal_states())
+            )
+            .group_by(Run.project)
+            .all()
         )
         project_to_running_runs_count = {
             result[0]: result[1] for result in running_runs_count_per_project
@@ -1080,10 +1082,17 @@ class SQLDB(DBInterface):
         one_day_ago = datetime.now() - timedelta(hours=24)
         recent_failed_runs_count_per_project = (
             session.query(Run.project, func.count(distinct(Run.name)))
-                .filter(Run.state.in_([mlrun.runtimes.constants.RunStates.error,mlrun.runtimes.constants.RunStates.aborted,]))
-                .filter(Run.start_time >= one_day_ago)
-                .group_by(Run.project)
-                .all()
+            .filter(
+                Run.state.in_(
+                    [
+                        mlrun.runtimes.constants.RunStates.error,
+                        mlrun.runtimes.constants.RunStates.aborted,
+                    ]
+                )
+            )
+            .filter(Run.start_time >= one_day_ago)
+            .group_by(Run.project)
+            .all()
         )
         project_to_recent_failed_runs_count = {
             result[0]: result[1] for result in recent_failed_runs_count_per_project

@@ -1067,42 +1067,27 @@ class SQLDB(DBInterface):
     def _calculate_runs_counters(
         self, session
     ) -> Tuple[Dict[str, int], Dict[str, int]]:
-        runs = self._find_runs(session, None, "*", None)
-        project_to_recent_failed_runs_count = collections.defaultdict(int)
-        project_to_running_runs_count = collections.defaultdict(int)
-        # we want to count unique run names, and not all occurrences of all runs, therefore we're keeping set of
-        # names and only count new names
-        project_to_recent_failed_run_names = collections.defaultdict(set)
-        project_to_running_run_names = collections.defaultdict(set)
-        runs = runs.all()
-        for run in runs:
-            run_json = run.struct
-            if run.state in mlrun.runtimes.constants.RunStates.non_terminal_states():
-                if (
-                    run_json.get("metadata", {}).get("name")
-                    and run_json["metadata"]["name"]
-                    not in project_to_running_run_names[run.project]
-                ):
-                    project_to_running_run_names[run.project].add(
-                        run_json["metadata"]["name"]
-                    )
-                    project_to_running_runs_count[run.project] += 1
-            if run.state in [
-                mlrun.runtimes.constants.RunStates.error,
-                mlrun.runtimes.constants.RunStates.aborted,
-            ]:
-                one_day_ago = datetime.now() - timedelta(hours=24)
-                if run.start_time and run.start_time >= one_day_ago:
-                    if (
-                        run_json.get("metadata", {}).get("name")
-                        and run_json["metadata"]["name"]
-                        not in project_to_recent_failed_run_names[run.project]
-                    ):
-                        project_to_recent_failed_run_names[run.project].add(
-                            run_json["metadata"]["name"]
-                        )
-                        project_to_recent_failed_runs_count[run.project] += 1
+        running_runs_count_per_project = (
+            session.query(Run.project, func.count(distinct(Run.name)))
+                .filter(Run.state.in_(mlrun.runtimes.constants.RunStates.non_terminal_states()))
+                .group_by(Run.project)
+                .all()
+        )
+        project_to_running_runs_count = {
+            result[0]: result[1] for result in running_runs_count_per_project
+        }
 
+        one_day_ago = datetime.now() - timedelta(hours=24)
+        recent_failed_runs_count_per_project = (
+            session.query(Run.project, func.count(distinct(Run.name)))
+                .filter(Run.state.in_([mlrun.runtimes.constants.RunStates.error,mlrun.runtimes.constants.RunStates.aborted,]))
+                .filter(Run.start_time >= one_day_ago)
+                .group_by(Run.project)
+                .all()
+        )
+        project_to_recent_failed_runs_count = {
+            result[0]: result[1] for result in recent_failed_runs_count_per_project
+        }
         return project_to_recent_failed_runs_count, project_to_running_runs_count
 
     async def generate_projects_summaries(

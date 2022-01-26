@@ -25,6 +25,9 @@ def my_pipe(param1=0):
 
     # hack to return run result to the test for assertions
     mlrun.projects.pipeline_context._test_result = run2
+    mlrun.projects.pipeline_context._artifact_path = (
+        mlrun.projects.pipeline_context.workflow_artifact_path
+    )
 
 
 def args_pipe(param1=0, param2=None):

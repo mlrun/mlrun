@@ -218,11 +218,11 @@ def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:
 
 
 def enrich_function_object(
-    project, function, decorator=None
+    project, function, decorator=None, copy_function=True
 ) -> mlrun.runtimes.BaseRuntime:
     if hasattr(function, "_enriched"):
         return function
-    f = function.copy()
+    f = function.copy() if copy_function else function
     f.metadata.project = project.metadata.name
     setattr(f, "_enriched", True)
     src = f.spec.build.source
@@ -239,6 +239,7 @@ def enrich_function_object(
         else:
             f.spec.build.source = project.spec.source
             f.spec.build.load_source_on_run = project.spec.load_source_on_run
+            f.verify_base_image()
 
     if project.spec.default_requirements:
         f.with_requirements(project.spec.default_requirements)
@@ -434,6 +435,9 @@ class _LocalRunner(_PipelineRunner):
 
         workflow_id = uuid.uuid4().hex
         pipeline_context.workflow_id = workflow_id
+        # When using KFP, it would do this replacement. When running locally, we need to take care of it.
+        if artifact_path:
+            artifact_path = artifact_path.replace("{{workflow.uid}}", workflow_id)
         pipeline_context.workflow_artifact_path = artifact_path
         project.notifiers.push_start_message(project.metadata.name, id=workflow_id)
         try:

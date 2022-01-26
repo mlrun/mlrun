@@ -234,7 +234,7 @@ class TestServingRuntime(TestNuclioRuntime):
             "with_mlrun": "no",
             "mlrun_version_specifier": "0.6.0",
         }
-        response = client.post("/api/build/function", json=req)
+        response = client.post("build/function", json=req)
 
         assert response.status_code == HTTPStatus.OK.value
 

@@ -19,6 +19,7 @@ from uuid import uuid4
 
 import pytest
 
+from mlrun.db.httpdb import HTTPRunDB
 from tests.conftest import in_docker, tests_root_directory, wait_for_server
 
 prj_dir = tests_root_directory.parent
@@ -47,7 +48,7 @@ def test_docker():
         out = run(cmd, stdout=PIPE, check=True)
         cid = out.stdout.decode("utf-8").strip()
         with clean_docker("rm", cid):
-            url = f"http://localhost:{port}/api/healthz"
+            url = f"http://localhost:{port}/{HTTPRunDB.get_api_path_prefix()}/healthz"
             timeout = 30
             assert wait_for_server(
                 url, timeout

@@ -10,7 +10,7 @@ import mlrun.api.utils.singletons.k8s
 from mlrun import mlconf
 from mlrun.api.db.sqldb.session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
-from mlrun.api.main import app
+from mlrun.api.main import BASE_VERSIONED_API_PREFIX, app
 from mlrun.api.utils.singletons.db import initialize_db
 from mlrun.api.utils.singletons.project_member import initialize_project_member
 from mlrun.config import config
@@ -47,6 +47,15 @@ def db() -> Generator:
     db_file.close()
 
 
+def set_base_url_for_test_client(
+    client: TestClient, prefix: str = BASE_VERSIONED_API_PREFIX
+):
+    client.base_url = client.base_url + prefix
+
+    # https://stackoverflow.com/questions/10893374/python-confusions-with-urljoin/10893427#10893427
+    client.base_url = client.base_url.rstrip("/") + "/"
+
+
 @pytest.fixture()
 def client(db) -> Generator:
     with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
@@ -56,6 +65,7 @@ def client(db) -> Generator:
         mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
 
         with TestClient(app) as c:
+            set_base_url_for_test_client(c)
             yield c
 
 

@@ -41,7 +41,7 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Summary format is not supported for list pipelines, use get instead"
             )
-        kfp_url = mlrun.mlconf.get_resolved_kfp_url(namespace)
+        kfp_url = mlrun.mlconf.resolve_kfp_url(namespace)
         if not kfp_url:
             raise mlrun.errors.MLRunNotFoundError(
                 "KubeFlow Pipelines is not configured"
@@ -87,7 +87,7 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         namespace: typing.Optional[str] = None,
         format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.summary,
     ):
-        kfp_url = mlrun.mlconf.get_resolved_kfp_url(namespace)
+        kfp_url = mlrun.mlconf.resolve_kfp_url(namespace)
         if not kfp_url:
             raise mlrun.errors.MLRunBadRequestError(
                 "KubeFlow Pipelines is not configured"
@@ -151,7 +151,7 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         )
 
         try:
-            kfp_url = mlrun.mlconf.get_resolved_kfp_url(namespace)
+            kfp_url = mlrun.mlconf.resolve_kfp_url(namespace)
             if not kfp_url:
                 raise mlrun.errors.MLRunBadRequestError(
                     "KubeFlow Pipelines is not configured"

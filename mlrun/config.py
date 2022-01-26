@@ -430,14 +430,14 @@ class Config:
             semver_compatible_igz_version = config.igz_version.split("_")[0]
             return semver.VersionInfo.parse(f"{semver_compatible_igz_version}.0")
 
-    def get_resolved_kfp_url(self, namespace=None):
+    def resolve_kfp_url(self, namespace=None):
         if config.kfp_url:
             return config.kfp_url
         igz_version = self.get_parsed_igz_version()
         if namespace is None:
             if not config.namespace:
                 raise mlrun.errors.MLRunNotFoundError(
-                    "For KubeFlow Pipelines to function, a namespace must be configured."
+                    "For KubeFlow Pipelines to function, a namespace must be configured"
                 )
             namespace = config.namespace
         # TODO: When Iguazio 3.4 will deprecate we can remove this line

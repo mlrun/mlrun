@@ -81,7 +81,8 @@ def test_requirement_specifiers_convention():
         "kfp": {"~=1.8.0"},
         "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
-        "storey": {"~=0.8.11, <0.8.12; python_version >= '3.7'"},
+        "storey": {"~=0.8.11, <0.8.12"},
+        "bokeh": {"~=2.4, >=2.4.2"},
         # Black is not stable yet and does not have a release that is not beta, so can't be used with ~=
         "black": {"<=19.10b0"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
@@ -99,7 +100,6 @@ def test_requirement_specifiers_convention():
         "gcsfs": {"~=2021.8.1"},
         "distributed": {"~=2021.11.2"},
         "dask": {"~=2021.11.2"},
-        "bokeh": {"~=2.4, >=2.4.2; python_version >= '3.7'"},
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that
         # TODO: make test smart enough to understand that
         "urllib3": {">=1.25.4, <1.27"},

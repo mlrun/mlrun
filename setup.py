@@ -87,7 +87,7 @@ extras_require = {
     "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
     "bokeh": [
         # >=2.4.2 to force having a security fix done in 2.4.2
-        "bokeh~=2.4, >=2.4.2; python_version >= '3.7'",
+        "bokeh~=2.4, >=2.4.2",
     ],
     "plotly": ["plotly~=5.4"],
     "google-cloud-storage": ["gcsfs~=2021.8.1"],

@@ -19,7 +19,7 @@ class PyTorchModelHandler(DLModelHandler):
     """
 
     # Framework name:
-    FRAMEWORK_NAME = "pytorch"
+    FRAMEWORK_NAME = "torch"
 
     # Declare a type of an input sample:
     IOSample = Union[torch.Tensor, np.ndarray]

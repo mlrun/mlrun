@@ -6,38 +6,69 @@ from mlrun.artifacts import Artifact
 from ..plan import MLPlotPlan
 
 
-class FeatureImportancePlan(MLPlotPlan):
+class FeatureImportance(MLPlotPlan):
     """
+    Plot Feature Importances within a dataset.
     """
 
-    def is_ready(self, stage: ProductionStages) -> bool:
-        return stage == ProductionStages.POST_FIT
+    _ARTIFACT_NAME = "feature_importance"
 
-    def produce(self, model, apply_args, *args, **kwargs) -> Dict[str, Artifact]:
+    def __init__(
+            self,
+            model=None,
+            X_train=None,
+    ):
+        """
+        :param model: any model pre-fit or post-fit.
+        :param X_train: train dataset.
+        """
+
+        super(FeatureImportance, self).__init__(model=model, X_train=X_train)
+
+    def is_ready(self, stage: MLPlanStages, is_probabilities: bool) -> bool:
+        """
+        Check whether or not the plan is fit for production by the given stage and prediction probabilities. The
+        confusion matrix is ready only post prediction.
+        :param stage:            The stage to check if the plan is ready.
+        :param is_probabilities: True if the 'y_pred' that will be sent to 'produce' is a prediction of probabilities
+                                 (from 'predict_proba') and False if not.
+        :return: True if the plan is producible and False otherwise.
+        """
+        return stage == MLPlanStages.PRE_FIT and not is_probabilities
+
+    def produce(self, model, X_train, **kwargs) -> Dict[str, PlotlyArtifact]:
         """
         Produce the artifact according to this plan.
         :return: The produced artifact.
         """
+        validate_numerical(X_train)
+        if hasattr(model, "feature_importances_") or hasattr(model, "coef_"):
 
-        # Tree-based feature importance
-        if hasattr(model, "feature_importances_"):
-            importance_score = model.feature_importances_
+            # Tree-based feature importance
+            if hasattr(model, "feature_importances_"):
+                importance_score = model.feature_importances_
 
-        # Coefficient-based importance|
-        elif hasattr(model, "coef_"):
-            importance_score = model.coef_[0]
+            else:
+                # Coefficient-based importance
+                importance_score = model.coef_[0]
 
-        df = pd.DataFrame(
-            {
-                "features": apply_args["X_train"].columns,
-                "feature_importance": importance_score,
-            }
-        ).sort_values(by="feature_importance", ascending=False)
+            df = pd.DataFrame(
+                {
+                    "features": X_train.columns,
+                    "feature_importance": importance_score,
+                }
+            ).sort_values(by="feature_importance", ascending=False)
 
-        fig = go.Figure(
-            [go.Bar(x=df["feature_importance"], y=df["features"], orientation="h")]
-        )
+            fig = go.Figure(
+                [go.Bar(x=df["feature_importance"], y=df["features"], orientation="h")]
+            )
 
-        # Creating an html rendering of the plot
-        plot_as_html = fig.to_html()
-        display(HTML(plot_as_html))
+            # Creating an html rendering of the plot
+            self._artifacts[self._ARTIFACT_NAME] = PlotlyArtifact(
+                figure=fig, key=self._ARTIFACT_NAME
+            )
+            return self._artifacts
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "This model cannot be used for Feature Importance plotting."
+            )

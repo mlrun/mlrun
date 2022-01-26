@@ -18,7 +18,7 @@ class LGBMModelHandler(MLModelHandler):
     """
 
     # Framework name:
-    FRAMEWORK_NAME = "lgbm"
+    FRAMEWORK_NAME = "lightgbm"
 
     class ModelFormats:
         """

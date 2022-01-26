@@ -22,7 +22,7 @@ class TFKerasModelHandler(DLModelHandler):
     """
 
     # Framework name:
-    FRAMEWORK_NAME = "tf.keras"
+    FRAMEWORK_NAME = "tensorflow.keras"
 
     # Declare a type of an input sample:
     IOSample = Union[tf.Tensor, tf.TensorSpec, np.ndarray]

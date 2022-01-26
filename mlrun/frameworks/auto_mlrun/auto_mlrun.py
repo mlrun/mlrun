@@ -161,11 +161,11 @@ def framework_to_model_handler(framework: str) -> Type[ModelHandler]:
     :raise MLRunInvalidArgumentError: If the given framework is not supported by AutoMLRun.
     """
     # Match the framework:
-    if framework == "tf.keras":
+    if framework == "tensorflow.keras":
         from mlrun.frameworks.tf_keras import TFKerasModelHandler
 
         return TFKerasModelHandler
-    if framework == "pytorch":
+    if framework == "torch":
         from mlrun.frameworks.pytorch import PyTorchModelHandler
 
         return PyTorchModelHandler
@@ -205,11 +205,11 @@ def framework_to_apply_mlrun(framework: str) -> Callable[..., ModelHandler]:
                                       'apply_mlrun' yet.
     """
     # Match the framework:
-    if framework == "tf.keras":
+    if framework == "tensorflow.keras":
         from mlrun.frameworks.tf_keras import apply_mlrun
 
         return apply_mlrun
-    if framework == "pytorch":
+    if framework == "torch":
         raise mlrun.errors.MLRunInvalidArgumentError(
             "PyTorch has no 'apply_mlrun' shortcut yet. Please use the PyTorchMLRunInterface "
             "from mlrun.frameworks.pytorch instead."
@@ -246,23 +246,38 @@ class AutoMLRun:
 
     @staticmethod
     def load_model(
-        model_path: str, context: mlrun.MLClientCtx = None, **kwargs
+        model_path: str,
+        context: mlrun.MLClientCtx = None,
+        framework: str = None,
+        **kwargs,
     ) -> ModelHandler:
         """
-        Load a logged model using MLRun's ModelHandler. The loaded model can be accessed from the model handler returned
-        via model_handler.model.
+        Load a model using MLRun's ModelHandler. The loaded model can be accessed from the model handler returned
+        via model_handler.model. If the model is a store object uri (it is logged in MLRun) then the framework will be
+        read automatically, otherwise (for local path and urls) it must be given.
 
         :param model_path: A store object path of a logged model object in MLRun.
         :param context:    A MLRun context.
+        :param framework:  The model's framework. It must be provided for local paths or urls. If None, AutoMLRun will
+                           assume the model path is of a store uri model artifact and try to get the framework from it.
+                           Defaulted to None.
         :param kwargs:     Additional parameters for the specific framework's ModelHandler class.
 
         :return: The model inside a MLRun model handler.
+
+        :raise MLRunInvalidArgumentError: In case the framework is incorrect or missing.
         """
         # Get the model primary file, extra data and artifact:
         model_file, model_artifact, extra_data = get_model(model_path)
 
-        # Get the model's framework:
-        framework = model_artifact.labels["framework"]  # type: str
+        # Get the model's framework (if available):
+        if framework is None and model_artifact is None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"The model path provided: '{model_path}' is not of a model artifact (store uri) so the framework "
+                f"attribute must be specified."
+            )
+        else:
+            framework = model_artifact.labels["framework"]  # type: str
 
         # Get the ModelHandler according to the framework:
         model_handler_class = framework_to_model_handler(framework=framework)

@@ -30,8 +30,6 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
         page_size: typing.Optional[int] = None,
     ) -> typing.Tuple[int, typing.Optional[int], typing.List[dict]]:
-        if namespace is None:
-            namespace = mlrun.mlconf.namespace
         if project != "*" and (page_token or page_size or sort_by or filter_):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Filtering by project can not be used together with pagination, sorting, or custom filter"
@@ -43,12 +41,12 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Summary format is not supported for list pipelines, use get instead"
             )
-        # When instead of host we provided namespace we tackled this issue
-        # https://github.com/canonical/bundle-kubeflow/issues/412
-        # TODO: When we'll move to kfp 1.4.0 (server side) it should be resolved
-        kfp_client = kfp.Client(
-            host=f"http://ml-pipeline.{namespace}.svc.cluster.local:8888"
-        )
+        kfp_url = mlrun.mlconf.resolve_kfp_url(namespace)
+        if not kfp_url:
+            raise mlrun.errors.MLRunNotFoundError(
+                "KubeFlow Pipelines is not configured"
+            )
+        kfp_client = kfp.Client(host=kfp_url)
         if project != "*":
             run_dicts = []
             while page_token is not None:
@@ -89,14 +87,12 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         namespace: typing.Optional[str] = None,
         format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.summary,
     ):
-        if namespace is None:
-            namespace = mlrun.mlconf.namespace
-        # When instead of host we provided namespace we tackled this issue
-        # https://github.com/canonical/bundle-kubeflow/issues/412
-        # TODO: When we'll move to kfp 1.4.0 (server side) it should be resolved
-        kfp_client = kfp.Client(
-            host=f"http://ml-pipeline.{namespace}.svc.cluster.local:8888"
-        )
+        kfp_url = mlrun.mlconf.resolve_kfp_url(namespace)
+        if not kfp_url:
+            raise mlrun.errors.MLRunBadRequestError(
+                "KubeFlow Pipelines is not configured"
+            )
+        kfp_client = kfp.Client(host=kfp_url)
         run = None
         try:
             api_run_detail = kfp_client.get_run(run_id)
@@ -128,8 +124,6 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         arguments: dict = None,
         namespace: typing.Optional[str] = None,
     ):
-        if namespace is None:
-            namespace = mlrun.mlconf.namespace
         if arguments is None:
             arguments = {}
         if "/yaml" in content_type:
@@ -157,12 +151,12 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         )
 
         try:
-            # When instead of host we provided namespace we tackled this issue
-            # https://github.com/canonical/bundle-kubeflow/issues/412
-            # TODO: When we'll move to kfp 1.4.0 (server side) it should be resolved
-            kfp_client = kfp.Client(
-                host=f"http://ml-pipeline.{namespace}.svc.cluster.local:8888"
-            )
+            kfp_url = mlrun.mlconf.resolve_kfp_url(namespace)
+            if not kfp_url:
+                raise mlrun.errors.MLRunBadRequestError(
+                    "KubeFlow Pipelines is not configured"
+                )
+            kfp_client = kfp.Client(host=kfp_url)
             experiment = kfp_client.create_experiment(name=experiment_name)
             run = kfp_client.run_pipeline(
                 experiment.id, run_name, pipeline_file.name, params=arguments

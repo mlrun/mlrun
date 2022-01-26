@@ -97,12 +97,8 @@ def test_requirement_specifiers_convention():
         "adlfs": {"~=2021.8.1"},
         "s3fs": {"~=2021.8.1"},
         "gcsfs": {"~=2021.8.1"},
-        "distributed": {
-            "~=2021.11.2",
-        },
-        "dask": {
-            "~=2021.11.2",
-        },
+        "distributed": {"~=2021.11.2"},
+        "dask": {"~=2021.11.2"},
         "bokeh": {"~=2.4, >=2.4.2; python_version >= '3.7'"},
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that
         # TODO: make test smart enough to understand that

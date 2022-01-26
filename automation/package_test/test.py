@@ -1,5 +1,4 @@
 import subprocess
-import sys
 
 import click
 
@@ -21,9 +20,7 @@ class PackageTester:
 
         self._extras_tests_data = {
             "": {"import_test_command": f"{basic_import}"},
-            "[api]": {
-                "import_test_command": f"{basic_import}; {api_import}",
-            },
+            "[api]": {"import_test_command": f"{basic_import}; {api_import}"},
             "[complete-api]": {
                 "import_test_command": f"{basic_import}; {api_import}; {s3_import}; "
                 + f"{azure_blob_storage_import}; {azure_key_vault_import}",

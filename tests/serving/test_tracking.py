@@ -10,7 +10,7 @@ testdata = '{"inputs": [[5, 6]]}'
 
 class ModelTestingClass(mlrun.serving.V2ModelServer):
     def load(self):
-        print("loading")
+        self.context.logger.info(f"loading model {self.name}")
 
     def predict(self, request):
         print("predict:", request)
@@ -28,12 +28,12 @@ def test_tracking():
     # test that predict() was tracked properly in the stream
     fn = mlrun.new_function("tests", kind="serving")
     fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=2))
-    fn.set_tracking("v3io://fake", stream_args={"simulated": True, "access_key": "x"})
+    fn.set_tracking("v3io://fake", stream_args={"mock": True, "access_key": "x"})
 
     server = fn.to_mock_server()
     server.test("/v2/models/my/infer", testdata)
 
-    fake_stream = server.context.stream.output_stream._simulation_queue
+    fake_stream = server.context.stream.output_stream._mock_queue
     assert len(fake_stream) == 1
     assert rec_to_data(fake_stream[0]) == ("my", "ModelTestingClass", [[5, 6]], [10])
 
@@ -42,12 +42,12 @@ def test_custom_tracking():
     # test custom values tracking (using the logged_results() hook)
     fn = mlrun.new_function("tests", kind="serving")
     fn.add_model("my", ".", class_name=ModelTestingCustomTrack(multiplier=2))
-    fn.set_tracking("v3io://fake", stream_args={"simulated": True, "access_key": "x"})
+    fn.set_tracking("v3io://fake", stream_args={"mock": True, "access_key": "x"})
 
     server = fn.to_mock_server()
     server.test("/v2/models/my/infer", testdata)
 
-    fake_stream = server.context.stream.output_stream._simulation_queue
+    fake_stream = server.context.stream.output_stream._mock_queue
     assert len(fake_stream) == 1
     assert rec_to_data(fake_stream[0]) == ("my", "ModelTestingCustomTrack", [[1]], [2])
 
@@ -58,12 +58,12 @@ def test_ensemble_tracking():
     fn.set_topology("router", mlrun.serving.VotingEnsemble(vote_type="regression"))
     fn.add_model("1", ".", class_name=ModelTestingClass(multiplier=2))
     fn.add_model("2", ".", class_name=ModelTestingClass(multiplier=3))
-    fn.set_tracking("v3io://fake", stream_args={"simulated": True, "access_key": "x"})
+    fn.set_tracking("v3io://fake", stream_args={"mock": True, "access_key": "x"})
 
     server = fn.to_mock_server()
     resp = server.test("/v2/models/infer", testdata)
 
-    fake_stream = server.context.stream.output_stream._simulation_queue
+    fake_stream = server.context.stream.output_stream._mock_queue
     assert len(fake_stream) == 3
     print(resp)
     results = {}

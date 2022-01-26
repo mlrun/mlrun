@@ -375,7 +375,7 @@ class OutputStream:
         create=True,
         endpoint=None,
         access_key=None,
-        simulated=False,
+        mock=False,
     ):
         v3io_client_kwargs = {}
         if endpoint:
@@ -385,10 +385,10 @@ class OutputStream:
 
         self._v3io_client = v3io.dataplane.Client(**v3io_client_kwargs)
         self._container, self._stream_path = split_path(stream_path)
-        self._simulated = simulated
-        self._simulation_queue = []
+        self._mock = mock
+        self._mock_queue = []
 
-        if create and not simulated:
+        if create and not mock:
 
             # this import creates an import loop via the utils module, so putting it in execution path
             from mlrun.utils.helpers import logger
@@ -423,9 +423,9 @@ class OutputStream:
         if not isinstance(data, list):
             data = [data]
         records = [{"data": dump_record(rec)} for rec in data]
-        if self._simulated:
+        if self._mock:
             # for mock testing
-            self._simulation_queue.extend(records)
+            self._mock_queue.extend(records)
         else:
             self._v3io_client.put_records(
                 container=self._container, path=self._stream_path, records=records

@@ -66,7 +66,7 @@ class Client(
         self._session.mount("http://", http_adapter)
         self._api_url = mlrun.mlconf.iguazio_api_url
         self._wait_for_job_completion_retry_interval = mlrun.utils.create_step_backoff(
-            [[2, 1], [1, 5], [5, None]]
+            [[1, 10], [5, None]]
         )
         self._wait_for_project_terminal_state_retry_interval = 5
 

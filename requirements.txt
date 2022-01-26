@@ -13,8 +13,7 @@ google-auth>=1.25.0, <2.0dev
 # since the sdk is still mark as beta (and not stable) I'm limiting to only patch changes
 kfp~=1.8.0
 nest-asyncio~=1.0
-# <7.17 cause from 7.17 python 3.6 is not supported (and models-gpu-legacy image build fail)
-ipython~=7.0, <7.17
+ipython~=7.0
 # nuclio-jupyter has notebook>=5.2.0 which resolves to 6.4.0 which has ipykernel without specifier, which from 0.6.0
 # has ipython>=7.23.1 which is incompatible with our ipython specifiers, therefore instsalling ipykernel 5.x before
 # nuclio-jupyter

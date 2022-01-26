@@ -98,12 +98,10 @@ def test_requirement_specifiers_convention():
         "s3fs": {"~=2021.8.1"},
         "gcsfs": {"~=2021.8.1"},
         "distributed": {
-            "~=2021.11.2; python_version >= '3.7'",
-            "~=2021.3.0; python_version < '3.7'",
+            "~=2021.11.2",
         },
         "dask": {
-            "~=2021.11.2; python_version >= '3.7'",
-            "~=2021.3.0; python_version < '3.7'",
+            "~=2021.11.2",
         },
         "bokeh": {"~=2.4, >=2.4.2; python_version >= '3.7'"},
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that
@@ -144,28 +142,6 @@ def test_requirement_specifiers_inconsistencies():
             inconsistent_specifiers_map[requirement_name] = requirement_specifiers
 
     ignored_inconsistencies_map = {
-        # It's ok we have 2 different versions cause they are for different python versions
-        "pandas": {"~=1.2; python_version >= '3.7'", "~=1.0; python_version < '3.7'"},
-        "scikit-learn": {
-            "~=1.0; python_version >= '3.7'",
-            "~=0.23.0; python_version < '3.7'",
-        },
-        "tensorboard": {
-            "~=2.5; python_version >= '3.7'",
-            "~=1.0; python_version < '3.7'",
-        },
-        "distributed": {
-            "~=2021.11.2; python_version >= '3.7'",
-            "~=2021.3.0; python_version < '3.7'",
-        },
-        "dask": {
-            "~=2021.11.2; python_version >= '3.7'",
-            "~=2021.3.0; python_version < '3.7'",
-        },
-        "bokeh": {
-            "~=2.4, >=2.4.2; python_version >= '3.7'",
-            "~=2.3; python_version < '3.7'",
-        },
         # The empty specifier is from tests/runtimes/assets/requirements.txt which is there specifically to test the
         # scenario of requirements without version specifiers
         "python-dotenv": {"", "~=0.17.0"},

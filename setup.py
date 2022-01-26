@@ -88,7 +88,6 @@ extras_require = {
     "bokeh": [
         # >=2.4.2 to force having a security fix done in 2.4.2
         "bokeh~=2.4, >=2.4.2; python_version >= '3.7'",
-        "bokeh~=2.3; python_version < '3.7'",
     ],
     "plotly": ["plotly~=5.4"],
     "google-cloud-storage": ["gcsfs~=2021.8.1"],

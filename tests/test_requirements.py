@@ -82,7 +82,7 @@ def test_requirement_specifiers_convention():
         "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
         "aiohttp": {">=3.6,<3.8"},
-        "storey": {"~=0.8.11, <0.8.12; python_version >= '3.7'"},
+        "storey": {"==0.9.2-rc1; python_version >= '3.7'"},
         # Black is not stable yet and does not have a release that is not beta, so can't be used with ~=
         "black": {"<=19.10b0"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers

@@ -62,6 +62,9 @@ fsspec~=2021.8.1
 v3iofs~=0.1.7
 # 3.4 and above failed builidng in some images - see https://github.com/pyca/cryptography/issues/5771
 cryptography~=3.0, <3.4
+# On 0.9.x MLRun we're ~=0.9.1 storey, and 0.10.x storey is for 0.10.x MLRun
+# we wanted to bump the aiohttp version, but it's both in MLRun and storey so we must have a storey version that only
+# will for ~=0.9.3 MLRun, so we're using special tag
 storey==0.9.2-rc1; python_version >= '3.7'
 deepdiff~=5.0
 pymysql~=1.0

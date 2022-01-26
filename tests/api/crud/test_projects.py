@@ -19,6 +19,7 @@ async def test_calculate_pipelines_counters(db: sqlalchemy.orm.Session,):
     assert response == collections.defaultdict(int)
 
     mlrun.mlconf.kfp_url = "https://somekfp-url.com"
+    original_run_in_threadpool = fastapi.concurrency.run_in_threadpool
     fastapi.concurrency.run_in_threadpool = unittest.mock.MagicMock(
         return_value=asyncio.Future()
     )
@@ -30,3 +31,4 @@ async def test_calculate_pipelines_counters(db: sqlalchemy.orm.Session,):
     pipelines_counter = await mlrun.api.crud.Projects()._calculate_pipelines_counters()
     assert fastapi.concurrency.run_in_threadpool.call_count == 1
     assert pipelines_counter == expected_pipelines_counter
+    fastapi.concurrency.run_in_threadpool = original_run_in_threadpool

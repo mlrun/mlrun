@@ -46,7 +46,9 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         # When instead of host we provided namespace we tackled this issue
         # https://github.com/canonical/bundle-kubeflow/issues/412
         # TODO: When we'll move to kfp 1.4.0 (server side) it should be resolved
-        kfp_client = kfp.Client(host=f"http://ml-pipeline.{namespace}.svc.cluster.local:8888")
+        kfp_client = kfp.Client(
+            host=f"http://ml-pipeline.{namespace}.svc.cluster.local:8888"
+        )
         if project != "*":
             run_dicts = []
             while page_token is not None:
@@ -92,7 +94,9 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         # When instead of host we provided namespace we tackled this issue
         # https://github.com/canonical/bundle-kubeflow/issues/412
         # TODO: When we'll move to kfp 1.4.0 (server side) it should be resolved
-        kfp_client = kfp.Client(host=f"http://ml-pipeline.{namespace}.svc.cluster.local:8888")
+        kfp_client = kfp.Client(
+            host=f"http://ml-pipeline.{namespace}.svc.cluster.local:8888"
+        )
         run = None
         try:
             api_run_detail = kfp_client.get_run(run_id)
@@ -156,7 +160,9 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
             # When instead of host we provided namespace we tackled this issue
             # https://github.com/canonical/bundle-kubeflow/issues/412
             # TODO: When we'll move to kfp 1.4.0 (server side) it should be resolved
-            kfp_client = kfp.Client(host=f"http://ml-pipeline.{namespace}.svc.cluster.local:8888")
+            kfp_client = kfp.Client(
+                host=f"http://ml-pipeline.{namespace}.svc.cluster.local:8888"
+            )
             experiment = kfp_client.create_experiment(name=experiment_name)
             run = kfp_client.run_pipeline(
                 experiment.id, run_name, pipeline_file.name, params=arguments

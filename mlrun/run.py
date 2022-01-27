@@ -160,7 +160,7 @@ def run_local(
         function_name = function_name or pathlib.Path(command).stem
 
     meta = BaseMetadata(function_name, project=project, tag=tag)
-    command, runtime = _load_func_code(command, workdir, secrets=secrets, name=name)
+    command, runtime = load_func_code(command, workdir, secrets=secrets, name=name)
 
     if runtime:
         handler = handler or get_in(runtime, "spec.default_handler", "")
@@ -168,7 +168,9 @@ def run_local(
         meta.project = project or meta.project
         meta.tag = tag or meta.tag
 
-    fn = new_function(meta.name, command=command, args=args, mode=mode)
+    # if the handler has module prefix force "local" (vs "handler") runtime
+    kind = "local" if isinstance(handler, str) and "." in handler else None
+    fn = new_function(meta.name, command=command, args=args, mode=mode, kind=kind)
     fn.metadata = meta
     if workdir:
         fn.spec.workdir = str(workdir)
@@ -217,7 +219,7 @@ def function_to_module(code="", workdir=None, secrets=None):
 
     :returns: python module
     """
-    command, runtime = _load_func_code(code, workdir, secrets=secrets)
+    command, runtime = load_func_code(code, workdir, secrets=secrets)
     if not command:
         raise ValueError("nothing to run, specify command or function")
 
@@ -234,7 +236,7 @@ def function_to_module(code="", workdir=None, secrets=None):
     return mod
 
 
-def _load_func_code(command="", workdir=None, secrets=None, name="name"):
+def load_func_code(command="", workdir=None, secrets=None, name="name"):
     is_obj = hasattr(command, "to_dict")
     suffix = "" if is_obj else Path(command).suffix
     runtime = None
@@ -277,7 +279,7 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
                 raise OSError(f"command file {command} not found")
 
         else:
-            raise RuntimeError(f"cannot run, command={command}")
+            logger.warn("run command, file or code was not specified")
 
     elif command == "":
         pass

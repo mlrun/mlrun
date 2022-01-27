@@ -2109,7 +2109,7 @@ class TestFeatureStore(TestMLRunSystem):
         func = mlrun.new_function("myfunc", kind="job", handler="myfunc").with_code(
             body=myfunc
         )
-        func.apply(mlrun.datastore.allow_empty_targets())
+        func.spec.allow_empty_resources = True
         run = func.run(inputs={"data": vector.uri}, local=True)
         assert run.output("uri") == vector.uri
 

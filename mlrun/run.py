@@ -118,6 +118,7 @@ def run_local(
     inputs: dict = None,
     artifact_path: str = "",
     mode: str = None,
+    allow_empty_resources=None,
 ):
     """Run a task on function/code (.py, .ipynb or .yaml) locally,
 
@@ -171,6 +172,7 @@ def run_local(
     fn.metadata = meta
     if workdir:
         fn.spec.workdir = str(workdir)
+    fn.spec.allow_empty_resources = allow_empty_resources
     if runtime:
         # copy the code/base-spec to the local function (for the UI and code logging)
         fn.spec.description = get_in(runtime, "spec.description")

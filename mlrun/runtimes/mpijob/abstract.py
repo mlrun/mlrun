@@ -28,6 +28,8 @@ from mlrun.utils import get_in, logger
 
 
 class MPIResourceSpec(KubeResourceSpec):
+    _dict_fields = KubeResourceSpec._dict_fields + ["mpi_args"]
+
     def __init__(
         self,
         command=None,

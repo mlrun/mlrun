@@ -73,6 +73,20 @@ from .generators import get_generator
 from .utils import RunError, calc_hash, results_to_iter
 
 run_modes = ["pass"]
+spec_fields = [
+    "command",
+    "args",
+    "image",
+    "mode",
+    "build",
+    "entry_points",
+    "description",
+    "workdir",
+    "default_handler",
+    "pythonpath",
+    "disable_auto_mount",
+    "allow_empty_resources",
+]
 
 
 class FunctionStatus(ModelObj):
@@ -82,6 +96,8 @@ class FunctionStatus(ModelObj):
 
 
 class FunctionSpec(ModelObj):
+    _dict_fields = spec_fields
+
     def __init__(
         self,
         command=None,
@@ -112,6 +128,7 @@ class FunctionSpec(ModelObj):
         # TODO: type verification (FunctionEntrypoint dict)
         self.entry_points = entry_points or {}
         self.disable_auto_mount = disable_auto_mount
+        self.allow_empty_resources = None
 
     @property
     def build(self) -> ImageBuilder:
@@ -323,6 +340,7 @@ class BaseRuntime(ModelObj):
                 inputs=inputs,
                 artifact_path=artifact_path,
                 mode=self.spec.mode,
+                allow_empty_resources=self.spec.allow_empty_resources,
             )
 
         if runspec:
@@ -375,6 +393,8 @@ class BaseRuntime(ModelObj):
         runspec.spec.input_path = (
             workdir or runspec.spec.input_path or self.spec.workdir
         )
+        if self.spec.allow_empty_resources:
+            runspec.spec.allow_empty_resources = self.spec.allow_empty_resources
 
         spec = runspec.spec
         if spec.secret_sources:

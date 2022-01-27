@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from urllib.parse import urlparse
 
 import mlrun
@@ -135,7 +134,7 @@ class StoreManager:
     def _add_store(self, store):
         self._stores[store.name] = store
 
-    def get_store_artifact(self, url, project=""):
+    def get_store_artifact(self, url, project="", allow_empty_resources=None):
 
         try:
             resource = get_store_resource(
@@ -144,19 +143,19 @@ class StoreManager:
         except Exception as exc:
             raise OSError(f"artifact {url} not found, {exc}")
         target = resource.get_target_path()
-        # the env var allow us to have functions which dont depend on having targets e.g. a function which
-        # accepts a feature vector uri and generate the offline vector (parquet) for it if it doesnt exist
-        if not target and not os.environ.get("ALLOW_EMPTY_RESOURCE_TARGET", ""):
+        # the allow_empty.. flag allows us to have functions which dont depend on having targets e.g. a function
+        # which accepts a feature vector uri and generate the offline vector (parquet) for it if it doesnt exist
+        if not target and not allow_empty_resources:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"resource {url} does not have a valid/persistent offline target"
             )
         return resource, target
 
-    def object(self, url, key="", project="") -> DataItem:
+    def object(self, url, key="", project="", allow_empty_resources=None) -> DataItem:
         meta = artifact_url = None
         if is_store_uri(url):
             artifact_url = url
-            meta, url = self.get_store_artifact(url, project)
+            meta, url = self.get_store_artifact(url, project, allow_empty_resources)
 
         store, subpath = self.get_or_create_store(url)
         return DataItem(key, store, subpath, url, meta=meta, artifact_url=artifact_url)

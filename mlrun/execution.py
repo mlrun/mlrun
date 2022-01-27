@@ -104,6 +104,7 @@ class MLClientCtx(object):
         self._handler = None
 
         self._project_object = None
+        self._allow_empty_resources = None
 
     def __enter__(self):
         return self
@@ -278,6 +279,9 @@ class MLClientCtx(object):
                         self._hyper_param_options
                     )
             self._outputs = spec.get("outputs", self._outputs)
+            self._allow_empty_resources = spec.get(
+                "allow_empty_resources", self._allow_empty_resources
+            )
             self.artifact_path = spec.get(run_keys.output_path, self.artifact_path)
             self._in_path = spec.get(run_keys.input_path, self._in_path)
             inputs = spec.get(run_keys.inputs)
@@ -472,7 +476,12 @@ class MLClientCtx(object):
             url = key
         if self.in_path and not (url.startswith("/") or "://" in url):
             url = os.path.join(self._in_path, url)
-        obj = self._data_stores.object(url, key, project=self._project)
+        obj = self._data_stores.object(
+            url,
+            key,
+            project=self._project,
+            allow_empty_resources=self._allow_empty_resources,
+        )
         self._inputs[key] = obj
         return obj
 

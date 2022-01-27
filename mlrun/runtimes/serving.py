@@ -581,11 +581,20 @@ class ServingRuntime(RemoteRuntime):
     ) -> GraphServer:
         """create mock server object for local testing/emulation
 
-        :param namespace: classes search namespace, use globals() for current notebook
+        :param namespace: one or list of namespaces/modules to search the steps classes/functions in
         :param log_level: log level (error | info | debug)
         :param current_function: specify if you want to simulate a child function, * for all functions
         :param track_models: allow model tracking (disabled by default in the mock server)
         """
+
+        # set the namespaces/modules to look for the steps code in
+        namespace = namespace or []
+        if not isinstance(namespace, list):
+            namespace = [namespace]
+        module = mlrun.run.function_to_module(self, silent=True)
+        if module:
+            namespace.append(module)
+        namespace.append(get_caller_globals())
 
         server = create_graph_server(
             parameters=self.spec.parameters,
@@ -601,10 +610,7 @@ class ServingRuntime(RemoteRuntime):
             **kwargs,
         )
         server.init_states(
-            context=None,
-            namespace=namespace or get_caller_globals(),
-            logger=logger,
-            is_mock=True,
+            context=None, namespace=namespace, logger=logger, is_mock=True,
         )
-        server.init_object(namespace or get_caller_globals())
+        server.init_object(namespace)
         return server

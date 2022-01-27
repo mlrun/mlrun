@@ -169,7 +169,7 @@ def run_local(
         meta.tag = tag or meta.tag
 
     # if the handler has module prefix force "local" (vs "handler") runtime
-    kind = "local" if isinstance(handler, str) and "." in handler else None
+    kind = "local" if isinstance(handler, str) and "." in handler else ""
     fn = new_function(meta.name, command=command, args=args, mode=mode, kind=kind)
     fn.metadata = meta
     if workdir:
@@ -189,7 +189,7 @@ def run_local(
     )
 
 
-def function_to_module(code="", workdir=None, secrets=None):
+def function_to_module(code="", workdir=None, secrets=None, silent=False):
     """Load code, notebook or mlrun function as .py module
     this function can import a local/remote py file or notebook
     or load an mlrun function object as a module, you can use this
@@ -216,11 +216,14 @@ def function_to_module(code="", workdir=None, secrets=None):
                     OR function object
     :param workdir: code workdir
     :param secrets: secrets needed to access the URL (e.g.s3, v3io, ..)
+    :param silent:  do not raise on errors
 
     :returns: python module
     """
     command, runtime = load_func_code(code, workdir, secrets=secrets)
     if not command:
+        if silent:
+            return None
         raise ValueError("nothing to run, specify command or function")
 
     path = Path(command)

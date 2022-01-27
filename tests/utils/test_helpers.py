@@ -437,7 +437,6 @@ def test_str_to_timestamp():
             assert timestamp == expected
 
 
-
 def test_create_linear_backoff():
     stop_value = 120
     base = 2

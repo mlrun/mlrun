@@ -175,7 +175,7 @@ def test_main_run_archive():
 
 
 def test_main_local_source():
-    args = f"--source {examples_path} --handler my_func"
+    args = f"--source {examples_path} --handler my_func -p p1=1"
     out = exec_run("./handler.py", args.split(), "test_main_local_source")
     print(out)
     assert out.find("state: completed") != -1, out

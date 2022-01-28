@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import pathlib
 import sys
 import traceback
 from base64 import b64encode
@@ -198,3 +199,16 @@ def test_main_local_flag():
     out = exec_run("", args.split(), "test_main_local_flag")
     print(out)
     assert out.find("state: completed") != -1, out
+
+
+def test_main_run_class():
+    function_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+
+    out = exec_run(
+        function_path,
+        compose_param_list(dict(x=8)) + ["--handler", "mycls::mtd"],
+        "test_main_run_class",
+    )
+    print(out)
+    assert out.find("state: completed") != -1, out
+    assert out.find("rx: 8") != -1

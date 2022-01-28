@@ -357,7 +357,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
     old_level = logger.level
     if runobj.spec.verbose:
         logger.set_logger_level("DEBUG")
-    args_list = get_func_arg(handler, runobj, context)
+    kwargs = get_func_arg(handler, runobj, context)
 
     stdout = _DupStdout()
     err = ""
@@ -368,7 +368,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
         try:
             if cwd:
                 os.chdir(cwd)
-            val = handler(*args_list)
+            val = handler(**kwargs)
             context.set_state("completed", commit=False)
         except Exception as exc:
             err = str(exc)
@@ -387,32 +387,23 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
     return stdout.buf.getvalue(), err
 
 
-def get_func_arg(handler, runobj: RunObject, context: MLClientCtx):
+def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=False):
     params = runobj.spec.parameters or {}
     inputs = runobj.spec.inputs or {}
-    args_list = []
-    i = 0
+    kwargs = {}
     args = inspect.signature(handler).parameters
-    if len(args) > 0 and list(args.keys())[0] == "context":
-        args_list.append(context)
-        i += 1
-    if len(args) > i + 1 and list(args.keys())[i] == "event":
-        event = Event(runobj.to_dict())
-        args_list.append(event)
-        i += 1
 
-    for key in list(args.keys())[i:]:
-        if args[key].name in params:
-            args_list.append(copy(params[key]))
-        elif args[key].name in inputs:
+    for key in args.keys():
+        if key == "context":
+            kwargs[key] = context
+        elif is_nuclio and key == "event":
+            kwargs[key] = Event(runobj.to_dict())
+        elif key in params:
+            kwargs[key] = copy(params[key])
+        elif key in inputs:
             obj = context.get_input(key, inputs[key])
             if type(args[key].default) is str or args[key].annotation == str:
-                args_list.append(obj.local())
+                kwargs[key] = obj.local()
             else:
-                args_list.append(context.get_input(key, inputs[key]))
-        elif args[key].default is not inspect.Parameter.empty:
-            args_list.append(args[key].default)
-        else:
-            args_list.append(None)
-
-    return args_list
+                kwargs[key] = context.get_input(key, inputs[key])
+    return kwargs

@@ -178,7 +178,7 @@ def run_local(
     if runtime:
         # copy the code/base-spec to the local function (for the UI and code logging)
         fn.spec.description = runtime.spec.description
-        fn.spec.build = runtime.spec.build.copy()
+        fn.spec.build = runtime.spec.build
     return fn.run(
         task,
         name=name,

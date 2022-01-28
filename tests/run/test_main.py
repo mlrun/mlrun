@@ -169,13 +169,13 @@ def test_main_run_pass_args():
 
 
 def test_main_run_archive():
-    args = f"--source {examples_path}/archive.zip --handler handler"
+    args = f"--source {examples_path}/archive.zip --handler handler -p p1=1"
     out = exec_run("./myfunc.py", args.split(), "test_main_run_archive")
     assert out.find("state: completed") != -1, out
 
 
 def test_main_local_source():
-    args = f"--source {examples_path} --handler my_func -p p1=1"
+    args = f"--source {examples_path} --handler my_func"
     out = exec_run("./handler.py", args.split(), "test_main_local_source")
     print(out)
     assert out.find("state: completed") != -1, out

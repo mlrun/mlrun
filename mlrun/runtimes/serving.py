@@ -591,9 +591,7 @@ class ServingRuntime(RemoteRuntime):
         namespace = namespace or []
         if not isinstance(namespace, list):
             namespace = [namespace]
-        function = self.copy()
-        function.spec._graph = None  # remove graph, so serialization will not fail
-        module = mlrun.run.function_to_module(function, silent=True)
+        module = mlrun.run.function_to_module(self, silent=True)
         if module:
             namespace.append(module)
         namespace.append(get_caller_globals())

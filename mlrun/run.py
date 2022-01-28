@@ -163,8 +163,8 @@ def run_local(
     command, runtime = load_func_code(command, workdir, secrets=secrets, name=name)
 
     if runtime:
-        handler = handler or get_in(runtime, "spec.default_handler", "")
-        meta = BaseMetadata.from_dict(runtime["metadata"])
+        handler = handler or runtime.spec.default_handler or ""
+        meta = runtime.metadata.copy()
         meta.project = project or meta.project
         meta.tag = tag or meta.tag
 
@@ -177,8 +177,8 @@ def run_local(
     fn.spec.allow_empty_resources = allow_empty_resources
     if runtime:
         # copy the code/base-spec to the local function (for the UI and code logging)
-        fn.spec.description = get_in(runtime, "spec.description")
-        fn.spec.build = get_in(runtime, "spec.build", {})
+        fn.spec.description = runtime.spec.description
+        fn.spec.build = runtime.spec.build.copy()
     return fn.run(
         task,
         name=name,
@@ -220,7 +220,7 @@ def function_to_module(code="", workdir=None, secrets=None, silent=False):
 
     :returns: python module
     """
-    command, runtime = load_func_code(code, workdir, secrets=secrets)
+    command, _ = load_func_code(code, workdir, secrets=secrets)
     if not command:
         if silent:
             return None
@@ -246,18 +246,19 @@ def load_func_code(command="", workdir=None, secrets=None, name="name"):
     if is_obj or suffix == ".yaml":
         is_remote = False
         if is_obj:
-            runtime = command.to_dict()
+            runtime = command
         else:
             is_remote = "://" in command
             data = get_object(command, secrets)
             runtime = yaml.load(data, Loader=yaml.FullLoader)
+            runtime = new_function(runtime=runtime)
 
-        command = get_in(runtime, "spec.command", "")
-        code = get_in(runtime, "spec.build.functionSourceCode")
-        origin_filename = get_in(runtime, "spec.build.origin_filename")
-        kind = get_in(runtime, "kind", "")
+        command = runtime.spec.command or ""
+        code = runtime.spec.build.functionSourceCode
+        origin_filename = runtime.spec.build.origin_filename
+        kind = runtime.kind or ""
         if kind in RuntimeKinds.nuclio_runtimes():
-            code = get_in(runtime, "spec.base_spec.spec.build.functionSourceCode", code)
+            code = get_in(runtime.spec.base_spec, "spec.build.functionSourceCode", code)
         if code:
             if (
                 origin_filename

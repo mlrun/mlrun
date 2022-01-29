@@ -135,9 +135,10 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
         # If the model path is of a store model object, this will be the extra data as DataItems ready to be downloaded.
         self._extra_data = kwargs.get(
             "extra_data", {}
-        )  # type: Dict[str, mlrun.DataItem]
+        )  # type: Dict[str, ExtraDataType]
 
         # Setup additional properties for logging the model into a ModelArtifact:
+        self._tag = ""
         self._inputs = None  # type: List[Feature]
         self._outputs = None  # type: List[Feature]
         self._labels = {}  # type: Dict[str, Union[str, int, float]]
@@ -177,6 +178,24 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
         :return: The model file path.
         """
         return self._model_file
+
+    @property
+    def context(self) -> mlrun.MLClientCtx:
+        """
+        Get the handler's MLRun context.
+
+        :return: The handler's MLRun context.
+        """
+        return self._context
+
+    @property
+    def tag(self) -> str:
+        """
+        Get the model's tag.
+
+        :return: The model's tag.
+        """
+        return self._tag
 
     @property
     def inputs(self) -> Union[List[Feature], None]:
@@ -248,6 +267,14 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
         """
         self._context = context
 
+    def set_tag(self, tag: str):
+        """
+        Set the tag this model will be logged with.
+
+        :param tag: The model tag to set.
+        """
+        self._tag = tag
+
     def set_inputs(
         self, from_sample: IOSampleType = None, features: List[Feature] = None, **kwargs
     ):
@@ -300,43 +327,60 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
             else self._read_io_samples(samples=from_sample)
         )
 
-    def update_labels(
+    def set_labels(
         self,
-        to_update: Dict[str, Union[str, int, float]] = None,
+        to_add: Dict[str, Union[str, int, float]] = None,
         to_remove: List[str] = None,
     ):
         """
         Update the labels dictionary of this model artifact.
 
-        :param to_update: The labels to update.
+        :param to_add:    The labels to add.
         :param to_remove: A list of labels keys to remove.
         """
         # Update the labels:
-        self._labels = {**self._labels, **(to_update if to_update is not None else {})}
+        if to_add is not None:
+            self._labels.update(to_add)
 
         # Remove labels:
         if to_remove is not None:
             for label in to_remove:
                 self._labels.pop(label)
 
-    def update_parameters(
+    def set_parameters(
         self,
-        to_update: Dict[str, Union[str, int, float]] = None,
+        to_add: Dict[str, Union[str, int, float]] = None,
         to_remove: List[str] = None,
     ):
         """
         Update the parameters dictionary of this model artifact.
 
-        :param to_update: The parameters to update.
+        :param to_add:    The parameters to add.
         :param to_remove: A list of parameters keys to remove.
         """
         # Update the parameters:
-        self._parameters = {
-            **self._parameters,
-            **(to_update if to_update is not None else {}),
-        }
+        if to_add is not None:
+            self._parameters.update(to_add)
 
         # Remove parameters:
+        if to_remove is not None:
+            for label in to_remove:
+                self._parameters.pop(label)
+
+    def set_extra_data(
+        self, to_add: Dict[str, ExtraDataType] = None, to_remove: List[str] = None,
+    ):
+        """
+        Update the extra data dictionary of this model artifact.
+
+        :param to_add:    The extra data to add.
+        :param to_remove: A list of extra data keys to remove.
+        """
+        # Update the extra data:
+        if to_add is not None:
+            self._extra_data.update(to_add)
+
+        # Remove extra data:
         if to_remove is not None:
             for label in to_remove:
                 self._parameters.pop(label)
@@ -431,19 +475,23 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
         outputs: List[Feature] = None,
         metrics: Dict[str, Union[int, float]] = None,
         artifacts: Dict[str, Artifact] = None,
-        extra_data: Dict[str, Any] = None,
+        extra_data: Dict[str, ExtraDataType] = None,
         **kwargs,
     ):
         """
-        Log the model held by this handler into the MLRun context provided.
+        Log the model held by this handler into the MLRun context provided. The stored values such as labels, parameters
+        and artifacts will be used and updated where tag, inputs and outputs will be overridden if given here.
 
-        :param tag:        Tag of a version to give to the logged model.
-        :param labels:     Labels to log the model with.
-        :param parameters: Parameters to log with the model.
-        :param inputs:     A list of features this model expects to receive - the model's input ports.
-        :param outputs:    A list of features this model expects to return - the model's output ports.
+        :param tag:        Tag of a version to give to the logged model. Will override the stored tag in this handler.
+        :param labels:     Labels to log the model with. Will be joined to the labels set.
+        :param parameters: Parameters to log with the model. Will be joined to the parameters set.
+        :param inputs:     A list of features this model expects to receive - the model's input ports. If already set,
+                           will be overridden by the inputs given here.
+        :param outputs:    A list of features this model expects to return - the model's output ports. If already set,
+                           will be overridden by the outputs given here.
         :param metrics:    Metrics results to log with the model.
-        :param artifacts:  Artifacts to log the model with. Will be added to the extra data.
+        :param artifacts:  Artifacts to log the model with. Will be joined to the registered artifacts and added to the
+                           extra data.
         :param extra_data: Extra data to log with the model.
 
         :raise MLRunRuntimeError:         In case is no model in this handler.
@@ -476,19 +524,23 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
         if outputs is not None:
             self.set_outputs(features=outputs)
 
+        # Update the tag:
+        if tag != "":
+            self.set_tag(tag=tag)
+
         # Update labels and parameters:
-        self.update_labels(to_update=labels)
-        self.update_parameters(to_update=parameters)
+        self.set_labels(to_add=labels)
+        self.set_parameters(to_add=parameters)
 
         # Update the extra data:
         self._extra_data = {
             **self._extra_data,
             **(model_artifacts if model_artifacts is not None else {}),
-            **modules_artifacts,
-            **custom_objects_artifacts,
             **self._registered_artifacts,
             **(artifacts if artifacts is not None else {}),
             **(extra_data if extra_data is not None else {}),
+            **modules_artifacts,
+            **custom_objects_artifacts,
         }
         self._registered_artifacts = {}
 
@@ -497,7 +549,7 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
             self._model_name,
             db_key=self._model_name,
             model_file=self._model_file,
-            tag=tag,
+            tag=self._tag,
             inputs=self._inputs,
             outputs=self._outputs,
             framework=self.FRAMEWORK_NAME,
@@ -510,8 +562,8 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
                 if not isinstance(v, mlrun.DataItem)
             },
             algorithm=kwargs.get("algorithm", None),
-            training_set=kwargs.get("training_set", None),
-            label_column=kwargs.get("label_column", None),
+            training_set=kwargs.get("sample_set", None),
+            label_column=kwargs.get("y_columns", None),
             feature_vector=kwargs.get("feature_vector", None),
             feature_weights=kwargs.get("feature_weights", None),
         )
@@ -528,17 +580,21 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
         metrics: Dict[str, Union[int, float]] = None,
         artifacts: Dict[str, Artifact] = None,
         extra_data: Dict[str, ExtraDataType] = None,
+        **kwargs,
     ):
         """
-        Log the model held by this handler into the MLRun context provided, updating the model's artifact properties in
-        the same model path provided.
+        Update the model held by this handler into the MLRun context provided, updating the model's artifact properties
+        in the same model path provided.
 
         :param labels:     Labels to update or add to the model.
         :param parameters: Parameters to update or add to the model.
-        :param inputs:     A list of features this model expects to receive - the model's input ports.
-        :param outputs:    A list of features this model expects to return - the model's output ports.
+        :param inputs:     A list of features this model expects to receive - the model's input ports. If already set,
+                           will be overridden by the inputs given here.
+        :param outputs:    A list of features this model expects to return - the model's output ports. If already set,
+                           will be overridden by the outputs given here.
         :param metrics:    Metrics results to log with the model.
-        :param artifacts:  Artifacts to update or add to the model. Will be added to the extra data.
+        :param artifacts:  Artifacts to update or add to the model. Will be joined to the registered artifacts and added
+                           to the extra data.
         :param extra_data: Extra data to update or add to the model.
 
         :raise MLRunInvalidArgumentError: In case a context is missing or the model path in this handler is missing or
@@ -563,8 +619,8 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
             self.set_outputs(features=outputs)
 
         # Update labels and parameters:
-        self.update_labels(to_update=labels)
-        self.update_parameters(to_update=parameters)
+        self.set_labels(to_add=labels)
+        self.set_parameters(to_add=parameters)
 
         # Update the extra data:
         self._extra_data = {
@@ -596,6 +652,8 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
                 for k, v in self._extra_data.items()
                 if not isinstance(v, mlrun.DataItem)
             },
+            feature_vector=kwargs.get("feature_vector", None),
+            feature_weights=kwargs.get("feature_weights", None),
             store_object=not self._is_logged,  # If the model was not logged, store the updated model in the database.
         )
         if self._is_logged:
@@ -604,7 +662,9 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
             )  # Update the cached model to the database.
 
     @staticmethod
-    def convert_value_type_to_np_dtype(value_type: str) -> np.dtype:
+    def convert_value_type_to_np_dtype(
+        value_type: str,
+    ) -> np.dtype:  # TODO: Move to utils
         """
         Get the 'tensorflow.DType' equivalent to the given MLRun value type.
 
@@ -638,7 +698,9 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
         )
 
     @staticmethod
-    def convert_np_dtype_to_value_type(np_dtype: Union[np.dtype, type, str]) -> str:
+    def convert_np_dtype_to_value_type(
+        np_dtype: Union[np.dtype, type, str]
+    ) -> str:  # TODO: Move to utils
         """
         Convert the given numpy data type to MLRun value type. It is better to use explicit bit namings (for example:
         instead of using 'np.double', use 'np.float64').
@@ -700,8 +762,8 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
             self.set_inputs(features=list(self._model_artifact.inputs))
         if len(self._model_artifact.outputs) > 0:
             self.set_outputs(features=list(self._model_artifact.outputs))
-        self.update_labels(to_update=self._model_artifact.labels)
-        self.update_parameters(to_update=self._model_artifact.parameters)
+        self.set_labels(to_add=self._model_artifact.labels)
+        self.set_parameters(to_add=self._model_artifact.parameters)
 
         # Read the modules:
         if self._get_modules_map_artifact_name() in self._extra_data:

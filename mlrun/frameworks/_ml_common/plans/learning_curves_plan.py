@@ -6,22 +6,22 @@ class LearningCurves(MLPlotPlan):
     _ARTIFACT_NAME = "learning_curves"
 
     def __init__(
-            self,
-            model=None,
-            X_train=None,
-            y_train=None,
-            cv: int = 3,
-            groups=None,
-            train_sizes: np.array = np.array([0.1, 0.33, 0.55, 0.78, 1.0]),
-            scoring=None,
-            exploit_incremental_learning: bool = False,
-            n_jobs=None,
-            pre_dispatch: str = "all",
-            verbose: int = 0,
-            shuffle: bool = False,
-            random_state=None,
-            return_times: bool = True,
-            fit_params=None,
+        self,
+        model=None,
+        X_train=None,
+        y_train=None,
+        cv: int = 3,
+        groups=None,
+        train_sizes: np.array = np.array([0.1, 0.33, 0.55, 0.78, 1.0]),
+        scoring=None,
+        exploit_incremental_learning: bool = False,
+        n_jobs=None,
+        pre_dispatch: str = "all",
+        verbose: int = 0,
+        shuffle: bool = False,
+        random_state=None,
+        return_times: bool = True,
+        fit_params=None,
     ):
         """
 
@@ -95,34 +95,38 @@ class LearningCurves(MLPlotPlan):
 
         fig = go.Figure(
             data=[go.Scatter(x=train_sizes.tolist(), y=np.mean(train_scores, axis=1))],
-            layout={'title': {'text': 'Learning Curves'}},
+            layout={"title": {"text": "Learning Curves"}},
         )
 
         # add custom xaxis title
         fig.add_annotation(
-            {'font': {'color': 'black', 'size': 14},
-             'x': 0.5,
-             'y': -0.15,
-             'showarrow': False,
-             'text': 'Train Size',
-             'xref': 'paper',
-             'yref': 'paper'}
+            {
+                "font": {"color": "black", "size": 14},
+                "x": 0.5,
+                "y": -0.15,
+                "showarrow": False,
+                "text": "Train Size",
+                "xref": "paper",
+                "yref": "paper",
+            }
         )
 
         # add custom yaxis title
         fig.add_annotation(
-            {'font': {'color': 'black', 'size': 14},
-             'x': -0.1,
-             'y': 0.5,
-             'showarrow': False,
-             'text': 'Score',
-             'textangle': -90,
-             'xref': 'paper',
-             'yref': 'paper'}
+            {
+                "font": {"color": "black", "size": 14},
+                "x": -0.1,
+                "y": 0.5,
+                "showarrow": False,
+                "text": "Score",
+                "textangle": -90,
+                "xref": "paper",
+                "yref": "paper",
+            }
         )
 
         # adjust margins to make room for yaxis title
-        fig.update_layout(margin={'t': 100, 'l': 100}, width=800, height=500)
+        fig.update_layout(margin={"t": 100, "l": 100}, width=800, height=500)
 
         # Creating an html rendering of the plot
         self._artifacts[self._ARTIFACT_NAME] = PlotlyArtifact(

@@ -134,23 +134,21 @@ class PyTorchModelHandler(DLModelHandler):
         )
 
         # Set the required labels:
-        self.update_labels()
+        self.set_labels()
 
-    def update_labels(
+    def set_labels(
         self,
-        to_update: Dict[str, Union[str, int, float]] = None,
+        to_add: Dict[str, Union[str, int, float]] = None,
         to_remove: List[str] = None,
     ):
         """
         Update the labels dictionary of this model artifact. There are required labels that cannot be edited or removed.
 
-        :param to_update: The labels to update.
+        :param to_add:    The labels to add.
         :param to_remove: A list of labels keys to remove.
         """
         # Update the user's labels:
-        super(PyTorchModelHandler, self).update_labels(
-            to_update=to_update, to_remove=to_remove
-        )
+        super(PyTorchModelHandler, self).set_labels(to_add=to_add, to_remove=to_remove)
 
         # Set the required labels:
         self._labels[self._LabelKeys.MODEL_CLASS_NAME] = self._model_class_name
@@ -384,7 +382,9 @@ class PyTorchModelHandler(DLModelHandler):
         return onnx_handler.model
 
     @staticmethod
-    def convert_value_type_to_torch_dtype(value_type: str) -> torch.dtype:
+    def convert_value_type_to_torch_dtype(
+        value_type: str,
+    ) -> torch.dtype:  # TODO: Move to utils
         """
         Get the 'torch.dtype' equivalent to the given MLRun data type.
 
@@ -416,7 +416,9 @@ class PyTorchModelHandler(DLModelHandler):
         )
 
     @staticmethod
-    def convert_torch_dtype_to_value_type(torch_dtype: Union[torch.dtype, str]) -> str:
+    def convert_torch_dtype_to_value_type(
+        torch_dtype: Union[torch.dtype, str]
+    ) -> str:  # TODO: Move to utils
         """
         Convert the given torch data type to MLRun value type. All of the CUDA supported data types are supported. For
         more information regarding torch data types, visit: https://pytorch.org/docs/stable/tensors.html#data-types

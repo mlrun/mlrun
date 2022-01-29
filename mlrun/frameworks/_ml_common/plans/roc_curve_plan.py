@@ -15,17 +15,17 @@ class ROCCurves(MLPlotPlan):
     _ARTIFACT_NAME = "roc_curves"
 
     def __init__(
-            self,
-            model=None,
-            X_test=None,
-            y_test=None,
-            pos_label=None,
-            sample_weight=None,
-            drop_intermediate: bool = True,
-            average: str = "macro",
-            max_fpr=None,
-            multi_class: str = "raise",
-            labels=None,
+        self,
+        model=None,
+        X_test=None,
+        y_test=None,
+        pos_label=None,
+        sample_weight=None,
+        drop_intermediate: bool = True,
+        average: str = "macro",
+        max_fpr=None,
+        multi_class: str = "raise",
+        labels=None,
     ):
         """
 
@@ -62,7 +62,9 @@ class ROCCurves(MLPlotPlan):
         """
         return stage == MLPlanStages.POST_FIT and not is_probabilities
 
-    def produce(self, model, X_test, y_test, y_prob, **kwargs) -> Dict[str, PlotlyArtifact]:
+    def produce(
+        self, model, X_test, y_test, y_prob, **kwargs
+    ) -> Dict[str, PlotlyArtifact]:
         """
         Produce the artifact according to this plan.
         :return: The produced artifact.
@@ -76,7 +78,7 @@ class ROCCurves(MLPlotPlan):
         # Create an empty figure, and iteratively add new lines
         # every time we compute a new class
         fig = go.Figure()
-        fig.add_shape(type="line", line={'dash': 'dash'}, x0=0, x1=1, y0=0, y1=1)
+        fig.add_shape(type="line", line={"dash": "dash"}, x0=0, x1=1, y0=0, y1=1)
 
         for i in range(y_prob.shape[1]):
             y_true = y_onehot.iloc[:, i]
@@ -106,8 +108,8 @@ class ROCCurves(MLPlotPlan):
         fig.update_layout(
             xaxis_title="False Positive Rate",
             yaxis_title="True Positive Rate",
-            yaxis={'scaleanchor': 'x', 'scaleratio': 1},
-            xaxis={'constrain': 'domain'},
+            yaxis={"scaleanchor": "x", "scaleratio": 1},
+            xaxis={"constrain": "domain"},
             width=700,
             height=500,
         )

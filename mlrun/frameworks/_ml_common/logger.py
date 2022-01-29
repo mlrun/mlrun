@@ -7,11 +7,10 @@ import pandas as pd
 import mlrun
 from mlrun.artifacts import Artifact
 
-from .._common import TrackableType
 from .metric import Metric
 from .model_handler import MLModelHandler
 from .plan import MLPlan, MLPlanStages
-from .utils import concatenate_x_y
+from .utils import to_array
 
 
 class LoggerMode(Enum):
@@ -30,7 +29,7 @@ class Logger:
 
     def __init__(
         self,
-        context: mlrun.MLClientCtx,
+        context: mlrun.MLClientCtx = None,
         plans: List[MLPlan] = None,
         metrics: List[Metric] = None,
     ):
@@ -67,6 +66,15 @@ class Logger:
         return self._mode
 
     @property
+    def context(self) -> mlrun.MLClientCtx:
+        """
+        Get the logger's MLRun context.
+
+        :return: The logger's MLRun context.
+        """
+        return self._context
+
+    @property
     def artifacts(self) -> Dict[str, Artifact]:
         """
         Get the logged artifacts.
@@ -88,9 +96,33 @@ class Logger:
         """
         Set the logger's mode.
 
-        :param mode: The mode to set. One of Logger.LoggerMode.
+        :param mode: The mode to set. One of Logger.LoggerMode options.
         """
         self._mode = mode
+
+    def set_context(self, context: mlrun.MLClientCtx):
+        """
+        Set the context this logger will log with.
+
+        :param context: The to be set MLRun context.
+        """
+        self._context = context
+
+    def set_plans(self, plans: List[MLPlan]):
+        """
+        Update the plans of this logger to the given list of plans here.
+
+        :param plans: The list of plans to override the current one.
+        """
+        self._plans = plans
+
+    def set_metrics(self, metrics: List[Metric]):
+        """
+        Update the metrics of this logger to the given list of metrics here.
+
+        :param metrics: The list of metrics to override the current one.
+        """
+        self._metrics = metrics
 
     def is_probabilities_required(self) -> bool:
         """
@@ -118,11 +150,12 @@ class Logger:
             stage=stage, is_probabilities=is_probabilities, **kwargs
         )
 
-        # Log the artifacts in queue:
-        self._log_artifacts()
-
-        # Commit:
-        self._context.commit(completed=False)
+        # Log if a context is available:
+        if self._context is not None:
+            # Log the artifacts in queue:
+            self._log_artifacts()
+            # Commit:
+            self._context.commit(completed=False)
 
     def log_results(
         self,
@@ -143,68 +176,31 @@ class Logger:
             y_true=y_true, y_pred=y_pred, is_probabilities=is_probabilities
         )
 
-        # Log the results in queue:
-        self._log_results()
-
-        # Commit:
-        self._context.commit(completed=False)
+        # Log if a context is available:
+        if self._context is not None:
+            # Log the results in queue:
+            self._log_results()
+            # Commit:
+            self._context.commit(completed=False)
 
     def log_run(
-        self,
-        model_handler: MLModelHandler,
-        tag: str = "",
-        labels: Dict[str, TrackableType] = None,
-        parameters: Dict[str, TrackableType] = None,
-        extra_data: Dict[str, Union[TrackableType, Artifact]] = None,
-        x_train=None,
-        y_train=None,
-        y_columns=None,
-        feature_vector: str = None,
-        feature_weights: List[float] = None,
+        self, model_handler: MLModelHandler,
     ):
         """
         End the logger's run, logging the collected artifacts and metrics results with the model. The model will be
         updated if the logger is in evaluation mode or logged as a new artifact if in training mode.
 
-        :param model_handler:   The model handler object holding the model to save and log.
-        :param tag:             Version tag to give the logged model.
-        :param labels:          Labels to log with the model.
-        :param parameters:      Parameters to log with the model.
-        :param extra_data:      Extra data to log with the model.
-        :param x_train:         A collection of inputs to a model.
-        :param y_train:         A collection of ground truth labels corresponding to the inputs.
-        :param y_columns:       List of names or indices to give the columns of the ground truth labels.
-        :param feature_vector:  Feature store feature vector uri (store://feature-vectors/<project>/<name>[:tag])
-        :param feature_weights: List of feature weights, one per input column.
+        :param model_handler: The model handler object holding the model to save and log.
         """
-        training_set = None
-        if x_train is not None:
-            training_set, y_columns = concatenate_x_y(
-                x=x_train, y=y_train, y_columns=y_columns
-            )
-
         # In case of training, log the model as a new model artifact and in case of evaluation - update the current
         # model artifact:
         if self._mode == LoggerMode.TRAINING:
             model_handler.log(
-                tag=tag,
-                labels=labels,
-                parameters=parameters,
-                metrics=self._logged_results,
-                artifacts=self._logged_artifacts,
-                extra_data=extra_data,
-                training_set=training_set,
-                label_column=y_columns,
-                feature_vector=feature_vector,
-                feature_weights=feature_weights,
+                metrics=self._logged_results, artifacts=self._logged_artifacts,
             )
         else:
             model_handler.update(
-                labels=labels,
-                parameters=parameters,
-                metrics=self._logged_results,
-                artifacts=self._logged_artifacts,
-                extra_data=extra_data,
+                metrics=self._logged_results, artifacts=self._logged_artifacts,
             )
 
         # Commit:
@@ -258,8 +254,8 @@ class Logger:
                                  if not.
         """
         # Use squeeze to remove redundant dimensions:
-        y_true = np.squeeze(y_true)
-        y_pred = np.squeeze(y_pred)
+        y_true = np.squeeze(to_array(dataset=y_true))
+        y_pred = np.squeeze(to_array(dataset=y_pred))
 
         # Calculate the metrics:
         for metric in self._metrics:

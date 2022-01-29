@@ -9,7 +9,7 @@ import mlrun
 
 from .._common import without_mlrun_interface
 from .._ml_common import MLModelHandler
-from .mlrun_interface import XGBoostModelMLRunInterface
+from .mlrun_interface import XGBModelMLRunInterface
 from .utils import DatasetType
 
 
@@ -138,7 +138,7 @@ class XGBoostModelHandler(MLModelHandler):
                     f"'{self._model_path}'"
                 )
 
-    @without_mlrun_interface(interface=XGBoostModelMLRunInterface)
+    @without_mlrun_interface(interface=XGBModelMLRunInterface)
     def save(self, output_path: str = None, **kwargs):
         """
         Save the handled model at the given output path. If a MLRun context is available, the saved model files will be

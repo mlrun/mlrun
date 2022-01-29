@@ -3,7 +3,7 @@ from abc import ABC
 from .._ml_common import MLMLRunInterface
 
 
-class XGBoostModelMLRunInterface(MLMLRunInterface, ABC):
+class XGBModelMLRunInterface(MLMLRunInterface, ABC):
     """
     Interface for adding MLRun features for XGBoost models (SciKit-Learn API models).
     """

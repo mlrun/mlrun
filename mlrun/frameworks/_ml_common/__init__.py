@@ -5,5 +5,5 @@ from .metrics_library import MetricsLibrary, get_metrics
 from .mlrun_interface import MLMLRunInterface
 from .model_handler import MLModelHandler
 from .pkl_model_server import PickleModelServer
-from .plan import MLPlan, MLPlotPlan
+from .plan import MLPlan, MLPlanStages, MLPlotPlan
 from .utils import DatasetType, MetricEntry

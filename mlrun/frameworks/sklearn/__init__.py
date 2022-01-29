@@ -1,10 +1,11 @@
-from typing import Any, Dict, List, Union
+from typing import Dict, List, Union
 
 import mlrun
 
-from .._common import get_plans
+from .._common import ExtraDataType, get_plans
 from .._ml_common import (
     DatasetType,
+    Metric,
     MetricEntry,
     MetricsLibrary,
     MLArtifactsLibrary,
@@ -23,7 +24,7 @@ SklearnModelServer = PickleModelServer
 
 
 def apply_mlrun(
-    model: SKLearnModelType,
+    model: SKLearnModelType = None,
     model_name: str = "model",
     tag: str = "",
     model_path: str = None,
@@ -31,23 +32,28 @@ def apply_mlrun(
     custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
     custom_objects_directory: str = None,
     context: mlrun.MLClientCtx = None,
-    artifacts: Union[List[MLPlan], Dict[str, dict]] = None,
-    metrics: Union[List[MetricEntry], Dict[str, MetricEntry]] = None,
-    x_validation: DatasetType = None,
-    y_validation: DatasetType = None,
+    artifacts: Union[List[MLPlan], List[str], Dict[str, dict]] = None,
+    metrics: Union[List[Metric], List[MetricEntry], Dict[str, MetricEntry]] = None,
+    x_test: DatasetType = None,
     y_test: DatasetType = None,
+    sample_set: Union[DatasetType, mlrun.DataItem, str] = None,
     y_columns: Union[List[str], List[int]] = None,
+    feature_vector: str = None,
+    feature_weights: List[float] = None,
+    labels: Dict[str, Union[str, int, float]] = None,
+    parameters: Dict[str, Union[str, int, float]] = None,
+    extra_data: Dict[str, ExtraDataType] = None,
     auto_log: bool = True,
-    model_logging_kwargs: Dict[str, Any] = None,
+    **kwargs
 ) -> SKLearnModelHandler:
     """
     Wrap the given model with MLRun's interface providing it with mlrun's additional features.
 
-    :param model:                    The model to wrap.
+    :param model:                    The model to wrap. Can be loaded from the model path given as well.
     :param model_name:               The model name to use for storing the model artifact. Defaulted to "model".
     :param tag:                      The model's tag to log with.
     :param model_path:               The model's store object path. Mandatory for evaluation (to know which model to
-                                     update).
+                                     update). If model is not provided, it will be loaded from this path.
     :param modules_map:              A dictionary of all the modules required for loading the model. Each key is a
                                      path to a module and its value is the object name to import from it. All the
                                      modules will be imported globally. If multiple objects needed to be imported
@@ -83,21 +89,24 @@ def apply_mlrun(
                                      'mlrun.get_or_create_ctx(None)'
     :param artifacts:                A list of artifacts plans to produce during the run.
     :param metrics:                  A list of metrics to calculate during the run.
-    :param x_validation:             The validation data for producing and calculating artifacts and metrics post
+    :param x_test:                   The validation data for producing and calculating artifacts and metrics post
                                      training. Without this, validation will not be performed.
-    :param y_validation:             The validation data ground truths (labels).
-    :param y_test:                   The test data for producing and calculating artifacts and metrics post
-                                     predict / predict_proba.
+    :param y_test:                   The test data ground truth for producing and calculating artifacts and metrics post
+                                     training or post predict / predict_proba.
+    :param sample_set:               A sample set of inputs for the model for logging its stats along the model in
+                                     favour of model monitoring.
     :param y_columns:                List of names of all the columns in the ground truth labels in case its a
-                                     pd.DataFrame or a list of integers in case the dataset is a np.ndarray. If
-                                     'y_train' / 'y_validation' / 'y_test' is given then the labels / indices in it will
-                                     be used by default.
+                                     pd.DataFrame or a list of integers in case the dataset is a np.ndarray. If not
+                                     given but 'y_train' / 'y_test' is given then the labels / indices in it will be
+                                     used by default.
+    :param feature_vector:           Feature store feature vector uri (store://feature-vectors/<project>/<name>[:tag])
+    :param feature_weights:          List of feature weights, one per input column.
+    :param labels:                   Labels to log with the model.
+    :param parameters:               Parameters to log with the model.
+    :param extra_data:               Extra data to log with the model.
     :param auto_log:                 Whether or not to apply MLRun's auto logging on the model. Auto logging will add
                                      the default artifacts and metrics to the lists of artifacts and metrics. Defaulted
                                      to True.
-    :param model_logging_kwargs:     Key word arguments for the MLRun callback. For further information see the
-                                     documentation of the MLMLRunInterface 'auto_log' method. Notice some of the
-                                     attributes are provided here as well so there is no need to give them.
 
     :return: The model handler initialized with the provided model.
     """
@@ -106,6 +115,9 @@ def apply_mlrun(
         context = mlrun.get_or_create_ctx(SKLearnMLRunInterface.DEFAULT_CONTEXT_NAME)
 
     # Create a model handler:
+    model_handler_kwargs = (
+        kwargs.pop("model_handler_kwargs") if "model_handler_kwargs" in kwargs else {}
+    )
     handler = SKLearnModelHandler(
         model_name=model_name,
         model_path=model_path,
@@ -114,44 +126,58 @@ def apply_mlrun(
         modules_map=modules_map,
         custom_objects_map=custom_objects_map,
         custom_objects_directory=custom_objects_directory,
+        **model_handler_kwargs,
     )
+
+    # Load the model if it was not provided:
+    if model is None:
+        handler.load()
+        model = handler.model
+
+    # Set the handler's logging attributes:
+    handler.set_tag(tag=tag)
+    if sample_set is not None:
+        handler.set_sample_set(sample_set=sample_set)
+    if y_columns is not None:
+        handler.set_y_columns(y_columns=y_columns)
+    if feature_vector is not None:
+        handler.set_feature_vector(feature_vector=feature_vector)
+    if feature_weights is not None:
+        handler.set_feature_weights(feature_weights=feature_weights)
+    if labels is not None:
+        handler.set_labels(to_add=labels)
+    if parameters is not None:
+        handler.set_parameters(to_add=parameters)
+    if extra_data is not None:
+        handler.set_extra_data(to_add=extra_data)
 
     # Add MLRun's interface to the model:
     SKLearnMLRunInterface.add_interface(obj=model)
 
-    # Add auto-logging if needed:
-    if auto_log:
-        # Get the artifacts plans and metrics lists:
-        y = y_test if y_test is not None else y_validation
-        plans = get_plans(
+    # Set the handler to the model:
+    model.set_model_handler(model_handler=handler)
+
+    # Configure the logger:
+    model.configure_logger(
+        context=context,
+        plans=get_plans(
             artifacts_library=SKLearnArtifactsLibrary,
             artifacts=artifacts,
             context=context,
+            include_default=auto_log,
             model=model,
-            y=y,
-        )
-        metrics = get_metrics(
+            y=y_test,
+        ),
+        metrics=get_metrics(
             metrics_library=SKLearnMetricsLibrary,
             metrics=metrics,
             context=context,
+            include_default=auto_log,
             model=model,
-            y=y,
-        )
-        # Set the kwargs dictionaries defaults:
-        if model_logging_kwargs is None:
-            model_logging_kwargs = {}
-        # Add the logging callbacks with the provided parameters:
-        model.auto_log(
-            context=context,
-            model_handler=handler,
-            plans=plans,
-            metrics=metrics,
-            x_validation=x_validation,
-            y_validation=y_validation,
-            y_test=y_test,
-            y_columns=y_columns,
-            tag=tag,
-            **model_logging_kwargs,
-        )
+            y=y_test,
+        ),
+        x_test=x_test,
+        y_test=y_test,
+    )
 
     return handler

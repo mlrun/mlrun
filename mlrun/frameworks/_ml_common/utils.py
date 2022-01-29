@@ -20,12 +20,44 @@ DatasetType = Union[
 # joined by wrapping it as a tuple:
 MetricEntry = Union[Tuple[Union[Callable, str], dict], Callable, str]
 
+# Type for the 'y_columns' parameter - a list of indices or column names that are the ground truth (y) of a dataset.
+YColumnsType = Union[List[str], List[int]]
+
+
+def to_array(dataset: DatasetType) -> np.ndarray:
+    """
+    Convert the given dataset to np.ndarray.
+
+    :param dataset: The dataset to convert. Must be one of {pd.DataFrame, pd.Series, scipy.sparse.base.spmatrix, list,
+                    dict}.
+
+    :return: The dataset as a ndarray.
+
+    :raise MLRunInvalidArgumentError: If the dataset type is not supported.
+    """
+    if isinstance(dataset, np.ndarray):
+        return dataset
+    if isinstance(dataset, (pd.DataFrame, pd.Series)):
+        return dataset.to_numpy()
+    if isinstance(dataset, scipy.sparse.base.spmatrix):
+        return dataset.toarray()
+    if isinstance(dataset, list):
+        return np.array(dataset)
+    if isinstance(dataset, dict):
+        return np.array(list(dataset.values()))
+    raise mlrun.errors.MLRunInvalidArgumentError(
+        f"Could not convert the given dataset into a numpy ndarray. Supporting conversion from: "
+        f"'pandas.DataFrame', 'pandas.Series', 'scipy.sparse.base.spmatrix', list and dict. The given dataset was of "
+        f"type: '{type(dataset)}'"
+    )
+
 
 def to_dataframe(dataset: DatasetType) -> pd.DataFrame:
     """
     Convert the given dataset to pd.DataFrame.
 
-    :param dataset: The dataset to convert. Must be one of {np.ndarray, pd.Series, scipy.sparse.base.spmatrix}.
+    :param dataset: The dataset to convert. Must be one of {np.ndarray, pd.Series, scipy.sparse.base.spmatrix, list,
+                    dict}.
 
     :return: The dataset as a DataFrame.
 
@@ -39,7 +71,7 @@ def to_dataframe(dataset: DatasetType) -> pd.DataFrame:
         return pd.DataFrame.sparse.from_spmatrix(dataset)
     raise mlrun.errors.MLRunInvalidArgumentError(
         f"Could not convert the given dataset into a pandas DataFrame. Supporting conversion from: "
-        f"'numpy.ndarray', 'pandas.Series' and 'scipy.sparse.base.spmatrix'. The given dataset was of type: "
+        f"'numpy.ndarray', 'pandas.Series', 'scipy.sparse.base.spmatrix' list and dict. The given dataset was of type: "
         f"'{type(dataset)}'"
     )
 
@@ -47,13 +79,13 @@ def to_dataframe(dataset: DatasetType) -> pd.DataFrame:
 def concatenate_x_y(
     x: DatasetType,
     y: DatasetType = None,
-    y_columns: Union[List[str], List[int]] = None,
+    y_columns: YColumnsType = None,
     default_y_column_prefix: str = "y_",
-) -> Tuple[pd.DataFrame, Union[List[str], List[int], None]]:
+) -> Tuple[pd.DataFrame, Union[YColumnsType, None]]:
     """
     Concatenating the provided x and y data into a single pd.DataFrame, casting from np.ndarray and renaming y's
-    columns if provided (y_columns). The concatenated dataset index level will be reset to 0 (multi-level indexes
-    will be dropped using pandas 'reset_index' method).
+    original columns if 'y_columns' was not provided. The concatenated dataset index level will be reset to 0
+    (multi-level indexes will be dropped using pandas 'reset_index' method).
 
     :param x:                       A collection of inputs to a model.
     :param y:                       A collection of ground truth labels corresponding to the inputs.
@@ -115,14 +147,16 @@ class AlgorithmFunctionality(Enum):
     MULTICLASS_CLASSIFICATION = "Multiclass Classification"
     MULTI_OUTPUT_CLASSIFICATION = "Multi Output Classification"
     MULTI_OUTPUT_MULTICLASS_CLASSIFICATION = "Multi Output Multiclass Classification"
+    UNKNOWN_CLASSIFICATION = "Unknown Classification"
 
     # Regression:
     REGRESSION = "Regression"
     MULTI_OUTPUT_REGRESSION = "Multi Output Regression"
+    UNKNOWN_REGRESSION = "Unknown Regression"
 
     @classmethod
     def get_algorithm_functionality(
-        cls, model: ModelType, y: DatasetType
+        cls, model: ModelType, y: DatasetType = None
     ) -> "AlgorithmFunctionality":
         """
         Get the algorithm functionality according to the provided model and ground truth labels.
@@ -135,10 +169,14 @@ class AlgorithmFunctionality(Enum):
         :raise MLRunInvalidArgumentError: If the model was not recognized to be a classifier or regressor.
         """
         # Convert the provided ground truths to DataFrame:
-        y = to_dataframe(dataset=y)
+        if y is not None:
+            y = to_dataframe(dataset=y)
 
         # Check for classification:
         if is_classifier(model):
+            # Check if y is provided:
+            if y is None:
+                return cls.UNKNOWN_CLASSIFICATION
             # Check amount of columns:
             if len(y.columns) == 1:
                 # Check amount of classes:
@@ -152,6 +190,9 @@ class AlgorithmFunctionality(Enum):
 
         # Check for regression:
         if is_regressor(model):
+            # Check if y is provided:
+            if y is None:
+                return cls.UNKNOWN_REGRESSION
             # Check amount of columns:
             if len(y.columns) == 1:
                 return cls.REGRESSION
@@ -175,6 +216,7 @@ class AlgorithmFunctionality(Enum):
             or self == AlgorithmFunctionality.MULTICLASS_CLASSIFICATION
             or self == AlgorithmFunctionality.MULTI_OUTPUT_CLASSIFICATION
             or self == AlgorithmFunctionality.MULTI_OUTPUT_MULTICLASS_CLASSIFICATION
+            or self == AlgorithmFunctionality.UNKNOWN_CLASSIFICATION
         )
 
     def is_regression(self) -> bool:
@@ -186,6 +228,7 @@ class AlgorithmFunctionality(Enum):
         return (
             self == AlgorithmFunctionality.REGRESSION
             or self == AlgorithmFunctionality.MULTI_OUTPUT_REGRESSION
+            or self == AlgorithmFunctionality.UNKNOWN_REGRESSION
         )
 
     def is_binary_classification(self) -> bool:

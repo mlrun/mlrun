@@ -14,9 +14,7 @@ class FeatureImportance(MLPlotPlan):
     _ARTIFACT_NAME = "feature_importance"
 
     def __init__(
-            self,
-            model=None,
-            X_train=None,
+        self, model=None, X_train=None,
     ):
         """
         :param model: any model pre-fit or post-fit.
@@ -53,10 +51,7 @@ class FeatureImportance(MLPlotPlan):
                 importance_score = model.coef_[0]
 
             df = pd.DataFrame(
-                {
-                    "features": X_train.columns,
-                    "feature_importance": importance_score,
-                }
+                {"features": X_train.columns, "feature_importance": importance_score,}
             ).sort_values(by="feature_importance", ascending=False)
 
             fig = go.Figure(

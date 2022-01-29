@@ -1,23 +1,19 @@
-from typing import Any, Dict
-from enum import Enum
-from abc import ABC, abstractmethod
-from pandas.api.types import is_numeric_dtype
-from sklearn.metrics import roc_curve, roc_auc_score
-from sklearn.model_selection import learning_curve
-from sklearn.calibration import calibration_curve
-
 import inspect
-import plotly.graph_objects as go
-import pandas as pd
-import mlrun
-import plotly
-
-from typing import Dict, List
+from abc import ABC, abstractmethod
+from enum import Enum
+from typing import Any, Dict, List
 
 import numpy as np
+import pandas as pd
+import plotly
+import plotly.graph_objects as go
+from pandas.api.types import is_numeric_dtype
 from plotly.figure_factory import create_annotated_heatmap
-from sklearn.metrics import confusion_matrix
+from sklearn.calibration import calibration_curve
+from sklearn.metrics import confusion_matrix, roc_auc_score, roc_curve
+from sklearn.model_selection import learning_curve
 
+import mlrun
 from mlrun.artifacts import Artifact, PlotlyArtifact
 
 from ..._common import ModelType

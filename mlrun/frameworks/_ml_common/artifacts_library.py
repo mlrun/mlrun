@@ -22,11 +22,12 @@ class MLArtifactsLibrary(ArtifactsLibrary, ABC):
     some_artifact = SomeArtifactPlan
     """
 
+    # calibration_curve = CalibrationCurvePlan
+    confusion_matrix = ConfusionMatrixPlan
     dataset = DatasetPlan
     # feature_importance = FeatureImportancePlan
-    confusion_matrix = ConfusionMatrixPlan
-    # roc_curve = ROCCurvePlan
     # learning_curves = LearningCurvesPlan
+    # roc_curve = ROCCurvePlan
 
     @classmethod
     def default(
@@ -57,6 +58,7 @@ class MLArtifactsLibrary(ArtifactsLibrary, ABC):
                     ConfusionMatrixPlan(),
                     # ROCCurvePlan(),
                     # LearningCurvesPlan(),
+                    # CalibrationCurvePlan(),
                 ]
 
         # Add regression plans:
@@ -64,5 +66,5 @@ class MLArtifactsLibrary(ArtifactsLibrary, ABC):
             # Add single output regression plans:
             if algorithm_functionality.is_single_output():
                 # plans += [FeatureImportancePlan()]
-                pass  # TODO: Wait for Alex to correct the plans and uncomment all of these.
+                pass
         return plans

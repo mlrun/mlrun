@@ -169,44 +169,50 @@ def get_metrics(
     metrics_library: Type[MetricsLibrary],
     metrics: Union[List[Metric], List[MetricEntry], Dict[str, MetricEntry]] = None,
     context: mlrun.MLClientCtx = None,
+    include_default: bool = True,
     **default_kwargs,
 ) -> List[Metric]:
     """
-    Get metrics for a run by the following priority:
-
-    1. Provided metrics via code.
-    2. Provided configuration via MLRun context.
-    3. The framework metrics library's defaults.
+    Get metrics for a run. The metrics will be taken from the provided metrics / configuration via code, from provided
+    configuration via MLRun context and if the 'include_default' is True, from the framework metric library's defaults.
 
     :param metrics_library: The framework's metrics library class to get its defaults.
     :param metrics:         The metrics parameter passed to the function. Can be passed as a dictionary or a list of
                             metrics.
     :param context:         A context to look in if the configuration was passed as a parameter.
+    :param include_default: Whether to include the default in addition to the provided metrics. Defaulted to True.
     :param default_kwargs:  Additional key word arguments to pass to the 'default' method of the given metrics library
                             class.
 
-    :return: The metrics list by the priority mentioned above.
+    :return: The metrics list.
 
     :raise MLRunInvalidArgumentError: If the metrics were not passed in a list or a dictionary.
     """
-    # Look for available metrics prioritizing provided argument to the function over parameter passed via the context:
-    if metrics is None and context is not None:
-        if METRICS_CONTEXT_PARAMETER in context.parameters:
-            metrics = context.parameters[METRICS_CONTEXT_PARAMETER]
+    # Setup the plans list:
+    parsed_metrics = []  # type: List[Metric]
 
-    # Parse the metrics if available:
-    if metrics is not None:
-        if isinstance(metrics, dict):
-            return metrics_library.from_dict(metrics_dictionary=metrics)
-        elif isinstance(metrics, list):
-            return metrics_library.from_list(metrics_list=metrics)
-        else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"The metrics are expected to be in a list or a dictionary. Received: {type(metrics)}. A metric can be "
-                f"a function, callable object, name of an imported function or a module path to import the function. "
-                f"Arguments can be passed as a tuple: in the following form: (metric, arguments). If used in a "
-                f"dictionary, each key will be the name to use for logging the metric."
-            )
+    # Get the user input metrics:
+    metrics_from_context = None
+    if context is not None:
+        metrics_from_context = context.parameters.get(METRICS_CONTEXT_PARAMETER, None)
+    for user_input in [metrics, metrics_from_context]:
+        if user_input is not None:
+            if isinstance(user_input, dict):
+                parsed_metrics += metrics_library.from_dict(
+                    metrics_dictionary=user_input
+                )
+            elif isinstance(user_input, list):
+                parsed_metrics += metrics_library.from_list(metrics_list=user_input)
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The metrics are expected to be in a list or a dictionary. Received: {type(user_input)}. A metric "
+                    f"can be a function, callable object, name of an imported function or a module path to import the "
+                    f"function. Arguments can be passed as a tuple: in the following form: (metric, arguments). If "
+                    f"used in a dictionary, each key will be the name to use for logging the metric."
+                )
 
-    # Return the library's default:
-    return metrics_library.default(**default_kwargs)
+    # Get the library's default:
+    if include_default:
+        parsed_metrics += metrics_library.default(**default_kwargs)
+
+    return parsed_metrics

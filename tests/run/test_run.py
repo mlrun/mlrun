@@ -204,5 +204,4 @@ def test_run_class_file():
 def test_run_from_module():
     fn = mlrun.new_function("mytst", kind="job")
     run = fn.run(handler="json.dumps", params={"obj": {"x": 99}}, local=True)
-    print(run.status.results)
     assert run.output("return") == '{"x": 99}'

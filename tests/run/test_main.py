@@ -209,6 +209,12 @@ def test_main_run_class():
         compose_param_list(dict(x=8)) + ["--handler", "mycls::mtd"],
         "test_main_run_class",
     )
-    print(out)
     assert out.find("state: completed") != -1, out
-    assert out.find("rx: 8") != -1
+    assert out.find("rx: 8") != -1, out
+
+
+def test_run_from_module():
+    args = ["--name", "test1", "--dump", "--handler", "json.dumps", "-p", "obj=[6,7]"]
+    out = exec_main("run", args)
+    assert out.find("state: completed") != -1, out
+    assert out.find("return: '[6, 7]'") != -1, out

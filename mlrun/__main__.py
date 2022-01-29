@@ -315,6 +315,9 @@ def run(
     set_item(runobj.spec, scrape_metrics, "scrape_metrics")
     update_in(runtime, "metadata.name", name, replace=False)
     update_in(runtime, "metadata.project", project, replace=False)
+    if not kind and "." in handler:
+        # handle the case of module.submodule.handler
+        update_in(runtime, "kind", "local")
 
     if kfp or runobj.spec.verbose or verbose:
         print(f"MLRun version: {str(Version().get())}")

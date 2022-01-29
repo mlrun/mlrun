@@ -283,7 +283,7 @@ def load_func_code(command="", workdir=None, secrets=None, name="name"):
                 raise OSError(f"command file {command} not found")
 
         else:
-            logger.warn("run command, file or code was not specified")
+            logger.warn("run command, file or code were not specified")
 
     elif command == "":
         pass

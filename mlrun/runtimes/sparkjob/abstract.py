@@ -188,7 +188,7 @@ class AbstractSparkRuntime(KubejobRuntime):
     plural = "sparkapplications"
     default_mlrun_image = ".spark-job-default-image"
     gpu_suffix = "-cuda"
-    code_script = "code.py"
+    code_script = "spark-function-code.py"
     code_path = "/etc/config/mlrun"
 
     @classmethod

@@ -475,7 +475,7 @@ class AbstractSparkRuntime(KubejobRuntime):
             k8s_secret.metadata = client.V1ObjectMeta(
                 name=self.metadata.name, namespace=namespace
             )
-            k8s_secret.data = {self.code_script: code}
+            k8s_secret.string_data = {self.code_script: code}
             secret_resp = k8s.v1api.create_namespaced_secret(namespace,k8s_secret)
             secret_name = get_in(secret_resp, "metadata.name", "unknown")
             from kubernetes import client as k8s_client

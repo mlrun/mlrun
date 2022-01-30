@@ -478,18 +478,24 @@ with ctx:
                 name=k8s_secret_name, namespace=namespace
             )
             k8s_secret.string_data = {self.code_script: code}
-            secret = k8s.v1api.create_namespaced_secret(namespace,k8s_secret)
+            secret = k8s.v1api.create_namespaced_secret(namespace, k8s_secret)
             secret_name = secret.metadata.name
             from kubernetes import client as k8s_client
 
             vol_src = client.V1SecretVolumeSource(secret_name=secret_name)
             volume_name = "script"
             vol = client.V1Volume(name=volume_name, secret=vol_src)
-            vol_mount = k8s_client.V1VolumeMount(mount_path=self.code_path, name=volume_name)
+            vol_mount = k8s_client.V1VolumeMount(
+                mount_path=self.code_path, name=volume_name
+            )
             update_in(job, "spec.volumes", [vol], append=True)
             update_in(job, "spec.driver.volumeMounts", [vol_mount], append=True)
             update_in(job, "spec.executor.volumeMounts", [vol_mount], append=True)
-            update_in(job, "spec.mainApplicationFile", f"local://{self.code_path}/{self.code_script}")
+            update_in(
+                job,
+                "spec.mainApplicationFile",
+                f"local://{self.code_path}/{self.code_script}",
+            )
 
         try:
             resp = k8s.crdapi.create_namespaced_custom_object(

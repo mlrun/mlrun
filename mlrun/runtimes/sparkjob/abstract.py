@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import typing
+import uuid
 from copy import deepcopy
 from datetime import datetime
 from typing import Dict, Optional, Tuple
@@ -471,13 +472,14 @@ class AbstractSparkRuntime(KubejobRuntime):
         k8s = self._get_k8s()
         namespace = k8s.resolve_namespace(namespace)
         if code:
+            k8s_secret_name = f"{self.metadata.name}-{uuid.uuid4()}"
             k8s_secret = client.V1Secret(type="Opaque")
             k8s_secret.metadata = client.V1ObjectMeta(
-                name=self.metadata.name, namespace=namespace
+                name=k8s_secret_name, namespace=namespace
             )
             k8s_secret.string_data = {self.code_script: code}
-            secret_resp = k8s.v1api.create_namespaced_secret(namespace,k8s_secret)
-            secret_name = get_in(secret_resp, "metadata.name", "unknown")
+            secret = k8s.v1api.create_namespaced_secret(namespace,k8s_secret)
+            secret_name = secret.metadata.name
             from kubernetes import client as k8s_client
 
             vol_src = client.V1SecretVolumeSource(secret_name=secret_name)

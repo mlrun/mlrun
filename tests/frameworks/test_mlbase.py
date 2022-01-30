@@ -35,9 +35,7 @@ def run_mlbase_sklearn_classification(context):
     with context:
         model = LogisticRegression()
         X_train, X_test, y_train, y_test = get_dataset()
-        apply_mlrun(
-            model=model, context=context, x_test=X_test, y_test=y_test
-        )
+        apply_mlrun(model=model, context=context, x_test=X_test, y_test=y_test)
         model.fit(X_train, y_train)
 
 
@@ -79,9 +77,7 @@ def run_mlbase_lgbm_classification(context):
     with context:
         model = lgb.LGBMClassifier()
         X_train, X_test, y_train, y_test = get_dataset()
-        apply_mlrun(
-            model=model, context=context, x_test=X_test, y_test=y_test
-        )
+        apply_mlrun(model=model, context=context, x_test=X_test, y_test=y_test)
         model.fit(X_train, y_train)
 
 

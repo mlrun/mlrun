@@ -364,11 +364,11 @@ class AbstractSparkRuntime(KubejobRuntime):
         code = None
         if command == "mlrun":
             code = f"""
-            import mlrun.__main__ as ml
-            ctx = ml.main.make_context('main', {args})
-            with ctx:
-                result = ml.main.invoke(ctx)
-            """
+import mlrun.__main__ as ml
+ctx = ml.main.make_context('main', {args})
+with ctx:
+    result = ml.main.invoke(ctx)
+"""
 
         update_in(job, "spec.driver.env", extra_env + self.spec.env)
         update_in(job, "spec.executor.env", extra_env + self.spec.env)

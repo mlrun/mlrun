@@ -486,10 +486,10 @@ class AbstractSparkRuntime(KubejobRuntime):
             volume_name = "script"
             vol = client.V1Volume(name=volume_name, secret=vol_src)
             vol_mount = k8s_client.V1VolumeMount(mount_path=self.code_path, name=volume_name)
-            job.spec.volumes += [vol]
-            job.spec.driver.volumeMounts += [vol_mount]
-            job.spec.executor.volumeMounts += [vol_mount]
-            job.spec.command = f"{self.code_path}/{self.code_script}"
+            update_in(job, "spec.volumes", [vol], append=True)
+            update_in(job, "spec.driver.volumeMounts", [vol_mount], append=True)
+            update_in(job, "spec.executor.volumeMounts", [vol_mount], append=True)
+            update_in(job, "spec.mainApplicationFile", f"local://{self.code_path}/{self.code_script}")
 
         try:
             resp = k8s.crdapi.create_namespaced_custom_object(

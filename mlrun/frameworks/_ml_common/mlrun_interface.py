@@ -157,13 +157,13 @@ class MLMLRunInterface(MLRunInterface, ABC):
         Initialize the MLRun logger for this model using the provided context and artifacts plans, metrics and model
         logging attributes.
 
-        :param context:         A MLRun context to log to. By default, uses `mlrun.get_or_create_ctx`
-        :param plans:           A list of plans to produce.
-        :param metrics:         A list of metrics to calculate.
-        :param x_test:          The testing data for producing and calculating artifacts and metrics post training or
-                                post prediction. Without this, training validation will not be performed.
-        :param y_test:          The test data for producing and calculating artifacts and metrics post training (calling
-                                'fit') or post testing (calling 'predict' / 'predict_proba').
+        :param context: A MLRun context to log to. By default, uses `mlrun.get_or_create_ctx`
+        :param plans:   A list of plans to produce.
+        :param metrics: A list of metrics to calculate.
+        :param x_test:  The testing data for producing and calculating artifacts and metrics post training or post
+                        prediction. Without this, training validation will not be performed.
+        :param y_test:  The test data for producing and calculating artifacts and metrics post training (calling 'fit')
+                        or post testing (calling 'predict' / 'predict_proba').
         """
         # Update the MLRun logger:
         if context is None and self._logger.context is None:
@@ -195,7 +195,7 @@ class MLMLRunInterface(MLRunInterface, ABC):
         :param x: The input dataset to the fit method ('x_train').
         :param y: The input dataset to the fit method ('y_train').
         """
-        self._logger.log_stage(stage=MLPlanStages.PRE_FIT, x=x, y=y)
+        self._logger.log_stage(stage=MLPlanStages.PRE_FIT, model=self, x=x, y=y)
 
     def _post_fit(self, x: DatasetType, y: DatasetType = None):
         """
@@ -206,12 +206,15 @@ class MLMLRunInterface(MLRunInterface, ABC):
         :param y: The input dataset to the fit method ('y_train').
         """
         # The model is done training, log all artifacts post fit:
-        self._logger.log_stage(stage=MLPlanStages.POST_FIT, x=x, y=y)
+        self._logger.log_stage(stage=MLPlanStages.POST_FIT, model=self, x=x, y=y)
 
         # If there is a validation set, run validation:
         if self._x_test is not None:
             self._logger.log_stage(
-                stage=MLPlanStages.PRE_PREDICT, x=self._x_test, y=self._y_test,
+                stage=MLPlanStages.PRE_PREDICT,
+                model=self,
+                x=self._x_test,
+                y=self._y_test,
             )
             y_pred = self.predict(self._x_test)
             self._post_predict(
@@ -241,7 +244,7 @@ class MLMLRunInterface(MLRunInterface, ABC):
         self._logger.set_mode(mode=LoggerMode.TESTING)
 
         # Produce and log all the artifacts pre prediction:
-        self._logger.log_stage(stage=MLPlanStages.PRE_PREDICT, x=x, y=y)
+        self._logger.log_stage(stage=MLPlanStages.PRE_PREDICT, model=self, x=x, y=y)
 
     def _post_predict(
         self,
@@ -262,6 +265,7 @@ class MLMLRunInterface(MLRunInterface, ABC):
         # Produce and log all the artifacts post prediction:
         self._logger.log_stage(
             stage=MLPlanStages.POST_PREDICT,
+            model=self,
             x=x,
             y=y,
             y_pred=y_pred,
@@ -279,6 +283,7 @@ class MLMLRunInterface(MLRunInterface, ABC):
             self._logger.log_stage(
                 stage=MLPlanStages.POST_PREDICT,
                 is_probabilities=True,
+                model=self,
                 x=x,
                 y=y,
                 y_pred=y_pred_proba,

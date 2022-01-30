@@ -1,69 +1,83 @@
+from typing import Dict
+
 import pandas as pd
 import plotly.graph_objects as go
 
-from mlrun.artifacts import Artifact
+import mlrun
+from mlrun.artifacts import Artifact, PlotlyArtifact
 
-from ..plan import MLPlotPlan
+from ..._common import ModelType
+from ..plan import MLPlanStages, MLPlotPlan
+from ..utils import DatasetType
 
 
-class FeatureImportance(MLPlotPlan):
+class FeatureImportancePlan(MLPlotPlan):
     """
-    Plot Feature Importances within a dataset.
+    Plan for producing a feature importance.
     """
 
     _ARTIFACT_NAME = "feature_importance"
 
-    def __init__(
-        self, model=None, X_train=None,
-    ):
+    def __init__(self):
         """
-        :param model: any model pre-fit or post-fit.
-        :param X_train: train dataset.
-        """
+        Initialize a feature importance plan.
 
-        super(FeatureImportance, self).__init__(model=model, X_train=X_train)
+        An example of use can be seen at the Scikit-Learn docs here:
+        https://scikit-learn.org/stable/auto_examples/ensemble/plot_forest_importances.html
+        """
+        super(FeatureImportancePlan, self).__init__()
 
     def is_ready(self, stage: MLPlanStages, is_probabilities: bool) -> bool:
         """
         Check whether or not the plan is fit for production by the given stage and prediction probabilities. The
-        confusion matrix is ready only post prediction.
+        feature importance is ready post training.
+
         :param stage:            The stage to check if the plan is ready.
         :param is_probabilities: True if the 'y_pred' that will be sent to 'produce' is a prediction of probabilities
                                  (from 'predict_proba') and False if not.
+
         :return: True if the plan is producible and False otherwise.
         """
-        return stage == MLPlanStages.PRE_FIT and not is_probabilities
+        return stage == MLPlanStages.POST_FIT
 
-    def produce(self, model, X_train, **kwargs) -> Dict[str, PlotlyArtifact]:
+    def produce(
+        self, model: ModelType, x: DatasetType, **kwargs
+    ) -> Dict[str, Artifact]:
         """
-        Produce the artifact according to this plan.
-        :return: The produced artifact.
+        Produce the feature importance according to the given model and dataset ('x').
+
+        :param model:  Model to get its 'feature_importances_' or 'coef_[0]' fields.
+        :param x:      Input dataset the model trained on for the column labels.
+
+        :return: The produced feature importance artifact in an artifacts dictionary.
         """
-        validate_numerical(X_train)
-        if hasattr(model, "feature_importances_") or hasattr(model, "coef_"):
-
-            # Tree-based feature importance
-            if hasattr(model, "feature_importances_"):
-                importance_score = model.feature_importances_
-
-            else:
-                # Coefficient-based importance
-                importance_score = model.coef_[0]
-
-            df = pd.DataFrame(
-                {"features": X_train.columns, "feature_importance": importance_score,}
-            ).sort_values(by="feature_importance", ascending=False)
-
-            fig = go.Figure(
-                [go.Bar(x=df["feature_importance"], y=df["features"], orientation="h")]
-            )
-
-            # Creating an html rendering of the plot
-            self._artifacts[self._ARTIFACT_NAME] = PlotlyArtifact(
-                figure=fig, key=self._ARTIFACT_NAME
-            )
-            return self._artifacts
-        else:
+        # Validate the 'feature_importances_' or 'coef_' fields are available for the given model:
+        if not (hasattr(model, "feature_importances_") or hasattr(model, "coef_")):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "This model cannot be used for Feature Importance plotting."
             )
+
+        # Get the importance score:
+        if hasattr(model, "feature_importances_"):
+            # Tree-based feature importance
+            importance_score = model.feature_importances_
+        else:
+            # Coefficient-based importance
+            importance_score = model.coef_[0]
+
+        # Create a table of features and their importance:
+        df = pd.DataFrame(
+            {"features": x.columns, "feature_importance": importance_score,}
+        ).sort_values(by="feature_importance", ascending=False)
+
+        # Create the figure:
+        fig = go.Figure(
+            [go.Bar(x=df["feature_importance"], y=df["features"], orientation="h")]
+        )
+
+        # Creating the artifact:
+        self._artifacts[self._ARTIFACT_NAME] = PlotlyArtifact(
+            figure=fig, key=self._ARTIFACT_NAME
+        )
+
+        return self._artifacts

@@ -6,7 +6,7 @@ import sys
 import zipfile
 from abc import ABC, abstractmethod
 from types import MethodType
-from typing import Any, Callable, Dict, Generic, List, Type, Union
+from typing import Any, Dict, Generic, List, Type, Union
 
 import numpy as np
 

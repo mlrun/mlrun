@@ -1,89 +1,119 @@
-from abc import abstractmethod
+from typing import Dict, List, Union
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from IPython.core.display import HTML, display
 from sklearn.metrics import roc_auc_score, roc_curve
 
+from mlrun.artifacts import Artifact, PlotlyArtifact
 
-class ROCCurves(MLPlotPlan):
+from ..._common import ModelType
+from ..plan import MLPlanStages, MLPlotPlan
+from ..utils import DatasetType, to_dataframe
+
+
+class ROCCurvePlan(MLPlotPlan):
     """
-    Plot Receiver operating characteristic (ROC). Shows in a graphical way the connection/trade-off between clinical
-    sensitivity and specificity for every possible cut-off for a test or a combination of tests.
+    Plan for producing a receiver operating characteristic (ROC) - a plot that shows the connection / trade-off between
+    clinical sensitivity and specificity for every possible cut-off for a test or a combination of tests.
     """
 
     _ARTIFACT_NAME = "roc_curves"
 
     def __init__(
         self,
-        model=None,
-        X_test=None,
-        y_test=None,
-        pos_label=None,
-        sample_weight=None,
+        pos_label: Union[str, int] = None,
+        sample_weight: np.ndarray = None,
         drop_intermediate: bool = True,
         average: str = "macro",
-        max_fpr=None,
+        max_fpr: float = None,
         multi_class: str = "raise",
-        labels=None,
+        labels: List[str] = None,
     ):
         """
+        Initialize a receiver operating characteristic plan with the given configuration.
 
-        :param model: a fitted model
-        :param X_test: train dataset used to verified a fitted model.
-        :param y_test: target dataset.
-        :param pos_label: The label of the positive class. When pos_label=None, if y_true is in {-1, 1} or {0, 1}, pos_label is set to 1, otherwise an error will be raised.
-        :param sample_weight: Sample weights.
-        :param drop_intermediate: Whether to drop some suboptimal thresholds which would not appear on a plotted ROC curve.
-        :param average: If None, the scores for each class are returned. Otherwise, this determines the type of averaging performed on the data
-        :param max_fpr: If not None, the standardized partial AUC [2] over the range [0, max_fpr] is returned.
-        :param multi_class: Only used for multiclass targets. Determines the type of configuration to use.
-        :param labels: Only used for multiclass targets. List of labels that index the classes in y_score
+        To read more about the parameters, head to the SciKit-Learn docs at:
+
+        * https://scikit-learn.org/stable/modules/generated/sklearn.metrics.roc_curve.html
+        * https://scikit-learn.org/stable/modules/generated/sklearn.metrics.roc_auc_score.html
+
+        :param pos_label:         The label of the positive class. When None, if 'y_true' (y) is in {-1, 1} or {0, 1},
+                                  'pos_label' is set to 1, otherwise an error will be raised. Defaulted to None.
+        :param sample_weight:     Sample weights to apply.
+        :param drop_intermediate: Whether to drop some suboptimal thresholds which would not appear on a plotted ROC
+                                  curve. Defaulted to True.
+        :param average:           Determines the type of averaging performed on the data. If None, the scores for each
+                                  class are returned. Defaulted to "macro".
+        :param max_fpr:           For multiclass it should be equal to 1 or None. If not None, the standardized partial
+                                  AUC [2] over the range [0, max_fpr] is returned. Defaulted to None.
+        :param multi_class:       Only used for multiclass targets. Determines the type of configuration to use. Can be
+                                  one of {'raise', 'ovr', 'ovo'}. Defaulted to "raise".
+        :param labels:            Only used for multiclass targets. List of labels that index the classes in 'y_pred'.
+                                  If None, the labels found in 'y_true' (y) will be used. Defaulted to None.
         """
-
+        # Store the parameters:
         self._pos_label = pos_label
-        self.sample_weight = sample_weight
-        self.drop_intermediate = drop_intermediate
-        self.average = average
-        self.max_fpr = max_fpr
-        self.multi_class = multi_class
-        self.labels = labels
+        self._sample_weight = sample_weight
+        self._drop_intermediate = drop_intermediate
+        self._average = average
+        self._max_fpr = max_fpr
+        self._multi_class = multi_class
+        self._labels = labels
 
-        super(ROCCurves, self).__init__(model=model, X_test=X_test, y_test=y_test)
+        # Continue the initialization for the MLPlan:
+        super(ROCCurvePlan, self).__init__(need_probabilities=True)
 
     def is_ready(self, stage: MLPlanStages, is_probabilities: bool) -> bool:
         """
         Check whether or not the plan is fit for production by the given stage and prediction probabilities. The
-        confusion matrix is ready only post prediction.
+        roc curve is ready only post prediction probabilities.
+
         :param stage:            The stage to check if the plan is ready.
         :param is_probabilities: True if the 'y_pred' that will be sent to 'produce' is a prediction of probabilities
                                  (from 'predict_proba') and False if not.
+
         :return: True if the plan is producible and False otherwise.
         """
-        return stage == MLPlanStages.POST_FIT and not is_probabilities
+        return stage == MLPlanStages.POST_FIT and is_probabilities
 
     def produce(
-        self, model, X_test, y_test, y_prob, **kwargs
-    ) -> Dict[str, PlotlyArtifact]:
+        self,
+        y: DatasetType,
+        y_pred: DatasetType = None,
+        model: ModelType = None,
+        x: DatasetType = None,
+        **kwargs,
+    ) -> Dict[str, Artifact]:
         """
-        Produce the artifact according to this plan.
-        :return: The produced artifact.
+        Produce the roc curve according to the ground truth (y) and predictions (y_pred) values. If predictions are not
+        available, the model and a dataset can be given to produce them.
+
+        :param y:      The ground truth values.
+        :param y_pred: The predictions values.
+        :param model:  Model to produce the predictions.
+        :param x:      Input dataset to produce the predictions.
+
+        :return: The produced roc curve artifact in an artifacts dictionary.
         """
-        validate_numerical(X_test)
-        validate_numerical(y_test)
+        # Calculate the predictions if needed:
+        y_pred = self._calculate_predictions(y_pred=y_pred, model=model, x=x)
+
+        # Convert to DataFrame:
+        y = to_dataframe(dataset=y)
+        y_pred = to_dataframe(dataset=y_pred)
 
         # One hot encode the labels in order to plot them
-        y_onehot = pd.get_dummies(y_test, columns=y_test.columns.to_list())
+        y_one_hot = pd.get_dummies(y, columns=y.columns.to_list())
 
-        # Create an empty figure, and iteratively add new lines
-        # every time we compute a new class
+        # Create an empty figure:
         fig = go.Figure()
         fig.add_shape(type="line", line={"dash": "dash"}, x0=0, x1=1, y0=0, y1=1)
 
-        for i in range(y_prob.shape[1]):
-            y_true = y_onehot.iloc[:, i]
-            y_score = y_prob[:, i]
-
+        # Iteratively add new lines every time we compute a new class
+        for i in range(y_pred.shape[1]):
+            y_true = y_one_hot.iloc[:, i]
+            y_score = y_pred[:, i]
             fpr, tpr, _ = roc_curve(
                 y_true,
                 y_score,
@@ -91,7 +121,6 @@ class ROCCurves(MLPlotPlan):
                 sample_weight=self._sample_weight,
                 drop_intermediate=self._drop_intermediate,
             )
-
             auc_score = roc_auc_score(
                 y_true,
                 y_score,
@@ -101,10 +130,10 @@ class ROCCurves(MLPlotPlan):
                 multi_class=self._multi_class,
                 labels=self._labels,
             )
-
-            name = f"{y_onehot.columns[i]} (AUC={auc_score:.2f})"
+            name = f"{y_one_hot.columns[i]} (AUC={auc_score:.2f})"
             fig.add_trace(go.Scatter(x=fpr, y=tpr, name=name, mode="lines"))
 
+        # Configure the layout:
         fig.update_layout(
             xaxis_title="False Positive Rate",
             yaxis_title="True Positive Rate",
@@ -114,8 +143,9 @@ class ROCCurves(MLPlotPlan):
             height=500,
         )
 
-        # Creating an html rendering of the plot
+        # Creating the plot artifact:
         self._artifacts[self._ARTIFACT_NAME] = PlotlyArtifact(
             figure=fig, key=self._ARTIFACT_NAME
         )
+
         return self._artifacts

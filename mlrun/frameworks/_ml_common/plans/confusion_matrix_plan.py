@@ -25,8 +25,10 @@ class ConfusionMatrixPlan(MLPlotPlan):
         normalize: str = None,
     ):
         """
-        Initialize a confusion matrix plan with the given configuration. To read further more about the attributes, go
-        to: https://scikit-learn.org/stable/modules/generated/sklearn.metrics.confusion_matrix.html
+        Initialize a confusion matrix plan with the given configuration.
+
+        To read more about the parameters, head to the SciKit-Learn docs at:
+        https://scikit-learn.org/stable/modules/generated/sklearn.metrics.confusion_matrix.html
 
         :param labels:        List of labels to index the matrix.
         :param sample_weight: Sample weights to apply.

@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Dict, List, Union
 
 import numpy as np
@@ -16,7 +17,7 @@ class DatasetPlan(MLPlan):
     to the provided dataset split purpose: train, validation and test.
     """
 
-    class Purposes:
+    class Purposes(Enum):
         """
         All of the dataset split purposes.
         """
@@ -25,19 +26,6 @@ class DatasetPlan(MLPlan):
         TRAIN = "train"
         VALIDATION = "validation"
         TEST = "test"
-
-        @staticmethod
-        def get_all_purposes() -> List[str]:
-            """
-            Get all the purposes found in this class.
-
-            :return: A list of all the purposes.
-            """
-            return [
-                getattr(DatasetPlan.Purposes, purpose)
-                for purpose in dir(DatasetPlan.Purposes)
-                if not purpose.startswith("_")
-            ]
 
     # Default name dictionary to map a purpose to a default dataset artifact name:
     _DEFAULT_NAMES = {
@@ -49,7 +37,7 @@ class DatasetPlan(MLPlan):
 
     def __init__(
         self,
-        purpose: str = Purposes.OTHER,
+        purpose: Union[Purposes, str] = Purposes.OTHER,
         name: str = None,
         preview: int = None,
         stats: bool = False,
@@ -59,10 +47,11 @@ class DatasetPlan(MLPlan):
         Initialize a new dataset plan.
 
         :param purpose: The purpose of this dataset, can be one of DatasetPlan.Purposes:
-                        * "other" will look for 'x', 'y' parameters in kwargs of produce.
-                        * "train" will look for 'x_train', 'y_train' parameters in kwargs of produce.
-                        * "validation" will look for 'x_validation', 'y_validation' parameters in kwargs of produce.
-                        * "test" will look for 'x_test', 'y_test' parameters in kwargs of produce.
+                        * "other" will manually log the given dataset.
+                        * "train" will log the training set (the one who sent to 'fit').
+                        * "validation" will log the validation set (the one who set in 'apply_mlrun' as 'x_test' and
+                          'y_test'.
+                        * "test" will log the test set (the one who sent to 'predict').
         :param name:    The name to store the dataset as. Will be defaulted according to the purpose to be "dataset"
                         for "any", "train_set" for "train" and "test_set" for "test".
         :param preview: Number of lines to store as preview in the artifact metadata.
@@ -72,13 +61,6 @@ class DatasetPlan(MLPlan):
 
         :raise MLRunInvalidArgumentError: If either one of the arguments is invalid.
         """
-        # Validate purpose:
-        if purpose not in self.Purposes.get_all_purposes():
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"The given dataset purpose: '{purpose}' is not recognized. Supporting only the following: "
-                f"{', '.join(self.Purposes.get_all_purposes())}"
-            )
-
         # Validate format:
         if fmt is not None and fmt not in DatasetArtifact.SUPPORTED_FORMATS:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -87,8 +69,12 @@ class DatasetPlan(MLPlan):
             )
 
         # Store the configurations:
-        self._purpose = purpose
-        self._name = name if name is not None else self._DEFAULT_NAMES[purpose]
+        self._purpose = (
+            self.Purposes(purpose)
+            if not isinstance(purpose, self.Purposes)
+            else purpose
+        )
+        self._name = name if name is not None else self._DEFAULT_NAMES[self._purpose]
         self._preview = preview
         self._stats = stats
         self._fmt = fmt
@@ -109,6 +95,18 @@ class DatasetPlan(MLPlan):
 
         :return: True if the plan is producible and False otherwise.
         """
+        # For training set:
+        if self._purpose == self.Purposes.TRAIN:
+            return stage == MLPlanStages.PRE_FIT
+
+        # For validation and test sets:
+        if (
+            self._purpose == self.Purposes.VALIDATION
+            or self._purpose == self.Purposes.TEST
+        ):
+            return stage == MLPlanStages.PRE_PREDICT
+
+        # For other:
         return True
 
     def produce(
@@ -144,7 +142,7 @@ class DatasetPlan(MLPlan):
 
         # Add the purpose as a label:
         if self._purpose != self.Purposes.OTHER:
-            dataset_artifact.labels["Purpose"] = self._purpose
+            dataset_artifact.labels["Purpose"] = self._purpose.value
 
         # TODO: Add the y columns as an additional artifact (save as a json for example)
 

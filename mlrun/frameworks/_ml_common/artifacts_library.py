@@ -3,9 +3,12 @@ from typing import List
 
 from .._common import ModelType
 from .._common.artifacts_library import ArtifactsLibrary, Plan
-from .plans import (  # FeatureImportancePlan,; LearningCurvesPlan,; ROCCurvePlan,
+from .plans import (
+    CalibrationCurvePlan,
     ConfusionMatrixPlan,
     DatasetPlan,
+    FeatureImportancePlan,
+    ROCCurvePlan,
 )
 from .utils import AlgorithmFunctionality, DatasetType
 
@@ -51,20 +54,18 @@ class MLArtifactsLibrary(ArtifactsLibrary, ABC):
 
         # Add classification plans:
         if algorithm_functionality.is_classification():
-            # Add binary classification plans:
-            if algorithm_functionality.is_binary_classification():
+            if algorithm_functionality.is_single_output():
                 plans += [
-                    # FeatureImportancePlan(),
+                    FeatureImportancePlan(),
                     ConfusionMatrixPlan(),
-                    # ROCCurvePlan(),
-                    # LearningCurvesPlan(),
-                    # CalibrationCurvePlan(),
+                    ROCCurvePlan(),
                 ]
+            if algorithm_functionality.is_binary_classification():
+                plans += [CalibrationCurvePlan()]
 
         # Add regression plans:
         if algorithm_functionality.is_regression():
-            # Add single output regression plans:
             if algorithm_functionality.is_single_output():
-                # plans += [FeatureImportancePlan()]
-                pass
+                plans += [FeatureImportancePlan()]
+
         return plans

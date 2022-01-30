@@ -73,10 +73,15 @@ class MetricsLibrary(ABC):
 
         :return: The default metrics list.
         """
+        # Discover the algorithm functionality of the provided model:
         algorithm_functionality = AlgorithmFunctionality.get_algorithm_functionality(
             model=model, y=y
         )
+
+        # Initialize the metrics list:
         metrics = []  # type: List[Metric]
+
+        # Add classification metrics:
         if algorithm_functionality.is_classification():
             metrics += [Metric(metric=sklearn.metrics.accuracy_score)]
             if algorithm_functionality.is_binary_classification():
@@ -115,8 +120,9 @@ class MetricsLibrary(ABC):
                         additional_arguments={"average": "macro"},
                     ),
                 ]
+
+        # Add regression metrics:
         if algorithm_functionality.is_regression():
-            # if algorithm_functionality.is_single_output():
             metrics += [
                 Metric(metric=sklearn.metrics.r2_score),
                 Metric(metric=sklearn.metrics.mean_absolute_error),
@@ -126,6 +132,7 @@ class MetricsLibrary(ABC):
                 ),
                 Metric(metric=sklearn.metrics.mean_absolute_error),
             ]
+
         return metrics
 
     @staticmethod

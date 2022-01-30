@@ -457,7 +457,7 @@ def deploy_op(
 
     if models:
         for m in models:
-            for key in ["model_path", "model_url", "class_name"]:
+            for key in ["key", "model_path", "model_url", "class_name", "model_url"]:
                 if key in m:
                     m[key] = str(m[key])  # verify we stringify pipeline params
             if function.kind == mlrun.runtimes.RuntimeKinds.serving:

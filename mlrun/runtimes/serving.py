@@ -300,13 +300,13 @@ class ServingRuntime(RemoteRuntime):
 
     def add_model(
         self,
-        key,
-        model_path=None,
-        class_name=None,
-        model_url=None,
-        handler=None,
-        router_step=None,
-        child_function=None,
+        key: str,
+        model_path: str = None,
+        class_name: str = None,
+        model_url: str = None,
+        handler: str = None,
+        router_step: str = None,
+        child_function: str = None,
         **class_args,
     ):
         """add ml model and/or route to the function.

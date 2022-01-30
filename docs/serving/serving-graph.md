@@ -28,15 +28,17 @@ and includes dynamic auto-scaling for HTTP and streaming. Nuclio and MLRun suppo
 generation of micro-services, APIs, load-balancing, logging, monitoring, and configuration management&mdash;such that 
 developers can focus on code, and deploy to production faster with minimal work.
 
+**These sections provide full details to get you started with serving graphs, including examples:**
+
 ```{toctree}
 :maxdepth: 2
   
 getting-started
 use-cases
 realtime-pipelines
+build-graph-model-serving
 writing-custom-steps
 available-steps
-build-graph-model-serving
 <!-- best-practice -->
 demos
 graph-ha-cfg

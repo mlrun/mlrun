@@ -64,14 +64,9 @@ Table Of Contents
    runtimes/functions
    runtimes/distributed
    projects/overview
-   secrets
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Online Pipelines & Serving:
-
-   serving/index
+   serving/serving-graph
    model_monitoring/index
+   secrets
 
 .. toctree::
    :maxdepth: 1

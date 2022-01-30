@@ -38,10 +38,12 @@ Click on the step names in the following sections to see the full usage.
 | Class name            | Description                           |  
 |----------------------------|--------------------------------------------------------------|   
 | [storey.AggregateByKey](https://storey.readthedocs.io/en/latest/api.html#storey.aggregations.AggregateByKey) | Aggregates the data into the table object provided for later persistence, and outputs an event enriched with the requested aggregation features. |
-| [DateExtractor](../api/mlrun.feature_store.md#mlrun.feature_store.steps.DateExtractor)  |              |
+| [DateExtractor](../api/mlrun.feature_store.md#mlrun.feature_store.steps.DateExtractor)  | Extract a date-time component |
 | [mlrun.feature_store.Imputer](../api/mlrun.feature_store.md#mlrun.feature_store.steps.Imputer) | Replace None values with default values.   |
 | [mlrun.feature_store.MapValues](../api/mlrun.feature_store.md#mlrun.feature_store.steps.MapValues) | Map column values to new values.   |
 | [mlrun.feature_store.OneHotEncoder](../api/mlrun.feature_store.md#mlrun.feature_store.steps.OneHotEncoder) | Create new binary fields, one per category (one hot encoded).  | 
+| [mlrun.feature_store.SetEventMetadata](../api/mlrun.feature_store.md#mlrun.feature_store.steps.SetEventMetadata) | Set the event metadata (id, key, timestamp) from the event body |
+
 
 ## External IO and data enrichment
 | Class name                                       | Description                                   |   

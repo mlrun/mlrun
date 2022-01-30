@@ -3,14 +3,19 @@
 <!-- ## Data preparation, ## Model serving -->
 
 This section presents:
-* [Feature store](#feature-store)
+* [Data and feature engineering](#Data-and-feature-engineering-using-the-feature-store)
 * [Example of Simple model serving router](#example-of-a-simple-model-serving-router)
 * [Example of Advanced data processing and serving ensemble](#example-of-advanced-data-processing-and-serving-ensemble)
 * [Example of NLP processing pipeline with real-time streaming](#example-of-nlp-processing-pipeline-with-real-time-streaming)
 
-In addition to these built-in examples, see the [demos repository](https://github.com/mlrun/demos) for additional use cases and full end-to-end examples, including Fraud Prevention using the Iguazio Feature Store, a Mask Detection Demo, and How to converting existing ML code to an MLRun project.
+In addition to the examples in this section, see the:
+- [Distributed (multi-function) pipeline example](./distributed-graph.ipynb) that details how to run a pipeline that consists of multiple serverless functions (connected using streams).
+- [Advanced Model Serving Graph Notebook Example](./graph-example.ipynb) that illustrates the flow, task, model, and ensemble router states; building tasks from custom handlers; classes and storey components; using custom error handlers; testing graphs locally; deploying a graph as a real-time serverless function.
+- [MLRun demos repository](https://github.com/mlrun/demos) for additional use cases and full end-to-end examples, including fraud prevention using the Iguazio feature store, a mask detection demo, and converting existing ML code to an MLRun project.
 
-## Feature store
+## Data and feature engineering (using the feature store)
+
+You can build a feature set transformation using serving graphs.
 
 High-level transformation logic is automatically converted to real-time serverless processing engines that can read 
 from any online or offline source, handle any type of structures or unstructured data, run complex computation graphs 
@@ -18,7 +23,11 @@ and native user code. Iguazio’s solution uses a unique multi-model database, s
 through many different APIs and formats (like files, SQL queries, pandas, real-time REST APIs, time-series, streaming), 
 resulting in better accuracy and simpler integration.
 
+Read more in the [Feature Store Overview](../feature-store/feature-store.md), and [Feature set transformations](../feature-store/transformations.md).
+
 ## Example of a simple model serving router
+
+Graphs are used for serving models with different transformations.
 
 To deploy a serving function you need to import or create the serving function, 
 add models to it, and then deploy it.  
@@ -136,7 +145,7 @@ And deploy the graph as a real-time Nuclio serverless function with one command:
 If you test a Nuclio function that has a serving graph with the async engine via the Nuclio UI, the UI might not display the logs in the output.
 ```
 
-## Example of NLP processing pipeline with real-time streaming 
+## Example of an NLP processing pipeline with real-time streaming 
 
 In some cases it's useful to split your processing to multiple functions and use 
 streaming protocols to connect those functions. In this example the data 

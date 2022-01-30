@@ -181,6 +181,8 @@ def env_from_file(env_file, to_dict=False, set_env=True):
             environ[key] = value  # Load to local environ
             if key == "MLRUN_DBPATH":
                 mlconf.dbpath = value
+            if key == "V3IO_API":
+                mlconf.v3io_api = value
         env_vars[key] = value
     return env_vars if to_dict else None
 

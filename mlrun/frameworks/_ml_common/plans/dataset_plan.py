@@ -137,7 +137,6 @@ class DatasetPlan(MLPlan):
             preview=self._preview,
             format=self._fmt,
             stats=self._stats,
-            **kwargs,
         )
 
         # Add the purpose as a label:

@@ -31,11 +31,12 @@ def get_dataset(classification=True):
 
 def run_mlbase_sklearn_classification(context):
     from mlrun.frameworks.sklearn import apply_mlrun
+
     with context:
         model = LogisticRegression()
         X_train, X_test, y_train, y_test = get_dataset()
         apply_mlrun(
-            model=model, context=context, x_validation=X_test, y_validation=y_test
+            model=model, context=context, x_test=X_test, y_test=y_test
         )
         model.fit(X_train, y_train)
 
@@ -46,11 +47,12 @@ def run_mlbase_xgboost_regression(context: mlrun.MLClientCtx):
     import xgboost as xgb
 
     from mlrun.frameworks.xgboost import apply_mlrun
+
     with context:
         model = xgb.XGBRegressor()
         X_train, X_test, y_train, y_test = get_dataset(classification=False)
         model_handler = apply_mlrun(
-            model=model, context=context, x_validation=X_test, y_validation=y_test
+            model=model, context=context, x_test=X_test, y_test=y_test
         )
         model.fit(X_train, y_train)
 
@@ -73,11 +75,12 @@ def run_mlbase_lgbm_classification(context):
     import lightgbm as lgb
 
     from mlrun.frameworks.lgbm import apply_mlrun
+
     with context:
         model = lgb.LGBMClassifier()
         X_train, X_test, y_train, y_test = get_dataset()
         apply_mlrun(
-            model=model, context=context, x_validation=X_test, y_validation=y_test
+            model=model, context=context, x_test=X_test, y_test=y_test
         )
         model.fit(X_train, y_train)
 
@@ -86,7 +89,9 @@ def test_run_mlbase_sklearn_classification():
     sklearn_run = new_function().run(
         artifact_path="./temp", handler=run_mlbase_sklearn_classification
     )
-    assert (sklearn_run.artifact("model").meta.to_dict()["metrics"]["accuracy_score"]) > 0
+    assert (
+        sklearn_run.artifact("model").meta.to_dict()["metrics"]["accuracy_score"]
+    ) > 0
     assert (sklearn_run.artifact("model").meta.to_dict()["model_file"]) == "model.pkl"
 
 

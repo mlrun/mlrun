@@ -483,8 +483,9 @@ class AbstractSparkRuntime(KubejobRuntime):
             from kubernetes import client as k8s_client
 
             vol_src = client.V1SecretVolumeSource(secret_name=secret_name)
+            volume_name = "script"
             vol = client.V1Volume(name=volume_name, secret=vol_src)
-            vol_mount =  k8s_client.V1VolumeMount(mount_path=self.code_path, name=volume_name)
+            vol_mount = k8s_client.V1VolumeMount(mount_path=self.code_path, name=volume_name)
             job.spec.volumes += [vol]
             job.spec.driver.volumeMounts += [vol_mount]
             job.spec.executor.volumeMounts += [vol_mount]

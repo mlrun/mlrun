@@ -160,3 +160,49 @@ def get_sample_path(subpath=""):
     if subpath:
         samples_path = path.join(samples_path, subpath.lstrip("/"))
     return samples_path
+
+
+def env_from_file(env_file, to_dict=False, set_env=True):
+    """Read and set and/or return environment variables from a file
+    the env file should have lines in the form KEY=VALUE, comment line start with "#"
+
+    :param env_file: path/url to env file
+    :param to_dict:  set to True to return the env as a dict
+    :param set_env:  set to False to skip updating the current OS env
+    :return: None or env dict
+    """
+    env_vars = {}
+    body = get_dataitem(env_file).get(encoding="utf-8")
+    for line in body.splitlines():
+        if line.startswith("#") or not line.strip():
+            continue
+        key, value = line.strip().split("=", 1)
+        if set_env:
+            environ[key] = value  # Load to local environ
+            if key == "MLRUN_DBPATH":
+                mlconf.dbpath = value
+        env_vars[key] = value
+    return env_vars if to_dict else None
+
+
+def file_to_project_secrets(env_file, project=None, set_env=False, provider=None):
+    """set project secrets from env file and optionally set the local env
+    the env file should have lines in the form KEY=VALUE, comment line start with "#"
+    V3IO paths/credentials and MLrun service API address are dropped from the secrets
+
+    :param env_file:  path/url to env file
+    :param project:   project name or object
+    :param set_env:   set to True to also configure the local OS env
+    :param provider:  MLRun secrets provider
+    """
+    env_vars = env_from_file(env_file, to_dict=True, set_env=set_env)
+    # drop V3IO paths/credentials and MLrun service API address
+    env_vars = {
+        key: val
+        for key, val in env_vars.items()
+        if key != "MLRUN_DBPATH" and not key.startswith("V3IO_")
+    }
+    project_name = project if project and isinstance(project, str) else project.name
+    get_run_db().create_project_secrets(
+        project_name, provider=provider or "kubernetes", secrets=env_vars
+    )

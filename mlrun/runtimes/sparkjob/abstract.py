@@ -187,6 +187,8 @@ class AbstractSparkRuntime(KubejobRuntime):
     plural = "sparkapplications"
     default_mlrun_image = ".spark-job-default-image"
     gpu_suffix = "-cuda"
+    code_script = "code.py"
+    code_path = "/etc/config/mlrun"
 
     @classmethod
     def _get_default_deployed_mlrun_image_name(cls, with_gpu=False):
@@ -357,7 +359,15 @@ class AbstractSparkRuntime(KubejobRuntime):
 
         update_in(job, "spec.volumes", self.spec.volumes)
 
-        _, _, extra_env = self._get_cmd_args(runobj)
+        command, args, extra_env = self._get_cmd_args(runobj)
+        code = None
+        if command == "mlrun":
+            code = f"""
+            import mlrun.__main__ as ml
+            ctx = ml.main.make_context('main', {args})
+            with ctx:
+                result = ml.main.invoke(ctx)
+            """
 
         update_in(job, "spec.driver.env", extra_env + self.spec.env)
         update_in(job, "spec.executor.env", extra_env + self.spec.env)
@@ -450,16 +460,34 @@ class AbstractSparkRuntime(KubejobRuntime):
             update_in(job, "spec.mainApplicationFile", self.spec.command)
 
         verify_list_and_update_in(job, "spec.arguments", self.spec.args or [], str)
-        self._submit_job(job, meta.namespace)
+        self._submit_job(job, meta.namespac, code)
 
         return None
 
     def _enrich_job(self, job):
         raise NotImplementedError()
 
-    def _submit_job(self, job, namespace=None):
+    def _submit_job(self, job, namespace=None, code=None):
         k8s = self._get_k8s()
         namespace = k8s.resolve_namespace(namespace)
+        if code:
+            k8s_secret = client.V1Secret(type="Opaque")
+            k8s_secret.metadata = client.V1ObjectMeta(
+                name=self.metadata.name, namespace=namespace
+            )
+            k8s_secret.data = {self.code_script: code}
+            secret_resp = k8s.v1api.create_namespaced_secret(namespace,k8s_secret)
+            secret_name = get_in(secret_resp, "metadata.name", "unknown")
+            from kubernetes import client as k8s_client
+
+            vol_src = client.V1SecretVolumeSource(secret_name=secret_name)
+            vol = client.V1Volume(name=volume_name, secret=vol_src)
+            vol_mount =  k8s_client.V1VolumeMount(mount_path=self.code_path, name=volume_name)
+            job.spec.volumes += [vol]
+            job.spec.driver.volumeMounts += [vol_mount]
+            job.spec.executor.volumeMounts += [vol_mount]
+            job.spec.command = f"{self.code_path}/{self.code_script}"
+
         try:
             resp = k8s.crdapi.create_namespaced_custom_object(
                 AbstractSparkRuntime.group,

@@ -197,7 +197,7 @@ def open_online_feature_service(
     """ open and initialize online feature vector service api, reducing the need to use svc.close()
         returns :py:class:`~mlrun.feature_store.OnlineVectorService`
 
-        information about the parameters in `get_online_feature_service`
+        for params information, see documentation of :py:func:`~mlrun.feature_store.api.get_online_feature_service`
 
         example::
 

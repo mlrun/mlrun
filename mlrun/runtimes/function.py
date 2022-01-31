@@ -828,7 +828,7 @@ class RemoteRuntime(KubeResource):
         env=None,
         tag=None,
         verbose=None,
-        use_function_from_db=True,
+        use_function_from_db=None,
     ):
         """return as a Kubeflow pipeline step (ContainerOp), recommended to use mlrun.deploy_function() instead"""
         models = {} if models is None else models
@@ -838,7 +838,17 @@ class RemoteRuntime(KubeResource):
         if models and isinstance(models, dict):
             models = [{"key": k, "model_path": v} for k, v in models.items()]
 
-        if use_function_from_db:
+        # verify auto mount is applied (with the client credentials)
+        self.try_auto_mount_based_on_config()
+
+        # if the function spec contain KFP PipelineParams (futures) pass the full spec to the
+        # ContainerOp this way KFP will substitute the params with previous step outputs
+        func_has_pipeline_params = self.to_json().find("{{pipelineparam:op") > 0
+        if (
+            use_function_from_db
+            or use_function_from_db is None
+            and not func_has_pipeline_params
+        ):
             url = self.save(versioned=True, refresh=True)
         else:
             url = None

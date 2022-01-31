@@ -175,3 +175,10 @@ def test_check_permissions():
         assert False
     except mlrun.errors.MLRunAccessDeniedError:
         pass
+
+
+def test_check_timestamp_key_is_entity():
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        fs.FeatureSet(
+            "imp1", entities=[Entity("time_stamp")], timestamp_key="time_stamp"
+        )

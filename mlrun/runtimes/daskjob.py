@@ -51,6 +51,20 @@ def get_dask_resource():
 
 
 class DaskSpec(KubeResourceSpec):
+    _dict_fields = KubeResourceSpec._dict_fields + [
+        "extra_pip",
+        "remote",
+        "service_type",
+        "nthreads",
+        "kfp_image",
+        "node_port",
+        "min_replicas",
+        "max_replicas",
+        "scheduler_timeout",
+        "scheduler_resources",
+        "worker_resources",
+    ]
+
     def __init__(
         self,
         command=None,
@@ -445,7 +459,7 @@ def deploy_function(function: DaskCluster, secrets=None):
         import dask
         from dask.distributed import Client, default_client  # noqa: F401
         from dask_kubernetes import KubeCluster, make_pod_spec  # noqa: F401
-        from kubernetes_asyncio import client
+        from kubernetes import client
     except ImportError as exc:
         print(
             "missing dask or dask_kubernetes, please run "

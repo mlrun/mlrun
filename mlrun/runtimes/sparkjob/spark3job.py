@@ -21,6 +21,13 @@ from .abstract import AbstractSparkJobSpec, AbstractSparkRuntime
 
 
 class Spark3JobSpec(AbstractSparkJobSpec):
+    _dict_fields = AbstractSparkJobSpec._dict_fields + [
+        "monitoring",
+        "driver_node_selector",
+        "executor_node_selector",
+        "dynamic_allocation",
+    ]
+
     def __init__(
         self,
         command=None,

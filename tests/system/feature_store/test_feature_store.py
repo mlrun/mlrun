@@ -919,7 +919,7 @@ class TestFeatureStore(TestMLRunSystem):
             vector,
             entity_timestamp_column="time_stamp",
             start_time=datetime(2021, 6, 9, 9, 30),
-            end_time=datetime(2021, 6, 9, 10, 30),
+            end_time=None,  # will translate to now()
         )
         assert len(resp.to_dataframe()) == 2
 
@@ -2090,6 +2090,18 @@ class TestFeatureStore(TestMLRunSystem):
             "sum": {"a": 16, "b": 26},
         }
 
+    def test_allow_empty_vector(self):
+        # test that we can pass an non materialized vector to function using special flag
+        vector = fs.FeatureVector("dummy-vec", [])
+        vector.save()
+
+        func = mlrun.new_function("myfunc", kind="job", handler="myfunc").with_code(
+            body=myfunc
+        )
+        func.spec.allow_empty_resources = True
+        run = func.run(inputs={"data": vector.uri}, local=True)
+        assert run.output("uri") == vector.uri
+
     def test_open_online_feature_service(self):
         vector = self._generate_vector()
         with fs.open_online_feature_service(vector) as svc:
@@ -2169,3 +2181,11 @@ def prepare_feature_set(
 def map_with_state_test_function(x, state):
     state["sum"] += x["x"]
     return state, state
+
+
+myfunc = """
+def myfunc(context, data):
+    print('DATA:', data.artifact_url)
+    assert data.meta
+    context.log_result('uri', data.artifact_url)
+"""

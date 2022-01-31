@@ -26,7 +26,7 @@ import mlrun.utils.regex
 from ..config import config as mlconf
 from ..secrets import SecretsStore
 from ..utils import logger, normalize_name, update_in, verify_field_regex
-from .base import BaseRuntime, FunctionSpec
+from .base import BaseRuntime, FunctionSpec, spec_fields
 from .utils import (
     apply_kfp,
     generate_resources,
@@ -37,6 +37,21 @@ from .utils import (
 
 
 class KubeResourceSpec(FunctionSpec):
+    _dict_fields = spec_fields + [
+        "volumes",
+        "volume_mounts",
+        "env",
+        "resources",
+        "replicas",
+        "image_pull_policy",
+        "service_account",
+        "image_pull_secret",
+        "node_name",
+        "node_selector",
+        "affinity",
+        "priority_class_name",
+    ]
+
     def __init__(
         self,
         command=None,

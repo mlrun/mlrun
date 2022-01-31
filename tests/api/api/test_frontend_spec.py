@@ -39,6 +39,7 @@ def test_get_frontend_spec(
     )
     assert frontend_spec.default_function_image_by_kind is not None
     assert frontend_spec.function_deployment_mlrun_command is not None
+    assert frontend_spec.default_artifact_path is not None
     # fields UI expects to be in the template
     assert (
         mlrun.mlconf.httpdb.builder.docker_registry

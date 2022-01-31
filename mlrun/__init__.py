@@ -18,7 +18,11 @@ __all__ = ["get_version", "set_environment", "code_to_function", "import_functio
 
 import getpass
 from os import environ, path
+from typing import Union
 
+import dotenv
+
+from .api import schemas
 from .config import config as mlconf
 from .datastore import DataItem, store_manager
 from .db import get_run_db
@@ -43,7 +47,7 @@ from .projects import (
     pipeline_context,
     run_function,
 )
-from .projects.project import _add_username_to_project_name_if_needed
+from .projects.project import MlrunProject, _add_username_to_project_name_if_needed
 from .run import (
     code_to_function,
     function_to_module,
@@ -162,7 +166,7 @@ def get_sample_path(subpath=""):
     return samples_path
 
 
-def env_from_file(env_file, to_dict=False, set_env=True):
+def set_env_from_file(env_file: str, return_dict: bool = False):
     """Read and set and/or return environment variables from a file
     the env file should have lines in the form KEY=VALUE, comment line start with "#"
 
@@ -179,30 +183,32 @@ def env_from_file(env_file, to_dict=False, set_env=True):
     usage::
 
         # set the env vars from a file + return the results as a dict
-        env_dict = mlrun.env_from_file(env_path, to_dict=True)
+        env_dict = mlrun.set_env_from_file(env_path, return_dict=True)
 
-    :param env_file: path/url to env file
-    :param to_dict:  set to True to return the env as a dict
-    :param set_env:  set to False to skip updating the current OS env
+    :param env_file:    path/url to env file
+    :param return_dict: set to True to return the env as a dict
     :return: None or env dict
     """
-    env_vars = {}
-    body = get_dataitem(env_file).get(encoding="utf-8")
-    for line in body.splitlines():
-        if line.startswith("#") or not line.strip():
-            continue
-        key, value = line.strip().split("=", 1)
-        if set_env:
-            environ[key] = value  # Load to local environ
-            if key == "MLRUN_DBPATH":
-                mlconf.dbpath = value
-            if key == "V3IO_API":
-                mlconf.v3io_api = value
-        env_vars[key] = value
-    return env_vars if to_dict else None
+    env_vars = dotenv.dotenv_values(env_file)
+    if None in env_vars.values():
+        raise MLRunInvalidArgumentError("env file lines must be in the form key=value")
+    for key, value in env_vars.items():
+        environ[key] = value  # Load to local environ
+        if key == "MLRUN_DBPATH":
+            mlconf.dbpath = value
+        if key == "V3IO_API":
+            mlconf.v3io_api = value
+    return env_vars if return_dict else None
 
 
-def file_to_project_secrets(env_file, project=None, set_env=False, provider=None):
+def file_to_project_secrets(
+    env_file: str,
+    project: Union[str, MlrunProject],
+    set_env: bool = False,
+    provider: Union[
+        str, schemas.SecretProviderName
+    ] = schemas.SecretProviderName.kubernetes,
+):
     """set project secrets from env file and optionally set the local env
     the env file should have lines in the form KEY=VALUE, comment line start with "#"
     V3IO paths/credentials and MLrun service API address are dropped from the secrets
@@ -222,19 +228,29 @@ def file_to_project_secrets(env_file, project=None, set_env=False, provider=None
         # read env vars from file and set as project secrets (plus set the local env)
         mlrun.file_to_project_secrets(env_file, project_name, set_env=True)
 
-    :param env_file:  path/url to env file
+    :param env_file:  path to env file
     :param project:   project name or object
     :param set_env:   set to True to also configure the local OS env
     :param provider:  MLRun secrets provider
     """
-    env_vars = env_from_file(env_file, to_dict=True, set_env=set_env)
+    if set_env:
+        env_vars = set_env_from_file(env_file, return_dict=True)
+    else:
+        env_vars = dotenv.dotenv_values(env_file)
+        if None in env_vars.values():
+            raise MLRunInvalidArgumentError(
+                "env file lines must be in the form key=value"
+            )
+
     # drop V3IO paths/credentials and MLrun service API address
     env_vars = {
         key: val
         for key, val in env_vars.items()
         if key != "MLRUN_DBPATH" and not key.startswith("V3IO_")
     }
-    project_name = project if project and isinstance(project, str) else project.name
+    project_name = (
+        project if project and isinstance(project, str) else project.metadata.name
+    )
     get_run_db().create_project_secrets(
-        project_name, provider=provider or "kubernetes", secrets=env_vars
+        project_name, provider=provider, secrets=env_vars
     )

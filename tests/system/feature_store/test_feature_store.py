@@ -2090,6 +2090,12 @@ class TestFeatureStore(TestMLRunSystem):
             "sum": {"a": 16, "b": 26},
         }
 
+    def test_open_online_feature_service(self):
+        vector = self._generate_vector()
+        with fs.open_online_feature_service(vector) as svc:
+            resp = svc.get([{"name": "ab"}])
+            assert resp[0] == {"data": 10}
+
     def test_allow_empty_vector(self):
         # test that we can pass an non materialized vector to function using special flag
         vector = fs.FeatureVector("dummy-vec", [])
@@ -2101,12 +2107,6 @@ class TestFeatureStore(TestMLRunSystem):
         func.spec.allow_empty_resources = True
         run = func.run(inputs={"data": vector.uri}, local=True)
         assert run.output("uri") == vector.uri
-
-    def test_open_online_feature_service(self):
-        vector = self._generate_vector()
-        with fs.open_online_feature_service(vector) as svc:
-            resp = svc.get([{"name": "ab"}])
-            assert resp[0] == {"data": 10}
 
 
 def verify_purge(fset, targets):

@@ -273,8 +273,6 @@ def get_online_feature_service(
     return service
 
 
-
-
 def ingest(
     featureset: Union[FeatureSet, str] = None,
     source=None,

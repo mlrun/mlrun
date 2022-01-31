@@ -22,7 +22,6 @@ from typing import Union
 
 import dotenv
 
-from .api import schemas
 from .config import config as mlconf
 from .datastore import DataItem, store_manager
 from .db import get_run_db
@@ -199,58 +198,3 @@ def set_env_from_file(env_file: str, return_dict: bool = False):
         if key == "V3IO_API":
             mlconf.v3io_api = value
     return env_vars if return_dict else None
-
-
-def file_to_project_secrets(
-    env_file: str,
-    project: Union[str, MlrunProject],
-    set_env: bool = False,
-    provider: Union[
-        str, schemas.SecretProviderName
-    ] = schemas.SecretProviderName.kubernetes,
-):
-    """set project secrets from env file and optionally set the local env
-    the env file should have lines in the form KEY=VALUE, comment line start with "#"
-    V3IO paths/credentials and MLrun service API address are dropped from the secrets
-
-    example file::
-
-        # this is an env file
-        MLRUN_DBPATH=https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com
-        V3IO_USERNAME=admin
-        V3IO_API=https://webapi.default-tenant.app.xxx.iguazio-cd1.com
-        V3IO_ACCESS_KEY=MYKEY123
-        AWS_ACCESS_KEY_ID-XXXX
-        AWS_SECRET_ACCESS_KEY=YYYY
-
-    usage::
-
-        # read env vars from file and set as project secrets (plus set the local env)
-        mlrun.file_to_project_secrets(env_file, project_name, set_env=True)
-
-    :param env_file:  path to env file
-    :param project:   project name or object
-    :param set_env:   set to True to also configure the local OS env
-    :param provider:  MLRun secrets provider
-    """
-    if set_env:
-        env_vars = set_env_from_file(env_file, return_dict=True)
-    else:
-        env_vars = dotenv.dotenv_values(env_file)
-        if None in env_vars.values():
-            raise MLRunInvalidArgumentError(
-                "env file lines must be in the form key=value"
-            )
-
-    # drop V3IO paths/credentials and MLrun service API address
-    env_vars = {
-        key: val
-        for key, val in env_vars.items()
-        if key != "MLRUN_DBPATH" and not key.startswith("V3IO_")
-    }
-    project_name = (
-        project if project and isinstance(project, str) else project.metadata.name
-    )
-    get_run_db().create_project_secrets(
-        project_name, provider=provider, secrets=env_vars
-    )

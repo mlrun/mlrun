@@ -18,6 +18,7 @@ import typing
 import warnings
 from os import environ, makedirs, path
 
+import dotenv
 import inflection
 import kfp
 import yaml
@@ -1569,7 +1570,60 @@ class MlrunProject(ModelObj):
             return self._secrets.get(key)
         return None
 
+    def set_secrets(
+        self,
+        secrets: dict = None,
+        file_path: str = None,
+        provider: typing.Union[str, mlrun.api.schemas.SecretProviderName] = None,
+    ):
+        """set project secrets from dict or secrets env file
+        when using a secrets file it should have lines in the form KEY=VALUE, comment line start with "#"
+        V3IO paths/credentials and MLrun service API address are dropped from the secrets
+
+        example secrets file::
+
+            # this is an env file
+            AWS_ACCESS_KEY_ID-XXXX
+            AWS_SECRET_ACCESS_KEY=YYYY
+
+        usage::
+
+            # read env vars from dict or file and set as project secrets
+            project.set_secrets({"SECRET1": "value"})
+            project.set_secrets(file_path="secrets.env")
+
+        :param secrets:   dict with secrets key/value
+        :param file_path: path to secrets file
+        :param provider:  MLRun secrets provider
+        """
+        if (not secrets and not file_path) or (secrets and file_path):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "must specify secrets OR file_path"
+            )
+        if file_path:
+            secrets = dotenv.dotenv_values(file_path)
+            if None in secrets.values():
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "env file lines must be in the form key=value"
+                )
+        # drop V3IO paths/credentials and MLrun service API address
+        env_vars = {
+            key: val
+            for key, val in secrets.items()
+            if key != "MLRUN_DBPATH" and not key.startswith("V3IO_")
+        }
+        provider = provider or mlrun.api.schemas.SecretProviderName.kubernetes
+        get_run_db().create_project_secrets(
+            self.metadata.name, provider=provider, secrets=env_vars
+        )
+
     def create_vault_secrets(self, secrets):
+        warnings.warn(
+            "This method is obsolete, use project.set_secrets() instead"
+            "This will be deprecated and removed in 1.0.0",
+            # TODO: In 1.0 remove
+            PendingDeprecationWarning,
+        )
         run_db = get_run_db(secrets=self._secrets)
         run_db.create_project_secrets(
             self.metadata.name, mlrun.api.schemas.SecretProviderName.vault, secrets

@@ -673,7 +673,7 @@ def code_to_function(
     Easiest way to construct a runtime type object. Provides the most often
     used configuration options for all runtimes as parameters.
 
-    Instantiated runtimes are considered "functions" in mlrun, but they are
+    Instantiated runtimes are considered 'functions' in mlrun, but they are
     anything from nuclio functions to generic kubernetes pods to spark jobs.
     Functions are meant to be focused, and as such limited in scope and size.
     Typically a function can be expressed in a single python module with
@@ -681,7 +681,7 @@ def code_to_function(
     The returned runtime object can be further configured if more
     customization is required.
 
-    One of the most important parameters is "kind". This is what is used to
+    One of the most important parameters is 'kind'. This is what is used to
     specify the chosen runtimes. The options are:
 
     - local: execute a local python or shell script
@@ -697,51 +697,53 @@ def code_to_function(
     https://docs.mlrun.org/en/latest/runtimes/functions.html#function-runtimes
 
     :param name:         function name, typically best to use hyphen-case
-    :param project:      project used to namespace the function, defaults to "default"
-    :param tag:          function tag to track multiple versions of the same function, defaults to "latest"
+    :param project:      project used to namespace the function, defaults to 'default'
+    :param tag:          function tag to track multiple versions of the same function, defaults to 'latest'
     :param filename:     path to .py/.ipynb file, defaults to current jupyter notebook
     :param handler:      The default function handler to call for the job or nuclio function, in batch functions
                          (job, mpijob, ..) the handler can also be specified in the `.run()` command, when not specified
                          the entire file will be executed (as main).
-                         for nuclio functions the handler is in the form of module:function, defaults to "main:handler"
+                         for nuclio functions the handler is in the form of module:function, defaults to 'main:handler'
     :param kind:         function runtime type string - nuclio, job, etc. (see docstring for all options)
     :param image:        base docker image to use for building the function container, defaults to None
-    :param code_output:  specify "." to generate python module from the current jupyter notebook
+    :param code_output:  specify '.' to generate python module from the current jupyter notebook
     :param embed_code:   indicates whether or not to inject the code directly into the function runtime spec,
                          defaults to True
-    :param description:  short function description, defaults to ""
+    :param description:  short function description, defaults to ''
     :param requirements: list of python packages or pip requirements file path, defaults to None
     :param categories:   list of categories for mlrun function marketplace, defaults to None
     :param labels:       immutable name/value pairs to tag the function with useful metadata, defaults to None
     :param with_doc:     indicates whether to document the function parameters, defaults to True
-    :param ignored_tags: notebook cells to ignore when converting notebooks to py code (separated by ";")
+    :param ignored_tags: notebook cells to ignore when converting notebooks to py code (separated by ';')
 
     :return:
-           pre-configured function object from a mlrun runtime class
+        pre-configured function object from a mlrun runtime class
 
     example::
+
         import mlrun
 
         # create job function object from notebook code and add doc/metadata
-        fn = mlrun.code_to_function('file_utils', kind='job',
-                                    handler='open_archive', image='mlrun/mlrun',
+        fn = mlrun.code_to_function("file_utils", kind="job",
+                                    handler="open_archive", image="mlrun/mlrun",
                                     description = "this function opens a zip archive into a local/mounted folder",
-                                    categories = ['fileutils'],
-                                    labels = {'author': 'me'})
+                                    categories = ["fileutils"],
+                                    labels = {"author": "me"})
 
     example::
+
         import mlrun
         from pathlib import Path
 
         # create file
-        Path('mover.py').touch()
+        Path("mover.py").touch()
 
         # create nuclio function object from python module call mover.py
-        fn = mlrun.code_to_function('nuclio-mover', kind='nuclio',
-                                    filename='mover.py', image='python:3.7',
+        fn = mlrun.code_to_function("nuclio-mover", kind="nuclio",
+                                    filename="mover.py", image="python:3.7",
                                     description = "this function moves files from one system to another",
                                     requirements = ["pandas"],
-                                    labels = {'author': 'me'})
+                                    labels = {"author": "me"})
 
     """
     filebase, _ = path.splitext(path.basename(filename))

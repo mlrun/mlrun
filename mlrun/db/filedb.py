@@ -398,7 +398,7 @@ class FileRunDB(RunDBInterface):
                 target_dict = functions_with_tag_filename
 
                 tag_name = file_name
-                # Heuristic - if tag length if bigger than 20 it's probably a hash key
+                # Heuristic - if tag length is bigger than 20 it's probably a hash key
                 if len(tag_name) > 20:  # hash vs tags
                     tag_name = ""
                     target_dict = functions_with_hash_key_filename

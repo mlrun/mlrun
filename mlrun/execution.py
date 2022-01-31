@@ -813,7 +813,7 @@ class MLClientCtx(object):
         return item
 
     def get_cached_artifact(self, key):
-        """return an a logged artifact from cache (for potential updates)"""
+        """return an logged artifact from cache (for potential updates)"""
         return self._artifacts_manager.artifacts[key]
 
     def update_artifact(self, artifact_object):

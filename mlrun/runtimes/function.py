@@ -528,7 +528,7 @@ class RemoteRuntime(KubeResource):
     ):
         """add v3io stream trigger to the function
 
-        :param stream_path:    v3io stream path (e.g. 'v3io:///projects/myproj/stream1'
+        :param stream_path:    v3io stream path (e.g. 'v3io:///projects/myproj/stream1')
         :param name:           trigger name
         :param group:          consumer group
         :param seek_to:        start seek from: "earliest", "latest", "time", "sequence"
@@ -758,7 +758,7 @@ class RemoteRuntime(KubeResource):
         :param handler: a path describing working dir and handler of a nuclio function
         :return: (working_dir, handler) tuple, as nuclio expects to get it
 
-        Example: ("a/b/c#main:Handler) -> ("a/b/c", "main:Handler")
+        Example: ("a/b/c#main:Handler") -> ("a/b/c", "main:Handler")
         """
         if handler == "":
             return "", self.spec.function_handler or "main:handler"

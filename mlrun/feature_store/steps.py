@@ -126,7 +126,7 @@ class Imputer(StepToDict, MapClass):
 
         :param method:        for future use
         :param default_value: default value if not specified per column
-        :param mapping:       a dict of per column deffault value
+        :param mapping:       a dict of per column default value
         :param kwargs:        optional kwargs (for storey)
         """
         super().__init__(**kwargs)

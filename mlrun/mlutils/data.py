@@ -100,7 +100,6 @@ def save_test_set(
     :param context:    the function execution context
     :param data:       dict with keys 'xtest'. 'ytest', and optionally
                        'xcal', 'ycal' if n_ways=4 in `get_splits`
-    :param ytest:      test labels, as np.ndarray output from `get_splits`
     :param header:     ([])features header if required
     :param label:      ("labels") name of label column
     :param file_ext:   format of test set file

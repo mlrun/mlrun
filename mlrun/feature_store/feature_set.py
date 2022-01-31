@@ -344,7 +344,7 @@ class FeatureSet(ModelObj):
         """set the desired target list or defaults
 
         :param targets:  list of target type names ('csv', 'nosql', ..) or target objects
-                         CSVTarget(), ParquetTarget(), NoSqlTarget(), ..
+                         CSVTarget(), ParquetTarget(), NoSqlTarget(), StreamTarget(), ..
         :param with_defaults: add the default targets (as defined in the central config)
         :param default_final_step: the final graph step after which we add the
                                     target writers, used when the graph branches and

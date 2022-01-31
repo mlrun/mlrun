@@ -1819,7 +1819,7 @@ class MlrunProject(ModelObj):
         example (use with project)::
 
             # create a project with two functions (local and from marketplace)
-            project = mlrun.new_project(project_name, "./proj)
+            project = mlrun.new_project(project_name, "./proj")
             project.set_function("mycode.py", "myfunc", image="mlrun/mlrun")
             project.set_function("hub://sklearn_classifier", "train")
 
@@ -1916,7 +1916,7 @@ class MlrunProject(ModelObj):
         """deploy real-time (nuclio based) functions
 
         :param function:   name of the function (in the project) or function object
-        :param dashboard:  url of the remore Nuclio dashboard (when not local)
+        :param dashboard:  url of the remote Nuclio dashboard (when not local)
         :param models:     list of model items
         :param env:        dict of extra environment variables
         :param tag:        extra version tag

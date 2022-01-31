@@ -289,7 +289,7 @@ class BaseRuntime(ModelObj):
         :param workdir:        default input artifacts path
         :param watch:          watch/follow run log
         :param schedule:       ScheduleCronTrigger class instance or a standard crontab expression string
-                               (which will be converted to the class using its `from_crontab` constructor.
+                               (which will be converted to the class using its `from_crontab` constructor),
                                see this link for help:
                                https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param hyperparams:    dict of param name and list of values to be enumerated e.g. {"p1": [1,2,3]}

@@ -18,7 +18,6 @@ __all__ = ["get_version", "set_environment", "code_to_function", "import_functio
 
 import getpass
 from os import environ, path
-from typing import Union
 
 import dotenv
 

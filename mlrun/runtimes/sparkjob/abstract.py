@@ -469,7 +469,9 @@ with ctx:
     def _enrich_job(self, job):
         raise NotImplementedError()
 
-    def _submit_job(self, job, meta, code=None, ):
+    def _submit_job(
+        self, job, meta, code=None,
+    ):
         namespace = meta.namespace
         k8s = self._get_k8s()
         namespace = k8s.resolve_namespace(namespace)
@@ -477,9 +479,7 @@ with ctx:
             k8s_config_map_name = f"{self.metadata.name}-{uuid.uuid4().hex[:8]}"
             k8s_config_map = client.V1ConfigMap()
             k8s_config_map.metadata = client.V1ObjectMeta(
-                name=k8s_config_map_name,
-                namespace=namespace,
-                labels=meta.labels,
+                name=k8s_config_map_name, namespace=namespace, labels=meta.labels,
             )
             k8s_config_map.data = {self.code_script: code}
             config_map = k8s.v1api.create_namespaced_config_map(

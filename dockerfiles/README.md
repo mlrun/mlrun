@@ -32,7 +32,7 @@ Where:<br>
 * `MLRUN_DOCKER_REGISTRY` is the docker registry (e.g. `quay.io/`, `gcr.io/`, defaults to empty (docker hub))
 
 
-For example, running `MLRUN_VERSION=0.7.0 make docker-images` will generate the following images:
+For example, running `MLRUN_VERSION=0.9.2 make docker-images` will generate the following images:
   * `mlrun/mlrun-api:0.9.2`
   * `mlrun/mlrun:0.9.2`
   * `mlrun/jupyter:0.9.2`

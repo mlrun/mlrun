@@ -193,8 +193,5 @@ def set_env_from_file(env_file: str, return_dict: bool = False):
         raise MLRunInvalidArgumentError("env file lines must be in the form key=value")
     for key, value in env_vars.items():
         environ[key] = value  # Load to local environ
-        if key == "MLRUN_DBPATH":
-            mlconf.dbpath = value
-        if key == "V3IO_API":
-            mlconf.v3io_api = value
+    mlconf.reload()  # reload mlrun configuration
     return env_vars if return_dict else None

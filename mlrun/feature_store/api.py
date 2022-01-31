@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from contextlib import contextmanager
 from datetime import datetime
 from typing import List, Union
 from urllib.parse import urlparse
@@ -230,6 +231,23 @@ def get_online_feature_service(
 
     # todo: support remote service (using remote nuclio/mlrun function if run_config)
     return service
+
+
+@contextmanager
+def open_online_feature_service(
+    feature_vector: Union[str, FeatureVector],
+    run_config: RunConfig = None,
+    fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
+    impute_policy: dict = None,
+    update_stats: bool = False,
+) -> OnlineVectorService:
+    service = get_online_feature_service(
+        feature_vector, run_config, fixed_window_type, impute_policy, update_stats
+    )
+    try:
+        yield service
+    finally:
+        service.close()
 
 
 def ingest(

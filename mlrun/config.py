@@ -36,6 +36,8 @@ from threading import Lock
 import semver
 import yaml
 
+import mlrun.errors
+
 env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
 _load_lock = Lock()
@@ -59,6 +61,7 @@ default_config = {
     # registry when used. default to mlrun/* which means any image which is of the mlrun repository (mlrun/mlrun,
     # mlrun/ml-base, etc...)
     "images_to_enrich_registry": "^mlrun/*",
+    "kfp_url": "",
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
     "kfp_image": "",  # image to use for KFP runner (defaults to mlrun/mlrun)
     "dask_kfp_image": "",  # image to use for dask KFP runner (defaults to mlrun/ml-base)
@@ -417,6 +420,24 @@ class Config:
             # like 3.0_b177_20210806003728
             semver_compatible_igz_version = config.igz_version.split("_")[0]
             return semver.VersionInfo.parse(f"{semver_compatible_igz_version}.0")
+
+    def resolve_kfp_url(self, namespace=None):
+        if config.kfp_url:
+            return config.kfp_url
+        igz_version = self.get_parsed_igz_version()
+        if namespace is None:
+            if not config.namespace:
+                raise mlrun.errors.MLRunNotFoundError(
+                    "For KubeFlow Pipelines to function, a namespace must be configured"
+                )
+            namespace = config.namespace
+        # TODO: When Iguazio 3.4 will deprecate we can remove this line
+        if igz_version and igz_version <= semver.VersionInfo.parse("3.6.0-b1"):
+            # When instead of host we provided namespace we tackled this issue
+            # https://github.com/canonical/bundle-kubeflow/issues/412
+            # TODO: When we'll move to kfp 1.4.0 (server side) it should be resolved
+            return f"http://ml-pipeline.{namespace}.svc.cluster.local:8888"
+        return None
 
     @staticmethod
     def get_storage_auto_mount_params():

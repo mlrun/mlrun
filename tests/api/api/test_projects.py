@@ -1171,6 +1171,7 @@ def _create_schedules(client: TestClient, project_name, schedules_count):
 
 
 def _mock_pipelines(project_name):
+    mlrun.mlconf.kfp_url = "http://some-random-url:8888"
     status_count_map = {
         mlrun.run.RunStatuses.running: 4,
         mlrun.run.RunStatuses.succeeded: 3,

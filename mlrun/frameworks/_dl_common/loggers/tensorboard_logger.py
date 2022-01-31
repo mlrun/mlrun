@@ -8,7 +8,8 @@ import yaml
 import mlrun
 from mlrun.config import config
 
-from .logger import Logger, TrackableType
+from ..._common import TrackableType
+from .logger import Logger
 
 # Define a type variable for the different tensor type objects of the supported frameworks:
 Weight = TypeVar("Weight")

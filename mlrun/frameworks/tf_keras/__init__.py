@@ -11,8 +11,9 @@ from .model_server import TFKerasModelServer
 
 
 def apply_mlrun(
-    model: keras.Model,
+    model: keras.Model = None,
     model_name: str = None,
+    tag: str = "",
     model_path: str = None,
     model_format: str = TFKerasModelHandler.ModelFormats.SAVED_MODEL,
     save_traces: bool = False,
@@ -25,16 +26,17 @@ def apply_mlrun(
     mlrun_callback_kwargs: Dict[str, Any] = None,
     tensorboard_callback_kwargs: Dict[str, Any] = None,
     use_horovod: bool = None,
+    **kwargs
 ) -> TFKerasModelHandler:
     """
-    Wrap the given model with MLRun model, saving the model's attributes and methods while giving it mlrun's additional
-    features.
+    Wrap the given model with MLRun's interface providing it with mlrun's additional features.
 
-    :param model:                       The model to wrap.
+    :param model:                       The model to wrap. Can be loaded from the model path given as well.
     :param model_name:                  The model name to use for storing the model artifact. If not given, the
                                         tf.keras.Model.name will be used.
+    :param tag:                         The model's tag to log with.
     :param model_path:                  The model's store object path. Mandatory for evaluation (to know which model to
-                                        update).
+                                        update). If model is not provided, it will be loaded from this path.
     :param model_format:                The format to use for saving and loading the model. Should be passed as a
                                         member of the class 'ModelFormats'. Defaulted to 'ModelFormats.SAVED_MODEL'.
     :param save_traces:                 Whether or not to use functions saving (only available for the 'SavedModel'
@@ -104,6 +106,9 @@ def apply_mlrun(
         )
 
     # Create a model handler:
+    model_handler_kwargs = (
+        kwargs.pop("model_handler_kwargs") if "model_handler_kwargs" in kwargs else {}
+    )
     handler = TFKerasModelHandler(
         model_name=model_name,
         model_path=model_path,
@@ -114,10 +119,16 @@ def apply_mlrun(
         modules_map=modules_map,
         custom_objects_map=custom_objects_map,
         custom_objects_directory=custom_objects_directory,
+        **model_handler_kwargs
     )
 
+    # Load the model if it was not provided:
+    if model is None:
+        handler.load()
+        model = handler.model
+
     # Add MLRun's interface to the model:
-    TFKerasMLRunInterface.add_interface(model=model)
+    TFKerasMLRunInterface.add_interface(obj=model)
 
     # Initialize horovod if needed:
     if use_horovod is True:
@@ -136,6 +147,7 @@ def apply_mlrun(
         tensorboard_callback_kwargs["tensorboard_directory"] = tensorboard_directory
         # Add the additional parameters to MLRun's callback kwargs dictionary:
         mlrun_callback_kwargs["model_handler"] = handler
+        mlrun_callback_kwargs["log_model_tag"] = tag
         # Add the logging callbacks with the provided parameters:
         model.auto_log(
             context=context,

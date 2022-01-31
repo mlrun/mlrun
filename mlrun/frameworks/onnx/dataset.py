@@ -80,8 +80,7 @@ class ONNXDataset:
         self, index: int
     ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         """
-        Get the item at the given index. If ground truth was provided (y), a tuple of (x, y) will be returned.
-        Otherwise x.
+        Get the item at the given index. If ground truth was provided, a tuple of (x, y) will be returned. Otherwise x.
 
         :param index: The index to get the item. Must be in range of 0 to dataset's length.
 

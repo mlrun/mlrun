@@ -22,7 +22,7 @@ class TFKerasModelHandler(DLModelHandler):
     """
 
     # Framework name:
-    FRAMEWORK_NAME = "tf.keras"
+    FRAMEWORK_NAME = "tensorflow.keras"
 
     # Declare a type of an input sample:
     IOSample = Union[tf.Tensor, tf.TensorSpec, np.ndarray]
@@ -170,23 +170,21 @@ class TFKerasModelHandler(DLModelHandler):
         )
 
         # Set the required labels:
-        self.update_labels()
+        self.set_labels()
 
-    def update_labels(
+    def set_labels(
         self,
-        to_update: Dict[str, Union[str, int, float]] = None,
+        to_add: Dict[str, Union[str, int, float]] = None,
         to_remove: List[str] = None,
     ):
         """
         Update the labels dictionary of this model artifact. There are required labels that cannot be edited or removed.
 
-        :param to_update: The labels to update.
+        :param to_add:    The labels to add.
         :param to_remove: A list of labels keys to remove.
         """
         # Update the user's labels:
-        super(TFKerasModelHandler, self).update_labels(
-            to_update=to_update, to_remove=to_remove
-        )
+        super(TFKerasModelHandler, self).set_labels(to_add=to_add, to_remove=to_remove)
 
         # Set the required labels:
         self._labels[self._LabelKeys.MODEL_FORMAT] = self._model_format
@@ -441,7 +439,9 @@ class TFKerasModelHandler(DLModelHandler):
         self.set_outputs(from_sample=output_signature)
 
     @staticmethod
-    def convert_value_type_to_tf_dtype(value_type: str) -> tf.DType:
+    def convert_value_type_to_tf_dtype(
+        value_type: str,
+    ) -> tf.DType:  # TODO: Move to utils
         """
         Get the 'tensorflow.DType' equivalent to the given MLRun value type.
 
@@ -476,7 +476,9 @@ class TFKerasModelHandler(DLModelHandler):
         )
 
     @staticmethod
-    def convert_tf_dtype_to_value_type(tf_dtype: tf.DType) -> str:
+    def convert_tf_dtype_to_value_type(
+        tf_dtype: tf.DType,
+    ) -> str:  # TODO: Move to utils
         """
         Convert the given tensorflow data type to MLRun data type. All of the CUDA supported data types are supported.
         For more information regarding tensorflow data types,

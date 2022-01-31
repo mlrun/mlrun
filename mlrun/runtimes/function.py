@@ -169,7 +169,7 @@ class NuclioSpec(KubeResourceSpec):
             image_pull_secret=image_pull_secret,
         )
 
-        self.base_spec = base_spec or ""
+        self.base_spec = base_spec or {}
         self.function_kind = function_kind
         self.source = source or ""
         self.config = config or {}

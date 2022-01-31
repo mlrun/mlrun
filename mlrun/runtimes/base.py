@@ -365,7 +365,10 @@ class BaseRuntime(ModelObj):
 
         def_name = self.metadata.name
         if runspec.spec.handler_name:
-            def_name += "-" + runspec.spec.handler_name
+            short_name = runspec.spec.handler_name
+            if "::" in short_name:
+                short_name = short_name.split("::")[1]  # drop class name
+            def_name += "-" + short_name
         runspec.metadata.name = name or runspec.metadata.name or def_name
         verify_field_regex(
             "run.metadata.name", runspec.metadata.name, mlrun.utils.regex.run_name

@@ -35,16 +35,16 @@ Where:<br>
 * `MLRUN_DOCKER_REGISTRY` is the docker registry (e.g. `quay.io/`, `gcr.io/`, defaults to empty (docker hub))
 
 
-For example, running `MLRUN_VERSION=0.7.0 make docker-images` will generate the following images:
-  * `mlrun/mlrun-api:0.9.2`
-  * `mlrun/mlrun:0.9.2`
-  * `mlrun/jupyter:0.9.2`
-  * `mlrun/ml-base:0.9.2`
-  * `mlrun/ml-base:0.9.2-py36`
-  * `mlrun/ml-models:0.9.2`
-  * `mlrun/ml-models:0.9.2-py36`
-  * `mlrun/ml-models-gpu:0.9.2` 
-  * `mlrun/ml-models-gpu:0.9.2-py36`
+For example, running `MLRUN_VERSION=0.9.3 make docker-images` will generate the following images:
+  * `mlrun/mlrun-api:0.9.3`
+  * `mlrun/mlrun:0.9.3`
+  * `mlrun/jupyter:0.9.3`
+  * `mlrun/ml-base:0.9.3`
+  * `mlrun/ml-base:0.9.3-py36`
+  * `mlrun/ml-models:0.9.3`
+  * `mlrun/ml-models:0.9.3-py36`
+  * `mlrun/ml-models-gpu:0.9.3` 
+  * `mlrun/ml-models-gpu:0.9.3-py36`
 
 It's also possible to build only a specific image - `make api` (will build only the api image)<br>
 Or a set of images - `make mlrun jupyter base`

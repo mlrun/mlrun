@@ -166,6 +166,21 @@ def env_from_file(env_file, to_dict=False, set_env=True):
     """Read and set and/or return environment variables from a file
     the env file should have lines in the form KEY=VALUE, comment line start with "#"
 
+    example file::
+
+        # this is an env file
+        MLRUN_DBPATH=https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com
+        V3IO_USERNAME=admin
+        V3IO_API=https://webapi.default-tenant.app.xxx.iguazio-cd1.com
+        V3IO_ACCESS_KEY=MYKEY123
+        AWS_ACCESS_KEY_ID-XXXX
+        AWS_SECRET_ACCESS_KEY=YYYY
+
+    usage::
+
+        # set the env vars from a file + return the results as a dict
+        env_dict = mlrun.env_from_file(env_path, to_dict=True)
+
     :param env_file: path/url to env file
     :param to_dict:  set to True to return the env as a dict
     :param set_env:  set to False to skip updating the current OS env
@@ -191,6 +206,21 @@ def file_to_project_secrets(env_file, project=None, set_env=False, provider=None
     """set project secrets from env file and optionally set the local env
     the env file should have lines in the form KEY=VALUE, comment line start with "#"
     V3IO paths/credentials and MLrun service API address are dropped from the secrets
+
+    example file::
+
+        # this is an env file
+        MLRUN_DBPATH=https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com
+        V3IO_USERNAME=admin
+        V3IO_API=https://webapi.default-tenant.app.xxx.iguazio-cd1.com
+        V3IO_ACCESS_KEY=MYKEY123
+        AWS_ACCESS_KEY_ID-XXXX
+        AWS_SECRET_ACCESS_KEY=YYYY
+
+    usage::
+
+        # read env vars from file and set as project secrets (plus set the local env)
+        mlrun.file_to_project_secrets(env_file, project_name, set_env=True)
 
     :param env_file:  path/url to env file
     :param project:   project name or object

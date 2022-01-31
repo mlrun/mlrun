@@ -276,10 +276,14 @@ class Projects(
                 session, "*", format_=mlrun.api.schemas.PipelinesFormat.metadata_only
             )
 
+        project_to_running_pipelines_count = collections.defaultdict(int)
+        if not mlrun.mlconf.resolve_kfp_url():
+            return project_to_running_pipelines_count
+
         _, _, pipelines = await fastapi.concurrency.run_in_threadpool(
             mlrun.api.db.session.run_function_with_new_db_session, _list_pipelines,
         )
-        project_to_running_pipelines_count = collections.defaultdict(int)
+
         for pipeline in pipelines:
             if pipeline["status"] not in mlrun.run.RunStatuses.stable_statuses():
                 project_to_running_pipelines_count[pipeline["project"]] += 1

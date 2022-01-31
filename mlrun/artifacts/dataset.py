@@ -13,8 +13,8 @@
 # limitations under the License.
 import os
 import pathlib
-import typing
 from io import StringIO
+from typing import Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -80,10 +80,10 @@ class TableArtifact(Artifact):
         return csv_buffer.getvalue()
 
 
-supported_formats = ["csv", "parquet", "pq", "tsdb", "kv"]
-
-
 class DatasetArtifact(Artifact):
+    # List of all the supported saving formats of a DataFrame:
+    SUPPORTED_FORMATS = ["csv", "parquet", "pq", "tsdb", "kv"]
+
     _dict_fields = Artifact._dict_fields + [
         "schema",
         "header",
@@ -97,23 +97,23 @@ class DatasetArtifact(Artifact):
 
     def __init__(
         self,
-        key=None,
+        key: str = None,
         df=None,
-        preview=None,
-        format="",
-        stats=None,
-        target_path=None,
-        extra_data=None,
-        column_metadata=None,
-        ignore_preview_limits=False,
+        preview: int = None,
+        format: str = "",  # TODO: should be changed to 'fmt'.
+        stats: bool = None,
+        target_path: str = None,
+        extra_data: dict = None,
+        column_metadata: dict = None,
+        ignore_preview_limits: bool = False,
         **kwargs,
     ):
 
         format = format.lower()
         super().__init__(key, None, format=format, target_path=target_path)
-        if format and format not in supported_formats:
+        if format and format not in self.SUPPORTED_FORMATS:
             raise ValueError(
-                f"unsupported format {format} use one of {'|'.join(supported_formats)}"
+                f"unsupported format {format} use one of {'|'.join(self.SUPPORTED_FORMATS)}"
             )
 
         if format == "pq":
@@ -153,6 +153,26 @@ class DatasetArtifact(Artifact):
             src_path=self.src_path,
             **self._kw,
         )
+
+    @property
+    def df(self) -> pd.DataFrame:
+        """
+        Get the dataset in this artifact.
+
+        :return: The dataset as a DataFrame.
+        """
+        return self._df
+
+    @staticmethod
+    def is_format_supported(fmt: str) -> bool:
+        """
+        Check whether the given dataset format is supported by the DatasetArtifact.
+
+        :param fmt: The format string to check.
+
+        :return: True if the format is supported and False if not.
+        """
+        return fmt in DatasetArtifact.SUPPORTED_FORMATS
 
     @staticmethod
     def update_preview_fields_from_df(
@@ -290,7 +310,7 @@ def update_dataset_meta(
 
 def upload_dataframe(
     df, target_path, format, src_path=None, **kw
-) -> typing.Tuple[typing.Optional[int], typing.Optional[str]]:
+) -> Tuple[Optional[int], Optional[str]]:
     if src_path and os.path.isfile(src_path):
         store_manager.object(url=target_path).upload(src_path)
         return (

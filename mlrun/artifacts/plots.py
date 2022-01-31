@@ -217,4 +217,4 @@ class PlotlyArtifact(Artifact):
 
         :return: The figure's html code.
         """
-        return self._figure.write_html(self.key)
+        return self._figure.to_html()

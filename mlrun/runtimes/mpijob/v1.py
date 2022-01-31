@@ -30,6 +30,8 @@ from mlrun.utils import get_in, update_in
 
 
 class MPIV1ResourceSpec(MPIResourceSpec):
+    _dict_fields = MPIResourceSpec._dict_fields + ["clean_pod_policy"]
+
     def __init__(
         self,
         command=None,

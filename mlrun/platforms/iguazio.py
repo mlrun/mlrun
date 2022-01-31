@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
 import os
 import warnings
 from collections import namedtuple
@@ -25,6 +24,7 @@ import v3io
 
 import mlrun.errors
 from mlrun.config import config as mlconf
+from mlrun.utils import dict_to_json
 
 _cached_control_session = None
 
@@ -375,6 +375,7 @@ class OutputStream:
         create=True,
         endpoint=None,
         access_key=None,
+        mock=False,
     ):
         v3io_client_kwargs = {}
         if endpoint:
@@ -384,8 +385,10 @@ class OutputStream:
 
         self._v3io_client = v3io.dataplane.Client(**v3io_client_kwargs)
         self._container, self._stream_path = split_path(stream_path)
+        self._mock = mock
+        self._mock_queue = []
 
-        if create:
+        if create and not mock:
 
             # this import creates an import loop via the utils module, so putting it in execution path
             from mlrun.utils.helpers import logger
@@ -412,12 +415,21 @@ class OutputStream:
                 response.raise_for_status([409, 204])
 
     def push(self, data):
+        def dump_record(rec):
+            if not isinstance(rec, (str, bytes)):
+                return dict_to_json(rec)
+            return str(rec)
+
         if not isinstance(data, list):
             data = [data]
-        records = [{"data": json.dumps(rec)} for rec in data]
-        self._v3io_client.put_records(
-            container=self._container, path=self._stream_path, records=records
-        )
+        records = [{"data": dump_record(rec)} for rec in data]
+        if self._mock:
+            # for mock testing
+            self._mock_queue.extend(records)
+        else:
+            self._v3io_client.put_records(
+                container=self._container, path=self._stream_path, records=records
+            )
 
 
 class V3ioStreamClient:

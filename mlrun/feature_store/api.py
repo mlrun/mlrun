@@ -168,6 +168,9 @@ def get_offline_features(
         raise TypeError(
             "entity_timestamp_column or feature_vector.spec.timestamp_field is required when passing start/end time"
         )
+    if start_time and not end_time:
+        # if end_time is not specified set it to now()
+        end_time = pd.Timestamp.now()
     merger_engine = get_merger(engine)
     merger = merger_engine(feature_vector, **(engine_args or {}))
     return merger.start(

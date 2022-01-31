@@ -75,6 +75,20 @@ def new_v2_model_server(
 
 
 class ServingSpec(NuclioSpec):
+    _dict_fields = NuclioSpec._dict_fields + [
+        "graph",
+        "load_mode",
+        "graph_initializer",
+        "function_refs",
+        "parameters",
+        "models",
+        "default_content_type",
+        "error_stream",
+        "default_class",
+        "secret_sources",
+        "track_models",
+    ]
+
     def __init__(
         self,
         command=None,

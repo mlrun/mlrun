@@ -145,7 +145,7 @@ class KubejobRuntime(KubeResource):
             if build.with_mlrun is not None:
                 with_mlrun = build.with_mlrun
             else:
-                with_mlrun = not (
+                with_mlrun = build.base_image and not (
                     build.base_image.startswith("mlrun/")
                     or "/mlrun/" in build.base_image
                 )

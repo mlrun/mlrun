@@ -449,6 +449,7 @@ class RunSpec(ModelObj):
         verbose=None,
         scrape_metrics=None,
         hyper_param_options=None,
+        allow_empty_resources=None,
     ):
 
         self._hyper_param_options = None
@@ -469,6 +470,7 @@ class RunSpec(ModelObj):
         self._data_stores = data_stores
         self.verbose = verbose
         self.scrape_metrics = scrape_metrics
+        self.allow_empty_resources = allow_empty_resources
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(fields, exclude=["handler"])

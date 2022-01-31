@@ -231,8 +231,7 @@ class DateExtractor(StepToDict, MapClass):
 
             # Add the custom `DateExtractor` step
             # to the computation graph
-            transaction_graph\
-                .to(
+            transaction_graph.to(
                     class_name='DateExtractor',
                     name='Extract Dates',
                     parts = ['hour', 'day_of_week'],

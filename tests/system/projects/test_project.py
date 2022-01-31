@@ -238,7 +238,11 @@ class TestProject(TestMLRunSystem):
     def _test_new_pipeline(self, name, engine):
         project = self._create_project(name)
         project.set_function(
-            "gen_iris.py", "gen-iris", image="mlrun/mlrun", handler="iris_generator",
+            "gen_iris.py",
+            "gen-iris",
+            image="mlrun/mlrun",
+            handler="iris_generator",
+            requirements=["requests"],
         )
         print(project.to_yaml())
         run = project.run(

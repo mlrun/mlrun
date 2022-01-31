@@ -747,13 +747,77 @@ class FatalFailureException(Exception):
         self.original_exception = original_exception
 
 
+def create_linear_backoff(base=2, coefficient=2, stop_value=120):
+    """
+    Create a generator of linear backoff. Check out usage example in test_helpers.py
+    """
+    x = 0
+    comparison = min if coefficient >= 0 else max
+
+    while True:
+        next_value = comparison(base + x * coefficient, stop_value)
+        yield next_value
+        x += 1
+
+
+def create_step_backoff(steps=None):
+    """
+    Create a generator of steps backoff.
+    Example: steps = [[2, 5], [20, 10], [120, None]] will produce a generator in which the first 5
+    values will be 2, the next 10 values will be 20 and the rest will be 120.
+    :param steps: a list of lists [step_value, number_of_iteration_in_this_step]
+    """
+    steps = steps if steps is not None else [[2, 10], [10, 10], [120, None]]
+    steps = iter(steps)
+
+    # Get first step
+    step = next(steps)
+    while True:
+        current_step_value, current_step_remain = step
+        if current_step_remain == 0:
+
+            # No more in this step, moving on
+            step = next(steps)
+        elif current_step_remain is None:
+
+            # We are in the last step, staying here forever
+            yield current_step_value
+        elif current_step_remain > 0:
+
+            # Still more remains in this step, just reduce the remaining number
+            step[1] -= 1
+            yield current_step_value
+
+
+def create_exponential_backoff(base=2, max_value=120, scale_factor=1):
+    """
+    Create a generator of exponential backoff. Check out usage example in test_helpers.py
+    :param base: exponent base
+    :param max_value: max limit on the result
+    :param scale_factor: factor to be used as linear scaling coefficient
+    """
+    exponent = 1
+    while True:
+
+        # This "complex" implementation (unlike the one in linear backoff) is to avoid exponent growing too fast and
+        # risking going behind max_int
+        next_value = scale_factor * (base ** exponent)
+        if next_value < max_value:
+            exponent += 1
+            yield next_value
+        else:
+            yield max_value
+
+
 def retry_until_successful(
-    interval: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
+    backoff: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
 ):
     """
     Runs function with given *args and **kwargs.
     Tries to run it until success or timeout reached (timeout is optional)
-    :param interval: int/float that will be used as interval
+    :param backoff: can either be a:
+            - number (int / float) that will be used as interval.
+            - generator of waiting intervals. (support next())
     :param timeout: pass None if timeout is not wanted, number of seconds if it is
     :param logger: a logger so we can log the failures
     :param verbose: whether to log the failure on each retry
@@ -765,8 +829,13 @@ def retry_until_successful(
     start_time = time.time()
     last_exception = None
 
+    # Check if backoff is just a simple interval
+    if isinstance(backoff, int) or isinstance(backoff, float):
+        backoff = create_linear_backoff(base=backoff, coefficient=0)
+
     # If deadline was not provided or deadline not reached
     while timeout is None or time.time() < start_time + timeout:
+        next_interval = next(backoff)
         try:
             result = _function(*args, **kwargs)
             return result
@@ -778,13 +847,13 @@ def retry_until_successful(
             last_exception = exc
 
             # If next interval is within allowed time period - wait on interval, abort otherwise
-            if timeout is None or time.time() + interval < start_time + timeout:
+            if timeout is None or time.time() + next_interval < start_time + timeout:
                 if logger is not None and verbose:
                     logger.debug(
-                        f"Operation not yet successful, Retrying in {interval} seconds. exc: {exc}"
+                        f"Operation not yet successful, Retrying in {next_interval} seconds. exc: {exc}"
                     )
 
-                time.sleep(interval)
+                time.sleep(next_interval)
             else:
                 break
 

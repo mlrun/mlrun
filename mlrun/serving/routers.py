@@ -19,6 +19,7 @@ import traceback
 from enum import Enum
 from io import BytesIO
 
+import numpy
 from numpy.core.fromnumeric import mean
 
 import mlrun
@@ -616,7 +617,7 @@ class VotingEnsemble(BaseModelRouter):
         List
             The model's predictions
         """
-        if type(response) == list:
+        if isinstance(response, (list, numpy.ndarray)):
             return response
         try:
             self.format_response_with_col_name_flag = True

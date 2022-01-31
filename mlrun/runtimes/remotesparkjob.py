@@ -24,6 +24,8 @@ from .pod import KubeResourceSpec
 
 
 class RemoteSparkSpec(KubeResourceSpec):
+    _dict_fields = KubeResourceSpec._dict_fields + ["provider"]
+
     def __init__(
         self,
         command=None,

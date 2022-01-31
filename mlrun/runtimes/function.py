@@ -97,6 +97,17 @@ def min_nuclio_versions(*versions):
 
 
 class NuclioSpec(KubeResourceSpec):
+    _dict_fields = KubeResourceSpec._dict_fields + [
+        "min_replicas",
+        "max_replicas",
+        "config",
+        "base_spec",
+        "no_cache",
+        "source",
+        "function_kind",
+        "readiness_timeout",
+    ]
+
     def __init__(
         self,
         command=None,
@@ -164,7 +175,6 @@ class NuclioSpec(KubeResourceSpec):
         self.config = config or {}
         self.function_handler = ""
         self.no_cache = no_cache
-        self.replicas = replicas
         self.readiness_timeout = readiness_timeout
 
         # TODO: we would prefer to default to 0, but invoking a scaled to zero function requires to either add the

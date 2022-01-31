@@ -88,6 +88,20 @@ allowed_types = ["Python", "Scala", "Java", "R"]
 
 
 class AbstractSparkJobSpec(KubeResourceSpec):
+    _dict_fields = KubeResourceSpec._dict_fields + [
+        "driver_resources",
+        "executor_resources",
+        "job_type",
+        "python_version",
+        "spark_version",
+        "restart_policy",
+        "deps",
+        "main_class",
+        "spark_conf",
+        "hadoop_conf",
+        "use_default_image",
+    ]
+
     def __init__(
         self,
         command=None,

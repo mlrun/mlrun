@@ -451,7 +451,7 @@ def uxjoin(base, local_path, key="", iter=None, is_dir=False):
         local_path = key
 
     if iter:
-        local_path = path.join(str(iter), local_path)
+        local_path = path.join(str(iter), local_path).replace("\\", "/")
 
     if base and not base.endswith("/"):
         base += "/"

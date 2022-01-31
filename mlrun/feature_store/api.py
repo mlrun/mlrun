@@ -183,6 +183,41 @@ def get_offline_features(
     )
 
 
+@contextmanager
+def open_online_feature_service(
+    feature_vector: Union[str, FeatureVector],
+    run_config: RunConfig = None,
+    fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
+    impute_policy: dict = None,
+    update_stats: bool = False,
+) -> OnlineVectorService:
+    """ open and initialize online feature vector service api, reducing the need to use svc.close()
+        returns :py:class:`~mlrun.feature_store.OnlineVectorService`
+
+        information about the parameters in `get_online_feature_service`
+
+        example::
+
+            with open_online_feature_service(vector_uri) as svc:
+                resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
+                print(resp)
+                resp = svc.get([{"ticker": "AAPL"}], as_list=True)
+                print(resp)
+
+        example with imputing::
+
+            with open online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0)) as svc:
+                resp = svc.get([{"id": "C123487"}])
+"""
+    service = get_online_feature_service(
+        feature_vector, run_config, fixed_window_type, impute_policy, update_stats
+    )
+    try:
+        yield service
+    finally:
+        service.close()
+
+
 def get_online_feature_service(
     feature_vector: Union[str, FeatureVector],
     run_config: RunConfig = None,
@@ -200,11 +235,13 @@ def get_online_feature_service(
         print(resp)
         resp = svc.get([{"ticker": "AAPL"}], as_list=True)
         print(resp)
+        svc.close()
 
     example with imputing::
 
         svc = get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0))
         resp = svc.get([{"id": "C123487"}])
+        svc.close()
 
     :param feature_vector:    feature vector uri or FeatureVector object. passing feature vector obj requires update
                               permissions
@@ -233,21 +270,6 @@ def get_online_feature_service(
     return service
 
 
-@contextmanager
-def open_online_feature_service(
-    feature_vector: Union[str, FeatureVector],
-    run_config: RunConfig = None,
-    fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
-    impute_policy: dict = None,
-    update_stats: bool = False,
-) -> OnlineVectorService:
-    service = get_online_feature_service(
-        feature_vector, run_config, fixed_window_type, impute_policy, update_stats
-    )
-    try:
-        yield service
-    finally:
-        service.close()
 
 
 def ingest(

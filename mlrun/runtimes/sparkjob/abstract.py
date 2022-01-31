@@ -480,7 +480,7 @@ with ctx:
                 namespace=namespace,
                 labels=get_in(job, "metadata.labels"),
             )
-            k8s_config_map.string_data = {self.code_script: code}
+            k8s_config_map.data = {self.code_script: code}
             config_map = k8s.v1api.create_namespaced_config_map(
                 namespace, k8s_config_map
             )

@@ -77,15 +77,13 @@ Optional.
 - **start_time** - datetime, low limit of time needed to be filtered. Optional.
 - **end_time** - datetime, high limit of time needed to be filtered. Optional.
 
-As an example, lets create a new dataset and save it as a parquet file:
+As an example, lets create a new dataset from a parquet target:
 
 ```python
-# Import the Parquet Target so we can directly save our dataset as a file
+# Import the Parquet Target, so we can load our dataset from a parquet file
 from mlrun.datastore.targets import ParquetTarget
 
-# Get offline feature vector/
-# will return a pandas dataframe and save the dataset to parquet
-# so a training job could train on it
+# Get offline feature vector from parquet target and will return a pandas dataframe 
 offline_fv = fstore.get_offline_features(feature_vector_name, target=ParquetTarget())
 
 # View dataset

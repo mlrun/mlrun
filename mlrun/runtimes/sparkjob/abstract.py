@@ -770,7 +770,7 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
             grace_period = config.runtime_resources_deletion_grace_period
         uids = []
         for crd_dict in deleted_resources:
-            uid = crd_dict["metadata"].get("labels", {}).get("mlrun/uid")
+            uid = crd_dict["metadata"].labels.get("mlrun/uid", None)
             uids.append(uid)
 
         k8s_helper = get_k8s_helper()

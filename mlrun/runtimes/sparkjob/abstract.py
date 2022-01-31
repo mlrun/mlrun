@@ -42,6 +42,7 @@ from ...utils import (
     verify_list_and_update_in,
 )
 from ..base import RunError
+from ..k8s_utils import get_k8s_helper
 from ..kubejob import KubejobRuntime
 from ..pod import KubeResourceSpec
 from ..utils import generate_resources
@@ -472,21 +473,23 @@ with ctx:
         k8s = self._get_k8s()
         namespace = k8s.resolve_namespace(namespace)
         if code:
-            k8s_secret_name = f"{self.metadata.name}-{uuid.uuid4().hex[:8]}"
-            k8s_secret = client.V1Secret(type="Opaque")
-            k8s_secret.metadata = client.V1ObjectMeta(
-                name=k8s_secret_name,
+            k8s_config_map_name = f"{self.metadata.name}-{uuid.uuid4().hex[:8]}"
+            k8s_config_map = client.V1ConfigMap()
+            k8s_config_map.metadata = client.V1ObjectMeta(
+                name=k8s_config_map_name,
                 namespace=namespace,
                 labels=get_in(job, "metadata.labels"),
             )
-            k8s_secret.string_data = {self.code_script: code}
-            secret = k8s.v1api.create_namespaced_secret(namespace, k8s_secret)
-            secret_name = secret.metadata.name
+            k8s_config_map.string_data = {self.code_script: code}
+            config_map = k8s.v1api.create_namespaced_config_map(
+                namespace, k8s_config_map
+            )
+            config_map_name = config_map.metadata.name
             from kubernetes import client as k8s_client
 
-            vol_src = client.V1SecretVolumeSource(secret_name=secret_name)
+            vol_src = client.V1ConfigMapVolumeSource(name=config_map_name)
             volume_name = "script"
-            vol = client.V1Volume(name=volume_name, secret=vol_src)
+            vol = client.V1Volume(name=volume_name, config_map=vol_src)
             vol_mount = k8s_client.V1VolumeMount(
                 mount_path=self.code_path, name=volume_name
             )
@@ -749,3 +752,40 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
             AbstractSparkRuntime.version,
             AbstractSparkRuntime.plural,
         )
+
+    def _delete_resources(
+        self,
+        db: DBInterface,
+        db_session: Session,
+        namespace: str,
+        deleted_resources: typing.List[Dict],
+        label_selector: str = None,
+        force: bool = False,
+        grace_period: int = None,
+    ):
+        """
+        Handling services deletion
+        """
+        if grace_period is None:
+            grace_period = config.runtime_resources_deletion_grace_period
+        uids = []
+        for crd_dict in deleted_resources:
+            uid = crd_dict["metadata"].get("labels", {}).get("mlrun/uid")
+            uids.append(uid)
+
+        k8s_helper = get_k8s_helper()
+        config_maps = k8s_helper.v1api.list_namespaced_config_map(
+            namespace, label_selector=label_selector
+        )
+        for config_map in config_maps.items:
+            try:
+                uid = config_map.metadata.get("labels", {}).get("mlrun/uid", None)
+                if force or uid in uids:
+                    k8s_helper.v1api.delete_namespaced_config_map(
+                        config_map.metadata.name, namespace
+                    )
+                    logger.info(f"Deleted config map: {config_map.metadata.name}")
+            except ApiException as exc:
+                # ignore error if config map is already removed
+                if exc.status != 404:
+                    raise

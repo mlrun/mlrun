@@ -187,15 +187,3 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
 
         # Cleanup secrets
         self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")
-
-    def test_file_to_project_secrets(self):
-        env_file = str(pathlib.Path(__file__).parent / "assets" / "envfile")
-        self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")
-        mlrun.file_to_project_secrets(env_file, self.project_name)
-        secrets = self._run_db.list_project_secret_keys(
-            self.project_name, provider="kubernetes"
-        )
-        assert secrets.secret_keys == ["ENV_ARG1", "ENV_ARG2"]
-
-        # Cleanup secrets
-        self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")

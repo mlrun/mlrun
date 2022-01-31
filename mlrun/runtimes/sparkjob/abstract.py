@@ -31,6 +31,7 @@ from mlrun.runtimes.constants import RunStates, SparkApplicationStates
 from mlrun.utils.regex import sparkjob_name
 
 from ...execution import MLClientCtx
+from ...k8s_utils import get_k8s_helper
 from ...model import RunObject
 from ...platforms.iguazio import mount_v3io_extended, mount_v3iod
 from ...utils import (
@@ -42,7 +43,6 @@ from ...utils import (
     verify_list_and_update_in,
 )
 from ..base import RunError
-from ..k8s_utils import get_k8s_helper
 from ..kubejob import KubejobRuntime
 from ..pod import KubeResourceSpec
 from ..utils import generate_resources

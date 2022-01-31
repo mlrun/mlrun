@@ -472,10 +472,12 @@ with ctx:
         k8s = self._get_k8s()
         namespace = k8s.resolve_namespace(namespace)
         if code:
-            k8s_secret_name = f"{self.metadata.name}-{uuid.uuid4()}"
+            k8s_secret_name = f"{self.metadata.name}-{uuid.uuid4().hex[:8]}"
             k8s_secret = client.V1Secret(type="Opaque")
             k8s_secret.metadata = client.V1ObjectMeta(
-                name=k8s_secret_name, namespace=namespace
+                name=k8s_secret_name,
+                namespace=namespace,
+                labels=get_in(job, "metadata.labels"),
             )
             k8s_secret.string_data = {self.code_script: code}
             secret = k8s.v1api.create_namespaced_secret(namespace, k8s_secret)

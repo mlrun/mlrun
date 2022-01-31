@@ -462,14 +462,15 @@ with ctx:
             update_in(job, "spec.mainApplicationFile", self.spec.command)
 
         verify_list_and_update_in(job, "spec.arguments", self.spec.args or [], str)
-        self._submit_job(job, meta.namespace, code)
+        self._submit_job(job, meta, code)
 
         return None
 
     def _enrich_job(self, job):
         raise NotImplementedError()
 
-    def _submit_job(self, job, namespace=None, code=None):
+    def _submit_job(self, job, meta, code=None, ):
+        namespace = meta.namespace
         k8s = self._get_k8s()
         namespace = k8s.resolve_namespace(namespace)
         if code:
@@ -478,19 +479,18 @@ with ctx:
             k8s_config_map.metadata = client.V1ObjectMeta(
                 name=k8s_config_map_name,
                 namespace=namespace,
-                labels=get_in(job, "metadata.labels"),
+                labels=meta.labels,
             )
             k8s_config_map.data = {self.code_script: code}
             config_map = k8s.v1api.create_namespaced_config_map(
                 namespace, k8s_config_map
             )
             config_map_name = config_map.metadata.name
-            from kubernetes import client as k8s_client
 
             vol_src = client.V1ConfigMapVolumeSource(name=config_map_name)
             volume_name = "script"
             vol = client.V1Volume(name=volume_name, config_map=vol_src)
-            vol_mount = k8s_client.V1VolumeMount(
+            vol_mount = client.V1VolumeMount(
                 mount_path=self.code_path, name=volume_name
             )
             update_in(job, "spec.volumes", [vol], append=True)
@@ -764,7 +764,7 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         grace_period: int = None,
     ):
         """
-        Handling services deletion
+        Handling config maps deletion
         """
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period

@@ -46,7 +46,7 @@ from .projects import (
     pipeline_context,
     run_function,
 )
-from .projects.project import MlrunProject, _add_username_to_project_name_if_needed
+from .projects.project import _add_username_to_project_name_if_needed
 from .run import (
     code_to_function,
     function_to_module,

@@ -115,13 +115,7 @@ class MinMaxValidator(Validator):
     kind = "minmax"
     _dict_fields = Validator._dict_fields + ["min", "max"]
 
-    def __init__(
-            self,
-            check_type=None,
-            severity=None,
-            min=None,
-            max=None
-    ):
+    def __init__(self, check_type=None, severity=None, min=None, max=None):
         """Validate min/max length value ranges
 
         example::

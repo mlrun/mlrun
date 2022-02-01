@@ -193,7 +193,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             [],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
-        self._mock_list_namespaced_config_map([[], []])
+        self._mock_list_namespaced_config_map([])
         self._mock_delete_namespaced_custom_objects()
         log = self._mock_read_namespaced_pod_log()
         self.runtime_handler.delete_resources(get_db(), db, force=True)

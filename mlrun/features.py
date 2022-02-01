@@ -126,19 +126,19 @@ class MinMaxValidator(Validator):
 
         example::
 
-        	from mlrun.features import MinMaxValidator
+            from mlrun.features import MinMaxValidator
 
-        	# Add validator to the feature 'bid', where valid
-        	# minimal value is 52
-        	quotes_set["bid"].validator = MinMaxValidator(
-        		min=52,
-        		severity="info"
-        	)
+            # Add validator to the feature 'bid', where valid
+            # minimal value is 52
+            quotes_set["bid"].validator = MinMaxValidator(
+                min=52,
+                severity="info"
+            )
 
-        :param check_type:	..
-        :param severity:	severity name e.g. info, warning, etc.
-        :param min:			minimal valid size
-        :param max:			maximal valid size
+        :param check_type:  ..
+        :param severity:    severity name e.g. info, warning, etc.
+        :param min:         minimal valid size
+        :param max:         maximal valid size
         """
         super().__init__(check_type, severity)
         self.min = min

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import typing
-import uuid
 from copy import deepcopy
 from datetime import datetime
 from typing import Dict, Optional, Tuple
@@ -476,11 +475,9 @@ with ctx:
         k8s = self._get_k8s()
         namespace = k8s.resolve_namespace(namespace)
         if code:
-            k8s_config_map_name = f"{self.metadata.name}-{uuid.uuid4().hex[:8]}"
             k8s_config_map = client.V1ConfigMap()
-            k8s_config_map.metadata = client.V1ObjectMeta(
-                name=k8s_config_map_name, namespace=namespace, labels=meta.labels,
-            )
+            k8s_config_map.metadata = meta
+            k8s_config_map.metadata.name += "-script"
             k8s_config_map.data = {self.code_script: code}
             config_map = k8s.v1api.create_namespaced_config_map(
                 namespace, k8s_config_map

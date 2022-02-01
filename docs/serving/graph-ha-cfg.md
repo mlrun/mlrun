@@ -103,7 +103,7 @@ and parameters that provide high availability, using a non-default configuration
    - `worker_timeout`: The general rule of thumb is the greater of Pt/10 or 60 seconds. However you should adjust the 
    value according to your needs.
 - `max_in_flight`: If the processing time is very high then `max_in_flight` should not be very high. Otherwise, there will be many retries.
-- Window ACK value: The consumer buffer size + max_in_flight, since it is per each shard and there is a single worker. See [ack_window_size](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger).
+- `ack_window_size`: The consumer buffer size + max_in_flight, since it is per each shard and there is a single worker. See [ack_window_size](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger).
 
 You should pay great attention when defining the Window ACK. It depends on the entire graph flow, and you need to understand when steps are 
 done in parallel (branching) vs. sequential invocation. Another key aspect is that the number of workers should also affect the window size.

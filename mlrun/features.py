@@ -146,7 +146,64 @@ class MinMaxValidator(Validator):
         return ok, args
 
 
+class MinMaxLenValidator(Validator):
+    """Validate min/max length value ranges"""
+
+    kind = "minmaxlen"
+    _dict_fields = Validator._dict_fields + ["min", "max"]
+
+    def __init__(self, check_type=None, severity=None, min=None, max=None):
+        """Validate min/max length value ranges
+
+        example::
+
+            from mlrun.features import MinMaxValidator
+
+            # Add length validator to the feature 'ticker', where valid
+            # minimal length is 1 and maximal length is 10
+            quotes_set["ticker"].validator = MinMaxLenValidator(
+                min=1,
+                max=10,
+                severity="info"
+            )
+
+        :param check_type:  ..
+        :param severity:    severity name e.g. info, warning, etc.
+        :param min:         minimal valid length size
+        :param max:         maximal valid length size
+        """
+        super().__init__(check_type, severity)
+        self.min = min
+        self.max = max
+
+    def check(self, value):
+        ok, args = super().check(value)
+        if ok:
+            if self.min is not None:
+                if len(value) < self.min:
+                    return (
+                        False,
+                        {
+                            "message": "Length value is smaller than min",
+                            "min": self.min,
+                            "length value": len(value),
+                        },
+                    )
+            if self.max is not None:
+                if len(value) > self.max:
+                    return (
+                        False,
+                        {
+                            "message": "Length value is greater than max",
+                            "max": self.max,
+                            "length value": len(value),
+                        },
+                    )
+        return ok, args
+
+
 validator_kinds = {
     "": Validator,
     "minmax": MinMaxValidator,
+    "minmaxlen": MinMaxLenValidator,
 }

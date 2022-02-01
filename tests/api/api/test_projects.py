@@ -224,7 +224,7 @@ def test_list_and_get_project_summaries(
         client, project_name, models_count, mlrun.artifacts.model.ModelArtifact.kind
     )
 
-    # create dataset artifacts for the project to make sure we're not mistakenly count them
+    # create dataset artifacts for the project to make sure we're not mistakenly counting them
     _create_artifacts(
         client, project_name, 7, mlrun.artifacts.dataset.DatasetArtifact.kind
     )
@@ -238,7 +238,7 @@ def test_list_and_get_project_summaries(
         mlrun.runtimes.constants.RunStates.running,
     )
 
-    # create completed runs for the project to make sure we're not mistakenly count them
+    # create completed runs for the project to make sure we're not mistakenly counting them
     _create_runs(client, project_name, 2, mlrun.runtimes.constants.RunStates.completed)
 
     # create failed runs for the project for less than 24 hours ago
@@ -263,7 +263,7 @@ def test_list_and_get_project_summaries(
         one_hour_ago,
     )
 
-    # create failed runs for the project for more than 24 hours ago to make sure we're not mistakenly count them
+    # create failed runs for the project for more than 24 hours ago to make sure we're not mistakenly counting them
     two_days_ago = datetime.datetime.now() - datetime.timedelta(hours=48)
     _create_runs(
         client, project_name, 3, mlrun.runtimes.constants.RunStates.error, two_days_ago
@@ -1169,6 +1169,7 @@ def _create_schedules(client: TestClient, project_name, schedules_count):
 
 
 def _mock_pipelines(project_name):
+    mlrun.mlconf.kfp_url = "http://some-random-url:8888"
     status_count_map = {
         mlrun.run.RunStatuses.running: 4,
         mlrun.run.RunStatuses.succeeded: 3,

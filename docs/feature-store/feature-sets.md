@@ -24,7 +24,7 @@ Creating a feature set comprises of the following steps:
 * define the source and material targets, and start the ingestion process (as local process, remote job, 
   or real-time function)
 
-### Create a FeatureSet:
+### Create a FeatureSet
 * **name** &mdash; The feature set name is a unique name within a project. 
 * **entities** &mdash; Each feature set must be associated with one or more index column. when joining feature sets the entity is used as the key column.
 * **timestamp_key** &mdash; (optional) - it is used for specifying the time field when joining by time
@@ -51,7 +51,7 @@ MLRun feature store support three processing engines (storey, pandas, spark) whi
 
 The data pipeline is defined using MLRun graph (DAG) language, graph steps can be pre-defined operators 
 (such as aggregate, filter, encode, map, join, impute, etc) or custom python classes/functions. 
-Read more about the graph in [**The Graph State Machine**](../serving/serving-graph.md#the-graph-state-machine)
+Read more about the graph in [**Real-time serving pipelines (graphs)**](../serving/serving-graph.md)
 
 the `pandas` and `spark` engines are good for simple batch transformations while the `storey` stream processing engine (the default engine)
 can handle complex workflows and real-time sources.
@@ -147,7 +147,8 @@ The feature store enables users to start real-time ingestion service. <br>
 When running the {py:class}`~mlrun.feature_store.deploy_ingestion_service` the feature store creates an elastic real time serverless function 
 (AKA nuclio function) which runs the pipeline and stores the data results in the "offline" and "online" feature store by default. <br>
 There are multiple data source options including http, kafka, kinesis, v3io stream, etc. <br>
-Due to the asynchronous nature of feature store's execution engine, an error will be reported on the following event the nuclio function will get. <br>
+Due to the asynchronous nature of feature store's execution engine, errors are not returned, but rather logged and pushed to the defined
+error stream. <br>
 ```python
 # Create a real time function that receive http requests
 # the "ingest" function runs the feature engineering logic on live events

@@ -1,5 +1,4 @@
 import subprocess
-import sys
 
 import click
 
@@ -21,14 +20,10 @@ class PackageTester:
 
         self._extras_tests_data = {
             "": {"import_test_command": f"{basic_import}"},
-            "[api]": {
-                "import_test_command": f"{basic_import}; {api_import}",
-                "python_3.6_compatible": False,
-            },
+            "[api]": {"import_test_command": f"{basic_import}; {api_import}"},
             "[complete-api]": {
                 "import_test_command": f"{basic_import}; {api_import}; {s3_import}; "
                 + f"{azure_blob_storage_import}; {azure_key_vault_import}",
-                "python_3.6_compatible": False,
             },
             "[s3]": {"import_test_command": f"{basic_import}; {s3_import}"},
             "[azure-blob-storage]": {
@@ -51,12 +46,6 @@ class PackageTester:
 
         results = {}
         for extra, extra_tests_data in self._extras_tests_data.items():
-            if (
-                sys.version_info[0] == 3
-                and sys.version_info[1] == 6
-                and not extra_tests_data.get("python_3.6_compatible", True)
-            ):
-                continue
             self._create_venv()
             self._install_extra(extra)
             results[extra] = {

@@ -36,7 +36,7 @@ from mlrun.lists import RunList
 
 from ..execution import MLClientCtx
 from ..model import RunObject
-from ..utils import logger
+from ..utils import get_handler_extended, logger
 from ..utils.clones import extract_source
 from .base import BaseRuntime
 from .kubejob import KubejobRuntime
@@ -45,8 +45,8 @@ from .utils import RunError, global_context, log_std
 
 
 class ParallelRunner:
-    def _get_handler(self, handler):
-        return None, handler
+    def _get_handler(self, handler, context):
+        return handler
 
     def _get_dask_client(self, options):
         if options.dask_cluster_uri:
@@ -62,7 +62,7 @@ class ParallelRunner:
         handler = runobj.spec.handler
         self._force_handler(handler)
         set_paths(self.spec.pythonpath)
-        _, handler = self._get_handler(handler)
+        handler = self._get_handler(handler, execution)
 
         client, function_name = self._get_dask_client(generator.options)
         parallel_runs = generator.options.parallel_runs or 4
@@ -180,8 +180,12 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
     def is_deployed(self):
         return True
 
-    def _get_handler(self, handler):
-        return load_module(self.spec.command, handler)
+    def _get_handler(self, handler, context):
+        command = self.spec.command
+        if not command and self.spec.build.functionSourceCode:
+            # if the code is embedded in the function object extract or find it
+            command, _ = mlrun.run.load_func_code(self)
+        return load_module(command, handler, context)
 
     def _pre_run(self, runobj: RunObject, execution: MLClientCtx):
         execution._current_workdir = self.spec.workdir
@@ -228,7 +232,6 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         if handler:
             set_paths(pythonpath)
 
-            mod, fn = self._get_handler(handler)
             context = MLClientCtx.from_dict(
                 runobj.to_dict(),
                 rundb=self.spec.rundb,
@@ -236,6 +239,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 tmp=tmp,
                 host=socket.gethostname(),
             )
+            fn = self._get_handler(handler, context)
             global_context.set(context)
             sout, serr = exec_from_params(fn, runobj, context)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
@@ -294,23 +298,25 @@ def set_paths(pythonpath=""):
             sys.path.append(abspath)
 
 
-def load_module(file_name, handler):
+def load_module(file_name, handler, context):
     """Load module from file name"""
-    path = Path(file_name)
-    mod_name = path.name
-    if path.suffix:
-        mod_name = mod_name[: -len(path.suffix)]
-    spec = imputil.spec_from_file_location(mod_name, file_name)
-    if spec is None:
-        raise RunError(f"cannot import from {file_name!r}")
-    mod = imputil.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    try:
-        fn = getattr(mod, handler)  # Will raise if name not found
-    except AttributeError:
-        raise RunError(f"handler {handler} not found in {file_name}")
+    module = None
+    if file_name:
+        path = Path(file_name)
+        mod_name = path.name
+        if path.suffix:
+            mod_name = mod_name[: -len(path.suffix)]
+        spec = imputil.spec_from_file_location(mod_name, file_name)
+        if spec is None:
+            raise RunError(f"cannot import from {file_name!r}")
+        module = imputil.module_from_spec(spec)
+        spec.loader.exec_module(module)
 
-    return mod, fn
+    class_args = {}
+    if context:
+        class_args = copy(context._parameters.get("_init_args", {}))
+
+    return get_handler_extended(handler, context, class_args, namespaces=module)
 
 
 def run_exec(cmd, args, env=None, cwd=None):
@@ -350,7 +356,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
     old_level = logger.level
     if runobj.spec.verbose:
         logger.set_logger_level("DEBUG")
-    args_list = get_func_arg(handler, runobj, context)
+    kwargs = get_func_arg(handler, runobj, context)
 
     stdout = _DupStdout()
     err = ""
@@ -361,7 +367,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
         try:
             if cwd:
                 os.chdir(cwd)
-            val = handler(*args_list)
+            val = handler(**kwargs)
             context.set_state("completed", commit=False)
         except Exception as exc:
             err = str(exc)
@@ -380,32 +386,23 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
     return stdout.buf.getvalue(), err
 
 
-def get_func_arg(handler, runobj: RunObject, context: MLClientCtx):
+def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=False):
     params = runobj.spec.parameters or {}
     inputs = runobj.spec.inputs or {}
-    args_list = []
-    i = 0
+    kwargs = {}
     args = inspect.signature(handler).parameters
-    if len(args) > 0 and list(args.keys())[0] == "context":
-        args_list.append(context)
-        i += 1
-    if len(args) > i + 1 and list(args.keys())[i] == "event":
-        event = Event(runobj.to_dict())
-        args_list.append(event)
-        i += 1
 
-    for key in list(args.keys())[i:]:
-        if args[key].name in params:
-            args_list.append(copy(params[key]))
-        elif args[key].name in inputs:
+    for key in args.keys():
+        if key == "context":
+            kwargs[key] = context
+        elif is_nuclio and key == "event":
+            kwargs[key] = Event(runobj.to_dict())
+        elif key in params:
+            kwargs[key] = copy(params[key])
+        elif key in inputs:
             obj = context.get_input(key, inputs[key])
             if type(args[key].default) is str or args[key].annotation == str:
-                args_list.append(obj.local())
+                kwargs[key] = obj.local()
             else:
-                args_list.append(context.get_input(key, inputs[key]))
-        elif args[key].default is not inspect.Parameter.empty:
-            args_list.append(args[key].default)
-        else:
-            args_list.append(None)
-
-    return args_list
+                kwargs[key] = context.get_input(key, inputs[key])
+    return kwargs

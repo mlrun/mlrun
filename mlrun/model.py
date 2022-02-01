@@ -449,6 +449,7 @@ class RunSpec(ModelObj):
         verbose=None,
         scrape_metrics=None,
         hyper_param_options=None,
+        allow_empty_resources=None,
     ):
 
         self._hyper_param_options = None
@@ -469,6 +470,7 @@ class RunSpec(ModelObj):
         self._data_stores = data_stores
         self.verbose = verbose
         self.scrape_metrics = scrape_metrics
+        self.allow_empty_resources = allow_empty_resources
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(fields, exclude=["handler"])
@@ -980,9 +982,9 @@ def new_task(
     :param selector:        selection criteria for hyper params e.g. "max.accuracy"
     :param hyper_param_options:   hyper parameter options, see: :py:class:`HyperParamOptions`
     :param inputs:          dictionary of input objects + optional paths (if path is
-                            omitted the path will be the in_path/key.
+                            omitted the path will be the in_path/key)
     :param outputs:         dictionary of input objects + optional paths (if path is
-                            omitted the path will be the out_path/key.
+                            omitted the path will be the out_path/key)
     :param in_path:         default input path/url (prefix) for inputs
     :param out_path:        default output path/url (prefix) for artifacts
     :param artifact_path:   default artifact output path

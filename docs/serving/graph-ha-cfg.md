@@ -105,8 +105,9 @@ and parameters that provide high availability, using a non-default configuration
 - `max_in_flight`: If the processing time is very high then `max_in_flight` should not be very high. Otherwise, there will be many retries.
 - `ack_window_size`: The consumer buffer size + max_in_flight, since it is per each shard and there is a single worker. See [ack_window_size](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger).
 
-You should pay great attention when defining the Window ACK. It depends on the entire graph flow, and you need to understand when steps are 
-done in parallel (branching) vs. sequential invocation. Another key aspect is that the number of workers should also affect the window size.
+You should pay great attention when defining the `ack_window_size`. It depends on the entire graph flow, and you need to understand when 
+steps are done in parallel (branching) vs. sequential invocation. Another key aspect is that the number of workers should also affect 
+the window size.
 
 For example:  
 - If a graph includes: consumer -> remote r1 -> remote r2  

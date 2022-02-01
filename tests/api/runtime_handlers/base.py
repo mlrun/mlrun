@@ -407,6 +407,14 @@ class TestRuntimeHandlerBase:
         return calls
 
     @staticmethod
+    def _mock_list_namespaced_config_map(config_maps):
+        config_maps_list = client.V1ConfigMapList(items=config_maps)
+        get_k8s().v1api.list_namespaced_config_map = unittest.mock.Mock(
+            return_value=config_maps_list
+        )
+        return config_maps
+
+    @staticmethod
     def _mock_list_services(services):
         services_list = client.V1ServiceList(items=services)
         get_k8s().v1api.list_namespaced_service = unittest.mock.Mock(

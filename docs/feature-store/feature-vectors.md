@@ -83,11 +83,10 @@ As an example, lets create a new dataset from a parquet target:
 # Import the Parquet Target, so we can build our dataset from a parquet file
 from mlrun.datastore.targets import ParquetTarget
 
-# Get offline feature vector from parquest target and
-# will return a pandas dataframe
+# Get offline feature vector based on vector and parquet target
 offline_fv = fstore.get_offline_features(feature_vector_name, target=ParquetTarget())
 
-# View dataset
+# Return dataset
 dataset = offline_fv.to_dataframe()
 ```
 

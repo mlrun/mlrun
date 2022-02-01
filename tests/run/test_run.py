@@ -147,7 +147,7 @@ def test_local_args():
     log = str(log)
     print(state)
     print(log)
-    assert log.find(", '--xyz', '789']") != -1, "params not detected in argv"
+    assert log.find(", --xyz, 789") != -1, "params not detected in argv"
 
 
 def test_local_context():

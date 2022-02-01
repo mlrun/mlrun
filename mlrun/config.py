@@ -538,7 +538,7 @@ class Config:
             import mlrun.db
 
             # when dbpath is set we want to connect to it which will sync configuration from it to the client
-            mlrun.db.get_run_db(value)
+            mlrun.db.get_run_db(value, force_reconnect=True)
 
     @property
     def iguazio_api_url(self):

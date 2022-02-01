@@ -141,7 +141,9 @@ class TestFeatureStore(TestMLRunSystem):
         self._logger.info(f"quotes spec: {quotes_set.spec.to_yaml()}")
         assert df["zz"].mean() == 9, "map didnt set the zz column properly"
         quotes_set["bid"].validator = MinMaxValidator(min=52, severity="info")
-        quotes_set["ticker"].validator = MinMaxLenValidator(min=1, max=10, severity="info")
+        quotes_set["ticker"].validator = MinMaxLenValidator(
+            min=1, max=10, severity="info"
+        )
 
         quotes_set.plot(
             str(self.results_path / "pipe.png"), rankdir="LR", with_targets=True

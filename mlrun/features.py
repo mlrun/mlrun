@@ -17,7 +17,8 @@ class Entity(ModelObj):
         """data entity (index key)
 
         :param name:        entity name
-        :param value_type:  type of the entity, e.g. ValueType.STRING, ValueType.INT
+        :param value_type:  type of the entity, e.g. ValueType.STRING,
+                            ValueType.INT
         :param description: test description of the entity
         :param labels:      a set of key/value labels (tags)
         """
@@ -57,10 +58,11 @@ class Feature(ModelObj):
     ):
         """data feature
 
-        Features can be specified manually or inferred automatically (during ingest/preview)
+        Features can be specified manually or inferred automatically
+        (during ingest/preview)
 
-        :param value_type:  type of the feature. Use the ValueType constants library e.g. ValueType.STRING,
-                            ValueType.INT
+        :param value_type:  type of the feature. Use the ValueType constants
+                            library e.g. ValueType.STRING, ValueType.INT
         :param dims:        list of dimensions for vectors/tensors, e.g. [2, 2]
         :param description: text description of the feature
         :param aggregate:   is it an aggregated value
@@ -76,7 +78,9 @@ class Feature(ModelObj):
         self.default = default
         self.labels = labels or {}
         self.aggregate = aggregate
-        self.origin = None  # used to link the feature to the feature set origin (inside vector.status)
+        # used to link the feature to the feature set origin
+        # (inside vector.status)
+        self.origin = None
         self._validator = validator
 
     @property

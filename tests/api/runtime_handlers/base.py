@@ -112,16 +112,16 @@ class TestRuntimeHandlerBase:
         return pod
 
     @staticmethod
-    def _generate_config_map(name, labels, data=None)
+    def _generate_config_map(name, labels, data=None):
         metadata = client.V1ObjectMeta(
             name=name, labels=labels, namespace=get_k8s().resolve_namespace()
         )
         if data is None:
-            data = {'key': 'value'}
+            data = {"key": "value"}
         return client.V1ConfigMap(metadata=metadata, data=data)
 
     @staticmethod
-    def _generate_config_map_list()
+    def _generate_config_map_list():
         return client.V1ConfigMapList()
 
     def _generate_get_logger_pods_label_selector(self, runtime_handler):

@@ -121,8 +121,8 @@ class TestRuntimeHandlerBase:
         return client.V1ConfigMap(metadata=metadata, data=data)
 
     @staticmethod
-    def _generate_config_map_list():
-        return client.V1ConfigMapList()
+    def _generate_config_map_list(items):
+        return client.V1ConfigMapList(items=items)
 
     def _generate_get_logger_pods_label_selector(self, runtime_handler):
         run_label_selector = runtime_handler._get_run_label_selector(

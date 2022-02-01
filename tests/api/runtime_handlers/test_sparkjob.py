@@ -74,12 +74,10 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler
         )
 
-        self.config_map_list = self._generate_config_map_list()
-        self.config_map_list.items.append(
-            self._generate_config_map(
-                name="my-spark-jdbc", labels={"mlrun/uid": self.run_uid}
-            )
+        config_map = self._generate_config_map(
+            name="my-spark-jdbc", labels={"mlrun/uid": self.run_uid}
         )
+        self.config_map_list = self._generate_config_map_list(items=[config_map])
 
     def test_list_resources(self, db: Session, client: TestClient):
         mocked_responses = self._mock_list_namespaced_crds([[self.completed_crd_dict]])

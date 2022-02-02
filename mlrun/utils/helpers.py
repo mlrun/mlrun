@@ -604,16 +604,19 @@ def new_pipe_meta(artifact_path=None, ttl=None, *args):
     return conf
 
 
-def enrich_image_url(image_url: str, client_version: str = None) -> str:
-    image_url = image_url.strip()
-    tag = (
-        config.images_tag
-        or client_version
-        or mlrun.utils.version.Version()
-        .get()["version"]
-        .replace("+", "-")
-        .replace("0.0.0-", "")
+def convert_python_package_version_to_image_tag(version: str):
+    return (
+        version.replace("+", "-").replace("0.0.0-", "") if version is not None else None
     )
+
+
+def enrich_image_url(image_url: str, client_version: str = None) -> str:
+    client_version = convert_python_package_version_to_image_tag(client_version)
+    server_version = convert_python_package_version_to_image_tag(
+        mlrun.utils.version.Version().get()["version"]
+    )
+    image_url = image_url.strip()
+    tag = config.images_tag or client_version or server_version
     registry = config.images_registry
 
     # it's an mlrun image if the repository is mlrun

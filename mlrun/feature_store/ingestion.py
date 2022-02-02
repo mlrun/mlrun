@@ -212,6 +212,10 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
             function_ref.code = (function_ref.code or "") + _default_job_handler
         run_config.function = function_ref
         run_config.handler = "handler"
+    elif run_config.function.kind == RuntimeKinds.spark and spark_service is not None:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Spark operator jobs do not support standalone spark submission"
+        )
 
     image = None if use_spark else mlrun.mlconf.feature_store.default_job_image
     function = run_config.to_function(default_kind, image)

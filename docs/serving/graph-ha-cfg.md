@@ -41,8 +41,8 @@ To set the buffer size:
 The default `buffer_size` is 8.
 
 ```{admonition} Note
-In the above example the consumer function has a single worker, but in cases where a function has multiple workers, each worker has its own buffer. 
-``` 
+In the above example the consumer function has a single worker, but in cases where a function has multiple workers, each worker has its own buffer.
+```
 
 ## Remote function retry mechanism 
 

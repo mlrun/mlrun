@@ -287,11 +287,10 @@ def build_image(
 
 
 def resolve_mlrun_install_command(mlrun_version_specifier=None, client_version=None):
-    installation_command = "python -m pip install "
     unstable_versions = ["unstable", "0.0.0+unstable"]
     if not mlrun_version_specifier:
         if client_version and client_version not in unstable_versions:
-            return f'{installation_command}"{client_version}"'
+            return f"python -m pip install mlrun=={client_version}"
         if config.httpdb.builder.mlrun_version_specifier:
             mlrun_version_specifier = config.httpdb.builder.mlrun_version_specifier
         elif config.version in unstable_versions:
@@ -303,7 +302,7 @@ def resolve_mlrun_install_command(mlrun_version_specifier=None, client_version=N
             mlrun_version_specifier = (
                 f"{config.package_path}[complete]=={config.version}"
             )
-    return f'{installation_command}"{mlrun_version_specifier}"'
+    return f'"python -m pip install "{mlrun_version_specifier}"'
 
 
 def build_runtime(

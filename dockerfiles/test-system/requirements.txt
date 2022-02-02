@@ -2,3 +2,5 @@ pytest~=5.4
 matplotlib~=3.0
 graphviz~=0.16.0
 scikit-learn~=1.0
+lightgbm~=3.0
+xgboost~=1.1

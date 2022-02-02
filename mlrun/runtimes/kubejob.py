@@ -127,6 +127,7 @@ class KubejobRuntime(KubeResource):
         is_kfp=False,
         mlrun_version_specifier=None,
         builder_env: dict = None,
+        client_version: str = None,
     ) -> bool:
         """deploy function, build container with dependencies
 
@@ -136,6 +137,7 @@ class KubejobRuntime(KubeResource):
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
                               e.g. builder_env={"GIT_TOKEN": token}
+        :param client_version: used when running in server
 
         :return True if the function is ready (deployed)
         """
@@ -190,6 +192,7 @@ class KubejobRuntime(KubeResource):
                 mlrun_version_specifier,
                 skip_deployed,
                 watch,
+                client_version=client_version
             )
             self.save(versioned=False)
 

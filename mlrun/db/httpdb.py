@@ -39,6 +39,7 @@ from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
 from ..runtimes import BaseRuntime
 from ..utils import datetime_to_iso, dict_to_json, logger, new_pipe_meta
+from ..utils.version import Version
 from .base import RunDBError, RunDBInterface
 
 _artifact_keys = [
@@ -114,7 +115,7 @@ class HTTPRunDB(RunDBInterface):
         self.session = None
         self._wait_for_project_terminal_state_retry_interval = 3
         self._wait_for_project_deletion_interval = 3
-        self.client_version = mlrun.Version().get()["version"]
+        self.client_version = Version().get()["version"]
 
     def __repr__(self):
         cls = self.__class__.__name__

@@ -196,15 +196,15 @@ def _add_data_steps(
 def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service=None):
     name = normalize_name(name or f"{featureset.metadata.name}-ingest-job")
     use_spark = featureset.spec.engine == "spark"
-    if use_spark and not run_config.local and not spark_service:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "Remote spark ingestion requires the spark service name to be provided"
-        )
+    spark_runtimes = [RuntimeKinds.remotespark, RuntimeKinds.spark]
 
     default_kind = RuntimeKinds.remotespark if use_spark else RuntimeKinds.job
-    spark_runtimes = [RuntimeKinds.remotespark]  # may support spark operator in future
 
     if not run_config.function:
+        if use_spark and not run_config.local and not spark_service:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Remote spark ingestion requires the spark service name to be provided"
+            )
         function_ref = featureset.spec.function.copy()
         if function_ref.is_empty():
             function_ref = FunctionReference(name=name, kind=default_kind)
@@ -226,7 +226,7 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
     if not use_spark and not function.spec.image:
         raise mlrun.errors.MLRunInvalidArgumentError("function image must be specified")
 
-    if use_spark and not run_config.local:
+    if use_spark and function.kind == RuntimeKinds.remotespark and not run_config.local:
         function.with_spark_service(spark_service=spark_service)
 
     task = mlrun.new_task(

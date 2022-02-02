@@ -290,7 +290,6 @@ def resolve_mlrun_install_command(mlrun_version_specifier=None, client_version=N
     if not mlrun_version_specifier:
         if client_version:
             return f'{installation_command}"{client_version}"'
-    if not mlrun_version_specifier:
         if config.httpdb.builder.mlrun_version_specifier:
             mlrun_version_specifier = config.httpdb.builder.mlrun_version_specifier
         elif config.version in ["unstable", "0.0.0+unstable"]:

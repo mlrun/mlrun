@@ -364,6 +364,12 @@ class OnlineVectorService:
         self._index_columns = index_columns
         self._impute_values = {}
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
     def initialize(self):
         """internal, init the feature service and prep the imputing logic"""
         if not self.impute_policy:

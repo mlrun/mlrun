@@ -67,8 +67,8 @@ class RemoteStep(storey.SendToHttp):
         example pipeline::
 
             flow = function.set_topology("flow", engine="async")
-            flow.to(name="step1", handler="func1")\
-                .to(RemoteStep(name="remote_echo", url="https://myservice/path", method="POST"))\
+            flow.to(name="step1", handler="func1")
+                .to(RemoteStep(name="remote_echo", url="https://myservice/path", method="POST"))
                 .to(name="laststep", handler="func2").respond()
 
 
@@ -87,7 +87,7 @@ class RemoteStep(storey.SendToHttp):
                             event: {"x": 5} , result_path="resp" means the returned response will be written
                             to event["y"] resulting in {"x": 5, "resp": <result>}
         :param retries:     number of retries (in exponential backoff)
-        :param backoff_factor: A backoff factor in secounds to apply between attempts after the second try
+        :param backoff_factor: A backoff factor in seconds to apply between attempts after the second try
         :param timeout:     How long to wait for the server to send data before giving up, float in seconds
         """
         # init retry args for storey
@@ -300,7 +300,7 @@ class BatchHttpRequests(_ConcurrentJobExecution):
                             event: {"x": 5} , result_path="resp" means the returned response will be written
                             to event["y"] resulting in {"x": 5, "resp": <result>}
         :param retries:     number of retries (in exponential backoff)
-        :param backoff_factor: A backoff factor in secounds to apply between attempts after the second try
+        :param backoff_factor: A backoff factor in seconds to apply between attempts after the second try
         :param timeout:     How long to wait for the server to send data before giving up, float in seconds
         """
         if url and url_expression:

@@ -182,6 +182,7 @@ def build_image(
     extra=None,
     verbose=False,
     builder_env=None,
+    client_version=None,
 ):
 
     if registry:
@@ -208,7 +209,7 @@ def build_image(
 
     if with_mlrun:
         commands = commands or []
-        mlrun_command = resolve_mlrun_install_command(mlrun_version_specifier)
+        mlrun_command = resolve_mlrun_install_command(mlrun_version_specifier, client_version)
         if mlrun_command not in commands:
             commands.append(mlrun_command)
 
@@ -383,6 +384,7 @@ def build_runtime(
         extra=build.extra,
         verbose=runtime.verbose,
         builder_env=builder_env,
+        client_version=client_version,
     )
     runtime.status.build_pod = None
     if status == "skipped":

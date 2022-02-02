@@ -290,16 +290,20 @@ def build_image(
 
 def resolve_mlrun_install_command(mlrun_version_specifier=None, client_version=None):
     unstable_versions = ["unstable", "0.0.0+unstable"]
+    unstable_mlrun_version_specifier = (
+        f"{config.package_path}[complete] @ git+"
+        f"https://github.com/mlrun/mlrun@development"
+    )
     if not mlrun_version_specifier:
-        if client_version and client_version not in unstable_versions:
-            return f"python -m pip install mlrun=={client_version}"
         if config.httpdb.builder.mlrun_version_specifier:
             mlrun_version_specifier = config.httpdb.builder.mlrun_version_specifier
+        elif client_version:
+            if client_version not in unstable_versions:
+                mlrun_version_specifier = f"{config.package_path}[complete]=={client_version}"
+            else:
+                mlrun_version_specifier = unstable_mlrun_version_specifier
         elif config.version in unstable_versions:
-            mlrun_version_specifier = (
-                f"{config.package_path}[complete] @ git+"
-                f"https://github.com/mlrun/mlrun@development"
-            )
+            mlrun_version_specifier = unstable_mlrun_version_specifier
         else:
             mlrun_version_specifier = (
                 f"{config.package_path}[complete]=={config.version}"

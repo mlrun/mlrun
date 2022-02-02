@@ -201,10 +201,6 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
     default_kind = RuntimeKinds.remotespark if use_spark else RuntimeKinds.job
 
     if not run_config.function:
-        if use_spark and not run_config.local and not spark_service:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Remote spark ingestion requires the spark service name to be provided"
-            )
         function_ref = featureset.spec.function.copy()
         if function_ref.is_empty():
             function_ref = FunctionReference(name=name, kind=default_kind)
@@ -231,7 +227,12 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
         raise mlrun.errors.MLRunInvalidArgumentError("function image must be specified")
 
     if use_spark and function.kind == RuntimeKinds.remotespark and not run_config.local:
-        function.with_spark_service(spark_service=spark_service)
+        if not spark_service:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Remote spark ingestion requires the spark service name to be provided"
+            )
+        else:
+            function.with_spark_service(spark_service=spark_service)
 
     task = mlrun.new_task(
         name=name,

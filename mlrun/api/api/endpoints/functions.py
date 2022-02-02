@@ -189,6 +189,7 @@ async def build_function(
         with_mlrun = strtobool(data.get("with_mlrun", "on"))
     skip_deployed = data.get("skip_deployed", False)
     mlrun_version_specifier = data.get("mlrun_version_specifier")
+    client_version = data.headers.get("x-mlrun-client-version")
     fn, ready = await run_in_threadpool(
         _build_function,
         db_session,
@@ -198,6 +199,7 @@ async def build_function(
         skip_deployed,
         mlrun_version_specifier,
         data.get("builder_env"),
+        client_version,
     )
     return {
         "data": fn.to_dict(),
@@ -411,6 +413,7 @@ def _build_function(
     skip_deployed=False,
     mlrun_version_specifier=None,
     builder_env=None,
+    client_version=None,
 ):
     fn = None
     ready = None
@@ -465,6 +468,7 @@ def _build_function(
                 mlrun_version_specifier,
                 skip_deployed,
                 builder_env=builder_env,
+                client_version=client_version,
             )
         fn.save(versioned=True)
         logger.info("Fn:\n %s", fn.to_yaml())

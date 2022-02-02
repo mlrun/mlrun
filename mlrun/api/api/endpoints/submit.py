@@ -25,7 +25,7 @@ async def submit_job(
     username: Optional[str] = Header(None, alias="x-remote-user"),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
-    client_version: Optional[str] = Header(None, alias="x-mlrun-client-version"),
+    client_version: Optional[str] = Header(None, alias=mlrun.api.schemas.HeaderNames.client_version),
 ):
     data = None
     try:

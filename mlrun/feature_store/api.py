@@ -186,41 +186,6 @@ def get_offline_features(
     )
 
 
-@contextmanager
-def open_online_feature_service(
-    feature_vector: Union[str, FeatureVector],
-    run_config: RunConfig = None,
-    fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
-    impute_policy: dict = None,
-    update_stats: bool = False,
-) -> OnlineVectorService:
-    """ open and initialize online feature vector service api, reducing the need to use svc.close()
-        returns :py:class:`~mlrun.feature_store.OnlineVectorService`
-
-        for params information, see documentation of :py:func:`~mlrun.feature_store.api.get_online_feature_service`
-
-        example::
-
-            with open_online_feature_service(vector_uri) as svc:
-                resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
-                print(resp)
-                resp = svc.get([{"ticker": "AAPL"}], as_list=True)
-                print(resp)
-
-        example with imputing::
-
-            with open online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0)) as svc:
-                resp = svc.get([{"id": "C123487"}])
-"""
-    service = get_online_feature_service(
-        feature_vector, run_config, fixed_window_type, impute_policy, update_stats
-    )
-    try:
-        yield service
-    finally:
-        service.close()
-
-
 def get_online_feature_service(
     feature_vector: Union[str, FeatureVector],
     run_config: RunConfig = None,
@@ -231,20 +196,39 @@ def get_online_feature_service(
     """initialize and return online feature vector service api,
     returns :py:class:`~mlrun.feature_store.OnlineVectorService`
 
-    example::
+    There are two ways to use the function
+    1. As context manager
+        example::
 
-        svc = get_online_feature_service(vector_uri)
-        resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
-        print(resp)
-        resp = svc.get([{"ticker": "AAPL"}], as_list=True)
-        print(resp)
-        svc.close()
+                with get_online_feature_service(vector_uri) as svc:
+                    resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
+                    print(resp)
+                    resp = svc.get([{"ticker": "AAPL"}], as_list=True)
+                    print(resp)
 
-    example with imputing::
+            example with imputing::
 
-        svc = get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0))
-        resp = svc.get([{"id": "C123487"}])
-        svc.close()
+                with open get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0)) as svc:
+                    resp = svc.get([{"id": "C123487"}])
+    2. as simple function, note that in that option you need to close the session.
+        example::
+
+
+            svc = get_online_feature_service(vector_uri)
+            resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
+            print(resp)
+            resp = svc.get([{"ticker": "AAPL"}], as_list=True)
+            print(resp)
+
+            svc.close()
+
+        example with imputing::
+
+            svc = get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0))
+            resp = svc.get([{"id": "C123487"}])
+
+            svc.close()
+
 
     :param feature_vector:    feature vector uri or FeatureVector object. passing feature vector obj requires update
                               permissions

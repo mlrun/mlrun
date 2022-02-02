@@ -295,7 +295,14 @@ class KubejobRuntime(KubeResource):
             self._add_project_k8s_secrets_to_spec(None, runobj)
 
         pod_spec = func_to_pod(
-            self.full_image_path(), self, extra_env, command, args, self.spec.workdir
+            self.full_image_path(
+                client_version=runobj.metadata.labels.get("client_version", None)
+            ),
+            self,
+            extra_env,
+            command,
+            args,
+            self.spec.workdir,
         )
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:

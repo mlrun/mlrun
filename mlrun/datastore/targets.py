@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import sys
 import typing
 import warnings
 from collections import Counter
@@ -780,13 +779,7 @@ class CSVTarget(BaseStoreTarget):
 
     @staticmethod
     def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
-        mode = "wb"
-        # We generally prefer to open in a binary mode so that different encodings could be used, but pandas had a bug
-        # with such files until version 1.2.0, in this version they dropped support for python 3.6.
-        # So only for python 3.6 we're using text mode which might prevent some features
-        if sys.version_info[0] == 3 and sys.version_info[1] == 6:
-            mode = "wt"
-        with fs.open(target_path, mode) as fp:
+        with fs.open(target_path, "wb") as fp:
             df.to_csv(fp, **kwargs)
 
     def add_writer_state(

@@ -451,7 +451,7 @@ def uxjoin(base, local_path, key="", iter=None, is_dir=False):
         local_path = key
 
     if iter:
-        local_path = path.join(str(iter), local_path)
+        local_path = path.join(str(iter), local_path).replace("\\", "/")
 
     if base and not base.endswith("/"):
         base += "/"
@@ -747,13 +747,77 @@ class FatalFailureException(Exception):
         self.original_exception = original_exception
 
 
+def create_linear_backoff(base=2, coefficient=2, stop_value=120):
+    """
+    Create a generator of linear backoff. Check out usage example in test_helpers.py
+    """
+    x = 0
+    comparison = min if coefficient >= 0 else max
+
+    while True:
+        next_value = comparison(base + x * coefficient, stop_value)
+        yield next_value
+        x += 1
+
+
+def create_step_backoff(steps=None):
+    """
+    Create a generator of steps backoff.
+    Example: steps = [[2, 5], [20, 10], [120, None]] will produce a generator in which the first 5
+    values will be 2, the next 10 values will be 20 and the rest will be 120.
+    :param steps: a list of lists [step_value, number_of_iteration_in_this_step]
+    """
+    steps = steps if steps is not None else [[2, 10], [10, 10], [120, None]]
+    steps = iter(steps)
+
+    # Get first step
+    step = next(steps)
+    while True:
+        current_step_value, current_step_remain = step
+        if current_step_remain == 0:
+
+            # No more in this step, moving on
+            step = next(steps)
+        elif current_step_remain is None:
+
+            # We are in the last step, staying here forever
+            yield current_step_value
+        elif current_step_remain > 0:
+
+            # Still more remains in this step, just reduce the remaining number
+            step[1] -= 1
+            yield current_step_value
+
+
+def create_exponential_backoff(base=2, max_value=120, scale_factor=1):
+    """
+    Create a generator of exponential backoff. Check out usage example in test_helpers.py
+    :param base: exponent base
+    :param max_value: max limit on the result
+    :param scale_factor: factor to be used as linear scaling coefficient
+    """
+    exponent = 1
+    while True:
+
+        # This "complex" implementation (unlike the one in linear backoff) is to avoid exponent growing too fast and
+        # risking going behind max_int
+        next_value = scale_factor * (base ** exponent)
+        if next_value < max_value:
+            exponent += 1
+            yield next_value
+        else:
+            yield max_value
+
+
 def retry_until_successful(
-    interval: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
+    backoff: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
 ):
     """
     Runs function with given *args and **kwargs.
     Tries to run it until success or timeout reached (timeout is optional)
-    :param interval: int/float that will be used as interval
+    :param backoff: can either be a:
+            - number (int / float) that will be used as interval.
+            - generator of waiting intervals. (support next())
     :param timeout: pass None if timeout is not wanted, number of seconds if it is
     :param logger: a logger so we can log the failures
     :param verbose: whether to log the failure on each retry
@@ -765,8 +829,13 @@ def retry_until_successful(
     start_time = time.time()
     last_exception = None
 
+    # Check if backoff is just a simple interval
+    if isinstance(backoff, int) or isinstance(backoff, float):
+        backoff = create_linear_backoff(base=backoff, coefficient=0)
+
     # If deadline was not provided or deadline not reached
     while timeout is None or time.time() < start_time + timeout:
+        next_interval = next(backoff)
         try:
             result = _function(*args, **kwargs)
             return result
@@ -778,13 +847,13 @@ def retry_until_successful(
             last_exception = exc
 
             # If next interval is within allowed time period - wait on interval, abort otherwise
-            if timeout is None or time.time() + interval < start_time + timeout:
+            if timeout is None or time.time() + next_interval < start_time + timeout:
                 if logger is not None and verbose:
                     logger.debug(
-                        f"Operation not yet successful, Retrying in {interval} seconds. exc: {exc}"
+                        f"Operation not yet successful, Retrying in {next_interval} seconds. exc: {exc}"
                     )
 
-                time.sleep(interval)
+                time.sleep(next_interval)
             else:
                 break
 
@@ -1059,13 +1128,26 @@ def _module_to_namespace(namespace):
     return namespace
 
 
+def _search_in_namespaces(name, namespaces):
+    """search the class/function in a list of modules"""
+    if not namespaces:
+        return None
+    if not isinstance(namespaces, list):
+        namespaces = [namespaces]
+    for namespace in namespaces:
+        namespace = _module_to_namespace(namespace)
+        if name in namespace:
+            return namespace[name]
+    return None
+
+
 def get_class(class_name, namespace=None):
     """return class object from class name string"""
     if isinstance(class_name, type):
         return class_name
-    namespace = _module_to_namespace(namespace)
-    if namespace and class_name in namespace:
-        return namespace[class_name]
+    class_object = _search_in_namespaces(class_name, namespace)
+    if class_object is not None:
+        return class_object
 
     try:
         class_object = create_class(class_name)
@@ -1084,15 +1166,49 @@ def get_function(function, namespace):
         if not function.endswith(")"):
             raise ValueError('function expression must start with "(" and end with ")"')
         return eval("lambda event: " + function[1:-1], {}, {})
-    namespace = _module_to_namespace(namespace)
-    if function in namespace:
-        return namespace[function]
+    function_object = _search_in_namespaces(function, namespace)
+    if function_object is not None:
+        return function_object
 
     try:
         function_object = create_function(function)
     except (ImportError, ValueError) as exc:
         raise ImportError(f"state init failed, function {function} not found, {exc}")
     return function_object
+
+
+def get_handler_extended(
+    handler_path: str, context=None, class_args: dict = {}, namespaces=None
+):
+    """get function handler from [class_name::]handler string
+
+    :param handler_path:  path to the function ([class_name::]handler)
+    :param context:       MLRun function/job client context
+    :param class_args:    optional dict of class init kwargs
+    :param namespaces:    one or list of namespaces/modules to search the handler in
+    :return: function handler (callable)
+    """
+    if "::" not in handler_path:
+        return get_function(handler_path, namespaces)
+
+    splitted = handler_path.split("::")
+    class_path = splitted[0].strip()
+    handler_path = splitted[1].strip()
+
+    class_object = get_class(class_path, namespaces)
+    argspec = inspect.getfullargspec(class_object)
+    if argspec.varkw or "context" in argspec.args:
+        class_args["context"] = context
+    try:
+        instance = class_object(**class_args)
+    except TypeError as exc:
+        raise TypeError(f"failed to init class {class_path}, {exc}\n args={class_args}")
+
+    if not hasattr(instance, handler_path):
+        raise ValueError(
+            f"handler ({handler_path}) specified but doesnt exist in class {class_path}"
+        )
+    return getattr(instance, handler_path)
 
 
 def datetime_from_iso(time_str: str) -> Optional[datetime]:

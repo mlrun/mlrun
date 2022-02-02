@@ -19,6 +19,8 @@ __all__ = ["get_version", "set_environment", "code_to_function", "import_functio
 import getpass
 from os import environ, path
 
+import dotenv
+
 from .config import config as mlconf
 from .datastore import DataItem, store_manager
 from .db import get_run_db
@@ -160,3 +162,35 @@ def get_sample_path(subpath=""):
     if subpath:
         samples_path = path.join(samples_path, subpath.lstrip("/"))
     return samples_path
+
+
+def set_env_from_file(env_file: str, return_dict: bool = False):
+    """Read and set and/or return environment variables from a file
+    the env file should have lines in the form KEY=VALUE, comment line start with "#"
+
+    example file::
+
+        # this is an env file
+        MLRUN_DBPATH=https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com
+        V3IO_USERNAME=admin
+        V3IO_API=https://webapi.default-tenant.app.xxx.iguazio-cd1.com
+        V3IO_ACCESS_KEY=MYKEY123
+        AWS_ACCESS_KEY_ID-XXXX
+        AWS_SECRET_ACCESS_KEY=YYYY
+
+    usage::
+
+        # set the env vars from a file + return the results as a dict
+        env_dict = mlrun.set_env_from_file(env_path, return_dict=True)
+
+    :param env_file:    path/url to env file
+    :param return_dict: set to True to return the env as a dict
+    :return: None or env dict
+    """
+    env_vars = dotenv.dotenv_values(env_file)
+    if None in env_vars.values():
+        raise MLRunInvalidArgumentError("env file lines must be in the form key=value")
+    for key, value in env_vars.items():
+        environ[key] = value  # Load to local environ
+    mlconf.reload()  # reload mlrun configuration
+    return env_vars if return_dict else None

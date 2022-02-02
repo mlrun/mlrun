@@ -1,5 +1,6 @@
 import pytest
 
+import mlrun
 from mlrun import code_to_function, get_run_db, mlconf, new_project, new_task
 from mlrun.utils.vault import VaultStore
 from tests.conftest import examples_path, out_path, verify_state
@@ -72,8 +73,9 @@ def test_vault_end_to_end():
     project = new_project(project_name)
     # This call will initialize Vault infrastructure and add the given secrets
     # It executes on the API server
-    project.create_vault_secrets(
-        {"aws_key": aws_key_value, "github_key": github_key_value}
+    project.set_secrets(
+        {"aws_key": aws_key_value, "github_key": github_key_value},
+        provider=mlrun.api.schemas.SecretProviderName.vault,
     )
 
     # This API executes on the client side

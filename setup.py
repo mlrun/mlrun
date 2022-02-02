@@ -85,17 +85,19 @@ extras_require = {
     ],
     "azure-blob-storage": ["azure-storage-blob~=12.0", "adlfs~=2021.8.1"],
     "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
-    # bokeh 2.4.0 requires typing-extensions>=3.10.0 but all tensorflow versions that compatible with our
-    # tensorflow~=2.4.1 requirement requiring typing-extensions~=3.7.4 so limiting to 2.3.x
-    "bokeh": ["bokeh~=2.3.0"],
+    "bokeh": [
+        # >=2.4.2 to force having a security fix done in 2.4.2
+        "bokeh~=2.4, >=2.4.2",
+    ],
     "plotly": ["plotly~=5.4"],
     "google-cloud-storage": ["gcsfs~=2021.8.1"],
 }
 extras_require["complete"] = sorted(
     {
         requirement
-        for requirement_list in extras_require.values()
+        for extra_key, requirement_list in extras_require.items()
         for requirement in requirement_list
+        if extra_key != "bokeh"
     }
 )
 extras_require["api"] = api_deps
@@ -179,7 +181,6 @@ setup(
         "Operating System :: Microsoft :: Windows",
         "Operating System :: MacOS",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python",
         "Topic :: Software Development :: Libraries :: Python Modules",

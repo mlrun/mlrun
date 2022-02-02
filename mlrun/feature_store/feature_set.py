@@ -263,6 +263,12 @@ class FeatureSet(ModelObj):
             timestamp_key=timestamp_key,
             engine=engine,
         )
+
+        if timestamp_key in self.spec.entities.keys():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "timestamp key can not be entity"
+            )
+
         self.metadata = VersionedObjMetadata(name=name)
         self.status = None
         self._last_state = ""
@@ -338,7 +344,7 @@ class FeatureSet(ModelObj):
         """set the desired target list or defaults
 
         :param targets:  list of target type names ('csv', 'nosql', ..) or target objects
-                         CSVTarget(), ParquetTarget(), NoSqlTarget(), ..
+                         CSVTarget(), ParquetTarget(), NoSqlTarget(), StreamTarget(), ..
         :param with_defaults: add the default targets (as defined in the central config)
         :param default_final_step: the final graph step after which we add the
                                     target writers, used when the graph branches and

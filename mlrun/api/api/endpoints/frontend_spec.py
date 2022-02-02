@@ -47,6 +47,7 @@ def get_frontend_spec(
         function_deployment_mlrun_command=mlrun.builder.resolve_mlrun_install_command(),
         auto_mount_type=config.storage.auto_mount_type,
         auto_mount_params=config.get_storage_auto_mount_params(),
+        default_artifact_path=config.artifact_path,
     )
 
 

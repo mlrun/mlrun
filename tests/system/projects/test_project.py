@@ -238,7 +238,11 @@ class TestProject(TestMLRunSystem):
     def _test_new_pipeline(self, name, engine):
         project = self._create_project(name)
         project.set_function(
-            "gen_iris.py", "gen-iris", image="mlrun/mlrun", handler="iris_generator",
+            "gen_iris.py",
+            "gen-iris",
+            image="mlrun/mlrun",
+            handler="iris_generator",
+            requirements=["requests"],
         )
         print(project.to_yaml())
         run = project.run(
@@ -327,4 +331,19 @@ class TestProject(TestMLRunSystem):
         assert fn.status.state == "ready"
         assert run_result.output("score")
 
+        self._delete_test_project(name)
+
+    def test_set_secrets(self):
+        name = "set-secrets"
+        project = mlrun.new_project(name, context=str(self.assets_path))
+        project.save()
+        env_file = str(self.assets_path / "envfile")
+        db = mlrun.get_run_db()
+        db.delete_project_secrets(name, provider="kubernetes")
+        project.set_secrets(file_path=env_file)
+        secrets = db.list_project_secret_keys(name, provider="kubernetes")
+        assert secrets.secret_keys == ["ENV_ARG1", "ENV_ARG2"]
+
+        # Cleanup
+        self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")
         self._delete_test_project(name)

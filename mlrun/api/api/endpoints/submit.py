@@ -85,7 +85,9 @@ async def submit_job(
             labels.setdefault("v3io_user", username)
             labels.setdefault("owner", username)
 
-    data["task"]["metadata"].setdefault("labels", {}).update({"mlrun/client_version": client_version})
+    data["task"]["metadata"].setdefault("labels", {}).update(
+        {"mlrun/client_version": client_version}
+    )
     logger.info("Submit run", data=data)
     response = await mlrun.api.api.utils.submit_run(db_session, auth_info, data)
     return response

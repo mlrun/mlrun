@@ -191,7 +191,7 @@ class TestFeatureStore(TestMLRunSystem):
     def _get_online_features(self, features, features_size):
         # test real-time query
         vector = fs.FeatureVector("my-vec", features)
-        with fs.open_online_feature_service(vector) as svc:
+        with fs.get_online_feature_service(vector) as svc:
             # check non existing column
             resp = svc.get([{"bb": "AAPL"}])
 
@@ -820,7 +820,7 @@ class TestFeatureStore(TestMLRunSystem):
         ]
 
         vector = fs.FeatureVector("my-vec", features)
-        with fs.open_online_feature_service(vector) as svc:
+        with fs.get_online_feature_service(vector) as svc:
             resp = svc.get([{"first_name": "yosi", "last_name": "levi"}])
             assert resp[0]["bid_sum_1h"] == 37.0
 
@@ -953,7 +953,7 @@ class TestFeatureStore(TestMLRunSystem):
         features = [f"{name}.bids_sum_1h", f"{name}.last_name"]
 
         vector = fs.FeatureVector("my-vec", features)
-        with fs.open_online_feature_service(vector) as svc:
+        with fs.get_online_feature_service(vector) as svc:
             resp = svc.get([{"first_name": "moshe"}])
             expected = {"bids_sum_1h": 2000.0, "last_name": "cohen"}
             assert resp[0] == expected
@@ -1012,7 +1012,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         features = ["pandass.*"]
         vector = fs.FeatureVector("my-vec", features)
-        with fs.open_online_feature_service(vector) as svc:
+        with fs.get_online_feature_service(vector) as svc:
             resp = svc.get([{"name": "ab"}])
             assert resp[0] == {"data": 10}
 
@@ -1079,7 +1079,7 @@ class TestFeatureStore(TestMLRunSystem):
         features = [f"{name}.*"]
         vec = fs.FeatureVector("sched_test-vec", features)
 
-        with fs.open_online_feature_service(vec) as svc:
+        with fs.get_online_feature_service(vec) as svc:
             resp = svc.get([{"first_name": "yosi"}, {"first_name": "moshe"}])
             assert resp[0]["data"] == 10
             assert resp[1]["data"] == 2000
@@ -1199,7 +1199,7 @@ class TestFeatureStore(TestMLRunSystem):
         features = [f"{name}.bids_sum_24h", f"{name}.last_name"]
 
         vector = fs.FeatureVector("my-vec", features)
-        with fs.open_online_feature_service(
+        with fs.get_online_feature_service(
             vector, fixed_window_type=fixed_window_type
         ) as svc:
             resp = svc.get([{"first_name": "moshe"}])
@@ -1264,7 +1264,7 @@ class TestFeatureStore(TestMLRunSystem):
         fs.ingest(data_set, data, return_df=True)
         features = ["tests2.*"]
         vector = fs.FeatureVector("my-vec", features)
-        with fs.open_online_feature_service(vector) as svc:
+        with fs.get_online_feature_service(vector) as svc:
             resp = svc.get([{"first_name": "yossi"}])
             assert resp[0] == {"bid": 10, "bool": None}
 
@@ -1435,7 +1435,7 @@ class TestFeatureStore(TestMLRunSystem):
         parquet_df = pd.read_parquet(parquet_path)
         assert df1.set_index(keys="name").sort_index().equals(parquet_df.sort_index())
 
-        with fs.open_online_feature_service(fvec) as svc:
+        with fs.get_online_feature_service(fvec) as svc:
             resp = svc.get(entity_rows=[{"name": "GHI"}])
             assert resp[0]["value"] == 3
 
@@ -1453,7 +1453,7 @@ class TestFeatureStore(TestMLRunSystem):
         parquet_df = pd.read_parquet(parquet_path)
         assert df2.set_index(keys="name").sort_index().equals(parquet_df.sort_index())
 
-        with fs.open_online_feature_service(fvec) as svc:
+        with fs.get_online_feature_service(fvec) as svc:
             resp = svc.get(entity_rows=[{"name": "GHI"}])
             assert resp[0] is None
 
@@ -1505,7 +1505,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         fs.ingest(fset, df2, targets=targets)
 
-        with fs.open_online_feature_service(fvec) as svc:
+        with fs.get_online_feature_service(fvec) as svc:
             resp = svc.get(entity_rows=[{"name": "PQR"}])
             assert resp[0]["value"] == 6
             resp = svc.get(entity_rows=[{"name": "ABC"}])
@@ -1550,7 +1550,7 @@ class TestFeatureStore(TestMLRunSystem):
         off1 = fs.get_offline_features(fvec).to_dataframe()
         assert df1.set_index(keys="name").sort_index().equals(off1.sort_index())
 
-        with fs.open_online_feature_service(fvec) as svc:
+        with fs.get_online_feature_service(fvec) as svc:
             resp = svc.get(entity_rows=[{"name": "PQR"}])
             assert resp[0]["value"] == 6
 
@@ -1753,7 +1753,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert len(resp) != 0
         # read from online service updated data
         vector = fs.FeatureVector("my-vec", ["fset2.*"])
-        with fs.open_online_feature_service(vector) as svc:
+        with fs.get_online_feature_service(vector) as svc:
             sleep(5)
             resp = svc.get([{"ticker": "AAPL"}])
         assert resp[0]["bid"] == 300
@@ -1859,7 +1859,7 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_get_online_feature_service_with_tag(self):
         def validate_result(test_vector, test_keys):
-            with fs.open_online_feature_service(test_vector) as svc:
+            with fs.get_online_feature_service(test_vector) as svc:
                 sleep(5)
                 resp = svc.get([{"ticker": "AAPL"}])
             assert resp is not None
@@ -2023,7 +2023,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         # create vector and online service with imputing policy
         vector = fs.FeatureVector("vectori", features)
-        with fs.open_online_feature_service(
+        with fs.get_online_feature_service(
             vector, impute_policy={"*": "$max", "data_avg_1h": "$mean", "data2": 4}
         ) as svc:
 
@@ -2058,7 +2058,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         # check without impute
         vector = fs.FeatureVector("vectori2", features)
-        with fs.open_online_feature_service(vector) as svc:
+        with fs.get_online_feature_service(vector) as svc:
             resp = svc.get([{"name": "cd"}])
             assert np.isnan(resp[0]["data2"])
             assert np.isnan(resp[0]["data_avg_1h"])
@@ -2090,9 +2090,9 @@ class TestFeatureStore(TestMLRunSystem):
             "sum": {"a": 16, "b": 26},
         }
 
-    def test_open_online_feature_service(self):
+    def test_get_online_feature_service(self):
         vector = self._generate_vector()
-        with fs.open_online_feature_service(vector) as svc:
+        with fs.get_online_feature_service(vector) as svc:
             resp = svc.get([{"name": "ab"}])
             assert resp[0] == {"data": 10}
 

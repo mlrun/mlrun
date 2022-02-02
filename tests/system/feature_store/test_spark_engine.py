@@ -178,7 +178,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         features = [f"{name}.*"]
         vec = fs.FeatureVector("sched_test-vec", features)
 
-        with fs.open_online_feature_service(vec) as svc:
+        with fs.get_online_feature_service(vec) as svc:
 
             resp = svc.get([{"first_name": "yosi"}, {"first_name": "moshe"}])
             assert resp[0]["data"] == 10

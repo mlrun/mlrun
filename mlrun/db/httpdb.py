@@ -114,7 +114,7 @@ class HTTPRunDB(RunDBInterface):
         self.session = None
         self._wait_for_project_terminal_state_retry_interval = 3
         self._wait_for_project_deletion_interval = 3
-        self.client_version = version.Version().get()["version"]
+        self.client_version = None
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -246,6 +246,7 @@ class HTTPRunDB(RunDBInterface):
         # hack to allow unit tests to instantiate HTTPRunDB without a real server behind
         if "mock-server" in self.base_url:
             return
+        self.client_version = version.Version().get()["version"]
         resp = self.api_call("GET", "client-spec", timeout=5)
         try:
             server_cfg = resp.json()

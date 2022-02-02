@@ -3,10 +3,10 @@ import os
 import traceback
 from distutils.util import strtobool
 from http import HTTPStatus
-from typing import List
+from typing import List, Optional
 
 import v3io
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response, Header
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -160,6 +160,7 @@ async def build_function(
     request: Request,
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
+    client_version: Optional[str] = Header(None, alias="x-mlrun-client-version"),
 ):
     data = None
     try:
@@ -189,7 +190,6 @@ async def build_function(
         with_mlrun = strtobool(data.get("with_mlrun", "on"))
     skip_deployed = data.get("skip_deployed", False)
     mlrun_version_specifier = data.get("mlrun_version_specifier")
-    client_version = data.headers.get("x-mlrun-client-version")
     fn, ready = await run_in_threadpool(
         _build_function,
         db_session,

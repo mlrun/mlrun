@@ -192,7 +192,7 @@ class KubejobRuntime(KubeResource):
                 mlrun_version_specifier,
                 skip_deployed,
                 watch,
-                client_version=client_version
+                client_version=client_version,
             )
             self.save(versioned=False)
 

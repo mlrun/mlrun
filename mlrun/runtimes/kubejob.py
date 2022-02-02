@@ -296,7 +296,7 @@ class KubejobRuntime(KubeResource):
 
         pod_spec = func_to_pod(
             self.full_image_path(
-                client_version=runobj.metadata.labels.get("client_version", None)
+                client_version=runobj.metadata.labels.get("mlrun/client_version", None)
             ),
             self,
             extra_env,

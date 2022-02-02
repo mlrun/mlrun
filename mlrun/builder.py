@@ -285,7 +285,11 @@ def build_image(
         return f"build:{pod}"
 
 
-def resolve_mlrun_install_command(mlrun_version_specifier=None):
+def resolve_mlrun_install_command(mlrun_version_specifier=None, client_version=None):
+    installation_command = "python -m pip install "
+    if not mlrun_version_specifier:
+        if client_version:
+            return f'{installation_command}"{client_version}"'
     if not mlrun_version_specifier:
         if config.httpdb.builder.mlrun_version_specifier:
             mlrun_version_specifier = config.httpdb.builder.mlrun_version_specifier
@@ -298,7 +302,7 @@ def resolve_mlrun_install_command(mlrun_version_specifier=None):
             mlrun_version_specifier = (
                 f"{config.package_path}[complete]=={config.version}"
             )
-    return f'python -m pip install "{mlrun_version_specifier}"'
+    return f'{installation_command}"{mlrun_version_specifier}"'
 
 
 def build_runtime(
@@ -309,6 +313,7 @@ def build_runtime(
     skip_deployed,
     interactive=False,
     builder_env=None,
+    client_version=None,
 ):
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
@@ -357,7 +362,9 @@ def build_runtime(
     logger.info(f"building image ({build.image})")
 
     name = normalize_name(f"mlrun-build-{runtime.metadata.name}")
-    base_image = enrich_image_url(build.base_image or config.default_base_image)
+    base_image = enrich_image_url(
+        build.base_image or config.default_base_image, client_version
+    )
 
     status = build_image(
         auth_info,

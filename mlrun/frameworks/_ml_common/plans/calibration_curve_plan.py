@@ -76,7 +76,7 @@ class CalibrationCurvePlan(MLPlotPlan):
         # Calculate the calibration curve:
         prob_true, prob_pred = calibration_curve(
             y,
-            y_pred,
+            y_pred[:, -1],  # Take only the second class probabilities (1, not 0).
             n_bins=self._n_bins,
             normalize=self._normalize,
             strategy=self._strategy,

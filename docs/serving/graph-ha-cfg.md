@@ -55,8 +55,7 @@ thus you can configure the timeout on both the caller and on the remote, as appr
 When an event is sent to the remote function, and no response is received by the provided timeout (or the default one), or an error 500,
 502, 503, or 504 is received (the remote function is too busy to handle the request at this time), 
 the caller retries the request up to the configured maximum number of retries, using an exponential retry backoff mechanism. 
-If the number of retries is reached, the event is pushed to the exception stream, indicating that this `triggers.(name).
-event` did not complete successfully.
+If the number of retries is reached, the event is pushed to the exception stream, indicating that this `event` did not complete. successfully.
 
 ### Remote-function caller configuration
 
@@ -97,9 +96,9 @@ and parameters that provide high availability, using a non-default configuration
 <img src="../_static/images/graph-ha-params.png" alt="graph-ha-params" width="800"/>
 
 - Assume the processing time of the remote function is Pt, in seconds. 
-- Timeout: Pt + 1 second (usually sufficient).
+- `timeout`: Between <Pt+epsilon> and <Pt+`worker_timeout`>.
 - Serving function 
-   - `gateway_timeout`: Pt + 1 second (usually sufficient).
+   - `gateway_timeout`: Pt+1 second (usually sufficient).
    - `worker_timeout`: The general rule of thumb is the greater of Pt/10 or 60 seconds. However you should adjust the 
    value according to your needs.
 - `max_in_flight`: If the processing time is very high then `max_in_flight` should not be very high. Otherwise, there will be many retries.

@@ -28,9 +28,9 @@ A consumer function is essentially a Nuclio function with a stream trigger. As p
 When the consumer function is part of a graph then the consumer function’s number of replicas is derived from the number of shards and is 
 therefore nonconfigurable. The same applies to the number of workers in each replica, which is set to 1 and is not configurable.  
 
-Each worker of a consumer function has one buffer that holds the incoming events that are waiting to be processed by the worker.
-Once this buffer is full, events need to be processed so that the function can start processing more events.
-The buffer size (number of events) is configurable and is key to the overall configuration. 
+The consumer function has one buffer per worker holding the incoming events that were received by the worker and are waiting to be 
+processed. Once this buffer is full, events need to be processed so that the function is able to receive more events. The buffer size is 
+configurable and is key to the overall configuration.
 
 The buffer should be as small as possible. There is a trade-off between the buffer size and the latency. A larger buffer has lower latency 
 but increases the recovery time after a failure, due to the high number of records that need to be reprocessed. </br>

@@ -299,7 +299,9 @@ def resolve_mlrun_install_command(mlrun_version_specifier=None, client_version=N
             mlrun_version_specifier = config.httpdb.builder.mlrun_version_specifier
         elif client_version:
             if client_version not in unstable_versions:
-                mlrun_version_specifier = f"{config.package_path}[complete]=={client_version}"
+                mlrun_version_specifier = (
+                    f"{config.package_path}[complete]=={client_version}"
+                )
             else:
                 mlrun_version_specifier = unstable_mlrun_version_specifier
         elif config.version in unstable_versions:

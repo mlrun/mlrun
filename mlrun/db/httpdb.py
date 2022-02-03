@@ -195,8 +195,12 @@ class HTTPRunDB(RunDBInterface):
                 if "Authorization" not in kw.setdefault("headers", {}):
                     kw["headers"].update({"Authorization": "Bearer " + self.token})
 
-        if mlrun.api.schemas.HeaderNames.client_version not in kw.setdefault("headers", {}):
-            kw["headers"].update({mlrun.api.schemas.HeaderNames.client_version: self.client_version})
+        if mlrun.api.schemas.HeaderNames.client_version not in kw.setdefault(
+            "headers", {}
+        ):
+            kw["headers"].update(
+                {mlrun.api.schemas.HeaderNames.client_version: self.client_version}
+            )
 
         if not self.session:
             self.session = requests.Session()

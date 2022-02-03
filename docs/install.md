@@ -59,6 +59,12 @@ Add the `v3io-stable` helm chart repo
 helm repo add v3io-stable https://v3io.github.io/helm-charts/stable
 ```
 
+Update the repo to make sure you're getting the latest chart
+
+```bash
+helm repo update
+```
+
 Create a secret with your docker-registry named `registry-credentials`:
 
 ```bash

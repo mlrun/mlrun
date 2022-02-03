@@ -8,7 +8,7 @@ from mlrun.artifacts import Artifact, PlotlyArtifact
 
 from ..._common import ModelType
 from ..plan import MLPlanStages, MLPlotPlan
-from ..utils import DatasetType
+from ..utils import DatasetType, to_dataframe
 
 
 class FeatureImportancePlan(MLPlotPlan):
@@ -67,7 +67,10 @@ class FeatureImportancePlan(MLPlotPlan):
 
         # Create a table of features and their importance:
         df = pd.DataFrame(
-            {"features": x.columns, "feature_importance": importance_score}
+            {
+                "features": to_dataframe(x).columns,
+                "feature_importance": importance_score,
+            }
         ).sort_values(by="feature_importance", ascending=False)
 
         # Create the figure:

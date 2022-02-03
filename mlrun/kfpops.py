@@ -248,7 +248,7 @@ def mlrun_op(
         # run training, mount_v3io will mount "/User" into the pipeline step
         train = mlrun_train(p1, p2).apply(mount_v3io())
 
-        # feed 1st step results into the secound step
+        # feed 1st step results into the second step
         validate = mlrun_validate(
             train.outputs['model-txt']).apply(mount_v3io())
 

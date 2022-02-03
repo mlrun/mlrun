@@ -12,7 +12,7 @@ Once MLRun is installed you can access it remotely from your IDE (PyCharm or VSC
 
 ### Prerequisites
 
-1. Access to a Kubernetes cluster. You must have administrator permissions in order to install MLRun on your cluster. For local installation on Windows or Mac, we recommend [Docker Desktop](https://www.docker.com/products/docker-desktop)
+1. Access to a Kubernetes cluster. You must have administrator permissions in order to install MLRun on your cluster. For local installation on Windows or Mac, [Docker Desktop](https://www.docker.com/products/docker-desktop) is recommended. MLRun fully supports k8s releases up to, and including, 1.21.
 2. The Kubernetes command-line too (kubectl) compatible with your Kubernetes cluster installed. Refer to the [kubectl installation instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more information.
 3. Helm CLI installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
 4. You must have an accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret
@@ -57,6 +57,12 @@ Add the `v3io-stable` helm chart repo
 
 ```bash
 helm repo add v3io-stable https://v3io.github.io/helm-charts/stable
+```
+
+Update the repo to make sure you're getting the latest chart
+
+```bash
+helm repo update
 ```
 
 Create a secret with your docker-registry named `registry-credentials`:

@@ -1173,7 +1173,9 @@ def get_function(function, namespace):
     try:
         function_object = create_function(function)
     except (ImportError, ValueError) as exc:
-        raise ImportError(f"state init failed, function {function} not found, {exc}")
+        raise ImportError(
+            f"state/function init failed, handler {function} not found, {exc}"
+        )
     return function_object
 
 

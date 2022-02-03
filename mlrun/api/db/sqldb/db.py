@@ -13,6 +13,7 @@ from sqlalchemy import and_, distinct, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, aliased
 
+import mlrun
 import mlrun.api.db.session
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.errors
@@ -564,8 +565,11 @@ class SQLDB(DBInterface):
         if obj:
             function = obj.struct
 
-            # If queried by hash key remove status
-            if hash_key:
+            # If queried by hash key and nuclio/serving function remove status
+            is_nuclio = (
+                function["kind"] in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
+            )
+            if hash_key and is_nuclio:
                 function["status"] = None
 
             # If connected to a tag add it to metadata

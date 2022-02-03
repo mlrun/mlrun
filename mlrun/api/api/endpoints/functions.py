@@ -378,7 +378,7 @@ def build_status(
         )
 
     # read from log file
-    log_file = log_path(project, f"build::{name}::{tag or 'latest'}")
+    log_file = log_path(project, f"build__{name}__{tag or 'latest'}")
     if state in ["failed", "error", "ready"] and log_file.exists():
         with log_file.open("rb") as fp:
             fp.seek(offset)
@@ -496,7 +496,7 @@ def _build_function(
         else:
             log_file = log_path(
                 fn.metadata.project,
-                f"build::{fn.metadata.name}::{fn.metadata.tag or 'latest'}",
+                f"build__{fn.metadata.name}__{fn.metadata.tag or 'latest'}",
             )
             if log_file.exists() and not (skip_deployed and fn.is_deployed):
                 # delete old build log file if exist and build is not skipped

@@ -40,10 +40,6 @@ To set the buffer size:
 
 The default `buffer_size` is 8.
 
-```{admonition} Note
-In the above example the consumer function has a single worker, but in cases where a function has multiple workers, each worker has its own buffer.
-```
-
 ## Remote function retry mechanism 
 
 The required processing time of a remote function varies, depending on the function. The system assumes a processing 
@@ -99,11 +95,14 @@ and parameters that provide high availability, using a non-default configuration
    - `worker_timeout`: The general rule is the greater of Pt/10 or 60 seconds. However, you should adjust the 
    value according to your needs.
 - `max_in_flight`: If the processing time is very high then `max_in_flight` should be low. Otherwise, there will be many retries.
-- `ack_window_size`: The consumer `buffer_size` + `max_in_flight`, since it is per each shard and there is a single worker. See [ack_window_size](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger).
+- `ack_window_size`: 
+   - With 1 worker: The consumer `buffer_size`+`max_in_flight`, since it is per each shard and there is a single worker. 
+   - With >1 worker: The consumer (#workers x `buffer_size`)+`max_in_flight`
 
-You should pay great attention when defining the `ack_window_size`. It depends on the entire graph flow, and you need to understand which 
-steps are parallel (branching) vs. sequential invocation. Another key aspect is that the number of workers affects 
-the window size.
+Make sure you thoroughly understand your serving graph and its functions before defining the `ack_window_size`. Its value depends on the 
+entire graph flow. You need to understand which steps are parallel (branching) vs. sequential invocation. Another key aspect is that the number of workers affects the window size.
+      
+See the [ack_window_size API](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger) and an [example](../runtimes/function.html#RemoteRuntime.add_v3io_stream_trigger).
 
 For example:  
 - If a graph includes: consumer -> remote r1 -> remote r2

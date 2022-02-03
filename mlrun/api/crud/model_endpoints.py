@@ -3,6 +3,7 @@ import os
 import traceback
 from typing import Any, Dict, List, Optional
 
+import v3io_frames
 from nuclio.utils import DeployError
 from sqlalchemy.orm import Session
 from v3io.dataplane import RaiseForStatus
@@ -500,26 +501,30 @@ class ModelEndpoints:
             token=access_key, address=config.v3io_framesd, container=container,
         )
 
-        data = client.read(
-            backend="tsdb",
-            table=path,
-            columns=["endpoint_id", *metrics],
-            filter=f"endpoint_id=='{endpoint_id}'",
-            start=start,
-            end=end,
-        )
-
-        data_dict = data.to_dict()
         metrics_mapping = {}
-        for metric in metrics:
-            metric_data = data_dict.get(metric)
-            if metric_data is None:
-                continue
 
-            values = [
-                (str(timestamp), value) for timestamp, value in metric_data.items()
-            ]
-            metrics_mapping[metric] = Metric(name=metric, values=values)
+        try:
+            data = client.read(
+                backend="tsdb",
+                table=path,
+                columns=["endpoint_id", *metrics],
+                filter=f"endpoint_id=='{endpoint_id}'",
+                start=start,
+                end=end,
+            )
+
+            data_dict = data.to_dict()
+            for metric in metrics:
+                metric_data = data_dict.get(metric)
+                if metric_data is None:
+                    continue
+
+                values = [
+                    (str(timestamp), value) for timestamp, value in metric_data.items()
+                ]
+                metrics_mapping[metric] = Metric(name=metric, values=values)
+        except v3io_frames.errors.ReadError:
+            logger.warn(f"failed to read tsdb for endpoint {endpoint_id}")
         return metrics_mapping
 
     def verify_project_has_no_model_endpoints(self, project_name: str):
@@ -632,28 +637,9 @@ class ModelEndpoints:
                 f"Deploying model monitoring stream processing function [{project}]"
             )
 
-        fn = get_model_monitoring_stream_processing_function(project)
-        fn.metadata.project = project
-
-        stream_path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind="stream"
+        fn = get_model_monitoring_stream_processing_function(
+            project, model_monitoring_access_key, db_session
         )
-
-        fn.add_v3io_stream_trigger(
-            stream_path=stream_path, name="monitoring_stream_trigger"
-        )
-
-        fn.set_env_from_secret(
-            "MODEL_MONITORING_ACCESS_KEY",
-            mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
-            Secrets().generate_model_monitoring_secret_key(
-                "MODEL_MONITORING_ACCESS_KEY"
-            ),
-        )
-        fn.metadata.credentials.access_key = model_monitoring_access_key
-        fn.set_env("MODEL_MONITORING_PARAMETERS", json.dumps({"project": project}))
-
-        fn.apply(mlrun.mount_v3io())
 
         _build_function(db_session=db_session, auth_info=auto_info, function=fn)
 

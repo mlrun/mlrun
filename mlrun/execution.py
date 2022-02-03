@@ -104,6 +104,7 @@ class MLClientCtx(object):
         self._handler = None
 
         self._project_object = None
+        self._allow_empty_resources = None
 
     def __enter__(self):
         return self
@@ -176,9 +177,10 @@ class MLClientCtx(object):
             for child in self._children:
                 child.commit(completed=completed)
         results = [child.to_dict() for child in self._children]
-        summary = mlrun.runtimes.utils.results_to_iter(results, None, self)
+        summary, df = mlrun.runtimes.utils.results_to_iter(results, None, self)
         task = results[best_run - 1] if best_run else None
         self.log_iteration_results(best_run, summary, task)
+        mlrun.runtimes.utils.log_iter_artifacts(self, df, summary[0])
 
     def mark_as_best(self):
         """mark a child as the best iteration result, see .get_child_context()"""
@@ -278,6 +280,9 @@ class MLClientCtx(object):
                         self._hyper_param_options
                     )
             self._outputs = spec.get("outputs", self._outputs)
+            self._allow_empty_resources = spec.get(
+                "allow_empty_resources", self._allow_empty_resources
+            )
             self.artifact_path = spec.get(run_keys.output_path, self.artifact_path)
             self._in_path = spec.get(run_keys.input_path, self._in_path)
             inputs = spec.get(run_keys.inputs)
@@ -472,7 +477,12 @@ class MLClientCtx(object):
             url = key
         if self.in_path and not (url.startswith("/") or "://" in url):
             url = os.path.join(self._in_path, url)
-        obj = self._data_stores.object(url, key, project=self._project)
+        obj = self._data_stores.object(
+            url,
+            key,
+            project=self._project,
+            allow_empty_resources=self._allow_empty_resources,
+        )
         self._inputs[key] = obj
         return obj
 
@@ -804,7 +814,7 @@ class MLClientCtx(object):
         return item
 
     def get_cached_artifact(self, key):
-        """return an a logged artifact from cache (for potential updates)"""
+        """return an logged artifact from cache (for potential updates)"""
         return self._artifacts_manager.artifacts[key]
 
     def update_artifact(self, artifact_object):

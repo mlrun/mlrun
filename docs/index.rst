@@ -64,18 +64,13 @@ Table Of Contents
    runtimes/functions
    runtimes/distributed
    projects/overview
+   serving/serving-graph
+   model_monitoring/index
    secrets
 
 .. toctree::
    :maxdepth: 1
-   :caption: Online Pipelines & Serving:
-
-   serving/index
-   model_monitoring/index
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Feature Store (beta):
+   :caption: Feature Store:
 
    feature-store/feature-store
    feature-store/feature-sets

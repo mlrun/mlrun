@@ -97,6 +97,17 @@ def min_nuclio_versions(*versions):
 
 
 class NuclioSpec(KubeResourceSpec):
+    _dict_fields = KubeResourceSpec._dict_fields + [
+        "min_replicas",
+        "max_replicas",
+        "config",
+        "base_spec",
+        "no_cache",
+        "source",
+        "function_kind",
+        "readiness_timeout",
+    ]
+
     def __init__(
         self,
         command=None,
@@ -158,13 +169,12 @@ class NuclioSpec(KubeResourceSpec):
             image_pull_secret=image_pull_secret,
         )
 
-        self.base_spec = base_spec or ""
+        self.base_spec = base_spec or {}
         self.function_kind = function_kind
         self.source = source or ""
         self.config = config or {}
         self.function_handler = ""
         self.no_cache = no_cache
-        self.replicas = replicas
         self.readiness_timeout = readiness_timeout
 
         # TODO: we would prefer to default to 0, but invoking a scaled to zero function requires to either add the
@@ -518,7 +528,7 @@ class RemoteRuntime(KubeResource):
     ):
         """add v3io stream trigger to the function
 
-        :param stream_path:    v3io stream path (e.g. 'v3io:///projects/myproj/stream1'
+        :param stream_path:    v3io stream path (e.g. 'v3io:///projects/myproj/stream1')
         :param name:           trigger name
         :param group:          consumer group
         :param seek_to:        start seek from: "earliest", "latest", "time", "sequence"
@@ -748,7 +758,7 @@ class RemoteRuntime(KubeResource):
         :param handler: a path describing working dir and handler of a nuclio function
         :return: (working_dir, handler) tuple, as nuclio expects to get it
 
-        Example: ("a/b/c#main:Handler) -> ("a/b/c", "main:Handler")
+        Example: ("a/b/c#main:Handler") -> ("a/b/c", "main:Handler")
         """
         if handler == "":
             return "", self.spec.function_handler or "main:handler"
@@ -818,7 +828,7 @@ class RemoteRuntime(KubeResource):
         env=None,
         tag=None,
         verbose=None,
-        use_function_from_db=True,
+        use_function_from_db=None,
     ):
         """return as a Kubeflow pipeline step (ContainerOp), recommended to use mlrun.deploy_function() instead"""
         models = {} if models is None else models
@@ -828,7 +838,17 @@ class RemoteRuntime(KubeResource):
         if models and isinstance(models, dict):
             models = [{"key": k, "model_path": v} for k, v in models.items()]
 
-        if use_function_from_db:
+        # verify auto mount is applied (with the client credentials)
+        self.try_auto_mount_based_on_config()
+
+        # if the function spec contain KFP PipelineParams (futures) pass the full spec to the
+        # ContainerOp this way KFP will substitute the params with previous step outputs
+        func_has_pipeline_params = self.to_json().find("{{pipelineparam:op") > 0
+        if (
+            use_function_from_db
+            or use_function_from_db is None
+            and not func_has_pipeline_params
+        ):
             url = self.save(versioned=True, refresh=True)
         else:
             url = None

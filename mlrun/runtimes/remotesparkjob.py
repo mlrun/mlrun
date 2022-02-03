@@ -24,6 +24,8 @@ from .pod import KubeResourceSpec
 
 
 class RemoteSparkSpec(KubeResourceSpec):
+    _dict_fields = KubeResourceSpec._dict_fields + ["provider"]
+
     def __init__(
         self,
         command=None,
@@ -152,7 +154,7 @@ class RemoteSparkRuntime(KubejobRuntime):
     def deploy(
         self,
         watch=True,
-        with_mlrun=True,
+        with_mlrun=None,
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,

@@ -11,7 +11,7 @@ from mlrun.utils import logger
 def test_docs(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
-    response = client.get("/api/openapi.json")
+    response = client.get("openapi.json")
     assert response.status_code == http.HTTPStatus.OK.value
 
 
@@ -23,7 +23,7 @@ def test_save_openapi_json(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
     """"The purpose of the test is to create an openapi.json file that is used to run backward compatibility tests"""
-    response = client.get("/api/openapi.json")
+    response = client.get("openapi.json")
     path = os.path.abspath(os.getcwd())
     if os.getenv("MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH"):
         path = os.getenv("MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH")

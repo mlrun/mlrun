@@ -315,6 +315,8 @@ class ImageBuilder(ModelObj):
         registry=None,
         load_source_on_run=None,
         origin_filename=None,
+        with_mlrun=None,
+        auto_build=None,
     ):
         self.functionSourceCode = functionSourceCode  #: functionSourceCode
         self.codeEntryType = ""  #: codeEntryType
@@ -329,6 +331,8 @@ class ImageBuilder(ModelObj):
         self.secret = secret  #: secret
         self.registry = registry  #: registry
         self.load_source_on_run = load_source_on_run  #: load_source_on_run
+        self.with_mlrun = with_mlrun  #: with_mlrun
+        self.auto_build = auto_build  #: auto_build
         self.build_pod = None
 
 
@@ -445,6 +449,7 @@ class RunSpec(ModelObj):
         verbose=None,
         scrape_metrics=None,
         hyper_param_options=None,
+        allow_empty_resources=None,
     ):
 
         self._hyper_param_options = None
@@ -465,6 +470,7 @@ class RunSpec(ModelObj):
         self._data_stores = data_stores
         self.verbose = verbose
         self.scrape_metrics = scrape_metrics
+        self.allow_empty_resources = allow_empty_resources
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(fields, exclude=["handler"])
@@ -976,9 +982,9 @@ def new_task(
     :param selector:        selection criteria for hyper params e.g. "max.accuracy"
     :param hyper_param_options:   hyper parameter options, see: :py:class:`HyperParamOptions`
     :param inputs:          dictionary of input objects + optional paths (if path is
-                            omitted the path will be the in_path/key.
+                            omitted the path will be the in_path/key)
     :param outputs:         dictionary of input objects + optional paths (if path is
-                            omitted the path will be the out_path/key.
+                            omitted the path will be the out_path/key)
     :param in_path:         default input path/url (prefix) for inputs
     :param out_path:        default output path/url (prefix) for artifacts
     :param artifact_path:   default artifact output path
@@ -1076,6 +1082,7 @@ class DataTargetBase(ModelObj):
         "time_partitioning_granularity",
         "max_events",
         "flush_after_seconds",
+        "storage_options",
     ]
 
     # TODO - remove once "after_state" is fully deprecated
@@ -1099,6 +1106,7 @@ class DataTargetBase(ModelObj):
         max_events: Optional[int] = None,
         flush_after_seconds: Optional[int] = None,
         after_state=None,
+        storage_options: Dict[str, str] = None,
     ):
         if after_state:
             warnings.warn(
@@ -1120,6 +1128,7 @@ class DataTargetBase(ModelObj):
         self.time_partitioning_granularity = time_partitioning_granularity
         self.max_events = max_events
         self.flush_after_seconds = flush_after_seconds
+        self.storage_options = storage_options
 
 
 class FeatureSetProducer(ModelObj):

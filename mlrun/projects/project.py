@@ -18,6 +18,7 @@ import typing
 import warnings
 from os import environ, makedirs, path
 
+import dotenv
 import inflection
 import kfp
 import yaml
@@ -27,7 +28,7 @@ import mlrun.api.schemas
 import mlrun.errors
 import mlrun.utils.regex
 
-from ..artifacts import ArtifactProducer, DatasetArtifact, ModelArtifact
+from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifact
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
 from ..datastore import store_manager
 from ..db import get_run_db
@@ -448,6 +449,7 @@ class ProjectSpec(ModelObj):
         origin_url=None,
         goals=None,
         load_source_on_run=None,
+        default_requirements: typing.Union[str, typing.List[str]] = None,
         desired_state=mlrun.api.schemas.ProjectState.online.value,
         owner=None,
         disable_auto_mount=False,
@@ -472,6 +474,7 @@ class ProjectSpec(ModelObj):
         self.artifact_path = artifact_path
         self._artifacts = {}
         self.artifacts = artifacts or []
+        self.default_requirements = default_requirements
 
         self._workflows = {}
         self.workflows = workflows or []
@@ -663,6 +666,7 @@ class MlrunProject(ModelObj):
         # all except these 2 are for backwards compatibility with MlrunProjectLegacy
         metadata=None,
         spec=None,
+        default_requirements: typing.Union[str, typing.List[str]] = None,
     ):
         self._metadata = None
         self.metadata = metadata
@@ -680,6 +684,9 @@ class MlrunProject(ModelObj):
         self.spec.artifacts = artifacts or self.spec.artifacts
         self.spec.artifact_path = artifact_path or self.spec.artifact_path
         self.spec.conda = conda or self.spec.conda
+        self.spec.default_requirements = (
+            default_requirements or self.spec.default_requirements
+        )
 
         self._initialized = False
         self._secrets = SecretsStore()
@@ -1002,16 +1009,27 @@ class MlrunProject(ModelObj):
         )
         self.spec.artifacts = artifacts
 
-    def set_artifact(self, key, artifact):
+    def set_artifact(self, key, artifact=None, target_path=None):
         """add/set an artifact in the project spec (will be registered on load)
 
         example::
 
-            project.set_artifact('data', Artifact(target_path=data_url))
+            # register a simple file artifact
+            project.set_artifact('data', target_path=data_url)
+            # register a model artifact
+            project.set_artifact('model', ModelArtifact(model_file="model.pkl"), target_path=model_dir_url)
 
         :param key:  artifact key/name
         :param artifact:  mlrun Artifact object (or its subclasses)
+        :param target_path: absolute target path url (point to the artifact content location)
         """
+        if not artifact:
+            artifact = Artifact()
+        artifact.target_path = target_path or artifact.target_path
+        if not artifact.target_path or "://" not in artifact.target_path:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "absolute target_path url to a shared/object storage must be specified"
+            )
         self.spec.set_artifact(key, artifact)
 
     def register_artifacts(self):
@@ -1055,6 +1073,33 @@ class MlrunProject(ModelObj):
         labels=None,
         target_path=None,
     ):
+        """log an output artifact and optionally upload it to datastore
+
+        example::
+
+            project.log_artifact(
+                "some-data",
+                body=b"abc is 123",
+                local_path="model.txt",
+                labels={"framework": "xgboost"},
+            )
+
+
+        :param item:          artifact key or artifact class ()
+        :param body:          will use the body as the artifact content
+        :param local_path:    path to the local file we upload, will also be use
+                              as the destination subpath (under "artifact_path")
+        :param artifact_path: target artifact path (when not using the default)
+                              to define a subpath under the default location use:
+                              `artifact_path=context.artifact_subpath('data')`
+        :param format:        artifact file format: csv, png, ..
+        :param tag:           version tag
+        :param target_path:   absolute target path (instead of using artifact_path + local_path)
+        :param upload:        upload to datastore (default is True)
+        :param labels:        a set of key/value labels to tag the artifact with
+
+        :returns: artifact object
+        """
         am = self._get_artifact_manager()
         artifact_path = extend_artifact_path(
             artifact_path, self.spec.artifact_path or mlrun.mlconf.artifact_path
@@ -1080,7 +1125,6 @@ class MlrunProject(ModelObj):
             labels=labels,
             target_path=target_path,
         )
-        self.spec.set_artifact(item.key, item)
         return item
 
     def log_dataset(
@@ -1098,7 +1142,7 @@ class MlrunProject(ModelObj):
         target_path="",
         extra_data=None,
         **kwargs,
-    ):
+    ) -> DatasetArtifact:
         """
         log a dataset artifact and optionally upload it to datastore
 
@@ -1111,7 +1155,7 @@ class MlrunProject(ModelObj):
                 "testScore": [25, 94, 57, 62, 70],
             }
             df = pd.DataFrame(raw_data, columns=["first_name", "last_name", "age", "testScore"])
-            context.log_dataset("mydf", df=df, stats=True)
+            project.log_dataset("mydf", df=df, stats=True)
 
         :param key:           artifact key
         :param df:            dataframe object
@@ -1179,7 +1223,7 @@ class MlrunProject(ModelObj):
 
         example::
 
-            context.log_model("model", body=dumps(model),
+            project.log_model("model", body=dumps(model),
                               model_file="model.pkl",
                               metrics=context.results,
                               training_set=training_df,
@@ -1271,8 +1315,15 @@ class MlrunProject(ModelObj):
         return project
 
     def set_function(
-        self, func, name="", kind="", image=None, handler=None, with_repo=None
-    ):
+        self,
+        func: typing.Union[str, mlrun.runtimes.BaseRuntime],
+        name: str = "",
+        kind: str = "",
+        image: str = None,
+        handler=None,
+        with_repo: bool = None,
+        requirements: typing.Union[str, typing.List[str]] = None,
+    ) -> mlrun.runtimes.BaseRuntime:
         """update or add a function object to the project
 
         function can be provided as an object (func) or a .py/.ipynb/.yaml url
@@ -1299,6 +1350,7 @@ class MlrunProject(ModelObj):
                           the function object/yaml
         :param handler:   default function handler to invoke (can only be set with .py/.ipynb files)
         :param with_repo: add (clone) the current repo to the build source
+        :param requirements:    list of python packages or pip requirements file path
 
         :returns: project object
         """
@@ -1313,6 +1365,7 @@ class MlrunProject(ModelObj):
                 "image": image,
                 "handler": handler,
                 "with_repo": with_repo,
+                "requirements": requirements,
             }
             func = {k: v for k, v in function_dict.items() if v}
             name, function_object = _init_function_from_dict(func, self)
@@ -1327,6 +1380,8 @@ class MlrunProject(ModelObj):
                 function_object.spec.image = image
             if with_repo:
                 function_object.spec.build.source = "./"
+            if requirements:
+                function_object.with_requirements(requirements)
             if not name:
                 raise ValueError("function name must be specified")
         else:
@@ -1515,7 +1570,60 @@ class MlrunProject(ModelObj):
             return self._secrets.get(key)
         return None
 
+    def set_secrets(
+        self,
+        secrets: dict = None,
+        file_path: str = None,
+        provider: typing.Union[str, mlrun.api.schemas.SecretProviderName] = None,
+    ):
+        """set project secrets from dict or secrets env file
+        when using a secrets file it should have lines in the form KEY=VALUE, comment line start with "#"
+        V3IO paths/credentials and MLrun service API address are dropped from the secrets
+
+        example secrets file::
+
+            # this is an env file
+            AWS_ACCESS_KEY_ID-XXXX
+            AWS_SECRET_ACCESS_KEY=YYYY
+
+        usage::
+
+            # read env vars from dict or file and set as project secrets
+            project.set_secrets({"SECRET1": "value"})
+            project.set_secrets(file_path="secrets.env")
+
+        :param secrets:   dict with secrets key/value
+        :param file_path: path to secrets file
+        :param provider:  MLRun secrets provider
+        """
+        if (not secrets and not file_path) or (secrets and file_path):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "must specify secrets OR file_path"
+            )
+        if file_path:
+            secrets = dotenv.dotenv_values(file_path)
+            if None in secrets.values():
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "env file lines must be in the form key=value"
+                )
+        # drop V3IO paths/credentials and MLrun service API address
+        env_vars = {
+            key: val
+            for key, val in secrets.items()
+            if key != "MLRUN_DBPATH" and not key.startswith("V3IO_")
+        }
+        provider = provider or mlrun.api.schemas.SecretProviderName.kubernetes
+        get_run_db().create_project_secrets(
+            self.metadata.name, provider=provider, secrets=env_vars
+        )
+
     def create_vault_secrets(self, secrets):
+        warnings.warn(
+            "This method is obsolete, use project.set_secrets() instead"
+            "This will be deprecated and removed in 1.0.0",
+            # TODO: In 1.0 remove
+            PendingDeprecationWarning,
+        )
         run_db = get_run_db(secrets=self._secrets)
         run_db.create_project_secrets(
             self.metadata.name, mlrun.api.schemas.SecretProviderName.vault, secrets
@@ -1542,6 +1650,18 @@ class MlrunProject(ModelObj):
         if self.spec.params:
             return self.spec.params.get(key, default)
         return default
+
+    def _enrich_artifact_path_with_workflow_uid(self):
+        artifact_path = self.spec.artifact_path or mlrun.mlconf.artifact_path
+        if not mlrun.mlconf.enrich_artifact_path_with_workflow_id:
+            return artifact_path
+        workflow_uid_string = "{{workflow.uid}}"
+        if workflow_uid_string in artifact_path:
+            return artifact_path
+
+        # join paths and replace "\" with "/" (in case of windows clients)
+        artifact_path = path.join(artifact_path, workflow_uid_string).replace("\\", "/")
+        return artifact_path
 
     def run(
         self,
@@ -1613,7 +1733,7 @@ class MlrunProject(ModelObj):
         workflow_spec.run_local = local
 
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name
-        artifact_path = artifact_path or self.spec.artifact_path
+        artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
         workflow_engine = get_workflow_engine(engine or workflow_spec.engine, local)
         workflow_spec.engine = workflow_engine.engine
 
@@ -1746,13 +1866,14 @@ class MlrunProject(ModelObj):
         watch: bool = True,
         local: bool = False,
         verbose: bool = None,
+        auto_build=None,
     ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
         example (use with project)::
 
             # create a project with two functions (local and from marketplace)
-            project = mlrun.new_project(project_name, "./proj)
+            project = mlrun.new_project(project_name, "./proj")
             project.set_function("mycode.py", "myfunc", image="mlrun/mlrun")
             project.set_function("hub://sklearn_classifier", "train")
 
@@ -1775,6 +1896,8 @@ class MlrunProject(ModelObj):
         :param watch:           watch/follow run log, True by default
         :param local:           run the function locally vs on the runtime/cluster
         :param verbose:         add verbose prints/logs
+        :param auto_build:      when set to True and the function require build it will be built on the first
+                                function run, use only if you dont plan on changing the build config between runs
 
         :return: MLRun RunObject or KubeFlow containerOp
         """
@@ -1794,12 +1917,13 @@ class MlrunProject(ModelObj):
             local=local,
             verbose=verbose,
             project_object=self,
+            auto_build=auto_build,
         )
 
     def build_function(
         self,
         function: typing.Union[str, mlrun.runtimes.BaseRuntime],
-        with_mlrun: bool = True,
+        with_mlrun: bool = None,
         skip_deployed: bool = False,
         image=None,
         base_image=None,
@@ -1822,7 +1946,6 @@ class MlrunProject(ModelObj):
                                 e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
         """
         return build_function(
-            self,
             function,
             with_mlrun=with_mlrun,
             skip_deployed=skip_deployed,
@@ -1847,7 +1970,7 @@ class MlrunProject(ModelObj):
         """deploy real-time (nuclio based) functions
 
         :param function:   name of the function (in the project) or function object
-        :param dashboard:  url of the remore Nuclio dashboard (when not local)
+        :param dashboard:  url of the remote Nuclio dashboard (when not local)
         :param models:     list of model items
         :param env:        dict of extra environment variables
         :param tag:        extra version tag
@@ -2048,7 +2171,14 @@ class MlrunProjectLegacy(ModelObj):
         self._workflows[name] = workflow
 
     # needed for tests
-    def set_function(self, func, name="", kind="", image=None, with_repo=None):
+    def set_function(
+        self,
+        func: typing.Union[str, mlrun.runtimes.BaseRuntime],
+        name: str = "",
+        kind: str = "",
+        image: str = None,
+        with_repo: bool = None,
+    ):
         """update or add a function object to the project
 
         function can be provided as an object (func) or a .py/.ipynb/.yaml url
@@ -2121,6 +2251,7 @@ def _init_function_from_dict(f, project):
     image = f.get("image", None)
     handler = f.get("handler", None)
     with_repo = f.get("with_repo", False)
+    requirements = f.get("requirements", None)
 
     in_context = False
     if not url and "spec" not in f:
@@ -2166,6 +2297,8 @@ def _init_function_from_dict(f, project):
 
     if with_repo:
         func.spec.build.source = "./"
+    if requirements:
+        func.with_requirements(requirements)
 
     return _init_function_from_obj(func, project, name)
 

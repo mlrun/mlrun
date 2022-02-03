@@ -2,6 +2,7 @@ import unittest.mock
 
 import deepdiff
 import pandas as pd
+import pytest
 
 import mlrun
 import mlrun.feature_store as fs
@@ -105,6 +106,15 @@ def test_backwards_compatibility_step_vs_state():
     )
 
 
+def test_target_no_time_column():
+    t = ParquetTarget(path="jhjhjhj")
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        t.as_df(
+            start_time=pd.Timestamp("2021-06-09 09:30:00"),
+            end_time=pd.Timestamp("2021-06-09 10:30:00"),
+        )
+
+
 def test_check_permissions():
     data = pd.DataFrame(
         {
@@ -165,3 +175,10 @@ def test_check_permissions():
         assert False
     except mlrun.errors.MLRunAccessDeniedError:
         pass
+
+
+def test_check_timestamp_key_is_entity():
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        fs.FeatureSet(
+            "imp1", entities=[Entity("time_stamp")], timestamp_key="time_stamp"
+        )

@@ -19,7 +19,7 @@ def test_get_frontend_spec(
         unittest.mock.Mock()
     )
     mlrun.mlconf.httpdb.builder.docker_registry = "quay.io/some-repo"
-    response = client.get("/api/frontend-spec")
+    response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
     assert (
@@ -39,6 +39,7 @@ def test_get_frontend_spec(
     )
     assert frontend_spec.default_function_image_by_kind is not None
     assert frontend_spec.function_deployment_mlrun_command is not None
+    assert frontend_spec.default_artifact_path is not None
     # fields UI expects to be in the template
     assert (
         mlrun.mlconf.httpdb.builder.docker_registry
@@ -56,7 +57,7 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
         unittest.mock.Mock()
     )
     # no cookie so no url
-    response = client.get("/api/frontend-spec")
+    response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
     assert frontend_spec.jobs_dashboard_url is None
@@ -74,7 +75,7 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
     mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url = unittest.mock.Mock(
         return_value=None
     )
-    response = client.get("/api/frontend-spec")
+    response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
     assert frontend_spec.jobs_dashboard_url is None
@@ -86,7 +87,7 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
         return_value=grafana_url
     )
 
-    response = client.get("/api/frontend-spec")
+    response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
     assert (
@@ -99,9 +100,7 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
     # now one time with the 3.0 iguazio auth way
     mlrun.mlconf.httpdb.authentication.mode = "none"
     mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url.reset_mock()
-    response = client.get(
-        "/api/frontend-spec", cookies={"session": "some-session-cookie"}
-    )
+    response = client.get("frontend-spec", cookies={"session": "some-session-cookie"})
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
     assert (

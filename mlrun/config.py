@@ -36,6 +36,8 @@ from threading import Lock
 import semver
 import yaml
 
+import mlrun.errors
+
 env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
 _load_lock = Lock()
@@ -52,6 +54,7 @@ default_config = {
     "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
     "ui_url": "",  # remote/external mlrun UI url (for hyperlinks) (This is deprecated in favor of the ui block)
     "remote_host": "",
+    "api_base_version": "v1",
     "version": "",  # will be set to current version
     "images_tag": "",  # tag to use with mlrun images e.g. mlrun/mlrun (defaults to version)
     "images_registry": "",  # registry to use with mlrun images e.g. quay.io/ (defaults to empty, for dockerhub)
@@ -59,6 +62,7 @@ default_config = {
     # registry when used. default to mlrun/* which means any image which is of the mlrun repository (mlrun/mlrun,
     # mlrun/ml-base, etc...)
     "images_to_enrich_registry": "^mlrun/*",
+    "kfp_url": "",
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
     "kfp_image": "",  # image to use for KFP runner (defaults to mlrun/mlrun)
     "dask_kfp_image": "",  # image to use for dask KFP runner (defaults to mlrun/ml-base)
@@ -91,6 +95,8 @@ default_config = {
     # sets the background color that is used in printed tables in jupyter
     "background_color": "#4EC64B",
     "artifact_path": "",  # default artifacts path/url
+    # Add {{workflow.uid}} to artifact_path unless user specified a path manually
+    "enrich_artifact_path_with_workflow_id": True,
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
     #  configure this values on field systems, for newer system this will be configured correctly
     "v3io_api": "http://v3io-webapi:8081",
@@ -141,8 +147,13 @@ default_config = {
             "data_migrations_mode": "enabled",
             # Whether or not to perform database migration from sqlite to mysql on initialization
             "database_migration_mode": "enabled",
-            # Whether or not to use db backups on initialization
-            "database_backup_mode": "enabled",
+            "backup": {
+                # Whether or not to use db backups on initialization
+                "mode": "enabled",
+                "file_format": "db_backup_%Y%m%d%H%M.db",
+                "use_rotation": True,
+                "rotation_limit": 3,
+            },
             "connections_pool_size": 20,
             "connections_pool_max_overflow": 50,
         },
@@ -237,6 +248,7 @@ default_config = {
             "user_space": "v3io:///projects/{project}/model-endpoints/{kind}",
         },
         "batch_processing_function_branch": "master",
+        "parquet_batching_max_events": 10000,
     },
     "secret_stores": {
         "vault": {
@@ -418,6 +430,24 @@ class Config:
             semver_compatible_igz_version = config.igz_version.split("_")[0]
             return semver.VersionInfo.parse(f"{semver_compatible_igz_version}.0")
 
+    def resolve_kfp_url(self, namespace=None):
+        if config.kfp_url:
+            return config.kfp_url
+        igz_version = self.get_parsed_igz_version()
+        if namespace is None:
+            if not config.namespace:
+                raise mlrun.errors.MLRunNotFoundError(
+                    "For KubeFlow Pipelines to function, a namespace must be configured"
+                )
+            namespace = config.namespace
+        # TODO: When Iguazio 3.4 will deprecate we can remove this line
+        if igz_version and igz_version <= semver.VersionInfo.parse("3.6.0-b1"):
+            # When instead of host we provided namespace we tackled this issue
+            # https://github.com/canonical/bundle-kubeflow/issues/412
+            # TODO: When we'll move to kfp 1.4.0 (server side) it should be resolved
+            return f"http://ml-pipeline.{namespace}.svc.cluster.local:8888"
+        return None
+
     @staticmethod
     def get_storage_auto_mount_params():
         auto_mount_params = {}
@@ -508,7 +538,7 @@ class Config:
             import mlrun.db
 
             # when dbpath is set we want to connect to it which will sync configuration from it to the client
-            mlrun.db.get_run_db(value)
+            mlrun.db.get_run_db(value, force_reconnect=True)
 
     @property
     def iguazio_api_url(self):

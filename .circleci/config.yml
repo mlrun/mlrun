@@ -1,9 +1,0 @@
-
-# This is a stub. CI automation moved to GH actions.
-# Once circleci integration is removed from repo, delete .circleci dir
-version: 2
-jobs:
-  build:
-    machine: true
-    steps:
-      - run: exit 0

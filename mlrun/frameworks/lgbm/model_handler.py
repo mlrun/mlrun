@@ -1,15 +1,15 @@
 import os
 import pickle
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Union
 
 import cloudpickle
 import lightgbm as lgb
-import numpy as np
-import pandas as pd
 
 import mlrun
 
-from .._ml_common import MLModelHandler
+from .._common import without_mlrun_interface
+from .._ml_common import DatasetType, MLModelHandler
+from .mlrun_interface import LGBMModelMLRunInterface
 
 
 class LGBMModelHandler(MLModelHandler):
@@ -18,10 +18,7 @@ class LGBMModelHandler(MLModelHandler):
     """
 
     # Framework name:
-    FRAMEWORK_NAME = "lgbm"
-
-    # Declare a type of an input sample:
-    IOSample = Union[pd.DataFrame, np.ndarray, List[Tuple[str, str]]]
+    FRAMEWORK_NAME = "lightgbm"
 
     class ModelFormats:
         """
@@ -140,6 +137,7 @@ class LGBMModelHandler(MLModelHandler):
                     f"'{self._model_path}'"
                 )
 
+    @without_mlrun_interface(interface=LGBMModelMLRunInterface)
     def save(self, output_path: str = None, **kwargs):
         """
         Save the handled model at the given output path. If a MLRun context is available, the saved model files will be
@@ -176,7 +174,7 @@ class LGBMModelHandler(MLModelHandler):
         self,
         model_name: str = None,
         optimize: bool = True,
-        input_sample: IOSample = None,
+        input_sample: DatasetType = None,
         log: bool = None,
     ):
         """

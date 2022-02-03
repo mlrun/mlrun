@@ -391,7 +391,7 @@ def _mock_original_function(client, access_key=None):
         original_function,
     ) = _generate_original_function(access_key=access_key)
     resp = client.post(
-        f"/api/func/{project}/{function_name}",
+        f"func/{project}/{function_name}",
         json=original_function,
         params={"tag": function_tag},
     )

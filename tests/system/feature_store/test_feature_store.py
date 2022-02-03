@@ -614,7 +614,7 @@ class TestFeatureStore(TestMLRunSystem):
         resp = fs.get_offline_features(
             vector,
             start_time=datetime(2020, 12, 1, 17, 33, 15),
-            end_time=datetime(2020, 12, 1, 17, 33, 16),
+            end_time="2020-12-01 17:33:16",
             entity_timestamp_column="timestamp",
         )
         resp2 = resp.to_dataframe()
@@ -847,7 +847,6 @@ class TestFeatureStore(TestMLRunSystem):
                 "string": ["ab", "cd", "ef"],
             }
         )
-
         data_set1 = fs.FeatureSet("fs1", entities=[Entity("string")])
         fs.ingest(data_set1, data, infer_options=fs.InferOptions.default())
         features = ["fs1.*"]
@@ -857,7 +856,7 @@ class TestFeatureStore(TestMLRunSystem):
         resp = fs.get_offline_features(
             vector,
             entity_timestamp_column="time_stamp",
-            start_time=datetime(2021, 6, 9, 9, 30),
+            start_time="2021-06-09 09:30",
             end_time=datetime(2021, 6, 9, 10, 30),
         )
 
@@ -913,7 +912,7 @@ class TestFeatureStore(TestMLRunSystem):
             vector,
             entity_timestamp_column="time_stamp",
             start_time=datetime(2021, 6, 9, 9, 30),
-            end_time=datetime(2021, 6, 9, 10, 30),
+            end_time=None,  # will translate to now()
         )
         assert len(resp.to_dataframe()) == 2
 
@@ -1164,7 +1163,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         # check offline
         resp = fs.get_offline_features(vec)
-        assert len(resp.to_dataframe() == 2)
+        assert len(resp.to_dataframe()) == 2
 
         sleep(30)
 
@@ -2065,6 +2064,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert resp[0]["data2"] == 4
         assert resp[0]["data_max_1h"] == 60
         assert resp[0]["data_avg_1h"] == 30
+        svc.close()
 
         # check without impute
         vector = fs.FeatureVector("vectori2", features)
@@ -2072,6 +2072,46 @@ class TestFeatureStore(TestMLRunSystem):
         resp = svc.get([{"name": "cd"}])
         assert np.isnan(resp[0]["data2"])
         assert np.isnan(resp[0]["data_avg_1h"])
+        svc.close()
+
+    def test_map_with_state_with_table(self):
+        table_url = (
+            "v3io:///bigdata/system-test-project/nosql/test_map_with_state_with_table"
+        )
+
+        df = pd.DataFrame({"name": ["a", "b"], "sum": [11, 22]})
+        fset = fs.FeatureSet(
+            name="test_map_with_state_with_table_fset", entities=[fs.Entity("name")]
+        )
+        fs.ingest(fset, df, targets=[NoSqlTarget(path=table_url)])
+
+        df = pd.DataFrame({"key": ["a", "a", "b"], "x": [2, 3, 4]})
+
+        fset = fs.FeatureSet("myfset", entities=[Entity("key")])
+        fset.set_targets([], with_defaults=False)
+        fset.graph.to(
+            "storey.MapWithState",
+            initial_state=table_url,
+            group_by_key=True,
+            _fn="map_with_state_test_function",
+        )
+        df = fs.ingest(fset, df, targets=[], infer_options=fs.InferOptions.default())
+        assert df.to_dict() == {
+            "name": {"a": "a", "b": "b"},
+            "sum": {"a": 16, "b": 26},
+        }
+
+    def test_allow_empty_vector(self):
+        # test that we can pass an non materialized vector to function using special flag
+        vector = fs.FeatureVector("dummy-vec", [])
+        vector.save()
+
+        func = mlrun.new_function("myfunc", kind="job", handler="myfunc").with_code(
+            body=myfunc
+        )
+        func.spec.allow_empty_resources = True
+        run = func.run(inputs={"data": vector.uri}, local=True)
+        assert run.output("uri") == vector.uri
 
 
 def verify_purge(fset, targets):
@@ -2141,3 +2181,16 @@ def prepare_feature_set(
     feature_set.set_targets(targets=targets, with_defaults=False if targets else True)
     df = fs.ingest(feature_set, df_source, infer_options=fs.InferOptions.default())
     return feature_set, df
+
+
+def map_with_state_test_function(x, state):
+    state["sum"] += x["x"]
+    return state, state
+
+
+myfunc = """
+def myfunc(context, data):
+    print('DATA:', data.artifact_url)
+    assert data.meta
+    context.log_result('uri', data.artifact_url)
+"""

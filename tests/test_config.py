@@ -20,7 +20,9 @@ import pytest
 import requests_mock as requests_mock_package
 import yaml
 
+import mlrun.errors
 from mlrun import config as mlconf
+from mlrun.db.httpdb import HTTPRunDB
 
 ns_env_key = f"{mlconf.env_prefix}NAMESPACE"
 
@@ -144,6 +146,29 @@ def test_iguazio_api_url_resolution():
     assert mlconf.config.iguazio_api_url == url
 
 
+def test_resolve_kfp_url():
+    # nothing configured should return nothing
+    assert mlconf.config.kfp_url == ""
+    assert mlconf.config.namespace == ""
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        mlconf.config.resolve_kfp_url()
+
+    mlconf.config.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
+    assert mlconf.config.resolve_kfp_url() == mlconf.config.kfp_url
+
+    mlconf.config.kfp_url = ""
+    mlconf.config.namespace = "default-tenant"
+
+    mlconf.config.igz_version = "1.2.3"
+    assert (
+        mlconf.config.resolve_kfp_url()
+        == "http://ml-pipeline.default-tenant.svc.cluster.local:8888"
+    )
+
+    mlconf.config.igz_version = "4.0.0"
+    assert mlconf.config.resolve_kfp_url() is None
+
+
 def test_get_hub_url():
     # full path configured - no edits
     mlconf.config.hub_url = (
@@ -190,7 +215,9 @@ def test_setting_dbpath_trigger_connect(requests_mock: requests_mock_package.Moc
         "version": "some-version",
         "remote_host": remote_host,
     }
-    requests_mock.get(f"{api_url}/api/client-spec", json=response_body)
+    requests_mock.get(
+        f"{api_url}/{HTTPRunDB.get_api_path_prefix()}/client-spec", json=response_body,
+    )
     assert "" == mlconf.config.remote_host
     mlconf.config.dbpath = api_url
     assert remote_host == mlconf.config.remote_host

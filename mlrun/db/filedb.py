@@ -128,11 +128,19 @@ class FileRunDB(RunDBInterface):
         sort=True,
         last=1000,
         iter=False,
-        start_time_from=None,
-        start_time_to=None,
-        last_update_time_from=None,
-        last_update_time_to=None,
+        start_time_from: datetime = None,
+        start_time_to: datetime = None,
+        last_update_time_from: datetime = None,
+        last_update_time_to: datetime = None,
+        partition_by: Union[schemas.RunPartitionByField, str] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Union[schemas.SortField, str] = None,
+        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
     ):
+        if partition_by is not None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Runs partitioning not supported"
+            )
         labels = [] if labels is None else labels
         filepath = self._filepath(run_logs, project)
         results = RunList()
@@ -390,7 +398,7 @@ class FileRunDB(RunDBInterface):
                 target_dict = functions_with_tag_filename
 
                 tag_name = file_name
-                # Heuristic - if tag length if bigger than 20 it's probably a hash key
+                # Heuristic - if tag length is bigger than 20 it's probably a hash key
                 if len(tag_name) > 20:  # hash vs tags
                     tag_name = ""
                     target_dict = functions_with_hash_key_filename

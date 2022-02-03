@@ -1,6 +1,7 @@
 import unittest.mock
 
 import pytest
+from pandas import Timedelta, Timestamp
 
 import mlrun.errors
 import mlrun.utils.version
@@ -14,6 +15,7 @@ from mlrun.utils.helpers import (
     fill_artifact_path_template,
     get_parsed_docker_registry,
     get_pretty_types_names,
+    str_to_timestamp,
     verify_field_regex,
     verify_list_items_type,
 )
@@ -399,3 +401,121 @@ def test_get_pretty_types_names():
     for types, expected in cases:
         pretty_result = get_pretty_types_names(types)
         assert pretty_result == expected
+
+
+def test_str_to_timestamp():
+    now_time = Timestamp("2021-01-01 00:01:00")
+    cases = [
+        (None, None, None),
+        ("1/1/2022", Timestamp("2022-01-01 00:00:00"), None),
+        (Timestamp("1/1/2022"), Timestamp("1/1/2022"), None),
+        ("not now", None, ValueError),
+        (" now ", now_time, None),
+        (" now floor 1H", now_time - Timedelta("1m"), None),
+        ("now - 1d1h", now_time - Timedelta("1d1h"), None),
+        ("now +1d1m", now_time + Timedelta("1d1m"), None),
+        ("now +1d1m floor 1D", now_time + Timedelta("1d") - Timedelta("1m"), None),
+        ("now * 1d1m", None, mlrun.errors.MLRunInvalidArgumentError),
+        (
+            "2022-01-11T18:28:00+00:00",
+            Timestamp("2022-01-11 18:28:00+0000", tz="UTC"),
+            None,
+        ),
+        (
+            "2022-01-11T18:28:00-06:00",
+            Timestamp("2022-01-11 18:28:00", tz="US/Central"),
+            None,
+        ),
+    ]
+    for time_str, expected, exception in cases:
+        if exception is not None:
+            with pytest.raises(exception):
+                str_to_timestamp(time_str, now_time=now_time)
+        else:
+            timestamp = str_to_timestamp(time_str, now_time=now_time)
+            print(time_str, timestamp, expected)
+            assert timestamp == expected
+
+
+def test_create_linear_backoff():
+    stop_value = 120
+    base = 2
+    coefficient = 4
+    backoff = mlrun.utils.helpers.create_linear_backoff(base, coefficient, stop_value)
+    for i in range(0, 120):
+        expected_value = min(base + i * coefficient, stop_value)
+        assert expected_value, next(backoff)
+
+
+def test_create_linear_backoff_negative_coefficient():
+    stop_value = 2
+    base = 120
+    coefficient = -4
+    backoff = mlrun.utils.helpers.create_linear_backoff(base, coefficient, stop_value)
+    for i in range(120, 0):
+        expected_value = min(base + i * coefficient, stop_value)
+        assert expected_value, next(backoff)
+
+
+def test_create_exponential_backoff():
+    base = 2
+    max_value = 120
+    backoff = mlrun.utils.helpers.create_exponential_backoff(base, max_value)
+    for i in range(1, 120):
+        expected_value = min(base ** i, max_value)
+        assert expected_value, next(backoff)
+
+
+def test_create_step_backoff():
+    steps = [[2, 3], [10, 5], [120, None]]
+    backoff = mlrun.utils.helpers.create_step_backoff(steps)
+    for step in steps:
+        step_value, step_occurrences = step
+        if step_occurrences is not None:
+            for _ in range(0, step_occurrences):
+                assert step_value, next(backoff)
+        else:
+
+            # Run another 10 iterations:
+            for _ in range(0, 10):
+                assert step_value, next(backoff)
+
+
+def test_retry_until_successful():
+    def test_run(backoff):
+        call_count = {"count": 0}
+        unsuccessful_mock = unittest.mock.Mock()
+        successful_mock = unittest.mock.Mock()
+
+        def some_func(count_dict, a, b, some_other_thing=None):
+            logger.debug(
+                "Some function called", a=a, b=b, some_other_thing=some_other_thing
+            )
+            if count_dict["count"] < 3:
+                logger.debug("Some function is still running, raising exception")
+                count_dict["count"] += 1
+                unsuccessful_mock()
+                raise Exception("I'm running,try again later")
+
+            logger.debug("Some function finished successfully")
+            successful_mock()
+            return "Finished"
+
+        result = mlrun.utils.retry_until_successful(
+            backoff,
+            120,
+            logger,
+            True,
+            some_func,
+            call_count,
+            5,
+            [1, 8],
+            some_other_thing="Just",
+        )
+        assert result, "Finished"
+        assert unsuccessful_mock.call_count, 3
+        assert successful_mock.call_count, 1
+
+    test_run(0.02)
+
+    test_run(mlrun.utils.create_linear_backoff(0.02, 0.02))

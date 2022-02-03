@@ -19,6 +19,7 @@ import json
 import re
 import sys
 import time
+import typing
 from datetime import datetime, timezone
 from importlib import import_module
 from os import environ, path
@@ -604,15 +605,15 @@ def new_pipe_meta(artifact_path=None, ttl=None, *args):
     return conf
 
 
-def convert_python_package_version_to_image_tag(version: str):
+def _convert_python_package_version_to_image_tag(version: typing.Optional[str]):
     return (
         version.replace("+", "-").replace("0.0.0-", "") if version is not None else None
     )
 
 
 def enrich_image_url(image_url: str, client_version: str = None) -> str:
-    client_version = convert_python_package_version_to_image_tag(client_version)
-    server_version = convert_python_package_version_to_image_tag(
+    client_version = _convert_python_package_version_to_image_tag(client_version)
+    server_version = _convert_python_package_version_to_image_tag(
         mlrun.utils.version.Version().get()["version"]
     )
     image_url = image_url.strip()

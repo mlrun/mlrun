@@ -182,6 +182,7 @@ def build_image(
     extra=None,
     verbose=False,
     builder_env=None,
+    client_version=None,
 ):
 
     if registry:
@@ -208,7 +209,9 @@ def build_image(
 
     if with_mlrun:
         commands = commands or []
-        mlrun_command = resolve_mlrun_install_command(mlrun_version_specifier)
+        mlrun_command = resolve_mlrun_install_command(
+            mlrun_version_specifier, client_version
+        )
         if mlrun_command not in commands:
             commands.append(mlrun_command)
 
@@ -285,20 +288,29 @@ def build_image(
         return f"build:{pod}"
 
 
-def resolve_mlrun_install_command(mlrun_version_specifier=None):
+def resolve_mlrun_install_command(mlrun_version_specifier=None, client_version=None):
+    unstable_versions = ["unstable", "0.0.0+unstable"]
+    unstable_mlrun_version_specifier = (
+        f"{config.package_path}[complete] @ git+"
+        f"https://github.com/mlrun/mlrun@development"
+    )
     if not mlrun_version_specifier:
         if config.httpdb.builder.mlrun_version_specifier:
             mlrun_version_specifier = config.httpdb.builder.mlrun_version_specifier
-        elif config.version in ["unstable", "0.0.0+unstable"]:
-            mlrun_version_specifier = (
-                f"{config.package_path}[complete] @ git+"
-                f"https://github.com/mlrun/mlrun@development"
-            )
+        elif client_version:
+            if client_version not in unstable_versions:
+                mlrun_version_specifier = (
+                    f"{config.package_path}[complete]=={client_version}"
+                )
+            else:
+                mlrun_version_specifier = unstable_mlrun_version_specifier
+        elif config.version in unstable_versions:
+            mlrun_version_specifier = unstable_mlrun_version_specifier
         else:
             mlrun_version_specifier = (
                 f"{config.package_path}[complete]=={config.version}"
             )
-    return f'python -m pip install "{mlrun_version_specifier}"'
+    return f'"python -m pip install "{mlrun_version_specifier}"'
 
 
 def build_runtime(
@@ -309,6 +321,7 @@ def build_runtime(
     skip_deployed,
     interactive=False,
     builder_env=None,
+    client_version=None,
 ):
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
@@ -357,7 +370,9 @@ def build_runtime(
     logger.info(f"building image ({build.image})")
 
     name = normalize_name(f"mlrun-build-{runtime.metadata.name}")
-    base_image = enrich_image_url(build.base_image or config.default_base_image)
+    base_image = enrich_image_url(
+        build.base_image or config.default_base_image, client_version
+    )
 
     status = build_image(
         auth_info,
@@ -376,6 +391,7 @@ def build_runtime(
         extra=build.extra,
         verbose=runtime.verbose,
         builder_env=builder_env,
+        client_version=client_version,
     )
     runtime.status.build_pod = None
     if status == "skipped":

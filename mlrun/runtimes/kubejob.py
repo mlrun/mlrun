@@ -127,7 +127,6 @@ class KubejobRuntime(KubeResource):
         is_kfp=False,
         mlrun_version_specifier=None,
         builder_env: dict = None,
-        client_version: str = None,
     ) -> bool:
         """deploy function, build container with dependencies
 
@@ -192,7 +191,6 @@ class KubejobRuntime(KubeResource):
                 mlrun_version_specifier,
                 skip_deployed,
                 watch,
-                client_version=client_version,
             )
             self.save(versioned=False)
 

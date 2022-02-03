@@ -1115,7 +1115,7 @@ def _fullname(project, name):
 def get_fullname(name, project, tag):
     if project:
         name = f"{project}-{name}"
-    if tag:
+    if tag and tag != "latest":
         name = f"{name}-{tag}"
     return name
 

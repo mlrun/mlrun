@@ -82,7 +82,7 @@ class DBBackupUtil(object):
         logger.debug("Backing up mysql DB data", backup_path=backup_path)
         dsn_data = mlrun.api.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
         self._run_shell_command(
-            "mysqldump "
+            "mysqldump --single-transaction --routines --triggers "
             f"-h {dsn_data['host']} "
             f"-P {dsn_data['port']} "
             f"-u {dsn_data['username']} "

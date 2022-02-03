@@ -313,7 +313,8 @@ def build_status(
             name,
             project,
             tag,
-            last_log_timestamp=last_log_timestamp,
+            # Workaround since when passing 0.0 to nuclio current timestamp is used and no logs are returned
+            last_log_timestamp=last_log_timestamp or 1.0,
             verbose=verbose,
             auth_info=auth_info,
         )

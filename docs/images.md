@@ -21,5 +21,4 @@ These characteristics are great when you’re working in a POC or development en
 ### Working with images in production
 For production you should create your own images to ensure that the image is fixed.
 - Pin the image tag, e.g. `image="mlrun/mlrun:0.10.0"`. This maintains the image tag at 0.10.0 even when the API is upgraded. Otherwise, an upgrade of the API would also upgrade the image. (If you specify an external (not MLRun images) docker image, like python, the result is the docker/k8s default behavior, which defaults to `latest` when the tag is not provided.)
-- Specify the exact packages your application/use case requires (e.g. specific tensorflow or pytorch package).
 - Pin the versions of requirements, again to avoid breakages, e.g. `pandas==1.4.0`. (If you only specify the package name, e.g. pandas, then pip/conda (python's package managers) just pick up the latest version.)

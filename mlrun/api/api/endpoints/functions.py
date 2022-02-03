@@ -494,6 +494,14 @@ def _build_function(
             # deploy only start the process, the get status API is used to check readiness
             ready = False
         else:
+            log_file = log_path(
+                fn.metadata.project,
+                f"build::{fn.metadata.name}::{fn.metadata.tag or 'latest'}",
+            )
+            if log_file.exists() and not (skip_deployed and fn.is_deployed):
+                # delete old build log file if exist and build is not skipped
+                os.remove(str(log_file))
+
             ready = build_runtime(
                 auth_info,
                 fn,

@@ -183,8 +183,8 @@ class AlgorithmFunctionality(Enum):
                 if len(pd.unique(y.to_numpy().flatten())) <= 2:
                     return cls.BINARY_CLASSIFICATION
                 return cls.MULTICLASS_CLASSIFICATION
-            # More than one column, check amount of classes:
-            if len(pd.unique(y.to_numpy().flatten())) <= 2:
+            # More than one column, check amount of classes (2 columns means binary - 1 column for each class):
+            if len(y.columns) == 2:
                 return cls.MULTI_OUTPUT_CLASSIFICATION
             return cls.MULTI_OUTPUT_MULTICLASS_CLASSIFICATION
 

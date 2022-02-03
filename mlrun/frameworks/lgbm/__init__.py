@@ -25,7 +25,7 @@ LGBMModelServer = PickleModelServer
 
 
 def apply_mlrun(
-    model: lgb.LGBMModel,
+    model: lgb.LGBMModel = None,
     model_name: str = "model",
     tag: str = "",
     model_path: str = None,

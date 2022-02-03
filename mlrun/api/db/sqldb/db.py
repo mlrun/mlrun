@@ -567,7 +567,8 @@ class SQLDB(DBInterface):
 
             # If queried by hash key and nuclio/serving function remove status
             is_nuclio = (
-                function["kind"] in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
+                function.get("kind", "")
+                in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
             )
             if hash_key and is_nuclio:
                 function["status"] = None

@@ -2,7 +2,7 @@ import importlib
 import os
 from abc import ABC
 from types import ModuleType
-from typing import Any, Dict, List, Tuple, Union
+from typing import List, Tuple, Union
 
 import tensorflow as tf
 from tensorflow import keras
@@ -19,7 +19,7 @@ from tensorflow.keras.optimizers import Optimizer
 import mlrun
 
 from .._common import MLRunInterface, RestorationInformation
-from .callbacks import MLRunLoggingCallback, TensorboardLoggingCallback
+from .callbacks import LoggingCallback
 
 
 class TFKerasMLRunInterface(MLRunInterface, ABC):
@@ -32,14 +32,15 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
 
     # Attributes to be inserted so the MLRun interface will be fully enabled.
     _PROPERTIES = {
-        # Auto enabled callbacks list:
-        "_auto_log_callbacks": [],  # type: List[Callback]
+        # Logging callbacks list:
+        "_logging_callbacks": [],  # type: List[Callback]
         # Variable to hold the horovod module:
         "_hvd": None,  # type: ModuleType
         # List of all the callbacks that should only be applied on rank 0 when using horovod:
         "_RANK_0_ONLY_CALLBACKS": [
-            MLRunLoggingCallback.__name__,
-            TensorboardLoggingCallback.__name__,
+            "LoggingCallback",
+            "MLRunLoggingCallback",
+            "TensorboardLoggingCallback",
             ModelCheckpoint.__name__,
             TensorBoard.__name__,
             ProgbarLogger.__name__,
@@ -48,7 +49,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
         ],  # type: List[str]
     }
     _METHODS = [
-        "auto_log",
+        "add_logging_callback",
         "use_horovod",
         "note_rank_0_callback",
         "_pre_compile",
@@ -122,7 +123,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
                 kwargs["callbacks"] = []
 
             # Add auto logging callbacks if they were added:
-            kwargs["callbacks"] = kwargs["callbacks"] + self._auto_log_callbacks
+            kwargs["callbacks"] = kwargs["callbacks"] + self._logging_callbacks
 
             # Setup default values if needed:
             kwargs["verbose"] = kwargs.get("verbose", 1)
@@ -163,7 +164,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
             kwargs["callbacks"] = []
 
         # Add auto log callbacks if they were added:
-        kwargs["callbacks"] = kwargs["callbacks"] + self._auto_log_callbacks
+        kwargs["callbacks"] = kwargs["callbacks"] + self._logging_callbacks
 
         # Setup default values if needed:
         kwargs["steps"] = kwargs.get("steps", None)
@@ -180,63 +181,20 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
         # Call the original evaluation method:
         return self.original_evaluate(*args, **kwargs)
 
-    def auto_log(
-        self,
-        context: mlrun.MLClientCtx = None,
-        add_mlrun_logger: bool = True,
-        mlrun_callback_kwargs: Dict[str, Any] = None,
-        add_tensorboard_logger: bool = True,
-        tensorboard_callback_kwargs: Dict[str, Any] = None,
-    ):
+    def add_logging_callback(self, logging_callback: LoggingCallback):
         """
-        Initialize the defaulted logging callbacks by MLRun. Given the context, the method will setup a list of
-        callbacks with the most common settings for logging a training session in tensorflow.keras. For further
-        information regarding the logging callbacks, see 'mlrun.frameworks.tf_keras.callbacks.MLRunLoggingCallback' and
+        Add the given logging callback to model's logging callbacks list. For further information regarding the logging
+        callbacks, see 'mlrun.frameworks.tf_keras.callbacks.MLRunLoggingCallback' and
         'mlrun.frameworks.tf_keras.callbacks.TensorboardLoggingCallback'.
 
-        :param context:                     The MLRun context to log with.
-        :param add_mlrun_logger:            Whether or not to add the 'MLRunLoggingCallback'. Defaulted to True.
-        :param mlrun_callback_kwargs:       Key word arguments for the MLRun callback. For further information see the
-                                            documentation of the class 'MLRunLoggingCallback'. Note that both 'context'
-                                            and 'auto_log' parameters are already given here.
-        :param add_tensorboard_logger:      Whether or not to add the 'TensorboardLoggingCallback'. Defaulted to True.
-        :param tensorboard_callback_kwargs: Key word arguments for the tensorboard callback. For further information see
-                                            the documentation of the class 'TensorboardLoggingCallback'. Note that both
-                                            'context' and 'auto_log' parameters are already given here.
+        :param logging_callback: The logging callback to add.
         """
         # If horovod is being used, there is no need to add the logging callbacks to ranks other than 0:
         if self._hvd is not None and self._hvd.rank() != 0:
             return
 
-        # Get default context in case it was not given:
-        if context is None:
-            context = mlrun.get_or_create_ctx(
-                TFKerasMLRunInterface.DEFAULT_CONTEXT_NAME
-            )
-
-        # Set the dictionaries defaults:
-        mlrun_callback_kwargs = (
-            {} if mlrun_callback_kwargs is None else mlrun_callback_kwargs
-        )
-        tensorboard_callback_kwargs = (
-            {} if tensorboard_callback_kwargs is None else tensorboard_callback_kwargs
-        )
-
-        # Add the loggers:
-        if add_mlrun_logger:
-            # Add the MLRun logging callback:
-            self._auto_log_callbacks.append(
-                MLRunLoggingCallback(
-                    context=context, auto_log=True, **mlrun_callback_kwargs
-                )
-            )
-        if add_tensorboard_logger:
-            # Add the Tensorboard logging callback:
-            self._auto_log_callbacks.append(
-                TensorboardLoggingCallback(
-                    context=context, auto_log=True, **tensorboard_callback_kwargs
-                )
-            )
+        # Add the logging callback:
+        self._logging_callbacks.append(logging_callback)
 
     # TODO: Add horovod callbacks configurations. If not set (None), use the defaults.
     def use_horovod(self):
@@ -405,7 +363,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
         callbacks = [
             callback
             for callback in callbacks
-            if not isinstance(callback, TensorboardLoggingCallback)
+            if type(callback).__name__ != "TensorboardLoggingCallback"
         ]
 
         # Check if needed to run with horovod:

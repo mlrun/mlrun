@@ -2,7 +2,7 @@ import importlib
 import os
 from abc import ABC
 from types import ModuleType
-from typing import List, Tuple, Union
+from typing import List, Set, Tuple, Union
 
 import tensorflow as tf
 from tensorflow import keras
@@ -33,11 +33,11 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
     # Attributes to be inserted so the MLRun interface will be fully enabled.
     _PROPERTIES = {
         # Logging callbacks list:
-        "_logging_callbacks": [],  # type: List[Callback]
+        "_logging_callbacks": set(),  # type: Set[Callback]
         # Variable to hold the horovod module:
         "_hvd": None,  # type: ModuleType
         # List of all the callbacks that should only be applied on rank 0 when using horovod:
-        "_RANK_0_ONLY_CALLBACKS": [
+        "_RANK_0_ONLY_CALLBACKS": {  # type: Set[str]
             "LoggingCallback",
             "MLRunLoggingCallback",
             "TensorboardLoggingCallback",
@@ -46,7 +46,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
             ProgbarLogger.__name__,
             CSVLogger.__name__,
             BaseLogger.__name__,
-        ],  # type: List[str]
+        },
     }
     _METHODS = [
         "add_logging_callback",
@@ -123,7 +123,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
                 kwargs["callbacks"] = []
 
             # Add auto logging callbacks if they were added:
-            kwargs["callbacks"] = kwargs["callbacks"] + self._logging_callbacks
+            kwargs["callbacks"] = kwargs["callbacks"] + list(self._logging_callbacks)
 
             # Setup default values if needed:
             kwargs["verbose"] = kwargs.get("verbose", 1)
@@ -164,7 +164,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
             kwargs["callbacks"] = []
 
         # Add auto log callbacks if they were added:
-        kwargs["callbacks"] = kwargs["callbacks"] + self._logging_callbacks
+        kwargs["callbacks"] = kwargs["callbacks"] + list(self._logging_callbacks)
 
         # Setup default values if needed:
         kwargs["steps"] = kwargs.get("steps", None)
@@ -194,7 +194,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
             return
 
         # Add the logging callback:
-        self._logging_callbacks.append(logging_callback)
+        self._logging_callbacks.add(logging_callback)
 
     # TODO: Add horovod callbacks configurations. If not set (None), use the defaults.
     def use_horovod(self):
@@ -213,7 +213,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
 
         :param callback_name: The name of the callback.
         """
-        self._RANK_0_ONLY_CALLBACKS.append(callback_name)
+        self._RANK_0_ONLY_CALLBACKS.add(callback_name)
 
     def _pre_compile(self, optimizer: Optimizer) -> Tuple[Optimizer, Union[bool, None]]:
         """

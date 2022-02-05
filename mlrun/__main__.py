@@ -141,6 +141,11 @@ def main():
 @click.option(
     "--env-file", default="", help="path to .env file to load config/variables from"
 )
+@click.option(
+    "--auto-build",
+    is_flag=True,
+    help="when set functions will be built prior to run if needed",
+)
 @click.argument("run_args", nargs=-1, type=click.UNPROCESSED)
 def run(
     url,
@@ -181,6 +186,7 @@ def run(
     verbose,
     scrape_metrics,
     env_file,
+    auto_build,
     run_args,
 ):
     """Execute a task and inject parameters."""
@@ -340,7 +346,9 @@ def run(
         if auto_mount:
             fn.apply(auto_mount_modifier())
         fn.is_child = from_env and not kfp
-        resp = fn.run(runobj, watch=watch, schedule=schedule, local=local)
+        resp = fn.run(
+            runobj, watch=watch, schedule=schedule, local=local, auto_build=auto_build
+        )
         if resp and dump:
             print(resp.to_yaml())
     except RunError as err:

@@ -138,6 +138,9 @@ def main():
     is_flag=True,
     help="whether to add the `mlrun/scrape-metrics` label to this run's resources",
 )
+@click.option(
+    "--env-file", default="", help="path to .env file to load config/variables from"
+)
 @click.argument("run_args", nargs=-1, type=click.UNPROCESSED)
 def run(
     url,
@@ -177,9 +180,13 @@ def run(
     watch,
     verbose,
     scrape_metrics,
+    env_file,
     run_args,
 ):
     """Execute a task and inject parameters."""
+
+    if env_file:
+        mlrun.set_env_from_file(env_file)
 
     out_path = out_path or environ.get("MLRUN_ARTIFACT_PATH")
     config = environ.get("MLRUN_EXEC_CONFIG")
@@ -370,6 +377,9 @@ def run(
     "--kfp", is_flag=True, help="running inside Kubeflow Piplines, do not use"
 )
 @click.option("--skip", is_flag=True, help="skip if already deployed")
+@click.option(
+    "--env-file", default="", help="path to .env file to load config/variables from"
+)
 def build(
     func_url,
     name,
@@ -387,8 +397,12 @@ def build(
     runtime,
     kfp,
     skip,
+    env_file,
 ):
     """Build a container image from code and requirements."""
+
+    if env_file:
+        mlrun.set_env_from_file(env_file)
 
     if db:
         mlconf.dbpath = db
@@ -492,8 +506,16 @@ def build(
 @click.option("--tag", default="", help="version tag")
 @click.option("--env", "-e", multiple=True, help="environment variables")
 @click.option("--verbose", is_flag=True, help="verbose log")
-def deploy(spec, source, func_url, dashboard, project, model, tag, kind, env, verbose):
+@click.option(
+    "--env-file", default="", help="path to .env file to load config/variables from"
+)
+def deploy(
+    spec, source, func_url, dashboard, project, model, tag, kind, env, verbose, env_file
+):
     """Deploy model or function"""
+    if env_file:
+        mlrun.set_env_from_file(env_file)
+
     if func_url:
         runtime = func_url_to_runtime(func_url)
         if runtime is None:
@@ -747,6 +769,9 @@ def logs(uid, project, offset, db, watch):
 @click.option("--handler", default=None, help="workflow function handler name")
 @click.option("--engine", default=None, help="workflow engine (kfp/local)")
 @click.option("--local", is_flag=True, help="try to run workflow functions locally")
+@click.option(
+    "--env-file", default="", help="path to .env file to load config/variables from"
+)
 def project(
     context,
     name,
@@ -768,8 +793,12 @@ def project(
     handler,
     engine,
     local,
+    env_file,
 ):
     """load and/or run a project"""
+    if env_file:
+        mlrun.set_env_from_file(env_file)
+
     if db:
         mlconf.dbpath = db
 
@@ -1009,9 +1038,12 @@ def func_url_to_runtime(func_url):
             project_instance, name, tag, hash_key = parse_versioned_object_uri(func_url)
             run_db = get_run_db(mlconf.dbpath)
             runtime = run_db.get_function(name, project_instance, tag, hash_key)
-        else:
+        elif func_url == "." or func_url.endswith(".yaml"):
             func_url = "function.yaml" if func_url == "." else func_url
             runtime = import_function_to_dict(func_url, {})
+        else:
+            mlrun_project = load_project(".")
+            runtime = mlrun_project.get_function(func_url, enrich=True).to_dict()
     except Exception as exc:
         logger.error(f"function {func_url} not found, {exc}")
         return None

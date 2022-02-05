@@ -1,3 +1,5 @@
+import os
+
 import mlrun
 
 
@@ -7,6 +9,11 @@ def myhandler(context: mlrun.MLClientCtx, p1, p2=3, p3=4):
     context.log_result("accuracy", p2 * 2)
     context.log_result("loss", p3 * 3)
     context.log_artifact("file_result", body=b"abc123", local_path="result.txt")
+
+
+def env_file_test(context: mlrun.MLClientCtx):
+    context.log_result("ENV_ARG1", os.environ.get("ENV_ARG1"))
+    context.log_result("kfp_ttl", mlrun.mlconf.kfp_ttl)
 
 
 class mycls:

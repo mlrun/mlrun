@@ -25,7 +25,7 @@ import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
 import mlrun.api.utils.singletons.project_member
 from mlrun.api.api import deps
-from mlrun.api.api.utils import get_run_db_instance, log_and_raise
+from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
 from mlrun.api.crud.secrets import Secrets
 from mlrun.api.schemas import SecretProviderName, SecretsData
 from mlrun.api.utils.singletons.k8s import get_k8s
@@ -377,6 +377,23 @@ def build_status(
             },
         )
 
+    # read from log file
+    log_file = log_path(project, f"build_{name}__{tag or 'latest'}")
+    if state in ["failed", "error", "ready"] and log_file.exists():
+        with log_file.open("rb") as fp:
+            fp.seek(offset)
+            out = fp.read()
+        return Response(
+            content=out,
+            media_type="text/plain",
+            headers={
+                "x-mlrun-function-status": state,
+                "function_status": state,
+                "function_image": image,
+                "builder_pod": pod,
+            },
+        )
+
     logger.info(f"get pod {pod} status")
     state = get_k8s().get_pod_status(pod)
     logger.info(f"pod state={state}")
@@ -390,6 +407,11 @@ def build_status(
 
     if logs and state != "pending":
         resp = get_k8s().logs(pod)
+        if state in ["failed", "error", "ready"]:
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+            with log_file.open("wb") as fp:
+                fp.write(resp.encode())
+
         if resp:
             out = resp.encode()[offset:]
 
@@ -472,6 +494,14 @@ def _build_function(
             # deploy only start the process, the get status API is used to check readiness
             ready = False
         else:
+            log_file = log_path(
+                fn.metadata.project,
+                f"build_{fn.metadata.name}__{fn.metadata.tag or 'latest'}",
+            )
+            if log_file.exists() and not (skip_deployed and fn.is_deployed):
+                # delete old build log file if exist and build is not skipped
+                os.remove(str(log_file))
+
             ready = build_runtime(
                 auth_info,
                 fn,

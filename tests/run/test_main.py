@@ -218,3 +218,18 @@ def test_run_from_module():
     out = exec_main("run", args)
     assert out.find("state: completed") != -1, out
     assert out.find("return: '[6, 7]'") != -1, out
+
+
+def test_main_env_file():
+    # test run with env vars loaded from a .env file
+    function_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    envfile = str(pathlib.Path(__file__).parent / "assets" / "envfile")
+
+    out = exec_run(
+        function_path,
+        ["--handler", "env_file_test", "--env-file", envfile],
+        "test_main_env_file",
+    )
+    assert out.find("state: completed") != -1, out
+    assert out.find("ENV_ARG1: '123'") != -1, out
+    assert out.find("kfp_ttl: 12345") != -1, out

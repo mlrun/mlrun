@@ -46,14 +46,19 @@ class MLFunctions(ABC):
         if algorithm_functionality.is_regression():
             n_targets = 1 if algorithm_functionality.is_single_output() else 5
             x, y = make_regression(n_targets=n_targets)
+            stratify = None
         else:
             n_classes = 2 if algorithm_functionality.is_binary_classification() else 5
             if algorithm_functionality.is_single_output():
                 x, y = make_classification(n_classes=n_classes, n_informative=n_classes)
+                stratify = y
             else:
                 x, y = make_multilabel_classification(n_classes=n_classes)
+                stratify = None
 
         if not for_training:
             return x, y
-        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2)
+        x_train, x_test, y_train, y_test = train_test_split(
+            x, y, test_size=0.2, stratify=stratify
+        )
         return x_train, x_test, y_train, y_test

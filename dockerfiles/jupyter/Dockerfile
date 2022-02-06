@@ -16,10 +16,12 @@ COPY --chown=$NB_UID:$NB_GID ./README.md $HOME
 COPY --chown=$NB_UID:$NB_GID ./examples/mlrun_basics.ipynb $HOME
 COPY --chown=$NB_UID:$NB_GID ./docs/quick-start.ipynb $HOME
 COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/mlrun-quick-start $HOME/_static/images/mlrun-quick-start
-COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/env $HOME
+COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlrun.env $HOME
+COPY --chown=$NB_UID:$NB_GID ./docs/tutorial $HOME
+COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/tutorial $HOME/_static/images/tutorial
 
 ARG MLRUN_CACHE_DATE=initial
-RUN git clone --branch hackathon https://github.com/mlrun/demos.git $HOME/demos
+RUN git clone --branch 0.10.x https://github.com/mlrun/demos.git $HOME/demos
 RUN git clone --branch master https://github.com/mlrun/functions.git $HOME/functions
 
 RUN mkdir data
@@ -43,7 +45,7 @@ ENV MLRUN_ARTIFACT_PATH=$HOME/data \
     MLRUN_HTTPDB__DSN='sqlite:////home/jovyan/data/mlrun.db?check_same_thread=false' \
     MLRUN_HTTPDB__LOGS_PATH=$HOME/data/logs \
     MLRUN_PVC_MOUNT=nfsvol:/home/jovyan/data \
-    MLRUN_SET_ENV_FILE=$HOME/env
+    MLRUN_ENV_FILE=$HOME/mlrun.env
 
 # run the mlrun db (api) and the notebook in parallel
 CMD python -m mlrun db & MLRUN_DBPATH=http://localhost:8080 start-notebook.sh \

@@ -591,8 +591,8 @@ def _populate():
 def _do_populate(env=None):
     global config
 
-    if "MLRUN_SET_ENV_FILE" in os.environ:
-        dotenv.load_dotenv(os.environ["MLRUN_SET_ENV_FILE"], override=True)
+    if "MLRUN_ENV_FILE" in os.environ:
+        dotenv.load_dotenv(os.environ["MLRUN_ENV_FILE"], override=True)
 
     if not config:
         config = Config.from_dict(default_config)
@@ -654,17 +654,17 @@ def read_env(env=None, prefix=env_prefix):
             cfg = cfg.setdefault(name, {})
         cfg[path[0]] = value
 
-    env_db_path = env.get("MLRUN_DBPATH", "")
-    is_remote_mlrun = env_db_path.startswith("https://mlrun-api.")
+    env_dbpath = env.get("MLRUN_DBPATH", "")
+    is_remote_mlrun = (
+        env_dbpath.startswith("https://mlrun-api.") and "tenant." in env_dbpath
+    )
     # It's already a standard to set this env var to configure the v3io api, so we're supporting it (instead
     # of MLRUN_V3IO_API), in remote usage this can be auto detected from the DBPATH
     v3io_api = env.get("V3IO_API")
     if v3io_api:
         config["v3io_api"] = v3io_api
     elif is_remote_mlrun:
-        config["v3io_api"] = env_db_path.replace(
-            "https://mlrun-api.", "https://webapi."
-        )
+        config["v3io_api"] = env_dbpath.replace("https://mlrun-api.", "https://webapi.")
 
     # It's already a standard to set this env var to configure the v3io framesd, so we're supporting it (instead
     # of MLRUN_V3IO_FRAMESD), in remote usage this can be auto detected from the DBPATH
@@ -672,7 +672,7 @@ def read_env(env=None, prefix=env_prefix):
     if v3io_framesd:
         config["v3io_framesd"] = v3io_framesd
     elif is_remote_mlrun:
-        config["v3io_framesd"] = env_db_path.replace(
+        config["v3io_framesd"] = env_dbpath.replace(
             "https://mlrun-api.", "https://framesd."
         )
 

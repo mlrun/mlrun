@@ -35,7 +35,7 @@ def test_bad_env_files():
 
 
 def test_auto_load_env_file():
-    os.environ["MLRUN_SET_ENV_FILE"] = str(assets_path / "envfile")
+    os.environ["MLRUN_ENV_FILE"] = str(assets_path / "envfile")
     mlrun.mlconf.reload()
     assert mlrun.mlconf.kfp_ttl == 12345
     expected = {"ENV_ARG1": "123", "ENV_ARG2": "abc", "MLRUN_KFP_TTL": "12345"}

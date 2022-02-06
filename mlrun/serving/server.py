@@ -451,8 +451,14 @@ class GraphContext:
                 f"got error from {source} state:\n{event.body}\n{message}"
             )
         if self._server and self._server._error_stream_object:
-            message = format_error(self._server, self, source, event, message, kwargs)
-            self._server._error_stream_object.push(message)
+            try:
+                message = format_error(
+                    self._server, self, source, event, message, kwargs
+                )
+                self._server._error_stream_object.push(message)
+            except BaseException as ex:
+                message = traceback.format_exc()
+                self.logger.error(f"failed to write to error stream: {ex}\n{message}")
 
     def get_param(self, key: str, default=None):
         if self._server and self._server.parameters:

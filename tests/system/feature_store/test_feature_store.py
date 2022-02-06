@@ -2039,9 +2039,10 @@ class TestFeatureStore(TestMLRunSystem):
                 container="projects", stream_path=stream_path, shard_count=1
             )
 
-        fs.deploy_ingestion_service(
-            featureset=fset, source=v3io_source,
-        )
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            fs.deploy_ingestion_service(
+                featureset=fset, source=v3io_source,
+            )
 
     def test_online_impute(self):
         data = pd.DataFrame(

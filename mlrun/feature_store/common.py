@@ -145,6 +145,16 @@ def verify_feature_set_permissions(
     db.verify_authorization(auth_input)
 
 
+def verify_feature_set_exists(feature_set):
+    db = feature_set._get_run_db()
+    project, uri, tag, _ = parse_feature_set_uri(feature_set.uri)
+
+    try:
+        db.get_feature_set(feature_set.fullname, project, tag)
+    except mlrun.errors.MLRunNotFoundError:
+        raise mlrun.errors.MLRunNotFoundError(f"feature set {uri} does not exist")
+
+
 def verify_feature_vector_permissions(
     feature_vector, action: mlrun.api.schemas.AuthorizationAction
 ):

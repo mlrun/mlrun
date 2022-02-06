@@ -5,6 +5,7 @@ from tensorflow import keras
 
 import mlrun
 
+from .callbacks import MLRunLoggingCallback, TensorboardLoggingCallback
 from .mlrun_interface import TFKerasMLRunInterface
 from .model_handler import TFKerasModelHandler
 from .model_server import TFKerasModelServer
@@ -143,16 +144,23 @@ def apply_mlrun(
         tensorboard_callback_kwargs = (
             {} if tensorboard_callback_kwargs is None else tensorboard_callback_kwargs
         )
-        # Add the additional parameters to Tensorboard's callback kwargs dictionary:
-        tensorboard_callback_kwargs["tensorboard_directory"] = tensorboard_directory
-        # Add the additional parameters to MLRun's callback kwargs dictionary:
-        mlrun_callback_kwargs["model_handler"] = handler
-        mlrun_callback_kwargs["log_model_tag"] = tag
         # Add the logging callbacks with the provided parameters:
-        model.auto_log(
-            context=context,
-            mlrun_callback_kwargs=mlrun_callback_kwargs,
-            tensorboard_callback_kwargs=tensorboard_callback_kwargs,
+        model.add_logging_callback(
+            logging_callback=MLRunLoggingCallback(
+                context=context,
+                model_handler=handler,
+                log_model_tag=tag,
+                auto_log=auto_log,
+                **mlrun_callback_kwargs
+            )
+        )
+        model.add_logging_callback(
+            logging_callback=TensorboardLoggingCallback(
+                context=context,
+                tensorboard_directory=tensorboard_directory,
+                auto_log=auto_log,
+                **tensorboard_callback_kwargs
+            )
         )
 
     return handler

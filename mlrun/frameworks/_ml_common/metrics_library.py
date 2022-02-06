@@ -96,21 +96,6 @@ class MetricsLibrary(ABC):
             if algorithm_functionality.is_multiclass_classification():
                 metrics += [
                     Metric(
-                        name="auc_macro",
-                        metric=sklearn.metrics.roc_auc_score,
-                        additional_arguments={"multi_class": "ovo", "average": "macro"},
-                        need_probabilities=True,
-                    ),
-                    Metric(
-                        name="auc_weighted",
-                        metric=sklearn.metrics.roc_auc_score,
-                        additional_arguments={
-                            "multi_class": "ovo",
-                            "average": "weighted",
-                        },
-                        need_probabilities=True,
-                    ),
-                    Metric(
                         metric=sklearn.metrics.f1_score,
                         additional_arguments={"average": "macro"},
                     ),
@@ -123,6 +108,27 @@ class MetricsLibrary(ABC):
                         additional_arguments={"average": "macro"},
                     ),
                 ]
+                if algorithm_functionality.is_single_output():
+                    metrics += [
+                        Metric(
+                            name="auc_macro",
+                            metric=sklearn.metrics.roc_auc_score,
+                            additional_arguments={
+                                "multi_class": "ovo",
+                                "average": "macro",
+                            },
+                            need_probabilities=True,
+                        ),
+                        Metric(
+                            name="auc_weighted",
+                            metric=sklearn.metrics.roc_auc_score,
+                            additional_arguments={
+                                "multi_class": "ovo",
+                                "average": "weighted",
+                            },
+                            need_probabilities=True,
+                        ),
+                    ]
 
         # Add regression metrics:
         if algorithm_functionality.is_regression():

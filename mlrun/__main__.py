@@ -1046,9 +1046,12 @@ def func_url_to_runtime(func_url):
             project_instance, name, tag, hash_key = parse_versioned_object_uri(func_url)
             run_db = get_run_db(mlconf.dbpath)
             runtime = run_db.get_function(name, project_instance, tag, hash_key)
-        else:
+        elif func_url == "." or func_url.endswith(".yaml"):
             func_url = "function.yaml" if func_url == "." else func_url
             runtime = import_function_to_dict(func_url, {})
+        else:
+            mlrun_project = load_project(".")
+            runtime = mlrun_project.get_function(func_url, enrich=True).to_dict()
     except Exception as exc:
         logger.error(f"function {func_url} not found, {exc}")
         return None

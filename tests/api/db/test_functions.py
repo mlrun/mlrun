@@ -126,16 +126,11 @@ def test_get_function_by_tag(db: DBInterface, db_session: Session):
     function_hash_key = db.store_function(
         db_session, function_1, function_name_1, versioned=True
     )
-    function_queried_by_tag = db.get_function(db_session, function_name_1, tag="latest")
     function_queried_by_hash_key = db.get_function(
         db_session, function_name_1, hash_key=function_hash_key
     )
     function_not_queried_by_tag_hash = function_queried_by_hash_key["metadata"]["hash"]
     assert function_hash_key == function_not_queried_by_tag_hash
-
-    # function not queried by tag shouldn't have status
-    assert function_queried_by_tag["status"] is not None
-    assert function_queried_by_hash_key["status"] is None
 
 
 @pytest.mark.parametrize(

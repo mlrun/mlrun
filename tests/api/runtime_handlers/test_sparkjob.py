@@ -74,6 +74,10 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler
         )
 
+        self.config_map = self._generate_config_map(
+            name="my-spark-jdbc", labels={"mlrun/uid": self.run_uid}
+        )
+
     def test_list_resources(self, db: Session, client: TestClient):
         mocked_responses = self._mock_list_namespaced_crds([[self.completed_crd_dict]])
         pods = self._mock_list_resources_pods()
@@ -116,6 +120,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             [],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+        self._mock_list_namespaced_config_map([self.config_map])
         self._mock_delete_namespaced_custom_objects()
         log = self._mock_read_namespaced_pod_log()
         self.runtime_handler.delete_resources(get_db(), db)
@@ -144,6 +149,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             [self.running_crd_dict],
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+        self._mock_list_namespaced_config_map([self.config_map])
         self._mock_delete_namespaced_custom_objects()
         self.runtime_handler.delete_resources(get_db(), db)
 
@@ -165,6 +171,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             [recently_completed_crd_dict],
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+        self._mock_list_namespaced_config_map([self.config_map])
         self._mock_delete_namespaced_custom_objects()
         self.runtime_handler.delete_resources(get_db(), db, grace_period=10)
 
@@ -190,6 +197,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             [],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+        self._mock_list_namespaced_config_map([self.config_map])
         self._mock_delete_namespaced_custom_objects()
         log = self._mock_read_namespaced_pod_log()
         self.runtime_handler.delete_resources(get_db(), db, force=True)

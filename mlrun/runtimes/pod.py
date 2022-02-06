@@ -17,6 +17,7 @@ import typing
 import uuid
 from enum import Enum
 
+import dotenv
 from kfp.dsl import ContainerOp, _container_op
 from kubernetes import client
 
@@ -337,8 +338,23 @@ class KubeResource(BaseRuntime):
         self.spec.env.append(new_var)
         return self
 
-    def set_envs(self, env_vars):
-        """set pod environment var key/value dict"""
+    def set_envs(self, env_vars: dict = None, file_path: str = None):
+        """set pod environment var from key/value dict or .env file
+
+        :param env_vars:  dict with env key/values
+        :param file_path: .env file with key=value lines
+        """
+        if (not env_vars and not file_path) or (env_vars and file_path):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "must specify env_vars OR file_path"
+            )
+        if file_path:
+            env_vars = dotenv.dotenv_values(file_path)
+            if None in env_vars.values():
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "env file lines must be in the form key=value"
+                )
+
         for name, value in env_vars.items():
             self.set_env(name, value)
         return self

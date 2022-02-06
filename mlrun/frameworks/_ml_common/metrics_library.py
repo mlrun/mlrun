@@ -84,7 +84,10 @@ class MetricsLibrary(ABC):
         # Add classification metrics:
         if algorithm_functionality.is_classification():
             metrics += [Metric(metric=sklearn.metrics.accuracy_score)]
-            if algorithm_functionality.is_binary_classification():
+            if (
+                algorithm_functionality.is_binary_classification()
+                and algorithm_functionality.is_single_output()
+            ):
                 metrics += [
                     Metric(metric=sklearn.metrics.f1_score),
                     Metric(metric=sklearn.metrics.precision_score),
@@ -132,6 +135,10 @@ class MetricsLibrary(ABC):
                 ),
                 Metric(metric=sklearn.metrics.mean_absolute_error),
             ]
+
+        # Filter out the metrics by probabilities requirement:
+        if not hasattr(model, "predict_proba"):
+            metrics = [metric for metric in metrics if not metric.need_probabilities]
 
         return metrics
 

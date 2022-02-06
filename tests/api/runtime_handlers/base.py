@@ -111,6 +111,15 @@ class TestRuntimeHandlerBase:
         pod = client.V1Pod(metadata=metadata, status=status)
         return pod
 
+    @staticmethod
+    def _generate_config_map(name, labels, data=None):
+        metadata = client.V1ObjectMeta(
+            name=name, labels=labels, namespace=get_k8s().resolve_namespace()
+        )
+        if data is None:
+            data = {"key": "value"}
+        return client.V1ConfigMap(metadata=metadata, data=data)
+
     def _generate_get_logger_pods_label_selector(self, runtime_handler):
         run_label_selector = runtime_handler._get_run_label_selector(
             self.project, self.run_uid
@@ -405,6 +414,14 @@ class TestRuntimeHandlerBase:
             side_effect=calls
         )
         return calls
+
+    @staticmethod
+    def _mock_list_namespaced_config_map(config_maps):
+        config_maps_list = client.V1ConfigMapList(items=config_maps)
+        get_k8s().v1api.list_namespaced_config_map = unittest.mock.Mock(
+            return_value=config_maps_list
+        )
+        return config_maps
 
     @staticmethod
     def _mock_list_services(services):

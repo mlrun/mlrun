@@ -136,6 +136,7 @@ class KubejobRuntime(KubeResource):
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
                               e.g. builder_env={"GIT_TOKEN": token}
+        :param client_version: used when running in server
 
         :return True if the function is ready (deployed)
         """
@@ -295,7 +296,14 @@ class KubejobRuntime(KubeResource):
             self._add_project_k8s_secrets_to_spec(None, runobj)
 
         pod_spec = func_to_pod(
-            self.full_image_path(), self, extra_env, command, args, self.spec.workdir
+            self.full_image_path(
+                client_version=runobj.metadata.labels.get("mlrun/client_version", None)
+            ),
+            self,
+            extra_env,
+            command,
+            args,
+            self.spec.workdir,
         )
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:

@@ -43,7 +43,6 @@ ENV MLRUN_ARTIFACT_PATH=$HOME/data \
     MLRUN_HTTPDB__DATA_VOLUME=$HOME/data \
     MLRUN_HTTPDB__DSN='sqlite:////home/jovyan/data/mlrun.db?check_same_thread=false' \
     MLRUN_HTTPDB__LOGS_PATH=$HOME/data/logs \
-    MLRUN_PVC_MOUNT=nfsvol:/home/jovyan/data \
     MLRUN_ENV_FILE=$HOME/mlrun.env
 
 # run the mlrun db (api) and the notebook in parallel

@@ -48,22 +48,21 @@ def test_resolve_mlrun_install_command():
             "client_version": "0.9.3",
             "server_mlrun_version_specifier": None,
             "expected_mlrun_install_command": f"{pip_command} "
-                                              f'"mlrun[complete] @ git+https://github.com/mlrun/mlrun@v0.10.0"',
+            f'"mlrun[complete] @ git+https://github.com/mlrun/mlrun@v0.10.0"',
         },
         {
             "test_description": "when mlrun_version_specifier is not configured and the server_mlrun_version_specifier"
-                                " is setup, expected to install the server_mlrun_version_specifier even if"
-                                " the client_version configured",
+            " is setup, expected to install the server_mlrun_version_specifier even if"
+            " the client_version configured",
             "mlrun_version_specifier": None,
             "client_version": "0.9.3",
             "server_mlrun_version_specifier": "mlrun[complete]==0.10.0-server-version",
             "expected_mlrun_install_command": f'{pip_command} "mlrun[complete]==0.10.0-server-version"',
         },
-
         {
             "test_description": "when client_version is specified and stable and mlrun_version_specifier and"
-                                " server_mlrun_version_specifier are not configured,"
-                                " expected to install stable client version",
+            " server_mlrun_version_specifier are not configured,"
+            " expected to install stable client version",
             "mlrun_version_specifier": None,
             "client_version": "0.9.3",
             "server_mlrun_version_specifier": None,
@@ -71,27 +70,27 @@ def test_resolve_mlrun_install_command():
         },
         {
             "test_description": "when client_version is specified and unstable and mlrun_version_specifier and"
-                                " server_mlrun_version_specifier are not configured,"
-                                " expected to install mlrun/mlrun@development",
+            " server_mlrun_version_specifier are not configured,"
+            " expected to install mlrun/mlrun@development",
             "mlrun_version_specifier": None,
             "client_version": "unstable",
             "server_mlrun_version_specifier": None,
             "expected_mlrun_install_command": f'{pip_command} "mlrun[complete] @ git+'
-                                              f'https://github.com/mlrun/mlrun@development"',
+            f'https://github.com/mlrun/mlrun@development"',
         },
         {
             "test_description": "when only the config.version is configured and unstable,"
-                                " expected to install mlrun/mlrun@development",
+            " expected to install mlrun/mlrun@development",
             "mlrun_version_specifier": None,
             "client_version": None,
             "server_mlrun_version_specifier": None,
             "version": "unstable",
             "expected_mlrun_install_command": f'{pip_command} "mlrun[complete] @ git+'
-                                              f'https://github.com/mlrun/mlrun@development"',
+            f'https://github.com/mlrun/mlrun@development"',
         },
         {
             "test_description": "when only the config.version is configured and unstable,"
-                                " expected to install config.version",
+            " expected to install config.version",
             "mlrun_version_specifier": None,
             "client_version": None,
             "server_mlrun_version_specifier": None,

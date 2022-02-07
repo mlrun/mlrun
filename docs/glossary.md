@@ -1,8 +1,10 @@
 <a id="top"></a>
+
 # Glossary of Terms
 
+
 | MLRun Terms              | Definition                                                                                                                                                                                    |
-|--------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | FeatureSet               | Group of features that are ingested together and stored in logical group                                                                                                                      |
 | FeatureVector            | Combination of multiple FeatureSets with ability to join, filter, etc.                                                                                                                        |
 | MLRun Function           | Abstraction that allows for running Python code easily in local environment and on top of K8s                                                                                                 |
@@ -35,7 +37,5 @@
 | Sklearn                  | Open source machine learning Python library. Used for modelling, pipelines, data transformations, feature engineering, and more.                                                              |
 | Spark                    | Open source parallel processing framework for running large-scale data analytics applications across clustered computers. Often used for data engineering, data science, and machine learning |
 | XGBoost                  | Optimized distributed gradient boosting library designed to be highly efficient, flexible and portable. Implements machine learning algorithms under the Gradient Boosting framework          |
-
-
 
 [Back to top](#top)

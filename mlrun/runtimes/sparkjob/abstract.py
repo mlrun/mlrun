@@ -356,7 +356,13 @@ class AbstractSparkRuntime(KubejobRuntime):
             elif self._default_image:
                 self.spec.image = self._default_image
 
-        update_in(job, "spec.image", self.full_image_path())
+        update_in(
+            job,
+            "spec.image",
+            self.full_image_path(
+                client_version=runobj.metadata.labels.get("mlrun/client_version")
+            ),
+        )
 
         update_in(job, "spec.volumes", self.spec.volumes)
 

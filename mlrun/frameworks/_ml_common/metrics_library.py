@@ -144,7 +144,7 @@ class MetricsLibrary(ABC):
         # Add regression metrics:
         if algorithm_functionality.is_regression():
             metrics += [
-                Metric(name="accuracy", metric=sklearn.metrics.mean_absolute_error),
+                Metric(metric=sklearn.metrics.mean_absolute_error),
                 Metric(metric=sklearn.metrics.r2_score),
                 Metric(
                     name="root_mean_squared_error",
@@ -194,7 +194,7 @@ class MetricsLibrary(ABC):
 
 
 # A constant name for the context parameter to use for passing a plans configuration:
-METRICS_CONTEXT_PARAMETER = "metrics"
+METRICS_CONTEXT_PARAMETER = "_metrics"
 
 
 def get_metrics(

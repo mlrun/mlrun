@@ -82,7 +82,7 @@ def test_resolve_mlrun_install_command():
             "client_version": "unstable",
             "server_mlrun_version_specifier": None,
             "expected_mlrun_install_command": f'{pip_command} "mlrun[complete] @ git+'
-            f'https://github.com/mlrun/mlru2n@development"',
+            f'https://github.com/mlrun/mlrun@development"',
         },
     ]
     for case in cases:

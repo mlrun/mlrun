@@ -6,7 +6,8 @@ from torch.nn import Module, Parameter
 
 import mlrun
 
-from ..._dl_common.loggers import Logger, LoggerMode, TrackableType
+from ..._common import TrackableType
+from ..._dl_common.loggers import Logger, LoggerMode
 from .callback import Callback, MetricFunctionType, MetricValueType
 
 

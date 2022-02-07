@@ -11,7 +11,8 @@ from torch.utils.tensorboard.summary import hparams
 
 import mlrun
 
-from ..._dl_common.loggers import TensorboardLogger, TrackableType
+from ..._common import TrackableType
+from ..._dl_common.loggers import TensorboardLogger
 from .logging_callback import LoggingCallback, MetricFunctionType, MetricValueType
 
 

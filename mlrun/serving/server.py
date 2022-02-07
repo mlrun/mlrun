@@ -456,7 +456,7 @@ class GraphContext:
                     self._server, self, source, event, message, kwargs
                 )
                 self._server._error_stream_object.push(message)
-            except BaseException as ex:
+            except Exception as ex:
                 message = traceback.format_exc()
                 self.logger.error(f"failed to write to error stream: {ex}\n{message}")
 

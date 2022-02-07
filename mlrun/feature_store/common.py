@@ -150,7 +150,9 @@ def verify_feature_set_exists(feature_set):
     project, uri, tag, _ = parse_feature_set_uri(feature_set.uri)
 
     try:
-        db.get_feature_set(feature_set.metadata.name, project, tag)
+        fset = db.get_feature_set(feature_set.metadata.name, project, tag)
+        if not fset.spec.features:
+            raise mlrun.errors.MLRunNotFoundError(f"feature set {uri} is empty")
     except mlrun.errors.MLRunNotFoundError:
         raise mlrun.errors.MLRunNotFoundError(f"feature set {uri} does not exist")
 

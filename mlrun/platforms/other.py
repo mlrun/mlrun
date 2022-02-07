@@ -64,21 +64,22 @@ def auto_mount(pvc_name="", volume_mount_path="", volume_name=None):
 
     volume will be selected by the following order:
     - k8s PVC volume when both pvc_name and volume_mount_path are set
-    - iguazio v3io volume when V3IO_ACCESS_KEY and V3IO_USERNAME env vars are set
     - k8s PVC volume when env var is set: MLRUN_PVC_MOUNT=<pvc-name>:<mount-path>
+    - k8s PVC volume if it's configured as the auto mount type
+    - iguazio v3io volume when V3IO_ACCESS_KEY and V3IO_USERNAME env vars are set
     """
     if pvc_name and volume_mount_path:
         return mount_pvc(
             pvc_name=pvc_name,
             volume_mount_path=volume_mount_path,
-            volume_name=volume_name or "pvc",
+            volume_name=volume_name or "shared-persistency",
         )
+    if "MLRUN_PVC_MOUNT" in os.environ:
+        return mount_pvc(volume_name=volume_name or "shared-persistency",)
     # In the case of MLRun-kit when working remotely, no env variables will be defined but auto-mount
     # parameters may still be declared - use them in that case.
     if config.storage.auto_mount_type == "pvc":
         return mount_pvc(**config.get_storage_auto_mount_params())
-    if "MLRUN_PVC_MOUNT" in os.environ:
-        return mount_pvc(volume_name=volume_name or "pvc",)
     if "V3IO_ACCESS_KEY" in os.environ:
         return mount_v3io(name=volume_name or "v3io")
 

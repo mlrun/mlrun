@@ -145,5 +145,7 @@ class TestAutoMount:
         os.environ.pop("V3IO_ACCESS_KEY", None)
         # This won't work if mount type is not pvc
         mlconf.storage.auto_mount_type = "auto"
-        with pytest.raises(ValueError, match="failed to auto mount, need to set env vars"):
+        with pytest.raises(
+            ValueError, match="failed to auto mount, need to set env vars"
+        ):
             runtime.apply(mlrun.auto_mount())

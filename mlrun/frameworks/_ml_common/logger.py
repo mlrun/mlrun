@@ -15,11 +15,11 @@ from .utils import to_array
 
 class LoggerMode(Enum):
     """
-    The logger's mode, can be training or testing.
+    The logger's mode, can be training or evaluation.
     """
 
-    TRAINING = "Training"
-    TESTING = "Testing"
+    TRAINING = "training"
+    EVALUATION = "evaluation"
 
 
 class Logger:
@@ -239,6 +239,15 @@ class Logger:
         # Clear the old plans:
         self._plans = plans
 
+        # Add evaluation prefix if in Evaluation mode:
+        if self._mode == LoggerMode.EVALUATION:
+            self._not_logged_artifacts = {
+                f"evaluation-{key}": value
+                for key, value in self._not_logged_artifacts.items()
+            }
+            for artifact in self._not_logged_artifacts.values():
+                artifact.key = f"evaluation-{artifact.key}"
+
     def _calculate_results(
         self,
         y_true: Union[np.ndarray, pd.DataFrame, pd.Series],
@@ -261,6 +270,13 @@ class Logger:
         for metric in self._metrics:
             if metric.need_probabilities == is_probabilities:
                 self._not_logged_results[metric.name] = metric(y_true, y_pred)
+
+        # Add evaluation prefix if in Evaluation mode:
+        if self._mode == LoggerMode.EVALUATION:
+            self._not_logged_results = {
+                f"evaluation_{key}": value
+                for key, value in self._not_logged_results.items()
+            }
 
     def _log_artifacts(self):
         """

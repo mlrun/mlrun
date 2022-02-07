@@ -472,7 +472,10 @@ def deploy_function(function: DaskCluster, secrets=None):
     meta = function.metadata
     spec.remote = True
 
-    image = function.full_image_path() or "daskdev/dask:latest"
+    image = (
+        function.full_image_path(client_version=meta.labels.get("mlrun/client_version"))
+        or "daskdev/dask:latest"
+    )
     env = spec.env
     namespace = meta.namespace or config.namespace
     if spec.extra_pip:

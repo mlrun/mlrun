@@ -17,7 +17,7 @@ class ConfusionMatrixPlan(MLPlotPlan):
     Plan for producing a confusion matrix.
     """
 
-    _ARTIFACT_NAME = "confusion_matrix"
+    _ARTIFACT_NAME = "confusion-matrix"
 
     def __init__(
         self,
@@ -149,7 +149,7 @@ class ConfusionMatrixPlan(MLPlotPlan):
 
         # Create the plot's artifact:
         self._artifacts[self._ARTIFACT_NAME] = PlotlyArtifact(
-            figure=figure, key=self._ARTIFACT_NAME
+            key=self._ARTIFACT_NAME, figure=figure,
         )
 
         return self._artifacts

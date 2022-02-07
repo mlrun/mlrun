@@ -18,7 +18,7 @@ class ROCCurvePlan(MLPlotPlan):
     clinical sensitivity and specificity for every possible cut-off for a test or a combination of tests.
     """
 
-    _ARTIFACT_NAME = "roc_curves"
+    _ARTIFACT_NAME = "roc-curves"
 
     def __init__(
         self,
@@ -145,7 +145,7 @@ class ROCCurvePlan(MLPlotPlan):
 
         # Creating the plot artifact:
         self._artifacts[self._ARTIFACT_NAME] = PlotlyArtifact(
-            figure=fig, key=self._ARTIFACT_NAME
+            key=self._ARTIFACT_NAME, figure=fig,
         )
 
         return self._artifacts

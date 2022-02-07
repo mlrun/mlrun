@@ -284,7 +284,7 @@ class Logger:
         Log the calculated metrics results using the logger's context.
         """
         # Use the context to log each metric result:
-        self._context.log_results(results=self._not_logged_results)
+        self._context.log_results(self._not_logged_results)
 
         # Collect the logged results:
         self._logged_results = {**self._logged_results, **self._not_logged_results}

@@ -92,6 +92,7 @@ Table Of Contents
    :maxdepth: 1
    :caption: References:
 
+   glossary
    examples
    cli
    genindex

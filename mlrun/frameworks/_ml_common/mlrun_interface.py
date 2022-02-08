@@ -240,8 +240,8 @@ class MLMLRunInterface(MLRunInterface, ABC):
         :param x: The input dataset to the predict / predict_proba method ('x_test').
         :param y: The input dataset to the predict / predict_proba method ('y_test').
         """
-        # This function is only called for testing (evaluation), then set the logger's mode:
-        self._logger.set_mode(mode=LoggerMode.TESTING)
+        # This function is only called for evaluation, then set the logger's mode:
+        self._logger.set_mode(mode=LoggerMode.EVALUATION)
 
         # Produce and log all the artifacts pre prediction:
         self._logger.log_stage(stage=MLPlanStages.PRE_PREDICT, model=self, x=x, y=y)

@@ -452,7 +452,7 @@ class DaskCluster(KubejobRuntime):
         return context.to_dict()
 
 
-def deploy_function(function: DaskCluster, secrets=None):
+def deploy_function(function: DaskCluster, secrets=None, client_version: str = None):
 
     # TODO: why is this here :|
     try:
@@ -473,8 +473,7 @@ def deploy_function(function: DaskCluster, secrets=None):
     spec.remote = True
 
     image = (
-        function.full_image_path(client_version=meta.labels.get("mlrun/client_version"))
-        or "daskdev/dask:latest"
+        function.full_image_path(client_version=client_version) or "daskdev/dask:latest"
     )
     env = spec.env
     namespace = meta.namespace or config.namespace

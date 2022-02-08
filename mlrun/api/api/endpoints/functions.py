@@ -494,7 +494,9 @@ def _build_function(
                         traceback=traceback.format_exc(),
                     )
 
-            deploy_nuclio_function(fn, auth_info=auth_info)
+            deploy_nuclio_function(
+                fn, auth_info=auth_info, client_version=client_version
+            )
             # deploy only start the process, the get status API is used to check readiness
             ready = False
         else:

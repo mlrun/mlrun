@@ -486,7 +486,7 @@ def build(
             with open("/tmp/state", "w") as fp:
                 fp.write(state or "none")
             full_image = (
-                func.full_image_path(image, meta.labels.get("mlrun/client_version"))
+                func.full_image_path(image)
                 or ""
             )
             with open("/tmp/image", "w") as fp:

@@ -1,3 +1,4 @@
+import warnings
 from typing import Dict, List, Union
 
 import lightgbm as lgb
@@ -111,6 +112,20 @@ def apply_mlrun(
 
     :return: The model handler initialized with the provided model.
     """
+    if "X_test" in kwargs:
+        warnings.warn(
+            "The attribute 'X_test' was changed to 'x_test' and will be removed next version.",
+            # TODO: Remove in mlrun 1.0.0
+            PendingDeprecationWarning,
+        )
+        x_test = kwargs["X_test"]
+    if "X_train" in kwargs or "y_train" in kwargs:
+        warnings.warn(
+            "The attributes 'X_train' and 'y_train' are no longer required and will be removed next version.",
+            # TODO: Remove in mlrun 1.0.0
+            PendingDeprecationWarning,
+        )
+
     # Get the default context:
     if context is None:
         context = mlrun.get_or_create_ctx(LGBMModelMLRunInterface.DEFAULT_CONTEXT_NAME)

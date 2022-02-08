@@ -21,3 +21,6 @@ V3IO_ACCESS_KEY:
 
 # spark service name for spark ingestion
 MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE:
+
+# google big query credentials json for test_google_big_query
+MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON:

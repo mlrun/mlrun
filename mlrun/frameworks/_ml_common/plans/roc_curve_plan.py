@@ -18,7 +18,7 @@ class ROCCurvePlan(MLPlotPlan):
     clinical sensitivity and specificity for every possible cut-off for a test or a combination of tests.
     """
 
-    _ARTIFACT_NAME = "roc_curves"
+    _ARTIFACT_NAME = "roc-curves"
 
     def __init__(
         self,
@@ -75,7 +75,7 @@ class ROCCurvePlan(MLPlotPlan):
 
         :return: True if the plan is producible and False otherwise.
         """
-        return stage == MLPlanStages.POST_FIT and is_probabilities
+        return stage == MLPlanStages.POST_PREDICT and is_probabilities
 
     def produce(
         self,
@@ -110,20 +110,20 @@ class ROCCurvePlan(MLPlotPlan):
         fig = go.Figure()
         fig.add_shape(type="line", line={"dash": "dash"}, x0=0, x1=1, y0=0, y1=1)
 
-        # Iteratively add new lines every time we compute a new class
+        # Iteratively add new lines every time we compute a new class:
         for i in range(y_pred.shape[1]):
-            y_true = y_one_hot.iloc[:, i]
-            y_score = y_pred[:, i]
+            class_i_true = y_one_hot.iloc[:, i]
+            class_i_pred = y_pred.iloc[:, i]
             fpr, tpr, _ = roc_curve(
-                y_true,
-                y_score,
+                class_i_true,
+                class_i_pred,
                 pos_label=self._pos_label,
                 sample_weight=self._sample_weight,
                 drop_intermediate=self._drop_intermediate,
             )
             auc_score = roc_auc_score(
-                y_true,
-                y_score,
+                class_i_true,
+                class_i_pred,
                 average=self._average,
                 sample_weight=self._sample_weight,
                 max_fpr=self._max_fpr,
@@ -145,7 +145,7 @@ class ROCCurvePlan(MLPlotPlan):
 
         # Creating the plot artifact:
         self._artifacts[self._ARTIFACT_NAME] = PlotlyArtifact(
-            figure=fig, key=self._ARTIFACT_NAME
+            key=self._ARTIFACT_NAME, figure=fig,
         )
 
         return self._artifacts

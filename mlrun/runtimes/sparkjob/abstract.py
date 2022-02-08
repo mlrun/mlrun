@@ -368,7 +368,7 @@ class AbstractSparkRuntime(KubejobRuntime):
 
         command, args, extra_env = self._get_cmd_args(runobj)
         code = None
-        if command == "mlrun":
+        if "MLRUN_EXEC_CODE" in [e.get("name") for e in extra_env]:
             code = f"""
 import mlrun.__main__ as ml
 ctx = ml.main.make_context('main', {args})

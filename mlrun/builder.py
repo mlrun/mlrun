@@ -310,7 +310,7 @@ def resolve_mlrun_install_command(mlrun_version_specifier=None, client_version=N
             mlrun_version_specifier = (
                 f"{config.package_path}[complete]=={config.version}"
             )
-    return f'"python -m pip install "{mlrun_version_specifier}"'
+    return f'python -m pip install "{mlrun_version_specifier}"'
 
 
 def build_runtime(

@@ -16,7 +16,7 @@ class FeatureImportancePlan(MLPlotPlan):
     Plan for producing a feature importance.
     """
 
-    _ARTIFACT_NAME = "feature_importance"
+    _ARTIFACT_NAME = "feature-importance"
 
     def __init__(self):
         """
@@ -80,7 +80,7 @@ class FeatureImportancePlan(MLPlotPlan):
 
         # Creating the artifact:
         self._artifacts[self._ARTIFACT_NAME] = PlotlyArtifact(
-            figure=fig, key=self._ARTIFACT_NAME
+            key=self._ARTIFACT_NAME, figure=fig,
         )
 
         return self._artifacts

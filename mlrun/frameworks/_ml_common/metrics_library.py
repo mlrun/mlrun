@@ -2,6 +2,7 @@ from abc import ABC
 from typing import Dict, List, Type, Union
 
 import sklearn
+from sklearn.preprocessing import LabelBinarizer
 
 import mlrun.errors
 
@@ -83,7 +84,7 @@ class MetricsLibrary(ABC):
 
         # Add classification metrics:
         if algorithm_functionality.is_classification():
-            metrics += [Metric(metric=sklearn.metrics.accuracy_score)]
+            metrics += [Metric(name="accuracy", metric=sklearn.metrics.accuracy_score)]
             if (
                 algorithm_functionality.is_binary_classification()
                 and algorithm_functionality.is_single_output()
@@ -111,7 +112,17 @@ class MetricsLibrary(ABC):
                 if algorithm_functionality.is_single_output():
                     metrics += [
                         Metric(
-                            name="auc_macro",
+                            name="auc-micro",
+                            metric=lambda y_true, y_pred: sklearn.metrics.roc_auc_score(
+                                LabelBinarizer().fit_transform(y_true),
+                                y_pred,
+                                multi_class="ovo",
+                                average="micro",
+                            ),
+                            need_probabilities=True,
+                        ),
+                        Metric(
+                            name="auc-macro",
                             metric=sklearn.metrics.roc_auc_score,
                             additional_arguments={
                                 "multi_class": "ovo",
@@ -120,7 +131,7 @@ class MetricsLibrary(ABC):
                             need_probabilities=True,
                         ),
                         Metric(
-                            name="auc_weighted",
+                            name="auc-weighted",
                             metric=sklearn.metrics.roc_auc_score,
                             additional_arguments={
                                 "multi_class": "ovo",
@@ -133,13 +144,14 @@ class MetricsLibrary(ABC):
         # Add regression metrics:
         if algorithm_functionality.is_regression():
             metrics += [
-                Metric(metric=sklearn.metrics.r2_score),
                 Metric(metric=sklearn.metrics.mean_absolute_error),
+                Metric(metric=sklearn.metrics.r2_score),
                 Metric(
+                    name="root_mean_squared_error",
                     metric=sklearn.metrics.mean_squared_error,
                     additional_arguments={"squared": False},
                 ),
-                Metric(metric=sklearn.metrics.mean_absolute_error),
+                Metric(metric=sklearn.metrics.mean_squared_error),
             ]
 
         # Filter out the metrics by probabilities requirement:
@@ -182,7 +194,7 @@ class MetricsLibrary(ABC):
 
 
 # A constant name for the context parameter to use for passing a plans configuration:
-METRICS_CONTEXT_PARAMETER = "metrics"
+METRICS_CONTEXT_PARAMETER = "_metrics"
 
 
 def get_metrics(

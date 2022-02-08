@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 import mlrun
@@ -25,7 +27,7 @@ def test_training(functions: MLFunctions, algorithm_functionality: str):
         == AlgorithmFunctionality.MULTI_OUTPUT_MULTICLASS_CLASSIFICATION.value
     ):
         pytest.skip(
-            "May be bug in lightgbm for multiclass multi output classification."
+            "May be bug in lightgbm and xgboost for multiclass multi output classification."
         )
 
     train_run = mlrun.new_function().run(
@@ -33,6 +35,8 @@ def test_training(functions: MLFunctions, algorithm_functionality: str):
         handler=functions.train,
         params={"algorithm_functionality": algorithm_functionality},
     )
+
+    print(json.dumps(train_run.outputs, indent=4))
 
     assert len(train_run.status.artifacts) >= 2
     assert len(train_run.status.results) >= 1
@@ -47,7 +51,7 @@ def test_evaluation(functions: MLFunctions, algorithm_functionality: str):
         == AlgorithmFunctionality.MULTI_OUTPUT_MULTICLASS_CLASSIFICATION.value
     ):
         pytest.skip(
-            "May be bug in lightgbm for multiclass multi output classification."
+            "May be bug in lightgbm and xgboost for multiclass multi output classification."
         )
 
     model_name = "train_to_eval"
@@ -69,6 +73,8 @@ def test_evaluation(functions: MLFunctions, algorithm_functionality: str):
             "model_path": train_run.outputs[model_name],
         },
     )
+
+    print(json.dumps(evaluate_run.outputs, indent=4))
 
     assert len(evaluate_run.status.artifacts) >= 1
     assert len(evaluate_run.status.results) >= 1

@@ -1278,7 +1278,7 @@ def compile_function_config(function: RemoteRuntime, client_version: str = None)
         base_image = function.spec.image or function.spec.build.base_image
         if base_image:
             update_in(
-                config, "spec.build.baseImage", enrich_image_url(base_image),
+                config, "spec.build.baseImage", enrich_image_url(base_image, client_version),
             )
 
         name = get_fullname(name, project, tag)

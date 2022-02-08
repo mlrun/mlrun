@@ -224,6 +224,9 @@ async def start_function(
     background_tasks: BackgroundTasks,
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
+    client_version: Optional[str] = Header(
+        None, alias=mlrun.api.schemas.HeaderNames.client_version
+    ),
 ):
     # TODO: ensure project here !!! for background task
     data = None
@@ -251,6 +254,7 @@ async def start_function(
         _start_function,
         function,
         auth_info,
+        client_version,
     )
 
     return background_task
@@ -540,7 +544,9 @@ def _parse_start_function_body(db_session, data):
     return new_function(runtime=runtime)
 
 
-def _start_function(function, auth_info: mlrun.api.schemas.AuthInfo):
+def _start_function(
+    function, auth_info: mlrun.api.schemas.AuthInfo, client_version: str = None
+):
     db_session = mlrun.api.db.session.create_session()
     try:
         resource = runtime_resources_map.get(function.kind)
@@ -555,7 +561,7 @@ def _start_function(function, auth_info: mlrun.api.schemas.AuthInfo):
             mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)
             mlrun.api.api.utils.process_function_service_account(function)
             #  resp = resource["start"](fn)  # TODO: handle resp?
-            resource["start"](function)
+            resource["start"](function, client_version=client_version)
             function.save(versioned=False)
             logger.info("Fn:\n %s", function.to_yaml())
         except Exception as err:

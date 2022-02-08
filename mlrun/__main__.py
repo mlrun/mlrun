@@ -485,10 +485,7 @@ def build(
         if kfp:
             with open("/tmp/state", "w") as fp:
                 fp.write(state or "none")
-            full_image = (
-                func.full_image_path(image)
-                or ""
-            )
+            full_image = func.full_image_path(image) or ""
             with open("/tmp/image", "w") as fp:
                 fp.write(image)
             with open("/tmp/fullimage", "w") as fp:

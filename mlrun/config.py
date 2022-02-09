@@ -312,7 +312,7 @@ default_config = {
         # 2. A base-64 encoded json dictionary containing the list of parameters
         "auto_mount_params": "",
     },
-    "default_pod_resources": {
+    "default__user_pod_resources": {
         "requests": {"cpu": "", "memory": "", "gpu": ""},
         "limits": {"cpu": "", "memory": "", "gpu": ""},
     },

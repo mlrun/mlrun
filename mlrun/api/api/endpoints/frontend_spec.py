@@ -48,7 +48,7 @@ def get_frontend_spec(
         auto_mount_type=config.storage.auto_mount_type,
         auto_mount_params=config.get_storage_auto_mount_params(),
         default_artifact_path=config.artifact_path,
-        default_pod_resources=mlrun.mlconf.default_pod_resources.to_dict(),
+        default_user_pod_resources=mlrun.mlconf.default_user_pod_resources.to_dict(),
     )
 
 

@@ -436,7 +436,7 @@ test-system: ## Run mlrun system tests
 		--disable-warnings \
 		--durations=100 \
 		-rf \
-		tests/system/feature_store/test_feature_store.py
+		tests/system
 
 .PHONY: test-system-open-source
 test-system-open-source: ## Run mlrun system tests with opensource configuration

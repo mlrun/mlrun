@@ -55,6 +55,8 @@ from .frontend_spec import (
     FeatureFlags,
     FrontendSpec,
     ProjectMembershipFeatureFlag,
+    Resources,
+    ResourceSpec,
 )
 from .function import FunctionState
 from .marketplace import (

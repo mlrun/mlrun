@@ -17,7 +17,6 @@
 __all__ = [
     "get_offline_features",
     "get_online_feature_service",
-    "open_online_feature_service",
     "ingest",
     "preview",
     "deploy_ingestion_service",
@@ -47,7 +46,6 @@ from .api import (
     get_offline_features,
     get_online_feature_service,
     ingest,
-    open_online_feature_service,
     preview,
 )
 from .common import RunConfig

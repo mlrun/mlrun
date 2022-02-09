@@ -55,7 +55,6 @@ Table Of Contents
    tutorial/index
    architecture
    install
-   images
    howto/index
 
 .. toctree::

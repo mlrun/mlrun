@@ -2277,10 +2277,10 @@ def _init_function_from_dict(f, project):
             name, filename=url, image=image, kind=kind, handler=handler
         )
     elif url.endswith(".py"):
-        if not image:
+        if not image and kind != "local":
             raise ValueError(
-                "image must be provided with py code files, "
-                "use function object for more control/settings"
+                "image must be provided with py code files which do not "
+                "run on 'local' engine kind"
             )
         if in_context and with_repo:
             func = new_function(

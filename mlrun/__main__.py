@@ -23,8 +23,10 @@ from os import environ, path
 from pprint import pprint
 from subprocess import Popen
 from sys import executable
+from urllib.parse import urlparse
 
 import click
+import pandas as pd
 import yaml
 from tabulate import tabulate
 
@@ -50,6 +52,8 @@ from .utils import (
     update_in,
 )
 from .utils.version import Version
+
+pd.set_option("mode.chained_assignment", None)
 
 
 @click.group()
@@ -693,13 +697,34 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
 @main.command()
 @click.option("--port", "-p", help="port to listen on", type=int)
 @click.option("--dirpath", "-d", help="database directory (dirpath)")
-def db(port, dirpath):
+@click.option("--dsn", "-s", help="database dsn, e.g. sqlite:///db/mlrun.db")
+@click.option("--logs-path", "-l", help="logs directory path")
+@click.option("--data-volume", "-v", help="path prefix to the location of artifacts")
+@click.option("--verbose", is_flag=True, help="verbose log")
+def db(port, dirpath, dsn, logs_path, data_volume, verbose):
     """Run HTTP api/database server"""
     env = environ.copy()
     if port is not None:
         env["MLRUN_httpdb__port"] = str(port)
     if dirpath is not None:
         env["MLRUN_httpdb__dirpath"] = dirpath
+    if dsn is not None:
+        if dsn.startswith("sqlite://") and "check_same_thread=" not in dsn:
+            dsn += "?check_same_thread=false"
+        env["MLRUN_HTTPDB__DSN"] = dsn
+    if logs_path is not None:
+        env["MLRUN_HTTPDB__LOGS_PATH"] = logs_path
+    if data_volume is not None:
+        env["MLRUN_HTTPDB__DATA_VOLUME"] = data_volume
+    if verbose:
+        env["MLRUN_LOG_LEVEL"] = "DEBUG"
+
+    # create the DB dir if needed
+    dsn = dsn or mlconf.httpdb.dsn
+    if dsn and dsn.startswith("sqlite:///"):
+        parsed = urlparse(dsn)
+        p = pathlib.Path(parsed.path[1:]).parent
+        p.mkdir(parents=True, exist_ok=True)
 
     cmd = [executable, "-m", "mlrun.api.main"]
     child = Popen(cmd, env=env)

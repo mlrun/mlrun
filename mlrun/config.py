@@ -313,17 +313,9 @@ default_config = {
         "auto_mount_params": "",
     },
     "default_pod_resources": {
-        "requests": {
-            "cpu": "",
-            "memory": "",
-            "gpu": "",
-        },
-        "limits": {
-            "cpu": "",
-            "memory": "",
-            "gpu": "",
-        },
-    }
+        "requests": {"cpu": "", "memory": "", "gpu": ""},
+        "limits": {"cpu": "", "memory": "", "gpu": ""},
+    },
 }
 
 

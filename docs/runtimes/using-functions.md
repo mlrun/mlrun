@@ -170,7 +170,7 @@ Run object has the following methods/properties:
 - `to_dict()`, `to_yaml()`, `to_json()` &mdash; converts the run object to a dictionary, YAML, or JSON format (respectively).
 
 
-<br>Wיen integrated with the MLOps Platform, you can view the job details, logs, and artifacts in the UI. When you first open the **Monitor 
+<br>When integrated with the MLOps Platform, you can view the job details, logs, and artifacts in the UI. When you first open the **Monitor 
 Jobs** tab it displays the last jobs that ran and their data. Click a job name to view its run history, and click a run to view more of the 
 run's data.
 

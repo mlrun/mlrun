@@ -317,7 +317,6 @@ class BaseRuntime(ModelObj):
             self.fill_credentials()
 
         if local:
-
             if schedule is not None:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "local and schedule cannot be used together"

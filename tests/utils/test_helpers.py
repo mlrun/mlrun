@@ -237,6 +237,52 @@ def test_enrich_image():
             "images_tag": None,
             "version": "0.1.2+some-special-tag",
         },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "0.9.3-client-version",
+            "images_tag": None,
+            "expected_output": "mlrun/mlrun:0.9.3-client-version",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "0.9.3-client-version",
+            "images_tag": "0.10.0-override-version",
+            "expected_output": "mlrun/mlrun:0.10.0-override-version",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "0.9.3-client-version",
+            "images_tag": "0.10.0-override-version",
+            "version": "0.10.5-server-version",
+            "expected_output": "mlrun/mlrun:0.10.0-override-version",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": None,
+            "images_tag": None,
+            "version": "0.10.5-server-version",
+            "expected_output": "mlrun/mlrun:0.10.5-server-version",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "0.9.3-client-version",
+            "images_tag": None,
+            "version": "0.10.5-server-version",
+            "expected_output": "mlrun/mlrun:0.9.3-client-version",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "some/image",
+            "client_version": "0.9.3-client-version",
+            "images_tag": None,
+            "version": "0.10.5-server-version",
+            "expected_output": "some/image",
+            "images_to_enrich_registry": "",
+        },
     ]
     default_images_to_enrich_registry = config.images_to_enrich_registry
     for case in cases:
@@ -252,7 +298,8 @@ def test_enrich_image():
         config.images_tag = case.get("images_tag", "0.5.2-unstable-adsf76s")
         image = case["image"]
         expected_output = case["expected_output"]
-        output = enrich_image_url(image)
+        client_version = case.get("client_version")
+        output = enrich_image_url(image, client_version)
         assert output == expected_output
 
 

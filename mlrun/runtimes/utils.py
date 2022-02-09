@@ -241,7 +241,7 @@ def results_to_iter(results, runspec, execution):
     header = df.columns.values.tolist()
     summary = [header] + df.values.tolist()
     if not runspec:
-        return summary
+        return summary, df
 
     criteria = runspec.spec.hyper_param_options.selector
     item, id = selector(results, criteria)
@@ -254,6 +254,19 @@ def results_to_iter(results, runspec, execution):
     task = results[item] if id and results else None
     execution.log_iteration_results(id, summary, task)
 
+    log_iter_artifacts(execution, df, header)
+
+    if failed:
+        execution.set_state(
+            error=f"{failed} of {len(results)} tasks failed, check logs in db for details",
+            commit=False,
+        )
+    elif running == 0:
+        execution.set_state("completed", commit=False)
+    execution.commit()
+
+
+def log_iter_artifacts(execution, df, header):
     csv_buffer = StringIO()
     df.to_csv(csv_buffer, index=False, line_terminator="\n", encoding="utf-8")
     try:
@@ -275,15 +288,6 @@ def results_to_iter(results, runspec, execution):
         )
     except Exception:
         pass
-
-    if failed:
-        execution.set_state(
-            error=f"{failed} of {len(results)} tasks failed, check logs in db for details",
-            commit=False,
-        )
-    elif running == 0:
-        execution.set_state("completed", commit=False)
-    execution.commit()
 
 
 def generate_function_image_name(function) -> str:

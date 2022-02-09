@@ -51,6 +51,20 @@ def get_dask_resource():
 
 
 class DaskSpec(KubeResourceSpec):
+    _dict_fields = KubeResourceSpec._dict_fields + [
+        "extra_pip",
+        "remote",
+        "service_type",
+        "nthreads",
+        "kfp_image",
+        "node_port",
+        "min_replicas",
+        "max_replicas",
+        "scheduler_timeout",
+        "scheduler_resources",
+        "worker_resources",
+    ]
+
     def __init__(
         self,
         command=None,
@@ -337,7 +351,7 @@ class DaskCluster(KubejobRuntime):
     def deploy(
         self,
         watch=True,
-        with_mlrun=True,
+        with_mlrun=None,
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
@@ -438,14 +452,14 @@ class DaskCluster(KubejobRuntime):
         return context.to_dict()
 
 
-def deploy_function(function: DaskCluster, secrets=None):
+def deploy_function(function: DaskCluster, secrets=None, client_version: str = None):
 
     # TODO: why is this here :|
     try:
         import dask
         from dask.distributed import Client, default_client  # noqa: F401
         from dask_kubernetes import KubeCluster, make_pod_spec  # noqa: F401
-        from kubernetes_asyncio import client
+        from kubernetes import client
     except ImportError as exc:
         print(
             "missing dask or dask_kubernetes, please run "
@@ -458,7 +472,9 @@ def deploy_function(function: DaskCluster, secrets=None):
     meta = function.metadata
     spec.remote = True
 
-    image = function.full_image_path() or "daskdev/dask:latest"
+    image = (
+        function.full_image_path(client_version=client_version) or "daskdev/dask:latest"
+    )
     env = spec.env
     namespace = meta.namespace or config.namespace
     if spec.extra_pip:

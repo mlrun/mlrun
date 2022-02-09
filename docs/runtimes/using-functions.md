@@ -1,112 +1,160 @@
 
-## Creating and Using Functions
+# Creating and Using Functions
 
-**Functions** (function objects) can be created by using any of the following methods:
+**MLRun Functions** (function objects) can be created by using any of the following methods:
 
-- **{py:func}`~mlrun.run.new_function`** - creates a function for local run or from container, from code repository/archive, from function spec.
-- **{py:func}`~mlrun.run.code_to_function`** - creates a function from local or remote source code (single file) or from a notebook (code file will be embedded in the function object).
-- **{py:func}`~mlrun.run.import_function`** - imports a function from a local or remote YAML function-configuration file or 
+- **{py:func}`~mlrun.run.new_function`**: creates a function from code repository/archive.
+- **{py:func}`~mlrun.run.code_to_function`**: creates a function from local or remote source code (single file) or from 
+ a notebook (code file will be embedded in the function object).
+- **{py:func}`~mlrun.run.import_function`**: imports a function from a local or remote YAML function-configuration file or 
   from a function object in the MLRun database (using a DB address of the format `db://<project>/<name>[:<tag>]`)
-  or from the function marketplace (e.g. `hub://describe`).
+  or from the function marketplace (e.g. `hub://describe`). See [MLRun Functions Marketplace](./load-from-marketplace.md).
 
-You can use the {py:meth}`~mlrun.runtimes.BaseRuntime.save` function method to save a function object in the MLRun database, or 
-the {py:meth}`~mlrun.runtimes.BaseRuntime.export` method to save a YAML function-configuration to your preferred local or remote location.
-use {py:meth}`~mlrun.runtimes.BaseRuntime.run` to execute a task, or {py:meth}`~mlrun.runtimes.BaseRuntime.as_step` to convert a function to a Kubeflow pipeline step.
-Use `.deploy()` to build/deploy the function (deploy for batch functions will build the image and add required packages, 
-for online/real-time runtimes like `nuclio` and `serving` it will also deploy it as an online service)
-For method details click the hyperlinks or check the embedded documentation/help text.
+When you create a function, you can:
+- Use the {py:meth}`~mlrun.runtimes.BaseRuntime.save` function method to save a function object in the MLRun database.
+- Use the {py:meth}`~mlrun.runtimes.BaseRuntime.export` method to save a YAML function-configuration to your preferred 
+local or remote location.
+- Use the {py:meth}`~mlrun.runtimes.BaseRuntime.run` to execute a task.
+- Use the {py:meth}`~mlrun.runtimes.BaseRuntime.as_step` to convert a function to a Kubeflow pipeline step.
+- Use `.deploy()` to build/deploy the function. (Deploy for batch functions builds the image and adds the required packages. 
+For online/real-time runtimes like `nuclio` and `serving` it also deploys it as an online service.)
 
-Functions are stored in the project and are versioned. Therefore, you can always view previous code and go back to previous functions if needed.
+Functions are stored in the project and are versioned so you can always view previous code and go back to previous functions if needed.
 
-* [**Specifying Function Code**](#specifying-function-code)
-* [**Submitting Tasks/Jobs To Function**](#)
+The general concepts described in this section are illustrated in the following figure:
+
+<img src="../_static/images/mlrun_function_flow.png" alt="functions-flow" width="800"/>
+
+Read more in:
+* [**Providing Function Code**](#providing-function-code)
+* [**Specifying the function’s execution handler or command**](#specifying-the-function-execution-handler-or-command)
+* [**Submitting Tasks/Jobs To Function**](#submitting-tasks/jobs-to-functions)
 * [**MLRun Execution Context**](#mlrun-execution-context)
 * [**Function Runtimes**](#function-runtimes)
 
-### Specifying Function Code
+## Providing Function Code
 
-In MLRun code can be provided in several ways:
-1. inline as part of the function object 
-2. loaded into the function container as part of the build/deploy process 
-3. loaded from git/zip/tar archive into the function at runtime 
+When using `code_to_function()` or `new_function()`, you can provide code in several ways:
+- [As part of the function object](#provide-code-as-part-of-the-function-object)
+- [As part of the function image](#provide-code-as-part-of-the-function-image)
+- [From the git/zip/tar archive into the function at runtime](#provide-code-from-a-git-zip-tar-archive-into-the-function-at-runtime)
 
-the first option is great for small and single file functions or for using code derived from notebooks, we use mlrun 
-{py:func}`~mlrun.code_to_function` method to create functions from code files or notebooks.
-For more on how to create functions from notebook code, see [converting notebook code to a function](./mlrun_code_annotations.ipynb).
+### Provide code as part of the function object
+This method is great for small and single file functions or for using code derived from notebooks. This example uses the mlrun 
+{py:func}`~mlrun.code_to_function` method to create functions from code files or notebooks. 
+For more on how to create functions from notebook code, see [Converting notebook code to a function](./mlrun_code_annotations.ipynb).
 
     # create a function from py or notebook (ipynb) file, specify the default function handler
-    my_func = mlrun.code_to_function(name='prep_data', filename="./prep_data.py", 
-                                     kind='job', image='mlrun/mlrun', handler='my_func')
+    my_func = mlrun.code_to_function(name='prep_data', filename='./prep_data.py', kind='job', 
+    image='mlrun/mlrun', handler='my_func')
 
-    # add shared storage volume to it for reading/writing data.
-    # only needed if specific storage configuration is needed, that is not supplied by auto-mount
-    # my_func.apply(mount_v3io())
+### Provide code as part of the function image
 
-    # run the function
-    run_results = my_func.run(params={"label_column": "label"}, inputs={'data': data_url})
+Providing code as part of the image is good for ensuring that the function image has the integrated code + dependencies, 
+and it avoids the dependency, or overhead, of loading code at runtime. 
 
-the build/deploy option is good for making sure we have a container package with integrated code + dependencies and avoid 
-the dependency or overhead of loading code at runtime. We need to make sure we add the source archive into our container 
-or use the {py:meth}`~mlrun.runtimes.KubejobRuntime.deploy()` method which will build a container for us, we can specify 
-the build configuration using the {py:meth}`~mlrun.runtimes.KubejobRuntime.build_config` method. 
+Use the {py:meth}`~mlrun.runtimes.KubejobRuntime.deploy()` method to build a function image with source code, 
+dependencies, etc. Specify the build configuration using the {py:meth}`~mlrun.runtimes.KubejobRuntime.build_config` method. 
 
+```
     # create a new job function from base image and archive + custom build commands
     fn = mlrun.new_function('archive', kind='job', command='./myfunc.py')
     fn.build_config(base_image='mlrun/mlrun', source='git://github.com/org/repo.git#master',
-                    commands=[pip install pandas])
+                    commands=["pip install pandas"])
     # deploy (build the container with the extra build commands/packages)
     fn.deploy()
     
     # run the function (specify the function handler to execute)
     run_results = fn.run(handler='my_func', params={"x": 100})
+```
 
-The `command='./myfunc.py'` specifies the command we execute in the function container/workdir, by default we call python 
-with the specified command, you can specify `mode="pass"` to execute the command as is (e.g. for binary code), you can 
-template (`{..}`) in the command to pass the task parameters as arguments for the execution command (e.g. `mycode.py --x {xparam}` will 
-substitute the `{xparam}` with the value of the `xparam` parameter) 
+Alternatively, you can use a pre-built image:
 
-when doing iterative development with multiple code files and packages the 3rd option is the most efficient, we want 
-to make small code changes and re-run our job without building containers etc.
+```
+# provide a pre-built image with your code and dependencies
+fn = mlrun.new_function('archive', kind='job', command='./myfunc.py', image='some/pre-built-image:tag')
+    
+# run the function (specify the function handler to execute)
+run_results = fn.run(handler='my_func', params={"x": 100})
+```
 
-the `local`, `job`, `mpijob` and `remote-spark` runtimes support dynamic load from archive or file shares (other runtimes will 
-be added later), this is enabled by setting the `spec.build.source=<archive>` and `spec.build.load_source_on_run=True` 
-or simply by setting the `source` attribute in `new_function`). in the CLI we use the `--source` flag. 
+You can use this option with {py:func}`~mlrun.run.new_function` method.
+
+
+### Provide code from a git, zip, tar archive into the function at runtime
+
+This option is the most efficient when doing iterative development with multiple code files and packages. You can 
+make small code changes and re-run the job without building images, etc. You can use this option with the 
+{py:func}`~mlrun.run.new_function` method.
+
+The `local`, `job`, `mpijob` and `remote-spark` runtimes support dynamic load from archive or file shares (other 
+runtimes will be added later). Enable this by setting the `spec.build.source=<archive>` and 
+`spec.build.load_source_on_run=True` 
+or simply by setting the `source` attribute in `new_function`). In the CLI, use the `--source` flag. 
 
     fn = mlrun.new_function('archive', kind='job', image='mlrun/mlrun', command='./myfunc.py', 
                             source='git://github.com/mlrun/ci-demo.git#master')
     run_results = fn.run(handler='my_func', params={"x": 100})
 
-see more details and examples on [**running jobs with code from Archives or shares**](./code-archive.ipynb)
+See more details and examples on [running jobs with code from Archives or shares](./code-archive.ipynb)
 
-For executing non-python code, set `mode="pass"` (passthrough) and specify the full execution `command`, e.g.:
+## Specifying the function execution handler or command
+
+The function is configured with code and dependencies, however you also need to set the main execution code 
+either by handler or command.
+
+**Handler**
+
+A handler is a method (not a script) that executes the function, for either a one-time run or ongoing online services.  
+
+**Command**
+
+The `command='./myfunc.py'` specifies the command that is executed in the function container/workdir. 
+
+By default MLRun tries to execute python code with the specified command. For executing non-python code, set 
+`mode="pass"` (passthrough) and specify the full execution `command`, e.g.:
 
     new_function(... command="bash main.sh --myarg xx", mode="pass")  
+    
+If you need to add arguments in the command, use `"mode=args"`  template (`{..}`) in the command to pass the 
+task parameters as arguments for the execution command, for example:
 
-### Submitting Tasks/Jobs To Functions
+    new_function(... command='mycode.py' --x {xparam}", mode="args")
+    
+where `{xparam}` is substituted with the value of the `xparam` parameter.<br>
+It is possible to use argument templates also when using `mode="pass"`.
 
-MLRun batch Function objects support a {py:meth}`~mlrun.runtimes.BaseRuntime.run` method for invoking a job over them, the run method 
-accept various parameters such as `name`, `handler`, `params`, `inputs`, `schedule`, etc. 
-Alternatively we can pass a **`Task`** object (see: {py:func}`~mlrun.model.new_task`) which holds all of our parameters plus advanced options. 
+See also [Execute non Python code](./code-archive.html#execute-non-python-code) and 
+[Inject parameters into command line](./code-archive.html#inject-parameters-into-command-line).
 
-```{admonition} Run/simulate functions locally
-Functions can also run and be debugged locally by using the `local` runtime or by setting the `local=True` parameter in the {py:meth}`~mlrun.runtimes.BaseRuntime.run` 
-method (for batch functions)
-```
 
-Functions may host multiple methods (handlers), we can set the default handler per function, 
- we need to specify which handle we intend to call in the run command. 
+## Submitting Tasks/Jobs To Functions
+
+MLRun batch function objects support a {py:meth}`~mlrun.runtimes.BaseRuntime.run` method for invoking a job over them. 
+The run method accepts various parameters such as `name`, `handler`, `params`, `inputs`, `schedule`, etc. 
+Alternatively you can pass a **`Task`** object (see: {py:func}`~mlrun.model.new_task`) that holds all of the 
+parameters plus the advanced options. 
+
+> **Run/simulate functions locally:** 
+Functions can also run and be debugged locally by using the `local` runtime or by setting the `local=True` 
+> parameter in the {py:meth}`~mlrun.runtimes.BaseRuntime.run` method (for batch functions).
+
+Functions can host multiple methods (handlers). You can set the default handler per function. You
+ need to specify which handler you intend to call in the run command. 
  
-Users can pass data objects to functions using the `inputs` dictionary argument with the data input key (as specified in the function handler)
-and the MLRun data url, the data will be passed into the function as a {py:class}`~mlrun.datastore.DataItem` object which handles data movement, 
-tracking and security in an optimal way (read more about data objects in: [Data Stores & Data Items](../store/datastore.md))
+You can pass data objects to the function's `run()` method using the inputs dictionary argument, where the dictionary 
+keys match the function's handler argument names and the MLRun data urls are provided as the values. The data is passed 
+into the function as a {py:class}`~mlrun.datastore.DataItem` object that handles data movement, tracking and security in 
+an optimal way. Read more about data objects in [Data Stores & Data Items](../store/datastore.md).
 
     run_results = fn.run(params={"label_column": "label"}, inputs={'data': data_url})
 
-MLRun also support iterative jobs which can run and track multiple child jobs (for hyper-parameter tasks, AutoML, etc.), 
-see [Hyper-Param and Iterative jobs](../hyper-params.ipynb) for details and examples.
+MLRun also supports iterative jobs that can run and track multiple child jobs (for hyper-parameter tasks, AutoML, etc.). 
+See [Hyper-Param and Iterative jobs](../hyper-params.ipynb) for details and examples.
  
-The `run()` command returns a run object which allowed us to track our job and its results, when we 
-pass the parameter `watch=True` (default) the {py:meth}`~mlrun.runtimes.BaseRuntime.run` command will block until our job completes.
+The `run()` command returns a run object that you can use to track the job and its results. If you
+pass the parameter `watch=True` (default) the {py:meth}`~mlrun.runtimes.BaseRuntime.run` command blocks 
+until the job completes.
 
 Run object has the following methods/properties:
 - `uid()` &mdash; returns the unique ID.
@@ -115,26 +163,26 @@ Run object has the following methods/properties:
 - `outputs` &mdash; returns a dictionary of the run results and artifact paths.
 - `logs(watch=True)` &mdash; returns the latest logs.
     Use `Watch=False` to disable the interactive mode in running jobs.
-- `artifact(key)` &mdash; returns artifact for the provided key (as {py:class}`~mlrun.datastore.DataItem` object).
+- `artifact(key)` &mdash; returns an artifact for the provided key (as {py:class}`~mlrun.datastore.DataItem` object).
 - `output(key)` &mdash; returns a specific result or an artifact path for the provided key.
 - `wait_for_completion()` &mdash; wait for async run to complete
 - `refresh()` &mdash; refresh run state from the db/service
 - `to_dict()`, `to_yaml()`, `to_json()` &mdash; converts the run object to a dictionary, YAML, or JSON format (respectively).
 
 
-<br>You can view the job details, logs and artifacts in the user interface:
+<br>You can view the job details, logs. and artifacts in the user interface:
 
 <br><img src="../_static/images/project-jobs-train-artifacts-test_set.png" alt="project-jobs-train-artifacts-test_set" width="800"/>
 
 
-### MLRun Execution Context
+## MLRun Execution Context
 
-In the function code signature we can add the `context` attribute (first), this provides us access to the 
-job metadata, parameters, inputs, secrets, and API for logging and monitoring our results. 
-Alternatively if we don't run inside a function handler (e.g. in Python main or Notebook) we can obtain the `context` 
+In the function's handler code signature you can add context as the first argument. 
+The context provides access to the job metadata, parameters, inputs, secrets, and API for logging and monitoring the results. 
+Alternatively if it does not run inside a function handler (e.g. in Python main or Notebook) you can obtain the `context` 
 object from the environment using the {py:func}`~mlrun.run.get_or_create_ctx` function.
 
-example function and usage of the context object:
+Example function and usage of the context object:
  
 ```python
 from mlrun.artifacts import ChartArtifact
@@ -187,7 +235,7 @@ def my_job(context, p1=1, p2="x"):
     context.log_dataset("mydf", df=df, stats=True)
 ```
 
-example, creating the context objects from the environment:
+Example of creating the context objects from the environment:
 
 ```python
 if __name__ == "__main__":
@@ -201,7 +249,7 @@ if __name__ == "__main__":
 ```
 
 Note that MLRun context is also a python context and can be used in a `with` statement (eliminating the need for `commit`)
-
+d development
 ```python
 if __name__ == "__main__":
     with mlrun.get_or_create_ctx('train') as context:
@@ -212,9 +260,18 @@ if __name__ == "__main__":
 ```
 
 (Function_runtimes)=
-### Function Runtimes
+## Function Runtimes
 
-When users create MLRun functions they need to specify one of the following function runtime kinds (e.g. `kind='job'`):
+When you create an MLRun function you need to specify a runtime kind (e.g. `kind='job'`). Each runtime supports 
+its own specific attributes (e.g. Jars for Spark, Triggers for Nuclio, Auto-scaling for Dask, etc.).
+
+MLRun supports these runtimes:
+
+Real-time runtimes:
+* **nuclio** - real-time serverless functions over Nuclio
+* **serving** - higher level real-time Graph (DAG) over one or more Nuclio functions
+
+Batch runtimes:
 * **handler** - execute python handler (used automatically in notebooks or for debug)
 * **local** - execute a Python or shell program 
 * **job** - run the code in a Kubernetes Pod
@@ -222,12 +279,6 @@ When users create MLRun functions they need to specify one of the following func
 * **mpijob** - run distributed jobs and Horovod over the MPI job operator, used mainly for deep learning jobs 
 * **spark** - run the job as a Spark job (using Spark Kubernetes Operator)
 * **remote-spark** - run the job on a remote Spark service/cluster (e.g. Iguazio Spark service)
-* **nuclio** - real-time serverless functions over Nuclio
-* **serving** - higher level real-time Graph (DAG) over one or more Nuclio functions
-
-Functions are associated with a specific runtime, and every runtime may add specific attributes 
-(e.g. Jars for Spark, Triggers for Nuclio, Auto-scaling for Dask, etc.), check the runtime specific 
-documentation links below for details.
 
 **Common attributes for Kubernetes based functions** 
 

@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import shutil
+import traceback
 from datetime import datetime
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
-from sys import platform
+from subprocess import PIPE, run
+from sys import executable, platform, stderr
 from time import monotonic, sleep
 from urllib.request import URLError, urlopen
 
@@ -98,7 +100,7 @@ def run_now():
 
 def new_run(state, labels, uid=None, **kw):
     obj = {
-        "metadata": {"labels": labels},
+        "metadata": {"name": "run-name", "labels": labels},
         "status": {"state": state, "start_time": run_now()},
     }
     if uid:
@@ -107,7 +109,28 @@ def new_run(state, labels, uid=None, **kw):
     return obj
 
 
+def freeze(f, **kwargs):
+    frozen = kwargs
+
+    def wrapper(*args, **kwargs):
+        kwargs.update(frozen)
+        return f(*args, **kwargs)
+
+    return wrapper
+
+
 def init_sqldb(dsn):
     engine = create_engine(dsn)
     Base.metadata.create_all(bind=engine)
     return sessionmaker(bind=engine)
+
+
+def exec_mlrun(args, cwd=None, op="run"):
+    cmd = [executable, "-m", "mlrun", op] + args
+    out = run(cmd, stdout=PIPE, stderr=PIPE, cwd=cwd)
+    if out.returncode != 0:
+        print(out.stderr.decode("utf-8"), file=stderr)
+        print(out.stdout.decode("utf-8"), file=stderr)
+        print(traceback.format_exc())
+        raise Exception(out.stderr.decode("utf-8"))
+    return out.stdout.decode("utf-8")

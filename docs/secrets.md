@@ -1,19 +1,18 @@
 # Working with secrets  <!-- omit in toc -->
-When executing jobs through MLRun, it is sometimes required to provide the code access to specific secrets. This may 
-be needed for example to access data residing on a data-store that requires credentials (such as a private
-S3 bucket), or many other similar needs.
+When executing jobs through MLRun, the code might need access to specific secrets, for example to access data 
+residing on a data-store that requires credentials (such as a private S3 bucket), or many other similar needs.
 
-MLRun provides some facilities that allow handling secrets and pass those secrets to execution jobs. However, it's 
+MLRun provides some facilities that allow handling secrets and passing those secrets to execution jobs. However, it's 
 important to understand how these facilities work, as this has implications on the level of security they provide
 and how much exposure they create for your secrets.
 
 ## Overview
 MLRun uses the concept of Tasks to encapsulate runtime parameters. Tasks are used to specify execution context
-such as hyper-parameters, and can also be used to pass details about secrets that are going to be used in the 
+such as hyper-parameters. They can also be used to pass details about secrets that are going to be used in the 
 runtime.
 
-To pass secret parameters, use the Task's {py:func}`~mlrun.model.RunTemplate.with_secrets()` function. For example, the following command will
-pass secrets provided by a kubernetes secret to the execution context (see next sections for a discussion of secret
+To pass secret parameters, use the Task's {py:func}`~mlrun.model.RunTemplate.with_secrets()` function. For example, the following command 
+passes secrets provided by a kubernetes secret to the execution context (see next sections for a discussion of secret
 providers):
 
 ```{code-block} python
@@ -43,10 +42,10 @@ def test_function(context, db_name):
     ...
 ```
 
-The {py:func}`~mlrun.model.RunTemplate.with_secrets()` function tells MLRun what secrets the executed code will need 
-access to. The MLRun framework prepares the needed infrastructure to make these secrets available to the runtime, 
+The {py:func}`~mlrun.model.RunTemplate.with_secrets()` function tells MLRun what secrets the executed code needs to 
+access. The MLRun framework prepares the needed infrastructure to make these secrets available to the runtime, 
 and passes information about them to the execution framework by specifying those secrets in the spec of the runtime. 
-For example, if running a kubernetes job, the secret keys will be noted in the generated pod's spec.
+For example, if running a kubernetes job, the secret keys are noted in the generated pod's spec.
 
 The actual details of MLRun's handling of the secrets differ per the **secret provider** used. The following sections
 provide more details on these providers and how they handle secrets and their values.
@@ -58,7 +57,7 @@ as shown in the above example.
 ## Secret providers
 As mentioned, MLRun provides the user with several secret providers. Each of those providers functions differently and 
 has different traits with respect to what secrets can be passed and how they're handled. It's important to understand 
-these parameters to make sure secrets are not compromised and their secrecy is maintained.
+these parameters to make sure secrets are not compromised and that their secrecy is maintained.
 
 Generally speaking, the [Inline](#inline), [Env](#environment) and [File](#file) providers do not guarantee 
 confidentiality of the secret values handled by them, and should only be used for development and demo purposes. 
@@ -68,30 +67,30 @@ other use-case.
 
 ### Inline
 The inline secrets provider is a very basic framework that should mostly be used for testing and demos. The secrets 
-passed by this framework are exposed in the source code creating the MLRun function as well as in the function spec and
+passed by this framework are exposed in the source code creating the MLRun function, as well as in the function spec, and
 in the generated pod specs. To add inline secrets to a job, perform the following:
 
 ```python
 task.with_secrets("inline", {"MY_SECRET": "12345"})
 ```
 
-As can be seen, even the client code exposes the secret value. If used to pass secrets to a job running in a kubernetes 
-pod the secret will also be visible in the pod spec - this means that any user that can run `kubectl` and is permitted 
-to view pod specs will see the secret keys as well as their values.
+As can be seen, even the client code exposes the secret value. If this is used to pass secrets to a job running in a kubernetes 
+pod the secret is also visible in the pod spec. This means that any user that can run `kubectl` and is permitted 
+to view pod specs can also see the secret keys and their values.
 
 ### Environment
 Environment variables are similar to the `inline` secrets, but their client-side value is not specified directly in
 code but rather is extracted from a client-side environment variable. For example, if running MLRun on a Jupyter 
-notebook and there are environment variables named `MY_SECRET` and `ANOTHER_SECRET` on Jupyter, the following code will 
-pass those secrets to the executed runtime:
+notebook and there are environment variables named `MY_SECRET` and `ANOTHER_SECRET` on Jupyter, the following code  
+passes those secrets to the executed runtime:
 
 ```python
 task.with_secrets("env", "MY_SECRET, ANOTHER_SECRET")
 ```
 
-When generating the runtime execution environment (for example, pod for the `job` runtime), MLRun will retrieve the
-value of the environment variable and place it in the pod spec. This means that a user with `kubectl` capabilities who
-can see pod specs will still be able to see secret values passed in this manner.
+When generating the runtime execution environment (for example, pod for the `job` runtime), MLRun retrieves the
+value of the environment variable and places it in the pod spec. This means that a user with `kubectl` capabilities who
+can see pod specs can still see the secret values passed in this manner.
 
 ### File
 The file provider is used to pass secret values that are stored in a local file. The file needs to be made of 
@@ -112,13 +111,13 @@ task.with_secrets("file", "/path/to/file/secrets.txt")
 In terms of exposure of secret values, this method is the same as for inline or env secrets.
 
 ### Kubernetes
-MLRun can use a Kubernetes (k8s) secret to store and retrieve secret values as required. This way
-of passing secrets is supported for all runtimes that generate k8s pods.  The k8s provider creates a
+MLRun can use a Kubernetes (k8s) secret to store and retrieve secret values as required. This method
+is supported for all runtimes that generate k8s pods.  The k8s provider creates a
 k8s secret per project, and can store multiple secret keys within this secret. 
 
 #### Populating the kubernetes secret
 To populate the MLRun k8s secret with secret values, MLRun provides APIs that allow the user to perform operations
-on the secrets - this can be done through the {py:class}`~mlrun.db.httpdb.HTTPRunDB` class. For example:
+on the secrets, by using the {py:class}`~mlrun.db.httpdb.HTTPRunDB` class. For example:
 
 ```python
 secrets = {'password': 'myPassw0rd', 'aws_key': '111222333'}
@@ -135,36 +134,51 @@ action, which normally should only be executed once. After the secrets are popul
 to protect the confidentiality of the secret values.
 ```
 
-The {py:class}`~mlrun.db.httpdb.HTTPRunDB` API does not allow the user to observe secret values, but it does allow 
+The {py:class}`~mlrun.db.httpdb.HTTPRunDB` API does not allow the user to see the secret values, but it does allow 
 users to see the keys that belong to a given project, assuming the user has permissions on that specific project. 
 See the {py:class}`~mlrun.db.httpdb.HTTPRunDB` class documentation for additional details.
 
 When MLRun is executed in the Iguazio platform, the secret management APIs are protected by the platform such
 that only users with permissions to access and modify a specific project can alter its secrets.
 
+##### Creating secrets in the Projects page
+The Settings dialog in the Projects page, accessed with the Settings icon, has a Secrets tab where you can 
+add secrets as key-value pairs. The secrets are automatically available to all jobs belonging to this project. 
+Users with the Editor or Admin role can add, modify, and delete secrets, and assign new secret values. 
+Viewers can only view the secret keys. The values themselves are not visible to any users.
+
 #### Accessing the secrets
-By default, any runtime not executed locally will automatically gain access to all the secrets of the project it 
-belongs to. To provide access to a limited subset of these secrets to an executing job, call the following:
+By default, any runtime not executed locally automatically gains access to all the secrets of the project it 
+belongs to. To limit access of an executing job to a subset of these secrets, call the following:
 
 ```python
 task.with_secrets('kubernetes', ['password', 'aws_key'])
 ```
 
-Note that only the secret keys are passed in this case, since the values are kept in the k8s secret. When this is done,
-the MLRun framework adds environment variables to the pod spec whose value is retrieved through the `valueFrom` option
+Note that only the secret keys are passed in this case, since the values are kept in the k8s secret. 
+The MLRun framework adds environment variables to the pod spec whose value is retrieved through the `valueFrom` option,
 with `secretKeyRef` pointing at the secret maintained by MLRun.
 
 As a result, this method does not expose the secret values at all, except at the actual pod executing the code where
-the secret value is exposed through an environment variable. This means that even a user with `kubectl` looking at pod
-spec cannot observe the secret values. 
+the secret value is exposed through an environment variable. This means that even a user with `kubectl` looking at the pod
+spec cannot see the secret values. 
 
-Still, a user will be able to view the secrets using the following methods:
+Users, however, can view the secrets using the following methods:
 
-1. Run `kubectl` to view the actual contents of the k8s secret 
-2. Perform `kubectl exec` into the running pod, and examine the environment variables
+1. Run `kubectl` to view the actual contents of the k8s secret.
+2. Perform `kubectl exec` into the running pod, and examine the environment variables.
 
 To maintain the confidentiality of secret values, these operations must be strictly limited across the system by using 
-k8s RBAC and ensuring that logging into the k8s nodes as a user with elevated permissions is restricted. 
+k8s RBAC and ensuring that elevated permissions are granted to a very limited number of users (very few users have and 
+use elevated permissions).
+
+##### Accessing secrets in nuclio functions
+
+The k8s secrets are passed to nuclio functions as environment variables, and their values can be retrieved directly 
+from the environment variable of the same name. For example, to access the `aws_key` secret in a nuclio function use:
+```python
+aws_key = os.environ.get("aws_key")
+```
 
 ### Azure Vault
 MLRun can serve secrets from an Azure key Vault. Azure key Vaults support 3 types of entities - `keys`, `secrets` and 
@@ -183,13 +197,13 @@ To configure this, the following steps are needed:
    [this page](https://docs.microsoft.com/en-us/azure/key-vault/general/assign-access-policy-portal)
 4. Create a secret access key for the service principal, following the steps listed in [this page]( 
    https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal#get-tenant-and-app-id-values-for-signing-in). 
-    Make sure you have access to the following 3 identifiers:
+    Make sure you have access to the following three identifiers:
    
     1. Directory (tenant) id
     2. Application (client) id
     3. Secret key
 
-5. Generate a k8s secret with those details. This can be done using the following command:
+5. Generate a k8s secret with those details. Use the following command:
 
     ```shell
     kubectl -n <namespace> create secret generic <azure_key_vault_k8s_secret> \
@@ -228,6 +242,6 @@ this secret:
 azure_secret = context.get_secret("MY_AZURE_SECRET")
 ```
 
-In terms of confidentiality, the executed pod will have the Azure secret provided by the user mounted to it. This means
-that the access-keys to the vault will be visible to a user that `exec`s into the pod in question. The same security
+In terms of confidentiality, the executed pod has the Azure secret provided by the user mounted to it. This means
+that the access-keys to the vault are visible to a user that `exec`s into the pod in question. The same security
 rules should be followed as described in the [Kubernetes](#kubernetes) section above. 

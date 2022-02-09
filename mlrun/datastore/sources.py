@@ -68,20 +68,21 @@ class BaseSourceDriver(DataSource):
     def to_dataframe(self):
         return mlrun.store_manager.object(url=self.path).as_df()
 
+    def filter_df_start_end_time(self, df):
+        if self.start_time or self.end_time:
+            self.start_time = (
+                datetime.min if self.start_time is None else self.start_time
+            )
+            self.end_time = datetime.max if self.end_time is None else self.end_time
+            df = df.filter(
+                (df[self.time_field] > self.start_time)
+                & (df[self.time_field] <= self.end_time)
+            )
+        return df
+
     def to_spark_df(self, session, named_view=False):
         if self.support_spark:
             df = session.read.load(**self.get_spark_options())
-
-            if self.start_time or self.end_time:
-                self.start_time = (
-                    datetime.min if self.start_time is None else self.start_time
-                )
-                self.end_time = datetime.max if self.end_time is None else self.end_time
-                df = df.filter(
-                    (df[self.time_field] >= self.start_time)
-                    & (df[self.time_field] < self.end_time)
-                )
-
             if named_view:
                 df.createOrReplaceTempView(self.name)
             return df
@@ -178,9 +179,9 @@ class ParquetSource(BaseSourceDriver):
        :parameter key_field: the column to be used as the key for events. Can be a list of keys.
        :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
        :parameter start_filter: datetime. If not None, the results will be filtered by partitions and
-            'filter_column' >= start_filter. Default is None
+            'filter_column' > start_filter. Default is None
        :parameter end_filter: datetime. If not None, the results will be filtered by partitions
-            'filter_column' < end_filter. Default is None
+            'filter_column' <= end_filter. Default is None
        :parameter filter_column: Optional. if not None, the results will be filtered by this column and
             start_filter & end_filter
        :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
@@ -297,6 +298,7 @@ class BigQuerySource(BaseSourceDriver):
         self,
         name: str = "",
         table: str = None,
+        max_results_for_table: int = None,
         query: str = None,
         materialization_dataset: str = None,
         chunksize: int = None,
@@ -310,9 +312,14 @@ class BigQuerySource(BaseSourceDriver):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot specify both table and query args"
             )
+        if not query and not table:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "must specify at least one of table or query args"
+            )
         attrs = {
             "query": query,
             "table": table,
+            "max_results": max_results_for_table,
             "chunksize": chunksize,
             "gcp_project": gcp_project,
             "spark_options": spark_options,
@@ -351,17 +358,40 @@ class BigQuerySource(BaseSourceDriver):
     def to_dataframe(self):
         from google.cloud import bigquery
 
+        def schema_to_dtypes(schema):
+            from mlrun.data_types.data_types import gbq_to_pandas_dtype
+
+            dtypes = {}
+            for field in schema:
+                dtypes[field.name] = gbq_to_pandas_dtype(field.field_type)
+            return dtypes
+
         credentials, gcp_project = self._get_credentials()
         bqclient = bigquery.Client(project=gcp_project, credentials=credentials)
-        query_job = bqclient.query(self.attributes.get("query"))
 
+        query = self.attributes.get("query")
         chunksize = self.attributes.get("chunksize")
-        if chunksize:
-            self._rows_iterator = query_job.result(page_size=chunksize)
-            return self._rows_iterator.to_dataframe_iterable()
+        if query:
+            query_job = bqclient.query(query)
 
-        self._rows_iterator = query_job.result(page_size=chunksize)
-        return self._rows_iterator.to_dataframe()
+            self._rows_iterator = query_job.result(page_size=chunksize)
+            dtypes = schema_to_dtypes(self._rows_iterator.schema)
+            if chunksize:
+                return self._rows_iterator.to_dataframe_iterable(dtypes=dtypes)
+            else:
+                return self._rows_iterator.to_dataframe(dtypes=dtypes)
+        else:
+            table = self.attributes.get("table")
+            max_results = self.attributes.get("max_results")
+
+            rows = bqclient.list_rows(
+                table, page_size=chunksize, max_results=max_results
+            )
+            dtypes = schema_to_dtypes(rows.schema)
+            if chunksize:
+                return rows.to_dataframe_iterable(dtypes=dtypes)
+            else:
+                return rows.to_dataframe(dtypes=dtypes)
 
     def is_iterator(self):
         return True if self.attributes.get("chunksize") else False
@@ -499,13 +529,16 @@ class OnlineSource(BaseSourceDriver):
             else storey.SyncEmitSource
         )
         source_args = self.attributes.get("source_args", {})
-        return source_class(
+
+        src_class = source_class(
             context=context,
-            key_field=self.key_field or key_field,
-            time_field=self.time_field or time_field,
+            key_field=self.key_field,
+            time_field=self.time_field,
             full_event=True,
             **source_args,
         )
+
+        return src_class
 
     def add_nuclio_trigger(self, function):
         raise mlrun.errors.MLRunInvalidArgumentError(

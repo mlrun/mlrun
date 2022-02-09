@@ -38,7 +38,7 @@ from ..config import config
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
 from ..runtimes import BaseRuntime
-from ..utils import datetime_to_iso, dict_to_json, logger, new_pipe_meta
+from ..utils import datetime_to_iso, dict_to_json, logger, new_pipe_meta, version
 from .base import RunDBError, RunDBInterface
 
 _artifact_keys = [
@@ -114,10 +114,30 @@ class HTTPRunDB(RunDBInterface):
         self.session = None
         self._wait_for_project_terminal_state_retry_interval = 3
         self._wait_for_project_deletion_interval = 3
+        self.client_version = version.Version().get()["version"]
 
     def __repr__(self):
         cls = self.__class__.__name__
         return f"{cls}({self.base_url!r})"
+
+    @staticmethod
+    def get_api_path_prefix(version: str = None) -> str:
+        """
+            :param version: API version to use, None (the default) will mean to use the default value from mlconf,
+             for un-versioned api set an empty string.
+        """
+        if version is not None:
+            return f"api/{version}" if version else "api"
+
+        api_version_path = (
+            f"api/{config.api_base_version}" if config.api_base_version else "api"
+        )
+        return api_version_path
+
+    def get_base_api_url(self, path: str, version: str = None) -> str:
+        path_prefix = self.get_api_path_prefix(version)
+        url = f"{self.base_url}/{path_prefix}/{path}"
+        return url
 
     def api_call(
         self,
@@ -129,6 +149,7 @@ class HTTPRunDB(RunDBInterface):
         json=None,
         headers=None,
         timeout=45,
+        version=None,
     ):
         """ Perform a direct REST API call on the :py:mod:`mlrun` API server.
 
@@ -143,10 +164,12 @@ class HTTPRunDB(RunDBInterface):
             :param json: JSON payload to be passed in the call
             :param headers: REST headers, passed as a dictionary: ``{"<header-name>": "<header-value>"}``
             :param timeout: API call timeout
+            :param version: API version to use, None (the default) will mean to use the default value from config,
+             for un-versioned api set an empty string.
 
             :return: Python HTTP response object
         """
-        url = f"{self.base_url}/api/{path}"
+        url = self.get_base_api_url(path, version)
         kw = {
             key: value
             for key, value in (
@@ -169,7 +192,15 @@ class HTTPRunDB(RunDBInterface):
                 }
                 kw["cookies"] = cookies
             else:
-                kw["headers"] = {"Authorization": "Bearer " + self.token}
+                if "Authorization" not in kw.setdefault("headers", {}):
+                    kw["headers"].update({"Authorization": "Bearer " + self.token})
+
+        if mlrun.api.schemas.HeaderNames.client_version not in kw.setdefault(
+            "headers", {}
+        ):
+            kw["headers"].update(
+                {mlrun.api.schemas.HeaderNames.client_version: self.client_version}
+            )
 
         if not self.session:
             self.session = requests.Session()
@@ -458,6 +489,10 @@ class HTTPRunDB(RunDBInterface):
         start_time_to: datetime = None,
         last_update_time_from: datetime = None,
         last_update_time_to: datetime = None,
+        partition_by: Union[schemas.RunPartitionByField, str] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Union[schemas.SortField, str] = None,
+        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
     ) -> RunList:
         """ Retrieve a list of runs, filtered by various options.
         Example::
@@ -482,6 +517,13 @@ class HTTPRunDB(RunDBInterface):
         :param last_update_time_from: Filter by run last update time in ``(last_update_time_from,
             last_update_time_to)``.
         :param last_update_time_to: Filter by run last update time in ``(last_update_time_from, last_update_time_to)``.
+        :param partition_by: Field to group results by. Only allowed value is `name`. When `partition_by` is specified,
+            the `partition_sort_by` parameter must be provided as well.
+        :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
+            to return per group. Default value is 1.
+        :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
+            Currently the only allowed values are `created` and `updated`.
+        :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         """
 
         project = project or config.default_project
@@ -498,6 +540,17 @@ class HTTPRunDB(RunDBInterface):
             "last_update_time_from": datetime_to_iso(last_update_time_from),
             "last_update_time_to": datetime_to_iso(last_update_time_to),
         }
+
+        if partition_by:
+            params.update(
+                self._generate_partition_by_params(
+                    schemas.RunPartitionByField,
+                    partition_by,
+                    rows_per_partition,
+                    partition_sort_by,
+                    partition_order,
+                )
+            )
         error = "list runs"
         resp = self.api_call("GET", "runs", error, params=params)
         return RunList(resp.json()["runs"])
@@ -1509,8 +1562,10 @@ class HTTPRunDB(RunDBInterface):
         return resp.json()["entities"]
 
     @staticmethod
-    def _generate_partition_by_params(partition_by, rows_per_partition, sort_by, order):
-        if isinstance(partition_by, schemas.FeatureStorePartitionByField):
+    def _generate_partition_by_params(
+        partition_by_cls, partition_by, rows_per_partition, sort_by, order
+    ):
+        if isinstance(partition_by, partition_by_cls):
             partition_by = partition_by.value
         if isinstance(sort_by, schemas.SortField):
             sort_by = sort_by.value
@@ -1552,7 +1607,7 @@ class HTTPRunDB(RunDBInterface):
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
             to return per group. Default value is 1.
         :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
-            Currently the only allowed value is `updated`.
+            Currently the only allowed value are `created` and `updated`.
         :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         :returns: List of matching :py:class:`~mlrun.feature_store.FeatureSet` objects.
         """
@@ -1570,7 +1625,11 @@ class HTTPRunDB(RunDBInterface):
         if partition_by:
             params.update(
                 self._generate_partition_by_params(
-                    partition_by, rows_per_partition, partition_sort_by, partition_order
+                    schemas.FeatureStorePartitionByField,
+                    partition_by,
+                    rows_per_partition,
+                    partition_sort_by,
+                    partition_order,
                 )
             )
 
@@ -1756,7 +1815,7 @@ class HTTPRunDB(RunDBInterface):
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
             to return per group. Default value is 1.
         :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
-            Currently the only allowed value is `updated`.
+            Currently the only allowed values are `created` and `updated`.
         :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         :returns: List of matching :py:class:`~mlrun.feature_store.FeatureVector` objects.
         """
@@ -1772,7 +1831,11 @@ class HTTPRunDB(RunDBInterface):
         if partition_by:
             params.update(
                 self._generate_partition_by_params(
-                    partition_by, rows_per_partition, partition_sort_by, partition_order
+                    schemas.FeatureStorePartitionByField,
+                    partition_by,
+                    rows_per_partition,
+                    partition_sort_by,
+                    partition_order,
                 )
             )
 

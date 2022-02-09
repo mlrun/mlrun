@@ -23,13 +23,14 @@ def kfp_client_mock(monkeypatch) -> kfp.Client:
     )
     kfp_client_mock = unittest.mock.Mock()
     monkeypatch.setattr(kfp, "Client", lambda *args, **kwargs: kfp_client_mock)
+    mlrun.mlconf.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
     return kfp_client_mock
 
 
 def test_list_pipelines_not_exploding_on_no_k8s(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
-    response = client.get("/api/projects/*/pipelines")
+    response = client.get("projects/*/pipelines")
     expected_response = mlrun.api.schemas.PipelinesOutput(
         runs=[], total_size=0, next_page_token=None
     )
@@ -43,7 +44,7 @@ def test_list_pipelines_empty_list(
 ) -> None:
     runs = []
     _mock_list_runs(kfp_client_mock, runs)
-    response = client.get("/api/projects/*/pipelines")
+    response = client.get("projects/*/pipelines")
     expected_response = mlrun.api.schemas.PipelinesOutput(
         runs=runs, total_size=len(runs), next_page_token=None
     )
@@ -66,7 +67,7 @@ def test_list_pipelines_formats(
             db, expected_runs, format_
         )
         _mock_list_runs(kfp_client_mock, runs)
-        response = client.get("/api/projects/*/pipelines", params={"format": format_},)
+        response = client.get("projects/*/pipelines", params={"format": format_},)
         expected_response = mlrun.api.schemas.PipelinesOutput(
             runs=expected_runs, total_size=len(runs), next_page_token=None
         )
@@ -87,8 +88,7 @@ def test_get_pipeline_formats(
         api_run_detail = _generate_get_run_mock()
         _mock_get_run(kfp_client_mock, api_run_detail)
         response = client.get(
-            f"/api/projects/*/pipelines/{api_run_detail.run.id}",
-            params={"format": format_},
+            f"projects/*/pipelines/{api_run_detail.run.id}", params={"format": format_},
         )
         expected_run = mlrun.api.crud.Pipelines()._format_run(
             db, api_run_detail.to_dict()["run"], format_, api_run_detail.to_dict()
@@ -112,8 +112,7 @@ def test_get_pipeline_no_project_opa_validation(
     api_run_detail = _generate_get_run_mock()
     _mock_get_run(kfp_client_mock, api_run_detail)
     response = client.get(
-        f"/api/projects/*/pipelines/{api_run_detail.run.id}",
-        params={"format": format_},
+        f"projects/*/pipelines/{api_run_detail.run.id}", params={"format": format_},
     )
     assert (
         mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions.call_args[
@@ -144,7 +143,7 @@ def test_get_pipeline_specific_project(
             return_value=project
         )
         response = client.get(
-            f"/api/projects/{project}/pipelines/{api_run_detail.run.id}",
+            f"projects/{project}/pipelines/{api_run_detail.run.id}",
             params={"format": format_},
         )
         expected_run = mlrun.api.crud.Pipelines()._format_run(
@@ -169,7 +168,7 @@ def test_list_pipelines_specific_project(
         return_value=project
     )
     response = client.get(
-        f"/api/projects/{project}/pipelines",
+        f"projects/{project}/pipelines",
         params={"format": mlrun.api.schemas.PipelinesFormat.name_only},
     )
     expected_response = mlrun.api.schemas.PipelinesOutput(
@@ -198,7 +197,7 @@ def test_create_pipeline(
         contents = file.read()
     _mock_pipelines_creation(kfp_client_mock)
     response = client.post(
-        f"/api/projects/{project}/pipelines",
+        f"projects/{project}/pipelines",
         data=contents,
         headers={"content-type": "application/yaml"},
     )
@@ -222,9 +221,7 @@ def test_create_pipeline_legacy(
         contents = file.read()
     _mock_pipelines_creation(kfp_client_mock)
     response = client.post(
-        "/api/submit_pipeline",
-        data=contents,
-        headers={"content-type": "application/yaml"},
+        "submit_pipeline", data=contents, headers={"content-type": "application/yaml"},
     )
     response_body = response.json()
     assert response_body["id"] == "some-run-id"

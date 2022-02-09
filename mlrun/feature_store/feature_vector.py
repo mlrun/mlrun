@@ -23,7 +23,7 @@ import mlrun
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri
-from ..datastore.targets import CSVTarget, ParquetTarget, get_offline_target
+from ..datastore.targets import get_offline_target
 from ..feature_store.common import (
     get_feature_set_by_uri,
     parse_feature_string,
@@ -153,7 +153,7 @@ class FeatureVectorStatus(ModelObj):
 class FeatureVector(ModelObj):
     """Feature vector, specify selected features, their metadata and material views"""
 
-    kind = kind = mlrun.api.schemas.ObjectKind.feature_vector.value
+    kind = mlrun.api.schemas.ObjectKind.feature_vector.value
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
     def __init__(
@@ -169,7 +169,7 @@ class FeatureVector(ModelObj):
         example::
 
             import mlrun.feature_store as fstore
-            features = ["quotes.bid", "quotes.asks_sum_5h", "stocks.*"]
+            features = ["quotes.bid", "quotes.asks_sum_5h as asks_5h", "stocks.*"]
             vector = fstore.FeatureVector("my-vec", features)
 
             # get the vector as a dataframe
@@ -295,7 +295,7 @@ class FeatureVector(ModelObj):
             _, name, alias = parse_feature_string(self.spec.label_feature)
             self.status.label_column = alias or name
 
-        def add_feature(name, alias, feature_set_object):
+        def add_feature(name, alias, feature_set_object, feature_set_full_name):
             if alias in processed_features.keys():
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"feature name/alias {alias} already specified,"
@@ -303,8 +303,7 @@ class FeatureVector(ModelObj):
                 )
             feature = feature_set_object[name]
             processed_features[alias or name] = (feature_set_object, feature)
-            featureset_name = feature_set_object.metadata.name
-            feature_set_fields[featureset_name].append((name, alias))
+            feature_set_fields[feature_set_full_name].append((name, alias))
 
         for feature in features:
             project_name, feature = parse_project_name_from_feature_string(feature)
@@ -321,15 +320,20 @@ class FeatureVector(ModelObj):
                 for field in feature_fields:
                     if field != feature_set_object.spec.timestamp_key:
                         if alias:
-                            add_feature(field, alias + "_" + field, feature_set_object)
+                            add_feature(
+                                field,
+                                alias + "_" + field,
+                                feature_set_object,
+                                feature_set,
+                            )
                         else:
-                            add_feature(field, field, feature_set_object)
+                            add_feature(field, field, feature_set_object, feature_set)
             else:
                 if feature_name not in feature_fields:
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         f"feature {feature} not found in feature set {feature_set}"
                     )
-                add_feature(feature_name, alias, feature_set_object)
+                add_feature(feature_name, alias, feature_set_object, feature_set)
 
         for feature_set_name, fields in feature_set_fields.items():
             feature_set = feature_set_objects[feature_set_name]
@@ -505,23 +509,19 @@ class OfflineVectorResponse:
         """vector prep job status (ready, running, error)"""
         return self._merger.get_status()
 
-    def to_dataframe(self):
+    def to_dataframe(self, to_pandas=True):
         """return result as dataframe"""
         if self.status != "completed":
             raise mlrun.errors.MLRunTaskNotReady("feature vector dataset is not ready")
-        return self._merger.get_df()
+        return self._merger.get_df(to_pandas=to_pandas)
 
     def to_parquet(self, target_path, **kw):
         """return results as parquet file"""
-        size = ParquetTarget(path=target_path).write_dataframe(
-            self._merger.get_df(), **kw
-        )
-        return size
+        return self._merger.to_parquet(target_path, **kw)
 
     def to_csv(self, target_path, **kw):
         """return results as csv file"""
-        size = CSVTarget(path=target_path).write_dataframe(self._merger.get_df(), **kw)
-        return size
+        return self.to_csv(target_path, **kw)
 
 
 class FixedWindowType(Enum):

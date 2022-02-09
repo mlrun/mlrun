@@ -1,9 +1,13 @@
+import uuid
 from typing import Any, Dict, List, Union
 
+import numpy as np
 import pandas as pd
 from storey import MapClass
 
+from mlrun.serving.server import get_event_time
 from mlrun.serving.utils import StepToDict
+from mlrun.utils import get_in
 
 
 class FeaturesetValidator(StepToDict, MapClass):
@@ -64,6 +68,12 @@ class MapValues(StepToDict, MapClass):
             # replace the value "U" with '0' in the age column
             graph.to(MapValues(mapping={'age': {'U': '0'}}, with_original_features=True))
 
+            # replace integers, example
+            graph.to(MapValues(mapping={'not': {0: 1, 1: 0}}))
+
+            # replace by range, use -inf and inf for extended range
+            graph.to(MapValues(mapping={'numbers': {'ranges': {'negative': [-inf, 0], 'positive': [0, inf]}}}))
+
         :param mapping: a dict with entry per column and the associated old/new values map
         :param with_original_features: set to True to keep the original features
         :param suffix: the suffix added to the column name <column>_<suffix> (default is "mapped")
@@ -77,18 +87,16 @@ class MapValues(StepToDict, MapClass):
     def _map_value(self, feature: str, value):
         feature_map = self.mapping.get(feature, {})
 
-        # Is it a string replacement?
-        if type(value) is str:
-            return feature_map.get(value, value)
+        # Is this a range replacement?
+        if "ranges" in feature_map:
+            for val, val_range in feature_map.get("ranges", {}).items():
+                min_val = val_range[0] if val_range[0] != "-inf" else -np.inf
+                max_val = val_range[1] if val_range[1] != "inf" else np.inf
+                if value >= min_val and value < max_val:
+                    return val
 
-        # Is it a range replacement?
-        for feature_range in feature_map.get("ranges", []):
-            current_range = feature_range["range"]
-            if value >= current_range[0] and value < current_range[1]:
-                return feature_range["value"]
-
-        # No replacement was made
-        return value
+        # Is it a regular replacement
+        return feature_map.get(value, value)
 
     def _feature_name(self, feature) -> str:
         return f"{feature}_{self.suffix}" if self.with_original_features else feature
@@ -118,7 +126,7 @@ class Imputer(StepToDict, MapClass):
 
         :param method:        for future use
         :param default_value: default value if not specified per column
-        :param mapping:       a dict of per column deffault value
+        :param mapping:       a dict of per column default value
         :param kwargs:        optional kwargs (for storey)
         """
         super().__init__(**kwargs)
@@ -223,8 +231,7 @@ class DateExtractor(StepToDict, MapClass):
 
             # Add the custom `DateExtractor` step
             # to the computation graph
-            transaction_graph\
-                .to(
+            transaction_graph.to(
                     class_name='DateExtractor',
                     name='Extract Dates',
                     parts = ['hour', 'day_of_week'],
@@ -260,4 +267,77 @@ class DateExtractor(StepToDict, MapClass):
             extracted_part = getattr(timestamp, part)
             # Add to event
             event[self._get_key_name(part, self.timestamp_col)] = extracted_part
+        return event
+
+
+class SetEventMetadata(MapClass):
+    """Set the event metadata (id, key, timestamp) from the event body"""
+
+    def __init__(
+        self,
+        id_path: str = None,
+        key_path: str = None,
+        time_path: str = None,
+        random_id: bool = None,
+        **kwargs,
+    ):
+        """Set the event metadata (id, key, timestamp) from the event body
+
+        set the event metadata fields (id, key, and time) from the event body data structure
+        the xx_path attribute defines the key or path to the value in the body dict, "." in the path string
+        indicate the value is in a nested dict e.g. `"x.y"` means `{"x": {"y": value}}`
+
+        example::
+
+            flow = function.set_topology("flow")
+            # build a graph and use the SetEventMetadata step to extract the id, key and path from the event body
+            # ("myid", "mykey" and "mytime" fields), the metadata will be used for following data processing steps
+            # (e.g. feature store ops, time/key aggregations, write to databases/streams, etc.)
+            flow.to(SetEventMetadata(id_path="myid", key_path="mykey", time_path="mytime"))
+                .to(...)  # additional steps
+
+            server = function.to_mock_server()
+            event = {"myid": "34", "mykey": "123", "mytime": "2022-01-18 15:01"}
+            resp = server.test(body=event)
+
+        :param id_path:   path to the id value
+        :param key_path:  path to the key value
+        :param time_path: path to the time value (value should be of type str or datetime)
+        :param random_id: if True will set the event.id to a random value
+        """
+        kwargs["full_event"] = True
+        super().__init__(**kwargs)
+        self.id_path = id_path
+        self.key_path = key_path
+        self.time_path = time_path
+        self.random_id = random_id
+
+        self._tagging_funcs = []
+
+    def post_init(self, mode="sync"):
+        def add_metadata(name, path, operator=str):
+            def _add_meta(event):
+                value = get_in(event.body, path)
+                setattr(event, name, operator(value))
+
+            return _add_meta
+
+        def set_random_id(event):
+            event.id = uuid.uuid4().hex
+
+        self._tagging_funcs = []
+        if self.id_path:
+            self._tagging_funcs.append(add_metadata("id", self.id_path))
+        if self.key_path:
+            self._tagging_funcs.append(add_metadata("key", self.key_path))
+        if self.time_path:
+            self._tagging_funcs.append(
+                add_metadata("time", self.time_path, get_event_time)
+            )
+        if self.random_id:
+            self._tagging_funcs.append(set_random_id)
+
+    def do(self, event):
+        for func in self._tagging_funcs:
+            func(event)
         return event

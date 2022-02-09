@@ -600,6 +600,7 @@ class QueueStep(BaseStep):
         "path",
         "shards",
         "retention_in_hours",
+        "trigger_args",
         "options",
     ]
 
@@ -610,6 +611,7 @@ class QueueStep(BaseStep):
         after: list = None,
         shards: int = None,
         retention_in_hours: int = None,
+        trigger_args: dict = None,
         **options,
     ):
         super().__init__(name, after)
@@ -617,6 +619,7 @@ class QueueStep(BaseStep):
         self.shards = shards
         self.retention_in_hours = retention_in_hours
         self.options = options
+        self.trigger_args = trigger_args
         self._stream = None
         self._async_object = None
 
@@ -1381,7 +1384,7 @@ def _init_async_objects(context, steps):
                         endpoint, stream_path = parse_v3io_path(step.path)
                         stream_path = stream_path.strip("/")
                     step._async_object = storey.StreamTarget(
-                        storey.V3ioDriver(endpoint), stream_path
+                        storey.V3ioDriver(endpoint), stream_path, context=context,
                     )
                 else:
                     step._async_object = storey.Map(lambda x: x)

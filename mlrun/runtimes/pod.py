@@ -17,6 +17,7 @@ import typing
 import uuid
 from enum import Enum
 
+import dotenv
 from kfp.dsl import ContainerOp, _container_op
 from kubernetes import client
 
@@ -26,7 +27,7 @@ import mlrun.utils.regex
 from ..config import config as mlconf
 from ..secrets import SecretsStore
 from ..utils import logger, normalize_name, update_in, verify_field_regex
-from .base import BaseRuntime, FunctionSpec
+from .base import BaseRuntime, FunctionSpec, spec_fields
 from .utils import (
     apply_kfp,
     generate_resources,
@@ -37,6 +38,21 @@ from .utils import (
 
 
 class KubeResourceSpec(FunctionSpec):
+    _dict_fields = spec_fields + [
+        "volumes",
+        "volume_mounts",
+        "env",
+        "resources",
+        "replicas",
+        "image_pull_policy",
+        "service_account",
+        "image_pull_secret",
+        "node_name",
+        "node_selector",
+        "affinity",
+        "priority_class_name",
+    ]
+
     def __init__(
         self,
         command=None,
@@ -322,8 +338,23 @@ class KubeResource(BaseRuntime):
         self.spec.env.append(new_var)
         return self
 
-    def set_envs(self, env_vars):
-        """set pod environment var key/value dict"""
+    def set_envs(self, env_vars: dict = None, file_path: str = None):
+        """set pod environment var from key/value dict or .env file
+
+        :param env_vars:  dict with env key/values
+        :param file_path: .env file with key=value lines
+        """
+        if (not env_vars and not file_path) or (env_vars and file_path):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "must specify env_vars OR file_path"
+            )
+        if file_path:
+            env_vars = dotenv.dotenv_values(file_path)
+            if None in env_vars.values():
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "env file lines must be in the form key=value"
+                )
+
         for name, value in env_vars.items():
             self.set_env(name, value)
         return self
@@ -519,7 +550,7 @@ class KubeResource(BaseRuntime):
 
         # Keep a list of the variables that relate to secrets, so that the MLRun context (when using nuclio:mlrun)
         # can be initialized with those env variables as secrets
-        if not encode_key_names:
+        if not encode_key_names and secrets.keys():
             self.set_env("MLRUN_PROJECT_SECRETS_LIST", ",".join(secrets.keys()))
 
     def _add_vault_params_to_spec(self, runobj=None, project=None):

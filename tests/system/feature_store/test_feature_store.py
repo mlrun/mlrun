@@ -3,6 +3,7 @@ import os
 import pathlib
 import random
 import string
+import tempfile
 import uuid
 from datetime import datetime, timedelta, timezone
 from time import sleep
@@ -148,10 +149,10 @@ class TestFeatureStore(TestMLRunSystem):
         self._logger.info(f"output df:\n{df}")
         assert quotes_set.status.stats.get("asks1_sum_1h"), "stats not created"
 
-    def _get_offline_vector(self, features, features_size):
+    def _get_offline_vector(self, features, features_size, engine=None):
         vector = fs.FeatureVector("myvector", features, "stock-quotes.xx")
         resp = fs.get_offline_features(
-            vector, entity_rows=trades, entity_timestamp_column="time",
+            vector, entity_rows=trades, entity_timestamp_column="time", engine=engine
         )
         assert len(vector.spec.features) == len(
             features
@@ -167,12 +168,12 @@ class TestFeatureStore(TestMLRunSystem):
         df = resp.to_dataframe()
         columns = trades.shape[1] + features_size - 2  # - 2 keys
         assert df.shape[1] == columns, "unexpected num of returned df columns"
-        resp.to_parquet(str(self.results_path / "query.parquet"))
+        resp.to_parquet(str(self.results_path / f"query-{engine}.parquet"))
 
         # check simple api without join with other df
         # test the use of vector uri
         vector.save()
-        resp = fs.get_offline_features(vector.uri)
+        resp = fs.get_offline_features(vector.uri, engine=engine)
         df = resp.to_dataframe()
         assert df.shape[1] == features_size, "unexpected num of returned df columns"
 
@@ -230,7 +231,12 @@ class TestFeatureStore(TestMLRunSystem):
         features_size = (
             len(features) + 1 + 1
         )  # (*) returns 2 features, label adds 1 feature
-        self._get_offline_vector(features, features_size)
+
+        # test fetch with the pandas merger engine
+        self._get_offline_vector(features, features_size, engine="local")
+
+        # test fetch with the dask merger engine
+        self._get_offline_vector(features, features_size, engine="dask")
 
         self._logger.debug("Get online feature vector")
         self._get_online_features(features, features_size)
@@ -465,7 +471,7 @@ class TestFeatureStore(TestMLRunSystem):
             }
         )
 
-        csv_path = "/tmp/multiple_time_columns.csv"
+        csv_path = tempfile.mktemp(".csv")
         df.to_csv(path_or_buf=csv_path, index=False)
         source = CSVSource(
             path=csv_path, time_field="time_stamp", parse_dates=["another_time_column"]
@@ -617,7 +623,7 @@ class TestFeatureStore(TestMLRunSystem):
         resp = fs.get_offline_features(
             vector,
             start_time=datetime(2020, 12, 1, 17, 33, 15),
-            end_time=datetime(2020, 12, 1, 17, 33, 16),
+            end_time="2020-12-01 17:33:16",
             entity_timestamp_column="timestamp",
         )
         resp2 = resp.to_dataframe()
@@ -850,7 +856,6 @@ class TestFeatureStore(TestMLRunSystem):
                 "string": ["ab", "cd", "ef"],
             }
         )
-
         data_set1 = fs.FeatureSet("fs1", entities=[Entity("string")])
         fs.ingest(data_set1, data, infer_options=fs.InferOptions.default())
         features = ["fs1.*"]
@@ -860,7 +865,7 @@ class TestFeatureStore(TestMLRunSystem):
         resp = fs.get_offline_features(
             vector,
             entity_timestamp_column="time_stamp",
-            start_time=datetime(2021, 6, 9, 9, 30),
+            start_time="2021-06-09 09:30",
             end_time=datetime(2021, 6, 9, 10, 30),
         )
 
@@ -916,7 +921,7 @@ class TestFeatureStore(TestMLRunSystem):
             vector,
             entity_timestamp_column="time_stamp",
             start_time=datetime(2021, 6, 9, 9, 30),
-            end_time=datetime(2021, 6, 9, 10, 30),
+            end_time=None,  # will translate to now()
         )
         assert len(resp.to_dataframe()) == 2
 
@@ -1163,7 +1168,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         # check offline
         resp = fs.get_offline_features(vec)
-        assert len(resp.to_dataframe() == 2)
+        assert len(resp.to_dataframe()) == 2
 
         sleep(30)
 
@@ -1814,6 +1819,117 @@ class TestFeatureStore(TestMLRunSystem):
             "aug": {"mykey1": "1", "mykey2": "2"},
         }
 
+    def test_get_offline_features_with_tag(self):
+        def validate_result(test_vector, test_keys):
+            res_set = fs.get_offline_features(test_vector)
+            assert res_set is not None
+            res_keys = list(res_set.vector.status.stats.keys())
+            assert res_keys.sort() == test_keys.sort()
+
+        data = quotes
+        name = "quotes"
+        tag = "test"
+        project = self.project_name
+
+        test_set = fs.FeatureSet(name, entities=[Entity("ticker", ValueType.STRING)])
+
+        df = fs.ingest(test_set, data)
+        assert df is not None
+
+        # change feature set and save with tag
+        test_set.add_aggregation(
+            "bid", ["avg"], "1h",
+        )
+        new_column = "bid_avg_1h"
+        test_set.metadata.tag = tag
+        fs.ingest(test_set, data)
+
+        # retrieve feature set with feature vector and check for changes
+        vector = fs.FeatureVector("vector", [f"{name}.*"], with_indexes=True)
+        vector_with_tag = fs.FeatureVector(
+            "vector_with_tag", [f"{name}:{tag}.*"], with_indexes=True
+        )
+        vector_with_project = fs.FeatureVector(
+            "vector_with_project", [f"{project}/{name}.*"], with_indexes=True
+        )
+        # vector_with_project.metadata.project = "bs"
+        vector_with_features = fs.FeatureVector(
+            "vector_with_features", [f"{name}.bid", f"{name}.time"], with_indexes=True
+        )
+        vector_with_project_tag_and_features = fs.FeatureVector(
+            "vector_with_project_tag_and_features",
+            [f"{project}/{name}:{tag}.bid", f"{project}/{name}:{tag}.{new_column}"],
+            with_indexes=True,
+        )
+
+        expected_keys = ["time", "bid", "ask"]
+
+        for vec, keys in [
+            (vector, expected_keys),
+            (vector_with_tag, expected_keys + [new_column]),
+            (vector_with_project, expected_keys),
+            (vector_with_features, ["bid", "time"]),
+            (vector_with_project_tag_and_features, ["bid", new_column]),
+        ]:
+            validate_result(vec, keys)
+
+    def test_get_online_feature_service_with_tag(self):
+        def validate_result(test_vector, test_keys):
+            svc = fs.get_online_feature_service(test_vector)
+            sleep(5)
+            resp = svc.get([{"ticker": "AAPL"}])
+            svc.close()
+            assert resp is not None
+            resp_keys = list(resp[0].keys())
+            assert resp_keys.sort() == test_keys.sort()
+
+        data = quotes
+        name = "quotes"
+        tag = "test"
+        project = self.project_name
+
+        test_set = fs.FeatureSet(name, entities=[Entity("ticker", ValueType.STRING)])
+
+        df = fs.ingest(test_set, data)
+        assert df is not None
+
+        # change feature set and save with tag
+        test_set.add_aggregation(
+            "bid", ["avg"], "1h",
+        )
+        new_column = "bid_avg_1h"
+        test_set.metadata.tag = tag
+        fs.ingest(test_set, data)
+
+        # retrieve feature set with feature vector and check for changes
+        vector = fs.FeatureVector("vector", [f"{name}.*"], with_indexes=True)
+        vector_with_tag = fs.FeatureVector(
+            "vector_with_tag", [f"{name}:{tag}.*"], with_indexes=True
+        )
+        vector_with_project = fs.FeatureVector(
+            "vector_with_project", [f"{project}/{name}.*"], with_indexes=True
+        )
+        # vector_with_project.metadata.project = "bs"
+        vector_with_features = fs.FeatureVector(
+            "vector_with_features", [f"{name}.bid", f"{name}.time"], with_indexes=True
+        )
+        vector_with_project_tag_and_features = fs.FeatureVector(
+            "vector_with_project_tag_and_features",
+            [f"{project}/{name}:{tag}.bid", f"{project}/{name}:{tag}.{new_column}"],
+            with_indexes=True,
+        )
+
+        expected_keys = ["ticker", "time", "bid", "ask"]
+
+        for vec, keys in [
+            (vector, expected_keys),
+            (vector_with_tag, expected_keys + [new_column]),
+            (vector_with_project, expected_keys),
+            (vector_with_features, ["bid", "time"]),
+            (vector_with_project_tag_and_features, ["bid", new_column]),
+        ]:
+            validate_result(vec, keys)
+
     def test_preview_saves_changes(self):
         name = "update-on-preview"
         v3io_source = StreamSource(key_field="ticker", time_field="time")
@@ -1957,6 +2073,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert resp[0]["data2"] == 4
         assert resp[0]["data_max_1h"] == 60
         assert resp[0]["data_avg_1h"] == 30
+        svc.close()
 
         # check without impute
         vector = fs.FeatureVector("vectori2", features)
@@ -1964,6 +2081,46 @@ class TestFeatureStore(TestMLRunSystem):
         resp = svc.get([{"name": "cd"}])
         assert np.isnan(resp[0]["data2"])
         assert np.isnan(resp[0]["data_avg_1h"])
+        svc.close()
+
+    def test_map_with_state_with_table(self):
+        table_url = (
+            "v3io:///bigdata/system-test-project/nosql/test_map_with_state_with_table"
+        )
+
+        df = pd.DataFrame({"name": ["a", "b"], "sum": [11, 22]})
+        fset = fs.FeatureSet(
+            name="test_map_with_state_with_table_fset", entities=[fs.Entity("name")]
+        )
+        fs.ingest(fset, df, targets=[NoSqlTarget(path=table_url)])
+
+        df = pd.DataFrame({"key": ["a", "a", "b"], "x": [2, 3, 4]})
+
+        fset = fs.FeatureSet("myfset", entities=[Entity("key")])
+        fset.set_targets([], with_defaults=False)
+        fset.graph.to(
+            "storey.MapWithState",
+            initial_state=table_url,
+            group_by_key=True,
+            _fn="map_with_state_test_function",
+        )
+        df = fs.ingest(fset, df, targets=[], infer_options=fs.InferOptions.default())
+        assert df.to_dict() == {
+            "name": {"a": "a", "b": "b"},
+            "sum": {"a": 16, "b": 26},
+        }
+
+    def test_allow_empty_vector(self):
+        # test that we can pass an non materialized vector to function using special flag
+        vector = fs.FeatureVector("dummy-vec", [])
+        vector.save()
+
+        func = mlrun.new_function("myfunc", kind="job", handler="myfunc").with_code(
+            body=myfunc
+        )
+        func.spec.allow_empty_resources = True
+        run = func.run(inputs={"data": vector.uri}, local=True)
+        assert run.output("uri") == vector.uri
 
 
 def verify_purge(fset, targets):
@@ -2035,3 +2192,16 @@ def prepare_feature_set(
     feature_set.set_targets(targets=targets, with_defaults=False if targets else True)
     df = fs.ingest(feature_set, df_source, infer_options=fs.InferOptions.default())
     return feature_set, df
+
+
+def map_with_state_test_function(x, state):
+    state["sum"] += x["x"]
+    return state, state
+
+
+myfunc = """
+def myfunc(context, data):
+    print('DATA:', data.artifact_url)
+    assert data.meta
+    context.log_result('uri', data.artifact_url)
+"""

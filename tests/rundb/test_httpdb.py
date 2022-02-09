@@ -46,7 +46,7 @@ def free_port():
 
 
 def check_server_up(url):
-    health_url = f"{url}/api/healthz"
+    health_url = f"{url}/{HTTPRunDB.get_api_path_prefix()}/healthz"
     timeout = 30
     if not wait_for_server(health_url, timeout):
         raise RuntimeError(f"server did not start after {timeout} sec")
@@ -189,7 +189,7 @@ def test_log(create_server):
     server: Server = create_server()
     db = server.conn
     prj, uid, body = "p19", "3920", b"log data"
-    db.store_run({"asd": "asd"}, uid, prj)
+    db.store_run({"metadata": {"name": "run-name"}, "asd": "asd"}, uid, prj)
     db.store_log(uid, prj, body)
 
     state, data = db.get_log(uid, prj)
@@ -201,11 +201,22 @@ def test_run(create_server):
     db = server.conn
     prj, uid = "p18", "3i920"
     run_as_dict = RunObject().to_dict()
-    run_as_dict["metadata"].update({"algorithm": "svm", "C": 3})
+    run_as_dict["metadata"].update({"name": "run-name", "algorithm": "svm", "C": 3})
     db.store_run(run_as_dict, uid, prj)
 
     data = db.read_run(uid, prj)
-    assert data == run_as_dict, "read_run"
+    assert (
+        deepdiff.DeepDiff(
+            data,
+            run_as_dict,
+            ignore_order=True,
+            exclude_paths={
+                "root['status']['start_time']",
+                "root['status']['last_update']",
+            },
+        )
+        == {}
+    )
 
     new_c = 4
     updates = {"metadata.C": new_c}
@@ -228,6 +239,7 @@ def test_runs(create_server):
     run_as_dict = RunObject().to_dict()
     for i in range(count):
         uid = f"uid_{i}"
+        run_as_dict["metadata"]["name"] = "run-name"
         db.store_run(run_as_dict, uid, prj)
 
     runs = db.list_runs(project=prj)

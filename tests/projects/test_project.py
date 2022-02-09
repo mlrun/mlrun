@@ -183,3 +183,35 @@ def _assert_project_function_objects(project, expected_function_objects):
             )
             == {}
         )
+
+
+def test_set_func_requirements():
+    project = mlrun.projects.MlrunProject("newproj", default_requirements=["pandas"])
+    project.set_function("hub://describe", "desc1", requirements=["x"])
+    assert project.get_function("desc1", enrich=True).spec.build.commands == [
+        "python -m pip install x",
+        "python -m pip install pandas",
+    ]
+
+    fn = mlrun.import_function("hub://describe")
+    project.set_function(fn, "desc2", requirements=["y"])
+    assert project.get_function("desc2", enrich=True).spec.build.commands == [
+        "python -m pip install y",
+        "python -m pip install pandas",
+    ]
+
+
+def test_function_run_cli():
+    # run function stored in the project spec
+    project_dir_path = pathlib.Path(tests.conftest.results) / "project-run-func"
+    function_path = pathlib.Path(__file__).parent / "assets" / "handler.py"
+    project = mlrun.new_project("run-cli", str(project_dir_path))
+    project.set_function(
+        str(function_path), "my-func", image="mlrun/mlrun", handler="myhandler",
+    )
+    project.export()
+
+    args = "-f my-func --local --dump -p x=3".split()
+    out = tests.conftest.exec_mlrun(args, str(project_dir_path))
+    assert out.find("state: completed") != -1, out
+    assert out.find("y: 6") != -1, out  # = x * 2

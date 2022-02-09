@@ -126,16 +126,11 @@ def test_get_function_by_tag(db: DBInterface, db_session: Session):
     function_hash_key = db.store_function(
         db_session, function_1, function_name_1, versioned=True
     )
-    function_queried_by_tag = db.get_function(db_session, function_name_1, tag="latest")
     function_queried_by_hash_key = db.get_function(
         db_session, function_name_1, hash_key=function_hash_key
     )
     function_not_queried_by_tag_hash = function_queried_by_hash_key["metadata"]["hash"]
     assert function_hash_key == function_not_queried_by_tag_hash
-
-    # function not queried by tag shouldn't have status
-    assert function_queried_by_tag["status"] is not None
-    assert function_queried_by_hash_key["status"] is None
 
 
 @pytest.mark.parametrize(
@@ -217,6 +212,19 @@ def test_list_functions_by_tag(db: DBInterface, db_session: Session):
         function_name = function["metadata"]["name"]
         names.remove(function_name)
     assert len(names) == 0
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_list_functions_with_non_existent_tag(db: DBInterface, db_session: Session):
+    names = ["some_name", "some_name2", "some_name3"]
+    for name in names:
+        function_body = {"metadata": {"name": name}}
+        db.store_function(db_session, function_body, name, versioned=True)
+    functions = db.list_functions(db_session, tag="non_existent_tag")
+    assert len(functions) == 0
 
 
 @pytest.mark.parametrize(

@@ -30,6 +30,8 @@ from mlrun.utils import get_in, update_in
 
 
 class MPIV1ResourceSpec(MPIResourceSpec):
+    _dict_fields = MPIResourceSpec._dict_fields + ["clean_pod_policy"]
+
     def __init__(
         self,
         command=None,
@@ -169,7 +171,15 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
         # configuration for both launcher and workers
         for pod_template in [launcher_pod_template, worker_pod_template]:
             if self.spec.image:
-                self._update_container(pod_template, "image", self.full_image_path())
+                self._update_container(
+                    pod_template,
+                    "image",
+                    self.full_image_path(
+                        client_version=runobj.metadata.labels.get(
+                            "mlrun/client_version"
+                        )
+                    ),
+                )
             self._update_container(
                 pod_template, "volumeMounts", self.spec.volume_mounts
             )

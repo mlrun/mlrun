@@ -33,8 +33,11 @@ from distutils.util import strtobool
 from os.path import expanduser
 from threading import Lock
 
+import dotenv
 import semver
 import yaml
+
+import mlrun.errors
 
 env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
@@ -52,6 +55,7 @@ default_config = {
     "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
     "ui_url": "",  # remote/external mlrun UI url (for hyperlinks) (This is deprecated in favor of the ui block)
     "remote_host": "",
+    "api_base_version": "v1",
     "version": "",  # will be set to current version
     "images_tag": "",  # tag to use with mlrun images e.g. mlrun/mlrun (defaults to version)
     "images_registry": "",  # registry to use with mlrun images e.g. quay.io/ (defaults to empty, for dockerhub)
@@ -59,6 +63,7 @@ default_config = {
     # registry when used. default to mlrun/* which means any image which is of the mlrun repository (mlrun/mlrun,
     # mlrun/ml-base, etc...)
     "images_to_enrich_registry": "^mlrun/*",
+    "kfp_url": "",
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
     "kfp_image": "",  # image to use for KFP runner (defaults to mlrun/mlrun)
     "dask_kfp_image": "",  # image to use for dask KFP runner (defaults to mlrun/ml-base)
@@ -91,6 +96,8 @@ default_config = {
     # sets the background color that is used in printed tables in jupyter
     "background_color": "#4EC64B",
     "artifact_path": "",  # default artifacts path/url
+    # Add {{workflow.uid}} to artifact_path unless user specified a path manually
+    "enrich_artifact_path_with_workflow_id": True,
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
     #  configure this values on field systems, for newer system this will be configured correctly
     "v3io_api": "http://v3io-webapi:8081",
@@ -141,8 +148,15 @@ default_config = {
             "data_migrations_mode": "enabled",
             # Whether or not to perform database migration from sqlite to mysql on initialization
             "database_migration_mode": "enabled",
-            # Whether or not to use db backups on initialization
-            "database_backup_mode": "enabled",
+            "backup": {
+                # Whether or not to use db backups on initialization
+                "mode": "enabled",
+                "file_format": "db_backup_%Y%m%d%H%M.db",
+                "use_rotation": True,
+                "rotation_limit": 3,
+            },
+            "connections_pool_size": 20,
+            "connections_pool_max_overflow": 50,
         },
         "jobs": {
             # whether to allow to run local runtimes in the API - configurable to allow the scheduler testing to work
@@ -202,6 +216,7 @@ default_config = {
             "counters_cache_ttl": "2 minutes",
             # access key to be used when the leader is iguazio and polling is done from it
             "iguazio_access_key": "",
+            "iguazio_list_projects_default_page_size": 200,
             "project_owners_cache_ttl": "30 seconds",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
@@ -234,6 +249,7 @@ default_config = {
             "user_space": "v3io:///projects/{project}/model-endpoints/{kind}",
         },
         "batch_processing_function_branch": "master",
+        "parquet_batching_max_events": 10000,
     },
     "secret_stores": {
         "vault": {
@@ -415,6 +431,24 @@ class Config:
             semver_compatible_igz_version = config.igz_version.split("_")[0]
             return semver.VersionInfo.parse(f"{semver_compatible_igz_version}.0")
 
+    def resolve_kfp_url(self, namespace=None):
+        if config.kfp_url:
+            return config.kfp_url
+        igz_version = self.get_parsed_igz_version()
+        if namespace is None:
+            if not config.namespace:
+                raise mlrun.errors.MLRunNotFoundError(
+                    "For KubeFlow Pipelines to function, a namespace must be configured"
+                )
+            namespace = config.namespace
+        # TODO: When Iguazio 3.4 will deprecate we can remove this line
+        if igz_version and igz_version <= semver.VersionInfo.parse("3.6.0-b1"):
+            # When instead of host we provided namespace we tackled this issue
+            # https://github.com/canonical/bundle-kubeflow/issues/412
+            # TODO: When we'll move to kfp 1.4.0 (server side) it should be resolved
+            return f"http://ml-pipeline.{namespace}.svc.cluster.local:8888"
+        return None
+
     @staticmethod
     def get_storage_auto_mount_params():
         auto_mount_params = {}
@@ -505,7 +539,7 @@ class Config:
             import mlrun.db
 
             # when dbpath is set we want to connect to it which will sync configuration from it to the client
-            mlrun.db.get_run_db(value)
+            mlrun.db.get_run_db(value, force_reconnect=True)
 
     @property
     def iguazio_api_url(self):
@@ -556,6 +590,9 @@ def _populate():
 
 def _do_populate(env=None):
     global config
+
+    if "MLRUN_ENV_FILE" in os.environ:
+        dotenv.load_dotenv(os.environ["MLRUN_ENV_FILE"], override=True)
 
     if not config:
         config = Config.from_dict(default_config)
@@ -617,17 +654,27 @@ def read_env(env=None, prefix=env_prefix):
             cfg = cfg.setdefault(name, {})
         cfg[path[0]] = value
 
+    env_dbpath = env.get("MLRUN_DBPATH", "")
+    is_remote_mlrun = (
+        env_dbpath.startswith("https://mlrun-api.") and "tenant." in env_dbpath
+    )
     # It's already a standard to set this env var to configure the v3io api, so we're supporting it (instead
-    # of MLRUN_V3IO_API)
+    # of MLRUN_V3IO_API), in remote usage this can be auto detected from the DBPATH
     v3io_api = env.get("V3IO_API")
     if v3io_api:
         config["v3io_api"] = v3io_api
+    elif is_remote_mlrun:
+        config["v3io_api"] = env_dbpath.replace("https://mlrun-api.", "https://webapi.")
 
     # It's already a standard to set this env var to configure the v3io framesd, so we're supporting it (instead
-    # of MLRUN_V3IO_FRAMESD)
+    # of MLRUN_V3IO_FRAMESD), in remote usage this can be auto detected from the DBPATH
     v3io_framesd = env.get("V3IO_FRAMESD")
     if v3io_framesd:
         config["v3io_framesd"] = v3io_framesd
+    elif is_remote_mlrun:
+        config["v3io_framesd"] = env_dbpath.replace(
+            "https://mlrun-api.", "https://framesd."
+        )
 
     uisvc = env.get("MLRUN_UI_SERVICE_HOST")
     igz_domain = env.get("IGZ_NAMESPACE_DOMAIN")

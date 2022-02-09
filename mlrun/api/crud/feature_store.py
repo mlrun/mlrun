@@ -90,7 +90,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         labels: typing.List[str] = None,
         partition_by: mlrun.api.schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
-        partition_sort: mlrun.api.schemas.SortField = None,
+        partition_sort_by: mlrun.api.schemas.SortField = None,
         partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
     ) -> mlrun.api.schemas.FeatureSetsOutput:
         project = project or mlrun.mlconf.default_project
@@ -105,7 +105,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
             labels,
             partition_by,
             rows_per_partition,
-            partition_sort,
+            partition_sort_by,
             partition_order,
         )
 
@@ -224,7 +224,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         labels: typing.List[str] = None,
         partition_by: mlrun.api.schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
-        partition_sort: mlrun.api.schemas.SortField = None,
+        partition_sort_by: mlrun.api.schemas.SortField = None,
         partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
     ) -> mlrun.api.schemas.FeatureVectorsOutput:
         project = project or mlrun.mlconf.default_project
@@ -237,7 +237,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
             labels,
             partition_by,
             rows_per_partition,
-            partition_sort,
+            partition_sort_by,
             partition_order,
         )
 

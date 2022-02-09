@@ -52,7 +52,7 @@ Set environment variables to define your MLRun configuration. As a minimum requi
     MLRUN_ARTIFACT_PATH=/User/artifacts/{{project}}
     ```
 
-3. If the remote service is on an instance of the Iguazio Data Science Platform (**"the platform"**), set the following environment variables as well; replace the `<...>` placeholders with the information for your specific platform cluster:
+3. If the remote service is on an instance of the Iguazio MLOps Platform (**"the platform"**), set the following environment variables as well; replace the `<...>` placeholders with the information for your specific platform cluster:
 
     ```ini
     V3IO_USERNAME=<username of a platform user with access to the MLRun service>
@@ -90,7 +90,7 @@ Create an environment file called `mlrun.env` in your workspace folder. Copy-pas
 # Remote URL to mlrun service
 MLRUN_DBPATH=<API endpoint of the MLRun APIs service endpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
 # Root artifact path on the remote server
-MLRUN_ARTIFACT_PATH=<remote path; e.g., "/User/artifacts/{{run.project}">
+MLRUN_ARTIFACT_PATH=<remote path; e.g., "/User/artifacts/{{run.project}}">
 # Iguazio platform username
 V3IO_USERNAME=<username of a platform user with access to the MLRun service>
 # V3IO data access API URL (copy from the services screen)
@@ -163,7 +163,7 @@ Create a file `mlrun_env.sh`, and copy-paste the code below; replace the `<...>`
 # Remote URL to mlrun service
 export MLRUN_DBPATH=<API endpoint of the MLRun APIs service endpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
 # Root artifact path on the remote server
-export MLRUN_ARTIFACT_PATH=<remote path; e.g., "/User/artifacts/{{run.project}">
+export MLRUN_ARTIFACT_PATH=<remote path; e.g., "/User/artifacts/{{run.project}}">
 # Iguazio platform username
 export V3IO_USERNAME=<username of a platform user with access to the MLRun service>
 # V3IO data access API URL (copy from the services screen)

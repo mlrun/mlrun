@@ -28,6 +28,7 @@ from .utils import (
     gen_md_table,
     get_artifact_target,
     get_in,
+    get_workflow_url,
     is_ipython,
     logger,
     run_keys,
@@ -247,7 +248,7 @@ def mlrun_op(
         # run training, mount_v3io will mount "/User" into the pipeline step
         train = mlrun_train(p1, p2).apply(mount_v3io())
 
-        # feed 1st step results into the secound step
+        # feed 1st step results into the second step
         validate = mlrun_validate(
             train.outputs['model-txt']).apply(mount_v3io())
 
@@ -456,7 +457,7 @@ def deploy_op(
 
     if models:
         for m in models:
-            for key in ["model_path", "model_url", "class_name"]:
+            for key in ["key", "model_path", "model_url", "class_name", "model_url"]:
                 if key in m:
                     m[key] = str(m[key])  # verify we stringify pipeline params
             if function.kind == mlrun.runtimes.RuntimeKinds.serving:
@@ -769,6 +770,13 @@ def show_kfp_run(run, clear_output=False):
 
             if clear_output:
                 IPython.display.clear_output(wait=True)
-            IPython.display.display(dag)
+
+            run_id = run["run"]["id"]
+            url = get_workflow_url(run["run"]["project"], run_id)
+            href = f'<a href="{url}" target="_blank"><b>click here</b></a>'
+            html = IPython.display.HTML(
+                f"<div>Pipeline running (id={run_id}), {href} to view the details in MLRun UI</div>"
+            )
+            IPython.display.display(html, dag)
         except Exception as exc:
             logger.warning(f"failed to plot graph, {exc}")

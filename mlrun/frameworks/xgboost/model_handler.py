@@ -1,15 +1,16 @@
 import os
 import pickle
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Union
 
 import cloudpickle
-import numpy as np
-import pandas as pd
 import xgboost as xgb
 
 import mlrun
 
+from .._common import without_mlrun_interface
 from .._ml_common import MLModelHandler
+from .mlrun_interface import XGBModelMLRunInterface
+from .utils import DatasetType
 
 
 class XGBoostModelHandler(MLModelHandler):
@@ -18,10 +19,7 @@ class XGBoostModelHandler(MLModelHandler):
     """
 
     # Framework name:
-    _FRAMEWORK_NAME = "xgboost"
-
-    # Declare a type of an input sample:
-    IOSample = Union[xgb.DMatrix, pd.DataFrame, np.ndarray, List[Tuple[str, str]]]
+    FRAMEWORK_NAME = "xgboost"
 
     class ModelFormats:
         """
@@ -33,9 +31,9 @@ class XGBoostModelHandler(MLModelHandler):
 
     def __init__(
         self,
-        model_name: str,
-        model_path: str = None,
         model: xgb.XGBModel = None,
+        model_path: str = None,
+        model_name: str = None,
         modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
@@ -48,11 +46,15 @@ class XGBoostModelHandler(MLModelHandler):
         one of 'model' and 'model_path'. If a model is not given, the files in the model path will be collected
         automatically to be ready for loading.
 
-        :param model_name:               The model name for saving and logging the model.
+        :param model:                    Model to handle or None in case a loading parameters were supplied.
         :param model_path:               Path to the directory with the model files. Can be passed as a model object
                                          path in the following format:
                                          'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'
-        :param model:                    Model to handle or None in case a loading parameters were supplied.
+        :param model_name:               The model name for saving and logging the model:
+                                         * Mandatory for loading the model from a local path.
+                                         * If given a logged model (store model path) it will be read from the artifact.
+                                         * If given a loaded model object and the model name is None, the name will be
+                                           set to the model's object name / class.
         :param modules_map:              A dictionary of all the modules required for loading the model. Each key
                                          is a path to a module and its value is the object name to import from it. All
                                          the modules will be imported globally. If multiple objects needed to be
@@ -110,9 +112,9 @@ class XGBoostModelHandler(MLModelHandler):
         self._model_format = model_format
 
         super(XGBoostModelHandler, self).__init__(
-            model_name=model_name,
-            model_path=model_path,
             model=model,
+            model_path=model_path,
+            model_name=model_name,
             modules_map=modules_map,
             custom_objects_map=custom_objects_map,
             custom_objects_directory=custom_objects_directory,
@@ -136,6 +138,7 @@ class XGBoostModelHandler(MLModelHandler):
                     f"'{self._model_path}'"
                 )
 
+    @without_mlrun_interface(interface=XGBModelMLRunInterface)
     def save(self, output_path: str = None, **kwargs):
         """
         Save the handled model at the given output path. If a MLRun context is available, the saved model files will be
@@ -144,7 +147,7 @@ class XGBoostModelHandler(MLModelHandler):
         :param output_path: The full path to the directory to save the handled model at. If not given, the context
                             stored will be used to save the model in the defaulted artifacts location.
 
-        :return The saved model artifacts dictionary if context is available and None otherwise.
+        :return The saved model additional artifacts (if needed) dictionary if context is available and None otherwise.
         """
         super(XGBoostModelHandler, self).save(output_path=output_path)
 
@@ -172,7 +175,7 @@ class XGBoostModelHandler(MLModelHandler):
         self,
         model_name: str = None,
         optimize: bool = True,
-        input_sample: IOSample = None,
+        input_sample: DatasetType = None,
         log: bool = None,
     ):
         """

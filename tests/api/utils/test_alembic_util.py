@@ -1,6 +1,5 @@
 import os.path
 import pathlib
-import shutil
 import typing
 import unittest.mock
 
@@ -19,81 +18,36 @@ class Constants(object):
     unknown_revision = "revision3"
 
 
-def test_no_database_exists(mock_alembic, mock_database, mock_shutil_copy):
+def test_no_database_exists(mock_alembic, mock_database):
     mock_database(db_file_exists=False)
     alembic_util = mlrun.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
-    alembic_util.init_alembic(use_backups=True)
+    alembic_util.init_alembic()
     assert mock_alembic.stamp_calls == []
     assert mock_alembic.upgrade_calls == ["head"]
-    mock_shutil_copy.assert_not_called()
 
 
-def test_database_exists_no_revision(mock_alembic, mock_database, mock_shutil_copy):
+def test_database_exists_no_revision(mock_alembic, mock_database):
     mock_database()
     alembic_util = mlrun.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
-    alembic_util.init_alembic(use_backups=True)
+    alembic_util.init_alembic()
 
     assert mock_alembic.upgrade_calls == ["head"]
-    mock_shutil_copy.assert_not_called()
 
 
-def test_database_exists_known_revision(
-    mock_alembic, mock_database, mock_shutil_copy, mock_db_file_name
-):
+def test_database_exists_known_revision(mock_alembic, mock_database):
     mock_database(current_revision=Constants.initial_revision)
     alembic_util = mlrun.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
-    alembic_util.init_alembic(use_backups=True)
+    alembic_util.init_alembic()
     assert mock_alembic.stamp_calls == []
     assert mock_alembic.upgrade_calls == ["head"]
-    mock_shutil_copy.assert_called_once_with(
-        mock_db_file_name, pathlib.Path(f"{Constants.initial_revision}.db")
-    )
 
 
-def test_database_exists_unknown_revision_successful_downgrade(
-    mock_alembic, mock_database, mock_shutil_copy, mock_db_file_name
-):
+def test_database_exists_unknown(mock_alembic, mock_database):
     mock_database(current_revision=Constants.unknown_revision)
     alembic_util = mlrun.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
-    alembic_util.init_alembic(use_backups=True)
+    alembic_util.init_alembic()
     assert mock_alembic.stamp_calls == []
     assert mock_alembic.upgrade_calls == ["head"]
-    copy_calls = [
-        # first copy - backup the current database before downgrading
-        unittest.mock.call(
-            mock_db_file_name, pathlib.Path(f"{Constants.unknown_revision}.db")
-        ),
-        # second copy - to downgrade to the old db file
-        unittest.mock.call(
-            pathlib.Path(f"{Constants.latest_revision}.db"), mock_db_file_name
-        ),
-        # third copy - to back up the db file. In a real scenario the backup would be {latest_revision}.db
-        # as the revision should change during the last copy, but changing a mock during the init_alembic function
-        # is cumbersome and might make the test unreadable - so the current revision stays unknown_revision.
-        unittest.mock.call(
-            mock_db_file_name, pathlib.Path(f"{Constants.unknown_revision}.db")
-        ),
-    ]
-    mock_shutil_copy.assert_has_calls(copy_calls)
-
-
-def test_database_exists_unknown_revision_failed_downgrade(
-    mock_alembic, mock_database, mock_shutil_copy, mock_db_file_name
-):
-    mock_database(
-        current_revision=Constants.unknown_revision, db_backup_exists=False,
-    )
-    alembic_util = mlrun.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
-    with pytest.raises(
-        RuntimeError,
-        match=f"Cannot fall back to revision {Constants.latest_revision}, "
-        f"no back up exists. Current revision: {Constants.unknown_revision}",
-    ):
-        alembic_util.init_alembic(use_backups=True)
-
-    assert mock_alembic.stamp_calls == []
-    assert mock_alembic.upgrade_calls == []
-    mock_shutil_copy.assert_not_called()
 
 
 @pytest.fixture()
@@ -140,13 +94,6 @@ def mock_db_file_name(monkeypatch) -> str:
     db_file_name = "test.db"
     monkeypatch.setattr(mlconf.httpdb, "dsn", db_file_name)
     return db_file_name
-
-
-@pytest.fixture()
-def mock_shutil_copy(monkeypatch) -> unittest.mock.Mock:
-    copy = unittest.mock.Mock()
-    monkeypatch.setattr(shutil, "copy2", copy)
-    return copy
 
 
 class MockAlembicCommand(object):

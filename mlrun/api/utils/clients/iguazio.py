@@ -65,7 +65,11 @@ class Client(
         self._session = requests.Session()
         self._session.mount("http://", http_adapter)
         self._api_url = mlrun.mlconf.iguazio_api_url
-        self._wait_for_job_completion_retry_interval = 5
+        # The job is expected to be completed in less than 5 seconds. If 10 seconds have passed and the job
+        # has not been completed, increase the interval to retry every 5 seconds
+        self._wait_for_job_completion_retry_interval = mlrun.utils.create_step_backoff(
+            [[1, 10], [5, None]]
+        )
         self._wait_for_project_terminal_state_retry_interval = 5
 
     def try_get_grafana_service_url(self, session: str) -> typing.Optional[str]:
@@ -215,7 +219,10 @@ class Client(
             return True
 
     def list_projects(
-        self, session: str, updated_after: typing.Optional[datetime.datetime] = None,
+        self,
+        session: str,
+        updated_after: typing.Optional[datetime.datetime] = None,
+        page_size: typing.Optional[int] = None,
     ) -> typing.Tuple[
         typing.List[mlrun.api.schemas.Project], typing.Optional[datetime.datetime]
     ]:
@@ -223,6 +230,12 @@ class Client(
         if updated_after is not None:
             time_string = updated_after.isoformat().split("+")[0]
             params = {"filter[updated_at]": f"[$gt]{time_string}Z"}
+        if page_size is None:
+            page_size = (
+                mlrun.mlconf.httpdb.projects.iguazio_list_projects_default_page_size
+            )
+        if page_size is not None:
+            params["page[size]"] = int(page_size)
 
         params["include"] = "owner"
         response = self._send_request_to_api(

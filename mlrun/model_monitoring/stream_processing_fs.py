@@ -1,7 +1,6 @@
 import json
 import os
 from collections import defaultdict
-from datetime import datetime
 from os import environ
 from typing import Any, Dict, List, Optional, Set, Union
 
@@ -9,6 +8,7 @@ import pandas as pd
 import v3io
 
 # Constants
+from storey import Event
 from v3io.dataplane import RaiseForStatus
 
 import mlrun.feature_store as fs
@@ -64,11 +64,11 @@ class EventStreamProcessor:
     def __init__(
         self,
         project: str,
+        parquet_batching_max_events: int,
         sample_window: int = 10,
         tsdb_batching_max_events: int = 10,
         tsdb_batching_timeout_secs: int = 60 * 5,  # Default 5 minutes
-        parquet_batching_max_events: int = 10_000,
-        parquet_batching_timeout_secs: int = 60 * 60,  # Default 1 hour
+        parquet_batching_timeout_secs: int = 30 * 60,  # Default 30 minutes
         aggregate_count_windows: Optional[List[str]] = None,
         aggregate_count_period: str = "30s",
         aggregate_avg_windows: Optional[List[str]] = None,
@@ -76,6 +76,7 @@ class EventStreamProcessor:
         v3io_access_key: Optional[str] = None,
         v3io_framesd: Optional[str] = None,
         v3io_api: Optional[str] = None,
+        model_monitoring_access_key: str = None,
     ):
         self.project = project
         self.sample_window = sample_window
@@ -93,7 +94,9 @@ class EventStreamProcessor:
 
         self.v3io_access_key = v3io_access_key or environ.get("V3IO_ACCESS_KEY")
         self.model_monitoring_access_key = (
-            os.environ.get("MODEL_MONITORING_ACCESS_KEY") or self.v3io_access_key
+            model_monitoring_access_key
+            or os.environ.get("MODEL_MONITORING_ACCESS_KEY")
+            or self.v3io_access_key
         )
 
         template = config.model_endpoint_monitoring.store_prefixes.default
@@ -113,6 +116,7 @@ class EventStreamProcessor:
 
         logger.info(
             "Initializing model monitoring event stream processor",
+            parquet_batching_max_events=self.parquet_batching_max_events,
             v3io_access_key=self.v3io_access_key,
             model_monitoring_access_key=self.model_monitoring_access_key,
             default_store_prefix=config.model_endpoint_monitoring.store_prefixes.default,
@@ -135,6 +139,7 @@ class EventStreamProcessor:
             kv_container=self.kv_container,
             kv_path=self.kv_path,
             v3io_access_key=self.v3io_access_key,
+            full_event=True,
         ).to("storey.Filter", "filter_none", _fn="(event is not None)").to(
             "storey.FlatMap", "flatten_events", _fn="(event)"
         ).to(
@@ -289,14 +294,13 @@ class EventStreamProcessor:
         return feature_set
 
 
-# mlrun: start-code
 class ProcessBeforeKV(MapClass):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
     def do(self, event):
         # compute prediction per second
-        event[PREDICTIONS_PER_SECOND] = float(event[PREDICTIONS_COUNT_5M]) / 600
+        event[PREDICTIONS_PER_SECOND] = float(event[PREDICTIONS_COUNT_5M]) / 300
         # Filter relevant keys
         e = {
             k: event[k]
@@ -331,7 +335,7 @@ class ProcessBeforeTSDB(MapClass):
 
     def do(self, event):
         # compute prediction per second
-        event[PREDICTIONS_PER_SECOND] = float(event[PREDICTIONS_COUNT_5M]) / 600
+        event[PREDICTIONS_PER_SECOND] = float(event[PREDICTIONS_COUNT_5M]) / 300
         base_fields = [TIMESTAMP, ENDPOINT_ID]
 
         base_event = {k: event[k] for k in base_fields}
@@ -397,10 +401,28 @@ class ProcessEndpointEvent(MapClass):
         self.error_count: Dict[str, int] = defaultdict(int)
         self.endpoints: Set[str] = set()
 
-    def do(self, event: dict):
-        function_uri = event[FUNCTION_URI]
-        versioned_model = event[VERSIONED_MODEL]
-        endpoint_id = event[ENDPOINT_ID]
+    def do(self, full_event):
+        event = full_event.body
+
+        # code that calculates the endppint id. should be
+        function_uri = event.get(FUNCTION_URI)
+        if not is_not_none(function_uri, [FUNCTION_URI]):
+            return None
+
+        model = event.get(MODEL)
+        if not is_not_none(model, [MODEL]):
+            return None
+
+        version = event.get(VERSION)
+        versioned_model = f"{model}:{version}" if version else f"{model}:latest"
+
+        endpoint_id = create_model_endpoint_id(
+            function_uri=function_uri, versioned_model=versioned_model,
+        )
+        endpoint_id = str(endpoint_id)
+
+        event[VERSIONED_MODEL] = versioned_model
+        event[ENDPOINT_ID] = endpoint_id
 
         # In case this process fails, resume state from existing record
         self.resume_state(endpoint_id)
@@ -476,7 +498,9 @@ class ProcessEndpointEvent(MapClass):
                     UNPACKED_LABELS: unpacked_labels,
                 }
             )
-        return events
+
+        storey_event = Event(body=events, key=endpoint_id, time=timestamp)
+        return storey_event
 
     def is_list_of_numerics(
         self, field: List[Union[int, float, dict, list]], dict_path: List[str]
@@ -754,52 +778,3 @@ def get_endpoint_record(
         return endpoint_record
     except Exception:
         return None
-
-
-# mlrun: end-code
-
-
-def init_context(context):
-    context.logger.info("Initializing EventStreamProcessor")
-    parameters = environ.get("MODEL_MONITORING_PARAMETERS")
-    parameters = json.loads(parameters) if parameters else {}
-    stream_processor = EventStreamProcessor(**parameters)
-    fset = stream_processor.create_feature_set()
-    setattr(context, "fset", fset)
-    setattr(context, "need_to_infer", True)
-
-
-def handler(context, event):
-    context.logger.debug(event.body)
-    event_body = json.loads(event.body)
-
-    options = fs.InferOptions.Null
-    if context.need_to_infer:
-        options = fs.InferOptions.default()
-        context.need_to_infer = False
-
-    events = []
-    if "headers" in event_body and "values" in event_body:
-        for values in event_body["values"]:
-            events.append({k: v for k, v in zip(event_body["headers"], values)})
-    else:
-        events.append(event_body)
-
-    for enriched in map(enrich_even_details, events):
-
-        if enriched is not None:
-            enriched[TIMESTAMP] = datetime.strptime(enriched["when"], ISO_8061_UTC)
-            if enriched.get("class"):
-                # class is illegal column name in pandas df
-                enriched[MODEL_CLASS] = enriched["class"]
-                del enriched["class"]
-
-            fs.ingest(
-                context.fset,
-                pd.DataFrame({k: [v] for k, v in enriched.items()}),
-                infer_options=options,
-                return_df=False,
-                overwrite=False,
-            )
-        else:
-            pass

@@ -20,8 +20,9 @@ class ONNXModelServer(V2ModelServer):
         self,
         context: mlrun.MLClientCtx,
         name: str,
-        model_path: str = None,
         model: onnx.ModelProto = None,
+        model_path: str = None,
+        model_name: str = None,
         execution_providers: List[Union[str, Tuple[str, Dict[str, Any]]]] = None,
         protocol: str = None,
         **class_args,
@@ -31,8 +32,16 @@ class ONNXModelServer(V2ModelServer):
 
         :param context:             The mlrun context to work with.
         :param name:                The model name to be served.
-        :param model_path:          Path to the model directory to load. Can be passed as a store model object.
-        :param model:               The model to use.
+        :param model:      Model to handle or None in case a loading parameters were supplied.
+        :param model_path: Path to the model's directory to load it from. The onnx file must start with the given model
+                           name and the directory must contain the onnx file. The model path can be also passed as a
+                           model object path in the following format:
+                           'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'.
+        :param model_name: The model name for saving and logging the model:
+                           * Mandatory for loading the model from a local path.
+                           * If given a logged model (store model path) it will be read from the artifact.
+                           * If given a loaded model object and the model name is None, the name will be set to the
+                             model's object name / class.
         :param execution_providers: List of the execution providers. The first provider in the list will be the most
                                     preferred. For example, a CUDA execution provider with configurations and a CPU
                                     execution provider:
@@ -61,8 +70,13 @@ class ONNXModelServer(V2ModelServer):
             protocol=protocol,
             **class_args,
         )
+
+        # Set up a model handler:
         self._model_handler = ONNXModelHandler(
-            model_name=name, model_path=model_path, model=model, context=self.context,
+            model_name=model_name,
+            model_path=model_path,
+            model=model,
+            context=self.context,
         )
 
         # Set the execution providers (default will prefer CUDA Execution Provider over CPU Execution Provider):
@@ -82,7 +96,9 @@ class ONNXModelServer(V2ModelServer):
         Use the model handler to get the model file path and initialize an ONNX run time inference session.
         """
         # Load the model:
-        self._model_handler.load()
+        if self._model_handler.model is None:
+            self._model_handler.load()
+        self.model = self._model_handler.model
 
         # initialize the onnx run time session:
         self._inference_session = onnxruntime.InferenceSession(

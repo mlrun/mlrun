@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import sys
 import typing
 import warnings
 from collections import Counter
@@ -528,6 +527,7 @@ class BaseStoreTarget(DataTargetBase):
         start_time=None,
         end_time=None,
         time_column=None,
+        **kwargs,
     ):
         """return the target data as dataframe"""
         return mlrun.get_dataitem(self._target_path.absolute_path()).as_df(
@@ -536,6 +536,7 @@ class BaseStoreTarget(DataTargetBase):
             start_time=start_time,
             end_time=end_time,
             time_column=time_column,
+            **kwargs,
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
@@ -647,6 +648,9 @@ class ParquetTarget(BaseStoreTarget):
             df.to_parquet(target_path, partition_cols=partition_cols, **kwargs)
         else:
             with fs.open(target_path, "wb") as fp:
+                # In order to save the DataFrame in parquet format, all of the column names must be strings:
+                df.columns = [str(column) for column in df.columns.tolist()]
+                # Save to parquet:
                 df.to_parquet(fp, **kwargs)
 
     def add_writer_state(
@@ -776,6 +780,7 @@ class ParquetTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
+        **kwargs,
     ):
         """return the target data as dataframe"""
         return mlrun.get_dataitem(self._target_path.absolute_path()).as_df(
@@ -785,6 +790,7 @@ class ParquetTarget(BaseStoreTarget):
             start_time=start_time,
             end_time=end_time,
             time_column=time_column,
+            **kwargs,
         )
 
     def is_single_file(self):
@@ -802,13 +808,7 @@ class CSVTarget(BaseStoreTarget):
 
     @staticmethod
     def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
-        mode = "wb"
-        # We generally prefer to open in a binary mode so that different encodings could be used, but pandas had a bug
-        # with such files until version 1.2.0, in this version they dropped support for python 3.6.
-        # So only for python 3.6 we're using text mode which might prevent some features
-        if sys.version_info[0] == 3 and sys.version_info[1] == 6:
-            mode = "wt"
-        with fs.open(target_path, mode) as fp:
+        with fs.open(target_path, "wb") as fp:
             df.to_csv(fp, **kwargs)
 
     def add_writer_state(
@@ -864,8 +864,11 @@ class CSVTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
+        **kwargs,
     ):
-        df = super().as_df(columns=columns, df_module=df_module, entities=entities)
+        df = super().as_df(
+            columns=columns, df_module=df_module, entities=entities, **kwargs
+        )
         df.set_index(keys=entities, inplace=True)
         return df
 
@@ -964,7 +967,7 @@ class NoSqlTarget(BaseStoreTarget):
     def get_dask_options(self):
         return {"format": "csv"}
 
-    def as_df(self, columns=None, df_module=None):
+    def as_df(self, columns=None, df_module=None, **kwargs):
         raise NotImplementedError()
 
     def write_dataframe(
@@ -1036,7 +1039,7 @@ class StreamTarget(BaseStoreTarget):
             **self.attributes,
         )
 
-    def as_df(self, columns=None, df_module=None):
+    def as_df(self, columns=None, df_module=None, **kwargs):
         raise NotImplementedError()
 
 
@@ -1091,7 +1094,7 @@ class TSDBTarget(BaseStoreTarget):
             **self.attributes,
         )
 
-    def as_df(self, columns=None, df_module=None):
+    def as_df(self, columns=None, df_module=None, **kwargs):
         raise NotImplementedError()
 
     def write_dataframe(
@@ -1229,6 +1232,7 @@ class DFTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
+        **kwargs,
     ):
         return self._df
 

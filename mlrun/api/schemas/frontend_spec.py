@@ -32,3 +32,4 @@ class FrontendSpec(pydantic.BaseModel):
     function_deployment_mlrun_command: typing.Optional[str]
     auto_mount_type: typing.Optional[str]
     auto_mount_params: typing.Dict[str, str] = {}
+    default_artifact_path: str

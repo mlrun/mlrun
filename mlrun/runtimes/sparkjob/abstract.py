@@ -356,13 +356,19 @@ class AbstractSparkRuntime(KubejobRuntime):
             elif self._default_image:
                 self.spec.image = self._default_image
 
-        update_in(job, "spec.image", self.full_image_path())
+        update_in(
+            job,
+            "spec.image",
+            self.full_image_path(
+                client_version=runobj.metadata.labels.get("mlrun/client_version")
+            ),
+        )
 
         update_in(job, "spec.volumes", self.spec.volumes)
 
         command, args, extra_env = self._get_cmd_args(runobj)
         code = None
-        if command == "mlrun":
+        if "MLRUN_EXEC_CODE" in [e.get("name") for e in extra_env]:
             code = f"""
 import mlrun.__main__ as ml
 ctx = ml.main.make_context('main', {args})

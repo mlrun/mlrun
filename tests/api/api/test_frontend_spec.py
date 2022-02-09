@@ -49,6 +49,11 @@ def test_get_frontend_spec(
         bla = f"{{{expected_template_field}}}"
         assert bla in frontend_spec.function_deployment_target_image_template
 
+    assert frontend_spec.default_user_pod_resources is not None
+    assert isinstance(
+        frontend_spec.default_user_pod_resources, mlrun.api.schemas.Resources
+    )
+
 
 def test_get_frontend_spec_jobs_dashboard_url_resolution(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient

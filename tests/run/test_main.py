@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import pathlib
 import sys
 import traceback
 from base64 import b64encode
@@ -168,7 +169,7 @@ def test_main_run_pass_args():
 
 
 def test_main_run_archive():
-    args = f"--source {examples_path}/archive.zip --handler handler"
+    args = f"--source {examples_path}/archive.zip --handler handler -p p1=1"
     out = exec_run("./myfunc.py", args.split(), "test_main_run_archive")
     assert out.find("state: completed") != -1, out
 
@@ -198,3 +199,37 @@ def test_main_local_flag():
     out = exec_run("", args.split(), "test_main_local_flag")
     print(out)
     assert out.find("state: completed") != -1, out
+
+
+def test_main_run_class():
+    function_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+
+    out = exec_run(
+        function_path,
+        compose_param_list(dict(x=8)) + ["--handler", "mycls::mtd"],
+        "test_main_run_class",
+    )
+    assert out.find("state: completed") != -1, out
+    assert out.find("rx: 8") != -1, out
+
+
+def test_run_from_module():
+    args = ["--name", "test1", "--dump", "--handler", "json.dumps", "-p", "obj=[6,7]"]
+    out = exec_main("run", args)
+    assert out.find("state: completed") != -1, out
+    assert out.find("return: '[6, 7]'") != -1, out
+
+
+def test_main_env_file():
+    # test run with env vars loaded from a .env file
+    function_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    envfile = str(pathlib.Path(__file__).parent / "assets" / "envfile")
+
+    out = exec_run(
+        function_path,
+        ["--handler", "env_file_test", "--env-file", envfile],
+        "test_main_env_file",
+    )
+    assert out.find("state: completed") != -1, out
+    assert out.find("ENV_ARG1: '123'") != -1, out
+    assert out.find("kfp_ttl: 12345") != -1, out

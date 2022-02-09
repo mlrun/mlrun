@@ -623,7 +623,7 @@ def deploy_ingestion_service(
     :param featureset:    feature set object or uri
     :param source:        data source object describing the online or offline source
     :param targets:       list of data target objects
-    :param name:          name name for the job/function
+    :param name:          name for the job/function
     :param run_config:    service runtime configuration (function object/uri, resources, etc..)
     :param verbose:       verbose log
     """
@@ -845,7 +845,7 @@ def set_task_params(
 def get_feature_set(uri, project=None):
     """get feature set object from the db
 
-    :param uri:  a feature set uri([{project}/{name}[:version])
+    :param uri:  a feature set uri({project}/{name}[:version])
     :param project:  project name if not specified in uri or not using the current/default
     """
     return get_feature_set_by_uri(uri, project)
@@ -854,7 +854,7 @@ def get_feature_set(uri, project=None):
 def get_feature_vector(uri, project=None):
     """get feature vector object from the db
 
-    :param uri:  a feature vector uri([{project}/{name}[:version])
+    :param uri:  a feature vector uri({project}/{name}[:version])
     :param project:  project name if not specified in uri or not using the current/default
     """
     return get_feature_vector_by_uri(uri, project, update=False)

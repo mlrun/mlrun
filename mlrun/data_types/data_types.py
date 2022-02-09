@@ -84,8 +84,10 @@ def python_type_to_value_type(value_type):
         "float": ValueType.DOUBLE,
         "bytes": ValueType.BYTES,
         "float64": ValueType.DOUBLE,
+        "Float64": ValueType.DOUBLE,
         "float32": ValueType.FLOAT,
         "int64": ValueType.INT64,
+        "Int64": ValueType.INT64,
         "uint64": ValueType.INT64,
         "int32": ValueType.INT32,
         "uint32": ValueType.INT32,
@@ -116,6 +118,22 @@ def spark_to_value_type(data_type):
     if data_type in type_map:
         return type_map[data_type]
     return data_type
+
+
+def gbq_to_pandas_dtype(gbq_type):
+    import pandas as pd
+
+    if isinstance(gbq_type, TimestampType):
+        return ValueType.DATETIME
+
+    type_map = {
+        "STRING": "object",
+        "BOOL": "bool",
+        "FLOAT": "float64",
+        "INTEGER": pd.Int64Dtype(),
+        "TIMESTAMP": "datetime64[ns]",
+    }
+    return type_map.get(gbq_type, "object")
 
 
 class InferOptions:

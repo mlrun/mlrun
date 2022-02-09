@@ -28,6 +28,7 @@ class TestMLRunSystem:
         "V3IO_USERNAME",
         "V3IO_ACCESS_KEY",
         "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE",
+        "MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON",
     ]
 
     def setup_method(self, method):

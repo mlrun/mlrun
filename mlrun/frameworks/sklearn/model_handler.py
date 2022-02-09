@@ -1,15 +1,13 @@
 import os
 import pickle
-from typing import List, Tuple, Union
 
 import cloudpickle
-import numpy as np
-import pandas as pd
-import sklearn
 
 import mlrun
 
-from .._ml_common import MLModelHandler
+from .._common import without_mlrun_interface
+from .._ml_common import DatasetType, MLModelHandler
+from .mlrun_interface import SKLearnMLRunInterface
 
 
 class SKLearnModelHandler(MLModelHandler):
@@ -19,20 +17,6 @@ class SKLearnModelHandler(MLModelHandler):
 
     # Framework name:
     FRAMEWORK_NAME = "sklearn"
-
-    # Declare a type of a SciKitLearn model:
-    SKLearnModel = Union[
-        sklearn.base.BaseEstimator,
-        sklearn.base.BiclusterMixin,
-        sklearn.base.ClassifierMixin,
-        sklearn.base.ClusterMixin,
-        sklearn.base.DensityMixin,
-        sklearn.base.RegressorMixin,
-        sklearn.base.TransformerMixin,
-    ]
-
-    # Declare a type of an input sample:
-    IOSample = Union[pd.DataFrame, np.ndarray, List[Tuple[str, str]]]
 
     def _collect_files_from_local_path(self):
         """
@@ -49,6 +33,7 @@ class SKLearnModelHandler(MLModelHandler):
                 f"'{self._model_path}'"
             )
 
+    @without_mlrun_interface(interface=SKLearnMLRunInterface)
     def save(self, output_path: str = None, **kwargs):
         """
         Save the handled model at the given output path. If a MLRun context is available, the saved model files will be
@@ -83,7 +68,7 @@ class SKLearnModelHandler(MLModelHandler):
         self,
         model_name: str = None,
         optimize: bool = True,
-        input_sample: IOSample = None,
+        input_sample: DatasetType = None,
         log: bool = None,
     ):
         """

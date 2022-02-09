@@ -126,7 +126,7 @@ class Imputer(StepToDict, MapClass):
 
         :param method:        for future use
         :param default_value: default value if not specified per column
-        :param mapping:       a dict of per column deffault value
+        :param mapping:       a dict of per column default value
         :param kwargs:        optional kwargs (for storey)
         """
         super().__init__(**kwargs)
@@ -231,8 +231,7 @@ class DateExtractor(StepToDict, MapClass):
 
             # Add the custom `DateExtractor` step
             # to the computation graph
-            transaction_graph\
-                .to(
+            transaction_graph.to(
                     class_name='DateExtractor',
                     name='Extract Dates',
                     parts = ['hour', 'day_of_week'],

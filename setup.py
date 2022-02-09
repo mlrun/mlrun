@@ -150,6 +150,7 @@ setup(
         "mlrun.frameworks._dl_common",
         "mlrun.frameworks._dl_common.loggers",
         "mlrun.frameworks._ml_common",
+        "mlrun.frameworks._ml_common.plans",
         "mlrun.frameworks.auto_mlrun",
         "mlrun.frameworks.lgbm",
         "mlrun.frameworks.onnx",

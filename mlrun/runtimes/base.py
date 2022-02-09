@@ -289,7 +289,7 @@ class BaseRuntime(ModelObj):
         :param workdir:        default input artifacts path
         :param watch:          watch/follow run log
         :param schedule:       ScheduleCronTrigger class instance or a standard crontab expression string
-                               (which will be converted to the class using its `from_crontab` constructor.
+                               (which will be converted to the class using its `from_crontab` constructor),
                                see this link for help:
                                https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param hyperparams:    dict of param name and list of values to be enumerated e.g. {"p1": [1,2,3]}
@@ -317,7 +317,6 @@ class BaseRuntime(ModelObj):
             self.fill_credentials()
 
         if local:
-
             if schedule is not None:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "local and schedule cannot be used together"
@@ -365,7 +364,10 @@ class BaseRuntime(ModelObj):
 
         def_name = self.metadata.name
         if runspec.spec.handler_name:
-            def_name += "-" + runspec.spec.handler_name
+            short_name = runspec.spec.handler_name
+            if "::" in short_name:
+                short_name = short_name.split("::")[1]  # drop class name
+            def_name += "-" + short_name
         runspec.metadata.name = name or runspec.metadata.name or def_name
         verify_field_regex(
             "run.metadata.name", runspec.metadata.name, mlrun.utils.regex.run_name
@@ -760,10 +762,10 @@ class BaseRuntime(ModelObj):
         if not handler:
             raise RunError(f"handler must be provided for {self.kind} runtime")
 
-    def full_image_path(self, image=None):
+    def full_image_path(self, image=None, client_version: str = None):
         image = image or self.spec.image or ""
 
-        image = enrich_image_url(image)
+        image = enrich_image_url(image, client_version)
         if not image.startswith("."):
             return image
         registry, _ = get_parsed_docker_registry()

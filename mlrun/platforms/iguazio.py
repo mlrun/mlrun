@@ -134,7 +134,7 @@ def mount_v3io(
     """
     if mount_path and volume_mounts:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "mount_path and mounts can not be given toegther"
+            "mount_path and mounts can not be given together"
         )
 
     if mount_path:

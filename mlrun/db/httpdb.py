@@ -38,7 +38,7 @@ from ..config import config
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
 from ..runtimes import BaseRuntime
-from ..utils import datetime_to_iso, dict_to_json, logger, new_pipe_meta
+from ..utils import datetime_to_iso, dict_to_json, logger, new_pipe_meta, version
 from .base import RunDBError, RunDBInterface
 
 _artifact_keys = [
@@ -114,6 +114,7 @@ class HTTPRunDB(RunDBInterface):
         self.session = None
         self._wait_for_project_terminal_state_retry_interval = 3
         self._wait_for_project_deletion_interval = 3
+        self.client_version = version.Version().get()["version"]
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -191,7 +192,15 @@ class HTTPRunDB(RunDBInterface):
                 }
                 kw["cookies"] = cookies
             else:
-                kw["headers"] = {"Authorization": "Bearer " + self.token}
+                if "Authorization" not in kw.setdefault("headers", {}):
+                    kw["headers"].update({"Authorization": "Bearer " + self.token})
+
+        if mlrun.api.schemas.HeaderNames.client_version not in kw.setdefault(
+            "headers", {}
+        ):
+            kw["headers"].update(
+                {mlrun.api.schemas.HeaderNames.client_version: self.client_version}
+            )
 
         if not self.session:
             self.session = requests.Session()

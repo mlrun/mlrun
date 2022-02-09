@@ -19,6 +19,7 @@ import json
 import re
 import sys
 import time
+import typing
 from datetime import datetime, timezone
 from importlib import import_module
 from os import environ, path
@@ -451,7 +452,7 @@ def uxjoin(base, local_path, key="", iter=None, is_dir=False):
         local_path = key
 
     if iter:
-        local_path = path.join(str(iter), local_path)
+        local_path = path.join(str(iter), local_path).replace("\\", "/")
 
     if base and not base.endswith("/"):
         base += "/"
@@ -604,11 +605,19 @@ def new_pipe_meta(artifact_path=None, ttl=None, *args):
     return conf
 
 
-def enrich_image_url(image_url: str) -> str:
+def _convert_python_package_version_to_image_tag(version: typing.Optional[str]):
+    return (
+        version.replace("+", "-").replace("0.0.0-", "") if version is not None else None
+    )
+
+
+def enrich_image_url(image_url: str, client_version: str = None) -> str:
+    client_version = _convert_python_package_version_to_image_tag(client_version)
+    server_version = _convert_python_package_version_to_image_tag(
+        mlrun.utils.version.Version().get()["version"]
+    )
     image_url = image_url.strip()
-    tag = config.images_tag or mlrun.utils.version.Version().get()["version"].replace(
-        "+", "-"
-    ).replace("0.0.0-", "")
+    tag = config.images_tag or client_version or server_version
     registry = config.images_registry
 
     # it's an mlrun image if the repository is mlrun
@@ -1128,13 +1137,26 @@ def _module_to_namespace(namespace):
     return namespace
 
 
+def _search_in_namespaces(name, namespaces):
+    """search the class/function in a list of modules"""
+    if not namespaces:
+        return None
+    if not isinstance(namespaces, list):
+        namespaces = [namespaces]
+    for namespace in namespaces:
+        namespace = _module_to_namespace(namespace)
+        if name in namespace:
+            return namespace[name]
+    return None
+
+
 def get_class(class_name, namespace=None):
     """return class object from class name string"""
     if isinstance(class_name, type):
         return class_name
-    namespace = _module_to_namespace(namespace)
-    if namespace and class_name in namespace:
-        return namespace[class_name]
+    class_object = _search_in_namespaces(class_name, namespace)
+    if class_object is not None:
+        return class_object
 
     try:
         class_object = create_class(class_name)
@@ -1153,15 +1175,51 @@ def get_function(function, namespace):
         if not function.endswith(")"):
             raise ValueError('function expression must start with "(" and end with ")"')
         return eval("lambda event: " + function[1:-1], {}, {})
-    namespace = _module_to_namespace(namespace)
-    if function in namespace:
-        return namespace[function]
+    function_object = _search_in_namespaces(function, namespace)
+    if function_object is not None:
+        return function_object
 
     try:
         function_object = create_function(function)
     except (ImportError, ValueError) as exc:
-        raise ImportError(f"state init failed, function {function} not found, {exc}")
+        raise ImportError(
+            f"state/function init failed, handler {function} not found, {exc}"
+        )
     return function_object
+
+
+def get_handler_extended(
+    handler_path: str, context=None, class_args: dict = {}, namespaces=None
+):
+    """get function handler from [class_name::]handler string
+
+    :param handler_path:  path to the function ([class_name::]handler)
+    :param context:       MLRun function/job client context
+    :param class_args:    optional dict of class init kwargs
+    :param namespaces:    one or list of namespaces/modules to search the handler in
+    :return: function handler (callable)
+    """
+    if "::" not in handler_path:
+        return get_function(handler_path, namespaces)
+
+    splitted = handler_path.split("::")
+    class_path = splitted[0].strip()
+    handler_path = splitted[1].strip()
+
+    class_object = get_class(class_path, namespaces)
+    argspec = inspect.getfullargspec(class_object)
+    if argspec.varkw or "context" in argspec.args:
+        class_args["context"] = context
+    try:
+        instance = class_object(**class_args)
+    except TypeError as exc:
+        raise TypeError(f"failed to init class {class_path}, {exc}\n args={class_args}")
+
+    if not hasattr(instance, handler_path):
+        raise ValueError(
+            f"handler ({handler_path}) specified but doesnt exist in class {class_path}"
+        )
+    return getattr(instance, handler_path)
 
 
 def datetime_from_iso(time_str: str) -> Optional[datetime]:

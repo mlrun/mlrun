@@ -22,14 +22,14 @@ class FeatureFlags(pydantic.BaseModel):
 
 
 class ResourceSpec(pydantic.BaseModel):
-    cpu: typing.Optional[str]
-    memory: typing.Optional[str]
-    gpu: typing.Optional[str]
+    cpu: str = None
+    memory: str = None
+    gpu: str = None
 
 
 class Resources(pydantic.BaseModel):
-    requests: typing.Optional[ResourceSpec]
-    limits: typing.Optional[ResourceSpec]
+    requests: ResourceSpec = ResourceSpec()
+    limits: ResourceSpec = ResourceSpec()
 
 
 class FrontendSpec(pydantic.BaseModel):
@@ -44,4 +44,4 @@ class FrontendSpec(pydantic.BaseModel):
     auto_mount_type: typing.Optional[str]
     auto_mount_params: typing.Dict[str, str] = {}
     default_artifact_path: str
-    default_user_pod_resources: typing.Optional[Resources]
+    default_user_pod_resources: Resources = Resources()

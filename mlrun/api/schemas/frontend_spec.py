@@ -44,4 +44,4 @@ class FrontendSpec(pydantic.BaseModel):
     auto_mount_type: typing.Optional[str]
     auto_mount_params: typing.Dict[str, str] = {}
     default_artifact_path: str
-    default_user_pod_resources: Resources = Resources()
+    default_function_pod_resources: Resources = Resources()

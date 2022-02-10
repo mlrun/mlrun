@@ -57,9 +57,7 @@ def test_evaluation(functions: MLFunctions, algorithm_functionality: str):
     train_run = mlrun.new_function().run(
         artifact_path="./temp2",
         handler=functions.train,
-        params={
-            "algorithm_functionality": algorithm_functionality,
-        },
+        params={"algorithm_functionality": algorithm_functionality,},
     )
 
     evaluate_run = mlrun.new_function().run(

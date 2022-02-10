@@ -39,7 +39,13 @@ from .k8s_utils import K8sHelper
 from .model import RunTemplate
 from .platforms import auto_mount as auto_mount_modifier
 from .projects import load_project
-from .run import get_object, import_function, import_function_to_dict, new_function
+from .run import (
+    get_object,
+    import_function,
+    import_function_to_dict,
+    load_func_code,
+    new_function,
+)
 from .runtimes import RemoteRuntime, RunError, RuntimeKinds, ServingRuntime
 from .secrets import SecretsStore
 from .utils import (
@@ -1076,7 +1082,11 @@ def func_url_to_runtime(func_url):
             runtime = import_function_to_dict(func_url, {})
         else:
             mlrun_project = load_project(".")
-            runtime = mlrun_project.get_function(func_url, enrich=True).to_dict()
+            function = mlrun_project.get_function(func_url, enrich=True)
+            if function.kind == "local":
+                command, function = load_func_code(function)
+                function.spec.command = command
+            runtime = function.to_dict()
     except Exception as exc:
         logger.error(f"function {func_url} not found, {exc}")
         return None

@@ -49,8 +49,9 @@ def run_function(
     watch: bool = True,
     local: bool = False,
     verbose: bool = None,
+    selector: str = None,
     project_object=None,
-    auto_build=None,
+    auto_build: bool = None,
 ) -> Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -94,6 +95,7 @@ def run_function(
     :param name:            execution name
     :param params:          input parameters (dict)
     :param hyperparams:     hyper parameters
+    :param selector:        selection criteria for hyper params e.g. "max.accuracy"
     :param hyper_param_options:  hyper param options (selector, early stop, strategy, ..)
                             see: :py:class:`~mlrun.model.HyperParamOptions`
     :param inputs:          input objects (dict of key: path)
@@ -118,6 +120,7 @@ def run_function(
         hyper_param_options=hyper_param_options,
         inputs=inputs,
         base=base_task,
+        selector=selector,
     )
     task.spec.verbose = task.spec.verbose or verbose
 
@@ -131,6 +134,9 @@ def run_function(
         task.metadata.labels = task.metadata.labels or labels or {}
         if pipeline_context.workflow_id:
             task.metadata.labels["workflow"] = pipeline_context.workflow_id
+        if function.kind == "local":
+            command, function = mlrun.run.load_func_code(function)
+            function.spec.command = command
         run_result = function.run(
             runspec=task,
             workdir=workdir,

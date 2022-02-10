@@ -22,9 +22,9 @@ class FeatureFlags(pydantic.BaseModel):
 
 
 class ResourceSpec(pydantic.BaseModel):
-    cpu: str = None
-    memory: str = None
-    gpu: str = None
+    cpu: str = ""
+    memory: str = ""
+    gpu: str = ""
 
 
 class Resources(pydantic.BaseModel):

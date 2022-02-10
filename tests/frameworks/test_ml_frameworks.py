@@ -54,14 +54,11 @@ def test_evaluation(functions: MLFunctions, algorithm_functionality: str):
             "May be bug in lightgbm and xgboost for multiclass multi output classification."
         )
 
-    model_name = "train_to_eval"
-
     train_run = mlrun.new_function().run(
         artifact_path="./temp2",
         handler=functions.train,
         params={
             "algorithm_functionality": algorithm_functionality,
-            "model_name": model_name,
         },
     )
 
@@ -70,7 +67,7 @@ def test_evaluation(functions: MLFunctions, algorithm_functionality: str):
         handler=functions.evaluate,
         params={
             "algorithm_functionality": algorithm_functionality,
-            "model_path": train_run.outputs[model_name],
+            "model_path": train_run.outputs["model"],
         },
     )
 

@@ -317,7 +317,7 @@ class MLClientCtx(object):
     @property
     def tag(self):
         """run tag (uid or workflow id if exists)"""
-        return self._labels.get("workflow", self._uid)
+        return self._labels.get("workflow") or self._uid
 
     @property
     def iteration(self):

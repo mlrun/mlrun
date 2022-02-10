@@ -1866,7 +1866,8 @@ class MlrunProject(ModelObj):
         watch: bool = True,
         local: bool = False,
         verbose: bool = None,
-        auto_build=None,
+        selector: str = None,
+        auto_build: bool = None,
     ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -1886,6 +1887,7 @@ class MlrunProject(ModelObj):
         :param name:            execution name
         :param params:          input parameters (dict)
         :param hyperparams:     hyper parameters
+        :param selector:        selection criteria for hyper params e.g. "max.accuracy"
         :param hyper_param_options:  hyper param options (selector, early stop, strategy, ..)
                                 see: :py:class:`~mlrun.model.HyperParamOptions`
         :param inputs:          input objects (dict of key: path)
@@ -1916,6 +1918,7 @@ class MlrunProject(ModelObj):
             watch=watch,
             local=local,
             verbose=verbose,
+            selector=selector,
             project_object=self,
             auto_build=auto_build,
         )

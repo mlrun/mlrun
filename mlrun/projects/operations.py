@@ -129,7 +129,8 @@ def run_function(
         if pipeline_context.workflow:
             local = local or pipeline_context.workflow.run_local
         task.metadata.labels = task.metadata.labels or labels or {}
-        task.metadata.labels["workflow"] = pipeline_context.workflow_id
+        if pipeline_context.workflow_id:
+            task.metadata.labels["workflow"] = pipeline_context.workflow_id
         run_result = function.run(
             runspec=task,
             workdir=workdir,

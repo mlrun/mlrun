@@ -283,6 +283,14 @@ def test_enrich_image():
             "expected_output": "some/image",
             "images_to_enrich_registry": "",
         },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "unstable",
+            "images_tag": None,
+            "version": "0.10.5-server-version",
+            "expected_output": "mlrun/mlrun:0.10.5-server-version",
+            "images_to_enrich_registry": "",
+        },
     ]
     default_images_to_enrich_registry = config.images_to_enrich_registry
     for case in cases:

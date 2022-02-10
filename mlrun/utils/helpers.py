@@ -612,11 +612,14 @@ def _convert_python_package_version_to_image_tag(version: typing.Optional[str]):
 
 
 def enrich_image_url(image_url: str, client_version: str = None) -> str:
+    unstable_versions = ["unstable", "0.0.0+unstable"]
     client_version = _convert_python_package_version_to_image_tag(client_version)
     server_version = _convert_python_package_version_to_image_tag(
         mlrun.utils.version.Version().get()["version"]
     )
     image_url = image_url.strip()
+
+    client_version = client_version if client_version not in unstable_versions else None
     tag = config.images_tag or client_version or server_version
     registry = config.images_registry
 

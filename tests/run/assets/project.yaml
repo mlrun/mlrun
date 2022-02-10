@@ -1,0 +1,9 @@
+kind: project
+metadata:
+  name: testproject
+spec:
+  functions:
+  - url: simple.py
+    name: simple
+    kind: local
+    handler: handler

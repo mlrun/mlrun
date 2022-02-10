@@ -1701,6 +1701,7 @@ class MlrunProject(ModelObj):
         :returns: run id
         """
 
+        arguments = arguments or {}
         need_repo = self.spec._need_repo()
         if self.spec.repo and self.spec.repo.is_dirty():
             msg = "you seem to have uncommitted git changes, use .push()"

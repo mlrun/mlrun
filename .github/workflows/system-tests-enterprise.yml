@@ -175,4 +175,5 @@ jobs:
     - name: Run System Tests
       run: |
         MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}" \
+        MLRUN_VERSION="${{ steps.computed_params.outputs.mlrun_docker_tag }}" \
           make test-system-dockerized

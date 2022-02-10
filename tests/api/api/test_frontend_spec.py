@@ -18,7 +18,12 @@ def test_get_frontend_spec(
     mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url = (
         unittest.mock.Mock()
     )
+    default_function_pod_resources = {
+        "requests": {"cpu": "25m", "memory": "1Mi", "gpu": ""},
+        "limits": {"cpu": "2", "memory": "20Gi", "gpu": ""},
+    }
     mlrun.mlconf.httpdb.builder.docker_registry = "quay.io/some-repo"
+    mlrun.mlconf.default_function_pod_resources = default_function_pod_resources
     response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
@@ -49,9 +54,8 @@ def test_get_frontend_spec(
         bla = f"{{{expected_template_field}}}"
         assert bla in frontend_spec.function_deployment_target_image_template
 
-    assert frontend_spec.default_function_pod_resources is not None
-    assert isinstance(
-        frontend_spec.default_function_pod_resources, mlrun.api.schemas.Resources
+    assert frontend_spec.default_function_pod_resources, mlrun.api.schemas.Resources(
+        **default_function_pod_resources
     )
 
 

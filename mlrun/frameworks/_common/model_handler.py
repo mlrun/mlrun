@@ -137,6 +137,9 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
             "extra_data", {}
         )  # type: Dict[str, ExtraDataType]
 
+        # If the model key is passed, override the default:
+        self._model_key = kwargs.get("model_key", "model")
+
         # Setup additional properties for logging the model into a ModelArtifact:
         self._tag = ""
         self._inputs = None  # type: List[Feature]
@@ -546,7 +549,7 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
 
         # Log the model:
         self._model_artifact = self._context.log_model(
-            self._model_name,
+            key=self._model_key,
             db_key=self._model_name,
             model_file=self._model_file,
             tag=self._tag,

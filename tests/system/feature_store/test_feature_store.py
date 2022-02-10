@@ -2007,43 +2007,6 @@ class TestFeatureStore(TestMLRunSystem):
 
         fs.get_offline_features(vector)
 
-    def test_deploy_ingestion_service_without_preview(self):
-        name = "deploy-without-preview"
-        stream_path = f"/{self.project_name}/FeatureStore/{name}/v3ioStream"
-
-        v3io_source = StreamSource(
-            path=f"v3io:///projects{stream_path}", key_field="ticker", time_field="time"
-        )
-        fset = fs.FeatureSet(name, timestamp_key="time", entities=[Entity("ticker")])
-
-        fset.add_aggregation(
-            name="bid",
-            column="bid",
-            operations=["avg", "sum", "count", "max"],
-            windows=["2h", "12h", "24h"],
-            period="1h",
-        )
-
-        import v3io.dataplane
-
-        v3io_client = v3io.dataplane.Client()
-
-        try:
-            v3io_client.stream.delete(
-                container="projects",
-                stream_path=stream_path,
-                raise_for_status=v3io.dataplane.RaiseForStatus.never,
-            )
-        finally:
-            v3io_client.stream.create(
-                container="projects", stream_path=stream_path, shard_count=1
-            )
-
-        with pytest.raises(mlrun.errors.MLRunNotFoundError):
-            fs.deploy_ingestion_service(
-                featureset=fset, source=v3io_source,
-            )
-
     def test_online_impute(self):
         data = pd.DataFrame(
             {

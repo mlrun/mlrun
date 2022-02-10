@@ -406,4 +406,8 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=Fal
                 kwargs[key] = obj.local()
             else:
                 kwargs[key] = context.get_input(key, inputs[key])
+        elif args[key].default is not inspect.Parameter.empty:
+            kwargs[key] = args[key].default
+        else:
+            kwargs[key] = None
     return kwargs

@@ -870,7 +870,7 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
                 ) = mlrun.artifacts.get_model(self._model_path)
             # Check if the model name was not provided:
             if self._model_name is None:
-                self._model_name = self._model_artifact.key
+                self._model_name = self._model_artifact.db_key
             # Continue to collect the files from the store object each framework requires:
             self._collect_files_from_store_object()
         else:

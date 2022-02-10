@@ -1933,7 +1933,11 @@ class TestFeatureStore(TestMLRunSystem):
 
         stream_path = f"/{self.project_name}/FeatureStore/{name}/v3ioStream"
         try:
-            v3io_client.stream.delete(container="projects", stream_path=stream_path)
+            v3io_client.stream.delete(
+                container="projects",
+                stream_path=stream_path,
+                raise_for_status=v3io.dataplane.RaiseForStatus.never,
+            )
         finally:
             v3io_client.stream.create(
                 container="projects", stream_path=stream_path, shard_count=1

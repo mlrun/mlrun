@@ -156,6 +156,7 @@ jobs:
             --set global.registry.url=$(minikube ip):5000 \
             --set global.registry.secretName="" \
             --set global.externalHostAddress=$(minikube ip) \
+            --set nuclio.dashboard.externalIPAddresses[0]=$(minikube ip) \
             --set mlrun.api.image.repository=${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api \
             --set mlrun.api.image.tag=${{ steps.computed_params.outputs.mlrun_docker_tag }} \
             --set mlrun.ui.image.repository=ghcr.io/mlrun/mlrun-ui \

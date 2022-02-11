@@ -22,7 +22,7 @@ class Spark2JobSpec(AbstractSparkJobSpec):
 
 class Spark2Runtime(AbstractSparkRuntime):
     def _enrich_job(self, job):
-        update_in(job, "spec.serviceAccount", "sparkapp")
+        update_in(job, "spec.serviceAccount", self.spec.service_account or "sparkapp")
         if "requests" in self.spec.driver_resources:
             if "cpu" in self.spec.driver_resources["requests"]:
                 verify_and_update_in(

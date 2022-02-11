@@ -298,6 +298,7 @@ class BigQuerySource(BaseSourceDriver):
         self,
         name: str = "",
         table: str = None,
+        max_results_for_table: int = None,
         query: str = None,
         materialization_dataset: str = None,
         chunksize: int = None,
@@ -311,9 +312,14 @@ class BigQuerySource(BaseSourceDriver):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot specify both table and query args"
             )
+        if not query and not table:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "must specify at least one of table or query args"
+            )
         attrs = {
             "query": query,
             "table": table,
+            "max_results": max_results_for_table,
             "chunksize": chunksize,
             "gcp_project": gcp_project,
             "spark_options": spark_options,
@@ -352,17 +358,40 @@ class BigQuerySource(BaseSourceDriver):
     def to_dataframe(self):
         from google.cloud import bigquery
 
+        def schema_to_dtypes(schema):
+            from mlrun.data_types.data_types import gbq_to_pandas_dtype
+
+            dtypes = {}
+            for field in schema:
+                dtypes[field.name] = gbq_to_pandas_dtype(field.field_type)
+            return dtypes
+
         credentials, gcp_project = self._get_credentials()
         bqclient = bigquery.Client(project=gcp_project, credentials=credentials)
-        query_job = bqclient.query(self.attributes.get("query"))
 
+        query = self.attributes.get("query")
         chunksize = self.attributes.get("chunksize")
-        if chunksize:
-            self._rows_iterator = query_job.result(page_size=chunksize)
-            return self._rows_iterator.to_dataframe_iterable()
+        if query:
+            query_job = bqclient.query(query)
 
-        self._rows_iterator = query_job.result(page_size=chunksize)
-        return self._rows_iterator.to_dataframe()
+            self._rows_iterator = query_job.result(page_size=chunksize)
+            dtypes = schema_to_dtypes(self._rows_iterator.schema)
+            if chunksize:
+                return self._rows_iterator.to_dataframe_iterable(dtypes=dtypes)
+            else:
+                return self._rows_iterator.to_dataframe(dtypes=dtypes)
+        else:
+            table = self.attributes.get("table")
+            max_results = self.attributes.get("max_results")
+
+            rows = bqclient.list_rows(
+                table, page_size=chunksize, max_results=max_results
+            )
+            dtypes = schema_to_dtypes(rows.schema)
+            if chunksize:
+                return rows.to_dataframe_iterable(dtypes=dtypes)
+            else:
+                return rows.to_dataframe(dtypes=dtypes)
 
     def is_iterator(self):
         return True if self.attributes.get("chunksize") else False

@@ -2,6 +2,7 @@ from abc import ABC
 from typing import Dict, List, Type, Union
 
 import sklearn
+from sklearn.preprocessing import LabelBinarizer
 
 import mlrun.errors
 
@@ -83,8 +84,11 @@ class MetricsLibrary(ABC):
 
         # Add classification metrics:
         if algorithm_functionality.is_classification():
-            metrics += [Metric(metric=sklearn.metrics.accuracy_score)]
-            if algorithm_functionality.is_binary_classification():
+            metrics += [Metric(name="accuracy", metric=sklearn.metrics.accuracy_score)]
+            if (
+                algorithm_functionality.is_binary_classification()
+                and algorithm_functionality.is_single_output()
+            ):
                 metrics += [
                     Metric(metric=sklearn.metrics.f1_score),
                     Metric(metric=sklearn.metrics.precision_score),
@@ -92,21 +96,6 @@ class MetricsLibrary(ABC):
                 ]
             if algorithm_functionality.is_multiclass_classification():
                 metrics += [
-                    Metric(
-                        name="auc_macro",
-                        metric=sklearn.metrics.roc_auc_score,
-                        additional_arguments={"multi_class": "ovo", "average": "macro"},
-                        need_probabilities=True,
-                    ),
-                    Metric(
-                        name="auc_weighted",
-                        metric=sklearn.metrics.roc_auc_score,
-                        additional_arguments={
-                            "multi_class": "ovo",
-                            "average": "weighted",
-                        },
-                        need_probabilities=True,
-                    ),
                     Metric(
                         metric=sklearn.metrics.f1_score,
                         additional_arguments={"average": "macro"},
@@ -120,18 +109,54 @@ class MetricsLibrary(ABC):
                         additional_arguments={"average": "macro"},
                     ),
                 ]
+                if algorithm_functionality.is_single_output():
+                    metrics += [
+                        Metric(
+                            name="auc-micro",
+                            metric=lambda y_true, y_pred: sklearn.metrics.roc_auc_score(
+                                LabelBinarizer().fit_transform(y_true),
+                                y_pred,
+                                multi_class="ovo",
+                                average="micro",
+                            ),
+                            need_probabilities=True,
+                        ),
+                        Metric(
+                            name="auc-macro",
+                            metric=sklearn.metrics.roc_auc_score,
+                            additional_arguments={
+                                "multi_class": "ovo",
+                                "average": "macro",
+                            },
+                            need_probabilities=True,
+                        ),
+                        Metric(
+                            name="auc-weighted",
+                            metric=sklearn.metrics.roc_auc_score,
+                            additional_arguments={
+                                "multi_class": "ovo",
+                                "average": "weighted",
+                            },
+                            need_probabilities=True,
+                        ),
+                    ]
 
         # Add regression metrics:
         if algorithm_functionality.is_regression():
             metrics += [
-                Metric(metric=sklearn.metrics.r2_score),
                 Metric(metric=sklearn.metrics.mean_absolute_error),
+                Metric(metric=sklearn.metrics.r2_score),
                 Metric(
+                    name="root_mean_squared_error",
                     metric=sklearn.metrics.mean_squared_error,
                     additional_arguments={"squared": False},
                 ),
-                Metric(metric=sklearn.metrics.mean_absolute_error),
+                Metric(metric=sklearn.metrics.mean_squared_error),
             ]
+
+        # Filter out the metrics by probabilities requirement:
+        if not hasattr(model, "predict_proba"):
+            metrics = [metric for metric in metrics if not metric.need_probabilities]
 
         return metrics
 
@@ -169,7 +194,7 @@ class MetricsLibrary(ABC):
 
 
 # A constant name for the context parameter to use for passing a plans configuration:
-METRICS_CONTEXT_PARAMETER = "metrics"
+METRICS_CONTEXT_PARAMETER = "_metrics"
 
 
 def get_metrics(

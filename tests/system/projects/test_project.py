@@ -332,3 +332,18 @@ class TestProject(TestMLRunSystem):
         assert run_result.output("score")
 
         self._delete_test_project(name)
+
+    def test_set_secrets(self):
+        name = "set-secrets"
+        project = mlrun.new_project(name, context=str(self.assets_path))
+        project.save()
+        env_file = str(self.assets_path / "envfile")
+        db = mlrun.get_run_db()
+        db.delete_project_secrets(name, provider="kubernetes")
+        project.set_secrets(file_path=env_file)
+        secrets = db.list_project_secret_keys(name, provider="kubernetes")
+        assert secrets.secret_keys == ["ENV_ARG1", "ENV_ARG2"]
+
+        # Cleanup
+        self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")
+        self._delete_test_project(name)

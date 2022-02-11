@@ -126,7 +126,7 @@ class ArtifactsLibrary(ABC):
 
 
 # A constant name for the context parameter to use for passing a plans configuration:
-ARTIFACTS_CONTEXT_PARAMETER = "artifacts"
+ARTIFACTS_CONTEXT_PARAMETER = "_artifacts"
 
 
 def get_plans(

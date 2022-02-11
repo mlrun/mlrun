@@ -70,7 +70,7 @@ class Feature(ModelObj):
         :param labels:      a set of key/value labels (tags)
         """
         self.name = name or ""
-        self.value_type = value_type or ""
+        self.value_type = value_type
         self.dims = dims
         self.description = description
         self.default = default
@@ -116,6 +116,24 @@ class MinMaxValidator(Validator):
     _dict_fields = Validator._dict_fields + ["min", "max"]
 
     def __init__(self, check_type=None, severity=None, min=None, max=None):
+        """Validate min/max length value ranges
+
+        example::
+
+            from mlrun.features import MinMaxValidator
+
+            # Add validator to the feature 'bid', where valid
+            # minimal value is 52
+            quotes_set["bid"].validator = MinMaxValidator(
+                min=52,
+                severity="info"
+            )
+
+        :param check_type:  ..
+        :param severity:    severity name e.g. info, warning, etc.
+        :param min:         minimal valid size
+        :param max:         maximal valid size
+        """
         super().__init__(check_type, severity)
         self.min = min
         self.max = max
@@ -128,7 +146,7 @@ class MinMaxValidator(Validator):
                     return (
                         False,
                         {
-                            "message": "value is smaller than min",
+                            "message": "Value is smaller than min",
                             "min": self.min,
                             "value": value,
                         },
@@ -138,7 +156,7 @@ class MinMaxValidator(Validator):
                     return (
                         False,
                         {
-                            "message": "value is greater than max",
+                            "message": "Value is greater than max",
                             "max": self.max,
                             "value": value,
                         },

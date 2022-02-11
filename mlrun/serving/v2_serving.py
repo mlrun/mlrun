@@ -327,7 +327,7 @@ class V2ModelServer(StepToDict):
     def logged_results(self, request: dict, response: dict, op: str):
         """hook for controlling which results are tracked by the model monitoring
 
-        this hook allow controlling which input/output data is logged by the model monitoring
+        this hook allows controlling which input/output data is logged by the model monitoring
         allow filtering out columns or adding custom values, can also be used to monitor derived metrics
         for example in image classification calculate and track the RGB values vs the image bitmap
 

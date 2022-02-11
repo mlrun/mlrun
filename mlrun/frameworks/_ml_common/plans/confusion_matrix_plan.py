@@ -1,6 +1,7 @@
-from typing import Dict, List
+from typing import Dict
 
 import numpy as np
+import pandas as pd
 from plotly.figure_factory import create_annotated_heatmap
 from sklearn.metrics import confusion_matrix
 
@@ -16,11 +17,11 @@ class ConfusionMatrixPlan(MLPlotPlan):
     Plan for producing a confusion matrix.
     """
 
-    _ARTIFACT_NAME = "confusion_matrix"
+    _ARTIFACT_NAME = "confusion-matrix"
 
     def __init__(
         self,
-        labels: List[str] = None,
+        labels: np.ndarray = None,
         sample_weight: np.ndarray = None,
         normalize: str = None,
     ):
@@ -30,7 +31,8 @@ class ConfusionMatrixPlan(MLPlotPlan):
         To read more about the parameters, head to the SciKit-Learn docs at:
         https://scikit-learn.org/stable/modules/generated/sklearn.metrics.confusion_matrix.html
 
-        :param labels:        List of labels to index the matrix.
+        :param labels:        Array of labels to index the matrix. This may be used to reorder or select a subset of the
+                              labels.
         :param sample_weight: Sample weights to apply.
         :param normalize:     One of {'true', 'pred', 'all'} to normalize the confusion matrix over the true values
                               (rows), the predicted values (columns) or all. If None, confusion matrix will not be
@@ -83,6 +85,11 @@ class ConfusionMatrixPlan(MLPlotPlan):
         y = to_dataframe(dataset=y)
         y_pred = to_dataframe(dataset=y_pred)
 
+        # Set the labels array it not set:
+        if self._labels is None:
+            labels = pd.concat((y[y.columns[0]], y_pred[y_pred.columns[0]]))
+            self._labels = np.sort(labels.unique()).tolist()
+
         # Calculate the confusion matrix:
         cm = confusion_matrix(
             y,
@@ -93,9 +100,12 @@ class ConfusionMatrixPlan(MLPlotPlan):
         )
 
         # Initialize a plotly figure according to the targets (classes):
-        targets = np.sort(y[y.columns[0]].unique()).tolist()
         figure = create_annotated_heatmap(
-            cm, x=targets, y=targets, annotation_text=cm.astype(str), colorscale="Blues"
+            cm,
+            x=self._labels,
+            y=self._labels,
+            annotation_text=cm.astype(str),
+            colorscale="Blues",
         )
 
         # Add title:
@@ -139,7 +149,7 @@ class ConfusionMatrixPlan(MLPlotPlan):
 
         # Create the plot's artifact:
         self._artifacts[self._ARTIFACT_NAME] = PlotlyArtifact(
-            figure=figure, key=self._ARTIFACT_NAME
+            key=self._ARTIFACT_NAME, figure=figure,
         )
 
         return self._artifacts

@@ -169,7 +169,7 @@ class FeatureVector(ModelObj):
         example::
 
             import mlrun.feature_store as fstore
-            features = ["quotes.bid", "quotes.asks_sum_5h", "stocks.*"]
+            features = ["quotes.bid", "quotes.asks_sum_5h as asks_5h", "stocks.*"]
             vector = fstore.FeatureVector("my-vec", features)
 
             # get the vector as a dataframe

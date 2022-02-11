@@ -16,7 +16,7 @@ class CalibrationCurvePlan(MLPlotPlan):
     method assumes the inputs come from a binary classifier, and discretize the [0, 1] interval into bins.
     """
 
-    _ARTIFACT_NAME = "calibration_curve"
+    _ARTIFACT_NAME = "calibration-curve"
 
     def __init__(
         self, normalize: bool = False, n_bins: int = 5, strategy: str = "uniform",
@@ -76,7 +76,7 @@ class CalibrationCurvePlan(MLPlotPlan):
         # Calculate the calibration curve:
         prob_true, prob_pred = calibration_curve(
             y,
-            y_pred,
+            y_pred[:, -1],  # Take only the second class probabilities (1, not 0).
             n_bins=self._n_bins,
             normalize=self._normalize,
             strategy=self._strategy,
@@ -120,7 +120,7 @@ class CalibrationCurvePlan(MLPlotPlan):
 
         # Creating the artifact:
         self._artifacts[self._ARTIFACT_NAME] = PlotlyArtifact(
-            figure=fig, key=self._ARTIFACT_NAME
+            key=self._ARTIFACT_NAME, figure=fig,
         )
 
         return self._artifacts

@@ -33,6 +33,7 @@ from distutils.util import strtobool
 from os.path import expanduser
 from threading import Lock
 
+import dotenv
 import semver
 import yaml
 
@@ -127,13 +128,13 @@ default_config = {
     "httpdb": {
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
-        "dsn": "sqlite:////mlrun/db/mlrun.db?check_same_thread=false",
+        "dsn": "sqlite:///db/mlrun.db?check_same_thread=false",
         "old_dsn": "",
         "debug": False,
         "user": "",
         "password": "",
         "token": "",
-        "logs_path": "/mlrun/db/logs",
+        "logs_path": "./db/logs",
         "data_volume": "",
         "real_path": "",
         "db_type": "sqldb",
@@ -538,7 +539,7 @@ class Config:
             import mlrun.db
 
             # when dbpath is set we want to connect to it which will sync configuration from it to the client
-            mlrun.db.get_run_db(value)
+            mlrun.db.get_run_db(value, force_reconnect=True)
 
     @property
     def iguazio_api_url(self):
@@ -589,6 +590,9 @@ def _populate():
 
 def _do_populate(env=None):
     global config
+
+    if "MLRUN_ENV_FILE" in os.environ:
+        dotenv.load_dotenv(os.environ["MLRUN_ENV_FILE"], override=True)
 
     if not config:
         config = Config.from_dict(default_config)
@@ -650,17 +654,27 @@ def read_env(env=None, prefix=env_prefix):
             cfg = cfg.setdefault(name, {})
         cfg[path[0]] = value
 
+    env_dbpath = env.get("MLRUN_DBPATH", "")
+    is_remote_mlrun = (
+        env_dbpath.startswith("https://mlrun-api.") and "tenant." in env_dbpath
+    )
     # It's already a standard to set this env var to configure the v3io api, so we're supporting it (instead
-    # of MLRUN_V3IO_API)
+    # of MLRUN_V3IO_API), in remote usage this can be auto detected from the DBPATH
     v3io_api = env.get("V3IO_API")
     if v3io_api:
         config["v3io_api"] = v3io_api
+    elif is_remote_mlrun:
+        config["v3io_api"] = env_dbpath.replace("https://mlrun-api.", "https://webapi.")
 
     # It's already a standard to set this env var to configure the v3io framesd, so we're supporting it (instead
-    # of MLRUN_V3IO_FRAMESD)
+    # of MLRUN_V3IO_FRAMESD), in remote usage this can be auto detected from the DBPATH
     v3io_framesd = env.get("V3IO_FRAMESD")
     if v3io_framesd:
         config["v3io_framesd"] = v3io_framesd
+    elif is_remote_mlrun:
+        config["v3io_framesd"] = env_dbpath.replace(
+            "https://mlrun-api.", "https://framesd."
+        )
 
     uisvc = env.get("MLRUN_UI_SERVICE_HOST")
     igz_domain = env.get("IGZ_NAMESPACE_DOMAIN")

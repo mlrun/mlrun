@@ -39,6 +39,7 @@ from .common import (
     RunConfig,
     get_feature_set_by_uri,
     get_feature_vector_by_uri,
+    verify_feature_set_exists,
     verify_feature_set_permissions,
     verify_feature_vector_permissions,
 )
@@ -611,6 +612,8 @@ def deploy_ingestion_service(
     verify_feature_set_permissions(
         featureset, mlrun.api.schemas.AuthorizationAction.update
     )
+
+    verify_feature_set_exists(featureset)
 
     run_config = run_config.copy() if run_config else RunConfig()
     if isinstance(source, StreamSource) and not source.path:

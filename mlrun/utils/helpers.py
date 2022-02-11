@@ -19,6 +19,7 @@ import json
 import re
 import sys
 import time
+import typing
 from datetime import datetime, timezone
 from importlib import import_module
 from os import environ, path
@@ -604,11 +605,19 @@ def new_pipe_meta(artifact_path=None, ttl=None, *args):
     return conf
 
 
-def enrich_image_url(image_url: str) -> str:
+def _convert_python_package_version_to_image_tag(version: typing.Optional[str]):
+    return (
+        version.replace("+", "-").replace("0.0.0-", "") if version is not None else None
+    )
+
+
+def enrich_image_url(image_url: str, client_version: str = None) -> str:
+    client_version = _convert_python_package_version_to_image_tag(client_version)
+    server_version = _convert_python_package_version_to_image_tag(
+        mlrun.utils.version.Version().get()["version"]
+    )
     image_url = image_url.strip()
-    tag = config.images_tag or mlrun.utils.version.Version().get()["version"].replace(
-        "+", "-"
-    ).replace("0.0.0-", "")
+    tag = config.images_tag or client_version or server_version
     registry = config.images_registry
 
     # it's an mlrun image if the repository is mlrun
@@ -1173,7 +1182,9 @@ def get_function(function, namespace):
     try:
         function_object = create_function(function)
     except (ImportError, ValueError) as exc:
-        raise ImportError(f"state init failed, function {function} not found, {exc}")
+        raise ImportError(
+            f"state/function init failed, handler {function} not found, {exc}"
+        )
     return function_object
 
 

@@ -25,11 +25,11 @@ import mlrun
 from tests.conftest import examples_path, out_path, tests_root_directory
 
 
-def exec_main(op, args):
+def exec_main(op, args, cwd=examples_path):
     cmd = [executable, "-m", "mlrun", op]
     if args:
         cmd += args
-    out = run(cmd, stdout=PIPE, stderr=PIPE, cwd=examples_path)
+    out = run(cmd, stdout=PIPE, stderr=PIPE, cwd=cwd)
     if out.returncode != 0:
         print(out.stderr.decode("utf-8"), file=stderr)
         print(out.stdout.decode("utf-8"), file=stderr)
@@ -189,6 +189,14 @@ def test_main_run_archive_subdir():
     assert out.find("state: completed") != -1, out
 
 
+def test_main_local_project():
+    project_path = str(pathlib.Path(__file__).parent / "assets")
+    args = "-f simple -p x=2 --dump"
+    out = exec_main("run", args.split(), cwd=project_path)
+    assert out.find("state: completed") != -1, out
+    assert out.find("y: 4") != -1, out  # y = x * 2
+
+
 def test_main_local_flag():
     fn = mlrun.code_to_function(
         filename=f"{examples_path}/handler.py", kind="job", handler="my_func"
@@ -218,3 +226,18 @@ def test_run_from_module():
     out = exec_main("run", args)
     assert out.find("state: completed") != -1, out
     assert out.find("return: '[6, 7]'") != -1, out
+
+
+def test_main_env_file():
+    # test run with env vars loaded from a .env file
+    function_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    envfile = str(pathlib.Path(__file__).parent / "assets" / "envfile")
+
+    out = exec_run(
+        function_path,
+        ["--handler", "env_file_test", "--env-file", envfile],
+        "test_main_env_file",
+    )
+    assert out.find("state: completed") != -1, out
+    assert out.find("ENV_ARG1: '123'") != -1, out
+    assert out.find("kfp_ttl: 12345") != -1, out

@@ -1115,16 +1115,22 @@ def _fullname(project, name):
 def get_fullname(name, project, tag):
     if project:
         name = f"{project}-{name}"
-    if tag:
+    if tag and tag != "latest":
         name = f"{name}-{tag}"
     return name
 
 
 def deploy_nuclio_function(
-    function: RemoteRuntime, dashboard="", watch=False, auth_info: AuthInfo = None
+    function: RemoteRuntime,
+    dashboard="",
+    watch=False,
+    auth_info: AuthInfo = None,
+    client_version: str = None,
 ):
     dashboard = dashboard or mlconf.nuclio_dashboard_url
-    function_name, project_name, function_config = compile_function_config(function)
+    function_name, project_name, function_config = compile_function_config(
+        function, client_version
+    )
 
     # if mode allows it, enrich function http trigger with an ingress
     enrich_function_with_ingress(
@@ -1167,7 +1173,7 @@ def resolve_function_http_trigger(function_spec):
         return trigger_config
 
 
-def compile_function_config(function: RemoteRuntime):
+def compile_function_config(function: RemoteRuntime, client_version: str = None):
     labels = function.metadata.labels or {}
     labels.update({"mlrun/class": function.kind})
     for key, value in labels.items():
@@ -1245,7 +1251,11 @@ def compile_function_config(function: RemoteRuntime):
             or function.spec.build.base_image
         )
         if base_image:
-            update_in(config, "spec.build.baseImage", enrich_image_url(base_image))
+            update_in(
+                config,
+                "spec.build.baseImage",
+                enrich_image_url(base_image, client_version),
+            )
 
         logger.info("deploy started")
         name = get_fullname(function.metadata.name, project, tag)
@@ -1268,7 +1278,9 @@ def compile_function_config(function: RemoteRuntime):
         base_image = function.spec.image or function.spec.build.base_image
         if base_image:
             update_in(
-                config, "spec.build.baseImage", enrich_image_url(base_image),
+                config,
+                "spec.build.baseImage",
+                enrich_image_url(base_image, client_version),
             )
 
         name = get_fullname(name, project, tag)

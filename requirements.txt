@@ -55,7 +55,8 @@ fsspec~=2021.8.1
 v3iofs~=0.1.7
 # 3.4 and above failed builidng in some images - see https://github.com/pyca/cryptography/issues/5771
 cryptography~=3.0, <3.4
-storey~=0.10.4
+storey~=0.10.5
 deepdiff~=5.0
 pymysql~=1.0
 inflection~=0.5.0
+python-dotenv~=0.17.0

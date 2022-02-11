@@ -12,7 +12,8 @@ from tensorflow.python.ops import summary_ops_v2
 
 import mlrun
 
-from ..._dl_common.loggers import TensorboardLogger, TrackableType
+from ..._common import TrackableType
+from ..._dl_common.loggers import TensorboardLogger
 from .logging_callback import LoggingCallback
 
 

@@ -14,7 +14,6 @@
 
 import getpass
 import os
-import shlex
 import traceback
 import typing
 import uuid
@@ -643,17 +642,14 @@ class BaseRuntime(ModelObj):
                 args += ["--source", self.spec.build.source]
 
             if command:
-                args += [shlex.quote(command)]
+                args += [command]
             command = "mlrun"
             if self.spec.args:
                 args = args + self.spec.args
         else:
             command = command.format(**runobj.spec.parameters)
             if self.spec.args:
-                args = [
-                    shlex.quote(arg.format(**runobj.spec.parameters))
-                    for arg in self.spec.args
-                ]
+                args = [arg.format(**runobj.spec.parameters) for arg in self.spec.args]
 
         extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
         return command, args, extra_env

@@ -82,7 +82,7 @@ def test_main_run_args():
     db = mlrun.get_run_db()
     state, log = db.get_log("123457")
     print(log)
-    assert str(log).find(", '-x', 'aaa']") != -1, "params not detected in argv"
+    assert str(log).find(", -x, aaa") != -1, "params not detected in argv"
 
 
 code = """

@@ -134,7 +134,7 @@ jobs:
       if: ${{ steps.git_info.outputs.branch != '0.5.x' }}
       run: |
         export google_big_query_credentials_json_path="/home/runner/work/mlrun/mlrun/tests/system/google-big-query-credentials.json"
-        cat  ${{ secrets.V06_MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON }} > "$google_big_query_credentials_json_path"
+        echo  ${{ secrets.V06_MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON }} > "$google_big_query_credentials_json_path"
     - name: Prepare System Test env.yaml and 0.6.x system
       if: ${{ steps.git_info.outputs.branch != '0.5.x' }}
       run: |

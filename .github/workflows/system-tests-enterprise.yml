@@ -42,6 +42,8 @@ jobs:
     timeout-minutes: 120
     name: Run System Tests Enterprise
     runs-on: ubuntu-latest
+    env:
+      V06_MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON_PATH: /home/runner/work/mlrun/mlrun/tests/system/google-big-query-credentials.json
 
     # let's not run this on every fork, change to your fork when developing
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
@@ -127,6 +129,12 @@ jobs:
         poll-interval-seconds: 20s
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Write google big query credentials to file
+      id: credentials
+      if: ${{ steps.git_info.outputs.branch != '0.5.x' }}
+      run: |
+        export google_big_query_credentials_json_path="/home/runner/work/mlrun/mlrun/tests/system/google-big-query-credentials.json"
+        cat  ${{ secrets.V06_MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON }} > "$google_big_query_credentials_json_path"
     - name: Prepare System Test env.yaml and 0.6.x system
       if: ${{ steps.git_info.outputs.branch != '0.5.x' }}
       run: |
@@ -143,7 +151,7 @@ jobs:
           "${{ secrets.V06_SYSTEM_TEST_ACCESS_KEY }}" \
           "${{ steps.computed_params.outputs.iguazio_version }}" \
           "${{ secrets.V06_SYSTEM_TEST_SPARK_SERVICE }}" \
-          '${{ secrets.V06_MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON }}' \
+          "${{ steps.credentials.outputs.google_big_query_credentials_json_path }}" \
           "${{ secrets.V06_SYSTEM_TEST_PASSWORD }}" \
           --mlrun-commit "${{ steps.computed_params.outputs.mlrun_hash }}" \
           --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \

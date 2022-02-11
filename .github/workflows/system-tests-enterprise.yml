@@ -42,8 +42,6 @@ jobs:
     timeout-minutes: 120
     name: Run System Tests Enterprise
     runs-on: ubuntu-latest
-    env:
-      V06_MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON_PATH: /home/runner/work/mlrun/mlrun/tests/system/google-big-query-credentials.json
 
     # let's not run this on every fork, change to your fork when developing
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'

@@ -83,8 +83,6 @@ def test_requirement_specifiers_convention():
         "aiobotocore": {"~=1.4.0"},
         "storey": {"~=0.8.11, <0.8.12"},
         "bokeh": {"~=2.4, >=2.4.2"},
-        # Black is not stable yet and does not have a release that is not beta, so can't be used with ~=
-        "black": {"<=19.10b0"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},
         "python-dotenv": {""},

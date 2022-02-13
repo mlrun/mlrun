@@ -23,13 +23,13 @@ class MLMLRunInterface(MLRunInterface, ABC):
     _PROPERTIES = {
         # A model handler instance with the model for logging / updating the model (if not provided the model won't be
         # logged / updated at the end of training / testing):
-        "_model_handler": None,
+        "_model_handler": None,  # > type: MLModelHandler
         # The logger that is logging this model's training / evaluation:
-        "_logger": None,
+        "_logger": None,  # > type: Logger
         # The test set (For validation post training or evaluation post prediction):
-        "_x_test": None,
-        "_y_test": None,
-    }  # type: MLModelHandler, Logger, DatasetType, DatasetType
+        "_x_test": None,  # > type: DatasetType
+        "_y_test": None,  # > type: DatasetType
+    }
     _METHODS = [
         "set_model_handler",
         "configure_logger",

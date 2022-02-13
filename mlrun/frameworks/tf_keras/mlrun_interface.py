@@ -33,11 +33,11 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
     # Attributes to be inserted so the MLRun interface will be fully enabled.
     _PROPERTIES = {
         # Logging callbacks list:
-        "_logging_callbacks": set(),
+        "_logging_callbacks": set(),  # > type: Set[Callback]
         # Variable to hold the horovod module:
-        "_hvd": None,
+        "_hvd": None,  # > type: ModuleType
         # List of all the callbacks that should only be applied on rank 0 when using horovod:
-        "_RANK_0_ONLY_CALLBACKS": {
+        "_RANK_0_ONLY_CALLBACKS": {  # > type: Set[str]
             "LoggingCallback",
             "MLRunLoggingCallback",
             "TensorboardLoggingCallback",
@@ -47,7 +47,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
             CSVLogger.__name__,
             BaseLogger.__name__,
         },
-    }  # type:  Set[Callback], ModuleType, Set[str]
+    }
     _METHODS = [
         "add_logging_callback",
         "use_horovod",

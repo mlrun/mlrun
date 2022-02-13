@@ -135,7 +135,7 @@ jobs:
         echo  ${{ secrets.V06_MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON }} > "$google_big_query_credentials_json_path"
     - name: Prepare System Test env.yaml and 0.6.x system
       if: ${{ steps.git_info.outputs.branch != '0.5.x' }}
-      timeout-minutes: 12
+      timeout-minutes: 20
       run: |
         python automation/system_test/prepare.py run \
           "${{ steps.computed_params.outputs.mlrun_version }}" \
@@ -177,11 +177,6 @@ jobs:
           --override-image-repo ${{ steps.computed_params.outputs.mlrun_docker_repo }} \
           --override-mlrun-images \
           "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }}"
-
-      # Enable tmate debugging of manually-triggered workflows if the input option was provided
-    - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3
-      if: ${{ github.event_name == 'workflow_dispatch' && failure() }}
 
     - name: Run System Tests
       run: |

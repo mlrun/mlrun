@@ -1012,9 +1012,12 @@ class TestFeatureStore(TestMLRunSystem):
 
         features = ["pandass.*"]
         vector = fs.FeatureVector("my-vec", features)
-        with fs.get_online_feature_service(vector) as svc:
+        svc = fs.get_online_feature_service(vector)
+        try:
             resp = svc.get([{"name": "ab"}])
             assert resp[0] == {"data": 10}
+        finally:
+            svc.close()
 
     @pytest.mark.parametrize("partitioned", [True, False])
     def test_schedule_on_filtered_by_time(self, partitioned):
@@ -1079,7 +1082,8 @@ class TestFeatureStore(TestMLRunSystem):
         features = [f"{name}.*"]
         vec = fs.FeatureVector("sched_test-vec", features)
 
-        with fs.get_online_feature_service(vec) as svc:
+        svc = fs.get_online_feature_service(vec)
+        try:
             resp = svc.get([{"first_name": "yosi"}, {"first_name": "moshe"}])
             assert resp[0]["data"] == 10
             assert resp[1]["data"] == 2000
@@ -1114,7 +1118,8 @@ class TestFeatureStore(TestMLRunSystem):
             assert resp[2] is None
             assert resp[3]["data"] == 10
             assert resp[4] is None
-
+        finally:
+            svc.close()
         # check offline
         resp = fs.get_offline_features(vec)
         assert len(resp.to_dataframe() == 4)

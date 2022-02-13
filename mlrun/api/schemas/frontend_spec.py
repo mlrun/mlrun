@@ -21,6 +21,17 @@ class FeatureFlags(pydantic.BaseModel):
     authentication: AuthenticationFeatureFlag
 
 
+class ResourceSpec(pydantic.BaseModel):
+    cpu: typing.Optional[str]
+    memory: typing.Optional[str]
+    gpu: typing.Optional[str]
+
+
+class Resources(pydantic.BaseModel):
+    requests: ResourceSpec = ResourceSpec()
+    limits: ResourceSpec = ResourceSpec()
+
+
 class FrontendSpec(pydantic.BaseModel):
     jobs_dashboard_url: typing.Optional[str]
     abortable_function_kinds: typing.List[str] = []
@@ -33,3 +44,4 @@ class FrontendSpec(pydantic.BaseModel):
     auto_mount_type: typing.Optional[str]
     auto_mount_params: typing.Dict[str, str] = {}
     default_artifact_path: str
+    default_function_pod_resources: Resources = Resources()

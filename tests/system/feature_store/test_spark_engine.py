@@ -180,42 +180,40 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         features = [f"{name}.*"]
         vec = fs.FeatureVector("sched_test-vec", features)
 
-        svc = fs.get_online_feature_service(vec)
+        with fs.get_online_feature_service(vec) as svc:
 
-        resp = svc.get([{"first_name": "yosi"}, {"first_name": "moshe"}])
-        assert resp[0]["data"] == 10
-        assert resp[1]["data"] == 2000
+            resp = svc.get([{"first_name": "yosi"}, {"first_name": "moshe"}])
+            assert resp[0]["data"] == 10
+            assert resp[1]["data"] == 2000
 
-        pd.DataFrame(
-            {
-                "time": [
-                    pd.Timestamp("2021-01-10 12:00:00"),
-                    pd.Timestamp("2021-01-10 13:00:00"),
-                    now + pd.Timedelta(minutes=10),
-                    pd.Timestamp("2021-01-09 13:00:00"),
-                ],
-                "first_name": ["moshe", "dina", "katya", "uri"],
-                "data": [50, 10, 25, 30],
-            }
-        ).to_parquet(path=path)
+            pd.DataFrame(
+                {
+                    "time": [
+                        pd.Timestamp("2021-01-10 12:00:00"),
+                        pd.Timestamp("2021-01-10 13:00:00"),
+                        now + pd.Timedelta(minutes=10),
+                        pd.Timestamp("2021-01-09 13:00:00"),
+                    ],
+                    "first_name": ["moshe", "dina", "katya", "uri"],
+                    "data": [50, 10, 25, 30],
+                }
+            ).to_parquet(path=path)
 
-        sleep(120)
-        resp = svc.get(
-            [
-                {"first_name": "yosi"},
-                {"first_name": "moshe"},
-                {"first_name": "katya"},
-                {"first_name": "dina"},
-                {"first_name": "uri"},
-            ]
-        )
-        assert resp[0]["data"] == 10
-        assert resp[1]["data"] == 50
-        assert resp[2] is None
-        assert resp[3]["data"] == 10
-        assert resp[4] is None
-
-        svc.close()
+            sleep(120)
+            resp = svc.get(
+                [
+                    {"first_name": "yosi"},
+                    {"first_name": "moshe"},
+                    {"first_name": "katya"},
+                    {"first_name": "dina"},
+                    {"first_name": "uri"},
+                ]
+            )
+            assert resp[0]["data"] == 10
+            assert resp[1]["data"] == 50
+            assert resp[2] is None
+            assert resp[3]["data"] == 10
+            assert resp[4] is None
 
         # check offline
         resp = fs.get_offline_features(vec)

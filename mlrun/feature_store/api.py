@@ -219,8 +219,7 @@ def get_online_feature_service(
                 print(resp)
                 resp = svc.get([{"ticker": "AAPL"}], as_list=True)
                 print(resp)
-            except Exception as e:
-                handling exception...
+
             finally:
                 svc.close()
 

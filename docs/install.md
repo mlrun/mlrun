@@ -21,7 +21,7 @@ instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more 
 3. Helm CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
 4. An accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret.
 
-> **Note: Installing on Minikube/VM**
+> **Note:**
 > These instructions use `mlrun` as the namespace (`-n` parameter). You can choose a different namespace in your kubernetes cluster.
 
 <a id="docker-desktop-installation"></a>
@@ -190,7 +190,13 @@ For example:
     ```ini
     MLRUN_ARTIFACT_PATH=/User/artifacts/{{project}}
     ```
+    
+or:
 
+    ```ini
+    MLRUN_ARTIFACT_PATH=/User/artifacts/{{project}}/{{run.uid}}
+    ```
+    
 3. If the remote service is on an instance of the Iguazio MLOps Platform (**"the platform"**), set the following environment variables as well. Replace the `<...>` placeholders with the details for your specific platform cluster:
 
     ```ini

@@ -1,0 +1,124 @@
+- name: flat with empty line
+  text: |
+    convert code or notebook to function object with embedded code
+    code stored in the function spec and can be refreshed using .with_code()
+    eliminate the need to build container images everytime we edit the code
+
+    :param name:      function name
+    :param filename:  blank for current notebook, or path to .py/.ipynb file
+    :param handler:   name of function handler (if not main)
+    :param runtime:   optional, runtime type local, job, dask, mpijob, ..
+    :param image:     optional, container image
+
+    :returns:
+           function object
+  expected:
+    doc: |
+      convert code or notebook to function object with embedded code
+      code stored in the function spec and can be refreshed using .with_code()
+      eliminate the need to build container images everytime we edit the code
+    params:
+      - name: name
+        doc: function name
+        type: ""
+        default: ""
+      - name: filename
+        doc: blank for current notebook, or path to .py/.ipynb file
+        type: ""
+        default: ""
+      - name: handler
+        doc: name of function handler (if not main)
+        type: ""
+        default: ""
+      - name: runtime
+        doc: optional, runtime type local, job, dask, mpijob, ..
+        type: ""
+        default: ""
+      - name: image
+        doc: optional, container image
+        type: ""
+        default: ""
+    ret:
+      name: ""
+      doc: function object
+      type: ""
+      default: ""
+    lineno: -1
+- name: indent line
+  text: |
+    Wrap a file with storage from
+
+    :param path: The path of the file to wrap
+    :type path: str
+    :param field_storage: The :class:`FileStorage` instance to wrap
+    :type field_storage: FileStorage
+    :param temporary: Whether or not to delete the file when the File
+       instance is destructed
+    :type temporary: bool
+    :returns: A buffered writable file descriptor
+    :rtype: BufferedFileStorage
+  expected:
+    doc: Wrap a file with storage from
+    params:
+      - name: path
+        doc: The path of the file to wrap
+        type: str
+        default: ""
+      - name: field_storage
+        doc: The :class:`FileStorage` instance to wrap
+        type: FileStorage
+        default: ""
+      - name: temporary
+        doc: Whether or not to delete the file when the File instance is destructed
+        type: bool
+        default: ""
+    ret:
+        name: ""
+        doc: A buffered writable file descriptor
+        type: BufferedFileStorage
+        default: ""
+    lineno: -1
+- name: space in colon
+  text: |
+    Open a file
+
+    :param path : The path of the file to wrap
+  expected:
+    doc: Open a file
+    params:
+      - name: path
+        doc: The path of the file to wrap
+        type: ""
+        default: ""
+    ret:
+        name: ""
+        doc: ""
+        type: ""
+        default: ""
+    lineno: -1
+- name: Data in middle
+  text: |
+    Open a file
+
+    :param path : The path of the file to wrap
+
+    Then we can optionally
+
+    :param mode : File mode
+  expected:
+    doc: Open a file
+    params:
+      - name: path
+        doc: The path of the file to wrap
+        type: ""
+        default: ""
+      - name: mode
+        doc: File mode
+        type: ""
+        default: ""
+    ret:
+        name: ""
+        doc: ""
+        type: ""
+        default: ""
+    lineno: -1

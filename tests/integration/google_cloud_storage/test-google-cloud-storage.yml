@@ -1,0 +1,5 @@
+env:
+  # Path to Google credentials file (in JSON format)
+  credentials_json_file:
+  # Bucket name
+  bucket_name:

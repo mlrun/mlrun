@@ -4,7 +4,7 @@ urllib3>=1.25.4, <1.27
 chardet>=3.0.2, <4.0
 GitPython~=3.0
 aiohttp~=3.8
-click~=7.0
+click~=8.0
 # kfp ~1.0.1 resolves to 1.0.4, which has google-auth>=1.6.1 which resolves to 2.x which is incompatible with
 # google-cloud-storage (from kfp) that is >=1.13.0 and resolves to 1.42.0) and has google-api-core that is
 # >=1.29.0,<3.0dev and resolves to 1.31.2 which has google-auth >=1.25.0,<2.0dev which is incompatible

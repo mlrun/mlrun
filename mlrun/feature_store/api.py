@@ -209,24 +209,31 @@ def get_online_feature_service(
 
                 with get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0)) as svc:
                     resp = svc.get([{"id": "C123487"}])
+
     2. as simple function, note that in that option you need to close the session.
         example::
 
-
             svc = get_online_feature_service(vector_uri)
-            resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
-            print(resp)
-            resp = svc.get([{"ticker": "AAPL"}], as_list=True)
-            print(resp)
+            try:
+                resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
+                print(resp)
+                resp = svc.get([{"ticker": "AAPL"}], as_list=True)
+                print(resp)
+            except Exception as e:
+                handling exception...
+            finally:
+                svc.close()
 
-            svc.close()
 
         example with imputing::
 
             svc = get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0))
-            resp = svc.get([{"id": "C123487"}])
-
-            svc.close()
+            try:
+                resp = svc.get([{"id": "C123487"}])
+            except Exception as e:
+                handling exception...
+            finally:
+                svc.close()
 
 
     :param feature_vector:    feature vector uri or FeatureVector object. passing feature vector obj requires update

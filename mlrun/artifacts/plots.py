@@ -135,7 +135,10 @@ class BokehArtifact(Artifact):
     kind = "bokeh"
 
     def __init__(
-        self, figure, key: str = None, target_path: str = None,
+        self,
+        figure,
+        key: str = None,
+        target_path: str = None,
     ):
         """
         Initialize a Bokeh artifact with the given figure.
@@ -183,7 +186,10 @@ class PlotlyArtifact(Artifact):
     kind = "plotly"
 
     def __init__(
-        self, figure, key: str = None, target_path: str = None,
+        self,
+        figure,
+        key: str = None,
+        target_path: str = None,
     ):
         """
         Initialize a Plotly artifact with the given figure.

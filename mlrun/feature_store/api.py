@@ -440,7 +440,10 @@ def ingest(
     )
     if schema_options:
         preview(
-            featureset, source, options=schema_options, namespace=namespace,
+            featureset,
+            source,
+            options=schema_options,
+            namespace=namespace,
         )
     infer_stats = InferOptions.get_common_options(
         infer_options, InferOptions.all_stats()
@@ -450,7 +453,11 @@ def ingest(
 
     targets = targets or featureset.spec.targets or get_default_targets()
     df = init_featureset_graph(
-        source, featureset, namespace, targets=targets, return_df=return_df,
+        source,
+        featureset,
+        namespace,
+        targets=targets,
+        return_df=return_df,
     )
     if not InferOptions.get_common_options(
         infer_stats, InferOptions.Index
@@ -842,7 +849,7 @@ def get_feature_vector(uri, project=None):
 
 
 def delete_feature_set(name, project="", tag=None, uid=None, force=False):
-    """ Delete a :py:class:`~mlrun.feature_store.FeatureSet` object from the DB.
+    """Delete a :py:class:`~mlrun.feature_store.FeatureSet` object from the DB.
     :param name: Name of the object to delete
     :param project: Name of the object's project
     :param tag: Specific object's version tag
@@ -864,7 +871,7 @@ def delete_feature_set(name, project="", tag=None, uid=None, force=False):
 
 
 def delete_feature_vector(name, project="", tag=None, uid=None):
-    """ Delete a :py:class:`~mlrun.feature_store.FeatureVector` object from the DB.
+    """Delete a :py:class:`~mlrun.feature_store.FeatureVector` object from the DB.
     :param name: Name of the object to delete
     :param project: Name of the object's project
     :param tag: Specific object's version tag

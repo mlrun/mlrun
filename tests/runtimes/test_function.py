@@ -57,7 +57,14 @@ def test_generate_nuclio_volumes():
     ]
     function = mlrun.new_function(runtime=runtime)
     nuclio_volumes = function.spec.generate_nuclio_volumes()
-    assert DeepDiff(expected_nuclio_volumes, nuclio_volumes, ignore_order=True,) == {}
+    assert (
+        DeepDiff(
+            expected_nuclio_volumes,
+            nuclio_volumes,
+            ignore_order=True,
+        )
+        == {}
+    )
 
 
 class TestAutoMountNuclio(TestAutoMount):
@@ -90,7 +97,10 @@ class TestAutoMountNuclio(TestAutoMount):
 def test_http_trigger():
     function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
     function.with_http(
-        workers=2, host="x", worker_timeout=5, extra_attributes={"yy": "123"},
+        workers=2,
+        host="x",
+        worker_timeout=5,
+        extra_attributes={"yy": "123"},
     )
 
     trigger = function.spec.config["spec.triggers.http"]

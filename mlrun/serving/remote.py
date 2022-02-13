@@ -38,8 +38,7 @@ def get_http_adapter(retries, backoff_factor):
 
 
 class RemoteStep(storey.SendToHttp):
-    """class for calling remote endpoints
-    """
+    """class for calling remote endpoints"""
 
     def __init__(
         self,
@@ -240,8 +239,7 @@ class RemoteStep(storey.SendToHttp):
 
 
 class BatchHttpRequests(_ConcurrentJobExecution):
-    """class for calling remote endpoints in parallel
-    """
+    """class for calling remote endpoints in parallel"""
 
     def __init__(
         self,

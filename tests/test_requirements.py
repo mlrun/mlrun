@@ -113,7 +113,10 @@ def test_requirement_specifiers_convention():
         "pyarrow": {">=1,<6"},
     }
 
-    for (ignored_requirement_name, ignored_specifiers,) in ignored_invalid_map.items():
+    for (
+        ignored_requirement_name,
+        ignored_specifiers,
+    ) in ignored_invalid_map.items():
         if ignored_requirement_name in invalid_requirement_specifiers_map:
             diff = deepdiff.DeepDiff(
                 invalid_requirement_specifiers_map[ignored_requirement_name],

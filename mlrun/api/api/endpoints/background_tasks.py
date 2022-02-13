@@ -35,7 +35,8 @@ def get_project_background_task(
 
 
 @router.get(
-    "/background-tasks/{name}", response_model=mlrun.api.schemas.BackgroundTask,
+    "/background-tasks/{name}",
+    response_model=mlrun.api.schemas.BackgroundTask,
 )
 def get_background_task(
     name: str,

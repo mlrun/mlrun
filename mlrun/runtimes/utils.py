@@ -301,7 +301,11 @@ def generate_function_image_name(function) -> str:
 
 
 def fill_function_image_name_template(
-    registry: str, repository: str, project: str, name: str, tag: str,
+    registry: str,
+    repository: str,
+    project: str,
+    name: str,
+    tag: str,
 ) -> str:
     return f"{registry}{repository}/func-{project}-{name}:{tag}"
 
@@ -482,7 +486,8 @@ def enrich_function_from_dict(function, function_dict):
                         function.set_env(env_dict["name"], env_dict["value"])
                     else:
                         function.set_env(
-                            env_dict["name"], value_from=env_dict["valueFrom"],
+                            env_dict["name"],
+                            value_from=env_dict["valueFrom"],
                         )
             elif attribute == "volumes":
                 function.spec.update_vols_and_mounts(override_value, [])

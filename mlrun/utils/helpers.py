@@ -810,7 +810,7 @@ def create_exponential_backoff(base=2, max_value=120, scale_factor=1):
 
         # This "complex" implementation (unlike the one in linear backoff) is to avoid exponent growing too fast and
         # risking going behind max_int
-        next_value = scale_factor * (base ** exponent)
+        next_value = scale_factor * (base**exponent)
         if next_value < max_value:
             exponent += 1
             yield next_value

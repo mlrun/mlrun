@@ -28,10 +28,14 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
         scheduler_pod_name = "mlrun-mydask-d7656bc1-0n4z9z"
 
         self.running_scheduler_pod = self._generate_pod(
-            scheduler_pod_name, scheduler_pod_labels, PodPhases.running,
+            scheduler_pod_name,
+            scheduler_pod_labels,
+            PodPhases.running,
         )
         self.completed_scheduler_pod = self._generate_pod(
-            scheduler_pod_name, scheduler_pod_labels, PodPhases.succeeded,
+            scheduler_pod_name,
+            scheduler_pod_labels,
+            PodPhases.succeeded,
         )
 
         worker_pod_labels = {
@@ -48,10 +52,14 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
         worker_pod_name = "mlrun-mydask-d7656bc1-0pqbnc"
 
         self.running_worker_pod = self._generate_pod(
-            worker_pod_name, worker_pod_labels, PodPhases.running,
+            worker_pod_name,
+            worker_pod_labels,
+            PodPhases.running,
         )
         self.completed_worker_pod = self._generate_pod(
-            worker_pod_name, worker_pod_labels, PodPhases.succeeded,
+            worker_pod_name,
+            worker_pod_labels,
+            PodPhases.succeeded,
         )
 
         service_name = "mlrun-mydask-d7656bc1-0"
@@ -73,7 +81,9 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
         pods = self._mock_list_resources_pods()
         services = self._mock_list_services([self.cluster_service])
         self._assert_runtime_handler_list_resources(
-            RuntimeKinds.dask, expected_pods=pods, expected_services=services,
+            RuntimeKinds.dask,
+            expected_pods=pods,
+            expected_services=services,
         )
 
     def test_delete_resources_completed_cluster(self, db: Session, client: TestClient):

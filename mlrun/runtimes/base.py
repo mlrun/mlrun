@@ -1109,11 +1109,21 @@ class BaseRuntimeHandler(ABC):
         crd_group, crd_version, crd_plural = self._get_crd_info()
         if crd_group and crd_version and crd_plural:
             deleted_resources = self._delete_crd_resources(
-                db, db_session, namespace, label_selector, force, grace_period,
+                db,
+                db_session,
+                namespace,
+                label_selector,
+                force,
+                grace_period,
             )
         else:
             deleted_resources = self._delete_pod_resources(
-                db, db_session, namespace, label_selector, force, grace_period,
+                db,
+                db_session,
+                namespace,
+                label_selector,
+                force,
+                grace_period,
             )
         self._delete_resources(
             db,
@@ -1380,7 +1390,10 @@ class BaseRuntimeHandler(ABC):
         return label_selector
 
     def _wait_for_pods_deletion(
-        self, namespace: str, deleted_pods: List[Dict], label_selector: str = None,
+        self,
+        namespace: str,
+        deleted_pods: List[Dict],
+        label_selector: str = None,
     ):
         k8s_helper = get_k8s_helper()
         deleted_pod_names = [pod_dict["metadata"]["name"] for pod_dict in deleted_pods]
@@ -1414,7 +1427,9 @@ class BaseRuntimeHandler(ABC):
             )
 
     def _wait_for_crds_underlying_pods_deletion(
-        self, deleted_crds: List[Dict], label_selector: str = None,
+        self,
+        deleted_crds: List[Dict],
+        label_selector: str = None,
     ):
         # we're using here the run identifier as the common ground to identify which pods are relevant to which CRD, so
         # if they are not coupled we are not able to wait - simply return
@@ -1593,7 +1608,10 @@ class BaseRuntimeHandler(ABC):
 
                         try:
                             self._pre_deletion_runtime_resource_run_actions(
-                                db, db_session, crd_object, desired_run_state,
+                                db,
+                                db_session,
+                                crd_object,
+                                desired_run_state,
                             )
                         except Exception as exc:
                             # Don't prevent the deletion for failure in the pre deletion run actions
@@ -1647,7 +1665,10 @@ class BaseRuntimeHandler(ABC):
         self._ensure_run_logs_collected(db, db_session, project, uid)
 
     def _is_runtime_resource_run_in_terminal_state(
-        self, db: DBInterface, db_session: Session, runtime_resource: Dict,
+        self,
+        db: DBInterface,
+        db_session: Session,
+        runtime_resource: Dict,
     ) -> Tuple[bool, Optional[datetime]]:
         """
         A runtime can have different underlying resources (like pods or CRDs) - to generalize we call it runtime
@@ -1676,7 +1697,9 @@ class BaseRuntimeHandler(ABC):
         return True, last_update
 
     def _list_runs_for_monitoring(
-        self, db: DBInterface, db_session: Session,
+        self,
+        db: DBInterface,
+        db_session: Session,
     ):
         runs = db.list_runs(db_session, project="*")
         project_run_uid_map = {}
@@ -1741,16 +1764,27 @@ class BaseRuntimeHandler(ABC):
             return
         run = project_run_uid_map.get(project, {}).get(uid)
         if runtime_resource_is_crd:
-            (_, _, run_state,) = self._resolve_crd_object_status_info(
-                db, db_session, runtime_resource
-            )
+            (
+                _,
+                _,
+                run_state,
+            ) = self._resolve_crd_object_status_info(db, db_session, runtime_resource)
         else:
-            (_, _, run_state,) = self._resolve_pod_status_info(
-                db, db_session, runtime_resource
-            )
+            (
+                _,
+                _,
+                run_state,
+            ) = self._resolve_pod_status_info(db, db_session, runtime_resource)
         self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
         _, updated_run_state = self._ensure_run_state(
-            db, db_session, project, uid, name, run_state, run, search_run=False,
+            db,
+            db_session,
+            project,
+            uid,
+            name,
+            run_state,
+            run,
+            search_run=False,
         )
         if updated_run_state in RunStates.terminal_states():
             self._ensure_run_logs_collected(db, db_session, project, uid)
@@ -1997,7 +2031,11 @@ class BaseRuntimeHandler(ABC):
         name = crd_object["metadata"]["name"]
         try:
             k8s_helper.crdapi.delete_namespaced_custom_object(
-                crd_group, crd_version, namespace, crd_plural, name,
+                crd_group,
+                crd_version,
+                namespace,
+                crd_plural,
+                name,
             )
             logger.info(
                 "Deleted crd object",

@@ -68,7 +68,8 @@ class MLRunInterface(ABC, Generic[MLRunInterfaceableType]):
 
         # Add the MLRun properties:
         cls._insert_properties(
-            obj=obj, properties=restoration_information[0],
+            obj=obj,
+            properties=restoration_information[0],
         )
 
         # Replace the object's properties in MLRun's properties:
@@ -158,7 +159,9 @@ class MLRunInterface(ABC, Generic[MLRunInterfaceableType]):
 
     @classmethod
     def _insert_properties(
-        cls, obj: MLRunInterfaceableType, properties: Dict[str, Any] = None,
+        cls,
+        obj: MLRunInterfaceableType,
+        properties: Dict[str, Any] = None,
     ):
         """
         Insert the properties of the interface to the object. The properties default values are being copied (not deep

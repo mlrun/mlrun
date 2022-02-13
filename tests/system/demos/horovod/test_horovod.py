@@ -34,7 +34,10 @@ class TestHorovodTFv2(TestDemo):
         self._logger.debug("Creating iris-generator function")
         function_path = str(self.assets_path / "utils_functions.py")
         utils = mlrun.code_to_function(
-            name="utils", kind="job", filename=function_path, image="mlrun/mlrun",
+            name="utils",
+            kind="job",
+            filename=function_path,
+            image="mlrun/mlrun",
         )
 
         utils.spec.remote = True

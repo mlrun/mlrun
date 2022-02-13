@@ -165,7 +165,10 @@ class RunDBMock:
         self, func, with_mlrun, mlrun_version_specifier=None, skip_deployed=False
     ):
         self._function = func.to_dict()
-        status = NuclioStatus(state="ready", nuclio_name="test-nuclio-name",)
+        status = NuclioStatus(
+            state="ready",
+            nuclio_name="test-nuclio-name",
+        )
         return {"data": {"status": status.to_dict()}}
 
     def get_builder_status(

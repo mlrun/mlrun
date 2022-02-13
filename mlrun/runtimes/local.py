@@ -122,7 +122,11 @@ def remote_handler_wrapper(task, handler, workdir=None):
     if task and not isinstance(task, dict):
         task = json.loads(task)
 
-    context = MLClientCtx.from_dict(task, autocommit=False, host=socket.gethostname(),)
+    context = MLClientCtx.from_dict(
+        task,
+        autocommit=False,
+        host=socket.gethostname(),
+    )
     runobj = RunObject.from_dict(task)
 
     sout, serr = exec_from_params(handler, runobj, context, workdir)

@@ -52,7 +52,8 @@ class LocalFeatureMerger(BaseMerger):
                 )
             else:
                 df = feature_set.to_dataframe(
-                    columns=column_names, time_column=entity_timestamp_column,
+                    columns=column_names,
+                    time_column=entity_timestamp_column,
                 )
             # rename columns with aliases
             df.rename(

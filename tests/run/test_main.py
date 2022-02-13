@@ -101,7 +101,11 @@ def test_main_run_args_from_env():
         '"metadata":{"uid":"123459", "name":"tst", "labels": {"kind": "job"}}}'
     )
 
-    out = exec_run("'main.py -x {x}'", ["--from-env"], "test_main_run_args_from_env",)
+    out = exec_run(
+        "'main.py -x {x}'",
+        ["--from-env"],
+        "test_main_run_args_from_env",
+    )
     db = mlrun.get_run_db()
     run = db.read_run("123459")
     print(out)

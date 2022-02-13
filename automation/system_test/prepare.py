@@ -289,13 +289,17 @@ class SystemTestPreparer:
     def _prepare_test_env(self):
 
         self._run_command(
-            "mkdir", args=["-p", str(self.Constants.workdir)],
+            "mkdir",
+            args=["-p", str(self.Constants.workdir)],
         )
         contents = yaml.safe_dump(self._env_config)
         filepath = str(self.Constants.system_tests_env_yaml)
         self._logger.debug("Populating system tests env.yml", filepath=filepath)
         self._run_command(
-            "cat > ", args=[filepath], stdin=contents, local=True,
+            "cat > ",
+            args=[filepath],
+            stdin=contents,
+            local=True,
         )
 
     def _override_mlrun_api_env(self):
@@ -328,7 +332,8 @@ class SystemTestPreparer:
         )
 
         self._run_command(
-            "kubectl", args=["apply", "-f", manifest_file_name],
+            "kubectl",
+            args=["apply", "-f", manifest_file_name],
         )
 
     def _download_provctl(self):

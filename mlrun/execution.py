@@ -321,7 +321,7 @@ class MLClientCtx(object):
 
     @property
     def iteration(self):
-        """child iteration index, for hyper parameters """
+        """child iteration index, for hyper parameters"""
         return self._iteration
 
     @property

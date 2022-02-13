@@ -207,7 +207,7 @@ def get_online_feature_service(
 
             example with imputing::
 
-                with open get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0)) as svc:
+                with get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0)) as svc:
                     resp = svc.get([{"id": "C123487"}])
     2. as simple function, note that in that option you need to close the session.
         example::

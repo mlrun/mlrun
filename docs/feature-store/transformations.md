@@ -38,32 +38,53 @@ to the [feature store example](./feature-store-demo.ipynb).
 ## Aggregations
 
 Aggregations, being a common tool in data preparation and ML feature engineering, are available directly through
-the MLRun {py:class}`~mlrun.feature_store.FeatureSet` class. These transformations allow adding a new feature to the 
-feature-set that is created by performing some aggregate function over feature's values within a time-based 
-sliding window.
+the MLRun {py:class}`~mlrun.feature_store.FeatureSet` class. These transformations add a new feature to the 
+feature-set that is created by performing some aggregate function over the feature's values. You can use aggregation for both a time-based 
+sliding window and a fixed window.
 
-For example, if a feature-set contains stock trading data including the specific bid price for each bid at any
-given time, the user may wish to introduce aggregate features which show the minimal and maximal bidding price over all 
-the bids in the last hour, per stock ticker (which is the entity in question). To perform that, the following code
-can be used:
+- Sliding window
 
-```python
-import mlrun.feature_store as fstore
-# create a new feature set
-quotes_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")])
-quotes_set.add_aggregation("bid", ["min", "max"], ["1h"], "10m")
-```
+   Sliding window are fixed-size overlapping windows that slide with time. The window size can be in seonds, minutes, hours, days.
+   The period determines the step size to slide. The period must be integral divisor of the window size. 
+   
+   For example, a feature-set contains stock trading data including the specific bid price for each bid at any
+   given time. You want to add aggregate features that show the minimal and maximal bidding price over all 
+   the bids in the last hour, sliding at 10 minute interval, per stock ticker (which is the entity in question). To perform that, add the 
+   following code:
 
-Once this is executed, the feature-set has new features introduced, with their names produced from the aggregate
-parameters, using this format: `{column}_{operation}_{window}`. Thus, the example above generates two new features:
-`bid_min_1h` and `bid_max_1h`. If the function gets an optional `name` parameter, features are produced in `{name}_{operation}_{window}` format.
+   ```python
+   import mlrun.feature_store as fstore
+   # create a new feature set
+   quotes_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")])
+   quotes_set.add_aggregation("bid", ["min", "max"], ["1h"], "10m")
+   ```
+   
+   Now the feature-set has new features introduced, with their names produced from the aggregate
+   parameters, using this format: `{column}_{operation}_{window}`. Thus, the example generates two new features:
+   `bid_min_1h` and `bid_max_1h`. If the function gets an optional `name` parameter, features are produced in `{name}_{operation}_{window}`    format.
+   
+- Fixed window
+
+   A fixed window has a fixed-size, is non-overlapping, and gapless. When using a fixed window, each record in an in-application stream 
+   belongs to a specific window. The record is processed only once (when the query processes the window to which the record belongs). Omit 
+   the period size to use a fixed window.
+   
+   Using the above example, but for a fixed window:
+   
+   ```python
+   import mlrun.feature_store as fstore
+   # create a new feature set
+   quotes_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")])
+   quotes_set.add_aggregation("bid", ["min", "max"], ["1h"],)
+   ```
+   
 If the `name` parameter is not specified, features are produced in `{column_name}_{operation}_{window}` format.
 These features can then be fed into predictive models or be used for additional 
 processing and feature generation.
 
 ```{admonition} Note
 Internally, the graph step that is created to perform these aggregations is named `"Aggregates"`. If more than one
-aggregation steps are needed, a unique name must be provided to each, using the `state_name` parameter.
+aggregation step is needed, supply a unique name for each, using the `state_name` parameter.
 ```
 
 Aggregations that are supported using this function are:

@@ -48,7 +48,6 @@ class SystemTestPreparer:
         access_key: str,
         iguazio_version: str,
         spark_service: str,
-        google_big_query_credentials_json: str,
         password: str = None,
         debug: bool = False,
     ):
@@ -76,7 +75,6 @@ class SystemTestPreparer:
             "V3IO_USERNAME": username,
             "V3IO_ACCESS_KEY": access_key,
             "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE": spark_service,
-            "MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON": google_big_query_credentials_json,
         }
         if password:
             self._env_config["V3IO_PASSWORD"] = password
@@ -435,7 +433,6 @@ def main():
 @click.argument("access-key", type=str, required=True)
 @click.argument("iguazio-version", type=str, default=None, required=True)
 @click.argument("spark-service", type=str, required=True)
-@click.argument("google_big_query_credentials_json", type=str, required=True)
 @click.argument("password", type=str, default=None, required=False)
 @click.option(
     "--debug",
@@ -460,7 +457,6 @@ def run(
     access_key: str,
     iguazio_version: str,
     spark_service: str,
-    google_big_query_credentials_json: str,
     password: str,
     debug: bool,
 ):
@@ -481,7 +477,6 @@ def run(
         access_key,
         iguazio_version,
         spark_service,
-        google_big_query_credentials_json,
         password,
         debug,
     )

@@ -84,8 +84,10 @@ def make_kaniko_pod(
         dockerfile = "/empty/Dockerfile"
 
     args = ["--dockerfile", dockerfile, "--context", context, "--destination", dest]
-    for value, flag in [(config.httpdb.builder.insecure_pull_registry_mode, "--insecure-pull"),
-                        (config.httpdb.builder.insecure_push_registry_mode, "--insecure")]:
+    for value, flag in [
+        (config.httpdb.builder.insecure_pull_registry_mode, "--insecure-pull"),
+        (config.httpdb.builder.insecure_push_registry_mode, "--insecure"),
+    ]:
         if value == "disabled":
             continue
         if value == "enabled" or (value == "auto" and not secret_name):

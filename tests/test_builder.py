@@ -62,17 +62,47 @@ def test_build_runtime_insecure_registries(monkeypatch):
     )
 
     insecure_flags = {"--insecure", "--insecure-pull"}
-    for pull_mode, push_mode, secret, flags_expected in (
-        ("auto", "auto", "", True),
-        ("auto", "auto", "some-secret-name", False),
-        ("enabled", "enabled", "some-secret-name", True),
-        ("enabled", "enabled", "", True),
-        ("disabled", "disabled", "some-secret-name", False),
-        ("disabled", "disabled", "", False),
-    ):
-        mlrun.mlconf.httpdb.builder.insecure_pull_registry_mode = pull_mode
-        mlrun.mlconf.httpdb.builder.insecure_push_registry_mode = push_mode
-        mlrun.mlconf.httpdb.builder.docker_registry_secret = secret
+    for case in [
+        {
+            "pull_mode": "auto",
+            "push_mode": "auto",
+            "secret": "",
+            "flags_expected": True,
+        },
+        {
+            "pull_mode": "auto",
+            "push_mode": "auto",
+            "secret": "some-secret-name",
+            "flags_expected": False,
+        },
+        {
+            "pull_mode": "enabled",
+            "push_mode": "enabled",
+            "secret": "some-secret-name",
+            "flags_expected": True,
+        },
+        {
+            "pull_mode": "enabled",
+            "push_mode": "enabled",
+            "secret": "",
+            "flags_expected": True,
+        },
+        {
+            "pull_mode": "disabled",
+            "push_mode": "disabled",
+            "secret": "some-secret-name",
+            "flags_expected": False,
+        },
+        {
+            "pull_mode": "disabled",
+            "push_mode": "disabled",
+            "secret": "",
+            "flags_expected": False,
+        },
+    ]:
+        mlrun.mlconf.httpdb.builder.insecure_pull_registry_mode = case["pull_mode"]
+        mlrun.mlconf.httpdb.builder.insecure_push_registry_mode = case["push_mode"]
+        mlrun.mlconf.httpdb.builder.docker_registry_secret = case["secret"]
         mlrun.builder.build_runtime(
             mlrun.api.schemas.AuthInfo(),
             function,
@@ -89,7 +119,7 @@ def test_build_runtime_insecure_registries(monkeypatch):
                     .args
                 )
             )
-            == flags_expected
+            == case["flags_expected"]
         )
 
 

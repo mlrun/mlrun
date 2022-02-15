@@ -43,8 +43,12 @@ def test_build_runtime_use_image_when_no_build():
     assert fn.spec.image == image
 
 
-def test_build_runtime_insecure_registries():
-    mlrun.k8s_utils.get_k8s_helper().create_pod = unittest.mock.Mock(
+def test_build_runtime_insecure_registries(monkeypatch):
+    get_k8s_helper_mock = unittest.mock.Mock()
+    monkeypatch.setattr(
+        mlrun.builder, "get_k8s_helper", lambda *args, **kwargs: get_k8s_helper_mock
+    )
+    mlrun.builder.get_k8s_helper().create_pod = unittest.mock.Mock(
         side_effect=lambda pod: (pod, "some-namespace")
     )
     mlrun.mlconf.httpdb.builder.docker_registry = "registry.hub.docker.com/username"
@@ -79,7 +83,7 @@ def test_build_runtime_insecure_registries():
         assert (
             insecure_flags.issubset(
                 set(
-                    mlrun.k8s_utils.get_k8s_helper()
+                    mlrun.builder.get_k8s_helper()
                     .create_pod.call_args[0][0]
                     .pod.spec.containers[0]
                     .args

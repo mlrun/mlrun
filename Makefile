@@ -19,8 +19,11 @@ MLRUN_VERSION ?= unstable
 # version for the python package with 0.0.0+
 # if the provided version includes a "+" we replace it with "-" for the docker tag
 MLRUN_DOCKER_TAG ?= $(shell echo "$(MLRUN_VERSION)" | sed -E 's/\+/\-/g')
+MLRUN_PYTHON_PACKAGE_VERSION ?= $(MLRUN_VERSION)
 # if the provided version includes a "-" we replace its first occurrence with "+" to align with PEP 404
-MLRUN_PYTHON_PACKAgE_VERSION ?= $(shell if echo $TEST | grep -Eq "^[0-9]+\.[0-9]+\.[0-9]-.*$"; then echo $TEST | sed 's/\-/\+/'; else echo $TEST; fi)
+ifneq ($(shell echo "$(MLRUN_VERSION)" | grep -E "^[0-9]+\.[0-9]+\.[0-9]-.*$$"),)
+	MLRUN_PYTHON_PACKAGE_VERSION := $(shell echo "$(MLRUN_VERSION)" | sed "s/\-/\+/")
+endif
 ifeq ($(shell echo "$(MLRUN_VERSION)" | grep -E "^[0-9]+\.[0-9]+\.[0-9]+.*$$"),) # empty result from egrep
 	MLRUN_PYTHON_PACKAGE_VERSION := 0.0.0+$(MLRUN_VERSION)
 endif
@@ -59,6 +62,10 @@ MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH ?= $(shell pwd)
 .PHONY: help
 help: ## Display available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+
+.PHONY: try
+try:
+	@echo $(MLRUN_PYTHON_PACKAGE_VERSION)
 
 .PHONY: all
 all:

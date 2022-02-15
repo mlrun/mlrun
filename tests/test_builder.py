@@ -3,6 +3,7 @@ import unittest.mock
 import mlrun
 import mlrun.api.schemas
 import mlrun.builder
+import mlrun.k8s_utils
 import mlrun.utils.version
 from mlrun.config import config
 
@@ -40,6 +41,86 @@ def test_build_runtime_use_image_when_no_build():
     )
     assert ready is True
     assert fn.spec.image == image
+
+
+def test_build_runtime_insecure_registries(monkeypatch):
+    get_k8s_helper_mock = unittest.mock.Mock()
+    monkeypatch.setattr(
+        mlrun.builder, "get_k8s_helper", lambda *args, **kwargs: get_k8s_helper_mock
+    )
+    mlrun.builder.get_k8s_helper().create_pod = unittest.mock.Mock(
+        side_effect=lambda pod: (pod, "some-namespace")
+    )
+    mlrun.mlconf.httpdb.builder.docker_registry = "registry.hub.docker.com/username"
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind="job",
+        requirements=["some-package"],
+    )
+
+    insecure_flags = {"--insecure", "--insecure-pull"}
+    for case in [
+        {
+            "pull_mode": "auto",
+            "push_mode": "auto",
+            "secret": "",
+            "flags_expected": True,
+        },
+        {
+            "pull_mode": "auto",
+            "push_mode": "auto",
+            "secret": "some-secret-name",
+            "flags_expected": False,
+        },
+        {
+            "pull_mode": "enabled",
+            "push_mode": "enabled",
+            "secret": "some-secret-name",
+            "flags_expected": True,
+        },
+        {
+            "pull_mode": "enabled",
+            "push_mode": "enabled",
+            "secret": "",
+            "flags_expected": True,
+        },
+        {
+            "pull_mode": "disabled",
+            "push_mode": "disabled",
+            "secret": "some-secret-name",
+            "flags_expected": False,
+        },
+        {
+            "pull_mode": "disabled",
+            "push_mode": "disabled",
+            "secret": "",
+            "flags_expected": False,
+        },
+    ]:
+        mlrun.mlconf.httpdb.builder.insecure_pull_registry_mode = case["pull_mode"]
+        mlrun.mlconf.httpdb.builder.insecure_push_registry_mode = case["push_mode"]
+        mlrun.mlconf.httpdb.builder.docker_registry_secret = case["secret"]
+        mlrun.builder.build_runtime(
+            mlrun.api.schemas.AuthInfo(),
+            function,
+            with_mlrun=False,
+            mlrun_version_specifier=None,
+            skip_deployed=False,
+        )
+        assert (
+            insecure_flags.issubset(
+                set(
+                    mlrun.builder.get_k8s_helper()
+                    .create_pod.call_args[0][0]
+                    .pod.spec.containers[0]
+                    .args
+                )
+            )
+            == case["flags_expected"]
+        )
 
 
 def test_resolve_mlrun_install_command():

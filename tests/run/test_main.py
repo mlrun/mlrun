@@ -25,11 +25,11 @@ import mlrun
 from tests.conftest import examples_path, out_path, tests_root_directory
 
 
-def exec_main(op, args):
+def exec_main(op, args, cwd=examples_path):
     cmd = [executable, "-m", "mlrun", op]
     if args:
         cmd += args
-    out = run(cmd, stdout=PIPE, stderr=PIPE, cwd=examples_path)
+    out = run(cmd, stdout=PIPE, stderr=PIPE, cwd=cwd)
     if out.returncode != 0:
         print(out.stderr.decode("utf-8"), file=stderr)
         print(out.stdout.decode("utf-8"), file=stderr)
@@ -82,7 +82,7 @@ def test_main_run_args():
     db = mlrun.get_run_db()
     state, log = db.get_log("123457")
     print(log)
-    assert str(log).find(", '-x', 'aaa']") != -1, "params not detected in argv"
+    assert str(log).find(", -x, aaa") != -1, "params not detected in argv"
 
 
 code = """
@@ -187,6 +187,14 @@ def test_main_run_archive_subdir():
     out = exec_run("./subdir/func2.py", args.split(), "test_main_run_archive_subdir")
     print(out)
     assert out.find("state: completed") != -1, out
+
+
+def test_main_local_project():
+    project_path = str(pathlib.Path(__file__).parent / "assets")
+    args = "-f simple -p x=2 --dump"
+    out = exec_main("run", args.split(), cwd=project_path)
+    assert out.find("state: completed") != -1, out
+    assert out.find("y: 4") != -1, out  # y = x * 2
 
 
 def test_main_local_flag():

@@ -128,13 +128,13 @@ default_config = {
     "httpdb": {
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
-        "dsn": "sqlite:////mlrun/db/mlrun.db?check_same_thread=false",
+        "dsn": "sqlite:///db/mlrun.db?check_same_thread=false",
         "old_dsn": "",
         "debug": False,
         "user": "",
         "password": "",
         "token": "",
-        "logs_path": "/mlrun/db/logs",
+        "logs_path": "./db/logs",
         "data_volume": "",
         "real_path": "",
         "db_type": "sqldb",
@@ -226,6 +226,12 @@ default_config = {
             # index.docker.io/<username>, if not included repository will default to mlrun
             "docker_registry": "",
             "docker_registry_secret": "",
+            # whether to allow the docker registry we're pulling from to be insecure. "enabled", "disabled" or "auto"
+            # which will resolve by the existence of secret
+            "insecure_pull_registry_mode": "auto",
+            # whether to allow the docker registry we're pushing to, to be insecure. "enabled", "disabled" or "auto"
+            # which will resolve by the existence of secret
+            "insecure_push_registry_mode": "auto",
             # the requirement specifier used by the builder when installing mlrun in images when it runs
             # pip install <requirement_specifier>, e.g. mlrun==0.5.4, mlrun~=0.5,
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
@@ -311,6 +317,10 @@ default_config = {
         # 1. A string of comma-separated parameters, using this format: "param1=value1,param2=value2"
         # 2. A base-64 encoded json dictionary containing the list of parameters
         "auto_mount_params": "",
+    },
+    "default_function_pod_resources": {
+        "requests": {"cpu": "", "memory": "", "gpu": ""},
+        "limits": {"cpu": "", "memory": "", "gpu": ""},
     },
 }
 

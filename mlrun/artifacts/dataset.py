@@ -109,7 +109,7 @@ class DatasetArtifact(Artifact):
         **kwargs,
     ):
 
-        format = format.lower()
+        format = (format or "").lower()
         super().__init__(key, None, format=format, target_path=target_path)
         if format and format not in self.SUPPORTED_FORMATS:
             raise ValueError(

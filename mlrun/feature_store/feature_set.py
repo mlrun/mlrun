@@ -604,7 +604,9 @@ class FeatureSet(ModelObj):
             if name in self.spec.features:
                 self.spec.features[name].aggregate = True
             else:
-                self.spec.features[name] = Feature(name=column, aggregate=True)
+                self.spec.features[name] = Feature(
+                    name=column, aggregate=True, value_type="float"
+                )
 
         step_name = step_name or aggregates_step
         graph = self.spec.graph

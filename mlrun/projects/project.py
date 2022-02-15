@@ -1701,6 +1701,7 @@ class MlrunProject(ModelObj):
         :returns: run id
         """
 
+        arguments = arguments or {}
         need_repo = self.spec._need_repo()
         if self.spec.repo and self.spec.repo.is_dirty():
             msg = "you seem to have uncommitted git changes, use .push()"
@@ -1866,7 +1867,8 @@ class MlrunProject(ModelObj):
         watch: bool = True,
         local: bool = False,
         verbose: bool = None,
-        auto_build=None,
+        selector: str = None,
+        auto_build: bool = None,
     ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -1886,6 +1888,7 @@ class MlrunProject(ModelObj):
         :param name:            execution name
         :param params:          input parameters (dict)
         :param hyperparams:     hyper parameters
+        :param selector:        selection criteria for hyper params e.g. "max.accuracy"
         :param hyper_param_options:  hyper param options (selector, early stop, strategy, ..)
                                 see: :py:class:`~mlrun.model.HyperParamOptions`
         :param inputs:          input objects (dict of key: path)
@@ -1916,6 +1919,7 @@ class MlrunProject(ModelObj):
             watch=watch,
             local=local,
             verbose=verbose,
+            selector=selector,
             project_object=self,
             auto_build=auto_build,
         )
@@ -2277,10 +2281,10 @@ def _init_function_from_dict(f, project):
             name, filename=url, image=image, kind=kind, handler=handler
         )
     elif url.endswith(".py"):
-        if not image:
+        if not image and kind != "local":
             raise ValueError(
-                "image must be provided with py code files, "
-                "use function object for more control/settings"
+                "image must be provided with py code files which do not "
+                "run on 'local' engine kind"
             )
         if in_context and with_repo:
             func = new_function(

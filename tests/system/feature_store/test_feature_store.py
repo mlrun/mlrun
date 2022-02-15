@@ -1774,9 +1774,9 @@ class TestFeatureStore(TestMLRunSystem):
         assert resp[0]["bid"] == 300
 
     def test_get_offline_from_feature_set_with_no_schema(self):
-        myset = FeatureSet(fset_name, entities=[Entity("ticker")])
+        myset = FeatureSet("fset2", entities=[Entity("ticker")])
         fs.ingest(myset, quotes, infer_options=InferOptions.Null)
-        features = [f"{fset_name}.*"]
+        features = ["fset2.*"]
         vector = fs.FeatureVector("QVMytLdP", features, with_indexes=True)
 
         try:
@@ -1944,8 +1944,8 @@ class TestFeatureStore(TestMLRunSystem):
                 stream_path=stream_path,
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
             )
-            except RuntimeError as err:
-              assert err.__str__().__contains__("404"), "only acceptable error is with status 404"
+        except RuntimeError as err:
+            assert err.__str__().__contains__("404"), "only acceptable error is with status 404"
         finally:
             v3io_client.stream.create(
                 container="projects", stream_path=stream_path, shard_count=1

@@ -48,7 +48,7 @@ sliding window and a fixed window. In general, moving time windows are used for 
    The period determines the step size to slide. The period must be an integral divisor of the window size. 
    
    For example, a feature-set contains stock trading data including the specific bid price for each bid at any
-   given time. You want to add aggregate features that show the minimal and maximal bidding price over all 
+   given time. You can add aggregate features that show the minimal and maximal bidding price over all 
    the bids in the last 60 minutes, evaluated (sliding) at a 10 minute interval, per stock ticker (which is the entity in question). 
    To perform that, add the following code:
 
@@ -59,14 +59,14 @@ sliding window and a fixed window. In general, moving time windows are used for 
    quotes_set.add_aggregation("bid", ["min", "max"], ["1h"], "10m", name="price")
    ```
    
-   This code generates two new features: `bid_min_1h` and `bid_max_1h`. 
+   This code generates two new features: `bid_min_1h` and `bid_max_1h` every 10 minutes. 
    
 - Fixed window
 
    A fixed window has a fixed-size, is non-overlapping, and gapless. A fixed time window is used for aggregating over a time period 
-   (or day of the week). For example, how busy is this restaurant between 1 and 2 pm?<br>
+   (or day of the week). For example, how busy is this restaurant between 1 and 2 pm.<br>
    When using a fixed window, each record in an in-application stream belongs to a specific window. The record is processed only once 
-   (when the query processes the window to which the record belongs). Omit the period size to use a fixed window.
+   (when the query processes the window to which the record belongs). To defined a fixed window, omit the period.
    
    Using the above example, but for a fixed window:
    
@@ -74,11 +74,13 @@ sliding window and a fixed window. In general, moving time windows are used for 
    import mlrun.feature_store as fstore
    # create a new feature set
    quotes_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")])
-   quotes_set.add_aggregation("bid", ["min", "max"], ["1h"])
+   quotes_set.add_aggregation("bid", ["min", "max"], ["1h"] name="price")
    ```
+   This code generates two new features: `bid_min_1h` and `bid_max_1h` once per hour.
    
-If the `name` parameter is not specified, features are produced in the format `{column_name}_{operation}_{window}`.  
-If you supply the optional `name` parameter, features are produced in the format `{name}_{operation}_{window}`.
+   
+If the `name` parameter is not specified, features are generated in the format `{column_name}_{operation}_{window}`.  
+If you supply the optional `name` parameter, features are generated in the format `{name}_{operation}_{window}`.
     
 These features can be fed into predictive models or be used for additional processing and feature generation.
 

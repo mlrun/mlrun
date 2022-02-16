@@ -166,6 +166,9 @@ def upload_tarball(source_dir, target, secrets=None):
         datastore.upload(subpath, temp_fh.name)
 
 
+IMAGE_NAME_ENRICH_REGISTRY_PREFIX = "."
+
+
 def build_image(
     auth_info: mlrun.api.schemas.AuthInfo,
     project: str,
@@ -192,7 +195,7 @@ def build_image(
 
     if registry:
         dest = "/".join([registry, dest])
-    elif dest.startswith("."):
+    elif dest.startswith(IMAGE_NAME_ENRICH_REGISTRY_PREFIX):
         dest = dest[1:]
         registry, _ = get_parsed_docker_registry()
         secret_name = secret_name or config.httpdb.builder.docker_registry_secret
@@ -321,9 +324,9 @@ def resolve_mlrun_install_command(mlrun_version_specifier=None, client_version=N
 def build_runtime(
     auth_info: mlrun.api.schemas.AuthInfo,
     runtime,
-    with_mlrun,
-    mlrun_version_specifier,
-    skip_deployed,
+    with_mlrun=True,
+    mlrun_version_specifier=None,
+    skip_deployed=False,
     interactive=False,
     builder_env=None,
     client_version=None,
@@ -360,9 +363,7 @@ def build_runtime(
         runtime.status.state = mlrun.api.schemas.FunctionState.ready
         return True
 
-    build.image = build.image or mlrun.runtimes.utils.generate_function_image_name(
-        runtime
-    )
+    build.image = mlrun.runtimes.utils.resolve_function_image_name(runtime, build.image)
     runtime.status.state = ""
 
     inline = None  # noqa: F841

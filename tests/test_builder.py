@@ -15,14 +15,7 @@ def test_build_runtime_use_base_image_when_no_build():
     base_image = "mlrun/ml-models"
     fn.build_config(base_image=base_image)
     assert fn.spec.image == ""
-    ready = mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(),
-        fn,
-        with_mlrun=False,
-        mlrun_version_specifier=None,
-        skip_deployed=False,
-        builder_env=None,
-    )
+    ready = mlrun.builder.build_runtime(mlrun.api.schemas.AuthInfo(), fn,)
     assert ready is True
     assert fn.spec.image == base_image
 
@@ -34,12 +27,7 @@ def test_build_runtime_use_image_when_no_build():
     )
     assert fn.spec.image == image
     ready = mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(),
-        fn,
-        with_mlrun=False,
-        mlrun_version_specifier=None,
-        skip_deployed=False,
-        builder_env=None,
+        mlrun.api.schemas.AuthInfo(), fn, with_mlrun=False,
     )
     assert ready is True
     assert fn.spec.image == image
@@ -106,11 +94,7 @@ def test_build_runtime_insecure_registries(monkeypatch):
         mlrun.mlconf.httpdb.builder.insecure_push_registry_mode = case["push_mode"]
         mlrun.mlconf.httpdb.builder.docker_registry_secret = case["secret"]
         mlrun.builder.build_runtime(
-            mlrun.api.schemas.AuthInfo(),
-            function,
-            with_mlrun=False,
-            mlrun_version_specifier=None,
-            skip_deployed=False,
+            mlrun.api.schemas.AuthInfo(), function,
         )
         assert (
             insecure_flags.issubset(

@@ -480,6 +480,7 @@ def build(
         # todo: replace function.yaml inside the tar
         b.source = target
 
+    with_mlrun = with_mlrun is True  # False will map to None
     if hasattr(func, "deploy"):
         logger.info("remote deployment started")
         try:

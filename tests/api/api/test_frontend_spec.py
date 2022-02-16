@@ -49,6 +49,18 @@ def test_get_frontend_spec(
         bla = f"{{{expected_template_field}}}"
         assert bla in frontend_spec.function_deployment_target_image_template
 
+    assert frontend_spec.default_function_pod_resources, mlrun.api.schemas.Resources(
+        **default_function_pod_resources
+    )
+    assert (
+        frontend_spec.function_deployment_target_image_name_prefix_template
+        == mlrun.mlconf.httpdb.builder.function_target_image_name_prefix_template
+    )
+    assert (
+        frontend_spec.function_deployment_target_image_registries_to_enforce_prefix
+        == mlrun.runtimes.utils.resolve_function_target_image_registries_to_enforce_prefix()
+    )
+
 
 def test_get_frontend_spec_jobs_dashboard_url_resolution(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient

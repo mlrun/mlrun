@@ -63,9 +63,6 @@ MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH ?= $(shell pwd)
 help: ## Display available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-.PHONY: try
-try:
-	@echo $(MLRUN_PYTHON_PACKAGE_VERSION)
 
 .PHONY: all
 all:

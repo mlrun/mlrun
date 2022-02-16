@@ -139,12 +139,7 @@ def test_build_runtime_target_image(monkeypatch):
     )
 
     # assert the default target image
-    target_image = (
-        mlrun.builder.get_k8s_helper()
-        .create_pod.call_args[0][0]
-        .pod.spec.containers[0]
-        .args[5]
-    )
+    target_image = _get_target_image_from_create_pod_mock()
     assert target_image == f"{registry}/{image_name_prefix}:{function.metadata.tag}"
 
     # assert we can override the target image as long as we stick to the prefix
@@ -154,12 +149,7 @@ def test_build_runtime_target_image(monkeypatch):
     mlrun.builder.build_runtime(
         mlrun.api.schemas.AuthInfo(), function,
     )
-    target_image = (
-        mlrun.builder.get_k8s_helper()
-        .create_pod.call_args[0][0]
-        .pod.spec.containers[0]
-        .args[5]
-    )
+    target_image = _get_target_image_from_create_pod_mock()
     assert target_image == function.spec.build.image
 
     # assert the same with the registry enrich prefix
@@ -171,12 +161,7 @@ def test_build_runtime_target_image(monkeypatch):
     mlrun.builder.build_runtime(
         mlrun.api.schemas.AuthInfo(), function,
     )
-    target_image = (
-        mlrun.builder.get_k8s_helper()
-        .create_pod.call_args[0][0]
-        .pod.spec.containers[0]
-        .args[5]
-    )
+    target_image = _get_target_image_from_create_pod_mock()
     assert (
         target_image
         == f"{registry}/{image_name_prefix}-some-addition:{function.metadata.tag}"
@@ -201,12 +186,7 @@ def test_build_runtime_target_image(monkeypatch):
     mlrun.builder.build_runtime(
         mlrun.api.schemas.AuthInfo(), function,
     )
-    target_image = (
-        mlrun.builder.get_k8s_helper()
-        .create_pod.call_args[0][0]
-        .pod.spec.containers[0]
-        .args[5]
-    )
+    target_image = _get_target_image_from_create_pod_mock()
     assert target_image == function.spec.build.image
 
 
@@ -289,3 +269,12 @@ def test_resolve_mlrun_install_command():
         assert (
             result == expected_result
         ), f"Test supposed to pass {case.get('test_description')}"
+
+
+def _get_target_image_from_create_pod_mock():
+    return (
+        mlrun.builder.get_k8s_helper()
+        .create_pod.call_args[0][0]
+        .pod.spec.containers[0]
+        .args[5]
+    )

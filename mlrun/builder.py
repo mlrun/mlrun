@@ -28,6 +28,8 @@ from .datastore import store_manager
 from .k8s_utils import BasePod, get_k8s_helper
 from .utils import enrich_image_url, get_parsed_docker_registry, logger, normalize_name
 
+IMAGE_NAME_ENRICH_REGISTRY_PREFIX = "."
+
 
 def make_dockerfile(
     base_image,
@@ -164,9 +166,6 @@ def upload_tarball(source_dir, target, secrets=None):
         stores = store_manager.set(secrets)
         datastore, subpath = stores.get_or_create_store(target)
         datastore.upload(subpath, temp_fh.name)
-
-
-IMAGE_NAME_ENRICH_REGISTRY_PREFIX = "."
 
 
 def build_image(

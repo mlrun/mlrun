@@ -20,6 +20,10 @@ MLRUN_VERSION ?= unstable
 # if the provided version includes a "+" we replace it with "-" for the docker tag
 MLRUN_DOCKER_TAG ?= $(shell echo "$(MLRUN_VERSION)" | sed -E 's/\+/\-/g')
 MLRUN_PYTHON_PACKAGE_VERSION ?= $(MLRUN_VERSION)
+# if the provided version is a semver and followed by a "-" we replace its first occurrence with "+" to align with PEP 404
+ifneq ($(shell echo "$(MLRUN_VERSION)" | grep -E "^[0-9]+\.[0-9]+\.[0-9]-.*$$"),)
+	MLRUN_PYTHON_PACKAGE_VERSION := $(shell echo "$(MLRUN_VERSION)" | sed "s/\-/\+/")
+endif
 ifeq ($(shell echo "$(MLRUN_VERSION)" | grep -E "^[0-9]+\.[0-9]+\.[0-9]+.*$$"),) # empty result from egrep
 	MLRUN_PYTHON_PACKAGE_VERSION := 0.0.0+$(MLRUN_VERSION)
 endif

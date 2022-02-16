@@ -173,7 +173,7 @@ jobs:
       timeout-minutes: 15
       run: |
         MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}" \
-        MLRUN_VERSION="${{ steps.computed_params.outputs.mlrun_docker_tag }}" \
+        MLRUN_VERSION="${{ steps.computed_params.outputs.mlrun_version }}" \
           make test-system-open-source
 
     - name: Output some logs in case of failure

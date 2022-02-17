@@ -97,7 +97,7 @@ class KubeResourceSpec(FunctionSpec):
         self.volumes = volumes or []
         self.volume_mounts = volume_mounts or []
         self.env = env or []
-        self.resources = resources or {}
+        self.resources = enrich_resources_with_default_pod_resources(resources)
         self.replicas = replicas
         self.image_pull_policy = image_pull_policy
         self.service_account = service_account
@@ -658,6 +658,24 @@ def kube_resource_spec_to_pod_spec(
         if len(mlconf.get_valid_function_priority_class_names())
         else None,
     )
+
+
+def enrich_resources_with_default_pod_resources(resources: dict = None):
+    resources_types = ["cpu", "memory", "gpu"]
+    resource_requirements = ["requests", "limits"]
+    default_resources = mlconf.default_function_pod_resources.to_dict()
+    if not resources:
+        return default_resources
+
+    for resource_requirement in resource_requirements:
+        for resource_type in resources_types:
+            if not resources.setdefault(resource_requirement, {}).setdefault(
+                resource_type, None
+            ):
+                resources[resource_requirement][resource_type] = default_resources[
+                    resource_requirement
+                ][resource_type]
+    return resources
 
 
 def _filter_modifier_params(modifier, params):

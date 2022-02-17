@@ -669,13 +669,13 @@ def enrich_resources_with_default_pod_resources(resources: dict = None):
         return default_resources
 
     _verify_gpu_requests_and_limits(
-        requests_gpu=resources.setdefault("requests", {}).setdefault("gpu", None),
-        limits_gpu=resources.setdefault("requests", {}).setdefault("gpu", None),
+        requests_gpu=resources.setdefault("requests", {}).setdefault("gpu", ""),
+        limits_gpu=resources.setdefault("requests", {}).setdefault("gpu", ""),
     )
     for resource_requirement in resource_requirements:
         for resource_type in resources_types:
             if not resources.setdefault(resource_requirement, {}).setdefault(
-                resource_type, None
+                resource_type, ""
             ):
                 if resource_type == "gpu" and resource_requirement == "requests":
                     # set gpu defaults only on limits

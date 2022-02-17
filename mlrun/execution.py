@@ -198,7 +198,7 @@ class MLClientCtx(object):
             feature_vector = context.get_store_resource("store://feature-vectors/default/myvec")
             dataset = context.get_store_resource("store://artifacts/default/mydata")
 
-        :param uri:    store resource uri/path, store://<type>/<project>/<name>:<version>
+        :param url:    store resource uri/path, store://<type>/<project>/<name>:<version>
                        types: artifacts | feature-sets | feature-vectors
         """
         return get_store_resource(url, db=self._rundb, secrets=self._secrets_manager)
@@ -613,6 +613,7 @@ class MLClientCtx(object):
         :param src_path:      deprecated, use local_path
         :param upload:        upload to datastore (default is True)
         :param labels:        a set of key/value labels to tag the artifact with
+        :param format:        tbd.
         :param db_key:        the key to use in the artifact DB table, by default
                               its run name + '_' + key
                               db_key=False will not register it in the artifacts table

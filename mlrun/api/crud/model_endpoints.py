@@ -200,7 +200,7 @@ class ModelEndpoints:
         and depends on the 'start' and 'end' parameters. By default, when the metrics parameter is None, no metrics are
         added to the output of this function.
 
-        :param access_key: V3IO access key for managing user permissions
+        :param auth_info: V3IO access key for managing user permissions
         :param project: The name of the project
         :param model: The name of the model to filter by
         :param function: The name of the function to filter by

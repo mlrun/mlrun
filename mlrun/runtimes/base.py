@@ -801,6 +801,7 @@ class BaseRuntime(ModelObj):
         :param params:          input parameters (dict)
         :param hyperparams:     hyper parameters
         :param selector:        selection criteria for hyper params
+        :param hyper_param_options: tbd.
         :param inputs:          input objects (dict of key: path)
         :param outputs:         list of outputs which can pass in the workflow
         :param artifact_path:   default artifact output path (replace out_path)

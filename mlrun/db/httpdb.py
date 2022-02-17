@@ -333,6 +333,10 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("default_tensorboard_logs_path")
                 or config.default_tensorboard_logs_path
             )
+            config.default_function_pod_resources = (
+                server_cfg.get("default_function_pod_resources")
+                or config.default_function_pod_resources
+            )
 
         except Exception as exc:
             logger.warning(

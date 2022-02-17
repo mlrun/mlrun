@@ -1226,7 +1226,7 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
                 for object_name in objects_names
             }
 
-        # Update the globals dictionary with the module improts:
+        # Update the globals dictionary with the module imports:
         globals().update(module_imports)
 
         return module_imports

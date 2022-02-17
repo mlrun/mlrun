@@ -2,7 +2,6 @@
 from .artifacts_library import MLArtifactsLibrary
 from .metric import Metric
 from .metrics_library import MetricsLibrary, get_metrics
-from .mlrun_interface import MLMLRunInterface
 from .model_handler import MLModelHandler
 from .pkl_model_server import PickleModelServer
 from .plan import MLPlan, MLPlanStages, MLPlotPlan

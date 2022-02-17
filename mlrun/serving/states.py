@@ -534,7 +534,7 @@ class RouterStep(TaskStep):
         :param class_name: class name to build the route step from (when route is not provided)
         :param class_args: class init arguments
         :param handler:    class handler to invoke on run/event
-        :param function:   tbd.
+        :param function:   function this step should run in
         """
 
         if not route and not class_name:

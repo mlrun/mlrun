@@ -75,7 +75,7 @@ def _generate_random_name():
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestFeatureStore(TestMLRunSystem):
-    project_name = "fs-system-test-project"
+    project_name = "fs-system-test-project-run-uid"
 
     def custom_setup(self):
         pass
@@ -1033,10 +1033,7 @@ class TestFeatureStore(TestMLRunSystem):
         name = f"sched-time-{str(partitioned)}"
 
         now = datetime.now() + timedelta(minutes=2)
-
-        # writing down a remote source
-        source_path = "v3io:///bigdata/schedule-data/data.parquet"
-        pd.DataFrame(
+        data = pd.DataFrame(
             {
                 "time": [
                     pd.Timestamp("2021-01-10 10:00:00"),
@@ -1045,13 +1042,19 @@ class TestFeatureStore(TestMLRunSystem):
                 "first_name": ["moshe", "yosi"],
                 "data": [2000, 10],
             }
-        ).to_parquet(path=source_path)
+        )
+        # writing down a remote source
+        target2 = ParquetTarget()
+        data_set = fs.FeatureSet("data", entities=[Entity("first_name")])
+        fs.ingest(data_set, data, targets=[target2])
+
+        path = data_set.status.targets[0].path
 
         # the job will be scheduled every minute
         cron_trigger = "*/1 * * * *"
 
         source = ParquetSource(
-            "myparquet", path=source_path, time_field="time", schedule=cron_trigger
+            "myparquet", path=path, time_field="time", schedule=cron_trigger
         )
 
         feature_set = fs.FeatureSet(

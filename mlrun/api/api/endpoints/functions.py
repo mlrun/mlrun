@@ -504,7 +504,7 @@ def _build_function(
                 fn.metadata.project,
                 f"build_{fn.metadata.name}__{fn.metadata.tag or 'latest'}",
             )
-            if log_file.exists() and not (skip_deployed and fn.is_deployed):
+            if log_file.exists() and not (skip_deployed and fn.is_deployed()):
                 # delete old build log file if exist and build is not skipped
                 os.remove(str(log_file))
 

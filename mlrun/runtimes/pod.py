@@ -438,6 +438,7 @@ class KubeResource(BaseRuntime):
                 cpu,
                 mlrun.utils.regex.k8s_resource_quantity_regex,
             )
+        # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
         if gpus:
             verify_field_regex(
                 f"function.spec.{resources_field_name}.limits.gpus",
@@ -667,15 +668,42 @@ def enrich_resources_with_default_pod_resources(resources: dict = None):
     if not resources:
         return default_resources
 
+    _verify_gpu_requests_and_limits(
+        requests_gpu=resources.setdefault("requests", {}).setdefault("gpu", None),
+        limits_gpu=resources.setdefault("requests", {}).setdefault("gpu", None),
+    )
     for resource_requirement in resource_requirements:
         for resource_type in resources_types:
             if not resources.setdefault(resource_requirement, {}).setdefault(
                 resource_type, None
             ):
+                if resource_type == "gpu" and resource_requirement == "requests":
+                    # set gpu defaults only on limits
+                    continue
+
                 resources[resource_requirement][resource_type] = default_resources[
                     resource_requirement
                 ][resource_type]
+
+            if resources[resource_requirement][resource_type]:
+                verify_field_regex(
+                    field_name=f"function.spec.resources.{resource_requirement}.{resource_type}",
+                    field_value=resources[resource_requirement][resource_type],
+                    patterns=mlrun.utils.regex.k8s_resource_quantity_regex,
+                )
     return resources
+
+
+def _verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = None):
+    # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
+    if requests_gpu and not limits_gpu:
+        raise mlrun.errors.MLRunConflictError(
+            "You cannot specify GPU requests without specifying limits"
+        )
+    if requests_gpu and limits_gpu and requests_gpu == limits_gpu:
+        raise mlrun.errors.MLRunConflictError(
+            "When specifying both GPU requests and limits these two values must be equal"
+        )
 
 
 def _filter_modifier_params(modifier, params):

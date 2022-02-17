@@ -1414,6 +1414,7 @@ class MlrunProject(ModelObj):
     def get_function(self, key, sync=False, enrich=False) -> mlrun.runtimes.BaseRuntime:
         """get function object by name
 
+        :param key:   name of key for search
         :param sync:  will reload/reinit the function
         :param enrich: add project info/config/source info to the function object
 
@@ -1539,7 +1540,7 @@ class MlrunProject(ModelObj):
         Vault secret source has several options::
 
             proj.with_secrets('vault', {'user': <user name>, 'secrets': ['secret1', 'secret2' ...]})
-            proj.with_secrets('vault', {'project': <proj. name>, 'secrets': ['secret1', 'secret2' ...]})
+            proj.with_secrets('vault', {'project': <proj.name>, 'secrets': ['secret1', 'secret2' ...]})
             proj.with_secrets('vault', ['secret1', 'secret2' ...])
 
         The 2nd option uses the current project name as context.
@@ -1760,7 +1761,7 @@ class MlrunProject(ModelObj):
         :param artifact_path:
                        target path/url for workflow artifacts, the string
                        '{{workflow.uid}}' will be replaced by workflow id
-        :param ttl:    pipeline ttl in secs (after that the pods will be removed)
+        :param ttl:    pipeline ttl (time to live) in secs (after that the pods will be removed)
         """
         if not name or name not in self.spec._workflows:
             raise ValueError(f"workflow {name} not found")

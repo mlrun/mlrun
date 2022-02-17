@@ -106,7 +106,7 @@ def run_function(
     :param watch:           watch/follow run log, True by default
     :param local:           run the function locally vs on the runtime/cluster
     :param verbose:         add verbose prints/logs
-    :param project_object:  tbd.
+    :param project_object:  override the project object to use, will default to the project set in the runtime context.
     :param auto_build:      when set to True and the function require build it will be built on the first
                             function run, use only if you dont plan on changing the build config between runs
 
@@ -197,8 +197,9 @@ def build_function(
     :param mlrun_version_specifier:  which mlrun package version to include (if not current)
     :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
                             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
-    :param project_object:  tbd.
-    :param builder_env:     tbd.
+    :param project_object:  override the project object to use, will default to the project set in the runtime context.
+    :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
+                            e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
     """
     engine, function = _get_engine_and_function(function, project_object)
     if requirements:
@@ -269,7 +270,7 @@ def deploy_function(
     :param env:        dict of extra environment variables
     :param tag:        extra version tag
     :param verbose     add verbose prints/logs
-    :param project_object: tbd.
+    :param project_object:  override the project object to use, will default to the project set in the runtime context.
     """
     engine, function = _get_engine_and_function(function, project_object)
     if function.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():

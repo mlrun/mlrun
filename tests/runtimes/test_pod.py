@@ -95,15 +95,18 @@ def test_resource_enrichment_in_resource_spec_initialization():
     }
     mlrun.mlconf.default_function_pod_resources = copy.copy(resources)
 
+    # without setting resources
     spec = mlrun.runtimes.pod.KubeResourceSpec()
     assert spec.resources == mlrun.mlconf.default_function_pod_resources.to_dict()
 
+    # setting partial requests
     spec_requests = {"cpu": "1"}
     expected_resources = copy.copy(resources)
     expected_resources["requests"].update(spec_requests)
     spec = mlrun.runtimes.pod.KubeResourceSpec(resources={"requests": spec_requests})
     assert spec.resources == expected_resources
 
+    # setting partial requests and limits
     spec_requests = {"cpu": "1", "memory": "500M"}
     spec_limits = {"memory": "2G"}
     expected_resources["requests"].update(spec_requests)
@@ -112,3 +115,29 @@ def test_resource_enrichment_in_resource_spec_initialization():
         resources={"requests": spec_requests, "limits": spec_limits}
     )
     assert spec.resources == expected_resources
+
+    # setting only gpu request without limits
+    with pytest.raises(mlrun.errors.MLRunConflictError):
+        spec_requests = {"gpu": "1"}
+        expected_resources["requests"].update(spec_requests)
+        mlrun.runtimes.pod.KubeResourceSpec(
+            resources={"requests": spec_requests, "limits": spec_limits}
+        )
+
+    # setting different gpu requests and limits
+    with pytest.raises(mlrun.errors.MLRunConflictError):
+        spec_requests = {"gpu": "1"}
+        spec_limits = {"gpu": "2"}
+        expected_resources["requests"].update(spec_requests)
+        expected_resources["limits"].update(spec_limits)
+        mlrun.runtimes.pod.KubeResourceSpec(
+            resources={"requests": spec_requests, "limits": spec_limits}
+        )
+
+    # setting resource not in the k8s resources patterns
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        spec_requests = {"cpu": "1wrong"}
+        expected_resources["requests"].update(spec_requests)
+        mlrun.runtimes.pod.KubeResourceSpec(
+            resources={"requests": spec_requests, "limits": spec_limits}
+        )

@@ -613,7 +613,7 @@ class MLClientCtx(object):
         :param src_path:      deprecated, use local_path
         :param upload:        upload to datastore (default is True)
         :param labels:        a set of key/value labels to tag the artifact with
-        :param format:        tbd.
+        :param format:        optional, format to use (e.g. csv, parquet, ..)
         :param db_key:        the key to use in the artifact DB table, by default
                               its run name + '_' + key
                               db_key=False will not register it in the artifacts table

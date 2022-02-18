@@ -252,7 +252,7 @@ class TestProject(TestMLRunSystem):
             watch=True,
         )
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
-        fn = project.get_function("gen-iris", from_db=True)
+        fn = project.get_function("gen-iris", ignore_cache=True)
         assert fn.status.state == "ready"
         assert fn.spec.image, "image path got cleared"
         self._delete_test_project(name)

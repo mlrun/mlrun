@@ -382,8 +382,9 @@ def build_status(
         )
 
     # read from log file
+    final_states = ["failed", "error", "ready"]
     log_file = log_path(project, f"build_{name}__{tag or 'latest'}")
-    if state in ["failed", "error", "ready"] and log_file.exists():
+    if state in final_states and log_file.exists():
         with log_file.open("rb") as fp:
             fp.seek(offset)
             out = fp.read()
@@ -409,14 +410,14 @@ def build_status(
         logger.error(f"build {state}, watch the build pod logs: {pod}")
         state = mlrun.api.schemas.FunctionState.error
 
-    if logs and state != "pending":
+    if (logs and state != "pending") or state in final_states:
         resp = get_k8s().logs(pod)
-        if state in ["failed", "error", "ready"]:
+        if state in final_states:
             log_file.parent.mkdir(parents=True, exist_ok=True)
             with log_file.open("wb") as fp:
                 fp.write(resp.encode())
 
-        if resp:
+        if resp and logs:
             out = resp.encode()[offset:]
 
     update_in(fn, "status.state", state)

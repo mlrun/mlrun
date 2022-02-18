@@ -428,7 +428,7 @@ class BaseRuntime(ModelObj):
                 logger.info(
                     "Function is not deployed and auto_build flag is set, starting deploy..."
                 )
-                self.deploy(skip_deployed=True)
+                self.deploy(skip_deployed=True, show_on_failure=True)
             else:
                 raise RunError(
                     "function image is not built/ready, use .deploy() method first"

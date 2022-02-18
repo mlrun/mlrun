@@ -354,6 +354,7 @@ class DaskCluster(KubejobRuntime):
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
+        show_on_failure: bool = False,
     ):
         """deploy function, build container with dependencies"""
         return super().deploy(
@@ -362,6 +363,7 @@ class DaskCluster(KubejobRuntime):
             skip_deployed,
             is_kfp=is_kfp,
             mlrun_version_specifier=mlrun_version_specifier,
+            show_on_failure=show_on_failure,
         )
 
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):

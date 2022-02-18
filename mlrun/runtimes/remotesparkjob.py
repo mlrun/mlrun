@@ -157,6 +157,7 @@ class RemoteSparkRuntime(KubejobRuntime):
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
+        show_on_failure: bool = False,
     ):
         """deploy function, build container with dependencies"""
         # connect will populate the config from the server config
@@ -168,6 +169,7 @@ class RemoteSparkRuntime(KubejobRuntime):
             skip_deployed=skip_deployed,
             is_kfp=is_kfp,
             mlrun_version_specifier=mlrun_version_specifier,
+            show_on_failure=show_on_failure,
         )
 
 

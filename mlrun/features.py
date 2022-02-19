@@ -2,6 +2,7 @@ from typing import Dict, List, Optional
 
 from .data_types import ValueType
 from .model import ModelObj
+import re
 
 
 class Entity(ModelObj):
@@ -202,8 +203,52 @@ class MinMaxLenValidator(Validator):
         return ok, args
 
 
+class RegexValidator(Validator):
+    """Validate value based on regular expression"""
+
+    kind = "regex"
+    _dict_fields = Validator._dict_fields + ["regex"]
+
+    def __init__(self, check_type=None, severity=None, regex=None):
+        """Validate value based on regular expression
+
+        example::
+
+            from mlrun.features import RegexValidator
+
+            # Add regular expression validator to the feature 'email'
+            quotes_set["email"].validator = RegexValidator(
+                regex=r"([A-Za-z0-9]+[.-_])*[A-Za-z0-9]+@[A-Za-z0-9-]+(\.[A-Z|a-z]{2,})+",
+                severity="info"
+            )
+
+        :param check_type:  ..
+        :param severity:    severity name e.g. info, warning, etc.
+        :param regex:       regular expression for validation
+        """
+        super().__init__(check_type, severity)
+        self.regex = regex
+        self.regex_compile = re.compile(self.regex)
+
+    def check(self, value):
+        ok, args = super().check(value)
+        if ok:
+            if self.regex is not None:
+                if not re.fullmatch(self.regex_compile, value):
+                    return (
+                        False,
+                        {
+                            "message": "Value is not valid with regular expression",
+                            "regexp": self.regex,
+                            "value": value,
+                        },
+                    )
+        return ok, args
+
+
 validator_kinds = {
     "": Validator,
     "minmax": MinMaxValidator,
     "minmaxlen": MinMaxLenValidator,
+    "regex": RegexValidator,
 }

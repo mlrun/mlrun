@@ -1,8 +1,8 @@
+import re
 from typing import Dict, List, Optional
 
 from .data_types import ValueType
 from .model import ModelObj
-import re
 
 
 class Entity(ModelObj):
@@ -216,9 +216,9 @@ class RegexValidator(Validator):
 
             from mlrun.features import RegexValidator
 
-            # Add regular expression validator to the feature 'email'
-            quotes_set["email"].validator = RegexValidator(
-                regex=r"([A-Za-z0-9]+[.-_])*[A-Za-z0-9]+@[A-Za-z0-9-]+(\.[A-Z|a-z]{2,})+",
+            # Add regular expression validator to the feature 'name'
+            quotes_set["name"].validator = RegexValidator(
+                regex=r"(\b[A-Za-z]{1}[0-9]{7}\b)",
                 severity="info"
             )
 

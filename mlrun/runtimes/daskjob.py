@@ -437,7 +437,7 @@ class DaskCluster(KubejobRuntime):
                     "specified handler (string) without command "
                     "(py file path), specify command or use handler pointer"
                 )
-            mod, handler = load_module(self.spec.command, handler)
+            handler = load_module(self.spec.command, handler)
         context = MLClientCtx.from_dict(
             runobj.to_dict(),
             rundb=self.spec.rundb,

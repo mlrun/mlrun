@@ -1,4 +1,3 @@
-import copy
 import inspect
 
 import pytest
@@ -8,7 +7,6 @@ import mlrun
 import mlrun.runtimes.mpijob.abstract
 import mlrun.runtimes.mpijob.v1
 import mlrun.runtimes.pod
-from mlrun.config import config
 
 
 def test_runtimes_inheritance():
@@ -68,57 +66,45 @@ def test_runtimes_inheritance():
         )
 
 
-def test_enrich_resources_with_default_pod_resources():
-    function_resources = {}
-    output = mlrun.runtimes.pod.enrich_resources_with_default_pod_resources(
-        function_resources
-    )
-    expected_output = config.default_function_pod_resources.to_dict()
-    assert DeepDiff(output, expected_output, ignore_order=True,) == {}
-
-    mlrun.mlconf.default_function_pod_resources = {
-        "requests": {"cpu": "25m", "memory": "1M", "gpu": ""},
-        "limits": {"cpu": "2", "memory": "1G", "gpu": ""},
-    }
-    function_resources = {"requests": {"cpu": "1"}}
-    output = mlrun.runtimes.pod.enrich_resources_with_default_pod_resources(
-        function_resources
-    )
-    expected_output = mlrun.mlconf.default_function_pod_resources.to_dict()
-    expected_output["requests"].update({"cpu": "1"})
-    assert DeepDiff(output, expected_output, ignore_order=True,) == {}
-
-
 def test_resource_enrichment_in_resource_spec_initialization():
-    resources = {
-        "requests": {"cpu": "25m", "memory": "1M", "gpu": ""},
-        "limits": {"cpu": "2", "memory": "1G", "gpu": ""},
+    mlrun.mlconf.default_function_pod_resources = {
+        "requests": {"cpu": "25m", "memory": "1M"},
+        "limits": {"cpu": "2", "memory": "1G"},
     }
-    mlrun.mlconf.default_function_pod_resources = copy.copy(resources)
+    expected_resources = {
+        "requests": {"cpu": "25m", "memory": "1M"},
+        "limits": {"cpu": "2", "memory": "1G"},
+    }
 
     # without setting resources
     spec = mlrun.runtimes.pod.KubeResourceSpec()
-    assert (
-        DeepDiff(
-            spec.resources,
-            mlrun.mlconf.default_function_pod_resources.to_dict(),
-            ignore_order=True,
-        )
-        == {}
-    )
+    assert DeepDiff(spec.resources, expected_resources, ignore_order=True,) == {}
 
     # setting partial requests
+    mlrun.mlconf.default_function_pod_resources = {
+        "requests": {"cpu": "25m", "memory": "1M"},
+        "limits": {"cpu": "2", "memory": "1G"},
+    }
+    expected_resources = {
+        "requests": {"cpu": "1", "memory": "1M"},
+        "limits": {"cpu": "2", "memory": "1G"},
+    }
     spec_requests = {"cpu": "1"}
-    expected_resources = copy.copy(resources)
-    expected_resources["requests"].update(spec_requests)
     spec = mlrun.runtimes.pod.KubeResourceSpec(resources={"requests": spec_requests})
     assert DeepDiff(spec.resources, expected_resources, ignore_order=True,) == {}
 
     # setting partial requests and limits
+    mlrun.mlconf.default_function_pod_resources = {
+        "requests": {"cpu": "25m", "memory": "1M"},
+        "limits": {"cpu": "2", "memory": "1G"},
+    }
+    expected_resources = {
+        "requests": {"cpu": "1", "memory": "500M"},
+        "limits": {"cpu": "2", "memory": "2G"},
+    }
+
     spec_requests = {"cpu": "1", "memory": "500M"}
     spec_limits = {"memory": "2G"}
-    expected_resources["requests"].update(spec_requests)
-    expected_resources["limits"].update(spec_limits)
     spec = mlrun.runtimes.pod.KubeResourceSpec(
         resources={"requests": spec_requests, "limits": spec_limits}
     )
@@ -126,18 +112,15 @@ def test_resource_enrichment_in_resource_spec_initialization():
 
     # setting only gpu request without limits
     with pytest.raises(mlrun.errors.MLRunConflictError):
-        spec_requests = {"gpu": "1"}
-        expected_resources["requests"].update(spec_requests)
+        spec_requests = {"nvidia.com/gpu": "1"}
         mlrun.runtimes.pod.KubeResourceSpec(
             resources={"requests": spec_requests, "limits": spec_limits}
         )
 
     # setting different gpu requests and limits
     with pytest.raises(mlrun.errors.MLRunConflictError):
-        spec_requests = {"gpu": "1"}
-        spec_limits = {"gpu": "2"}
-        expected_resources["requests"].update(spec_requests)
-        expected_resources["limits"].update(spec_limits)
+        spec_requests = {"nvidia.com/gpu": "1"}
+        spec_limits = {"nvidia.com/gpu": "2"}
         mlrun.runtimes.pod.KubeResourceSpec(
             resources={"requests": spec_requests, "limits": spec_limits}
         )
@@ -145,7 +128,24 @@ def test_resource_enrichment_in_resource_spec_initialization():
     # setting resource not in the k8s resources patterns
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         spec_requests = {"cpu": "1wrong"}
-        expected_resources["requests"].update(spec_requests)
         mlrun.runtimes.pod.KubeResourceSpec(
             resources={"requests": spec_requests, "limits": spec_limits}
         )
+
+    # setting partial requests and limits with equal gpus
+    mlrun.mlconf.default_function_pod_resources = {
+        "requests": {"cpu": "25m", "memory": "1M"},
+        "limits": {"cpu": "2", "memory": "1G"},
+    }
+    expected_resources = {
+        "requests": {"cpu": "25m", "memory": "1M"},
+        "limits": {"cpu": "2", "memory": "1G", "nvidia.com/gpu": "2"},
+    }
+    spec_requests = {"nvidia.com/gpu": "2"}
+    spec_limits = {"nvidia.com/gpu": "2"}
+
+    spec = mlrun.runtimes.pod.KubeResourceSpec(
+        resources={"requests": spec_requests, "limits": spec_limits}
+    )
+
+    assert DeepDiff(spec.resources, expected_resources, ignore_order=True,) == {}

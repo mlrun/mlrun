@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import copy
 import inspect
 import os
 import typing
@@ -97,7 +98,8 @@ class KubeResourceSpec(FunctionSpec):
         self.volumes = volumes or []
         self.volume_mounts = volume_mounts or []
         self.env = env or []
-        self.resources = enrich_resources_with_default_pod_resources(resources)
+        self.resources = resources or {}
+        self.enrich_resources_with_default_pod_resources()
         self.replicas = replicas
         self.image_pull_policy = image_pull_policy
         self.service_account = service_account
@@ -197,6 +199,125 @@ class KubeResourceSpec(FunctionSpec):
         volume_mount_path = get_item_name(volume_mount, "mountPath")
         volume_mount_key = hash(f"{volume_name}-{volume_sub_path}-{volume_mount_path}")
         self._volume_mounts[volume_mount_key] = volume_mount
+
+    def _verify_and_set_limits(
+        self,
+        resources_field_name,
+        mem=None,
+        cpu=None,
+        gpus=None,
+        gpu_type="nvidia.com/gpu",
+    ):
+        if mem:
+            verify_field_regex(
+                f"function.spec.{resources_field_name}.limits.memory",
+                mem,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
+        if cpu:
+            verify_field_regex(
+                f"function.spec.{resources_field_name}.limits.cpu",
+                cpu,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
+        # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
+        if gpus:
+            verify_field_regex(
+                f"function.spec.{resources_field_name}.limits.gpus",
+                gpus,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
+        update_in(
+            getattr(self, resources_field_name),
+            "limits",
+            generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type),
+        )
+
+    def _verify_and_set_requests(self, resources_field_name, mem=None, cpu=None):
+        if mem:
+            verify_field_regex(
+                f"function.spec.{resources_field_name}.requests.memory",
+                mem,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
+        if cpu:
+            verify_field_regex(
+                f"function.spec.{resources_field_name}.requests.cpu",
+                cpu,
+                mlrun.utils.regex.k8s_resource_quantity_regex,
+            )
+        update_in(
+            getattr(self, resources_field_name),
+            "requests",
+            generate_resources(mem=mem, cpu=cpu),
+        )
+
+    def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
+        """set pod cpu/memory/gpu limits"""
+        self._verify_and_set_limits("resources", mem, cpu, gpus, gpu_type)
+
+    def with_requests(self, mem=None, cpu=None):
+        """set requested (desired) pod cpu/memory resources"""
+        self._verify_and_set_requests("resources", mem, cpu)
+
+    def enrich_resources_with_default_pod_resources(self):
+        resources_types = ["cpu", "memory", "nvidia.com/gpu"]
+        resource_requirements = ["requests", "limits"]
+        default_resources = mlconf.default_function_pod_resources.to_dict()
+        if not self.resources:
+            self.resources = default_resources
+
+        resources = copy.copy(self.resources)
+        _verify_gpu_requests_and_limits(
+            requests_gpu=resources.setdefault("requests", {}).setdefault(
+                "nvidia.com/gpu"
+            ),
+            limits_gpu=resources.setdefault("limits", {}).setdefault("nvidia.com/gpu"),
+        )
+        for resource_requirement in resource_requirements:
+            for resource_type in resources_types:
+                if (
+                    resources.setdefault(resource_requirement, {}).setdefault(
+                        resource_type
+                    )
+                    is None
+                ):
+                    if resource_type == "nvidia.com/gpu":
+                        if resource_requirement == "requests":
+                            continue
+                        else:
+                            resources[resource_requirement][
+                                resource_type
+                            ] = default_resources[resource_requirement].get("gpu")
+                    else:
+                        resources[resource_requirement][
+                            resource_type
+                        ] = default_resources[resource_requirement][resource_type]
+
+                    # if gpu limits wasn't set by resources, but got enriched from default params with "",
+                    # and we don't set gpu requests with defaults because maybe the user set only gpu limits
+                    # if resource_type == "gpu" and resource_requirement == "limits":
+                    #     resources["requests"][resource_type] = resources[
+                    #         resource_requirement
+                    #     ][resource_type]
+
+                # if resources[resource_requirement][resource_type]:
+                #     verify_field_regex(
+                #         field_name=f"function.spec.resources.{resource_requirement}.{resource_type}",
+                #         field_value=resources[resource_requirement][resource_type],
+                #         patterns=mlrun.utils.regex.k8s_resource_quantity_regex,
+                #     )
+        requests = resources["requests"]
+        limits = resources["limits"]
+        self._verify_and_set_requests(
+            "resources", mem=requests["memory"], cpu=requests["cpu"]
+        )
+        self._verify_and_set_limits(
+            "resources",
+            mem=limits["memory"],
+            cpu=limits["cpu"],
+            gpus=limits["nvidia.com/gpu"],
+        )
 
 
 class AutoMountType(str, Enum):
@@ -364,11 +485,11 @@ class KubeResource(BaseRuntime):
 
     def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
         """set pod cpu/memory/gpu limits"""
-        self._verify_and_set_limits("resources", mem, cpu, gpus, gpu_type)
+        self.spec.with_limits(mem, cpu, gpus, gpu_type)
 
     def with_requests(self, mem=None, cpu=None):
         """set requested (desired) pod cpu/memory resources"""
-        self._verify_and_set_requests("resources", mem, cpu)
+        self.spec.with_requests(mem, cpu)
 
     def with_node_selection(
         self,
@@ -417,58 +538,6 @@ class KubeResource(BaseRuntime):
 
     def get_default_priority_class_name(self):
         return mlconf.default_function_priority_class_name
-
-    def _verify_and_set_limits(
-        self,
-        resources_field_name,
-        mem=None,
-        cpu=None,
-        gpus=None,
-        gpu_type="nvidia.com/gpu",
-    ):
-        if mem:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.limits.memory",
-                mem,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        if cpu:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.limits.cpu",
-                cpu,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
-        if gpus:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.limits.gpus",
-                gpus,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        update_in(
-            getattr(self.spec, resources_field_name),
-            "limits",
-            generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type),
-        )
-
-    def _verify_and_set_requests(self, resources_field_name, mem=None, cpu=None):
-        if mem:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.requests.memory",
-                mem,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        if cpu:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.requests.cpu",
-                cpu,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        update_in(
-            getattr(self.spec, resources_field_name),
-            "requests",
-            generate_resources(mem=mem, cpu=cpu),
-        )
 
     def _get_meta(self, runobj, unique=False):
         namespace = self._get_k8s().resolve_namespace()
@@ -659,39 +728,6 @@ def kube_resource_spec_to_pod_spec(
         if len(mlconf.get_valid_function_priority_class_names())
         else None,
     )
-
-
-def enrich_resources_with_default_pod_resources(resources: dict = None):
-    resources_types = ["cpu", "memory", "gpu"]
-    resource_requirements = ["requests", "limits"]
-    default_resources = mlconf.default_function_pod_resources.to_dict()
-    if not resources:
-        return default_resources
-
-    _verify_gpu_requests_and_limits(
-        requests_gpu=resources.setdefault("requests", {}).setdefault("gpu", ""),
-        limits_gpu=resources.setdefault("requests", {}).setdefault("gpu", ""),
-    )
-    for resource_requirement in resource_requirements:
-        for resource_type in resources_types:
-            if not resources.setdefault(resource_requirement, {}).setdefault(
-                resource_type, ""
-            ):
-                if resource_type == "gpu" and resource_requirement == "requests":
-                    # set gpu defaults only on limits
-                    continue
-
-                resources[resource_requirement][resource_type] = default_resources[
-                    resource_requirement
-                ][resource_type]
-
-            if resources[resource_requirement][resource_type]:
-                verify_field_regex(
-                    field_name=f"function.spec.resources.{resource_requirement}.{resource_type}",
-                    field_value=resources[resource_requirement][resource_type],
-                    patterns=mlrun.utils.regex.k8s_resource_quantity_regex,
-                )
-    return resources
 
 
 def _verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = None):

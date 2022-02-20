@@ -99,7 +99,7 @@ class KubeResourceSpec(FunctionSpec):
         self.volume_mounts = volume_mounts or []
         self.env = env or []
         self.resources = resources or {}
-        self.enrich_resources_with_default_pod_resources()
+        self.enrich_resources_with_default_pod_resources("resources")
 
         self.replicas = replicas
         self.image_pull_policy = image_pull_policy
@@ -261,14 +261,16 @@ class KubeResourceSpec(FunctionSpec):
         """set requested (desired) pod cpu/memory resources"""
         self._verify_and_set_requests("resources", mem, cpu)
 
-    def enrich_resources_with_default_pod_resources(self):
+    def enrich_resources_with_default_pod_resources(self, resources_field_name: str):
         resources_types = ["cpu", "memory", "nvidia.com/gpu"]
         resource_requirements = ["requests", "limits"]
         default_resources = mlconf.default_function_pod_resources.to_dict()
-        if not self.resources:
-            self.resources = default_resources
 
-        resources = copy.copy(self.resources)
+        self_resources = getattr(self, resources_field_name)
+        if not self_resources:
+            self_resources = default_resources
+
+        resources = copy.copy(self_resources)
         _verify_gpu_requests_and_limits(
             requests_gpu=resources.setdefault("requests", {}).setdefault(
                 "nvidia.com/gpu"
@@ -298,10 +300,10 @@ class KubeResourceSpec(FunctionSpec):
         requests = resources["requests"]
         limits = resources["limits"]
         self._verify_and_set_requests(
-            "resources", mem=requests["memory"], cpu=requests["cpu"]
+            resources_field_name, mem=requests["memory"], cpu=requests["cpu"]
         )
         self._verify_and_set_limits(
-            "resources",
+            resources_field_name,
             mem=limits["memory"],
             cpu=limits["cpu"],
             gpus=limits["nvidia.com/gpu"],

@@ -632,6 +632,29 @@ def _do_populate(env=None):
     config._cfg["_iguazio_api_url"] = config._cfg["iguazio_api_url"]
     del config._cfg["iguazio_api_url"]
 
+    import mlrun.runtimes.pod
+
+    mlrun.runtimes.pod._verify_gpu_requests_and_limits(
+        requests_gpu=config._cfg["default_function_pod_resources"]["requests"]["gpu"],
+        limits_gpu=config._cfg["default_function_pod_resources"]["limits"]["gpu"],
+    )
+
+
+def _convert_resources_to_str(config: dict = None):
+    resources_types = ["cpu", "memory", "gpu"]
+    resource_requirements = ["requests", "limits"]
+    if not config.get("default_function_pod_resources"):
+        return
+    for resource_requirement in resource_requirements:
+        resource_requirement = config.get("default_function_pod_resources").get(
+            resource_requirement
+        )
+        if not resource_requirement:
+            continue
+        for resource_type in resources_types:
+            value = resource_requirement.setdefault(resource_type, "")
+            resource_requirement[resource_type] = str(value)
+
 
 def _convert_str(value, typ):
     if typ in (str, _none_type):
@@ -722,7 +745,9 @@ def read_env(env=None, prefix=env_prefix):
         # logger created (because of imports mess) before the config is loaded (in tests), therefore we're changing its
         # level manually
         mlrun.utils.logger.set_logger_level(config["log_level"])
-
+    # The default function pod resource values are of type str; however, when reading from environment variable numbers,
+    # it converts them to type int if contains only number, so we want to convert them to str.
+    _convert_resources_to_str(config)
     return config
 
 

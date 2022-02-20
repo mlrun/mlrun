@@ -700,9 +700,10 @@ def _verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = 
         raise mlrun.errors.MLRunConflictError(
             "You cannot specify GPU requests without specifying limits"
         )
-    if requests_gpu and limits_gpu and requests_gpu == limits_gpu:
+    if requests_gpu and limits_gpu and requests_gpu != limits_gpu:
         raise mlrun.errors.MLRunConflictError(
-            "When specifying both GPU requests and limits these two values must be equal"
+            f"When specifying both GPU requests and limits these two values must be equal, "
+            f"requests_gpu={requests_gpu}, limits_gpu={limits_gpu}"
         )
 
 

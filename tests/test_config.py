@@ -228,13 +228,6 @@ def test_gpu_validation(config):
     request_gpu_env_key = f"{dfpr_env_key}REQUESTS__GPU"
     limits_gpu_env_key = f"{dfpr_env_key}LIMITS__GPU"
 
-    # None of the requests and limits gpu are set
-    env = {}
-    with patch_env(env):
-        mlconf.config.reload()
-    assert mlconf.config.default_function_pod_resources.requests.gpu is None
-    assert mlconf.config.default_function_pod_resources.limits.gpu is None
-
     # when gpu requests and gpu limits are not equal
     requests_gpu = "3"
     limits_gpu = "2"
@@ -261,3 +254,10 @@ def test_gpu_validation(config):
         mlconf.config.reload()
     assert mlconf.config.default_function_pod_resources.requests.gpu == requests_gpu
     assert mlconf.config.default_function_pod_resources.limits.gpu == limits_gpu
+
+    # None of the requests and limits gpu are set
+    env = {}
+    with patch_env(env):
+        mlconf.config.reload()
+    assert mlconf.config.default_function_pod_resources.requests.gpu is None
+    assert mlconf.config.default_function_pod_resources.limits.gpu is None

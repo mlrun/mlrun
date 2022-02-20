@@ -104,6 +104,46 @@ def test_env_override(config):
     assert config.namespace == env_ns, "env did not override"
 
 
+def test_gpu_validation(config):
+    dfpr_env_key = f"{mlconf.env_prefix}DEFAULT_FUNCTION_POD_RESOURCES__"
+    request_gpu_env_key = f"{dfpr_env_key}REQUESTS__GPU"
+    limits_gpu_env_key = f"{dfpr_env_key}LIMITS__GPU"
+
+    # when gpu requests and gpu limits are not equal
+    requests_gpu = "3"
+    limits_gpu = "2"
+    env = {request_gpu_env_key: requests_gpu, limits_gpu_env_key: limits_gpu}
+
+    with pytest.raises(mlrun.errors.MLRunConflictError):
+        with patch_env(env):
+            mlconf.config.reload()
+
+    # when only gpu request is set
+    requests_gpu = "3"
+    env = {request_gpu_env_key: requests_gpu}
+
+    with pytest.raises(mlrun.errors.MLRunConflictError):
+        with patch_env(env):
+            mlconf.config.reload()
+
+    # when gpu requests and gpu limits are equal
+    requests_gpu = "2"
+    limits_gpu = "2"
+    env = {request_gpu_env_key: requests_gpu, limits_gpu_env_key: limits_gpu}
+
+    with patch_env(env):
+        mlconf.config.reload()
+    assert mlconf.config.default_function_pod_resources.requests.gpu == requests_gpu
+    assert mlconf.config.default_function_pod_resources.limits.gpu == limits_gpu
+
+    # None of the requests and limits gpu are set
+    env = {}
+    with patch_env(env):
+        mlconf.config.reload()
+    assert mlconf.config.default_function_pod_resources.requests.gpu is None
+    assert mlconf.config.default_function_pod_resources.limits.gpu is None
+
+
 old_config_value = None
 new_config_value = "blabla"
 
@@ -221,43 +261,3 @@ def test_setting_dbpath_trigger_connect(requests_mock: requests_mock_package.Moc
     assert "" == mlconf.config.remote_host
     mlconf.config.dbpath = api_url
     assert remote_host == mlconf.config.remote_host
-
-
-def test_gpu_validation(config):
-    dfpr_env_key = f"{mlconf.env_prefix}DEFAULT_FUNCTION_POD_RESOURCES__"
-    request_gpu_env_key = f"{dfpr_env_key}REQUESTS__GPU"
-    limits_gpu_env_key = f"{dfpr_env_key}LIMITS__GPU"
-
-    # when gpu requests and gpu limits are not equal
-    requests_gpu = "3"
-    limits_gpu = "2"
-    env = {request_gpu_env_key: requests_gpu, limits_gpu_env_key: limits_gpu}
-
-    with pytest.raises(mlrun.errors.MLRunConflictError):
-        with patch_env(env):
-            mlconf.config.reload()
-
-    # when only gpu request is set
-    requests_gpu = "3"
-    env = {request_gpu_env_key: requests_gpu}
-
-    with pytest.raises(mlrun.errors.MLRunConflictError):
-        with patch_env(env):
-            mlconf.config.reload()
-
-    # when gpu requests and gpu limits are equal
-    requests_gpu = "2"
-    limits_gpu = "2"
-    env = {request_gpu_env_key: requests_gpu, limits_gpu_env_key: limits_gpu}
-
-    with patch_env(env):
-        mlconf.config.reload()
-    assert mlconf.config.default_function_pod_resources.requests.gpu == requests_gpu
-    assert mlconf.config.default_function_pod_resources.limits.gpu == limits_gpu
-
-    # None of the requests and limits gpu are set
-    env = {}
-    with patch_env(env):
-        mlconf.config.reload()
-    assert mlconf.config.default_function_pod_resources.requests.gpu is None
-    assert mlconf.config.default_function_pod_resources.limits.gpu is None

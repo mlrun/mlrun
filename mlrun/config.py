@@ -634,9 +634,10 @@ def _do_populate(env=None):
 
     import mlrun.runtimes.pod
 
+
     mlrun.runtimes.pod._verify_gpu_requests_and_limits(
-        requests_gpu=config._cfg["default_function_pod_resources"]["requests"]["gpu"],
-        limits_gpu=config._cfg["default_function_pod_resources"]["limits"]["gpu"],
+        requests_gpu=config.default_function_pod_resources.requests.gpu,
+        limits_gpu=config.default_function_pod_resources.limits.gpu,
     )
 
 

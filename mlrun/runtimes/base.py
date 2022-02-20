@@ -200,7 +200,6 @@ class BaseRuntime(ModelObj):
     def uri(self):
         return self._function_uri()
 
-    @property
     def is_deployed(self):
         return True
 
@@ -424,7 +423,7 @@ class BaseRuntime(ModelObj):
                 )
         db = self._get_db()
 
-        if not self.is_deployed:
+        if not self.is_deployed():
             if self.spec.build.auto_build or auto_build:
                 logger.info(
                     "Function is not deployed and auto_build flag is set, starting deploy..."
@@ -820,7 +819,7 @@ class BaseRuntime(ModelObj):
         if use_db:
             # if the same function is built as part of the pipeline we do not use the versioned function
             # rather the latest function w the same tag so we can pick up the updated image/status
-            versioned = False if hasattr(self, "_build_in_pipeline") else False
+            versioned = False if hasattr(self, "_build_in_pipeline") else True
             url = self.save(versioned=versioned, refresh=True)
         else:
             url = None
@@ -964,10 +963,10 @@ class BaseRuntime(ModelObj):
                     if (
                         self.status.state
                         and self.status.state == "ready"
-                        and "nuclio_name" not in self.status
+                        and not hasattr(self.status, "nuclio_name")
                     ):
                         self.spec.image = get_in(db_func, "spec.image", self.spec.image)
-            except Exception:
+            except mlrun.errors.MLRunNotFoundError:
                 pass
 
         tag = tag or self.metadata.tag

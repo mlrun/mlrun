@@ -47,6 +47,7 @@ jobs:
     outputs:
       server-mlrun-version: ${{ steps.computed_params.outputs.mlrun_version }}
       should-clean-resources: ${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}
+      git-branch: ${{ steps.git_info.outputs.branch }}
 
     # let's not run this on every fork, change to your fork when developing
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
@@ -126,12 +127,6 @@ jobs:
           override_iguazio_version=${{ github.event.inputs.override_iguazio_version }} && \
           iguazio_version_by_branch=`if [ "0.6.x" = "0.5.x" ]; then echo "2.10_b81_20200903195924"; else echo "3.0_b27_20210205135416"; fi` && \
           resolved_iguazio_version=${override_iguazio_version:-$iguazio_version_by_branch} && echo $resolved_iguazio_version)"
-    - name: Write google big query credentials to file
-      id: credentials
-      if: ${{ steps.git_info.outputs.branch != '0.5.x' }}
-      run: |
-        export google_big_query_credentials_json_path="/home/runner/work/mlrun/mlrun/tests/system/google-big-query-credentials.json"
-        echo  ${{ secrets.V06_MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON }} > "$google_big_query_credentials_json_path"
     - name: Prepare System Test env.yaml and 0.6.x system
       if: ${{ steps.git_info.outputs.branch != '0.5.x' }}
       timeout-minutes: 20
@@ -204,7 +199,13 @@ jobs:
         run: |
           echo "::set-output name=mlrun_version::$( \
             mlrun_version=`if [ "latest" = "${{ matrix.mlrun-client-version }}" ]; then echo "${{ needs.prepare-enterprise-system.outputs.server-mlrun-version }}"; else echo "${{ matrix.mlrun-client-version }}"; fi` && \
-            echo $mlrun_version)"
+            echo ${mlrun_version#v})"
+      - name: Write google big query credentials to file
+        id: credentials
+        if: ${{ needs.prepare-enterprise-system.outputs.git-branch != '0.5.x' }}
+        run: |
+          export google_big_query_credentials_json_path="/home/runner/work/mlrun/mlrun/tests/system/google-big-query-credentials.json"
+          echo  ${{ secrets.V06_MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON }} > "$google_big_query_credentials_json_path"
       - name: Run System Tests
         run: |
           MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-enterprise-system.outputs.should-clean-resources }}" \

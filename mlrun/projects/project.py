@@ -1411,18 +1411,21 @@ class MlrunProject(ModelObj):
         )
         return self.get_function(key, sync)
 
-    def get_function(self, key, sync=False, enrich=False) -> mlrun.runtimes.BaseRuntime:
+    def get_function(
+        self, key, sync=False, enrich=False, ignore_cache=False
+    ) -> mlrun.runtimes.BaseRuntime:
         """get function object by name
 
         :param key:   name of key for search
         :param sync:  will reload/reinit the function
         :param enrich: add project info/config/source info to the function object
+        :param ignore_cache: read the function object from the DB (ignore the local cache)
 
         :returns: function object
         """
-        if key in self.spec._function_objects and not sync:
+        if key in self.spec._function_objects and not sync and not ignore_cache:
             function = self.spec._function_objects[key]
-        elif key in self.spec._function_definitions:
+        elif key in self.spec._function_definitions and not ignore_cache:
             self.sync_functions()
             function = self.spec._function_objects[key]
         else:

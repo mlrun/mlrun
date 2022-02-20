@@ -38,7 +38,6 @@ class KubejobRuntime(KubeResource):
 
     _is_remote = True
 
-    @property
     def is_deployed(self):
         """check if the function is deployed (have a valid container)"""
         if self.spec.image:

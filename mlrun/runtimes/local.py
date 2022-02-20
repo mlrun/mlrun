@@ -176,7 +176,6 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         if pythonpath:
             self.spec.pythonpath = pythonpath
 
-    @property
     def is_deployed(self):
         return True
 

@@ -232,8 +232,8 @@ def test_gpu_validation(config):
     env = {}
     with patch_env(env):
         mlconf.config.reload()
-    assert mlconf.config.default_function_pod_resources.requests.gpu == ""
-    assert mlconf.config.default_function_pod_resources.limits.gpu == ""
+    assert mlconf.config.default_function_pod_resources.requests.gpu is None
+    assert mlconf.config.default_function_pod_resources.limits.gpu is None
 
     # when gpu requests and gpu limits are not equal
     requests_gpu = "3"

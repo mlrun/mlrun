@@ -113,35 +113,32 @@ def test_gpu_validation(config):
     requests_gpu = "3"
     limits_gpu = "2"
     env = {request_gpu_env_key: requests_gpu, limits_gpu_env_key: limits_gpu}
-
-    with pytest.raises(mlrun.errors.MLRunConflictError):
-        with patch_env(env):
+    with patch_env(env):
+        with pytest.raises(mlrun.errors.MLRunConflictError):
             mlconf.config.reload()
 
     # when only gpu request is set
     requests_gpu = "3"
     env = {request_gpu_env_key: requests_gpu}
-
-    with pytest.raises(mlrun.errors.MLRunConflictError):
-        with patch_env(env):
+    with patch_env(env):
+        with pytest.raises(mlrun.errors.MLRunConflictError):
             mlconf.config.reload()
 
     # when gpu requests and gpu limits are equal
     requests_gpu = "2"
     limits_gpu = "2"
     env = {request_gpu_env_key: requests_gpu, limits_gpu_env_key: limits_gpu}
-
     with patch_env(env):
         mlconf.config.reload()
-    assert mlconf.config.default_function_pod_resources.requests.gpu == requests_gpu
-    assert mlconf.config.default_function_pod_resources.limits.gpu == limits_gpu
+    assert config.default_function_pod_resources.requests.gpu == requests_gpu
+    assert config.default_function_pod_resources.limits.gpu == limits_gpu
 
     # None of the requests and limits gpu are set
     env = {}
     with patch_env(env):
         mlconf.config.reload()
-    assert mlconf.config.default_function_pod_resources.requests.gpu is None
-    assert mlconf.config.default_function_pod_resources.limits.gpu is None
+    assert config.default_function_pod_resources.requests.gpu is None
+    assert config.default_function_pod_resources.limits.gpu is None
 
 
 old_config_value = None

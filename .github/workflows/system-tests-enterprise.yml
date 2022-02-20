@@ -40,10 +40,13 @@ on:
 concurrency: one-at-a-time
 
 jobs:
-  run-system-tests-enterprise-ci:
-    timeout-minutes: 120
-    name: Run System Tests Enterprise
+  prepare-enterprise-system:
+    timeout-minutes: 30
+    name: Prepare Enterprise System
     runs-on: ubuntu-latest
+    outputs:
+      server-mlrun-version: ${{ steps.computed_params.outputs.mlrun_version }}
+      should-clean-resources: ${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}
 
     # let's not run this on every fork, change to your fork when developing
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
@@ -174,8 +177,36 @@ jobs:
           --override-mlrun-images \
           "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }}"
 
-    - name: Run System Tests
-      run: |
-        MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}" \
-        MLRUN_VERSION="${{ steps.computed_params.outputs.mlrun_version }}" \
-          make test-system-dockerized
+
+  run-enterprise-system-tests:
+    needs: prepare-enterprise-system
+    timeout-minutes: 240
+    name: Run Enterprise System Tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        mlrun-client-version: [ latest, v0.10.0 ]
+
+    # let's not run this on every fork, change to your fork when developing
+    if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@v2
+        if: ${{ matrix.mlrun-client-version == 'latest' }}
+      - uses: actions/checkout@v2
+        if: ${{ matrix.mlrun-client-version != 'latest' }}
+        with:
+          ref: ${{ matrix.mlrun-client-version }}
+      - name: Compute mlrun version
+        id: compute_mlrun_version
+        run: |
+          echo "::set-output name=mlrun_version::$( \
+            mlrun_version=`if [ "latest" = "${{ matrix.mlrun-client-version }}" ]; then echo "${{ needs.prepare-enterprise-system.outputs.server-mlrun-version }}"; else echo "${{ matrix.mlrun-client-version }}"; fi` && \
+            echo $mlrun_version)"
+      - name: Run System Tests
+        run: |
+          MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-enterprise-system.outputs.should-clean-resources }}" \
+          MLRUN_VERSION="${{ steps.compute_mlrun_version.outputs.mlrun_version }}" \
+            make test-system-dockerized

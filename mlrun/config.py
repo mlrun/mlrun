@@ -319,8 +319,8 @@ default_config = {
         "auto_mount_params": "",
     },
     "default_function_pod_resources": {
-        "requests": {"cpu": "", "memory": "", "gpu": ""},
-        "limits": {"cpu": "", "memory": "", "gpu": ""},
+        "requests": {"cpu": None, "memory": None, "gpu": None},
+        "limits": {"cpu": None, "memory": None, "gpu": None},
     },
 }
 
@@ -653,6 +653,8 @@ def _convert_resources_to_str(config: dict = None):
             continue
         for resource_type in resources_types:
             value = resource_requirement.setdefault(resource_type, "")
+            if value is None:
+                continue
             resource_requirement[resource_type] = str(value)
 
 

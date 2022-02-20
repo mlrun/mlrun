@@ -103,7 +103,6 @@ def test_requirement_specifiers_convention():
         "urllib3": {">=1.25.4, <1.27"},
         "cryptography": {"~=3.0, <3.4"},
         "chardet": {">=3.0.2, <4.0"},
-        "google-auth": {">=1.25.0, <2.0dev"},
         "numpy": {">=1.16.5, <1.22.0"},
         "orjson": {">=3,<3.4"},
         "alembic": {"~=1.4,<1.6.0"},

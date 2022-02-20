@@ -294,19 +294,6 @@ class KubeResourceSpec(FunctionSpec):
                             resource_type
                         ] = default_resources[resource_requirement][resource_type]
 
-                    # if gpu limits wasn't set by resources, but got enriched from default params with "",
-                    # and we don't set gpu requests with defaults because maybe the user set only gpu limits
-                    # if resource_type == "gpu" and resource_requirement == "limits":
-                    #     resources["requests"][resource_type] = resources[
-                    #         resource_requirement
-                    #     ][resource_type]
-
-                # if resources[resource_requirement][resource_type]:
-                #     verify_field_regex(
-                #         field_name=f"function.spec.resources.{resource_requirement}.{resource_type}",
-                #         field_value=resources[resource_requirement][resource_type],
-                #         patterns=mlrun.utils.regex.k8s_resource_quantity_regex,
-                #     )
         requests = resources["requests"]
         limits = resources["limits"]
         self._verify_and_set_requests(

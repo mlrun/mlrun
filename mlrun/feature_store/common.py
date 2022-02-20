@@ -326,7 +326,7 @@ class RunConfig:
                 spec=self.extra_spec,
             ).to_function(default_kind, default_image)
 
-        if not function.is_deployed:
+        if not function.is_deployed():
             # todo: handle build for job functions
             logger.warn("cannot run function, it must be built/deployed first")
 

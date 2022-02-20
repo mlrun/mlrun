@@ -43,6 +43,12 @@ def get_frontend_spec(
             "{tag}",
         )
     )
+    registries_to_enforce_prefix = (
+        mlrun.runtimes.utils.resolve_function_target_image_registries_to_enforce_prefix()
+    )
+    function_target_image_name_prefix_template = (
+        config.httpdb.builder.function_target_image_name_prefix_template
+    )
     return mlrun.api.schemas.FrontendSpec(
         jobs_dashboard_url=jobs_dashboard_url,
         abortable_function_kinds=mlrun.runtimes.RuntimeKinds.abortable_runtimes(),
@@ -51,6 +57,8 @@ def get_frontend_spec(
         valid_function_priority_class_names=config.get_valid_function_priority_class_names(),
         default_function_image_by_kind=mlrun.mlconf.function_defaults.image_by_kind.to_dict(),
         function_deployment_target_image_template=function_deployment_target_image_template,
+        function_deployment_target_image_name_prefix_template=function_target_image_name_prefix_template,
+        function_deployment_target_image_registries_to_enforce_prefix=registries_to_enforce_prefix,
         function_deployment_mlrun_command=mlrun.builder.resolve_mlrun_install_command(),
         auto_mount_type=config.storage.auto_mount_type,
         auto_mount_params=config.get_storage_auto_mount_params(),

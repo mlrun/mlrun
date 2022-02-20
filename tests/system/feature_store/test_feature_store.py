@@ -2157,6 +2157,29 @@ class TestFeatureStore(TestMLRunSystem):
         run = func.run(inputs={"data": vector.uri}, local=True)
         assert run.output("uri") == vector.uri
 
+    def test_two_ingests(self):
+        df1 = pd.DataFrame({"name": ["AB", "CD"], "some_data": [10, 20]})
+        set1 = fs.FeatureSet("set1", entities=[Entity("name")])
+        fs.ingest(set1, df1)
+
+        df2 = pd.DataFrame({"name": ["AB", "CD"], "some_data": ["Paris", "Tel Aviv"]})
+        set2 = fs.FeatureSet("set2", entities=[Entity("name")])
+        fs.ingest(set2, df2)
+        vector = fs.FeatureVector("check", ["set1.*", "set2.some_data as ddata"])
+        svc = fs.get_online_feature_service(vector)
+
+        try:
+            resp = svc.get([{"name": "AB"}])
+        finally:
+            svc.close()
+        assert resp == [{"some_data": 10, "ddata": "Paris"}]
+
+        resp = fs.get_offline_features(vector)
+        assert resp.to_dataframe().to_dict() == {
+            "some_data": {0: 10, 1: 20},
+            "ddata": {0: "Paris", 1: "Tel Aviv"},
+        }
+
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)

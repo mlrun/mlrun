@@ -153,7 +153,7 @@ class ModelEndpoints:
         """
         Deletes the KV record of a given model endpoint, project and endpoint_id are used for lookup
 
-        :param auth_info: The required auth information for doing the deletion
+        :param auth_info: The auth info of the request
         :param project: The name of the project
         :param endpoint_id: The id of the endpoint
         :param access_key: access key with permission to delete
@@ -202,7 +202,7 @@ class ModelEndpoints:
         and depends on the 'start' and 'end' parameters. By default, when the metrics parameter is None, no metrics are
         added to the output of this function.
 
-        :param access_key: V3IO access key for managing user permissions
+        :param auth_info: The auth info of the request
         :param project: The name of the project
         :param model: The name of the model to filter by
         :param function: The name of the function to filter by
@@ -284,7 +284,7 @@ class ModelEndpoints:
         """
         Returns a ModelEndpoint object with additional metrics and feature related data.
 
-        :param auth_info: The required auth information for doing the deletion
+        :param auth_info: The auth info of the request
         :param project: The name of the project
         :param endpoint_id: The id of the model endpoint
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'

@@ -1,4 +1,6 @@
 import os
+import pathlib
+import typing
 
 import pandas as pd
 import pytest
@@ -8,18 +10,32 @@ from mlrun.datastore.sources import BigQuerySource
 from mlrun.datastore.targets import ParquetTarget
 from tests.system.base import TestMLRunSystem
 
-CREDENTIALS_ENV = "MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON"
+CREDENTIALS_ENV = "MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON_PATH"
+CREDENTIALS_JSON_DEFAULT_PATH = (
+    TestMLRunSystem.root_path / "tests" / "system" / "google-big-query-credentials.json"
+)
 
 
-def _are_google_credentials_set() -> bool:
-    return not os.getenv(CREDENTIALS_ENV)
+def _resolve_google_credentials_json_path() -> typing.Optional[pathlib.Path]:
+    default_path = pathlib.Path(CREDENTIALS_JSON_DEFAULT_PATH)
+    if os.getenv(CREDENTIALS_ENV):
+        return pathlib.Path(os.getenv(CREDENTIALS_ENV))
+    elif default_path.exists():
+        return default_path
+    return None
+
+
+def _are_google_credentials_not_set() -> bool:
+    credentials_path = _resolve_google_credentials_json_path()
+    return not credentials_path
 
 
 # Marked as enterprise because of v3io mount and pipelines
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.skipif(
-    _are_google_credentials_set(),
-    reason=f"Environment variable {CREDENTIALS_ENV} is not defined, skipping...",
+    _are_google_credentials_not_set(),
+    reason=f"Environment variable {CREDENTIALS_ENV} is not defined, and credentials file not in default path"
+    f" {CREDENTIALS_JSON_DEFAULT_PATH}, skipping...",
 )
 @pytest.mark.enterprise
 class TestFeatureStoreGoogleBigQuery(TestMLRunSystem):
@@ -69,12 +85,8 @@ class TestFeatureStoreGoogleBigQuery(TestMLRunSystem):
 
     @staticmethod
     def _test_big_query_source(name: str, source: BigQuerySource, max_results: int):
-        gbq_credentials_json = str(os.environ.get(CREDENTIALS_ENV))
-        with open("google_application_credentials.txt", "w") as fh:
-            fh.write(gbq_credentials_json)
-        os.environ[
-            "GOOGLE_APPLICATION_CREDENTIALS"
-        ] = "google_application_credentials.txt"
+        credentials_path = _resolve_google_credentials_json_path()
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(credentials_path)
 
         targets = [
             ParquetTarget(

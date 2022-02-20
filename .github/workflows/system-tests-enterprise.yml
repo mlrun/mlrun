@@ -37,6 +37,8 @@ on:
         description: 'Override the configured target system iguazio version (leave empty to resolve automatically by the mlrun version)'
         required: false
 
+concurrency: one-at-a-time
+
 jobs:
   run-system-tests-enterprise-ci:
     timeout-minutes: 120
@@ -121,12 +123,6 @@ jobs:
           override_iguazio_version=${{ github.event.inputs.override_iguazio_version }} && \
           iguazio_version_by_branch=`if [ "0.6.x" = "0.5.x" ]; then echo "2.10_b81_20200903195924"; else echo "3.0_b27_20210205135416"; fi` && \
           resolved_iguazio_version=${override_iguazio_version:-$iguazio_version_by_branch} && echo $resolved_iguazio_version)"
-    - name: Wait for existing runs to complete
-      uses: softprops/turnstyle@v1
-      with:
-        poll-interval-seconds: 20s
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Write google big query credentials to file
       id: credentials
       if: ${{ steps.git_info.outputs.branch != '0.5.x' }}

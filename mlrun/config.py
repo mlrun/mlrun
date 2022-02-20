@@ -633,10 +633,19 @@ def _do_populate(env=None):
     del config._cfg["iguazio_api_url"]
 
     import mlrun.runtimes.pod
+    try:
+        requests_gpu = config.default_function_pod_resources.requests.gpu
+    except:
+        requests_gpu = None
+
+    try:
+        limits_gpu = config.default_function_pod_resources.limits.gpu
+    except:
+        limits_gpu = None
 
     mlrun.runtimes.pod._verify_gpu_requests_and_limits(
-        requests_gpu=config.default_function_pod_resources.requests.gpu,
-        limits_gpu=config.default_function_pod_resources.limits.gpu,
+        requests_gpu=requests_gpu,
+        limits_gpu=limits_gpu,
     )
 
 

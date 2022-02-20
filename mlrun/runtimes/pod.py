@@ -100,6 +100,7 @@ class KubeResourceSpec(FunctionSpec):
         self.env = env or []
         self.resources = resources or {}
         self.enrich_resources_with_default_pod_resources()
+
         self.replicas = replicas
         self.image_pull_policy = image_pull_policy
         self.service_account = service_account

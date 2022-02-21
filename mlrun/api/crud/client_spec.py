@@ -6,7 +6,9 @@ from mlrun.runtimes.utils import resolve_mpijob_crd_version
 from mlrun.utils import logger
 
 
-class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
+class ClientSpec(
+    metaclass=mlrun.utils.singleton.Singleton,
+):
     def __init__(self):
         self._cached_nuclio_version = None
 

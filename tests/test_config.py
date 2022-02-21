@@ -253,7 +253,8 @@ def test_setting_dbpath_trigger_connect(requests_mock: requests_mock_package.Moc
         "remote_host": remote_host,
     }
     requests_mock.get(
-        f"{api_url}/{HTTPRunDB.get_api_path_prefix()}/client-spec", json=response_body,
+        f"{api_url}/{HTTPRunDB.get_api_path_prefix()}/client-spec",
+        json=response_body,
     )
     assert "" == mlconf.config.remote_host
     mlconf.config.dbpath = api_url

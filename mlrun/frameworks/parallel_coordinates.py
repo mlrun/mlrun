@@ -25,7 +25,11 @@ def _gen_dropdown_buttons(output_cols) -> list:
         return [name == col for name in output_cols]
 
     buttons = [
-        dict(label=col, method="update", args=[{"visible": gen_bool_list(col)}],)
+        dict(
+            label=col,
+            method="update",
+            args=[{"visible": gen_bool_list(col)}],
+        )
         for col in output_cols
     ]
 

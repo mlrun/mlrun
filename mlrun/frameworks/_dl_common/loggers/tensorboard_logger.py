@@ -433,8 +433,10 @@ class TensorboardLogger(Logger, Generic[Weight]):
         # If the tensorboard directory is not provided, set it to the default:
         if self._tensorboard_directory is None:
             # Use the default tensorboard logs directory:
-            self._tensorboard_directory = mlrun.mlconf.default_tensorboard_logs_path.replace(
-                "{{project}}", self._context.project
+            self._tensorboard_directory = (
+                mlrun.mlconf.default_tensorboard_logs_path.replace(
+                    "{{project}}", self._context.project
+                )
             )
             # Try to create the directory, if not succeeded (writing error) change to the artifacts path:
             try:
@@ -617,12 +619,14 @@ class TensorboardLogger(Logger, Generic[Weight]):
 
         :return: The generated link.
         """
-        return '<a href="{}/{}/{}/jobs/monitor/{}/overview" target="_blank">{}</a>'.format(
-            config.resolve_ui_url(),
-            config.ui.projects_prefix,
-            context.project,
-            context.uid,
-            link_text,
+        return (
+            '<a href="{}/{}/{}/jobs/monitor/{}/overview" target="_blank">{}</a>'.format(
+                config.resolve_ui_url(),
+                config.ui.projects_prefix,
+                context.project,
+                context.uid,
+                link_text,
+            )
         )
 
     @staticmethod

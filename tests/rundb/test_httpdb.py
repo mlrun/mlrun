@@ -89,8 +89,6 @@ def docker_fixture():
             "build",
             "-f",
             "dockerfiles/mlrun-api/Dockerfile",
-            "--build-arg",
-            "MLRUN_PYTHON_VERSION=3.7.11",
             "--tag",
             docker_tag,
             ".",
@@ -551,7 +549,9 @@ def test_project_file_db_roundtrip(create_server):
     labels = {"key": "value"}
     annotations = {"annotation-key": "annotation-value"}
     project_metadata = mlrun.projects.project.ProjectMetadata(
-        project_name, labels=labels, annotations=annotations,
+        project_name,
+        labels=labels,
+        annotations=annotations,
     )
     project_spec = mlrun.projects.project.ProjectSpec(
         description,

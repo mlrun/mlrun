@@ -184,7 +184,8 @@ class Logger:
             self._context.commit(completed=False)
 
     def log_run(
-        self, model_handler: MLModelHandler,
+        self,
+        model_handler: MLModelHandler,
     ):
         """
         End the logger's run, logging the collected artifacts and metrics results with the model. The model will be
@@ -196,11 +197,13 @@ class Logger:
         # model artifact:
         if self._mode == LoggerMode.TRAINING:
             model_handler.log(
-                metrics=self._logged_results, artifacts=self._logged_artifacts,
+                metrics=self._logged_results,
+                artifacts=self._logged_artifacts,
             )
         else:
             model_handler.update(
-                metrics=self._logged_results, artifacts=self._logged_artifacts,
+                metrics=self._logged_results,
+                artifacts=self._logged_artifacts,
             )
 
         # Commit:

@@ -268,7 +268,10 @@ class TestProject(TestMLRunSystem):
         name = "lclclipipe"
         project = self._create_project(name)
         project.set_function(
-            "gen_iris.py", "gen-iris", image="mlrun/mlrun", handler="iris_generator",
+            "gen_iris.py",
+            "gen-iris",
+            image="mlrun/mlrun",
+            handler="iris_generator",
         )
         project.save()
         print(project.to_yaml())

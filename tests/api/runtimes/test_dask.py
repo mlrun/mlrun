@@ -84,7 +84,9 @@ class TestDaskRuntime(TestRuntimeBase):
 
         return dask_cluster
 
-    def _assert_scheduler_pod_args(self,):
+    def _assert_scheduler_pod_args(
+        self,
+    ):
         scheduler_pod = self._get_scheduler_pod_creation_args()
         scheduler_container_spec = scheduler_pod.spec.containers[0]
         assert scheduler_container_spec.args == ["dask-scheduler"]
@@ -146,7 +148,8 @@ class TestDaskRuntime(TestRuntimeBase):
             cpu=expected_scheduler_limits["cpu"],
         )
         runtime.with_worker_limits(
-            mem=expected_worker_limits["memory"], cpu=expected_worker_limits["cpu"],
+            mem=expected_worker_limits["memory"],
+            cpu=expected_worker_limits["cpu"],
         )
         runtime.gpus(expected_gpus, gpu_type)
         _ = runtime.client

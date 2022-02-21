@@ -296,7 +296,8 @@ class K8sHelper:
         )
         try:
             api_response = self.v1api.create_namespaced_service_account(
-                namespace, k8s_service_account,
+                namespace,
+                k8s_service_account,
             )
             return api_response
         except ApiException as exc:
@@ -514,7 +515,10 @@ class BasePod:
         self.add_volume(
             client.V1Volume(
                 name=name,
-                secret=client.V1SecretVolumeSource(secret_name=name, items=items,),
+                secret=client.V1SecretVolumeSource(
+                    secret_name=name,
+                    items=items,
+                ),
             ),
             mount_path=path,
             sub_path=sub_path,
@@ -558,7 +562,7 @@ class BasePod:
 
 
 def format_labels(labels):
-    """ Convert a dictionary of labels into a comma separated string """
+    """Convert a dictionary of labels into a comma separated string"""
     if labels:
         return ",".join([f"{k}={v}" for k, v in labels.items()])
     else:

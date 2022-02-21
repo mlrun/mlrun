@@ -641,8 +641,10 @@ class KubeResource(BaseRuntime):
             logger.warning("No project provided. Cannot add vault parameters")
             return
 
-        service_account_name = mlconf.secret_stores.vault.project_service_account_name.format(
-            project=project_name
+        service_account_name = (
+            mlconf.secret_stores.vault.project_service_account_name.format(
+                project=project_name
+            )
         )
 
         project_vault_secret_name = self._get_k8s().get_project_vault_secret_name(

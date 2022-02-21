@@ -30,7 +30,10 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
         return is_running_in_background
 
     def update_project(
-        self, session: str, name: str, project: mlrun.api.schemas.Project,
+        self,
+        session: str,
+        name: str,
+        project: mlrun.api.schemas.Project,
     ):
         self._update_state(project)
         mlrun.api.utils.singletons.project_member.get_project_member().store_project(
@@ -55,7 +58,9 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
         )
 
     def list_projects(
-        self, session: str, updated_after: typing.Optional[datetime.datetime] = None,
+        self,
+        session: str,
+        updated_after: typing.Optional[datetime.datetime] = None,
     ) -> typing.Tuple[
         typing.List[mlrun.api.schemas.Project], typing.Optional[datetime.datetime]
     ]:
@@ -66,9 +71,15 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
             datetime.datetime.utcnow(),
         )
 
-    def get_project(self, session: str, name: str,) -> mlrun.api.schemas.Project:
-        return mlrun.api.utils.singletons.project_member.get_project_member().get_project(
-            self.db_session, name
+    def get_project(
+        self,
+        session: str,
+        name: str,
+    ) -> mlrun.api.schemas.Project:
+        return (
+            mlrun.api.utils.singletons.project_member.get_project_member().get_project(
+                self.db_session, name
+            )
         )
 
     def format_as_leader_project(
@@ -77,7 +88,9 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
         return mlrun.api.schemas.IguazioProject(data=project.dict())
 
     def get_project_owner(
-        self, session: str, name: str,
+        self,
+        session: str,
+        name: str,
     ) -> mlrun.api.schemas.ProjectOwner:
         project = self.get_project(session, name)
         return mlrun.api.schemas.ProjectOwner(

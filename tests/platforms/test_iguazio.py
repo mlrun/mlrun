@@ -101,12 +101,18 @@ def test_mount_v3io_legacy():
     }
     expected_volume_mount = {"mountPath": "/User", "name": "v3io", "subPath": ""}
     assert (
-        deepdiff.DeepDiff([expected_volume], function.spec.volumes, ignore_order=True,)
+        deepdiff.DeepDiff(
+            [expected_volume],
+            function.spec.volumes,
+            ignore_order=True,
+        )
         == {}
     )
     assert (
         deepdiff.DeepDiff(
-            [expected_volume_mount], function.spec.volume_mounts, ignore_order=True,
+            [expected_volume_mount],
+            function.spec.volume_mounts,
+            ignore_order=True,
         )
         == {}
     )

@@ -161,7 +161,10 @@ class MetricsLibrary(ABC):
         return metrics
 
     @staticmethod
-    def _to_metric_class(metric_entry: MetricEntry, metric_name: str = None,) -> Metric:
+    def _to_metric_class(
+        metric_entry: MetricEntry,
+        metric_name: str = None,
+    ) -> Metric:
         """
         Create a Metric instance from a user given metric entry.
 

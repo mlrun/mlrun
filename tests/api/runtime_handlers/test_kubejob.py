@@ -69,7 +69,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         ]:
             pods = self._mock_list_resources_pods()
             self._assert_runtime_handler_list_resources(
-                RuntimeKinds.job, expected_pods=pods, group_by=group_by,
+                RuntimeKinds.job,
+                expected_pods=pods,
+                group_by=group_by,
             )
 
     def test_list_resources_grouped_by_project_with_non_project_resources(
@@ -110,7 +112,11 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             db, self.project, self.run_uid, RunStates.completed
         )
         self._assert_run_logs(
-            db, self.project, self.run_uid, log, self.completed_job_pod.metadata.name,
+            db,
+            self.project,
+            self.run_uid,
+            log,
+            self.completed_job_pod.metadata.name,
         )
 
     def test_delete_resources_completed_builder_pod(
@@ -190,7 +196,11 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             db, self.project, self.run_uid, RunStates.running
         )
         self._assert_run_logs(
-            db, self.project, self.run_uid, log, self.running_job_pod.metadata.name,
+            db,
+            self.project,
+            self.run_uid,
+            log,
+            self.running_job_pod.metadata.name,
         )
 
     def test_monitor_run_completed_pod(self, db: Session, client: TestClient):
@@ -216,7 +226,11 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             db, self.project, self.run_uid, RunStates.completed
         )
         self._assert_run_logs(
-            db, self.project, self.run_uid, log, self.completed_job_pod.metadata.name,
+            db,
+            self.project,
+            self.run_uid,
+            log,
+            self.completed_job_pod.metadata.name,
         )
 
     def test_monitor_run_failed_pod(self, db: Session, client: TestClient):
@@ -240,7 +254,11 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
         self._assert_run_logs(
-            db, self.project, self.run_uid, log, self.failed_job_pod.metadata.name,
+            db,
+            self.project,
+            self.run_uid,
+            log,
+            self.failed_job_pod.metadata.name,
         )
 
     def test_monitor_run_no_pods(self, db: Session, client: TestClient):
@@ -289,7 +307,11 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
         self._assert_run_logs(
-            db, self.project, self.run_uid, log, self.completed_job_pod.metadata.name,
+            db,
+            self.project,
+            self.run_uid,
+            log,
+            self.completed_job_pod.metadata.name,
         )
 
     def test_monitor_run_debouncing_non_terminal_state(
@@ -303,8 +325,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         original_update_run_updated_time = (
             mlrun.api.utils.singletons.db.get_db()._update_run_updated_time
         )
-        mlrun.api.utils.singletons.db.get_db()._update_run_updated_time = tests.conftest.freeze(
-            original_update_run_updated_time, now=now_date()
+        mlrun.api.utils.singletons.db.get_db()._update_run_updated_time = (
+            tests.conftest.freeze(original_update_run_updated_time, now=now_date())
         )
         mlrun.api.crud.Runs().store_run(
             db, self.run, self.run_uid, project=self.project
@@ -326,9 +348,11 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
         # Mocking that update occurred before debounced period
         debounce_period = config.runs_monitoring_interval
-        mlrun.api.utils.singletons.db.get_db()._update_run_updated_time = tests.conftest.freeze(
-            original_update_run_updated_time,
-            now=now_date() - timedelta(seconds=float(2 * debounce_period)),
+        mlrun.api.utils.singletons.db.get_db()._update_run_updated_time = (
+            tests.conftest.freeze(
+                original_update_run_updated_time,
+                now=now_date() - timedelta(seconds=float(2 * debounce_period)),
+            )
         )
         mlrun.api.crud.Runs().store_run(
             db, self.run, self.run_uid, project=self.project
@@ -365,7 +389,11 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
         self._assert_run_logs(
-            db, self.project, self.run_uid, log, self.completed_job_pod.metadata.name,
+            db,
+            self.project,
+            self.run_uid,
+            log,
+            self.completed_job_pod.metadata.name,
         )
 
     def test_monitor_run_run_does_not_exists(self, db: Session, client: TestClient):
@@ -390,7 +418,11 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             db, self.project, self.run_uid, RunStates.completed
         )
         self._assert_run_logs(
-            db, self.project, self.run_uid, log, self.completed_job_pod.metadata.name,
+            db,
+            self.project,
+            self.run_uid,
+            log,
+            self.completed_job_pod.metadata.name,
         )
 
     def _mock_list_resources_pods(self, pod=None):

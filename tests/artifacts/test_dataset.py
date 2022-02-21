@@ -77,7 +77,9 @@ def test_dataset_upload_with_src_path_filling_hash():
     src_path = pathlib.Path(tests.conftest.results) / "dataset"
     target_path = pathlib.Path(tests.conftest.results) / "target-dataset"
     artifact = mlrun.artifacts.dataset.DatasetArtifact(
-        df=data_frame, target_path=str(target_path), format="csv",
+        df=data_frame,
+        target_path=str(target_path),
+        format="csv",
     )
     data_frame.to_csv(src_path)
     artifact.src_path = src_path
@@ -89,6 +91,8 @@ def _generate_dataset_artifact(format_):
     data_frame = pandas.DataFrame({"x": [1, 2]})
     target_path = pathlib.Path(tests.conftest.results) / "dataset"
     artifact = mlrun.artifacts.dataset.DatasetArtifact(
-        df=data_frame, target_path=str(target_path), format=format_,
+        df=data_frame,
+        target_path=str(target_path),
+        format=format_,
     )
     return artifact

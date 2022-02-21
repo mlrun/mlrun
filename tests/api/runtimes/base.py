@@ -317,7 +317,9 @@ class TestRuntimeBase:
             )
         if expected_labels:
             diff_result = deepdiff.DeepDiff(
-                function_metadata["labels"], expected_labels, ignore_order=True,
+                function_metadata["labels"],
+                expected_labels,
+                ignore_order=True,
             )
             # We just care that the values we look for are fully there.
             diff_result.pop("dictionary_item_removed", None)
@@ -542,7 +544,9 @@ class TestRuntimeBase:
         if expected_node_selector:
             assert (
                 deepdiff.DeepDiff(
-                    pod.spec.node_selector, expected_node_selector, ignore_order=True,
+                    pod.spec.node_selector,
+                    expected_node_selector,
+                    ignore_order=True,
                 )
                 == {}
             )

@@ -636,6 +636,7 @@ def _do_populate(env=None):
     del config._cfg["iguazio_api_url"]
 
     import mlrun.k8s_utils
+
     try:
         limits_gpu = config.default_function_pod_resources.limits.gpu
         requests_gpu = config.default_function_pod_resources.requests.gpu

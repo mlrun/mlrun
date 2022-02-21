@@ -1316,7 +1316,10 @@ class TestFeatureStore(TestMLRunSystem):
         data_set = fs.FeatureSet("aliass", entities=[Entity("ticker")])
 
         data_set.add_aggregation(
-            column="price", operations=["sum", "max"], windows="1h", period="10m",
+            column="price",
+            operations=["sum", "max"],
+            windows="1h",
+            period="10m",
         )
 
         fs.ingest(data_set, df)

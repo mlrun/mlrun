@@ -142,7 +142,8 @@ class PackageTester:
             extra=extra,
         )
         self._run_command(
-            "python -m pip install --upgrade pip~=22.0.0", run_in_venv=True,
+            "python -m pip install --upgrade pip~=22.0.0",
+            run_in_venv=True,
         )
 
         self._run_command(

@@ -537,16 +537,23 @@ def test_secrets_crud_internal_secrets(
 
     # delete regular secret - pass
     mlrun.api.crud.Secrets().delete_secrets(
-        project, provider, [regular_secret_key],
+        project,
+        provider,
+        [regular_secret_key],
     )
 
     # delete with empty list (delete all) - shouldn't delete internal
     mlrun.api.crud.Secrets().delete_secrets(
-        project, provider, [],
+        project,
+        provider,
+        [],
     )
     # list to verify - only internal should remain
     secrets_data = mlrun.api.crud.Secrets().list_secrets(
-        project, provider, allow_secrets_from_k8s=True, allow_internal_secrets=True,
+        project,
+        provider,
+        allow_secrets_from_k8s=True,
+        allow_internal_secrets=True,
     )
     assert (
         deepdiff.DeepDiff(
@@ -560,7 +567,9 @@ def test_secrets_crud_internal_secrets(
     # delete internal secret without allow - fail
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
         mlrun.api.crud.Secrets().delete_secrets(
-            project, provider, [internal_secret_key],
+            project,
+            provider,
+            [internal_secret_key],
         )
 
     # delete internal secret with allow - pass
@@ -571,7 +580,14 @@ def test_secrets_crud_internal_secrets(
     secrets_data = mlrun.api.crud.Secrets().list_secrets(
         project, provider, allow_secrets_from_k8s=True
     )
-    assert deepdiff.DeepDiff(secrets_data.secrets, {}, ignore_order=True,) == {}
+    assert (
+        deepdiff.DeepDiff(
+            secrets_data.secrets,
+            {},
+            ignore_order=True,
+        )
+        == {}
+    )
 
     # store internal secret again to verify deletion with empty list with allow - pass
     mlrun.api.crud.Secrets().store_secrets(
@@ -583,10 +599,20 @@ def test_secrets_crud_internal_secrets(
     )
     # delete with empty list (delete all) with allow - nothing should remain
     mlrun.api.crud.Secrets().delete_secrets(
-        project, provider, [], allow_internal_secrets=True,
+        project,
+        provider,
+        [],
+        allow_internal_secrets=True,
     )
     # list to verify
     secrets_data = mlrun.api.crud.Secrets().list_secrets(
         project, provider, allow_secrets_from_k8s=True
     )
-    assert deepdiff.DeepDiff(secrets_data.secrets, {}, ignore_order=True,) == {}
+    assert (
+        deepdiff.DeepDiff(
+            secrets_data.secrets,
+            {},
+            ignore_order=True,
+        )
+        == {}
+    )

@@ -216,7 +216,12 @@ class ServingRuntime(RemoteRuntime):
         self._spec = self._verify_dict(spec, "spec", ServingSpec)
 
     def set_topology(
-        self, topology=None, class_name=None, engine=None, exist_ok=False, **class_args,
+        self,
+        topology=None,
+        class_name=None,
+        engine=None,
+        exist_ok=False,
+        **class_args,
     ) -> Union[RootFlowStep, RouterStep]:
         """set the serving graph topology (router/flow) and root class or params
 
@@ -610,7 +615,10 @@ class ServingRuntime(RemoteRuntime):
             **kwargs,
         )
         server.init_states(
-            context=None, namespace=namespace, logger=logger, is_mock=True,
+            context=None,
+            namespace=namespace,
+            logger=logger,
+            is_mock=True,
         )
         server.init_object(namespace)
         return server

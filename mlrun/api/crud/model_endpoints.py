@@ -134,7 +134,9 @@ class ModelEndpoints:
         logger.info("Updating model endpoint", endpoint_id=model_endpoint.metadata.uid)
 
         self.write_endpoint_to_kv(
-            access_key=access_key, endpoint=model_endpoint, update=True,
+            access_key=access_key,
+            endpoint=model_endpoint,
+            update=True,
         )
 
         logger.info("Model endpoint updated", endpoint_id=model_endpoint.metadata.uid)
@@ -241,7 +243,11 @@ class ModelEndpoints:
                 table_path=path,
                 access_key=auth_info.data_session,
                 filter_expression=self.build_kv_cursor_filter_expression(
-                    project, function, model, labels, top_level,
+                    project,
+                    function,
+                    model,
+                    labels,
+                    top_level,
                 ),
                 attribute_names=["endpoint_id"],
                 raise_for_status=RaiseForStatus.never,
@@ -289,7 +295,8 @@ class ModelEndpoints:
         """
         access_key = self.get_access_key(auth_info)
         logger.info(
-            "Getting model endpoint record from kv", endpoint_id=endpoint_id,
+            "Getting model endpoint record from kv",
+            endpoint_id=endpoint_id,
         )
 
         client = get_v3io_client(endpoint=config.v3io_api)
@@ -498,7 +505,9 @@ class ModelEndpoints:
         _, container, path = parse_model_endpoint_store_prefix(path)
 
         client = get_frames_client(
-            token=access_key, address=config.v3io_framesd, container=container,
+            token=access_key,
+            address=config.v3io_framesd,
+            container=container,
         )
 
         metrics_mapping = {}
@@ -555,7 +564,10 @@ class ModelEndpoints:
         endpoints = self.list_endpoints(auth_info, project_name)
         for endpoint in endpoints.endpoints:
             self.delete_endpoint_record(
-                auth_info, endpoint.metadata.project, endpoint.metadata.uid, access_key,
+                auth_info,
+                endpoint.metadata.project,
+                endpoint.metadata.uid,
+                access_key,
             )
 
         v3io = get_v3io_client(endpoint=config.v3io_api, access_key=access_key)
@@ -568,7 +580,9 @@ class ModelEndpoints:
         _, container, path = parse_model_endpoint_store_prefix(path)
 
         frames = get_frames_client(
-            token=access_key, container=container, address=config.v3io_framesd,
+            token=access_key,
+            container=container,
+            address=config.v3io_framesd,
         )
         try:
             all_records = v3io.kv.new_cursor(
@@ -603,7 +617,9 @@ class ModelEndpoints:
         # Cleanup TSDB
         try:
             frames.delete(
-                backend="tsdb", table=path, if_missing=frames_pb2.IGNORE,
+                backend="tsdb",
+                table=path,
+                if_missing=frames_pb2.IGNORE,
             )
         except CreateError:
             # frames might raise an exception if schema file does not exist.

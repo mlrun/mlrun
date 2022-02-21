@@ -20,12 +20,18 @@ def test_mount_configmap():
     )
 
     assert (
-        deepdiff.DeepDiff([expected_volume], function.spec.volumes, ignore_order=True,)
+        deepdiff.DeepDiff(
+            [expected_volume],
+            function.spec.volumes,
+            ignore_order=True,
+        )
         == {}
     )
     assert (
         deepdiff.DeepDiff(
-            [expected_volume_mount], function.spec.volume_mounts, ignore_order=True,
+            [expected_volume_mount],
+            function.spec.volume_mounts,
+            ignore_order=True,
         )
         == {}
     )
@@ -45,12 +51,18 @@ def test_mount_hostpath():
     )
 
     assert (
-        deepdiff.DeepDiff([expected_volume], function.spec.volumes, ignore_order=True,)
+        deepdiff.DeepDiff(
+            [expected_volume],
+            function.spec.volumes,
+            ignore_order=True,
+        )
         == {}
     )
     assert (
         deepdiff.DeepDiff(
-            [expected_volume_mount], function.spec.volume_mounts, ignore_order=True,
+            [expected_volume_mount],
+            function.spec.volume_mounts,
+            ignore_order=True,
         )
         == {}
     )

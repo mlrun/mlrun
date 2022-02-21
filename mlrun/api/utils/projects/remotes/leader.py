@@ -17,7 +17,10 @@ class Member(abc.ABC):
 
     @abc.abstractmethod
     def update_project(
-        self, session: str, name: str, project: mlrun.api.schemas.Project,
+        self,
+        session: str,
+        name: str,
+        project: mlrun.api.schemas.Project,
     ):
         pass
 
@@ -33,14 +36,20 @@ class Member(abc.ABC):
 
     @abc.abstractmethod
     def list_projects(
-        self, session: str, updated_after: typing.Optional[datetime.datetime] = None,
+        self,
+        session: str,
+        updated_after: typing.Optional[datetime.datetime] = None,
     ) -> typing.Tuple[
         typing.List[mlrun.api.schemas.Project], typing.Optional[datetime.datetime]
     ]:
         pass
 
     @abc.abstractmethod
-    def get_project(self, session: str, name: str,) -> mlrun.api.schemas.Project:
+    def get_project(
+        self,
+        session: str,
+        name: str,
+    ) -> mlrun.api.schemas.Project:
         pass
 
     @abc.abstractmethod
@@ -51,6 +60,8 @@ class Member(abc.ABC):
 
     @abc.abstractmethod
     def get_project_owner(
-        self, session: str, name: str,
+        self,
+        session: str,
+        name: str,
     ) -> mlrun.api.schemas.ProjectOwner:
         pass

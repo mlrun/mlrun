@@ -549,7 +549,9 @@ def test_project_file_db_roundtrip(create_server):
     labels = {"key": "value"}
     annotations = {"annotation-key": "annotation-value"}
     project_metadata = mlrun.projects.project.ProjectMetadata(
-        project_name, labels=labels, annotations=annotations,
+        project_name,
+        labels=labels,
+        annotations=annotations,
     )
     project_spec = mlrun.projects.project.ProjectSpec(
         description,

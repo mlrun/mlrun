@@ -21,7 +21,10 @@ class TestSKLearn(TestDemo):
         self._logger.debug("Creating iris-generator function")
         function_path = str(self.assets_path / "iris_generator_function.py")
         iris_generator_function = mlrun.code_to_function(
-            name="gen-iris", kind="job", filename=function_path, image="mlrun/mlrun",
+            name="gen-iris",
+            kind="job",
+            filename=function_path,
+            image="mlrun/mlrun",
         )
 
         iris_generator_function.spec.remote = True

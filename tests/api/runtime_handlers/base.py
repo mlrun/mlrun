@@ -166,7 +166,8 @@ class TestRuntimeHandlerBase:
         resources = runtime_handler.list_resources(project, group_by=group_by)
         crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
         get_k8s().v1api.list_namespaced_pod.assert_called_once_with(
-            get_k8s().resolve_namespace(), label_selector=label_selector,
+            get_k8s().resolve_namespace(),
+            label_selector=label_selector,
         )
         if expected_crds:
             get_k8s().crdapi.list_namespaced_custom_object.assert_called_once_with(
@@ -178,7 +179,8 @@ class TestRuntimeHandlerBase:
             )
         if expected_services:
             get_k8s().v1api.list_namespaced_service.assert_called_once_with(
-                get_k8s().resolve_namespace(), label_selector=label_selector,
+                get_k8s().resolve_namespace(),
+                label_selector=label_selector,
             )
         assertion_func(
             self,
@@ -289,7 +291,9 @@ class TestRuntimeHandlerBase:
                 )
                 assert (
                     deepdiff.DeepDiff(
-                        resource.status, expected_resource["status"], ignore_order=True,
+                        resource.status,
+                        expected_resource["status"],
+                        ignore_order=True,
                     )
                     == {}
                 )
@@ -474,7 +478,8 @@ class TestRuntimeHandlerBase:
     ):
         if logger_pod_name is not None:
             get_k8s().v1api.read_namespaced_pod_log.assert_called_once_with(
-                name=logger_pod_name, namespace=get_k8s().resolve_namespace(),
+                name=logger_pod_name,
+                namespace=get_k8s().resolve_namespace(),
             )
         _, log = crud.Logs().get_logs(db, project, uid, source=LogSources.PERSISTENCY)
         assert log == expected_log.encode()

@@ -189,5 +189,7 @@ def _assert_metrics_file(
 
 def _generate_task(p1, out_path):
     return new_task(
-        params={"p1": p1}, out_path=out_path, outputs=["accuracy", "loss"],
+        params={"p1": p1},
+        out_path=out_path,
+        outputs=["accuracy", "loss"],
     ).set_label("tests", "kfp")

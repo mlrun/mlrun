@@ -198,7 +198,8 @@ def _add_initial_data(db_session: sqlalchemy.orm.Session):
 
 
 def _fix_datasets_large_previews(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session,
+    db: mlrun.api.db.sqldb.db.SQLDB,
+    db_session: sqlalchemy.orm.Session,
 ):
     logger.info("Fixing datasets large previews")
     # get all artifacts
@@ -273,7 +274,8 @@ def _fix_datasets_large_previews(
                     )
         except Exception as exc:
             logger.warning(
-                "Failed fixing dataset artifact large preview. Continuing", exc=exc,
+                "Failed fixing dataset artifact large preview. Continuing",
+                exc=exc,
             )
 
 
@@ -472,7 +474,8 @@ def _add_data_version(
     if db.get_current_data_version(db_session, raise_on_not_found=False) is None:
         data_version = _resolve_current_data_version(db, db_session)
         logger.info(
-            "No data version, setting data version", data_version=data_version,
+            "No data version, setting data version",
+            data_version=data_version,
         )
         db.create_data_version(db_session, data_version)
 

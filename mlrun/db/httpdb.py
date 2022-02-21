@@ -68,7 +68,7 @@ http_adapter = HTTPAdapter(
 
 
 class HTTPRunDB(RunDBInterface):
-    """ Interface for accessing and manipulating the :py:mod:`mlrun` persistent store, maintaining the full state
+    """Interface for accessing and manipulating the :py:mod:`mlrun` persistent store, maintaining the full state
     and catalog of objects that MLRun uses. The :py:class:`HTTPRunDB` class serves as a client-side proxy to the MLRun
     API service which maintains the actual data-store, accesses the server through REST APIs.
 
@@ -123,8 +123,8 @@ class HTTPRunDB(RunDBInterface):
     @staticmethod
     def get_api_path_prefix(version: str = None) -> str:
         """
-            :param version: API version to use, None (the default) will mean to use the default value from mlconf,
-             for un-versioned api set an empty string.
+        :param version: API version to use, None (the default) will mean to use the default value from mlconf,
+         for un-versioned api set an empty string.
         """
         if version is not None:
             return f"api/{version}" if version else "api"
@@ -151,23 +151,23 @@ class HTTPRunDB(RunDBInterface):
         timeout=45,
         version=None,
     ):
-        """ Perform a direct REST API call on the :py:mod:`mlrun` API server.
+        """Perform a direct REST API call on the :py:mod:`mlrun` API server.
 
-            Caution:
-                For advanced usage - prefer using the various APIs exposed through this class, rather than
-                directly invoking REST calls.
+        Caution:
+            For advanced usage - prefer using the various APIs exposed through this class, rather than
+            directly invoking REST calls.
 
-            :param method: REST method (POST, GET, PUT...)
-            :param path: Path to endpoint executed, for example ``"projects"``
-            :param error: Error to return if API invocation fails
-            :param body: Payload to be passed in the call. If using JSON objects, prefer using the ``json`` param
-            :param json: JSON payload to be passed in the call
-            :param headers: REST headers, passed as a dictionary: ``{"<header-name>": "<header-value>"}``
-            :param timeout: API call timeout
-            :param version: API version to use, None (the default) will mean to use the default value from config,
-             for un-versioned api set an empty string.
+        :param method: REST method (POST, GET, PUT...)
+        :param path: Path to endpoint executed, for example ``"projects"``
+        :param error: Error to return if API invocation fails
+        :param body: Payload to be passed in the call. If using JSON objects, prefer using the ``json`` param
+        :param json: JSON payload to be passed in the call
+        :param headers: REST headers, passed as a dictionary: ``{"<header-name>": "<header-value>"}``
+        :param timeout: API call timeout
+        :param version: API version to use, None (the default) will mean to use the default value from config,
+         for un-versioned api set an empty string.
 
-            :return: Python HTTP response object
+        :return: Python HTTP response object
         """
         url = self.get_base_api_url(path, version)
         kw = {
@@ -238,7 +238,7 @@ class HTTPRunDB(RunDBInterface):
         return f"{prefix}/{project}/{uid}"
 
     def connect(self, secrets=None):
-        """ Connect to the MLRun API server. Must be called prior to executing any other method.
+        """Connect to the MLRun API server. Must be called prior to executing any other method.
         The code utilizes the URL for the API server from the configuration - ``mlconf.dbpath``.
 
         For example::
@@ -343,7 +343,7 @@ class HTTPRunDB(RunDBInterface):
         return self
 
     def store_log(self, uid, project="", body=None, append=False):
-        """ Save a log persistently.
+        """Save a log persistently.
 
         :param uid: Log unique ID
         :param project: Project name for which this log belongs
@@ -361,7 +361,7 @@ class HTTPRunDB(RunDBInterface):
         self.api_call("POST", path, error, params, body)
 
     def get_log(self, uid, project="", offset=0, size=-1):
-        """ Retrieve a log.
+        """Retrieve a log.
 
         :param uid: Log unique ID
         :param project: Project name for which the log belongs
@@ -386,7 +386,7 @@ class HTTPRunDB(RunDBInterface):
         return "unknown", resp.content
 
     def watch_log(self, uid, project="", watch=True, offset=0):
-        """ Retrieve logs of a running process, and watch the progress of the execution until it completes. This
+        """Retrieve logs of a running process, and watch the progress of the execution until it completes. This
         method will print out the logs and continue to periodically poll for, and print, new logs as long as the
         state of the runtime which generates this log is either ``pending`` or ``running``.
 
@@ -419,7 +419,7 @@ class HTTPRunDB(RunDBInterface):
         return state
 
     def store_run(self, struct, uid, project="", iter=0):
-        """ Store run details in the DB. This method is usually called from within other :py:mod:`mlrun` flows
+        """Store run details in the DB. This method is usually called from within other :py:mod:`mlrun` flows
         and not called directly by the user."""
 
         path = self._path_of("run", project, uid)
@@ -429,7 +429,7 @@ class HTTPRunDB(RunDBInterface):
         self.api_call("POST", path, error, params=params, body=body)
 
     def update_run(self, updates: dict, uid, project="", iter=0):
-        """ Update the details of a stored run in the DB."""
+        """Update the details of a stored run in the DB."""
 
         path = self._path_of("run", project, uid)
         params = {"iter": iter}
@@ -449,7 +449,7 @@ class HTTPRunDB(RunDBInterface):
         )
 
     def read_run(self, uid, project="", iter=0):
-        """ Read the details of a stored run from the DB.
+        """Read the details of a stored run from the DB.
 
         :param uid: The run's unique ID.
         :param project: Project name.
@@ -463,7 +463,7 @@ class HTTPRunDB(RunDBInterface):
         return resp.json()["data"]
 
     def del_run(self, uid, project="", iter=0):
-        """ Delete details of a specific run from DB.
+        """Delete details of a specific run from DB.
 
         :param uid: Unique ID for the specific run to delete.
         :param project: Project that the run belongs to.
@@ -494,7 +494,7 @@ class HTTPRunDB(RunDBInterface):
         partition_sort_by: Union[schemas.SortField, str] = None,
         partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
     ) -> RunList:
-        """ Retrieve a list of runs, filtered by various options.
+        """Retrieve a list of runs, filtered by various options.
         Example::
 
             runs = db.list_runs(name='download', project='iris', labels='owner=admin')
@@ -556,7 +556,7 @@ class HTTPRunDB(RunDBInterface):
         return RunList(resp.json()["runs"])
 
     def del_runs(self, name=None, project=None, labels=None, state=None, days_ago=0):
-        """ Delete a group of runs identified by the parameters of the function.
+        """Delete a group of runs identified by the parameters of the function.
 
         Example::
 
@@ -581,7 +581,7 @@ class HTTPRunDB(RunDBInterface):
         self.api_call("DELETE", "runs", error, params=params)
 
     def store_artifact(self, key, artifact, uid, iter=None, tag=None, project=""):
-        """ Store an artifact in the DB.
+        """Store an artifact in the DB.
 
         :param key: Identifying key of the artifact.
         :param artifact: The actual artifact to store.
@@ -605,7 +605,7 @@ class HTTPRunDB(RunDBInterface):
         self.api_call("POST", path, error, params=params, body=body)
 
     def read_artifact(self, key, tag=None, iter=None, project=""):
-        """ Read an artifact, identified by its key, tag and iteration."""
+        """Read an artifact, identified by its key, tag and iteration."""
 
         project = project or config.default_project
         tag = tag or "latest"
@@ -616,7 +616,7 @@ class HTTPRunDB(RunDBInterface):
         return resp.json()["data"]
 
     def del_artifact(self, key, tag=None, project=""):
-        """ Delete an artifact."""
+        """Delete an artifact."""
 
         path = self._path_of("artifact", project, key)  # TODO: uid?
         params = {
@@ -639,7 +639,7 @@ class HTTPRunDB(RunDBInterface):
         kind: str = None,
         category: Union[str, schemas.ArtifactCategories] = None,
     ) -> ArtifactList:
-        """ List artifacts filtered by various parameters.
+        """List artifacts filtered by various parameters.
 
         Examples::
 
@@ -685,7 +685,7 @@ class HTTPRunDB(RunDBInterface):
         return values
 
     def del_artifacts(self, name=None, project=None, tag=None, labels=None, days_ago=0):
-        """ Delete artifacts referenced by the parameters.
+        """Delete artifacts referenced by the parameters.
 
         :param name: Name of artifacts to delete. Note that this is a like query, and is case-insensitive. See
             :py:func:`~list_artifacts` for more details.
@@ -706,7 +706,7 @@ class HTTPRunDB(RunDBInterface):
         self.api_call("DELETE", "artifacts", error, params=params)
 
     def list_artifact_tags(self, project=None) -> List[str]:
-        """ Return a list of all the tags assigned to artifacts in the scope of the given project."""
+        """Return a list of all the tags assigned to artifacts in the scope of the given project."""
 
         project = project or config.default_project
         error_message = f"Failed listing artifact tags. project={project}"
@@ -716,7 +716,7 @@ class HTTPRunDB(RunDBInterface):
         return response.json()["tags"]
 
     def store_function(self, function, name, project="", tag=None, versioned=False):
-        """ Store a function object. Function is identified by its name and tag, and can be versioned."""
+        """Store a function object. Function is identified by its name and tag, and can be versioned."""
 
         params = {"tag": tag, "versioned": versioned}
         project = project or config.default_project
@@ -731,7 +731,7 @@ class HTTPRunDB(RunDBInterface):
         return resp.json().get("hash_key")
 
     def get_function(self, name, project="", tag=None, hash_key=""):
-        """ Retrieve details of a specific function, identified by its name and potentially a tag or function hash."""
+        """Retrieve details of a specific function, identified by its name and potentially a tag or function hash."""
 
         params = {"tag": tag, "hash_key": hash_key}
         project = project or config.default_project
@@ -741,7 +741,7 @@ class HTTPRunDB(RunDBInterface):
         return resp.json()["func"]
 
     def delete_function(self, name: str, project: str = ""):
-        """ Delete a function belonging to a specific project."""
+        """Delete a function belonging to a specific project."""
 
         project = project or config.default_project
         path = f"projects/{project}/functions/{name}"
@@ -749,7 +749,7 @@ class HTTPRunDB(RunDBInterface):
         self.api_call("DELETE", path, error_message)
 
     def list_functions(self, name=None, project=None, tag=None, labels=None):
-        """ Retrieve a list of functions, filtered by specific criteria.
+        """Retrieve a list of functions, filtered by specific criteria.
 
         :param name: Return only functions with a specific name.
         :param project: Return functions belonging to this project. If not specified, the default project is used.
@@ -780,7 +780,7 @@ class HTTPRunDB(RunDBInterface):
         mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
         mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
-        """ List current runtime resources, which are usually (but not limited to) Kubernetes pods or CRDs.
+        """List current runtime resources, which are usually (but not limited to) Kubernetes pods or CRDs.
         Function applies for runs of type ``['dask', 'job', 'spark', 'remote-spark', 'mpijob']``, and will return per
         runtime kind a list of the runtime resources (which may have already completed their execution).
 
@@ -835,8 +835,7 @@ class HTTPRunDB(RunDBInterface):
             )
 
     def list_runtimes(self, label_selector: str = None) -> List:
-        """ Deprecated use :py:func:`~list_runtime_resources` instead
-        """
+        """Deprecated use :py:func:`~list_runtime_resources` instead"""
         warnings.warn(
             "This method is deprecated, use list_runtime_resources instead"
             "This will be removed in 0.9.0",
@@ -849,8 +848,7 @@ class HTTPRunDB(RunDBInterface):
         return resp.json()
 
     def get_runtime(self, kind: str, label_selector: str = None) -> Dict:
-        """ Deprecated use :py:func:`~list_runtime_resources` (with kind filter) instead
-        """
+        """Deprecated use :py:func:`~list_runtime_resources` (with kind filter) instead"""
         warnings.warn(
             "This method is deprecated, use list_runtime_resources (with kind filter) instead"
             "This will be removed in 0.9.0",
@@ -872,7 +870,7 @@ class HTTPRunDB(RunDBInterface):
         force: bool = False,
         grace_period: int = None,
     ) -> mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput:
-        """ Delete all runtime resources which are in terminal state.
+        """Delete all runtime resources which are in terminal state.
 
         :param project: Delete only runtime resources of a specific project, by default None, which will delete only
         from the projects you're authorized to delete from.
@@ -916,10 +914,12 @@ class HTTPRunDB(RunDBInterface):
         return structured_dict
 
     def delete_runtimes(
-        self, label_selector: str = None, force: bool = False, grace_period: int = None,
+        self,
+        label_selector: str = None,
+        force: bool = False,
+        grace_period: int = None,
     ):
-        """ Deprecated use :py:func:`~delete_runtime_resources` instead
-        """
+        """Deprecated use :py:func:`~delete_runtime_resources` instead"""
         warnings.warn(
             "This method is deprecated, use delete_runtime_resources instead"
             "This will be removed in 0.9.0",
@@ -943,8 +943,7 @@ class HTTPRunDB(RunDBInterface):
         force: bool = False,
         grace_period: int = None,
     ):
-        """ Deprecated use :py:func:`~delete_runtime_resources` (with kind filter) instead
-        """
+        """Deprecated use :py:func:`~delete_runtime_resources` (with kind filter) instead"""
         warnings.warn(
             "This method is deprecated, use delete_runtime_resources (with kind filter) instead"
             "This will be removed in 0.9.0",
@@ -972,8 +971,7 @@ class HTTPRunDB(RunDBInterface):
         force: bool = False,
         grace_period: int = None,
     ):
-        """ Deprecated use :py:func:`~delete_runtime_resources` (with kind and object_id filter) instead
-        """
+        """Deprecated use :py:func:`~delete_runtime_resources` (with kind and object_id filter) instead"""
         warnings.warn(
             "This method is deprecated, use delete_runtime_resources (with kind and object_id filter) instead"
             "This will be removed in 0.9.0",
@@ -993,7 +991,7 @@ class HTTPRunDB(RunDBInterface):
         self.api_call("DELETE", path, error, params=params)
 
     def create_schedule(self, project: str, schedule: schemas.ScheduleInput):
-        """ Create a new schedule on the given project. The details on the actual object to schedule as well as the
+        """Create a new schedule on the given project. The details on the actual object to schedule as well as the
         schedule itself are within the schedule object provided.
         The :py:class:`~ScheduleCronTrigger` follows the guidelines in
         https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html.
@@ -1023,7 +1021,7 @@ class HTTPRunDB(RunDBInterface):
     def update_schedule(
         self, project: str, name: str, schedule: schemas.ScheduleUpdate
     ):
-        """ Update an existing schedule, replace it with the details contained in the schedule object."""
+        """Update an existing schedule, replace it with the details contained in the schedule object."""
 
         project = project or config.default_project
         path = f"projects/{project}/schedules/{name}"
@@ -1034,7 +1032,7 @@ class HTTPRunDB(RunDBInterface):
     def get_schedule(
         self, project: str, name: str, include_last_run: bool = False
     ) -> schemas.ScheduleOutput:
-        """ Retrieve details of the schedule in question. Besides returning the details of the schedule object itself,
+        """Retrieve details of the schedule in question. Besides returning the details of the schedule object itself,
         this function also returns the next scheduled run for this specific schedule, as well as potentially the
         results of the last run executed through this schedule.
 
@@ -1058,7 +1056,7 @@ class HTTPRunDB(RunDBInterface):
         kind: schemas.ScheduleKinds = None,
         include_last_run: bool = False,
     ) -> schemas.SchedulesOutput:
-        """ Retrieve list of schedules of specific name or kind.
+        """Retrieve list of schedules of specific name or kind.
 
         :param project: Project name.
         :param name: Name of schedule to retrieve. Can be omitted to list all schedules.
@@ -1075,7 +1073,7 @@ class HTTPRunDB(RunDBInterface):
         return schemas.SchedulesOutput(**resp.json())
 
     def delete_schedule(self, project: str, name: str):
-        """ Delete a specific schedule by name. """
+        """Delete a specific schedule by name."""
 
         project = project or config.default_project
         path = f"projects/{project}/schedules/{name}"
@@ -1083,7 +1081,7 @@ class HTTPRunDB(RunDBInterface):
         self.api_call("DELETE", path, error_message)
 
     def invoke_schedule(self, project: str, name: str):
-        """ Execute the object referenced by the schedule immediately. """
+        """Execute the object referenced by the schedule immediately."""
 
         project = project or config.default_project
         path = f"projects/{project}/schedules/{name}/invoke"
@@ -1098,7 +1096,7 @@ class HTTPRunDB(RunDBInterface):
         skip_deployed=False,
         builder_env=None,
     ):
-        """ Build the pod image for a function, for execution on a remote cluster. This is executed by the MLRun
+        """Build the pod image for a function, for execution on a remote cluster. This is executed by the MLRun
         API server, and creates a Docker image out of the function provided and any specific build
         instructions provided within. This is a pre-requisite for remotely executing a function, unless using
         a pre-deployed image.
@@ -1140,7 +1138,7 @@ class HTTPRunDB(RunDBInterface):
         last_log_timestamp=0,
         verbose=False,
     ):
-        """ Retrieve the status of a build operation currently in progress.
+        """Retrieve the status of a build operation currently in progress.
 
         :param func: Function object that is being built.
         :param offset: Offset into the build logs to retrieve logs from.
@@ -1199,7 +1197,7 @@ class HTTPRunDB(RunDBInterface):
         return text, last_log_timestamp
 
     def remote_start(self, func_url) -> schemas.BackgroundTask:
-        """ Execute a function remotely, Used for ``dask`` functions.
+        """Execute a function remotely, Used for ``dask`` functions.
 
         :param func_url: URL to the function to be executed.
         :returns: A BackgroundTask object, with details on execution process and its status.
@@ -1224,9 +1222,11 @@ class HTTPRunDB(RunDBInterface):
         return schemas.BackgroundTask(**resp.json())
 
     def get_project_background_task(
-        self, project: str, name: str,
+        self,
+        project: str,
+        name: str,
     ) -> schemas.BackgroundTask:
-        """ Retrieve updated information on a background task being executed."""
+        """Retrieve updated information on a background task being executed."""
 
         project = project or config.default_project
         path = f"projects/{project}/background-tasks/{name}"
@@ -1237,7 +1237,7 @@ class HTTPRunDB(RunDBInterface):
         return schemas.BackgroundTask(**response.json())
 
     def remote_status(self, project, name, kind, selector):
-        """ Retrieve status of a function being executed remotely (relevant to ``dask`` functions).
+        """Retrieve status of a function being executed remotely (relevant to ``dask`` functions).
 
         :param project: The project of the function
         :param name: The name of the function
@@ -1261,7 +1261,7 @@ class HTTPRunDB(RunDBInterface):
     def submit_job(
         self, runspec, schedule: Union[str, schemas.ScheduleCronTrigger] = None
     ):
-        """ Submit a job for remote execution.
+        """Submit a job for remote execution.
 
         :param runspec: The runtime object spec (Task) to execute.
         :param schedule: Whether to schedule this job using a Cron trigger. If not specified, the job will be submitted
@@ -1299,7 +1299,7 @@ class HTTPRunDB(RunDBInterface):
         ops=None,
         ttl=None,
     ):
-        """ Submit a KFP pipeline for execution.
+        """Submit a KFP pipeline for execution.
 
         :param project: The project of the pipeline
         :param pipeline: Pipeline function or path to .yaml/.zip pipeline file.
@@ -1373,7 +1373,7 @@ class HTTPRunDB(RunDBInterface):
         ] = mlrun.api.schemas.PipelinesFormat.metadata_only,
         page_size: int = None,
     ) -> mlrun.api.schemas.PipelinesOutput:
-        """ Retrieve a list of KFP pipelines. This function can be invoked to get all pipelines from all projects,
+        """Retrieve a list of KFP pipelines. This function can be invoked to get all pipelines from all projects,
         by specifying ``project=*``, in which case pagination can be used and the various sorting and pagination
         properties can be applied. If a specific project is requested, then the pagination options cannot be
         used and pagination is not applied.
@@ -1422,7 +1422,7 @@ class HTTPRunDB(RunDBInterface):
         ] = mlrun.api.schemas.PipelinesFormat.summary,
         project: str = None,
     ):
-        """ Retrieve details of a specific pipeline using its run ID (as provided when the pipeline was executed)."""
+        """Retrieve details of a specific pipeline using its run ID (as provided when the pipeline was executed)."""
 
         if isinstance(format_, mlrun.api.schemas.PipelinesFormat):
             format_ = format_.value
@@ -1457,7 +1457,7 @@ class HTTPRunDB(RunDBInterface):
     def create_feature_set(
         self, feature_set: Union[dict, schemas.FeatureSet], project="", versioned=True
     ) -> dict:
-        """ Create a new :py:class:`~mlrun.feature_store.FeatureSet` and save in the :py:mod:`mlrun` DB. The
+        """Create a new :py:class:`~mlrun.feature_store.FeatureSet` and save in the :py:mod:`mlrun` DB. The
         feature-set must not previously exist in the DB.
 
         :param feature_set: The new :py:class:`~mlrun.feature_store.FeatureSet` to create.
@@ -1480,14 +1480,18 @@ class HTTPRunDB(RunDBInterface):
         name = feature_set["metadata"]["name"]
         error_message = f"Failed creating feature-set {project}/{name}"
         resp = self.api_call(
-            "POST", path, error_message, params=params, body=dict_to_json(feature_set),
+            "POST",
+            path,
+            error_message,
+            params=params,
+            body=dict_to_json(feature_set),
         )
         return resp.json()
 
     def get_feature_set(
         self, name: str, project: str = "", tag: str = None, uid: str = None
     ) -> FeatureSet:
-        """ Retrieve a ~mlrun.feature_store.FeatureSet` object. If both ``tag`` and ``uid`` are not specified, then
+        """Retrieve a ~mlrun.feature_store.FeatureSet` object. If both ``tag`` and ``uid`` are not specified, then
         the object tagged ``latest`` will be retrieved.
 
         :param name: Name of object to retrieve.
@@ -1511,7 +1515,7 @@ class HTTPRunDB(RunDBInterface):
         entities: List[str] = None,
         labels: List[str] = None,
     ) -> List[dict]:
-        """ List feature-sets which contain specific features. This function may return multiple versions of the same
+        """List feature-sets which contain specific features. This function may return multiple versions of the same
         feature-set if a specific tag is not requested. Note that the various filters of this function actually
         refer to the feature-set object containing the features, not to the features themselves.
 
@@ -1541,9 +1545,13 @@ class HTTPRunDB(RunDBInterface):
         return resp.json()["features"]
 
     def list_entities(
-        self, project: str, name: str = None, tag: str = None, labels: List[str] = None,
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: List[str] = None,
     ) -> List[dict]:
-        """ Retrieve a list of entities and their mapping to the containing feature-sets. This function is similar
+        """Retrieve a list of entities and their mapping to the containing feature-sets. This function is similar
         to the :py:func:`~list_features` function, and uses the same logic. However, the entities are matched
         against the name rather than the features.
         """
@@ -1593,7 +1601,7 @@ class HTTPRunDB(RunDBInterface):
         partition_sort_by: Union[schemas.SortField, str] = None,
         partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
     ) -> List[FeatureSet]:
-        """ Retrieve a list of feature-sets matching the criteria provided.
+        """Retrieve a list of feature-sets matching the criteria provided.
 
         :param project: Project name.
         :param name: Name of feature-set to match. This is a like query, and is case-insensitive.
@@ -1652,7 +1660,7 @@ class HTTPRunDB(RunDBInterface):
         uid=None,
         versioned=True,
     ) -> dict:
-        """ Save a :py:class:`~mlrun.feature_store.FeatureSet` object in the :py:mod:`mlrun` DB. The
+        """Save a :py:class:`~mlrun.feature_store.FeatureSet` object in the :py:mod:`mlrun` DB. The
         feature-set can be either a new object or a modification to existing object referenced by the params of
         the function.
 
@@ -1692,7 +1700,7 @@ class HTTPRunDB(RunDBInterface):
         uid=None,
         patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
     ):
-        """ Modify (patch) an existing :py:class:`~mlrun.feature_store.FeatureSet` object.
+        """Modify (patch) an existing :py:class:`~mlrun.feature_store.FeatureSet` object.
         The object is identified by its name (and project it belongs to), as well as optionally a ``tag`` or its
         ``uid`` (for versioned object). If both ``tag`` and ``uid`` are omitted then the object with tag ``latest``
         is modified.
@@ -1727,7 +1735,7 @@ class HTTPRunDB(RunDBInterface):
         )
 
     def delete_feature_set(self, name, project="", tag=None, uid=None):
-        """ Delete a :py:class:`~mlrun.feature_store.FeatureSet` object from the DB.
+        """Delete a :py:class:`~mlrun.feature_store.FeatureSet` object from the DB.
         If ``tag`` or ``uid`` are specified, then just the version referenced by them will be deleted. Using both
         is not allowed.
         If none are specified, then all instances of the object whose name is ``name`` will be deleted.
@@ -1748,7 +1756,7 @@ class HTTPRunDB(RunDBInterface):
         project="",
         versioned=True,
     ) -> dict:
-        """ Create a new :py:class:`~mlrun.feature_store.FeatureVector` and save in the :py:mod:`mlrun` DB.
+        """Create a new :py:class:`~mlrun.feature_store.FeatureVector` and save in the :py:mod:`mlrun` DB.
 
         :param feature_vector: The new :py:class:`~mlrun.feature_store.FeatureVector` to create.
         :param project: Name of project this feature-vector belongs to.
@@ -1781,8 +1789,8 @@ class HTTPRunDB(RunDBInterface):
     def get_feature_vector(
         self, name: str, project: str = "", tag: str = None, uid: str = None
     ) -> FeatureVector:
-        """ Return a specific feature-vector referenced by its tag or uid. If none are provided, ``latest`` tag will
-        be used. """
+        """Return a specific feature-vector referenced by its tag or uid. If none are provided, ``latest`` tag will
+        be used."""
 
         project = project or config.default_project
         reference = self._resolve_reference(tag, uid)
@@ -1803,7 +1811,7 @@ class HTTPRunDB(RunDBInterface):
         partition_sort_by: Union[schemas.SortField, str] = None,
         partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
     ) -> List[FeatureVector]:
-        """ Retrieve a list of feature-vectors matching the criteria provided.
+        """Retrieve a list of feature-vectors matching the criteria provided.
 
         :param project: Project name.
         :param name: Name of feature-vector to match. This is a like query, and is case-insensitive.
@@ -1858,7 +1866,7 @@ class HTTPRunDB(RunDBInterface):
         uid=None,
         versioned=True,
     ) -> dict:
-        """ Store a :py:class:`~mlrun.feature_store.FeatureVector` object in the :py:mod:`mlrun` DB. The
+        """Store a :py:class:`~mlrun.feature_store.FeatureVector` object in the :py:mod:`mlrun` DB. The
         feature-vector can be either a new object or a modification to existing object referenced by the params
         of the function.
 
@@ -1900,7 +1908,7 @@ class HTTPRunDB(RunDBInterface):
         uid=None,
         patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
     ):
-        """ Modify (patch) an existing :py:class:`~mlrun.feature_store.FeatureVector` object.
+        """Modify (patch) an existing :py:class:`~mlrun.feature_store.FeatureVector` object.
         The object is identified by its name (and project it belongs to), as well as optionally a ``tag`` or its
         ``uid`` (for versioned object). If both ``tag`` and ``uid`` are omitted then the object with tag ``latest``
         is modified.
@@ -1930,7 +1938,7 @@ class HTTPRunDB(RunDBInterface):
         )
 
     def delete_feature_vector(self, name, project="", tag=None, uid=None):
-        """ Delete a :py:class:`~mlrun.feature_store.FeatureVector` object from the DB.
+        """Delete a :py:class:`~mlrun.feature_store.FeatureVector` object from the DB.
         If ``tag`` or ``uid`` are specified, then just the version referenced by them will be deleted. Using both
         is not allowed.
         If none are specified, then all instances of the object whose name is ``name`` will be deleted.
@@ -1953,7 +1961,7 @@ class HTTPRunDB(RunDBInterface):
         labels: List[str] = None,
         state: Union[str, mlrun.api.schemas.ProjectState] = None,
     ) -> List[Union[mlrun.projects.MlrunProject, str]]:
-        """ Return a list of the existing projects, potentially filtered by specific criteria.
+        """Return a list of the existing projects, potentially filtered by specific criteria.
 
         :param owner: List only projects belonging to this specific owner.
         :param format_: Format of the results. Possible values are:
@@ -1991,7 +1999,7 @@ class HTTPRunDB(RunDBInterface):
             )
 
     def get_project(self, name: str) -> mlrun.projects.MlrunProject:
-        """ Get details for a specific project."""
+        """Get details for a specific project."""
 
         if not name:
             raise MLRunInvalidArgumentError("Name must be provided")
@@ -2008,7 +2016,7 @@ class HTTPRunDB(RunDBInterface):
             str, mlrun.api.schemas.DeletionStrategy
         ] = mlrun.api.schemas.DeletionStrategy.default(),
     ):
-        """ Delete a project.
+        """Delete a project.
 
         :param name: Name of the project to delete.
         :param deletion_strategy: How to treat child objects of the project. Possible values are:
@@ -2032,7 +2040,7 @@ class HTTPRunDB(RunDBInterface):
         name: str,
         project: Union[dict, mlrun.projects.MlrunProject, mlrun.api.schemas.Project],
     ) -> mlrun.projects.MlrunProject:
-        """ Store a project in the DB. This operation will overwrite existing project of the same name if exists."""
+        """Store a project in the DB. This operation will overwrite existing project of the same name if exists."""
 
         path = f"projects/{name}"
         error_message = f"Failed storing project {name}"
@@ -2041,7 +2049,10 @@ class HTTPRunDB(RunDBInterface):
         elif isinstance(project, mlrun.projects.MlrunProject):
             project = project.to_dict()
         response = self.api_call(
-            "PUT", path, error_message, body=dict_to_json(project),
+            "PUT",
+            path,
+            error_message,
+            body=dict_to_json(project),
         )
         if response.status_code == http.HTTPStatus.ACCEPTED:
             return self._wait_for_project_to_reach_terminal_state(name)
@@ -2053,7 +2064,7 @@ class HTTPRunDB(RunDBInterface):
         project: dict,
         patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
     ) -> mlrun.projects.MlrunProject:
-        """ Patch an existing project object.
+        """Patch an existing project object.
 
         :param name: Name of project to patch.
         :param project: The actual changes to the project object.
@@ -2075,7 +2086,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: Union[dict, mlrun.projects.MlrunProject, mlrun.api.schemas.Project],
     ) -> mlrun.projects.MlrunProject:
-        """ Create a new project. A project with the same name must not exist prior to creation."""
+        """Create a new project. A project with the same name must not exist prior to creation."""
 
         if isinstance(project, mlrun.api.schemas.Project):
             project = project.dict()
@@ -2084,7 +2095,10 @@ class HTTPRunDB(RunDBInterface):
         project_name = project["metadata"]["name"]
         error_message = f"Failed creating project {project_name}"
         response = self.api_call(
-            "POST", "projects", error_message, body=dict_to_json(project),
+            "POST",
+            "projects",
+            error_message,
+            body=dict_to_json(project),
         )
         if response.status_code == http.HTTPStatus.ACCEPTED:
             return self._wait_for_project_to_reach_terminal_state(project_name)
@@ -2136,7 +2150,7 @@ class HTTPRunDB(RunDBInterface):
         ] = schemas.SecretProviderName.kubernetes,
         secrets: dict = None,
     ):
-        """ Create project-context secrets using either ``vault`` or ``kubernetes`` provider.
+        """Create project-context secrets using either ``vault`` or ``kubernetes`` provider.
         When using with Vault, this will create needed Vault structures for storing secrets in project-context, and
         store a set of secret values. The method generates Kubernetes service-account and the Vault authentication
         structures that are required for function Pods to authenticate with Vault and be able to extract secret values
@@ -2169,7 +2183,10 @@ class HTTPRunDB(RunDBInterface):
         body = secrets_input.dict()
         error_message = f"Failed creating secret provider {project}/{provider}"
         self.api_call(
-            "POST", path, error_message, body=dict_to_json(body),
+            "POST",
+            path,
+            error_message,
+            body=dict_to_json(body),
         )
 
     def list_project_secrets(
@@ -2181,7 +2198,7 @@ class HTTPRunDB(RunDBInterface):
         ] = schemas.SecretProviderName.kubernetes,
         secrets: List[str] = None,
     ) -> schemas.SecretsData:
-        """ Retrieve project-context secrets from Vault.
+        """Retrieve project-context secrets from Vault.
 
         Note:
                 This method for Vault functionality is currently in technical preview, and requires a HashiCorp Vault
@@ -2208,7 +2225,11 @@ class HTTPRunDB(RunDBInterface):
         headers = {schemas.HeaderNames.secret_store_token: token}
         error_message = f"Failed retrieving secrets {project}/{provider}"
         result = self.api_call(
-            "GET", path, error_message, params=params, headers=headers,
+            "GET",
+            path,
+            error_message,
+            params=params,
+            headers=headers,
         )
         return schemas.SecretsData(**result.json())
 
@@ -2220,7 +2241,7 @@ class HTTPRunDB(RunDBInterface):
         ] = schemas.SecretProviderName.kubernetes,
         token: str = None,
     ) -> schemas.SecretKeysData:
-        """ Retrieve project-context secret keys from Vault or Kubernetes.
+        """Retrieve project-context secret keys from Vault or Kubernetes.
 
         Note:
                 This method for Vault functionality is currently in technical preview, and requires a HashiCorp Vault
@@ -2250,7 +2271,11 @@ class HTTPRunDB(RunDBInterface):
         )
         error_message = f"Failed retrieving secret keys {project}/{provider}"
         result = self.api_call(
-            "GET", path, error_message, params=params, headers=headers,
+            "GET",
+            path,
+            error_message,
+            params=params,
+            headers=headers,
         )
         return schemas.SecretKeysData(**result.json())
 
@@ -2262,7 +2287,7 @@ class HTTPRunDB(RunDBInterface):
         ] = schemas.SecretProviderName.kubernetes,
         secrets: List[str] = None,
     ):
-        """ Delete project-context secrets from Kubernetes.
+        """Delete project-context secrets from Kubernetes.
 
         :param project: The project name.
         :param provider: The name of the secrets-provider to work with. Currently only ``kubernetes`` is supported.
@@ -2276,7 +2301,10 @@ class HTTPRunDB(RunDBInterface):
         params = {"provider": provider, "secret": secrets}
         error_message = f"Failed deleting secrets {project}/{provider}"
         self.api_call(
-            "DELETE", path, error_message, params=params,
+            "DELETE",
+            path,
+            error_message,
+            params=params,
         )
 
     def create_user_secrets(
@@ -2287,7 +2315,7 @@ class HTTPRunDB(RunDBInterface):
         ] = schemas.SecretProviderName.vault,
         secrets: dict = None,
     ):
-        """ Create user-context secret in Vault. Please refer to :py:func:`create_project_secrets` for more details
+        """Create user-context secret in Vault. Please refer to :py:func:`create_project_secrets` for more details
         and status of this functionality.
 
         Note:
@@ -2302,12 +2330,17 @@ class HTTPRunDB(RunDBInterface):
             provider = provider.value
         path = "user-secrets"
         secrets_creation_request = schemas.UserSecretCreationRequest(
-            user=user, provider=provider, secrets=secrets,
+            user=user,
+            provider=provider,
+            secrets=secrets,
         )
         body = secrets_creation_request.dict()
         error_message = f"Failed creating user secrets - {user}"
         self.api_call(
-            "POST", path, error_message, body=dict_to_json(body),
+            "POST",
+            path,
+            error_message,
+            body=dict_to_json(body),
         )
 
     @staticmethod
@@ -2378,7 +2411,10 @@ class HTTPRunDB(RunDBInterface):
         )
 
     def delete_model_endpoint_record(
-        self, project: str, endpoint_id: str, access_key: Optional[str] = None,
+        self,
+        project: str,
+        endpoint_id: str,
+        access_key: Optional[str] = None,
     ):
         """
         Deletes the KV record of a given model endpoint, project and endpoint_id are used for lookup
@@ -2396,7 +2432,9 @@ class HTTPRunDB(RunDBInterface):
 
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
         self.api_call(
-            method="DELETE", path=path, headers={"X-V3io-Access-Key": access_key},
+            method="DELETE",
+            path=path,
+            headers={"X-V3io-Access-Key": access_key},
         )
 
     def list_model_endpoints(
@@ -2679,7 +2717,7 @@ class HTTPRunDB(RunDBInterface):
     def verify_authorization(
         self, authorization_verification_input: schemas.AuthorizationVerificationInput
     ):
-        """ Verifies authorization for the provided action on the provided resource.
+        """Verifies authorization for the provided action on the provided resource.
 
         :param authorization_verification_input: Instance of
             :py:class:`~mlrun.api.schemas.AuthorizationVerificationInput` that includes all the needed parameters for

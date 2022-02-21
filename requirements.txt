@@ -4,20 +4,12 @@ urllib3>=1.25.4, <1.27
 chardet>=3.0.2, <4.0
 GitPython~=3.0
 aiohttp~=3.8
-click~=7.0
-# kfp ~1.0.1 resolves to 1.0.4, which has google-auth>=1.6.1 which resolves to 2.x which is incompatible with
-# google-cloud-storage (from kfp) that is >=1.13.0 and resolves to 1.42.0) and has google-api-core that is
-# >=1.29.0,<3.0dev and resolves to 1.31.2 which has google-auth >=1.25.0,<2.0dev which is incompatible
-google-auth>=1.25.0, <2.0dev
+click~=8.0
 # 3.0/3.2 iguazio system uses 1.0.1, but we needed >=1.6.0 to be compatible with k8s>=12.0 to fix scurity issue
 # since the sdk is still mark as beta (and not stable) I'm limiting to only patch changes
 kfp~=1.8.0
 nest-asyncio~=1.0
 ipython~=7.0
-# nuclio-jupyter has notebook>=5.2.0 which resolves to 6.4.0 which has ipykernel without specifier, which from 0.6.0
-# has ipython>=7.23.1 which is incompatible with our ipython specifiers, therefore instsalling ipykernel 5.x before
-# nuclio-jupyter
-ipykernel~=5.0
 nuclio-jupyter~=0.8.22
 # >=1.16.5 from pandas 1.2.1 and <1.20.0 because we're hitting the same issue as this one
 # https://github.com/Azure/MachineLearningNotebooks/issues/1314

@@ -1193,7 +1193,10 @@ def _add_graphviz_router(graph, step, source=None, **kwargs):
 
 
 def _add_graphviz_flow(
-    graph, step, source=None, targets=None,
+    graph,
+    step,
+    source=None,
+    targets=None,
 ):
     start_steps, default_final_step, responders = step.check_and_process_graph(
         allow_empty=True
@@ -1230,7 +1233,13 @@ def _add_graphviz_flow(
 
 
 def _generate_graphviz(
-    step, renderer, filename=None, format=None, source=None, targets=None, **kw,
+    step,
+    renderer,
+    filename=None,
+    format=None,
+    source=None,
+    targets=None,
+    **kw,
 ):
     try:
         from graphviz import Digraph
@@ -1385,7 +1394,9 @@ def _init_async_objects(context, steps):
                         endpoint, stream_path = parse_v3io_path(step.path)
                         stream_path = stream_path.strip("/")
                     step._async_object = storey.StreamTarget(
-                        storey.V3ioDriver(endpoint), stream_path, context=context,
+                        storey.V3ioDriver(endpoint),
+                        stream_path,
+                        context=context,
                     )
                 else:
                     step._async_object = storey.Map(lambda x: x)

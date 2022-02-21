@@ -63,8 +63,8 @@ def pod_create_mock():
     authenticate_request_orig_function = (
         mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request
     )
-    mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request = unittest.mock.Mock(
-        return_value=auth_info_mock
+    mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request = (
+        unittest.mock.Mock(return_value=auth_info_mock)
     )
 
     yield get_k8s().create_pod

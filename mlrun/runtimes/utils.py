@@ -320,7 +320,11 @@ def generate_function_image_name(project: str, name: str, tag: str) -> str:
 
 
 def fill_function_image_name_template(
-    registry: str, repository: str, project: str, name: str, tag: str,
+    registry: str,
+    repository: str,
+    project: str,
+    name: str,
+    tag: str,
 ) -> str:
     image_name_prefix = resolve_function_target_image_name_prefix(project, name)
     return f"{registry}{repository}/{image_name_prefix}:{tag}"
@@ -517,7 +521,8 @@ def enrich_function_from_dict(function, function_dict):
                         function.set_env(env_dict["name"], env_dict["value"])
                     else:
                         function.set_env(
-                            env_dict["name"], value_from=env_dict["valueFrom"],
+                            env_dict["name"],
+                            value_from=env_dict["valueFrom"],
                         )
             elif attribute == "volumes":
                 function.spec.update_vols_and_mounts(override_value, [])

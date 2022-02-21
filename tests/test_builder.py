@@ -15,7 +15,10 @@ def test_build_runtime_use_base_image_when_no_build():
     base_image = "mlrun/ml-models"
     fn.build_config(base_image=base_image)
     assert fn.spec.image == ""
-    ready = mlrun.builder.build_runtime(mlrun.api.schemas.AuthInfo(), fn,)
+    ready = mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        fn,
+    )
     assert ready is True
     assert fn.spec.image == base_image
 
@@ -27,7 +30,9 @@ def test_build_runtime_use_image_when_no_build():
     )
     assert fn.spec.image == image
     ready = mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(), fn, with_mlrun=False,
+        mlrun.api.schemas.AuthInfo(),
+        fn,
+        with_mlrun=False,
     )
     assert ready is True
     assert fn.spec.image == image
@@ -94,7 +99,8 @@ def test_build_runtime_insecure_registries(monkeypatch):
         mlrun.mlconf.httpdb.builder.insecure_push_registry_mode = case["push_mode"]
         mlrun.mlconf.httpdb.builder.docker_registry_secret = case["secret"]
         mlrun.builder.build_runtime(
-            mlrun.api.schemas.AuthInfo(), function,
+            mlrun.api.schemas.AuthInfo(),
+            function,
         )
         assert (
             insecure_flags.issubset(
@@ -130,12 +136,15 @@ def test_build_runtime_target_image(monkeypatch):
         kind="job",
         requirements=["some-package"],
     )
-    image_name_prefix = mlrun.mlconf.httpdb.builder.function_target_image_name_prefix_template.format(
-        project=function.metadata.project, name=function.metadata.name
+    image_name_prefix = (
+        mlrun.mlconf.httpdb.builder.function_target_image_name_prefix_template.format(
+            project=function.metadata.project, name=function.metadata.name
+        )
     )
 
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(), function,
+        mlrun.api.schemas.AuthInfo(),
+        function,
     )
 
     # assert the default target image
@@ -147,7 +156,8 @@ def test_build_runtime_target_image(monkeypatch):
         f"{registry}/{image_name_prefix}-some-addition:{function.metadata.tag}"
     )
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(), function,
+        mlrun.api.schemas.AuthInfo(),
+        function,
     )
     target_image = _get_target_image_from_create_pod_mock()
     assert target_image == function.spec.build.image
@@ -159,7 +169,8 @@ def test_build_runtime_target_image(monkeypatch):
         f"/{image_name_prefix}-some-addition:{function.metadata.tag}"
     )
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(), function,
+        mlrun.api.schemas.AuthInfo(),
+        function,
     )
     target_image = _get_target_image_from_create_pod_mock()
     assert (
@@ -175,7 +186,8 @@ def test_build_runtime_target_image(monkeypatch):
         function.spec.build.image = invalid_image
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             mlrun.builder.build_runtime(
-                mlrun.api.schemas.AuthInfo(), function,
+                mlrun.api.schemas.AuthInfo(),
+                function,
             )
 
     # assert if we can not-stick to the regex if it's a different registry
@@ -184,7 +196,8 @@ def test_build_runtime_target_image(monkeypatch):
         f":{function.metadata.tag}"
     )
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(), function,
+        mlrun.api.schemas.AuthInfo(),
+        function,
     )
     target_image = _get_target_image_from_create_pod_mock()
     assert target_image == function.spec.build.image

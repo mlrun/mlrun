@@ -125,7 +125,11 @@ def featureset_initializer(server):
     featureset, source, targets, _, _ = context_to_ingestion_params(context)
     graph = featureset.spec.graph.copy()
     _add_data_steps(
-        graph, cache, featureset, targets=targets, source=source,
+        graph,
+        cache,
+        featureset,
+        targets=targets,
+        source=source,
     )
     featureset.save()
     server.graph = graph

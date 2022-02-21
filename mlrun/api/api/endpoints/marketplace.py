@@ -45,7 +45,8 @@ def create_source(
 
 
 @router.get(
-    path="/marketplace/sources", response_model=List[IndexedMarketplaceSource],
+    path="/marketplace/sources",
+    response_model=List[IndexedMarketplaceSource],
 )
 def list_sources(
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
@@ -63,7 +64,8 @@ def list_sources(
 
 
 @router.delete(
-    path="/marketplace/sources/{source_name}", status_code=HTTPStatus.NO_CONTENT.value,
+    path="/marketplace/sources/{source_name}",
+    status_code=HTTPStatus.NO_CONTENT.value,
 )
 def delete_source(
     source_name: str,
@@ -83,7 +85,8 @@ def delete_source(
 
 
 @router.get(
-    path="/marketplace/sources/{source_name}", response_model=IndexedMarketplaceSource,
+    path="/marketplace/sources/{source_name}",
+    response_model=IndexedMarketplaceSource,
 )
 def get_source(
     source_name: str,
@@ -127,7 +130,8 @@ def store_source(
 
 
 @router.get(
-    path="/marketplace/sources/{source_name}/items", response_model=MarketplaceCatalog,
+    path="/marketplace/sources/{source_name}/items",
+    response_model=MarketplaceCatalog,
 )
 def get_catalog(
     source_name: str,
@@ -180,7 +184,9 @@ def get_item(
     )
 
 
-@router.get("/marketplace/sources/{source_name}/item-object",)
+@router.get(
+    "/marketplace/sources/{source_name}/item-object",
+)
 def get_object(
     source_name: str,
     url: str,

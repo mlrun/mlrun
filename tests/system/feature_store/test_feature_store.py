@@ -75,7 +75,7 @@ def _generate_random_name():
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestFeatureStore(TestMLRunSystem):
-    project_name = "fs-system-test-project-run-uid"
+    project_name = "fs-system-test-project"
 
     def custom_setup(self):
         pass
@@ -570,15 +570,16 @@ class TestFeatureStore(TestMLRunSystem):
             path=os.path.relpath(str(self.assets_path / "testdata.csv")),
             time_field="timestamp",
         )
-
-        target = ParquetTarget(
-            partitioned=True,
-            key_bucketing_number=key_bucketing_number,
-            partition_cols=partition_cols,
-            time_partitioning_granularity=time_partitioning_granularity,
-        )
         measurements.set_targets(
-            targets=[target], with_defaults=False,
+            targets=[
+                ParquetTarget(
+                    partitioned=True,
+                    key_bucketing_number=key_bucketing_number,
+                    partition_cols=partition_cols,
+                    time_partitioning_granularity=time_partitioning_granularity,
+                )
+            ],
+            with_defaults=False,
         )
 
         resp1 = fs.ingest(measurements, source).to_dict()
@@ -596,7 +597,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         file_system = fsspec.filesystem("v3io")
         kind = TargetTypes.parquet
-        path = f"{get_default_prefix_for_target(kind)}/sets/{name}"
+        path = f"{get_default_prefix_for_target(kind)}/sets/{name}-latest"
         path = path.format(
             name=name,
             kind=kind,

@@ -908,6 +908,7 @@ def run_pipeline(
 
     :param pipeline:   KFP pipeline function or path to .yaml/.zip pipeline file
     :param arguments:  pipeline arguments
+    :param project:    name of project
     :param experiment: experiment name
     :param run:        optional, run name
     :param namespace:  Kubernetes namespace (if not using default)

@@ -63,19 +63,50 @@ def test_new_function_with_resources():
         {
             "resources": {"requests": {"cpu": "50mi"}},
             "default_resources": {
-                "requests": {"cpu": "25mi", "memory": "1M", "gpu": ""},
-                "limits": {"cpu": "1", "memory": "1G", "gpu": ""},
+                "requests": {"cpu": "25mi", "memory": "1M", "gpu": None},
+                "limits": {"cpu": "1", "memory": "1G", "gpu": None},
             },
             "expected_resources": {
-                "requests": {"cpu": "50mi", "memory": "1M", "gpu": ""},
-                "limits": {"cpu": "1", "memory": "1G", "gpu": ""},
+                "requests": {"cpu": "50mi", "memory": "1M"},
+                "limits": {"cpu": "1", "memory": "1G"},
             },
         },
     ]:
-        expected_runtime = copy.copy(runtime)
+        expected_runtime = copy.deepcopy(runtime)
         expected_runtime["spec"]["resources"] = test_case.get("expected_resources")
         runtime["spec"]["resources"] = test_case.get("resources")
         mlrun.mlconf.default_function_pod_resources = test_case.get("default_resources")
-
         function = mlrun.new_function(runtime=runtime)
         assert DeepDiff(function.to_dict(), expected_runtime, ignore_order=True,) == {}
+
+
+def test_with_requests():
+    runtime = _get_runtime()
+    runtime["spec"]["resources"] = {"limits": {"cpu": "20", "memory": "10G"}}
+    mlrun.mlconf.default_function_pod_resources = {
+        "requests": {"cpu": "25mi", "memory": "1M", "gpu": None},
+        "limits": {"cpu": "1", "memory": "1G", "gpu": None},
+    }
+    function = mlrun.new_function(runtime=runtime)
+    function.with_requests(mem="9G", cpu="15")
+    expected = {
+        "requests": {"cpu": "15", "memory": "9G"},
+        "limits": {"cpu": "20", "memory": "10G"},
+    }
+    assert DeepDiff(function.spec.resources, expected, ignore_order=True,) == {}
+
+
+def test_with_limits():
+    runtime = _get_runtime()
+    runtime["spec"]["resources"] = {"requests": {"cpu": "50mi"}}
+    mlrun.mlconf.default_function_pod_resources = {
+        "requests": {"cpu": "25mi", "memory": "1M", "gpu": None},
+        "limits": {"cpu": "1", "memory": "1G", "gpu": None},
+    }
+    function = mlrun.new_function(runtime=runtime)
+    function.with_limits(mem="9G", cpu="15")
+    expected = {
+        "requests": {"cpu": "50mi", "memory": "1M"},
+        "limits": {"cpu": "15", "memory": "9G"},
+    }
+    assert DeepDiff(function.spec.resources, expected, ignore_order=True,) == {}

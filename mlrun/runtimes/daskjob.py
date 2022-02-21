@@ -141,11 +141,32 @@ class DaskSpec(KubeResourceSpec):
         # supported format according to https://github.com/dask/dask/blob/master/dask/utils.py#L1402
         self.scheduler_timeout = scheduler_timeout or "60 minutes"
         self.nthreads = nthreads or 1
-        self.scheduler_resources = scheduler_resources or {}
-        self.enrich_resources_with_default_pod_resources("scheduler_resources")
+        self._scheduler_resources = self.enrich_resources_with_default_pod_resources(
+            "scheduler_resources", scheduler_resources
+        )
+        self._worker_resources = self.enrich_resources_with_default_pod_resources(
+            "worker_resources", scheduler_resources
+        )
 
-        self.worker_resources = worker_resources or {}
-        self.enrich_resources_with_default_pod_resources("worker_resources")
+    @property
+    def scheduler_resources(self) -> dict:
+        return self._scheduler_resources
+
+    @scheduler_resources.setter
+    def scheduler_resources(self, resources):
+        self._scheduler_resources = self.enrich_resources_with_default_pod_resources(
+            "scheduler_resources", resources
+        )
+
+    @property
+    def worker_resources(self) -> dict:
+        return self._worker_resources
+
+    @worker_resources.setter
+    def worker_resources(self, resources):
+        self._worker_resources = self.enrich_resources_with_default_pod_resources(
+            "worker_resources", resources
+        )
 
 
 class DaskStatus(FunctionStatus):

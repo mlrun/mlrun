@@ -285,11 +285,6 @@ class KubeResourceSpec(FunctionSpec):
         default_resources = copy.deepcopy(
             mlconf.default_function_pod_resources.to_dict()
         )
-        # try:
-        #     self_resources = getattr(self, resources_field_name)
-        # except AttributeError:
-        #     setattr(self, resources_field_name, {})
-        #     self_resources = getattr(self, resources_field_name)
 
         if not resources:
             return default_resources

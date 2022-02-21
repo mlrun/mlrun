@@ -78,7 +78,14 @@ def test_resource_enrichment_in_resource_spec_initialization():
 
     # without setting resources
     spec = mlrun.runtimes.pod.KubeResourceSpec()
-    assert DeepDiff(spec.resources, expected_resources, ignore_order=True,) == {}
+    assert (
+        DeepDiff(
+            spec.resources,
+            expected_resources,
+            ignore_order=True,
+        )
+        == {}
+    )
 
     # setting partial requests
     mlrun.mlconf.default_function_pod_resources = {
@@ -91,7 +98,14 @@ def test_resource_enrichment_in_resource_spec_initialization():
     }
     spec_requests = {"cpu": "1"}
     spec = mlrun.runtimes.pod.KubeResourceSpec(resources={"requests": spec_requests})
-    assert DeepDiff(spec.resources, expected_resources, ignore_order=True,) == {}
+    assert (
+        DeepDiff(
+            spec.resources,
+            expected_resources,
+            ignore_order=True,
+        )
+        == {}
+    )
 
     # setting partial requests and limits
     mlrun.mlconf.default_function_pod_resources = {
@@ -108,7 +122,14 @@ def test_resource_enrichment_in_resource_spec_initialization():
     spec = mlrun.runtimes.pod.KubeResourceSpec(
         resources={"requests": spec_requests, "limits": spec_limits}
     )
-    assert DeepDiff(spec.resources, expected_resources, ignore_order=True,) == {}
+    assert (
+        DeepDiff(
+            spec.resources,
+            expected_resources,
+            ignore_order=True,
+        )
+        == {}
+    )
 
     # setting only gpu request without limits
     with pytest.raises(mlrun.errors.MLRunConflictError):
@@ -148,4 +169,11 @@ def test_resource_enrichment_in_resource_spec_initialization():
         resources={"requests": spec_requests, "limits": spec_limits}
     )
 
-    assert DeepDiff(spec.resources, expected_resources, ignore_order=True,) == {}
+    assert (
+        DeepDiff(
+            spec.resources,
+            expected_resources,
+            ignore_order=True,
+        )
+        == {}
+    )

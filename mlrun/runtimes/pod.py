@@ -245,11 +245,17 @@ class KubeResourceSpec(FunctionSpec):
         if only_verify:
             return resources
         update_in(
-            getattr(self, resources_field_name), "limits", resources,
+            getattr(self, resources_field_name),
+            "limits",
+            resources,
         )
 
     def _verify_and_set_requests(
-        self, resources_field_name, mem=None, cpu=None, only_verify=False,
+        self,
+        resources_field_name,
+        mem=None,
+        cpu=None,
+        only_verify=False,
     ):
         if mem:
             verify_field_regex(
@@ -267,7 +273,9 @@ class KubeResourceSpec(FunctionSpec):
         if only_verify:
             return resources
         update_in(
-            getattr(self, resources_field_name), "requests", resources,
+            getattr(self, resources_field_name),
+            "requests",
+            resources,
         )
 
     def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):

@@ -45,7 +45,14 @@ def test_new_function_from_runtime():
     function = mlrun.new_function(runtime=runtime)
     default_resources = mlrun.mlconf.default_function_pod_resources.to_dict()
     runtime["spec"]["resources"] = default_resources
-    assert DeepDiff(function.to_dict(), runtime, ignore_order=True,) == {}
+    assert (
+        DeepDiff(
+            function.to_dict(),
+            runtime,
+            ignore_order=True,
+        )
+        == {}
+    )
 
 
 def test_new_function_args_without_command():
@@ -54,7 +61,14 @@ def test_new_function_args_without_command():
     function = mlrun.new_function(runtime=runtime)
     default_resources = mlrun.mlconf.default_function_pod_resources.to_dict()
     runtime["spec"]["resources"] = default_resources
-    assert DeepDiff(function.to_dict(), runtime, ignore_order=True,) == {}
+    assert (
+        DeepDiff(
+            function.to_dict(),
+            runtime,
+            ignore_order=True,
+        )
+        == {}
+    )
 
 
 def test_new_function_with_resources():
@@ -77,7 +91,14 @@ def test_new_function_with_resources():
         runtime["spec"]["resources"] = test_case.get("resources")
         mlrun.mlconf.default_function_pod_resources = test_case.get("default_resources")
         function = mlrun.new_function(runtime=runtime)
-        assert DeepDiff(function.to_dict(), expected_runtime, ignore_order=True,) == {}
+        assert (
+            DeepDiff(
+                function.to_dict(),
+                expected_runtime,
+                ignore_order=True,
+            )
+            == {}
+        )
 
 
 def test_with_requests():
@@ -93,7 +114,14 @@ def test_with_requests():
         "requests": {"cpu": "15", "memory": "9G"},
         "limits": {"cpu": "20", "memory": "10G"},
     }
-    assert DeepDiff(function.spec.resources, expected, ignore_order=True,) == {}
+    assert (
+        DeepDiff(
+            function.spec.resources,
+            expected,
+            ignore_order=True,
+        )
+        == {}
+    )
 
 
 def test_with_limits():
@@ -109,4 +137,11 @@ def test_with_limits():
         "requests": {"cpu": "50mi", "memory": "1M"},
         "limits": {"cpu": "15", "memory": "9G"},
     }
-    assert DeepDiff(function.spec.resources, expected, ignore_order=True,) == {}
+    assert (
+        DeepDiff(
+            function.spec.resources,
+            expected,
+            ignore_order=True,
+        )
+        == {}
+    )

@@ -633,20 +633,15 @@ def _do_populate(env=None):
     del config._cfg["iguazio_api_url"]
 
     import mlrun.runtimes.pod
-    try:
-        requests_gpu = config.default_function_pod_resources.requests.gpu
-    except:
-        requests_gpu = None
 
     try:
         limits_gpu = config.default_function_pod_resources.limits.gpu
-    except:
-        limits_gpu = None
-
-    mlrun.runtimes.pod._verify_gpu_requests_and_limits(
-        requests_gpu=requests_gpu,
-        limits_gpu=limits_gpu,
-    )
+        requests_gpu = config.default_function_pod_resources.requests.gpu
+        mlrun.runtimes.pod._verify_gpu_requests_and_limits(
+            requests_gpu=requests_gpu, limits_gpu=limits_gpu,
+        )
+    except AttributeError:
+        pass
 
 
 def _convert_resources_to_str(config: dict = None):
@@ -654,9 +649,9 @@ def _convert_resources_to_str(config: dict = None):
     resource_requirements = ["requests", "limits"]
     if not config.get("default_function_pod_resources"):
         return
-    for resource_requirement in resource_requirements:
+    for requirement in resource_requirements:
         resource_requirement = config.get("default_function_pod_resources").get(
-            resource_requirement
+            requirement
         )
         if not resource_requirement:
             continue

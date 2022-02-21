@@ -333,7 +333,7 @@ def build_runtime(
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
     project = runtime.metadata.project
-    if skip_deployed and runtime.is_deployed:
+    if skip_deployed and runtime.is_deployed():
         runtime.status.state = mlrun.api.schemas.FunctionState.ready
         return True
     if build.base_image:

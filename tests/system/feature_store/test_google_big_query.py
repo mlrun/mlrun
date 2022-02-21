@@ -89,7 +89,7 @@ class TestFeatureStoreGoogleBigQuery(TestMLRunSystem):
     @staticmethod
     def _test_big_query_source(name: str, source: BigQuerySource, max_results: int):
         credentials_path = _resolve_google_credentials_json_path()
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(credentials_path)
 
         targets = [
             ParquetTarget(

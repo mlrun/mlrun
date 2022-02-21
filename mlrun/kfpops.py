@@ -541,7 +541,7 @@ def build_op(
     if secret_name:
         cmd += ["--secret-name", secret_name]
     if with_mlrun:
-        cmd += ["--with_mlrun"]
+        cmd += ["--with-mlrun"]
     if skip_deployed:
         cmd += ["--skip"]
     for c in commands:

@@ -107,7 +107,6 @@ def test_requirement_specifiers_convention():
         "chardet": {">=3.0.2, <4.0"},
         "google-auth": {">=1.25.0, <2.0dev"},
         "numpy": {">=1.16.5, <1.22.0"},
-        "orjson": {">=3,<3.4"},
         "alembic": {"~=1.4,<1.6.0"},
         "boto3": {"~=1.9, <1.17.107"},
         "azure-storage-blob": {"~=12.0, <12.7.0"},

@@ -98,8 +98,9 @@ class KubeResourceSpec(FunctionSpec):
         self.volumes = volumes or []
         self.volume_mounts = volume_mounts or []
         self.env = env or []
-        self.resources = resources or {}
-        self.enrich_resources_with_default_pod_resources("resources")
+        self._resources = self.enrich_resources_with_default_pod_resources(
+            "resources", resources
+        )
 
         self.replicas = replicas
         self.image_pull_policy = image_pull_policy
@@ -143,6 +144,16 @@ class KubeResourceSpec(FunctionSpec):
     @affinity.setter
     def affinity(self, affinity):
         self._affinity = self._transform_affinity_to_k8s_class_instance(affinity)
+
+    @property
+    def resources(self) -> dict:
+        return self._resources
+
+    @resources.setter
+    def resources(self, resources):
+        self._resources = self.enrich_resources_with_default_pod_resources(
+            "resources", resources
+        )
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(fields, exclude=["affinity"])
@@ -208,6 +219,7 @@ class KubeResourceSpec(FunctionSpec):
         cpu=None,
         gpus=None,
         gpu_type="nvidia.com/gpu",
+        only_verify=False,
     ):
         if mem:
             verify_field_regex(
@@ -228,13 +240,16 @@ class KubeResourceSpec(FunctionSpec):
                 gpus,
                 mlrun.utils.regex.k8s_resource_quantity_regex,
             )
+        resources = generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type)
+        if only_verify:
+            return resources
         update_in(
-            getattr(self, resources_field_name),
-            "limits",
-            generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type),
+            getattr(self, resources_field_name), "limits", resources,
         )
 
-    def _verify_and_set_requests(self, resources_field_name, mem=None, cpu=None):
+    def _verify_and_set_requests(
+        self, resources_field_name, mem=None, cpu=None, only_verify=False,
+    ):
         if mem:
             verify_field_regex(
                 f"function.spec.{resources_field_name}.requests.memory",
@@ -247,10 +262,11 @@ class KubeResourceSpec(FunctionSpec):
                 cpu,
                 mlrun.utils.regex.k8s_resource_quantity_regex,
             )
+        resources = generate_resources(mem=mem, cpu=cpu)
+        if only_verify:
+            return resources
         update_in(
-            getattr(self, resources_field_name),
-            "requests",
-            generate_resources(mem=mem, cpu=cpu),
+            getattr(self, resources_field_name), "requests", resources,
         )
 
     def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
@@ -261,16 +277,23 @@ class KubeResourceSpec(FunctionSpec):
         """set requested (desired) pod cpu/memory resources"""
         self._verify_and_set_requests("resources", mem, cpu)
 
-    def enrich_resources_with_default_pod_resources(self, resources_field_name: str):
+    def enrich_resources_with_default_pod_resources(
+        self, resources_field_name: str, resources: dict
+    ):
         resources_types = ["cpu", "memory", "nvidia.com/gpu"]
         resource_requirements = ["requests", "limits"]
-        default_resources = mlconf.default_function_pod_resources.to_dict()
+        default_resources = copy.deepcopy(
+            mlconf.default_function_pod_resources.to_dict()
+        )
+        # try:
+        #     self_resources = getattr(self, resources_field_name)
+        # except AttributeError:
+        #     setattr(self, resources_field_name, {})
+        #     self_resources = getattr(self, resources_field_name)
 
-        self_resources = getattr(self, resources_field_name)
-        if not self_resources:
-            self_resources = default_resources
+        if not resources:
+            return default_resources
 
-        resources = copy.copy(self_resources)
         _verify_gpu_requests_and_limits(
             requests_gpu=resources.setdefault("requests", {}).setdefault(
                 "nvidia.com/gpu"
@@ -297,17 +320,20 @@ class KubeResourceSpec(FunctionSpec):
                             resource_type
                         ] = default_resources[resource_requirement][resource_type]
 
-        requests = resources["requests"]
-        limits = resources["limits"]
-        self._verify_and_set_requests(
-            resources_field_name, mem=requests["memory"], cpu=requests["cpu"]
-        )
-        self._verify_and_set_limits(
+        resources["requests"] = self._verify_and_set_requests(
             resources_field_name,
-            mem=limits["memory"],
-            cpu=limits["cpu"],
-            gpus=limits["nvidia.com/gpu"],
+            mem=resources["requests"]["memory"],
+            cpu=resources["requests"]["cpu"],
+            only_verify=True,
         )
+        resources["limits"] = self._verify_and_set_limits(
+            resources_field_name,
+            mem=resources["limits"]["memory"],
+            cpu=resources["limits"]["cpu"],
+            gpus=resources["limits"]["nvidia.com/gpu"],
+            only_verify=True,
+        )
+        return resources
 
 
 class AutoMountType(str, Enum):

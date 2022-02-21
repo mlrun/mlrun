@@ -1284,6 +1284,83 @@ class TestFeatureStore(TestMLRunSystem):
             resp = svc.get([{"first_name": "yossi"}])
             assert resp[0] == {"bid": 10, "bool": None}
 
+    def test_feature_aliases(self):
+        df = pd.DataFrame(
+            {
+                "time": [
+                    pd.Timestamp("2016-05-25 13:30:00.023"),
+                    pd.Timestamp("2016-05-25 13:30:00.038"),
+                    pd.Timestamp("2016-05-25 13:30:00.048"),
+                    pd.Timestamp("2016-05-25 13:30:00.048"),
+                    pd.Timestamp("2016-05-25 13:30:00.048"),
+                ],
+                "ticker": ["MSFT", "MSFT", "GOOG", "GOOG", "AAPL"],
+                "price": [51.95, 51.95, 720.77, 720.92, 98.0],
+            }
+        )
+
+        # write to kv
+        data_set = fs.FeatureSet("aliass", entities=[Entity("ticker")])
+
+        data_set.add_aggregation(
+            column="price", operations=["sum", "max"], windows="1h", period="10m",
+        )
+
+        fs.ingest(data_set, df)
+        features = [
+            "aliass.price_sum_1h",
+            "aliass.price_max_1h as price_m",
+        ]
+        vector_name = "stocks-vec"
+        vector = fs.FeatureVector(vector_name, features)
+
+        resp = fs.get_offline_features(vector).to_dataframe()
+        assert len(resp.columns) == 2
+        assert "price_m" in resp.columns
+
+        vector.save()
+        stats = vector.get_stats_table()
+        assert len(stats) == 2
+        assert "price_m" in stats.index
+
+        svc = fs.get_online_feature_service(vector)
+        try:
+            resp = svc.get(entity_rows=[{"ticker": "GOOG"}])
+            assert resp[0] == {"price_sum_1h": 1441.69, "price_m": 720.92}
+        finally:
+            svc.close()
+
+        # simulating updating alias from UI
+        db = mlrun.get_run_db()
+        update_dict = {
+            "spec": {
+                "features": [
+                    "aliass.price_sum_1h as price_s",
+                    "aliass.price_max_1h as price_m",
+                ]
+            }
+        }
+        db.patch_feature_vector(
+            name=vector_name,
+            feature_vector_update=update_dict,
+            project=self.project_name,
+        )
+
+        svc = fs.get_online_feature_service(vector_name)
+        resp = svc.get(entity_rows=[{"ticker": "GOOG"}])
+        assert resp[0] == {"price_s": 1441.69, "price_m": 720.92}
+        svc.close()
+
+        vector = db.get_feature_vector(vector_name, self.project_name, tag="latest")
+        stats = vector.get_stats_table()
+        assert len(stats) == 2
+        assert "price_s" in stats.index
+
+        resp = fs.get_offline_features(vector).to_dataframe()
+        assert len(resp.columns) == 2
+        assert "price_s" in resp.columns
+        assert "price_m" in resp.columns
+
     def test_forced_columns_target(self):
         columns = ["time", "ask"]
         targets = [ParquetTarget(columns=columns)]
@@ -2133,6 +2210,29 @@ class TestFeatureStore(TestMLRunSystem):
         func.spec.allow_empty_resources = True
         run = func.run(inputs={"data": vector.uri}, local=True)
         assert run.output("uri") == vector.uri
+
+    def test_two_ingests(self):
+        df1 = pd.DataFrame({"name": ["AB", "CD"], "some_data": [10, 20]})
+        set1 = fs.FeatureSet("set1", entities=[Entity("name")])
+        fs.ingest(set1, df1)
+
+        df2 = pd.DataFrame({"name": ["AB", "CD"], "some_data": ["Paris", "Tel Aviv"]})
+        set2 = fs.FeatureSet("set2", entities=[Entity("name")])
+        fs.ingest(set2, df2)
+        vector = fs.FeatureVector("check", ["set1.*", "set2.some_data as ddata"])
+        svc = fs.get_online_feature_service(vector)
+
+        try:
+            resp = svc.get([{"name": "AB"}])
+        finally:
+            svc.close()
+        assert resp == [{"some_data": 10, "ddata": "Paris"}]
+
+        resp = fs.get_offline_features(vector)
+        assert resp.to_dataframe().to_dict() == {
+            "some_data": {0: 10, 1: 20},
+            "ddata": {0: "Paris", 1: "Tel Aviv"},
+        }
 
 
 def verify_purge(fset, targets):

@@ -666,7 +666,6 @@ with ctx:
         _ = self._get_k8s()
         return list(pods.items())[0]
 
-    @property
     def is_deployed(self):
         if (
             not self.spec.build.source
@@ -674,7 +673,7 @@ with ctx:
             and not self.spec.build.extra
         ):
             return True
-        return super().is_deployed
+        return super().is_deployed()
 
     @property
     def spec(self) -> AbstractSparkJobSpec:

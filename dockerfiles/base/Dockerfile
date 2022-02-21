@@ -31,7 +31,9 @@ RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86
 ENV PATH /opt/conda/bin:$PATH
 
 ARG MLRUN_PIP_VERSION=22.0.0
-RUN conda install python=${MLRUN_PYTHON_VERSION} pip~=${MLRUN_PIP_VERSION} && conda clean -aqy
+RUN conda config --add channels conda-forge && \
+    conda install python=${MLRUN_PYTHON_VERSION} pip~=${MLRUN_PIP_VERSION} && \
+    conda clean -aqy
 
 COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
 COPY ./extras-requirements.txt ./extras-requirements.txt

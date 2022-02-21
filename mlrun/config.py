@@ -635,12 +635,11 @@ def _do_populate(env=None):
     config._cfg["_iguazio_api_url"] = config._cfg["iguazio_api_url"]
     del config._cfg["iguazio_api_url"]
 
-    import mlrun.runtimes.pod
-
+    import mlrun.k8s_utils
     try:
         limits_gpu = config.default_function_pod_resources.limits.gpu
         requests_gpu = config.default_function_pod_resources.requests.gpu
-        mlrun.runtimes.pod._verify_gpu_requests_and_limits(
+        mlrun.k8s_utils.verify_gpu_requests_and_limits(
             requests_gpu=requests_gpu, limits_gpu=limits_gpu,
         )
     except AttributeError:

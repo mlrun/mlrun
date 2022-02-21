@@ -26,6 +26,7 @@ import mlrun.errors
 import mlrun.utils.regex
 
 from ..config import config as mlconf
+from ..k8s_utils import verify_gpu_requests_and_limits
 from ..secrets import SecretsStore
 from ..utils import logger, normalize_name, update_in, verify_field_regex
 from .base import BaseRuntime, FunctionSpec, spec_fields
@@ -289,7 +290,7 @@ class KubeResourceSpec(FunctionSpec):
         if not resources:
             return default_resources
 
-        _verify_gpu_requests_and_limits(
+        verify_gpu_requests_and_limits(
             requests_gpu=resources.setdefault("requests", {}).setdefault(
                 "nvidia.com/gpu"
             ),
@@ -739,19 +740,6 @@ def kube_resource_spec_to_pod_spec(
         if len(mlconf.get_valid_function_priority_class_names())
         else None,
     )
-
-
-def _verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = None):
-    # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
-    if requests_gpu and not limits_gpu:
-        raise mlrun.errors.MLRunConflictError(
-            "You cannot specify GPU requests without specifying limits"
-        )
-    if requests_gpu and limits_gpu and requests_gpu != limits_gpu:
-        raise mlrun.errors.MLRunConflictError(
-            f"When specifying both GPU requests and limits these two values must be equal, "
-            f"requests_gpu={requests_gpu}, limits_gpu={limits_gpu}"
-        )
 
 
 def _filter_modifier_params(modifier, params):

@@ -245,7 +245,34 @@ class FeatureVector(ModelObj):
     def get_stats_table(self):
         """get feature statistics table (as dataframe)"""
         if self.status.stats:
+            feature_aliases = self.get_feature_aliases()
+            for old_name, new_name in feature_aliases.items():
+                if old_name in self.status.stats:
+                    self.status.stats[new_name] = self.status.stats[old_name]
+                    del self.status.stats[old_name]
             return pd.DataFrame.from_dict(self.status.stats, orient="index")
+
+    def get_feature_aliases(self):
+        feature_aliases = {}
+        for feature in self.spec.features:
+            column_names = feature.split(" as ")
+            # split 'feature_set.old_name as new_name'
+            if len(column_names) == 2:
+                old_name_with_feature_set, new_name = column_names
+                # split 'feature_set.old_name'
+                feature_set, old_name = column_names[0].split(".")
+                if new_name != old_name:
+                    feature_aliases[old_name] = new_name
+        return feature_aliases
+
+    def get_feature_names_aliased(self):
+        feature_aliases = self.get_feature_aliases()
+        names = list(self.status.features.keys())
+        for i in range(len(names)):
+            old_name = names[i]
+            if old_name in feature_aliases:
+                names[i] = feature_aliases[old_name]
+        return names
 
     def get_target_path(self, name=None):
         target = get_offline_target(self, name=name)
@@ -448,32 +475,38 @@ class OnlineVectorService:
                 f"input data is of type {type(entity_rows)}. must be a list of lists or list of dicts"
             )
 
+        feature_aliases = self.vector.get_feature_aliases()
+
+        index_columns = copy(self._index_columns)
+        for i in range(len(index_columns)):
+            old_name = index_columns[i]
+            if old_name in feature_aliases:
+                index_columns[i] = feature_aliases[old_name]
+
         # if list of list, convert to dicts (with the index columns as the dict keys)
         if isinstance(entity_rows[0], list):
-            if not self._index_columns or len(entity_rows[0]) != len(
-                self._index_columns
-            ):
+            if not index_columns or len(entity_rows[0]) != len(index_columns):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "input list must be in the same size of the index_keys list"
                 )
-            index_range = range(len(self._index_columns))
+            index_range = range(len(index_columns))
             entity_rows = [
-                {self._index_columns[i]: item[i] for i in index_range}
-                for item in entity_rows
+                {index_columns[i]: item[i] for i in index_range} for item in entity_rows
             ]
 
         for row in entity_rows:
             futures.append(self._controller.emit(row, return_awaitable_result=True))
+
         for future in futures:
             result = future.await_result()
             data = result.body
-            for key in self._index_columns:
+            for key in index_columns:
                 if data and key in data:
                     del data[key]
             if not data:
                 data = None
             else:
-                requested_columns = self.vector.status.features.keys()
+                requested_columns = self.vector.get_feature_names_aliased()
                 actual_columns = data.keys()
                 for column in requested_columns:
                     if (
@@ -491,9 +524,13 @@ class OnlineVectorService:
             if as_list and data:
                 data = [
                     data.get(key, None)
-                    for key in self.vector.status.features.keys()
+                    for key in self.vector.get_feature_names_aliased()
                     if key != self.vector.status.label_column
                 ]
+            for old_name, new_name in feature_aliases.items():
+                if old_name in data:
+                    data[new_name] = data[old_name]
+                    del data[old_name]
             results.append(data)
 
         return results

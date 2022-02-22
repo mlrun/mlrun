@@ -736,6 +736,9 @@ class TestNuclioRuntime(TestRuntimeBase):
             },
         }
 
+    def test_nuclio_run_without_specifying_resources(self, db: Session, client: TestClient):
+        self.assert_run_without_specifying_resources()
+
     def test_load_function_with_source_archive_s3(self):
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(

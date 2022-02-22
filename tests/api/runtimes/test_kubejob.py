@@ -92,6 +92,35 @@ class TestKubejobRuntime(TestRuntimeBase):
             expected_limits=expected_limits, expected_requests=expected_requests
         )
 
+    def test_run_without_specifying_resources(self, db: Session, client: TestClient):
+        for test_case in [
+            {
+                # when are not defaults defined
+                "default_function_pod_resources": {
+                    "requests": {"cpu": None, "memory": None, "gpu": None},
+                    "limits": {"cpu": None, "memory": None, "gpu": None},
+                }
+            },
+            {
+                # with defaults
+                "default_function_pod_resources": {
+                    "requests": {"cpu": "25m", "memory": "1M"},
+                    "limits": {"cpu": "2", "memory": "1G"},
+                }
+            },
+        ]:
+            mlrun.mlconf.default_function_pod_resources = test_case.get(
+                "default_function_pod_resources"
+            )
+
+            runtime = self._generate_runtime()
+            self._execute_run(runtime)
+            expected_resources = mlrun.mlconf.default_function_pod_resources
+            self._assert_pod_creation_config(
+                expected_limits=expected_resources.limits.to_dict(),
+                expected_requests=expected_resources.requests.to_dict(),
+            )
+
     def test_run_with_node_selection(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
 

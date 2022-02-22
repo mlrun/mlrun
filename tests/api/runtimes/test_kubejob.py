@@ -95,7 +95,6 @@ class TestKubejobRuntime(TestRuntimeBase):
     def test_run_without_specifying_resources(self, db: Session, client: TestClient):
         self.assert_run_without_specifying_resources()
 
-
     def test_run_with_node_selection(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
 

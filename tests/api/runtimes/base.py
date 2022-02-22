@@ -10,9 +10,11 @@ import deepdiff
 import fastapi.testclient
 import pytest
 import sqlalchemy.orm
+from fastapi.testclient import TestClient
 from kubernetes import client
 from kubernetes import client as k8s_client
 from kubernetes.client import V1EnvVar
+from sqlalchemy.orm import Session
 
 import mlrun
 from mlrun.api.utils.singletons.k8s import get_k8s
@@ -22,8 +24,6 @@ from mlrun.runtimes.constants import PodPhases
 from mlrun.utils import create_logger
 from mlrun.utils.azure_vault import AzureVaultStore
 from mlrun.utils.vault import VaultStore
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
 
 logger = create_logger(level="debug", name="test-runtime")
 
@@ -614,6 +614,7 @@ class TestRuntimeBase:
             runtime = self._generate_runtime()
             expected_resources = mlrun.mlconf.default_function_pod_resources
             self._assert_container_resources(
-                runtime.spec, expected_limits=expected_resources.limits.to_dict(),
+                runtime.spec,
+                expected_limits=expected_resources.limits.to_dict(),
                 expected_requests=expected_resources.requests.to_dict(),
             )

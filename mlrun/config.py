@@ -635,6 +635,10 @@ def _do_populate(env=None):
     config._cfg["_iguazio_api_url"] = config._cfg["iguazio_api_url"]
     del config._cfg["iguazio_api_url"]
 
+    _validate_config(config)
+
+
+def _validate_config(config):
     import mlrun.k8s_utils
 
     try:

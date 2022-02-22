@@ -568,7 +568,7 @@ class TestRuntimeBase:
     def _assert_container_resources(
         self, container_spec, expected_limits, expected_requests
     ):
-        if expected_limits:
+        if expected_limits is not None:
             assert (
                 deepdiff.DeepDiff(
                     container_spec.resources["limits"],
@@ -577,7 +577,7 @@ class TestRuntimeBase:
                 )
                 == {}
             )
-        if expected_requests:
+        if expected_requests is not None:
             assert (
                 deepdiff.DeepDiff(
                     container_spec.resources["requests"],

@@ -10,11 +10,9 @@ import deepdiff
 import fastapi.testclient
 import pytest
 import sqlalchemy.orm
-from fastapi.testclient import TestClient
 from kubernetes import client
 from kubernetes import client as k8s_client
 from kubernetes.client import V1EnvVar
-from sqlalchemy.orm import Session
 
 import mlrun
 from mlrun.api.utils.singletons.k8s import get_k8s

@@ -2176,14 +2176,14 @@ class TestFeatureStore(TestMLRunSystem):
             name="test_map_with_state_with_table_fset", entities=[fs.Entity("name")]
         )
         fs.ingest(fset, df, targets=[NoSqlTarget(path=table_url)])
-
+        table_url_with_run_uid = fset.status.targets[0].get_path().absolute_path()
         df = pd.DataFrame({"key": ["a", "a", "b"], "x": [2, 3, 4]})
 
         fset = fs.FeatureSet("myfset", entities=[Entity("key")])
         fset.set_targets([], with_defaults=False)
         fset.graph.to(
             "storey.MapWithState",
-            initial_state=table_url,
+            initial_state=table_url_with_run_uid,
             group_by_key=True,
             _fn="map_with_state_test_function",
         )

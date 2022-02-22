@@ -299,6 +299,10 @@ class HTTPRunDB(RunDBInterface):
                 config.valid_function_priority_class_names
                 or server_cfg.get("valid_function_priority_class_names")
             )
+            config.default_function_pod_resources = (
+                config.default_function_pod_resources
+                or server_cfg.get("default_function_pod_resources")
+            )
             # These have a default value, therefore local config will always have a value, prioritize the
             # API value first
             config.ui.projects_prefix = (

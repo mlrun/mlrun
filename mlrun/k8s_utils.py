@@ -567,3 +567,16 @@ def format_labels(labels):
         return ",".join([f"{k}={v}" for k, v in labels.items()])
     else:
         return ""
+
+
+def verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = None):
+    # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
+    if requests_gpu and not limits_gpu:
+        raise mlrun.errors.MLRunConflictError(
+            "You cannot specify GPU requests without specifying limits"
+        )
+    if requests_gpu and limits_gpu and requests_gpu != limits_gpu:
+        raise mlrun.errors.MLRunConflictError(
+            f"When specifying both GPU requests and limits these two values must be equal, "
+            f"requests_gpu={requests_gpu}, limits_gpu={limits_gpu}"
+        )

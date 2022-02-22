@@ -32,3 +32,19 @@ def test_client_spec(
     assert response.status_code == http.HTTPStatus.OK.value
     response_body = response.json()
     assert response_body["nuclio_version"] == nuclio_version
+
+    # check default_function_pod_resources when default
+    assert response_body["default_function_pod_resources"] is None
+
+    # check default_function_pod_resources when values set
+    mlrun.mlconf.default_function_pod_resources = {
+        "requests": {"cpu": "25m", "memory": "1M", "gpu": ""},
+        "limits": {"cpu": "2", "memory": "1G", "gpu": ""},
+    }
+    response = client.get("client-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
+    response_body = response.json()
+    assert (
+        response_body["default_function_pod_resources"]
+        == mlrun.mlconf.default_function_pod_resources.to_dict()
+    )

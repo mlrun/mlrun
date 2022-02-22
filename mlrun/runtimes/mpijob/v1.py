@@ -147,6 +147,11 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
             "command",
             ["mpirun", *quoted_mpi_args, *quoted_args],
         )
+        self._update_container(
+            launcher_pod_template,
+            "resources",
+            mlconf.default_function_pod_resources.to_dict(),
+        )
 
     def _enrich_worker_configurations(self, worker_pod_template):
         if self.spec.resources:

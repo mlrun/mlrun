@@ -28,14 +28,15 @@ import mlrun.utils.regex
 from ..config import config as mlconf
 from ..k8s_utils import verify_gpu_requests_and_limits
 from ..secrets import SecretsStore
-from ..utils import logger, normalize_name, update_in, verify_field_regex
+from ..utils import logger, normalize_name, update_in
 from .base import BaseRuntime, FunctionSpec, spec_fields
 from .utils import (
     apply_kfp,
-    generate_resources,
     get_item_name,
     get_resource_labels,
     set_named_item,
+    verify_limits,
+    verify_requests,
 )
 
 
@@ -220,30 +221,10 @@ class KubeResourceSpec(FunctionSpec):
         cpu=None,
         gpus=None,
         gpu_type="nvidia.com/gpu",
-        only_verify=False,
     ):
-        if mem:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.limits.memory",
-                mem,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        if cpu:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.limits.cpu",
-                cpu,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
-        if gpus:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.limits.gpus",
-                gpus,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        resources = generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type)
-        if only_verify:
-            return resources
+        resources = verify_limits(
+            resources_field_name, mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type
+        )
         update_in(
             getattr(self, resources_field_name),
             "limits",
@@ -255,23 +236,8 @@ class KubeResourceSpec(FunctionSpec):
         resources_field_name,
         mem=None,
         cpu=None,
-        only_verify=False,
     ):
-        if mem:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.requests.memory",
-                mem,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        if cpu:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.requests.cpu",
-                cpu,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        resources = generate_resources(mem=mem, cpu=cpu)
-        if only_verify:
-            return resources
+        resources = verify_requests(resources_field_name, mem=mem, cpu=cpu)
         update_in(
             getattr(self, resources_field_name),
             "requests",
@@ -291,6 +257,7 @@ class KubeResourceSpec(FunctionSpec):
     ):
         resources_types = ["cpu", "memory", "nvidia.com/gpu"]
         resource_requirements = ["requests", "limits"]
+        gpu_type = "nvidia.com/gpu"
         default_resources = copy.deepcopy(
             mlconf.default_function_pod_resources.to_dict()
         )
@@ -299,10 +266,8 @@ class KubeResourceSpec(FunctionSpec):
             return default_resources
 
         verify_gpu_requests_and_limits(
-            requests_gpu=resources.setdefault("requests", {}).setdefault(
-                "nvidia.com/gpu"
-            ),
-            limits_gpu=resources.setdefault("limits", {}).setdefault("nvidia.com/gpu"),
+            requests_gpu=resources.setdefault("requests", {}).setdefault(gpu_type),
+            limits_gpu=resources.setdefault("limits", {}).setdefault(gpu_type),
         )
         for resource_requirement in resource_requirements:
             for resource_type in resources_types:
@@ -312,7 +277,7 @@ class KubeResourceSpec(FunctionSpec):
                     )
                     is None
                 ):
-                    if resource_type == "nvidia.com/gpu":
+                    if resource_type == gpu_type:
                         if resource_requirement == "requests":
                             continue
                         else:
@@ -324,18 +289,17 @@ class KubeResourceSpec(FunctionSpec):
                             resource_type
                         ] = default_resources[resource_requirement][resource_type]
 
-        resources["requests"] = self._verify_and_set_requests(
+        resources["requests"] = verify_requests(
             resources_field_name,
             mem=resources["requests"]["memory"],
             cpu=resources["requests"]["cpu"],
-            only_verify=True,
         )
-        resources["limits"] = self._verify_and_set_limits(
+        resources["limits"] = verify_limits(
             resources_field_name,
             mem=resources["limits"]["memory"],
             cpu=resources["limits"]["cpu"],
-            gpus=resources["limits"]["nvidia.com/gpu"],
-            only_verify=True,
+            gpus=resources["limits"][gpu_type],
+            gpu_type=gpu_type,
         )
         return resources
 

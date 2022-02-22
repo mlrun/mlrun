@@ -11,7 +11,9 @@ import mlrun.utils.singleton
 import mlrun.utils.vault
 
 
-class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
+class Secrets(
+    metaclass=mlrun.utils.singleton.Singleton,
+):
     internal_secrets_key_prefix = "mlrun."
     # make it a subset of internal since key map are by definition internal
     key_map_secrets_key_prefix = f"{internal_secrets_key_prefix}map."
@@ -203,8 +205,10 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
                 raise mlrun.errors.MLRunAccessDeniedError(
                     "Not allowed to list secrets data from kubernetes provider"
                 )
-            secrets_data = mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_data(
-                project, secrets
+            secrets_data = (
+                mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_data(
+                    project, secrets
+                )
             )
 
         else:
@@ -386,7 +390,9 @@ class Secrets(metaclass=mlrun.utils.singleton.Singleton,):
         return secrets_to_store
 
     def _get_secret_key_map(
-        self, project: str, key_map_secret_key: str,
+        self,
+        project: str,
+        key_map_secret_key: str,
     ) -> typing.Optional[dict]:
         secrets_data = self.list_secrets(
             project,

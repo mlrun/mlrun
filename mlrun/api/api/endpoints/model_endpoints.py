@@ -108,25 +108,27 @@ def list_endpoints(
     ),
 ) -> ModelEndpointList:
     """
-     Returns a list of endpoints of type 'ModelEndpoint', supports filtering by model, function, tag,
-     labels or top level.
-     If uids are passed: will return ModelEndpointList of endpoints with uid in uids
-     Labels can be used to filter on the existence of a label:
-     api/projects/{project}/model-endpoints/?label=mylabel
+    Returns a list of endpoints of type 'ModelEndpoint', supports filtering by model, function, tag,
+    labels or top level.
+    If uids are passed: will return ModelEndpointList of endpoints with uid in uids
+    Labels can be used to filter on the existence of a label:
+    api/projects/{project}/model-endpoints/?label=mylabel
 
-     Or on the value of a given label:
-     api/projects/{project}/model-endpoints/?label=mylabel=1
+    Or on the value of a given label:
+    api/projects/{project}/model-endpoints/?label=mylabel=1
 
-     Multiple labels can be queried in a single request by either using "&" separator:
-     api/projects/{project}/model-endpoints/?label=mylabel=1&label=myotherlabel=2
+    Multiple labels can be queried in a single request by either using "&" separator:
+    api/projects/{project}/model-endpoints/?label=mylabel=1&label=myotherlabel=2
 
-     Or by using a "," (comma) separator:
-     api/projects/{project}/model-endpoints/?label=mylabel=1,myotherlabel=2
-     Top level: if true will return only routers and endpoint that are NOT children of any router
-     """
+    Or by using a "," (comma) separator:
+    api/projects/{project}/model-endpoints/?label=mylabel=1,myotherlabel=2
+    Top level: if true will return only routers and endpoint that are NOT children of any router
+    """
 
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-        project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
+        project,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
     )
 
     endpoints = mlrun.api.crud.ModelEndpoints().list_endpoints(
@@ -144,7 +146,10 @@ def list_endpoints(
     allowed_endpoints = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         endpoints.endpoints,
-        lambda _endpoint: (_endpoint.metadata.project, _endpoint.metadata.uid,),
+        lambda _endpoint: (
+            _endpoint.metadata.project,
+            _endpoint.metadata.uid,
+        ),
         auth_info,
     )
 

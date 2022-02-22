@@ -71,7 +71,9 @@ def get_secrets(auth_info: mlrun.api.schemas.AuthInfo):
     }
 
 
-def get_run_db_instance(db_session: Session,):
+def get_run_db_instance(
+    db_session: Session,
+):
     db = get_db()
     if isinstance(db, SQLDB):
         run_db = SQLRunDB(db.dsn, db_session)

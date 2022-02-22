@@ -142,8 +142,8 @@ class V3ioStore(DataStore):
         return [obj.key[subpath_length:] for obj in response.output.contents]
 
     def rm(self, path, recursive=False, maxdepth=None):
-        """ Recursive rm file/folder
-        Workaround for v3io-fs not supporting recursive directory removal """
+        """Recursive rm file/folder
+        Workaround for v3io-fs not supporting recursive directory removal"""
 
         fs = self.get_filesystem()
         if isinstance(path, str):

@@ -365,7 +365,12 @@ class BaseStoreTarget(DataTargetBase):
         return result
 
     def write_dataframe(
-        self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs,
+        self,
+        df,
+        key_column=None,
+        timestamp_key=None,
+        chunk_id=0,
+        **kwargs,
     ) -> typing.Optional[int]:
         if hasattr(df, "rdd"):
             options = self.get_spark_options(key_column, timestamp_key)
@@ -1114,7 +1119,9 @@ class TSDBTarget(BaseStoreTarget):
         container, path = split_path(path_with_container)
 
         frames_client = get_frames_client(
-            token=access_key, address=config.v3io_framesd, container=container,
+            token=access_key,
+            address=config.v3io_framesd,
+            container=container,
         )
 
         frames_client.write(

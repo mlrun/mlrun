@@ -82,8 +82,8 @@ def test_get_non_existing_project(
     not found - which "ruined" the `mlrun.get_or_create_project` logic - so adding a specific test to verify it works
     """
     project = "does-not-exist"
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions = unittest.mock.Mock(
-        side_effect=mlrun.errors.MLRunUnauthorizedError("bla")
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions = (
+        unittest.mock.Mock(side_effect=mlrun.errors.MLRunUnauthorizedError("bla"))
     )
     response = client.get(f"projects/{project}")
     assert response.status_code == HTTPStatus.NOT_FOUND.value
@@ -272,11 +272,15 @@ def test_list_and_get_project_summaries(
     # create schedules for the project
     schedules_count = 3
     _create_schedules(
-        client, project_name, schedules_count,
+        client,
+        project_name,
+        schedules_count,
     )
 
     # mock pipelines for the project
-    running_pipelines_count = _mock_pipelines(project_name,)
+    running_pipelines_count = _mock_pipelines(
+        project_name,
+    )
 
     # list project summaries
     response = client.get("project-summaries")
@@ -393,7 +397,9 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     }
     assert len(distinct_artifact_keys) < len(response.json()["artifacts"])
 
-    response = client.get(f"projects/{project_name}/feature-sets",)
+    response = client.get(
+        f"projects/{project_name}/feature-sets",
+    )
     assert response.status_code == HTTPStatus.OK.value
     distinct_feature_set_names = {
         feature_set["metadata"]["name"]
@@ -402,7 +408,9 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     # ensure there are indeed several versions of the same feature_set name
     assert len(distinct_feature_set_names) < len(response.json()["feature_sets"])
 
-    response = client.get(f"projects/{project_name}/feature-vectors",)
+    response = client.get(
+        f"projects/{project_name}/feature-vectors",
+    )
     assert response.status_code == HTTPStatus.OK.value
     distinct_feature_vector_names = {
         feature_vector["metadata"]["name"]
@@ -433,8 +441,9 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     assert mlrun.api.utils.singletons.db.get_db().delete_feature_set.call_count == len(
         distinct_feature_set_names
     )
-    assert mlrun.api.utils.singletons.db.get_db().delete_feature_vector.call_count == len(
-        distinct_feature_vector_names
+    assert (
+        mlrun.api.utils.singletons.db.get_db().delete_feature_vector.call_count
+        == len(distinct_feature_vector_names)
     )
 
 
@@ -507,7 +516,11 @@ def test_list_projects_leader_format(
         project["data"]["metadata"]["name"] for project in response.json()["projects"]
     ]
     assert (
-        deepdiff.DeepDiff(project_names, returned_project_names, ignore_order=True,)
+        deepdiff.DeepDiff(
+            project_names,
+            returned_project_names,
+            ignore_order=True,
+        )
         == {}
     )
 
@@ -620,7 +633,9 @@ def test_projects_crud(
     )
     assert (
         deepdiff.DeepDiff(
-            response.json()["metadata"]["labels"], labels_1, ignore_order=True,
+            response.json()["metadata"]["labels"],
+            labels_1,
+            ignore_order=True,
         )
         == {}
     )
@@ -861,7 +876,8 @@ def _assert_resources_in_project(
 
 
 def _assert_schedules_in_project(
-    project: str, assert_no_resources: bool = False,
+    project: str,
+    assert_no_resources: bool = False,
 ) -> int:
     number_of_schedules = len(
         mlrun.api.utils.singletons.scheduler.get_scheduler()._list_schedules_from_scheduler(
@@ -875,7 +891,10 @@ def _assert_schedules_in_project(
     return number_of_schedules
 
 
-def _assert_logs_in_project(project: str, assert_no_resources: bool = False,) -> int:
+def _assert_logs_in_project(
+    project: str,
+    assert_no_resources: bool = False,
+) -> int:
     logs_path = mlrun.api.api.utils.project_logs_path(project)
     number_of_log_files = 0
     if logs_path.exists():
@@ -1022,10 +1041,15 @@ def _list_project_names_and_assert(
     params = params or {}
     params["format"] = mlrun.api.schemas.ProjectsFormat.name_only
     # list - names only - filter by state
-    response = client.get("projects", params=params,)
+    response = client.get(
+        "projects",
+        params=params,
+    )
     assert (
         deepdiff.DeepDiff(
-            expected_names, response.json()["projects"], ignore_order=True,
+            expected_names,
+            response.json()["projects"],
+            ignore_order=True,
         )
         == {}
     )

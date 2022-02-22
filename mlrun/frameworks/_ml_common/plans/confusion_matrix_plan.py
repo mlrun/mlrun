@@ -109,7 +109,9 @@ class ConfusionMatrixPlan(MLPlotPlan):
         )
 
         # Add title:
-        figure.update_layout(title_text="Confusion matrix",)
+        figure.update_layout(
+            title_text="Confusion matrix",
+        )
 
         # Add custom x-axis title:
         figure.add_annotation(
@@ -149,7 +151,8 @@ class ConfusionMatrixPlan(MLPlotPlan):
 
         # Create the plot's artifact:
         self._artifacts[self._ARTIFACT_NAME] = PlotlyArtifact(
-            key=self._ARTIFACT_NAME, figure=figure,
+            key=self._ARTIFACT_NAME,
+            figure=figure,
         )
 
         return self._artifacts

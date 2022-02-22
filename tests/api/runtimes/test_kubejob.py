@@ -212,8 +212,10 @@ class TestKubejobRuntime(TestRuntimeBase):
 
         # We don't expect the internal secret to be visible - the user cannot mount it to the function
         # even if specifically asking for it in with_secrets()
-        expected_env_from_secrets = k8s_secrets_mock.get_expected_env_variables_from_secrets(
-            self.project, include_internal=False
+        expected_env_from_secrets = (
+            k8s_secrets_mock.get_expected_env_variables_from_secrets(
+                self.project, include_internal=False
+            )
         )
 
         self._assert_pod_creation_config(
@@ -331,7 +333,9 @@ def my_func(context):
         expected_commands = ["python -m pip install faker python-dotenv"]
         assert (
             deepdiff.DeepDiff(
-                expected_commands, runtime.spec.build.commands, ignore_order=True,
+                expected_commands,
+                runtime.spec.build.commands,
+                ignore_order=True,
             )
             == {}
         )

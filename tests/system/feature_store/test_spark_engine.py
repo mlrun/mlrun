@@ -100,7 +100,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
 
         measurements = fs.FeatureSet(
-            "measurements", entities=[fs.Entity("name")], engine="spark",
+            "measurements",
+            entities=[fs.Entity("name")],
+            engine="spark",
         )
 
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
@@ -245,11 +247,15 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource("myparquet", path=path, time_field="time")
 
         data_set = fs.FeatureSet(
-            f"{name}_storey", entities=[Entity("first_name"), Entity("last_name")],
+            f"{name}_storey",
+            entities=[Entity("first_name"), Entity("last_name")],
         )
 
         data_set.add_aggregation(
-            column="bid", operations=["sum", "max"], windows="1h", period="10m",
+            column="bid",
+            operations=["sum", "max"],
+            windows="1h",
+            period="10m",
         )
 
         df = fs.ingest(data_set, source, targets=[])
@@ -273,7 +279,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
 
         data_set.add_aggregation(
-            column="bid", operations=["sum", "max"], windows="1h", period="10m",
+            column="bid",
+            operations=["sum", "max"],
+            windows="1h",
+            period="10m",
         )
 
         fs.ingest(

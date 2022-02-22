@@ -72,7 +72,7 @@ def main():
 @click.option(
     "--param",
     "-p",
-    default="",
+    default=[],
     multiple=True,
     help="parameter name and value tuples, e.g. -p x=37 -p y='text'",
 )
@@ -81,7 +81,10 @@ def main():
 @click.option("--in-path", help="default input path/url (prefix) for artifact")
 @click.option("--out-path", help="default output path/url (prefix) for artifact")
 @click.option(
-    "--secrets", "-s", multiple=True, help="secrets file=<filename> or env=ENV_KEY1,.."
+    "--secrets",
+    "-s",
+    multiple=True,
+    help="secrets file=<filename> or env=ENV_KEY1,..",
 )
 @click.option("--uid", help="unique run ID")
 @click.option("--name", help="run name")
@@ -97,7 +100,7 @@ def main():
 @click.option(
     "--hyperparam",
     "-x",
-    default="",
+    default=[],
     multiple=True,
     help="hyper parameters (will expand to multiple tasks) e.g. --hyperparam p2=[1,2,3]",
 )
@@ -115,7 +118,9 @@ def main():
     help="hyperparam tuning strategy list | grid | random",
 )
 @click.option(
-    "--hyper-param-options", default="", help="hyperparam options json string",
+    "--hyper-param-options",
+    default="",
+    help="hyperparam options json string",
 )
 @click.option(
     "--func-url",
@@ -379,7 +384,7 @@ def run(
 @click.option(
     "--command",
     "-c",
-    default="",
+    default=[],
     multiple=True,
     help="build commands, e.g. '-c pip install pandas'",
 )
@@ -774,7 +779,7 @@ def logs(uid, project, offset, db, watch):
 @click.option(
     "--arguments",
     "-a",
-    default="",
+    default=[],
     multiple=True,
     help="Kubeflow pipeline arguments name and value tuples (with -r flag), e.g. -a x=6",
 )
@@ -782,12 +787,15 @@ def logs(uid, project, offset, db, watch):
 @click.option(
     "--param",
     "-x",
-    default="",
+    default=[],
     multiple=True,
     help="mlrun project parameter name and value tuples, e.g. -p x=37 -p y='text'",
 )
 @click.option(
-    "--secrets", "-s", multiple=True, help="secrets file=<filename> or env=ENV_KEY1,.."
+    "--secrets",
+    "-s",
+    multiple=True,
+    help="secrets file=<filename> or env=ENV_KEY1,..",
 )
 @click.option("--namespace", help="k8s namespace")
 @click.option("--db", help="api and db service path/url")

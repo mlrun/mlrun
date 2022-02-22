@@ -1436,7 +1436,7 @@ class MlrunProject(ModelObj):
         return function
 
     def get_function_objects(self) -> typing.Dict[str, mlrun.runtimes.BaseRuntime]:
-        """"get a virtual dict with all the project functions ready for use in a pipeline"""
+        """ "get a virtual dict with all the project functions ready for use in a pipeline"""
         self.sync_functions()
         return FunctionsDict(self)
 
@@ -1845,7 +1845,7 @@ class MlrunProject(ModelObj):
             fp.write(self.to_yaml())
 
     def set_model_monitoring_credentials(self, access_key: str):
-        """ Set the credentials that will be used by the project's model monitoring
+        """Set the credentials that will be used by the project's model monitoring
         infrastructure functions.
         The supplied credentials must have data access
 

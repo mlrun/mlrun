@@ -20,7 +20,10 @@ from mlrun.serving.server import create_graph_server
 
 
 def _build_feature_vector_graph(
-    vector, feature_set_fields, feature_set_objects, fixed_window_type,
+    vector,
+    feature_set_fields,
+    feature_set_objects,
+    fixed_window_type,
 ):
     graph = vector.spec.graph.copy()
     start_states, default_final_state, responders = graph.check_and_process_graph(

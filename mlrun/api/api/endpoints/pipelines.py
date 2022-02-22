@@ -43,7 +43,9 @@ def list_pipelines(
         namespace = config.namespace
     if project != "*":
         mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
+            project,
+            mlrun.api.schemas.AuthorizationAction.read,
+            auth_info,
         )
     total_size, next_page_token, runs = None, None, []
     if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
@@ -67,7 +69,10 @@ def list_pipelines(
     allowed_runs = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
         runs,
-        lambda run: (run["project"], run["id"],),
+        lambda run: (
+            run["project"],
+            run["id"],
+        ),
         auth_info,
     )
     if format_ == mlrun.api.schemas.PipelinesFormat.name_only:
@@ -94,7 +99,11 @@ async def submit_pipeline_legacy(
     if namespace is None:
         namespace = config.namespace
     response = await _create_pipeline(
-        auth_info, request, namespace, experiment_name, run_name,
+        auth_info,
+        request,
+        namespace,
+        experiment_name,
+        run_name,
     )
     return response
 

@@ -37,7 +37,14 @@ def test_new_function_from_runtime():
     }
 
     function = mlrun.new_function(runtime=runtime)
-    assert DeepDiff(runtime, function.to_dict(), ignore_order=True,) == {}
+    assert (
+        DeepDiff(
+            runtime,
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
 
 
 def test_new_function_args_without_command():
@@ -72,4 +79,11 @@ def test_new_function_args_without_command():
         "verbose": False,
     }
     function = mlrun.new_function(runtime=runtime)
-    assert DeepDiff(runtime, function.to_dict(), ignore_order=True,) == {}
+    assert (
+        DeepDiff(
+            runtime,
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )

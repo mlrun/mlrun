@@ -119,7 +119,11 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         raise_on_forbidden: bool = True,
     ) -> bool:
         return self.query_resource_permissions(
-            resource_type, "", action, auth_info, raise_on_forbidden,
+            resource_type,
+            "",
+            action,
+            auth_info,
+            raise_on_forbidden,
         )
 
     def query_resource_permissions(
@@ -145,7 +149,10 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         raise_on_forbidden: bool = True,
     ) -> bool:
         return self._auth_provider.query_permissions(
-            resource, action, auth_info, raise_on_forbidden,
+            resource,
+            action,
+            auth_info,
+            raise_on_forbidden,
         )
 
     def filter_by_permissions(
@@ -156,7 +163,10 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         auth_info: mlrun.api.schemas.AuthInfo,
     ) -> typing.List:
         return self._auth_provider.filter_by_permissions(
-            resources, opa_resource_extractor, action, auth_info,
+            resources,
+            opa_resource_extractor,
+            action,
+            auth_info,
         )
 
     def add_allowed_project_for_owner(

@@ -528,7 +528,7 @@ class OnlineVectorService:
                     if key != self.vector.status.label_column
                 ]
             for old_name, new_name in feature_aliases.items():
-                if old_name in data:
+                if data and old_name in data:
                     data[new_name] = data[old_name]
                     del data[old_name]
             results.append(data)

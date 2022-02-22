@@ -260,7 +260,8 @@ class Credentials(ModelObj):
     generate_access_key = "$generate"
 
     def __init__(
-        self, access_key=None,
+        self,
+        access_key=None,
     ):
         self.access_key = access_key
 
@@ -926,8 +927,7 @@ def NewTask(
     secrets=None,
     base=None,
 ):
-    """Creates a new task - see new_task
-    """
+    """Creates a new task - see new_task"""
     warnings.warn(
         "NewTask will be deprecated in 0.7.0, and will be removed in 0.9.0, use new_task instead",
         # TODO: In 0.7.0 and replace NewTask to new_task in examples & demos
@@ -1198,7 +1198,11 @@ class DataTarget(DataTargetBase):
     ]
 
     def __init__(
-        self, kind: str = None, name: str = "", path=None, online=None,
+        self,
+        kind: str = None,
+        name: str = "",
+        path=None,
+        online=None,
     ):
         super().__init__(kind, name, path)
         self.status = ""

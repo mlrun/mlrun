@@ -349,7 +349,10 @@ class _KFPRunner(_PipelineRunner):
         workflow_file = workflow_spec.get_source_file(project.spec.context)
         functions = FunctionsDict(project)
         pipeline = create_pipeline(
-            project, workflow_file, functions, secrets=project._secrets,
+            project,
+            workflow_file,
+            functions,
+            secrets=project._secrets,
         )
         artifact_path = artifact_path or project.spec.artifact_path
 
@@ -384,7 +387,10 @@ class _KFPRunner(_PipelineRunner):
             ttl=workflow_spec.ttl,
         )
         project.notifiers.push_start_message(
-            project.metadata.name, project.get_param("commit_id", None), id, True,
+            project.metadata.name,
+            project.get_param("commit_id", None),
+            id,
+            True,
         )
         pipeline_context.clear()
         return _PipelineRunStatus(id, cls, project=project, workflow=workflow_spec)

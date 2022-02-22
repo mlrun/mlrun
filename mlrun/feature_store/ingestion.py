@@ -127,7 +127,11 @@ def featureset_initializer(server):
     graph = featureset.spec.graph.copy()
     featureset.update_targets_run_uuid(targets)
     _add_data_steps(
-        graph, cache, featureset, targets=targets, source=source,
+        graph,
+        cache,
+        featureset,
+        targets=targets,
+        source=source,
     )
     featureset.save()
     server.graph = graph

@@ -21,7 +21,9 @@ test_router = fastapi.APIRouter()
     response_model=mlrun.api.schemas.BackgroundTask,
 )
 def create_project_background_task(
-    project: str, background_tasks: fastapi.BackgroundTasks, failed_task: bool = False,
+    project: str,
+    background_tasks: fastapi.BackgroundTasks,
+    failed_task: bool = False,
 ):
     function = bump_counter
     if failed_task:

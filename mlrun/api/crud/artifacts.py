@@ -11,7 +11,9 @@ import mlrun.errors
 import mlrun.utils.singleton
 
 
-class Artifacts(metaclass=mlrun.utils.singleton.Singleton,):
+class Artifacts(
+    metaclass=mlrun.utils.singleton.Singleton,
+):
     def store_artifact(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -33,7 +35,13 @@ class Artifacts(metaclass=mlrun.utils.singleton.Singleton,):
                 f"key={key}, uid={uid}, data={data}"
             )
         mlrun.api.utils.singletons.db.get_db().store_artifact(
-            db_session, key, data, uid, iter, tag, project,
+            db_session,
+            key,
+            data,
+            uid,
+            iter,
+            tag,
+            project,
         )
 
     def get_artifact(
@@ -46,7 +54,11 @@ class Artifacts(metaclass=mlrun.utils.singleton.Singleton,):
     ) -> dict:
         project = project or mlrun.mlconf.default_project
         return mlrun.api.utils.singletons.db.get_db().read_artifact(
-            db_session, key, tag, iter, project,
+            db_session,
+            key,
+            tag,
+            iter,
+            project,
         )
 
     def list_artifacts(

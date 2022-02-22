@@ -211,7 +211,8 @@ def test_args_integrity():
     spec = tag_test(base_spec, "test_local_no_context")
     spec.spec.parameters = {"xyz": "789"}
     result = new_function(
-        command=f"{tests_root_directory}/no_ctx.py", args=["It's", "a", "nice", "day!"],
+        command=f"{tests_root_directory}/no_ctx.py",
+        args=["It's", "a", "nice", "day!"],
     ).run(spec)
     verify_state(result)
 

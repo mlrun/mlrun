@@ -98,7 +98,8 @@ class DBBackupUtil(object):
         backup_path = self._get_backup_file_path(backup_file_name)
 
         logger.debug(
-            "Loading mysql DB backup data", backup_path=backup_path,
+            "Loading mysql DB backup data",
+            backup_path=backup_path,
         )
         dsn_data = mlrun.api.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
         self._run_shell_command(
@@ -175,7 +176,8 @@ class DBBackupUtil(object):
     @staticmethod
     def _run_shell_command(command: str) -> int:
         logger.debug(
-            "Running shell command", command=command,
+            "Running shell command",
+            command=command,
         )
         process = subprocess.Popen(
             command,

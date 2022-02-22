@@ -11,7 +11,9 @@ async def initialize_scheduler():
     db_session = None
     try:
         db_session = create_session()
-        await scheduler.start(db_session,)
+        await scheduler.start(
+            db_session,
+        )
     finally:
         db_session.close()
 

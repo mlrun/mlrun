@@ -81,7 +81,7 @@ def test_requirement_specifiers_convention():
         "kfp": {"~=1.8.0"},
         "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
-        "storey": {"~=0.8.11, <0.8.12"},
+        "storey": {"~=1.0.0"},
         "bokeh": {"~=2.4, >=2.4.2"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},

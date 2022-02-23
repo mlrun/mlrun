@@ -21,17 +21,13 @@ MLRUN_VERSION ?= unstable
 MLRUN_DOCKER_TAG ?= $(shell echo "$(MLRUN_VERSION)" | sed -E 's/\+/\-/g')
 MLRUN_PYTHON_PACKAGE_VERSION ?= $(MLRUN_VERSION)
 # if the provided version is a semver and followed by a "-" we replace its first occurrence with "+" to align with PEP 404
-ifneq ($(shell echo "$(MLRUN_VERSION)" | grep -E "^[0-9]+\.[0-9]+\.[0-9]-.*$$"),)
+ifneq ($(shell echo "$(MLRUN_VERSION)" | grep -E "^[0-9]+\.[0-9]+\.[0-9]-" | grep -vE "(a|b|rc)[0-9]+$$"),)
 	MLRUN_PYTHON_PACKAGE_VERSION := $(shell echo "$(MLRUN_VERSION)" | sed "s/\-/\+/")
 endif
 ifeq ($(shell echo "$(MLRUN_VERSION)" | grep -E "^[0-9]+\.[0-9]+\.[0-9]+.*$$"),) # empty result from egrep
 	MLRUN_PYTHON_PACKAGE_VERSION := 0.0.0+$(MLRUN_VERSION)
 endif
 
-MLRUN_PYTHON_PACKAGE_VERSION_PYPI ?= $(MLRUN_VERSION)
-ifneq ($(shell echo "$(MLRUN_VERSION)" | grep -E "^[0-9]+\.[0-9]+\.[0-9]+.*$$"),)
-	MLRUN_PYTHON_PACKAGE_VERSION_PYPI := $(shell echo "$(MLRUN_VERSION)" | sed "s/\+/\-/")
-endif
 
 MLRUN_DOCKER_REPO ?= mlrun
 # empty by default (dockerhub), can be set to something like "quay.io/".
@@ -132,11 +128,6 @@ endif
 .PHONY: update-version-file
 update-version-file: ## Update the version file
 	python ./automation/version/version_file.py --mlrun-version $(MLRUN_PYTHON_PACKAGE_VERSION)
-
-.PHONY: update-version-file-pypi
-update-version-file-pypi: ## Update the version file
-	python ./automation/version/version_file.py --mlrun-version $(MLRUN_PYTHON_PACKAGE_VERSION_PYPI)
-
 
 .PHONY: build
 build: docker-images package-wheel ## Build all artifacts
@@ -367,14 +358,8 @@ build-test-system: update-version-file ## Build system tests docker image
 package-wheel: clean update-version-file ## Build python package wheel
 	python setup.py bdist_wheel
 
-
-.PHONY: package-wheel-pypi
-package-wheel-pypi: clean update-version-file-pypi ## Build python package wheel
-	python setup.py bdist_wheel
-
-
 .PHONY: publish-package
-publish-package: package-wheel-pypi ## Publish python package wheel
+publish-package: package-wheel ## Publish python package wheel
 	python -m twine upload dist/mlrun-*.whl
 
 .PHONY: test-publish

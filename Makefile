@@ -363,7 +363,7 @@ publish-package: package-wheel ## Publish python package wheel
 	python -m twine upload dist/mlrun-*.whl
 
 .PHONY: test-publish
-test-publish: package-wheel-pypi ## Test python package publishing
+test-publish: package-wheel ## Test python package publishing
 	python -m twine upload --repository-url https://test.pypi.org/legacy/ dist/mlrun-*.whl
 
 .PHONY: clean

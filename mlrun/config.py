@@ -322,8 +322,8 @@ default_config = {
         "auto_mount_params": "",
     },
     "default_function_pod_resources": {
-        "requests": {"cpu": "", "memory": "", "gpu": ""},
-        "limits": {"cpu": "", "memory": "", "gpu": ""},
+        "requests": {"cpu": None, "memory": None, "gpu": None},
+        "limits": {"cpu": None, "memory": None, "gpu": None},
     },
 }
 
@@ -635,6 +635,40 @@ def _do_populate(env=None):
     config._cfg["_iguazio_api_url"] = config._cfg["iguazio_api_url"]
     del config._cfg["iguazio_api_url"]
 
+    _validate_config(config)
+
+
+def _validate_config(config):
+    import mlrun.k8s_utils
+
+    try:
+        limits_gpu = config.default_function_pod_resources.limits.gpu
+        requests_gpu = config.default_function_pod_resources.requests.gpu
+        mlrun.k8s_utils.verify_gpu_requests_and_limits(
+            requests_gpu=requests_gpu,
+            limits_gpu=limits_gpu,
+        )
+    except AttributeError:
+        pass
+
+
+def _convert_resources_to_str(config: dict = None):
+    resources_types = ["cpu", "memory", "gpu"]
+    resource_requirements = ["requests", "limits"]
+    if not config.get("default_function_pod_resources"):
+        return
+    for requirement in resource_requirements:
+        resource_requirement = config.get("default_function_pod_resources").get(
+            requirement
+        )
+        if not resource_requirement:
+            continue
+        for resource_type in resources_types:
+            value = resource_requirement.setdefault(resource_type, "")
+            if value is None:
+                continue
+            resource_requirement[resource_type] = str(value)
+
 
 def _convert_str(value, typ):
     if typ in (str, _none_type):
@@ -725,7 +759,9 @@ def read_env(env=None, prefix=env_prefix):
         # logger created (because of imports mess) before the config is loaded (in tests), therefore we're changing its
         # level manually
         mlrun.utils.logger.set_logger_level(config["log_level"])
-
+    # The default function pod resource values are of type str; however, when reading from environment variable numbers,
+    # it converts them to type int if contains only number, so we want to convert them to str.
+    _convert_resources_to_str(config)
     return config
 
 

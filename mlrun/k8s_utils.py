@@ -398,7 +398,7 @@ class K8sHelper:
     def get_project_secret_keys(self, project, namespace="", filter_internal=False):
         secrets_data = self._get_project_secrets_raw_data(project, namespace)
         if not secrets_data:
-            return None
+            return []
 
         secret_keys = list(secrets_data.keys())
         if filter_internal:

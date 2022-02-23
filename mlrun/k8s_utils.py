@@ -395,12 +395,17 @@ class K8sHelper:
 
         return k8s_secret.data
 
-    def get_project_secret_keys(self, project, namespace=""):
+    def get_project_secret_keys(self, project, namespace="", filter_internal=False):
         secrets_data = self._get_project_secrets_raw_data(project, namespace)
         if not secrets_data:
-            return None
+            return []
 
-        return list(secrets_data.keys())
+        secret_keys = list(secrets_data.keys())
+        if filter_internal:
+            secret_keys = list(
+                filter(lambda key: not key.startswith("mlrun."), secret_keys)
+            )
+        return secret_keys
 
     def get_project_secret_data(self, project, secret_keys=None, namespace=""):
         results = {}

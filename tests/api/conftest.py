@@ -92,8 +92,13 @@ class K8sSecretsMock:
             for key in secrets:
                 self.project_secrets_map.get(project, {}).pop(key, None)
 
-    def get_project_secret_keys(self, project, namespace=""):
-        return list(self.project_secrets_map.get(project, {}).keys())
+    def get_project_secret_keys(self, project, namespace="", filter_internal=False):
+        secret_keys = list(self.project_secrets_map.get(project, {}).keys())
+        if filter_internal:
+            secret_keys = list(
+                filter(lambda key: not key.startswith("mlrun."), secret_keys)
+            )
+        return secret_keys
 
     def get_project_secret_data(self, project, secret_keys=None, namespace=""):
         secrets_data = self.project_secrets_map.get(project, {})

@@ -510,9 +510,6 @@ class KubeResource(BaseRuntime):
     def _add_project_k8s_secrets_to_spec(
         self, secrets, runobj=None, project=None, encode_key_names=True
     ):
-        # Needs to happen here to avoid circular dependencies
-        from mlrun.api.crud.secrets import Secrets
-
         # the secrets param may be an empty dictionary (asking for all secrets of that project) -
         # it's a different case than None (not asking for project secrets at all).
         if (
@@ -527,12 +524,10 @@ class KubeResource(BaseRuntime):
             return
 
         secret_name = self._get_k8s().get_project_secret_name(project_name)
-        existing_secret_keys = (
-            Secrets()
-            .list_secret_keys(
-                project_name, mlrun.api.schemas.SecretProviderName.kubernetes
-            )
-            .secret_keys
+        # Not utilizing the same functionality from the Secrets crud object because this code also runs client-side
+        # in the nuclio remote-dashboard flow, which causes dependency problems.
+        existing_secret_keys = self._get_k8s().get_project_secret_keys(
+            project_name, filter_internal=True
         )
 
         # If no secrets were passed or auto-adding all secrets, we need all existing keys

@@ -1192,9 +1192,11 @@ def compile_function_config(function: RemoteRuntime, client_version: str = None)
     for key, value in labels.items():
         function.set_config(f"metadata.labels.{key}", value)
 
-    # Add vault configurations to function's pod spec, if vault secret source was added.
+    # Add secret configurations to function's pod spec, if secret sources were added.
     # Needs to be here, since it adds env params, which are handled in the next lines.
-    function.add_secrets_config_to_spec()
+    # This only needs to run if we're running within k8s context. If running in Docker, for example, skip.
+    if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+        function.add_secrets_config_to_spec()
 
     env_dict, external_source_env_dict = function.get_nuclio_config_spec_env()
     spec = nuclio.ConfigSpec(

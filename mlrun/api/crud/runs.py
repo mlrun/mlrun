@@ -15,7 +15,9 @@ import mlrun.utils.singleton
 from mlrun.utils import logger
 
 
-class Runs(metaclass=mlrun.utils.singleton.Singleton,):
+class Runs(
+    metaclass=mlrun.utils.singleton.Singleton,
+):
     def store_run(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -27,7 +29,11 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
         project = project or mlrun.mlconf.default_project
         logger.info("Storing run", data=data)
         mlrun.api.utils.singletons.db.get_db().store_run(
-            db_session, data, uid, project, iter=iter,
+            db_session,
+            data,
+            uid,
+            project,
+            iter=iter,
         )
 
     def update_run(

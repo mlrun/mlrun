@@ -39,7 +39,8 @@ class MLRunLogger(Logger):
         EVALUATION = "evaluation"
 
     def __init__(
-        self, context: mlrun.MLClientCtx,
+        self,
+        context: mlrun.MLClientCtx,
     ):
         """
         Initialize the MLRun logging interface to work with the given context.
@@ -53,7 +54,8 @@ class MLRunLogger(Logger):
         self._artifacts = {}  # type: Dict[str, Artifact]
 
     def log_epoch_to_context(
-        self, epoch: int,
+        self,
+        epoch: int,
     ):
         """
         Log the last epoch. The last epoch information recorded in the given tracking dictionaries will be logged,
@@ -164,7 +166,8 @@ class MLRunLogger(Logger):
                 )
                 # Log the artifact:
                 self._context.log_artifact(
-                    artifact, local_path=artifact.key,
+                    artifact,
+                    local_path=artifact.key,
                 )
                 # Collect it for later adding it to the model logging as extra data:
                 self._artifacts[artifact.key.split(".")[0]] = artifact
@@ -177,7 +180,8 @@ class MLRunLogger(Logger):
                 )
                 # Log the artifact:
                 self._context.log_artifact(
-                    artifact, local_path=artifact.key,
+                    artifact,
+                    local_path=artifact.key,
                 )
                 # Collect it for later adding it to the model logging as extra data:
                 self._artifacts[artifact.key.split(".")[0]] = artifact
@@ -301,7 +305,9 @@ class MLRunLogger(Logger):
 
         # Add titles:
         summary_figure.update_layout(
-            title=f"{name} Summary", xaxis_title="Epochs", yaxis_title="Results",
+            title=f"{name} Summary",
+            xaxis_title="Epochs",
+            yaxis_title="Results",
         )
 
         # Draw the results:
@@ -348,7 +354,9 @@ class MLRunLogger(Logger):
 
         # Add titles:
         hyperparameter_figure.update_layout(
-            title=name, xaxis_title="Epochs", yaxis_title="Values",
+            title=name,
+            xaxis_title="Epochs",
+            yaxis_title="Values",
         )
 
         # Draw the values:

@@ -141,8 +141,32 @@ class DaskSpec(KubeResourceSpec):
         # supported format according to https://github.com/dask/dask/blob/master/dask/utils.py#L1402
         self.scheduler_timeout = scheduler_timeout or "60 minutes"
         self.nthreads = nthreads or 1
-        self.scheduler_resources = scheduler_resources or {}
-        self.worker_resources = worker_resources or {}
+        self._scheduler_resources = self.enrich_resources_with_default_pod_resources(
+            "scheduler_resources", scheduler_resources
+        )
+        self._worker_resources = self.enrich_resources_with_default_pod_resources(
+            "worker_resources", scheduler_resources
+        )
+
+    @property
+    def scheduler_resources(self) -> dict:
+        return self._scheduler_resources
+
+    @scheduler_resources.setter
+    def scheduler_resources(self, resources):
+        self._scheduler_resources = self.enrich_resources_with_default_pod_resources(
+            "scheduler_resources", resources
+        )
+
+    @property
+    def worker_resources(self) -> dict:
+        return self._worker_resources
+
+    @worker_resources.setter
+    def worker_resources(self, resources):
+        self._worker_resources = self.enrich_resources_with_default_pod_resources(
+            "worker_resources", resources
+        )
 
 
 class DaskStatus(FunctionStatus):
@@ -396,13 +420,15 @@ class DaskCluster(KubejobRuntime):
         self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"
     ):
         """set scheduler pod resources limits"""
-        self._verify_and_set_limits("scheduler_resources", mem, cpu, gpus, gpu_type)
+        self.spec._verify_and_set_limits(
+            "scheduler_resources", mem, cpu, gpus, gpu_type
+        )
 
     def with_worker_limits(
         self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"
     ):
         """set worker pod resources limits"""
-        self._verify_and_set_limits("worker_resources", mem, cpu, gpus, gpu_type)
+        self.spec._verify_and_set_limits("worker_resources", mem, cpu, gpus, gpu_type)
 
     def with_requests(self, mem=None, cpu=None):
         warnings.warn(
@@ -419,11 +445,11 @@ class DaskCluster(KubejobRuntime):
 
     def with_scheduler_requests(self, mem=None, cpu=None):
         """set scheduler pod resources requests"""
-        self._verify_and_set_requests("scheduler_resources", mem, cpu)
+        self.spec._verify_and_set_requests("scheduler_resources", mem, cpu)
 
     def with_worker_requests(self, mem=None, cpu=None):
         """set worker pod resources requests"""
-        self._verify_and_set_requests("worker_resources", mem, cpu)
+        self.spec._verify_and_set_requests("worker_resources", mem, cpu)
 
     def _run(self, runobj: RunObject, execution):
 
@@ -433,19 +459,19 @@ class DaskCluster(KubejobRuntime):
         extra_env = self._generate_runtime_env(runobj)
         environ.update(extra_env)
 
-        if not inspect.isfunction(handler):
-            if not self.spec.command:
-                raise ValueError(
-                    "specified handler (string) without command "
-                    "(py file path), specify command or use handler pointer"
-                )
-            mod, handler = load_module(self.spec.command, handler)
         context = MLClientCtx.from_dict(
             runobj.to_dict(),
             rundb=self.spec.rundb,
             autocommit=False,
             host=socket.gethostname(),
         )
+        if not inspect.isfunction(handler):
+            if not self.spec.command:
+                raise ValueError(
+                    "specified handler (string) without command "
+                    "(py file path), specify command or use handler pointer"
+                )
+            handler = load_module(self.spec.command, handler, context=context)
         client = self.client
         setattr(context, "dask_client", client)
         sout, serr = exec_from_params(handler, runobj, context)

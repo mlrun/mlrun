@@ -19,14 +19,14 @@ MLRUN_VERSION ?= unstable
 # version for the python package with 0.0.0+
 # if the provided version includes a "+" we replace it with "-" for the docker tag
 MLRUN_DOCKER_TAG ?= $(shell echo "$(MLRUN_VERSION)" | sed -E 's/\+/\-/g')
-MLRUN_PYTHON_PACKAGE_VERSION ?= $(MLRUN_VERSION)
 # if the provided version is a semver and followed by a "-" we replace its first occurrence with "+" to align with PEP 404
-ifneq ($(shell echo "$(MLRUN_VERSION)" | grep -E "^[0-9]+\.[0-9]+\.[0-9]-.*$$"),)
-	MLRUN_PYTHON_PACKAGE_VERSION := $(shell echo "$(MLRUN_VERSION)" | sed "s/\-/\+/")
+ifneq ($(shell echo "$(MLRUN_VERSION)" | grep -E "^[0-9]+\.[0-9]+\.[0-9]+-" | grep -vE "^[0-9]+\.[0-9]+\.[0-9]+-(a|b|rc)[0-9]+$$"),)
+	MLRUN_PYTHON_PACKAGE_VERSION ?= $(shell echo "$(MLRUN_VERSION)" | sed "s/\-/\+/")
 endif
 ifeq ($(shell echo "$(MLRUN_VERSION)" | grep -E "^[0-9]+\.[0-9]+\.[0-9]+.*$$"),) # empty result from egrep
-	MLRUN_PYTHON_PACKAGE_VERSION := 0.0.0+$(MLRUN_VERSION)
+	MLRUN_PYTHON_PACKAGE_VERSION ?= 0.0.0+$(MLRUN_VERSION)
 endif
+MLRUN_PYTHON_PACKAGE_VERSION ?= $(MLRUN_VERSION)
 MLRUN_DOCKER_REPO ?= mlrun
 # empty by default (dockerhub), can be set to something like "quay.io/".
 # This will be used to tag the images built using this makefile
@@ -36,6 +36,7 @@ MLRUN_DOCKER_REGISTRY ?=
 MLRUN_NO_CACHE ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 MLRUN_PYTHON_VERSION ?= 3.7.11
+MLRUN_PIP_VERSION ?= 22.0.0
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
 # 1. docker pull the same image with the given tag (cache image) before the build
@@ -67,9 +68,13 @@ help: ## Display available commands
 all:
 	$(error please pick a target)
 
+.PHONY: hedi
+hedi:
+	echo $(MLRUN_VERSION) $(MLRUN_PYTHON_PACKAGE_VERSION)
+
 .PHONY: install-requirements
 install-requirements: ## Install all requirements needed for development
-	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=21.2.0
+	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
 	python -m pip install \
 		$(MLRUN_PIP_NO_CACHE_FLAG) \
 		-r requirements.txt \
@@ -169,6 +174,7 @@ mlrun: update-version-file ## Build mlrun docker image
 	docker build \
 		--file dockerfiles/mlrun/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		$(MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_IMAGE_NAME_TAGGED) .
@@ -192,6 +198,7 @@ base-core: pull-cache update-version-file ## Build base core docker image
 	docker build \
 		--file dockerfiles/base/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_CORE_BASE_IMAGE_NAME_TAGGED) .
@@ -259,6 +266,7 @@ models-gpu: update-version-file ## Build models-gpu docker image
 	$(MLRUN_MODELS_GPU_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/models-gpu/Dockerfile \
+		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg CUDA_VER=$(MLRUN_CUDA_VERSION) \
 		--build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
 		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
@@ -279,6 +287,7 @@ DEFAULT_IMAGES += $(MLRUN_JUPYTER_IMAGE_NAME)
 jupyter: update-version-file ## Build mlrun jupyter docker image
 	docker build \
 		--file dockerfiles/jupyter/Dockerfile \
+		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_CACHE_DATE=$(MLRUN_CACHE_DATE) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_JUPYTER_IMAGE_NAME) .
@@ -302,6 +311,7 @@ api: update-version-file ## Build mlrun-api docker image
 	docker build \
 		--file dockerfiles/mlrun-api/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		$(MLRUN_API_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_API_IMAGE_NAME_TAGGED) .
@@ -325,6 +335,7 @@ build-test: update-version-file ## Build test docker image
 	docker build \
 		--file dockerfiles/test/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		$(MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_TEST_IMAGE_NAME_TAGGED) .
@@ -341,6 +352,7 @@ build-test-system: update-version-file ## Build system tests docker image
 	docker build \
 		--file dockerfiles/test-system/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_SYSTEM_TEST_IMAGE_NAME) .
 

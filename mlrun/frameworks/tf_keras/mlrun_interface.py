@@ -1,8 +1,7 @@
 import importlib
 import os
 from abc import ABC
-from types import ModuleType
-from typing import List, Set, Tuple, Union
+from typing import List, Tuple, Union
 
 import tensorflow as tf
 from tensorflow import keras
@@ -33,11 +32,11 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
     # Attributes to be inserted so the MLRun interface will be fully enabled.
     _PROPERTIES = {
         # Logging callbacks list:
-        "_logging_callbacks": set(),  # type: Set[Callback]
+        "_logging_callbacks": set(),  # > type: Set[Callback]
         # Variable to hold the horovod module:
-        "_hvd": None,  # type: ModuleType
+        "_hvd": None,  # > type: ModuleType
         # List of all the callbacks that should only be applied on rank 0 when using horovod:
-        "_RANK_0_ONLY_CALLBACKS": {  # type: Set[str]
+        "_RANK_0_ONLY_CALLBACKS": {  # > type: Set[str]
             "LoggingCallback",
             "MLRunLoggingCallback",
             "TensorboardLoggingCallback",
@@ -62,7 +61,9 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
 
     @classmethod
     def add_interface(
-        cls, obj: keras.Model, restoration_information: RestorationInformation = None,
+        cls,
+        obj: keras.Model,
+        restoration_information: RestorationInformation = None,
     ):
         """
         Enrich the object with this interface properties, methods and functions so it will have this framework MLRun's
@@ -171,7 +172,8 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
 
         # Call the pre evaluate method:
         (callbacks, steps) = self._pre_evaluate(
-            callbacks=kwargs["callbacks"], steps=kwargs["steps"],
+            callbacks=kwargs["callbacks"],
+            steps=kwargs["steps"],
         )
 
         # Assign parameters:
@@ -343,7 +345,9 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
         return callbacks, verbose, steps_per_epoch, validation_steps
 
     def _pre_evaluate(
-        self, callbacks: List[Callback], steps: Union[int, None],
+        self,
+        callbacks: List[Callback],
+        steps: Union[int, None],
     ) -> Tuple[List[Callback], Union[int, None]]:
         """
         Method to call before calling 'evaluate' to setup the run and inputs for using horovod.

@@ -110,8 +110,10 @@ class EventStreamProcessor:
         )
         self.tsdb_path = f"{self.tsdb_container}/{self.tsdb_path}"
 
-        self.parquet_path = config.model_endpoint_monitoring.store_prefixes.user_space.format(
-            project=project, kind="parquet"
+        self.parquet_path = (
+            config.model_endpoint_monitoring.store_prefixes.user_space.format(
+                project=project, kind="parquet"
+            )
         )
 
         logger.info(
@@ -161,7 +163,10 @@ class EventStreamProcessor:
             step_name="Aggregates",
         )
         feature_set.add_aggregation(
-            LATENCY, ["avg"], self.aggregate_avg_windows, self.aggregate_avg_period,
+            LATENCY,
+            ["avg"],
+            self.aggregate_avg_windows,
+            self.aggregate_avg_period,
         )
         feature_set.graph.add_step(
             "storey.steps.SampleWindow",
@@ -417,7 +422,8 @@ class ProcessEndpointEvent(MapClass):
         versioned_model = f"{model}:{version}" if version else f"{model}:latest"
 
         endpoint_id = create_model_endpoint_id(
-            function_uri=function_uri, versioned_model=versioned_model,
+            function_uri=function_uri,
+            versioned_model=versioned_model,
         )
         endpoint_id = str(endpoint_id)
 
@@ -442,23 +448,44 @@ class ProcessEndpointEvent(MapClass):
         features = event.get("request", {}).get("inputs")
         predictions = event.get("resp", {}).get("outputs")
 
-        if not self.is_valid(endpoint_id, is_not_none, timestamp, ["when"],):
+        if not self.is_valid(
+            endpoint_id,
+            is_not_none,
+            timestamp,
+            ["when"],
+        ):
             return None
 
         if endpoint_id not in self.first_request:
             self.first_request[endpoint_id] = timestamp
         self.last_request[endpoint_id] = timestamp
 
-        if not self.is_valid(endpoint_id, is_not_none, request_id, ["request", "id"],):
-            return None
-        if not self.is_valid(endpoint_id, is_not_none, latency, ["microsec"],):
-            return None
         if not self.is_valid(
-            endpoint_id, is_not_none, features, ["request", "inputs"],
+            endpoint_id,
+            is_not_none,
+            request_id,
+            ["request", "id"],
         ):
             return None
         if not self.is_valid(
-            endpoint_id, is_not_none, predictions, ["resp", "outputs"],
+            endpoint_id,
+            is_not_none,
+            latency,
+            ["microsec"],
+        ):
+            return None
+        if not self.is_valid(
+            endpoint_id,
+            is_not_none,
+            features,
+            ["request", "inputs"],
+        ):
+            return None
+        if not self.is_valid(
+            endpoint_id,
+            is_not_none,
+            predictions,
+            ["resp", "outputs"],
         ):
             return None
 
@@ -562,7 +589,8 @@ def enrich_even_details(event) -> Optional[dict]:
     versioned_model = f"{model}:{version}" if version else f"{model}:latest"
 
     endpoint_id = create_model_endpoint_id(
-        function_uri=function_uri, versioned_model=versioned_model,
+        function_uri=function_uri,
+        versioned_model=versioned_model,
     )
 
     endpoint_id = str(endpoint_id)

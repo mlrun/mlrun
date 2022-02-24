@@ -345,7 +345,10 @@ class AbstractSparkRuntime(KubejobRuntime):
         update_in(job, "spec.driver.labels", pod_labels)
         update_in(job, "spec.executor.labels", pod_labels)
         verify_and_update_in(
-            job, "spec.executor.instances", self.spec.replicas or 1, int,
+            job,
+            "spec.executor.instances",
+            self.spec.replicas or 1,
+            int,
         )
         if self.spec.node_selector:
             update_in(job, "spec.nodeSelector", self.spec.node_selector)
@@ -432,7 +435,10 @@ with ctx:
                 update_in(job, "spec.executor.gpu.name", gpu_type)
                 if gpu_quantity:
                     verify_and_update_in(
-                        job, "spec.executor.gpu.quantity", gpu_quantity, int,
+                        job,
+                        "spec.executor.gpu.quantity",
+                        gpu_quantity,
+                        int,
                     )
         if "limits" in self.spec.driver_resources:
             if "cpu" in self.spec.driver_resources["limits"]:
@@ -458,7 +464,10 @@ with ctx:
                 update_in(job, "spec.driver.gpu.name", gpu_type)
                 if gpu_quantity:
                     verify_and_update_in(
-                        job, "spec.driver.gpu.quantity", gpu_quantity, int,
+                        job,
+                        "spec.driver.gpu.quantity",
+                        gpu_quantity,
+                        int,
                     )
 
         self._enrich_job(job)
@@ -477,7 +486,10 @@ with ctx:
         raise NotImplementedError()
 
     def _submit_job(
-        self, job, meta, code=None,
+        self,
+        job,
+        meta,
+        code=None,
     ):
         namespace = meta.namespace
         k8s = self._get_k8s()

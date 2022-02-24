@@ -340,7 +340,8 @@ class TestFeatureStore(TestMLRunSystem):
         name = "stocks_test"
         stocks_set = fs.FeatureSet(name, entities=["ticker"])
         fs.preview(
-            stocks_set, stocks,
+            stocks_set,
+            stocks,
         )
         stocks_set.save()
         db = mlrun.get_run_db()
@@ -534,7 +535,11 @@ class TestFeatureStore(TestMLRunSystem):
             end_time="2020-12-01 17:33:16",
         )
 
-        resp = fs.ingest(measurements, source, return_df=True,)
+        resp = fs.ingest(
+            measurements,
+            source,
+            return_df=True,
+        )
         assert len(resp) == 10
 
         # start time > timestamp in source
@@ -546,7 +551,11 @@ class TestFeatureStore(TestMLRunSystem):
             end_time="2022-12-01 17:33:16",
         )
 
-        resp = fs.ingest(measurements, source, return_df=True,)
+        resp = fs.ingest(
+            measurements,
+            source,
+            return_df=True,
+        )
         assert len(resp) == 0
 
     @pytest.mark.parametrize("key_bucketing_number", [None, 0, 4])
@@ -594,7 +603,10 @@ class TestFeatureStore(TestMLRunSystem):
         kind = TargetTypes.parquet
         path = f"{get_default_prefix_for_target(kind)}/sets/{name}-latest"
         path = path.format(name=name, kind=kind, project=self.project_name)
-        dataset = pq.ParquetDataset(path, filesystem=file_system,)
+        dataset = pq.ParquetDataset(
+            path,
+            filesystem=file_system,
+        )
         partitions = [key for key, _ in dataset.pieces[0].partition_keys]
 
         if key_bucketing_number is None:
@@ -647,7 +659,8 @@ class TestFeatureStore(TestMLRunSystem):
         df.set_index("my_string")
         source = DataFrameSource(df)
         measurements.set_targets(
-            targets=[ParquetTarget(partitioned=True)], with_defaults=False,
+            targets=[ParquetTarget(partitioned=True)],
+            with_defaults=False,
         )
         resp1 = fs.ingest(measurements, source)
         assert resp1.to_dict() == {
@@ -676,7 +689,8 @@ class TestFeatureStore(TestMLRunSystem):
         df.set_index("my_string")
         source = DataFrameSource(df)
         measurements.set_targets(
-            targets=[ParquetTarget(partitioned=True)], with_defaults=False,
+            targets=[ParquetTarget(partitioned=True)],
+            with_defaults=False,
         )
         resp1 = fs.ingest(measurements, source, overwrite=False)
         assert resp1.to_dict() == {
@@ -800,7 +814,10 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         data_set.add_aggregation(
-            column="bid", operations=["sum", "max"], windows="1h", period="10m",
+            column="bid",
+            operations=["sum", "max"],
+            windows="1h",
+            period="10m",
         )
         fs.preview(
             data_set,
@@ -1049,7 +1066,9 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         feature_set = fs.FeatureSet(
-            name=name, entities=[fs.Entity("first_name")], timestamp_key="time",
+            name=name,
+            entities=[fs.Entity("first_name")],
+            timestamp_key="time",
         )
 
         if partitioned:
@@ -1149,7 +1168,9 @@ class TestFeatureStore(TestMLRunSystem):
         source = ParquetSource("myparquet", schedule=cron_trigger, path=path)
 
         feature_set = fs.FeatureSet(
-            name="overwrite", entities=[fs.Entity("first_name")], timestamp_key="time",
+            name="overwrite",
+            entities=[fs.Entity("first_name")],
+            timestamp_key="time",
         )
 
         targets = [ParquetTarget(path="v3io:///bigdata/bla.parquet")]
@@ -1196,7 +1217,10 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         data_set.add_aggregation(
-            name="bids", column="bid", operations=["sum", "max"], windows="24h",
+            name="bids",
+            column="bid",
+            operations=["sum", "max"],
+            windows="24h",
         )
 
         fs.ingest(data_set, data, return_df=True)
@@ -1272,6 +1296,86 @@ class TestFeatureStore(TestMLRunSystem):
         with fs.get_online_feature_service(vector) as svc:
             resp = svc.get([{"first_name": "yossi"}])
             assert resp[0] == {"bid": 10, "bool": None}
+
+    def test_feature_aliases(self):
+        df = pd.DataFrame(
+            {
+                "time": [
+                    pd.Timestamp("2016-05-25 13:30:00.023"),
+                    pd.Timestamp("2016-05-25 13:30:00.038"),
+                    pd.Timestamp("2016-05-25 13:30:00.048"),
+                    pd.Timestamp("2016-05-25 13:30:00.048"),
+                    pd.Timestamp("2016-05-25 13:30:00.048"),
+                ],
+                "ticker": ["MSFT", "MSFT", "GOOG", "GOOG", "AAPL"],
+                "price": [51.95, 51.95, 720.77, 720.92, 98.0],
+            }
+        )
+
+        # write to kv
+        data_set = fs.FeatureSet("aliass", entities=[Entity("ticker")])
+
+        data_set.add_aggregation(
+            column="price",
+            operations=["sum", "max"],
+            windows="1h",
+            period="10m",
+        )
+
+        fs.ingest(data_set, df)
+        features = [
+            "aliass.price_sum_1h",
+            "aliass.price_max_1h as price_m",
+        ]
+        vector_name = "stocks-vec"
+        vector = fs.FeatureVector(vector_name, features)
+
+        resp = fs.get_offline_features(vector).to_dataframe()
+        assert len(resp.columns) == 2
+        assert "price_m" in resp.columns
+
+        vector.save()
+        stats = vector.get_stats_table()
+        assert len(stats) == 2
+        assert "price_m" in stats.index
+
+        svc = fs.get_online_feature_service(vector)
+        try:
+            resp = svc.get(entity_rows=[{"ticker": "GOOG"}])
+            assert resp[0] == {"price_sum_1h": 1441.69, "price_m": 720.92}
+        finally:
+            svc.close()
+
+        # simulating updating alias from UI
+        db = mlrun.get_run_db()
+        update_dict = {
+            "spec": {
+                "features": [
+                    "aliass.price_sum_1h as price_s",
+                    "aliass.price_max_1h as price_m",
+                ]
+            }
+        }
+        db.patch_feature_vector(
+            name=vector_name,
+            feature_vector_update=update_dict,
+            project=self.project_name,
+        )
+
+        svc = fs.get_online_feature_service(vector_name)
+        resp = svc.get(entity_rows=[{"ticker": "GOOG"}])
+        assert resp[0] == {"price_s": 1441.69, "price_m": 720.92}
+        svc.close()
+
+        vector = db.get_feature_vector(vector_name, self.project_name, tag="latest")
+        stats = vector.get_stats_table()
+        assert len(stats) == 2
+        assert "price_s" in stats.index
+
+        resp = fs.get_offline_features(vector).to_dataframe()
+        assert len(resp.columns) == 2
+        assert "price_s" in resp.columns
+        assert "price_m" in resp.columns
 
     def test_forced_columns_target(self):
         columns = ["time", "ask"]
@@ -1570,7 +1674,11 @@ class TestFeatureStore(TestMLRunSystem):
         key = "patient_id"
         fset = fs.FeatureSet("purge", entities=[Entity(key)], timestamp_key="timestamp")
         path = os.path.relpath(str(self.assets_path / "testdata.csv"))
-        source = CSVSource("mycsv", path=path, time_field="timestamp",)
+        source = CSVSource(
+            "mycsv",
+            path=path,
+            time_field="timestamp",
+        )
         targets = [
             CSVTarget(),
             CSVTarget(name="specified-path", path="v3io:///bigdata/csv-purge-test.csv"),
@@ -1578,7 +1686,8 @@ class TestFeatureStore(TestMLRunSystem):
             NoSqlTarget(),
         ]
         fset.set_targets(
-            targets=targets, with_defaults=False,
+            targets=targets,
+            with_defaults=False,
         )
         fs.ingest(fset, source)
 
@@ -1610,7 +1719,11 @@ class TestFeatureStore(TestMLRunSystem):
             name="nosqlpurge", entities=[Entity(key)], timestamp_key="timestamp"
         )
         path = os.path.relpath(str(self.assets_path / "testdata.csv"))
-        source = CSVSource("mycsv", path=path, time_field="timestamp",)
+        source = CSVSource(
+            "mycsv",
+            path=path,
+            time_field="timestamp",
+        )
         targets = [
             NoSqlTarget(
                 name="nosql", path="v3io:///bigdata/system-test-project/nosql-purge"
@@ -1624,7 +1737,8 @@ class TestFeatureStore(TestMLRunSystem):
         for tar in targets:
             test_target = [tar]
             fset.set_targets(
-                with_defaults=False, targets=test_target,
+                with_defaults=False,
+                targets=test_target,
             )
             fs.ingest(fset, source)
             verify_purge(fset, test_target)
@@ -1827,7 +1941,9 @@ class TestFeatureStore(TestMLRunSystem):
 
         # change feature set and save with tag
         test_set.add_aggregation(
-            "bid", ["avg"], "1h",
+            "bid",
+            ["avg"],
+            "1h",
         )
         new_column = "bid_avg_1h"
         test_set.metadata.tag = tag
@@ -1883,7 +1999,9 @@ class TestFeatureStore(TestMLRunSystem):
 
         # change feature set and save with tag
         test_set.add_aggregation(
-            "bid", ["avg"], "1h",
+            "bid",
+            ["avg"],
+            "1h",
         )
         new_column = "bid_avg_1h"
         test_set.metadata.tag = tag
@@ -2019,7 +2137,9 @@ class TestFeatureStore(TestMLRunSystem):
             "imp1", entities=[Entity("name")], timestamp_key="time_stamp"
         )
         data_set1.add_aggregation(
-            "data", ["avg", "max"], "1h",
+            "data",
+            ["avg", "max"],
+            "1h",
         )
         fs.ingest(data_set1, data, infer_options=fs.InferOptions.default())
 

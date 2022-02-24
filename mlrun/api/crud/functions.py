@@ -11,7 +11,9 @@ import mlrun.errors
 import mlrun.utils.singleton
 
 
-class Functions(metaclass=mlrun.utils.singleton.Singleton,):
+class Functions(
+    metaclass=mlrun.utils.singleton.Singleton,
+):
     def store_function(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -23,7 +25,12 @@ class Functions(metaclass=mlrun.utils.singleton.Singleton,):
     ) -> str:
         project = project or mlrun.mlconf.default_project
         return mlrun.api.utils.singletons.db.get_db().store_function(
-            db_session, function, name, project, tag, versioned,
+            db_session,
+            function,
+            name,
+            project,
+            tag,
+            versioned,
         )
 
     def get_function(
@@ -40,7 +47,10 @@ class Functions(metaclass=mlrun.utils.singleton.Singleton,):
         )
 
     def delete_function(
-        self, db_session: sqlalchemy.orm.Session, project: str, name: str,
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: str,
+        name: str,
     ):
         return mlrun.api.utils.singletons.db.get_db().delete_function(
             db_session, project, name
@@ -58,5 +68,9 @@ class Functions(metaclass=mlrun.utils.singleton.Singleton,):
         if labels is None:
             labels = []
         return mlrun.api.utils.singletons.db.get_db().list_functions(
-            db_session, name, project, tag, labels,
+            db_session,
+            name,
+            project,
+            tag,
+            labels,
         )

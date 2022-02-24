@@ -163,7 +163,9 @@ class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
         fn = self._deploy_function(2)
 
         hyper_param_options = mlrun.model.HyperParamOptions(
-            parallel_runs=4, selector="max.accuracy", max_errors=1,
+            parallel_runs=4,
+            selector="max.accuracy",
+            max_errors=1,
         )
 
         p1 = [4, 2, 5, 8, 9, 6, 1, 11, 1, 1, 2, 1, 1]

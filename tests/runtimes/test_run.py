@@ -110,11 +110,9 @@ def test_new_function_with_resources():
     ]:
         expected_runtime = copy.deepcopy(runtime)
         expected_runtime["spec"]["resources"] = test_case.get("expected_resources")
-        runtime["spec"]["resources"] = test_case.get("resources")
+        runtime["spec"]["resources"] = test_case.get("resources", None)
         mlrun.mlconf.default_function_pod_resources = test_case.get("default_resources")
         function = mlrun.new_function(runtime=runtime)
-        print(function.to_dict())
-        print(expected_runtime)
         assert (
             DeepDiff(
                 function.to_dict(),

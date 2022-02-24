@@ -252,6 +252,32 @@ def test_mount_v3io():
             )
 
 
+def test_mount_v3io_multiple_user():
+    username_1 = "first-username"
+    username_2 = "second-username"
+    access_key_1 = "access_key_1"
+    access_key_2 = "access_key_2"
+    v3io_api_path = "v3io_api"
+    function = mlrun.new_function(
+        "function-name",
+        "function-project",
+        kind=mlrun.runtimes.RuntimeKinds.job,
+    )
+    os.environ["V3IO_API"] = v3io_api_path
+
+    os.environ["V3IO_USERNAME"] = username_1
+    os.environ["V3IO_ACCESS_KEY"] = access_key_1
+    function.apply(mlrun.mount_v3io())
+    os.environ["V3IO_USERNAME"] = username_2
+    os.environ["V3IO_ACCESS_KEY"] = access_key_2
+    function.apply(mlrun.mount_v3io())
+
+    user_volume_mounts = list(filter(lambda volume_mount: volume_mount["mountPath"] == "/User", function.spec.volume_mounts))
+    assert len(user_volume_mounts) == 1
+    assert user_volume_mounts[0]["subPath"] == f"users/{username_2}"
+    assert function.spec.volumes[0]["flexVolume"]["options"]["accessKey"] == access_key_2
+
+
 def test_mount_v3io_extended():
     username = "username"
     access_key = "access-key"

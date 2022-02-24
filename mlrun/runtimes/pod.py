@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import copy
 import inspect
 import os
 import typing
@@ -258,37 +257,39 @@ class KubeResourceSpec(FunctionSpec):
         resources_types = ["cpu", "memory", "nvidia.com/gpu"]
         resource_requirements = ["requests", "limits"]
         gpu_type = "nvidia.com/gpu"
-        default_resources = copy.deepcopy(
-            mlconf.default_function_pod_resources.to_dict()
-        )
+        default_resources = mlconf.get_default_function_pod_resources()
 
-        if not resources:
-            return default_resources
-
-        verify_gpu_requests_and_limits(
-            requests_gpu=resources.setdefault("requests", {}).setdefault(gpu_type),
-            limits_gpu=resources.setdefault("limits", {}).setdefault(gpu_type),
-        )
-        for resource_requirement in resource_requirements:
-            for resource_type in resources_types:
-                if (
-                    resources.setdefault(resource_requirement, {}).setdefault(
-                        resource_type
-                    )
-                    is None
-                ):
-                    if resource_type == gpu_type:
-                        if resource_requirement == "requests":
-                            continue
+        if resources:
+            verify_gpu_requests_and_limits(
+                requests_gpu=resources.setdefault("requests", {}).setdefault(gpu_type),
+                limits_gpu=resources.setdefault("limits", {}).setdefault(gpu_type),
+            )
+            for resource_requirement in resource_requirements:
+                for resource_type in resources_types:
+                    if (
+                        resources.setdefault(resource_requirement, {}).setdefault(
+                            resource_type
+                        )
+                        is None
+                    ):
+                        if resource_type == gpu_type:
+                            if resource_requirement == "requests":
+                                continue
+                            else:
+                                resources[resource_requirement][
+                                    resource_type
+                                ] = default_resources[resource_requirement].get(
+                                    gpu_type
+                                )
                         else:
                             resources[resource_requirement][
                                 resource_type
-                            ] = default_resources[resource_requirement].get("gpu")
-                    else:
-                        resources[resource_requirement][
-                            resource_type
-                        ] = default_resources[resource_requirement][resource_type]
-
+                            ] = default_resources[resource_requirement][resource_type]
+        # This enables the user to define that no defaults would be applied on the resources
+        elif resources == {}:
+            return resources
+        else:
+            resources = default_resources
         resources["requests"] = verify_requests(
             resources_field_name,
             mem=resources["requests"]["memory"],
@@ -301,6 +302,8 @@ class KubeResourceSpec(FunctionSpec):
             gpus=resources["limits"][gpu_type],
             gpu_type=gpu_type,
         )
+        if not resources["requests"] and not resources["limits"]:
+            return {}
         return resources
 
 

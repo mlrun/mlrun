@@ -492,11 +492,8 @@ class Config:
         gpu = "gpu"
         resource_requirements = ["requests", "limits"]
         for requirement in resource_requirements:
-            resources[requirement][gpu_type] = (
-                resources.get(requirement).get(gpu)
-                if resources.setdefault(requirement, {}).get(gpu) is not None
-                else None
-            )
+            resources.setdefault(requirement, {}).setdefault(gpu)
+            resources[requirement][gpu_type] = resources.get(requirement).pop(gpu)
         return resources
 
     def to_dict(self):

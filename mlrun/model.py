@@ -1024,7 +1024,10 @@ class PathObject:
     _run_uuid_place_holder = "{run_uuid}"
 
     def __init__(
-        self, base_path=None, run_uuid=None, is_single_file=False,
+        self,
+        base_path=None,
+        run_uuid=None,
+        is_single_file=False,
     ):
         self.base_path = base_path
         self.run_uuid = run_uuid

@@ -437,7 +437,9 @@ def ingest(
             t.run_uuid = run_uuid
     else:
         featureset.update_targets_run_uuid(
-            targets=targets_to_ingest, silent=True, overwrite=overwrite,
+            targets=targets_to_ingest,
+            silent=True,
+            overwrite=overwrite,
         )
 
         for target in targets_to_ingest:

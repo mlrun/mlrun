@@ -2067,7 +2067,9 @@ class TestFeatureStore(TestMLRunSystem):
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
             )
         except RuntimeError as err:
-            assert err.__str__().__contains__("404"), "only acceptable error is with status 404"
+            assert err.__str__().__contains__(
+                "404"
+            ), "only acceptable error is with status 404"
         finally:
             v3io_client.stream.create(
                 container="projects", stream_path=stream_path, shard_count=1

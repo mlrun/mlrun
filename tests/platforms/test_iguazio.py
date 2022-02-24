@@ -272,10 +272,17 @@ def test_mount_v3io_multiple_user():
     os.environ["V3IO_ACCESS_KEY"] = access_key_2
     function.apply(mlrun.mount_v3io())
 
-    user_volume_mounts = list(filter(lambda volume_mount: volume_mount["mountPath"] == "/User", function.spec.volume_mounts))
+    user_volume_mounts = list(
+        filter(
+            lambda volume_mount: volume_mount["mountPath"] == "/User",
+            function.spec.volume_mounts,
+        )
+    )
     assert len(user_volume_mounts) == 1
     assert user_volume_mounts[0]["subPath"] == f"users/{username_2}"
-    assert function.spec.volumes[0]["flexVolume"]["options"]["accessKey"] == access_key_2
+    assert (
+        function.spec.volumes[0]["flexVolume"]["options"]["accessKey"] == access_key_2
+    )
 
 
 def test_mount_v3io_extended():

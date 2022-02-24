@@ -18,12 +18,12 @@ from datetime import datetime
 from http import HTTPStatus
 from urllib.parse import urlparse
 
+import kfp.dsl
 import requests
 import urllib3
 import v3io
 
 import mlrun.errors
-import kfp.dsl
 from mlrun.config import config as mlconf
 from mlrun.utils import dict_to_json
 
@@ -311,7 +311,9 @@ def v3io_cred(api="", user="", access_key=""):
         v3io_framesd = mlconf.v3io_framesd or environ.get("V3IO_FRAMESD")
 
         return (
-            container_op.container.add_env_variable(k8s_client.V1EnvVar(name="V3IO_API", value=web_api))
+            container_op.container.add_env_variable(
+                k8s_client.V1EnvVar(name="V3IO_API", value=web_api)
+            )
             .add_env_variable(k8s_client.V1EnvVar(name="V3IO_USERNAME", value=_user))
             .add_env_variable(
                 k8s_client.V1EnvVar(name="V3IO_ACCESS_KEY", value=_access_key)

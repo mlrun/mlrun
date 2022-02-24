@@ -265,15 +265,6 @@ class FeatureVector(ModelObj):
                     feature_aliases[old_name] = new_name
         return feature_aliases
 
-    def get_feature_names_aliased(self):
-        feature_aliases = self.get_feature_aliases()
-        names = list(self.status.features.keys())
-        for i in range(len(names)):
-            old_name = names[i]
-            if old_name in feature_aliases:
-                names[i] = feature_aliases[old_name]
-        return names
-
     def get_target_path(self, name=None):
         target = get_offline_target(self, name=name)
         if target:
@@ -475,23 +466,18 @@ class OnlineVectorService:
                 f"input data is of type {type(entity_rows)}. must be a list of lists or list of dicts"
             )
 
-        feature_aliases = self.vector.get_feature_aliases()
-
-        index_columns = copy(self._index_columns)
-        for i in range(len(index_columns)):
-            old_name = index_columns[i]
-            if old_name in feature_aliases:
-                index_columns[i] = feature_aliases[old_name]
-
         # if list of list, convert to dicts (with the index columns as the dict keys)
         if isinstance(entity_rows[0], list):
-            if not index_columns or len(entity_rows[0]) != len(index_columns):
+            if not self._index_columns or len(entity_rows[0]) != len(
+                self._index_columns
+            ):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "input list must be in the same size of the index_keys list"
                 )
-            index_range = range(len(index_columns))
+            index_range = range(len(self._index_columns))
             entity_rows = [
-                {index_columns[i]: item[i] for i in index_range} for item in entity_rows
+                {self._index_columns[i]: item[i] for i in index_range}
+                for item in entity_rows
             ]
 
         for row in entity_rows:
@@ -500,13 +486,13 @@ class OnlineVectorService:
         for future in futures:
             result = future.await_result()
             data = result.body
-            for key in index_columns:
+            for key in self._index_columns:
                 if data and key in data:
                     del data[key]
             if not data:
                 data = None
             else:
-                requested_columns = self.vector.get_feature_names_aliased()
+                requested_columns = self.vector.status.features.keys()
                 actual_columns = data.keys()
                 for column in requested_columns:
                     if (
@@ -524,13 +510,9 @@ class OnlineVectorService:
             if as_list and data:
                 data = [
                     data.get(key, None)
-                    for key in self.vector.get_feature_names_aliased()
+                    for key in self.vector.status.features.keys()
                     if key != self.vector.status.label_column
                 ]
-            for old_name, new_name in feature_aliases.items():
-                if data and old_name in data:
-                    data[new_name] = data[old_name]
-                    del data[old_name]
             results.append(data)
 
         return results

@@ -68,10 +68,6 @@ help: ## Display available commands
 all:
 	$(error please pick a target)
 
-.PHONY: hedi
-hedi:
-	echo $(MLRUN_VERSION) $(MLRUN_PYTHON_PACKAGE_VERSION)
-
 .PHONY: install-requirements
 install-requirements: ## Install all requirements needed for development
 	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)

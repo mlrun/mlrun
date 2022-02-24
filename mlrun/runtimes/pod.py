@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import copy
 import inspect
 import os
 import typing
@@ -258,9 +257,7 @@ class KubeResourceSpec(FunctionSpec):
         resources_types = ["cpu", "memory", "nvidia.com/gpu"]
         resource_requirements = ["requests", "limits"]
         gpu_type = "nvidia.com/gpu"
-        default_resources = copy.deepcopy(
-            mlconf.default_function_pod_resources.to_dict()
-        )
+        default_resources = mlconf.get_default_function_pod_resources()
 
         if not resources:
             return default_resources
@@ -283,7 +280,7 @@ class KubeResourceSpec(FunctionSpec):
                         else:
                             resources[resource_requirement][
                                 resource_type
-                            ] = default_resources[resource_requirement].get("gpu")
+                            ] = default_resources[resource_requirement].get(gpu_type)
                     else:
                         resources[resource_requirement][
                             resource_type

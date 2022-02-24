@@ -1194,7 +1194,7 @@ def compile_function_config(function: RemoteRuntime, client_version: str = None)
 
     # Add secret configurations to function's pod spec, if secret sources were added.
     # Needs to be here, since it adds env params, which are handled in the next lines.
-    # This only needs to run if we're not running within k8s context. If running in Docker, for example, skip.
+    # This only needs to run if we're running within k8s context. If running in Docker, for example, skip.
     if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
         function.add_secrets_config_to_spec()
 

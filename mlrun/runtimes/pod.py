@@ -290,11 +290,11 @@ class KubeResourceSpec(FunctionSpec):
             return resources
         else:
             resources = default_resources
-            resources["requests"] = verify_requests(
-                resources_field_name,
-                mem=resources["requests"]["memory"],
-                cpu=resources["requests"]["cpu"],
-            )
+        resources["requests"] = verify_requests(
+            resources_field_name,
+            mem=resources["requests"]["memory"],
+            cpu=resources["requests"]["cpu"],
+        )
         resources["limits"] = verify_limits(
             resources_field_name,
             mem=resources["limits"]["memory"],

@@ -259,33 +259,32 @@ class KubeResourceSpec(FunctionSpec):
         gpu_type = "nvidia.com/gpu"
         default_resources = mlconf.get_default_function_pod_resources()
 
-        if not resources:
-            return default_resources
-
-        verify_gpu_requests_and_limits(
-            requests_gpu=resources.setdefault("requests", {}).setdefault(gpu_type),
-            limits_gpu=resources.setdefault("limits", {}).setdefault(gpu_type),
-        )
-        for resource_requirement in resource_requirements:
-            for resource_type in resources_types:
-                if (
-                    resources.setdefault(resource_requirement, {}).setdefault(
-                        resource_type
-                    )
-                    is None
-                ):
-                    if resource_type == gpu_type:
-                        if resource_requirement == "requests":
-                            continue
+        if resources:
+            verify_gpu_requests_and_limits(
+                requests_gpu=resources.setdefault("requests", {}).setdefault(gpu_type),
+                limits_gpu=resources.setdefault("limits", {}).setdefault(gpu_type),
+            )
+            for resource_requirement in resource_requirements:
+                for resource_type in resources_types:
+                    if (
+                        resources.setdefault(resource_requirement, {}).setdefault(
+                            resource_type
+                        )
+                        is None
+                    ):
+                        if resource_type == gpu_type:
+                            if resource_requirement == "requests":
+                                continue
+                            else:
+                                resources[resource_requirement][
+                                    resource_type
+                                ] = default_resources[resource_requirement].get(gpu_type)
                         else:
                             resources[resource_requirement][
                                 resource_type
-                            ] = default_resources[resource_requirement].get(gpu_type)
-                    else:
-                        resources[resource_requirement][
-                            resource_type
-                        ] = default_resources[resource_requirement][resource_type]
-
+                            ] = default_resources[resource_requirement][resource_type]
+        else:
+            resources = default_resources
         resources["requests"] = verify_requests(
             resources_field_name,
             mem=resources["requests"]["memory"],

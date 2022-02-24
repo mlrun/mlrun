@@ -43,12 +43,11 @@ def _get_runtime():
 def test_new_function_from_runtime():
     runtime = _get_runtime()
     function = mlrun.new_function(runtime=runtime)
-    default_resources = mlrun.mlconf.get_default_function_pod_resources()
-    runtime["spec"]["resources"] = default_resources
+    expected_resources = runtime
     assert (
         DeepDiff(
             function.to_dict(),
-            runtime,
+            expected_resources,
             ignore_order=True,
         )
         == {}
@@ -59,8 +58,6 @@ def test_new_function_args_without_command():
     runtime = _get_runtime()
     runtime["spec"]["command"] = ""
     function = mlrun.new_function(runtime=runtime)
-    default_resources = mlrun.mlconf.get_default_function_pod_resources()
-    runtime["spec"]["resources"] = default_resources
     assert (
         DeepDiff(
             function.to_dict(),

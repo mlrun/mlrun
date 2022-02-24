@@ -84,18 +84,19 @@ class TestDaskRuntime(TestRuntimeBase):
 
         return dask_cluster
 
-    def _get_scheduler_and_worker_default_resources(self):
+    @staticmethod
+    def _get_scheduler_and_worker_default_resources():
         """
         return the default resources values for worker and scheduler with the following order:
         worker_requests, worker_limits, scheduler_requests, scheduler_limits
         :return:
         """
-        expected_resources = mlrun.mlconf.default_function_pod_resources
+        expected_resources = mlrun.mlconf.get_default_function_pod_resources()
         return (
-            expected_resources.requests.to_dict(),
-            expected_resources.limits.to_dict(),
-            expected_resources.requests.to_dict(),
-            expected_resources.limits.to_dict(),
+            expected_resources.get("requests", {}),
+            expected_resources.get("limits", {}),
+            expected_resources.get("requests", {}),
+            expected_resources.get("limits", {}),
         )
 
     def _assert_scheduler_pod_args(

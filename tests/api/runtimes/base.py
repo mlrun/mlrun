@@ -595,14 +595,22 @@ class TestRuntimeBase:
                 "default_function_pod_resources": {
                     "requests": {"cpu": None, "memory": None, "gpu": None},
                     "limits": {"cpu": None, "memory": None, "gpu": None},
-                }
+                },
+                "expected_resources": {
+                        "requests": {},
+                        "limits": {},
+                },
             },
             {
                 # with defaults
                 "default_function_pod_resources": {
                     "requests": {"cpu": "25m", "memory": "1M"},
                     "limits": {"cpu": "2", "memory": "1G"},
-                }
+                },
+                "expected_resources": {
+                    "requests": {"cpu": "25m", "memory": "1M"},
+                    "limits": {"cpu": "2", "memory": "1G"},
+                },
             },
         ]:
             mlconf.default_function_pod_resources = test_case.get(
@@ -610,9 +618,9 @@ class TestRuntimeBase:
             )
 
             runtime = self._generate_runtime()
-            expected_resources = mlrun.mlconf.default_function_pod_resources
+            expected_resources = test_case.get("expected_resources")
             self._assert_container_resources(
                 runtime.spec,
-                expected_limits=expected_resources.limits.to_dict(),
-                expected_requests=expected_resources.requests.to_dict(),
+                expected_limits=expected_resources.get("limits"),
+                expected_requests=expected_resources.get("requests"),
             )

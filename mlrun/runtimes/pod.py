@@ -299,6 +299,8 @@ class KubeResourceSpec(FunctionSpec):
             gpus=resources["limits"][gpu_type],
             gpu_type=gpu_type,
         )
+        if not resources["requests"] and not resources["limits"]:
+            return {}
         return resources
 
 

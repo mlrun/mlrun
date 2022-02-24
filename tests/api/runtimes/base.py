@@ -14,7 +14,6 @@ from kubernetes import client
 from kubernetes import client as k8s_client
 from kubernetes.client import V1EnvVar
 
-import mlrun
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config as mlconf
 from mlrun.model import new_task
@@ -597,8 +596,8 @@ class TestRuntimeBase:
                     "limits": {"cpu": None, "memory": None, "gpu": None},
                 },
                 "expected_resources": {
-                        "requests": {},
-                        "limits": {},
+                    "requests": {},
+                    "limits": {},
                 },
             },
             {

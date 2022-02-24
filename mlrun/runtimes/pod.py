@@ -278,7 +278,9 @@ class KubeResourceSpec(FunctionSpec):
                             else:
                                 resources[resource_requirement][
                                     resource_type
-                                ] = default_resources[resource_requirement].get(gpu_type)
+                                ] = default_resources[resource_requirement].get(
+                                    gpu_type
+                                )
                         else:
                             resources[resource_requirement][
                                 resource_type

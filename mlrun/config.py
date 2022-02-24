@@ -488,12 +488,15 @@ class Config:
     @staticmethod
     def get_default_function_pod_resources():
         resources: dict = copy.deepcopy(config.default_function_pod_resources.to_dict())
-        resources["requests"]["nvidia.com/gpu"] = resources.setdefault(
-            "requests", {}
-        ).setdefault("gpu")
-        resources["limits"]["nvidia.com/gpu"] = resources.setdefault(
-            "limits", {}
-        ).setdefault("gpu")
+        gpu_type = "nvidia.com/gpu"
+        gpu = "gpu"
+        resource_requirements = ["requests", "limits"]
+        for requirement in resource_requirements:
+            resources[requirement][gpu_type] = (
+                resources.get(requirement).get(gpu)
+                if resources.setdefault(requirement, {}).get(gpu) is not None
+                else None
+            )
         return resources
 
     def to_dict(self):

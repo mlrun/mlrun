@@ -285,13 +285,16 @@ class KubeResourceSpec(FunctionSpec):
                             resources[resource_requirement][
                                 resource_type
                             ] = default_resources[resource_requirement][resource_type]
+        # This enables the user to define that no defaults would be applied on the resources
+        elif resources == {}:
+            return resources
         else:
             resources = default_resources
-        resources["requests"] = verify_requests(
-            resources_field_name,
-            mem=resources["requests"]["memory"],
-            cpu=resources["requests"]["cpu"],
-        )
+            resources["requests"] = verify_requests(
+                resources_field_name,
+                mem=resources["requests"]["memory"],
+                cpu=resources["requests"]["cpu"],
+            )
         resources["limits"] = verify_limits(
             resources_field_name,
             mem=resources["limits"]["memory"],

@@ -1,5 +1,8 @@
+import base64
+import json
 import unittest.mock
 
+import deepdiff
 import pytest
 
 import mlrun
@@ -190,6 +193,42 @@ def test_build_runtime_target_image(monkeypatch):
     assert target_image == function.spec.build.image
 
 
+def test_build_runtime_use_default_node_selector(monkeypatch):
+    get_k8s_helper_mock = unittest.mock.Mock()
+    monkeypatch.setattr(
+        mlrun.builder, "get_k8s_helper", lambda *args, **kwargs: get_k8s_helper_mock
+    )
+    mlrun.builder.get_k8s_helper().create_pod = unittest.mock.Mock(
+        side_effect=lambda pod: (pod, "some-namespace")
+    )
+    mlrun.mlconf.httpdb.builder.docker_registry = "registry.hub.docker.com/username"
+    node_selector = {
+        "label-1": "val1",
+        "label-2": "val2",
+    }
+    mlrun.mlconf.default_function_node_selector = base64.b64encode(
+        json.dumps(node_selector).encode("utf-8")
+    )
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind="job",
+        requirements=["some-package"],
+    )
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    assert (
+        deepdiff.DeepDiff(
+            _create_pod_mock_pod_spec().node_selector, node_selector, ignore_order=True
+        )
+        == {}
+    )
+
+
 def test_resolve_mlrun_install_command():
     pip_command = "python -m pip install"
     cases = [
@@ -272,9 +311,8 @@ def test_resolve_mlrun_install_command():
 
 
 def _get_target_image_from_create_pod_mock():
-    return (
-        mlrun.builder.get_k8s_helper()
-        .create_pod.call_args[0][0]
-        .pod.spec.containers[0]
-        .args[5]
-    )
+    return _create_pod_mock_pod_spec().containers[0].args[5]
+
+
+def _create_pod_mock_pod_spec():
+    return mlrun.builder.get_k8s_helper().create_pod.call_args[0][0].pod.spec

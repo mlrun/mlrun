@@ -23,7 +23,6 @@ import urllib3
 import v3io
 
 import mlrun.errors
-import mlrun.kfpops
 from mlrun.config import config as mlconf
 from mlrun.utils import dict_to_json
 
@@ -54,6 +53,9 @@ def xcp_op(
         command=["xcp"],
         arguments=args,
     )
+    # import here to avoid circular imports
+    import mlrun.kfpops
+
     container_op = mlrun.kfpops.add_default_function_node_selector(container_op)
     return container_op
 

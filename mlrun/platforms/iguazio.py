@@ -48,12 +48,17 @@ def xcp_op(
     if recursive:
         args = ["-r"] + args
 
-    return dsl.ContainerOp(
+    container_op = dsl.ContainerOp(
         name="xcp",
         image="yhaviv/invoke",
         command=["xcp"],
         arguments=args,
     )
+    # import here to avoid circular imports
+    import mlrun.kfpops
+
+    container_op = mlrun.kfpops.add_default_function_node_selector(container_op)
+    return container_op
 
 
 VolumeMount = namedtuple("Mount", ["path", "sub_path"])

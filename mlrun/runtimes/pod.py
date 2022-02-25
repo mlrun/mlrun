@@ -191,12 +191,8 @@ class KubeResourceSpec(FunctionSpec):
         return api.sanitize_for_serialization(self.affinity)
 
     def _set_volume_mount(self, volume_mount):
-        # calculate volume mount hash
-        volume_name = get_item_name(volume_mount, "name")
-        volume_sub_path = get_item_name(volume_mount, "subPath")
-        volume_mount_path = get_item_name(volume_mount, "mountPath")
-        volume_mount_key = hash(f"{volume_name}-{volume_sub_path}-{volume_mount_path}")
-        self._volume_mounts[volume_mount_key] = volume_mount
+        # using the mountPath as the key cause it must be unique (k8s limitation)
+        self._volume_mounts[get_item_name(volume_mount, "mountPath")] = volume_mount
 
 
 class AutoMountType(str, Enum):

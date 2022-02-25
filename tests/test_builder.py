@@ -1,6 +1,6 @@
-import unittest.mock
 import base64
 import json
+import unittest.mock
 
 import deepdiff
 import pytest
@@ -234,7 +234,12 @@ def test_build_runtime_use_default_node_selector(monkeypatch):
         mlrun.api.schemas.AuthInfo(),
         function,
     )
-    assert deepdiff.DeepDiff(_create_pod_mock_pod_spec().node_selector, node_selector, ignore_order=True) == {}
+    assert (
+        deepdiff.DeepDiff(
+            _create_pod_mock_pod_spec().node_selector, node_selector, ignore_order=True
+        )
+        == {}
+    )
 
 
 def test_resolve_mlrun_install_command():
@@ -321,9 +326,6 @@ def test_resolve_mlrun_install_command():
 def _get_target_image_from_create_pod_mock():
     return _create_pod_mock_pod_spec().containers[0].args[5]
 
+
 def _create_pod_mock_pod_spec():
-    return (
-        mlrun.builder.get_k8s_helper()
-        .create_pod.call_args[0][0]
-        .pod.spec
-    )
+    return mlrun.builder.get_k8s_helper().create_pod.call_args[0][0].pod.spec

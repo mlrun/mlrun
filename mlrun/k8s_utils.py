@@ -552,7 +552,10 @@ class BasePod:
         )
 
         pod_spec = client.V1PodSpec(
-            containers=[container], restart_policy="Never", volumes=self._volumes, node_selector=self.node_selector,
+            containers=[container],
+            restart_policy="Never",
+            volumes=self._volumes,
+            node_selector=self.node_selector,
         )
 
         if self._init_container:

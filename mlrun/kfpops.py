@@ -17,6 +17,7 @@ import json
 import os
 import os.path
 from copy import deepcopy
+
 from kfp import dsl
 from kubernetes import client as k8s_client
 
@@ -439,7 +440,6 @@ def deploy_op(
     verbose=False,
 ):
 
-
     cmd = ["python", "-m", "mlrun", "deploy"]
     if source:
         cmd += ["-s", source]
@@ -774,7 +774,9 @@ def show_kfp_run(run, clear_output=False):
             logger.warning(f"failed to plot graph, {exc}")
 
 
-def add_default_function_node_selector(container_op: dsl.ContainerOp) -> dsl.ContainerOp:
+def add_default_function_node_selector(
+    container_op: dsl.ContainerOp,
+) -> dsl.ContainerOp:
     for label_name, label_value in config.get_default_function_node_selector():
         container_op.add_node_selector_constraint(label_name, label_value)
     return container_op

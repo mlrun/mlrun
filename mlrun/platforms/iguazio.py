@@ -23,6 +23,7 @@ import urllib3
 import v3io
 
 import mlrun.errors
+import mlrun.kfpops
 from mlrun.config import config as mlconf
 from mlrun.utils import dict_to_json
 
@@ -47,12 +48,14 @@ def xcp_op(
     if recursive:
         args = ["-r"] + args
 
-    return dsl.ContainerOp(
+    container_op = dsl.ContainerOp(
         name="xcp",
         image="yhaviv/invoke",
         command=["xcp"],
         arguments=args,
     )
+    container_op = mlrun.kfpops.add_default_function_node_selector(container_op)
+    return container_op
 
 
 VolumeMount = namedtuple("Mount", ["path", "sub_path"])

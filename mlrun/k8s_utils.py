@@ -13,6 +13,7 @@
 # limitations under the License.
 import base64
 import time
+import typing
 from datetime import datetime
 from sys import stdout
 
@@ -444,6 +445,7 @@ class BasePod:
         self._volumes = []
         self._mounts = []
         self.env = None
+        self.node_selector = None
         self.project = project or mlrun.mlconf.default_project
         self._labels = {
             "mlrun/task-name": task_name,
@@ -529,6 +531,9 @@ class BasePod:
             sub_path=sub_path,
         )
 
+    def set_node_selector(self, node_selector: typing.Optional[typing.Dict[str, str]]):
+        self.node_selector = node_selector
+
     def _get_spec(self, template=False):
 
         pod_obj = client.V1PodTemplate if template else client.V1Pod
@@ -547,7 +552,7 @@ class BasePod:
         )
 
         pod_spec = client.V1PodSpec(
-            containers=[container], restart_policy="Never", volumes=self._volumes
+            containers=[container], restart_policy="Never", volumes=self._volumes, node_selector=self.node_selector,
         )
 
         if self._init_container:

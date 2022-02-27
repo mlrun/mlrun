@@ -253,9 +253,7 @@ def test_mount_v3io_multiple_user():
     access_key_2 = "access_key_2"
     v3io_api_path = "v3io_api"
     function = mlrun.new_function(
-        "function-name",
-        "function-project",
-        kind=mlrun.runtimes.RuntimeKinds.job,
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job,
     )
     os.environ["V3IO_API"] = v3io_api_path
 

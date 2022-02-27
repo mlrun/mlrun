@@ -315,102 +315,39 @@ class BaseRuntime(ModelObj):
             self.fill_credentials()
 
         if local:
-            if schedule is not None:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "local and schedule cannot be used together"
-                )
-            # allow local run simulation with a flip of a flag
-            command = self
-            if local_code_path:
-                project = project or self.metadata.project
-                name = name or self.metadata.name
-                command = local_code_path
-            return mlrun.run_local(
+            self._run_local(
                 runspec,
-                command,
+                schedule,
+                local_code_path,
+                project,
                 name,
-                self.spec.args,
-                workdir=workdir,
-                project=project,
-                handler=handler,
-                params=params,
-                inputs=inputs,
-                artifact_path=artifact_path,
-                mode=self.spec.mode,
-                allow_empty_resources=self.spec.allow_empty_resources,
+                workdir,
+                handler,
+                params,
+                inputs,
+                artifact_path,
             )
 
-        if runspec:
-            runspec = deepcopy(runspec)
-            if isinstance(runspec, str):
-                runspec = literal_eval(runspec)
-            if not isinstance(runspec, (dict, RunTemplate, RunObject)):
-                raise ValueError(
-                    "task/runspec is not a valid task object," f" type={type(runspec)}"
-                )
+        runspec = self._resolve_runspec_runtime(runspec)
 
-        if isinstance(runspec, RunTemplate):
-            runspec = RunObject.from_template(runspec)
-        if isinstance(runspec, dict) or runspec is None:
-            runspec = RunObject.from_dict(runspec)
-
-        runspec.spec.handler = (
-            handler or runspec.spec.handler or self.spec.default_handler or ""
+        self._enrich_runspec(
+            runspec,
+            handler,
+            project,
+            name,
+            params,
+            inputs,
+            hyperparams,
+            hyper_param_options,
+            verbose,
+            scrape_metrics,
+            out_path,
+            artifact_path,
+            workdir,
         )
-        if runspec.spec.handler and self.kind not in ["handler", "dask"]:
-            runspec.spec.handler = runspec.spec.handler_name
-
-        def_name = self.metadata.name
-        if runspec.spec.handler_name:
-            short_name = runspec.spec.handler_name
-            if "::" in short_name:
-                short_name = short_name.split("::")[1]  # drop class name
-            def_name += "-" + short_name
-        runspec.metadata.name = name or runspec.metadata.name or def_name
-        verify_field_regex(
-            "run.metadata.name", runspec.metadata.name, mlrun.utils.regex.run_name
-        )
-        runspec.metadata.project = (
-            project
-            or runspec.metadata.project
-            or self.metadata.project
-            or config.default_project
-        )
-        runspec.spec.parameters = params or runspec.spec.parameters
-        runspec.spec.inputs = inputs or runspec.spec.inputs
-        runspec.spec.hyperparams = hyperparams or runspec.spec.hyperparams
-        runspec.spec.hyper_param_options = (
-            hyper_param_options or runspec.spec.hyper_param_options
-        )
-        runspec.spec.verbose = verbose or runspec.spec.verbose
-        if scrape_metrics is None:
-            if runspec.spec.scrape_metrics is None:
-                scrape_metrics = config.scrape_metrics
-            else:
-                scrape_metrics = runspec.spec.scrape_metrics
-        runspec.spec.scrape_metrics = scrape_metrics
-        runspec.spec.output_path = out_path or artifact_path or runspec.spec.output_path
-        runspec.spec.input_path = (
-            workdir or runspec.spec.input_path or self.spec.workdir
-        )
-        if self.spec.allow_empty_resources:
-            runspec.spec.allow_empty_resources = self.spec.allow_empty_resources
-
         spec = runspec.spec
-        if spec.secret_sources:
-            self._secrets = SecretsStore.from_list(spec.secret_sources)
-
-        # update run metadata (uid, labels) and store in DB
         meta = runspec.metadata
-        meta.uid = meta.uid or uuid.uuid4().hex
-        runspec.spec.output_path = runspec.spec.output_path or config.artifact_path
-        if runspec.spec.output_path:
-            runspec.spec.output_path = runspec.spec.output_path.replace(
-                "{{run.uid}}", meta.uid
-            )
-            runspec.spec.output_path = mlrun.utils.helpers.fill_artifact_path_template(
-                runspec.spec.output_path, runspec.metadata.project
-            )
+
         if is_local(runspec.spec.output_path):
             logger.warning(
                 "artifact path is not defined or is local,"
@@ -441,51 +378,11 @@ class BaseRuntime(ModelObj):
             meta.labels["v3io_user"] = environ.get("V3IO_USERNAME")
 
         if not self.is_child:
-            db_str = "self" if self._is_api_server else self.spec.rundb
-            logger.info(f"starting run {meta.name} uid={meta.uid} DB={db_str}")
-            meta.labels["kind"] = self.kind
-            if "owner" not in meta.labels:
-                meta.labels["owner"] = environ.get("V3IO_USERNAME") or getpass.getuser()
-            if runspec.spec.output_path:
-                runspec.spec.output_path = runspec.spec.output_path.replace(
-                    "{{run.user}}", meta.labels["owner"]
-                )
-
-            if db and self.kind != "handler":
-                struct = self.to_dict()
-                hash_key = db.store_function(
-                    struct, self.metadata.name, self.metadata.project, versioned=True
-                )
-                runspec.spec.function = self._function_uri(hash_key=hash_key)
+            self._execute_not_child_function(runspec, meta, db)
 
         # execute the job remotely (to a k8s cluster via the API service)
         if self._use_remote_api():
-            if self._secrets:
-                runspec.spec.secret_sources = self._secrets.to_serial()
-            try:
-                resp = db.submit_job(runspec, schedule=schedule)
-                if schedule:
-                    logger.info(f"task scheduled, {resp}")
-                    return
-
-                if resp:
-                    txt = get_in(resp, "status.status_text")
-                    if txt:
-                        logger.info(txt)
-                if watch or self.kfp:
-                    runspec.logs(True, self._get_db())
-                    resp = self._get_db_run(runspec)
-            except Exception as err:
-                logger.error(f"got remote run err, {err}")
-                result = None
-                # if we got a schedule no reason to do post_run stuff (it purposed to update the run status with error,
-                # but there's no run in case of schedule)
-                if not schedule:
-                    result = self._update_run_state(task=runspec, err=err)
-                return self._wrap_run_result(
-                    result, runspec, schedule=schedule, err=err
-                )
-            return self._wrap_run_result(resp, runspec, schedule=schedule)
+            return self._execute_job_remotely(runspec, schedule, db, watch)
 
         elif self._is_remote and not self._is_api_server and not self.kfp:
             logger.warning(
@@ -606,6 +503,178 @@ class BaseRuntime(ModelObj):
         if self.metadata.namespace or config.namespace:
             runtime_env["MLRUN_NAMESPACE"] = self.metadata.namespace or config.namespace
         return runtime_env
+
+    def _run_local(
+        self,
+        runspec,
+        schedule,
+        local_code_path,
+        project,
+        name,
+        workdir,
+        handler,
+        params,
+        inputs,
+        artifact_path,
+    ):
+        if schedule is not None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "local and schedule cannot be used together"
+            )
+        # allow local run simulation with a flip of a flag
+        command = self
+        if local_code_path:
+            project = project or self.metadata.project
+            name = name or self.metadata.name
+            command = local_code_path
+        return mlrun.run_local(
+            runspec,
+            command,
+            name,
+            self.spec.args,
+            workdir=workdir,
+            project=project,
+            handler=handler,
+            params=params,
+            inputs=inputs,
+            artifact_path=artifact_path,
+            mode=self.spec.mode,
+            allow_empty_resources=self.spec.allow_empty_resources,
+        )
+
+    def _resolve_runspec_runtime(self, runspec):
+        if runspec:
+            runspec = deepcopy(runspec)
+            if isinstance(runspec, str):
+                runspec = literal_eval(runspec)
+            if not isinstance(runspec, (dict, RunTemplate, RunObject)):
+                raise ValueError(
+                    "task/runspec is not a valid task object," f" type={type(runspec)}"
+                )
+
+        if isinstance(runspec, RunTemplate):
+            runspec = RunObject.from_template(runspec)
+        if isinstance(runspec, dict) or runspec is None:
+            runspec = RunObject.from_dict(runspec)
+        return runspec
+
+    def _enrich_runspec(
+        self,
+        runspec,
+        handler,
+        project,
+        name,
+        params,
+        inputs,
+        hyperparams,
+        hyper_param_options,
+        verbose,
+        scrape_metrics,
+        out_path,
+        artifact_path,
+        workdir,
+    ):
+        runspec.spec.handler = (
+            handler or runspec.spec.handler or self.spec.default_handler or ""
+        )
+        if runspec.spec.handler and self.kind not in ["handler", "dask"]:
+            runspec.spec.handler = runspec.spec.handler_name
+
+        def_name = self.metadata.name
+        if runspec.spec.handler_name:
+            short_name = runspec.spec.handler_name
+            if "::" in short_name:
+                short_name = short_name.split("::")[1]  # drop class name
+            def_name += "-" + short_name
+        runspec.metadata.name = name or runspec.metadata.name or def_name
+        verify_field_regex(
+            "run.metadata.name", runspec.metadata.name, mlrun.utils.regex.run_name
+        )
+        runspec.metadata.project = (
+            project
+            or runspec.metadata.project
+            or self.metadata.project
+            or config.default_project
+        )
+        runspec.spec.parameters = params or runspec.spec.parameters
+        runspec.spec.inputs = inputs or runspec.spec.inputs
+        runspec.spec.hyperparams = hyperparams or runspec.spec.hyperparams
+        runspec.spec.hyper_param_options = (
+            hyper_param_options or runspec.spec.hyper_param_options
+        )
+        runspec.spec.verbose = verbose or runspec.spec.verbose
+        if scrape_metrics is None:
+            if runspec.spec.scrape_metrics is None:
+                scrape_metrics = config.scrape_metrics
+            else:
+                scrape_metrics = runspec.spec.scrape_metrics
+        runspec.spec.scrape_metrics = scrape_metrics
+        runspec.spec.output_path = out_path or artifact_path or runspec.spec.output_path
+        runspec.spec.input_path = (
+            workdir or runspec.spec.input_path or self.spec.workdir
+        )
+        if self.spec.allow_empty_resources:
+            runspec.spec.allow_empty_resources = self.spec.allow_empty_resources
+
+        spec = runspec.spec
+        if spec.secret_sources:
+            self._secrets = SecretsStore.from_list(spec.secret_sources)
+
+        # update run metadata (uid, labels) and store in DB
+        meta = runspec.metadata
+        meta.uid = meta.uid or uuid.uuid4().hex
+        runspec.spec.output_path = runspec.spec.output_path or config.artifact_path
+        if runspec.spec.output_path:
+            runspec.spec.output_path = runspec.spec.output_path.replace(
+                "{{run.uid}}", meta.uid
+            )
+            runspec.spec.output_path = mlrun.utils.helpers.fill_artifact_path_template(
+                runspec.spec.output_path, runspec.metadata.project
+            )
+
+    def _execute_job_remotely(self, runspec, schedule, db, watch):
+        if self._secrets:
+            runspec.spec.secret_sources = self._secrets.to_serial()
+        try:
+            resp = db.submit_job(runspec, schedule=schedule)
+            if schedule:
+                logger.info(f"task scheduled, {resp}")
+                return
+
+            if resp:
+                txt = get_in(resp, "status.status_text")
+                if txt:
+                    logger.info(txt)
+            if watch or self.kfp:
+                runspec.logs(True, self._get_db())
+                resp = self._get_db_run(runspec)
+        except Exception as err:
+            logger.error(f"got remote run err, {err}")
+            result = None
+            # if we got a schedule no reason to do post_run stuff (it purposed to update the run status with error,
+            # but there's no run in case of schedule)
+            if not schedule:
+                result = self._update_run_state(task=runspec, err=err)
+            return self._wrap_run_result(result, runspec, schedule=schedule, err=err)
+        return self._wrap_run_result(resp, runspec, schedule=schedule)
+
+    def _execute_not_child_function(self, runspec, meta, db):
+        db_str = "self" if self._is_api_server else self.spec.rundb
+        logger.info(f"starting run {meta.name} uid={meta.uid} DB={db_str}")
+        meta.labels["kind"] = self.kind
+        if "owner" not in meta.labels:
+            meta.labels["owner"] = environ.get("V3IO_USERNAME") or getpass.getuser()
+        if runspec.spec.output_path:
+            runspec.spec.output_path = runspec.spec.output_path.replace(
+                "{{run.user}}", meta.labels["owner"]
+            )
+
+        if db and self.kind != "handler":
+            struct = self.to_dict()
+            hash_key = db.store_function(
+                struct, self.metadata.name, self.metadata.project, versioned=True
+            )
+            runspec.spec.function = self._function_uri(hash_key=hash_key)
 
     def _get_cmd_args(self, runobj: RunObject):
         extra_env = self._generate_runtime_env(runobj)

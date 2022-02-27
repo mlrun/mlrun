@@ -105,6 +105,7 @@ def make_kaniko_pod(
         project=project,
     )
     kpod.env = builder_env
+    kpod.set_node_selector(mlrun.mlconf.get_default_function_node_selector())
 
     if secret_name:
         items = [{"key": ".dockerconfigjson", "path": "config.json"}]

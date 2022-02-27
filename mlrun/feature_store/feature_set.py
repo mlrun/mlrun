@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import traceback
 import warnings
 from datetime import datetime
 from typing import Dict, List, Optional, Union
@@ -438,6 +439,7 @@ class FeatureSet(ModelObj):
             if overwrite or not (target.name in status_targets.keys()):
                 target.run_uuid = run_uuid
                 print(f"BBBBB - overwrite - {target.run_uuid}")
+                traceback.print_stack()
             else:
                 target.run_uuid = status_targets[target.name].run_uuid
                 print(f"BBBBB - unchanged - {target.run_uuid}")

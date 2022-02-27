@@ -442,7 +442,6 @@ def ingest(
     else:
         featureset.update_targets_run_uuid(
             targets=targets_to_ingest,
-            silent=True,
             overwrite=overwrite,
         )
 

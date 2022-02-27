@@ -425,12 +425,12 @@ class FeatureSet(ModelObj):
     def update_targets_run_uuid(
         self,
         targets: List[DataTargetBase],
-        silent: bool = False,
         overwrite: bool = None,
     ):
         ingestion_target_names = [t if isinstance(t, str) else t.name for t in targets]
+        # silent=True always because targets are not guaranteed to be found in status
         status_targets = self._reload_and_get_status_targets(
-            target_names=ingestion_target_names, silent=silent
+            target_names=ingestion_target_names, silent=True
         )
 
         run_uuid = DataTargetBase.generate_target_run_uuid()

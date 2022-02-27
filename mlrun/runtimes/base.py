@@ -376,7 +376,7 @@ class BaseRuntime(ModelObj):
             run.metadata.labels["v3io_user"] = environ.get("V3IO_USERNAME")
 
         if not self.is_child:
-            self._store_function(runspec, run.metadata, db)
+            self._store_function(run, run.metadata, db)
 
         # execute the job remotely (to a k8s cluster via the API service)
         if self._use_remote_api():
@@ -388,7 +388,7 @@ class BaseRuntime(ModelObj):
             )
 
         execution = MLClientCtx.from_dict(
-            runspec.to_dict(), db, autocommit=False, is_api=self._is_api_server
+            run.to_dict(), db, autocommit=False, is_api=self._is_api_server
         )
         self._pre_run(run, execution)  # hook for runtime specific prep
 

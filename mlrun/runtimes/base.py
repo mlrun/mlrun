@@ -315,7 +315,7 @@ class BaseRuntime(ModelObj):
             self.fill_credentials()
 
         if local:
-            self._run_local(
+            return self._run_local(
                 runspec,
                 schedule,
                 local_code_path,

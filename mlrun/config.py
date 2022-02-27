@@ -325,10 +325,11 @@ default_config = {
         "requests": {"cpu": None, "memory": None, "gpu": None},
         "limits": {"cpu": None, "memory": None, "gpu": None},
     },
-    # default preemptible node selector to be applied when running on spot nodes - json string base64 encoded format
-    "default_preemptible_function_node_selector": "e30=",
-    # default preemptible tolerations to be applied when running on spot nodes - json string base64 encoded format
-    "default_preemptible_function_tolerations": "e30=",
+    # preemptible node selectors and tolerations to be added when running on spot nodes
+    "preemptible_nodes": {
+        "node_selectors": "e30=",
+        "tolerations": "e30=",
+    }
 }
 
 
@@ -409,29 +410,25 @@ class Config:
         return config.hub_url
 
     @staticmethod
-    def decode_base64_config_and_load_to_dict(attribute_name: str):
-        parts = (
-            attribute_name.split(".")
-            if isinstance(attribute_name, str)
-            else attribute_name
-        )
-        sub_attribute = config
-        for part in parts:
+    def decode_base64_config_and_load_to_dict(attribute_path: str):
+        attributes = attribute_path.split(".")
+        raw_attribute_value = config
+        for part in attributes:
             try:
-                sub_attribute = sub_attribute.__getattr__(part)
+                raw_attribute_value = raw_attribute_value.__getattr__(part)
             except AttributeError:
                 raise mlrun.errors.MLRunNotFoundError(
                     "Attribute does not exist in config"
                 )
-        if sub_attribute:
+        if raw_attribute_value:
             try:
-                attribute_string = base64.b64decode(sub_attribute).decode()
+                decoded_attribute_value = base64.b64decode(raw_attribute_value).decode()
             except Exception:
                 raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                    f"Unable to decode {attribute_name}"
+                    f"Unable to decode {attribute_path}"
                 )
-            attribute_value = json.loads(attribute_string)
-            return attribute_value
+            parsed_attribute_value = json.loads(decoded_attribute_value)
+            return parsed_attribute_value
         return {}
 
     def get_default_function_node_selector(self):
@@ -439,14 +436,14 @@ class Config:
             "default_function_node_selector"
         )
 
-    def get_default_function_preemptible_node_selector(self):
+    def get_preemptible_node_selectors(self):
         return self.decode_base64_config_and_load_to_dict(
-            "default_preemptible_function_node_selector"
+            "preemptible_nodes.node_selectors"
         )
 
-    def get_default_function_preemptible_tolerations(self):
+    def get_preemptible_tolerations(self):
         return self.decode_base64_config_and_load_to_dict(
-            "default_preemptible_function_tolerations"
+            "preemptible_nodes.tolerations"
         )
 
     @staticmethod

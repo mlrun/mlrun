@@ -41,6 +41,18 @@ def test_build_runtime_use_image_when_no_build():
     assert fn.spec.image == image
 
 
+def test_build_config_with_multiple_commands():
+    image = "mlrun/ml-models"
+    fn = mlrun.new_function(
+        "some-function", "some-project", "some-tag", image=image, kind="job"
+    )
+    fn.build_config(commands=["pip install pandas", "pip install numpy"])
+    assert len(fn.spec.build.commands) == 2
+
+    fn.build_config(commands=["pip install pandas"])
+    assert len(fn.spec.build.commands) == 2
+
+
 def test_build_runtime_insecure_registries(monkeypatch):
     get_k8s_helper_mock = unittest.mock.Mock()
     monkeypatch.setattr(

@@ -103,6 +103,7 @@ class KubejobRuntime(KubeResource):
                 raise ValueError("commands must be a string list")
             self.spec.build.commands = self.spec.build.commands or []
             self.spec.build.commands += commands
+            self.spec.build.commands = list(set(self.spec.build.commands))
         if extra:
             self.spec.build.extra = extra
         if secret:

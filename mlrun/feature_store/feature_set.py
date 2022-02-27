@@ -463,7 +463,7 @@ class FeatureSet(ModelObj):
                     else:
                         raise mlrun.errors.MLRunNotFoundError(
                             "Target not found in status (fset={0}, target={1})".format(
-                                self.name, target_name
+                                self.metadata.name, target_name
                             )
                         )
         else:

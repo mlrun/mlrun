@@ -218,8 +218,7 @@ def test_build_runtime_use_default_node_selector(monkeypatch):
         requirements=["some-package"],
     )
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(),
-        function,
+        mlrun.api.schemas.AuthInfo(), function,
     )
     assert (
         deepdiff.DeepDiff(

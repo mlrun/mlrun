@@ -43,12 +43,11 @@ def _get_runtime():
 def test_new_function_from_runtime():
     runtime = _get_runtime()
     function = mlrun.new_function(runtime=runtime)
-    default_resources = mlrun.mlconf.default_function_pod_resources.to_dict()
-    runtime["spec"]["resources"] = default_resources
+    expected_resources = runtime
     assert (
         DeepDiff(
             function.to_dict(),
-            runtime,
+            expected_resources,
             ignore_order=True,
         )
         == {}
@@ -59,8 +58,6 @@ def test_new_function_args_without_command():
     runtime = _get_runtime()
     runtime["spec"]["command"] = ""
     function = mlrun.new_function(runtime=runtime)
-    default_resources = mlrun.mlconf.default_function_pod_resources.to_dict()
-    runtime["spec"]["resources"] = default_resources
     assert (
         DeepDiff(
             function.to_dict(),
@@ -85,10 +82,35 @@ def test_new_function_with_resources():
                 "limits": {"cpu": "1", "memory": "1G"},
             },
         },
+        {
+            "resources": {"requests": {"cpu": "50mi"}},
+            "default_resources": {
+                "requests": {"cpu": "25mi", "memory": "1M", "gpu": "1"},
+                "limits": {"cpu": "1", "memory": "1G", "gpu": "1"},
+            },
+            "expected_resources": {
+                "requests": {"cpu": "50mi", "memory": "1M"},
+                "limits": {"cpu": "1", "memory": "1G", "nvidia.com/gpu": "1"},
+            },
+        },
+        {
+            "resources": {
+                "requests": {"cpu": "50mi"},
+                "limits": {"nvidia.com/gpu": "1"},
+            },
+            "default_resources": {
+                "requests": {"cpu": "25mi", "memory": "1M"},
+                "limits": {"cpu": "1", "memory": "1G"},
+            },
+            "expected_resources": {
+                "requests": {"cpu": "50mi", "memory": "1M"},
+                "limits": {"cpu": "1", "memory": "1G", "nvidia.com/gpu": "1"},
+            },
+        },
     ]:
         expected_runtime = copy.deepcopy(runtime)
         expected_runtime["spec"]["resources"] = test_case.get("expected_resources")
-        runtime["spec"]["resources"] = test_case.get("resources")
+        runtime["spec"]["resources"] = test_case.get("resources", None)
         mlrun.mlconf.default_function_pod_resources = test_case.get("default_resources")
         function = mlrun.new_function(runtime=runtime)
         assert (

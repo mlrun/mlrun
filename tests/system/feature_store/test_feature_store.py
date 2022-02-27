@@ -1374,9 +1374,11 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         svc = fs.get_online_feature_service(vector_name)
-        resp = svc.get(entity_rows=[{"ticker": "GOOG"}])
-        assert resp[0] == {"price_s": 1441.69, "price_m": 720.92}
-        svc.close()
+        try:
+            resp = svc.get(entity_rows=[{"ticker": "GOOG"}])
+            assert resp[0] == {"price_s": 1441.69, "price_m": 720.92}
+        finally:
+            svc.close()
 
         vector = db.get_feature_vector(vector_name, self.project_name, tag="latest")
         stats = vector.get_stats_table()

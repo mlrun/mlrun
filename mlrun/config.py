@@ -485,6 +485,17 @@ class Config:
 
         return auto_mount_params
 
+    @staticmethod
+    def get_default_function_pod_resources():
+        resources: dict = copy.deepcopy(config.default_function_pod_resources.to_dict())
+        gpu_type = "nvidia.com/gpu"
+        gpu = "gpu"
+        resource_requirements = ["requests", "limits"]
+        for requirement in resource_requirements:
+            resources.setdefault(requirement, {}).setdefault(gpu)
+            resources[requirement][gpu_type] = resources.get(requirement).pop(gpu)
+        return resources
+
     def to_dict(self):
         return copy.copy(self._cfg)
 

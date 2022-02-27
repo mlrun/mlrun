@@ -330,7 +330,7 @@ class BaseRuntime(ModelObj):
 
         runspec = self._resolve_runspec_runtime(runspec)
 
-        self._enrich_runspec(
+        runspec = self._enrich_runspec(
             runspec,
             handler,
             project,
@@ -631,6 +631,7 @@ class BaseRuntime(ModelObj):
             runspec.spec.output_path = mlrun.utils.helpers.fill_artifact_path_template(
                 runspec.spec.output_path, runspec.metadata.project
             )
+        return runspec
 
     def _execute_job_remotely(self, runspec, schedule, db, watch):
         if self._secrets:

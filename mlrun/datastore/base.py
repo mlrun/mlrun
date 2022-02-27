@@ -203,6 +203,7 @@ class DataStore:
                 if fs.protocol != "file":
                     # If not dir, use fs.open() to avoid regression when pandas < 1.2 and does not
                     # support the storage_options parameter.
+                    print(f"BBBBB - {url}")
                     file = fs.open(url)
 
                 return reader(file, **kwargs)

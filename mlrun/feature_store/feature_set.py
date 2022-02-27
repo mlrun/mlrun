@@ -437,8 +437,10 @@ class FeatureSet(ModelObj):
         for target in targets:
             if overwrite or not (target.name in status_targets.keys()):
                 target.run_uuid = run_uuid
+                print(f"BBBBB - overwrite - {target.run_uuid}")
             else:
                 target.run_uuid = status_targets[target.name].run_uuid
+                print(f"BBBBB - unchanged - {target.run_uuid}")
 
     def _reload_and_get_status_targets(
         self, target_names: List[str] = None, silent: bool = False

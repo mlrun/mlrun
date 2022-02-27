@@ -325,9 +325,9 @@ default_config = {
         "requests": {"cpu": None, "memory": None, "gpu": None},
         "limits": {"cpu": None, "memory": None, "gpu": None},
     },
-    # preemptible node selectors and tolerations to be added when running on spot nodes
+    # preemptible node selector labels and tolerations to be added when running on spot nodes
     "preemptible_nodes": {
-        "node_selectors": "e30=",
+        "node_selector_labels": "e30=",
         "tolerations": "e30=",
     },
 }
@@ -436,9 +436,9 @@ class Config:
             "default_function_node_selector"
         )
 
-    def get_preemptible_node_selectors(self):
+    def get_preemptible_node_selector_labels(self):
         return self.decode_base64_config_and_load_to_dict(
-            "preemptible_nodes.node_selectors"
+            "preemptible_nodes.node_selector_labels"
         )
 
     def get_preemptible_tolerations(self):

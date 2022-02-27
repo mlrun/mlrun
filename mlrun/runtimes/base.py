@@ -328,10 +328,10 @@ class BaseRuntime(ModelObj):
                 artifact_path,
             )
 
-        runspec = self._resolve_runspec_runtime(runspec)
+        run = self._create_run_object(runspec)
 
-        runspec = self._enrich_runspec(
-            runspec,
+        run = self._enrich_run(
+            run,
             handler,
             project,
             name,
@@ -345,10 +345,8 @@ class BaseRuntime(ModelObj):
             artifact_path,
             workdir,
         )
-        spec = runspec.spec
-        meta = runspec.metadata
 
-        if is_local(runspec.spec.output_path):
+        if is_local(run.spec.output_path):
             logger.warning(
                 "artifact path is not defined or is local,"
                 " artifacts will not be visible in the UI"
@@ -372,17 +370,17 @@ class BaseRuntime(ModelObj):
                 )
 
         if self.verbose:
-            logger.info(f"runspec:\n{runspec.to_yaml()}")
+            logger.info(f"runspec:\n{run.to_yaml()}")
 
-        if "V3IO_USERNAME" in environ and "v3io_user" not in meta.labels:
-            meta.labels["v3io_user"] = environ.get("V3IO_USERNAME")
+        if "V3IO_USERNAME" in environ and "v3io_user" not in run.metadata.labels:
+            run.metadata.labels["v3io_user"] = environ.get("V3IO_USERNAME")
 
         if not self.is_child:
-            self._store_function(runspec, meta, db)
+            self._store_function(runspec, run.metadata, db)
 
         # execute the job remotely (to a k8s cluster via the API service)
         if self._use_remote_api():
-            return self._execute_job_remotely(runspec, schedule, db, watch)
+            return self._submit_job(run, schedule, db, watch)
 
         elif self._is_remote and not self._is_api_server and not self.kfp:
             logger.warning(
@@ -392,12 +390,12 @@ class BaseRuntime(ModelObj):
         execution = MLClientCtx.from_dict(
             runspec.to_dict(), db, autocommit=False, is_api=self._is_api_server
         )
-        self._pre_run(runspec, execution)  # hook for runtime specific prep
+        self._pre_run(run, execution)  # hook for runtime specific prep
 
         # create task generator (for child runs) from spec
         task_generator = None
         if not self._is_nested:
-            task_generator = get_generator(spec, execution)
+            task_generator = get_generator(run.spec, execution)
 
         last_err = None
         if task_generator:
@@ -405,26 +403,26 @@ class BaseRuntime(ModelObj):
             runner = self._run_many
             if hasattr(self, "_parallel_run_many") and task_generator.use_parallel():
                 runner = self._parallel_run_many
-            results = runner(task_generator, execution, runspec)
-            results_to_iter(results, runspec, execution)
+            results = runner(task_generator, execution, run)
+            results_to_iter(results, run, execution)
             result = execution.to_dict()
 
         else:
             # single run
             try:
-                resp = self._run(runspec, execution)
+                resp = self._run(run, execution)
                 if watch and self.kind not in ["", "handler", "local"]:
-                    state = runspec.logs(True, self._get_db())
+                    state = run.logs(True, self._get_db())
                     if state != "succeeded":
                         logger.warning(f"run ended with state {state}")
-                result = self._update_run_state(resp, task=runspec)
+                result = self._update_run_state(resp, task=run)
             except RunError as err:
                 last_err = err
-                result = self._update_run_state(task=runspec, err=err)
+                result = self._update_run_state(task=run, err=err)
 
         self._post_run(result, execution)  # hook for runtime specific cleanup
 
-        return self._wrap_run_result(result, runspec, schedule=schedule, err=last_err)
+        return self._wrap_run_result(result, run, schedule=schedule, err=last_err)
 
     def _wrap_run_result(
         self, result: dict, runspec: RunObject, schedule=None, err=None
@@ -542,7 +540,7 @@ class BaseRuntime(ModelObj):
             allow_empty_resources=self.spec.allow_empty_resources,
         )
 
-    def _resolve_runspec_runtime(self, runspec):
+    def _create_run_object(self, runspec):
         if runspec:
             runspec = deepcopy(runspec)
             if isinstance(runspec, str):
@@ -558,7 +556,7 @@ class BaseRuntime(ModelObj):
             runspec = RunObject.from_dict(runspec)
         return runspec
 
-    def _enrich_runspec(
+    def _enrich_run(
         self,
         runspec,
         handler,
@@ -633,7 +631,7 @@ class BaseRuntime(ModelObj):
             )
         return runspec
 
-    def _execute_job_remotely(self, runspec, schedule, db, watch):
+    def _submit_job(self, runspec, schedule, db, watch):
         if self._secrets:
             runspec.spec.secret_sources = self._secrets.to_serial()
         try:

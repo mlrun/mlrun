@@ -378,7 +378,7 @@ class BaseRuntime(ModelObj):
             meta.labels["v3io_user"] = environ.get("V3IO_USERNAME")
 
         if not self.is_child:
-            self._execute_not_child_function(runspec, meta, db)
+            self._store_function(runspec, meta, db)
 
         # execute the job remotely (to a k8s cluster via the API service)
         if self._use_remote_api():
@@ -658,7 +658,7 @@ class BaseRuntime(ModelObj):
             return self._wrap_run_result(result, runspec, schedule=schedule, err=err)
         return self._wrap_run_result(resp, runspec, schedule=schedule)
 
-    def _execute_not_child_function(self, runspec, meta, db):
+    def _store_function(self, runspec, meta, db):
         db_str = "self" if self._is_api_server else self.spec.rundb
         logger.info(f"starting run {meta.name} uid={meta.uid} DB={db_str}")
         meta.labels["kind"] = self.kind

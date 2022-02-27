@@ -329,7 +329,7 @@ default_config = {
     "preemptible_nodes": {
         "node_selectors": "e30=",
         "tolerations": "e30=",
-    }
+    },
 }
 
 

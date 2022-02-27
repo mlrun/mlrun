@@ -325,6 +325,10 @@ default_config = {
         "requests": {"cpu": None, "memory": None, "gpu": None},
         "limits": {"cpu": None, "memory": None, "gpu": None},
     },
+    # default preemptible node selector to be applied when running on spot nodes - json string base64 encoded format
+    "default_preemptible_function_node_selector": "e30=",
+    # default preemptible tolerations to be applied when running on spot nodes - json string base64 encoded format
+    "default_preemptible_function_tolerations": "e30=",
 }
 
 
@@ -405,17 +409,45 @@ class Config:
         return config.hub_url
 
     @staticmethod
-    def get_default_function_node_selector():
-        default_function_node_selector = {}
-        if config.default_function_node_selector:
-            default_function_node_selector_json_string = base64.b64decode(
-                config.default_function_node_selector
-            ).decode()
-            default_function_node_selector = json.loads(
-                default_function_node_selector_json_string
-            )
+    def decode_base64_config_and_load_to_dict(attribute_name: str):
+        parts = (
+            attribute_name.split(".")
+            if isinstance(attribute_name, str)
+            else attribute_name
+        )
+        sub_attribute = config
+        for part in parts:
+            try:
+                sub_attribute = sub_attribute.__getattr__(part)
+            except AttributeError:
+                raise mlrun.errors.MLRunNotFoundError(
+                    "Attribute does not exist in config"
+                )
+        if sub_attribute:
+            try:
+                attribute_string = base64.b64decode(sub_attribute).decode()
+            except Exception:
+                raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                    f"Unable to decode {attribute_name}"
+                )
+            attribute_value = json.loads(attribute_string)
+            return attribute_value
+        return {}
 
-        return default_function_node_selector
+    def get_default_function_node_selector(self):
+        return self.decode_base64_config_and_load_to_dict(
+            "default_function_node_selector"
+        )
+
+    def get_default_function_preemptible_node_selector(self):
+        return self.decode_base64_config_and_load_to_dict(
+            "default_preemptible_function_node_selector"
+        )
+
+    def get_default_function_preemptible_tolerations(self):
+        return self.decode_base64_config_and_load_to_dict(
+            "default_preemptible_function_tolerations"
+        )
 
     @staticmethod
     def get_valid_function_priority_class_names():

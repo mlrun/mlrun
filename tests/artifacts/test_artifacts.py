@@ -15,14 +15,28 @@ def test_artifacts_export_required_fields():
     ]
 
     required_fields = [
+        "kind",
+        "metadata",
+        "spec",
+    ]
+
+    required_metadata_fields = [
         "key",
         "kind",
+    ]
+
+    required_spec_fields = [
         "db_key",
     ]
 
     for artifact_class in artifact_classes:
         for required_field in required_fields:
             assert required_field in artifact_class._dict_fields
+        dummy_artifact = artifact_class()
+        for required_metadata_field in required_metadata_fields:
+            assert required_metadata_field in dummy_artifact.metadata._dict_fields
+        for required_spec_field in required_spec_fields:
+            assert required_spec_field in dummy_artifact.spec._dict_fields
 
 
 def test_artifact_uri():

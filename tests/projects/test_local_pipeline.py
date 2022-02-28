@@ -35,8 +35,8 @@ class TestNewProject:
         project.set_artifact("data2", target_path=data_url)  # test the short form
 
         for artifact in project.spec.artifacts:
-            assert artifact["key"] in ["data1", "data2"]
-            assert artifact["target_path"] == data_url
+            assert artifact["metadata"]["key"] in ["data1", "data2"]
+            assert artifact["spec"]["target_path"] == data_url
 
     def test_run_alone(self):
         mlrun.projects.pipeline_context.clear(with_project=True)

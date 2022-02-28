@@ -17,9 +17,18 @@ from os.path import isdir
 
 from ..db import RunDBInterface
 from ..utils import logger, uxjoin
-from .base import Artifact, DirArtifact, LinkArtifact
+from .base import (
+    Artifact,
+    DirArtifact,
+    LegacyArtifact,
+    LegacyDirArtifact,
+    LegacyLinkArtifact,
+    LinkArtifact,
+)
 from .dataset import DatasetArtifact, TableArtifact
-from .model import ModelArtifact
+
+# TODO - complete dataset artifacts!
+from .model import LegacyModelArtifact, ModelArtifact
 from .plots import ChartArtifact, PlotArtifact
 
 artifact_types = {
@@ -30,6 +39,18 @@ artifact_types = {
     "chart": ChartArtifact,
     "table": TableArtifact,
     "model": ModelArtifact,
+    "dataset": DatasetArtifact,
+}
+
+# TODO - Remove this when legacy types are deleted (1.2.0?)
+legacy_artifact_types = {
+    "": LegacyArtifact,
+    "dir": LegacyDirArtifact,
+    "link": LegacyLinkArtifact,
+    "plot": PlotArtifact,
+    "chart": ChartArtifact,
+    "table": TableArtifact,
+    "model": LegacyModelArtifact,
     "dataset": DatasetArtifact,
 }
 
@@ -50,8 +71,15 @@ class ArtifactProducer:
 
 
 def dict_to_artifact(struct: dict):
-    kind = struct.get("kind", "")
-    artifact_class = artifact_types[kind]
+    # Need to distinguish between LegacyArtifact classes and Artifact classes. Use existence of the "metadata"
+    # property to make this distinction
+    if "metadata" in struct:
+        kind = struct["metadata"].get("kind", "")
+        artifact_class = artifact_types[kind]
+    else:
+        kind = struct.get("kind", "")
+        artifact_class = legacy_artifact_types[kind]
+
     return artifact_class.from_dict(struct)
 
 

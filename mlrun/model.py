@@ -765,7 +765,10 @@ class RunObject(RunTemplate):
             outputs = {k: v for k, v in self.status.results.items()}
         if self.status.artifacts:
             for a in self.status.artifacts:
-                outputs[a["key"]] = get_artifact_target(a, self.metadata.project)
+                key = a["metadata"]["key"] if "metadata" in a else a["key"]
+                outputs[key] = get_artifact_target(
+                    a, self.metadata.project
+                )
         return outputs
 
     def artifact(self, key) -> "mlrun.DataItem":
@@ -783,7 +786,7 @@ class RunObject(RunTemplate):
         """return artifact DataItem by key"""
         if self.status.artifacts:
             for a in self.status.artifacts:
-                if a["key"] == key:
+                if a["metadata"]["key"] == key:
                     return a
         return None
 

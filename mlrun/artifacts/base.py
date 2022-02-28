@@ -252,7 +252,7 @@ class Artifact(ModelObj):
 
     def get_body(self):
         """get the artifact body when inline"""
-        return self._body
+        return self.spec.get_body()
 
     def get_target_path(self):
         """get the absolute target path for the artifact"""
@@ -278,7 +278,7 @@ class Artifact(ModelObj):
     def upload(self):
         """internal, upload to target store"""
         src_path = self.spec.src_path
-        body = self.spec.get_body()
+        body = self.get_body()
         if body:
             self._upload_body(body)
         else:
@@ -293,9 +293,12 @@ class Artifact(ModelObj):
 
     def _upload_file(self, src, target=None):
         if calc_hash:
-            self.hash = calculate_local_file_hash(src)
+            self.metadata.hash = calculate_local_file_hash(src)
         self.spec.size = os.stat(src).st_size
         store_manager.object(url=target or self.spec.target_path).upload(src)
+
+    def artifact_kind(self):
+        return self.metadata.kind
 
     # Following properties are for backwards compatibility with the ArtifactLegacy class. They should be
     # removed once we only work with the new Artifact structure.
@@ -443,7 +446,103 @@ class Artifact(ModelObj):
             PendingDeprecationWarning,
         )
         self.spec.viewer = viewer
-        
+
+    @property
+    def size(self):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.size instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.size
+
+    @size.setter
+    def size(self, size):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.size instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.size = size
+
+    @property
+    def db_key(self):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.db_key instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.db_key
+
+    @db_key.setter
+    def db_key(self, db_key):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.db_key instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.db_key = db_key
+
+    @property
+    def sources(self):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.sources instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.sources
+
+    @sources.setter
+    def sources(self, sources):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.sources instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.sources = sources
+
+    @property
+    def extra_data(self):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.extra_data instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.extra_data
+
+    @extra_data.setter
+    def extra_data(self, extra_data):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.extra_data instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.extra_data = extra_data
+
     @property
     def labels(self):
         """This is a property of the metadata, look there for documentation
@@ -539,6 +638,125 @@ class Artifact(ModelObj):
             PendingDeprecationWarning,
         )
         self.metadata.project = project
+
+
+class DirArtifactMetadata(ArtifactMetadata):
+    kind = "dir"
+
+
+class DirArtifactSpec(ArtifactSpec):
+    _dict_fields = [
+        "src_path",
+        "target_path",
+        "db_key",
+    ]
+
+
+class DirArtifact(Artifact):
+    _dict_fields = [
+        "key",
+        "kind",
+        "iter",
+        "tree",
+        "src_path",
+        "target_path",
+        "description",
+        "db_key",
+    ]
+
+    @property
+    def metadata(self) -> DirArtifactMetadata:
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, metadata):
+        self._metadata = self._verify_dict(metadata, "metadata", DirArtifactMetadata)
+
+    @property
+    def spec(self) -> DirArtifactSpec:
+        return self._spec
+
+    @spec.setter
+    def spec(self, spec):
+        self._spec = self._verify_dict(spec, "spec", DirArtifactSpec)
+
+    @property
+    def is_dir(self):
+        return True
+
+    def upload(self):
+        if not self.spec.src_path:
+            raise ValueError("local/source path not specified")
+
+        files = os.listdir(self.spec.src_path)
+        for f in files:
+            file_path = os.path.join(self.spec.src_path, f)
+            if not os.path.isfile(file_path):
+                raise ValueError(f"file {file_path} not found, cant upload")
+            target = os.path.join(self.spec.target_path, f)
+            store_manager.object(url=target).upload(file_path)
+
+
+class LinkArtifactSpec(ArtifactSpec):
+    _dict_fields = ArtifactSpec._dict_fields + [
+        "link_iteration",
+        "link_key",
+        "link_tree",
+    ]
+
+    def __init__(
+        self,
+        src_path=None,
+        target_path=None,
+        link_iteration=None,
+        link_key=None,
+        link_tree=None,
+    ):
+        super().__init__(src_path, target_path)
+        self.link_iteration = link_iteration
+        self.link_key = link_key
+        self.link_tree = link_tree
+
+
+class LinkArtifactMetadata(ArtifactMetadata):
+    kind = "link"
+
+
+class LinkArtifact(Artifact):
+    def __init__(
+        self,
+        key=None,
+        target_path="",
+        link_iteration=None,
+        link_key=None,
+        link_tree=None,
+        # All params up until here are legacy params for compatibility with legacy artifacts.
+        project=None,
+        metadata: LinkArtifactMetadata = None,
+        spec: LinkArtifactSpec = None,
+    ):
+        super().__init__(
+            key, target_path=target_path, project=project, metadata=metadata, spec=spec
+        )
+        self.spec.link_iteration = link_iteration
+        self.spec.link_key = link_key
+        self.spec.link_tree = link_tree
+
+    @property
+    def metadata(self) -> LinkArtifactMetadata:
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, metadata):
+        self._metadata = self._verify_dict(metadata, "metadata", LinkArtifactMetadata)
+
+    @property
+    def spec(self) -> LinkArtifactSpec:
+        return self._spec
+
+    @spec.setter
+    def spec(self, spec):
+        self._spec = self._verify_dict(spec, "spec", LinkArtifactSpec)
 
 
 class LegacyArtifact(ModelObj):
@@ -687,8 +905,11 @@ class LegacyArtifact(ModelObj):
         self.size = os.stat(src).st_size
         store_manager.object(url=target or self.target_path).upload(src)
 
+    def artifact_kind(self):
+        return self.kind
 
-class DirArtifact(Artifact):
+
+class LegacyDirArtifact(LegacyArtifact):
     _dict_fields = [
         "key",
         "kind",
@@ -718,8 +939,12 @@ class DirArtifact(Artifact):
             store_manager.object(url=target).upload(file_path)
 
 
-class LinkArtifact(Artifact):
-    _dict_fields = Artifact._dict_fields + ["link_iteration", "link_key", "link_tree"]
+class LegacyLinkArtifact(LegacyArtifact):
+    _dict_fields = LegacyArtifact._dict_fields + [
+        "link_iteration",
+        "link_key",
+        "link_tree",
+    ]
     kind = "link"
 
     def __init__(

@@ -108,9 +108,10 @@ def get_kfp_outputs(artifacts, labels, project):
     outputs = []
     out_dict = {}
     for output in artifacts:
-        key = output["key"]
-        target = output.get("target_path", "")
-        target = output.get("inline", target)
+        key = output.get("metadata")["key"]
+        output_spec = output.get("spec", {})
+        target = output_spec.get("target_path", "")
+        target = output_spec.get("inline", target)
         out_dict[key] = get_artifact_target(output, project=project)
 
         if target.startswith("v3io:///"):
@@ -121,13 +122,13 @@ def get_kfp_outputs(artifacts, labels, project):
             user = user or "admin"
             target = "http://v3io-webapi:8081/users/" + user + target[5:]
 
-        viewer = output.get("viewer", "")
+        viewer = output_spec.get("viewer", "")
         if viewer in ["web-app", "chart"]:
             meta = {"type": "web-app", "source": target}
             outputs += [meta]
 
         elif viewer == "table":
-            header = output.get("header", None)
+            header = output_spec.get("header", None)
             if header and target.endswith(".csv"):
                 meta = {
                     "type": "table",
@@ -137,13 +138,13 @@ def get_kfp_outputs(artifacts, labels, project):
                 }
                 outputs += [meta]
 
-        elif output["kind"] == "dataset":
-            header = output.get("header")
-            preview = output.get("preview")
+        elif output.get("metadata")["kind"] == "dataset":
+            header = output_spec.get("header")
+            preview = output_spec.get("preview")
             if preview:
                 tbl_md = gen_md_table(header, preview)
                 text = f"## Dataset: {key}  \n\n" + tbl_md
-                del output["preview"]
+                del output_spec["preview"]
 
                 meta = {"type": "markdown", "storage": "inline", "source": text}
                 outputs += [meta]

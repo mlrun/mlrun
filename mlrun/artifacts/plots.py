@@ -15,7 +15,11 @@ import base64
 from io import BytesIO
 
 from ..utils import dict_to_json
-from .base import Artifact
+from .base import Artifact, ArtifactMetadata
+
+
+class PlotArtifactMetadata(ArtifactMetadata):
+    kind = "plot"
 
 
 class PlotArtifact(Artifact):
@@ -23,20 +27,27 @@ class PlotArtifact(Artifact):
 <h3 style="text-align:center">{}</h3>
 <img title="{}" src="data:image/png;base64,{}">
 """
-    kind = "plot"
 
     def __init__(
         self, key=None, body=None, is_inline=False, target_path=None, title=None
     ):
         super().__init__(key, body, format="html", target_path=target_path)
-        self.description = title
+        self.metadata.description = title
+
+    @property
+    def metadata(self) -> PlotArtifactMetadata:
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, metadata):
+        self._metadata = self._verify_dict(metadata, "metadata", PlotArtifactMetadata)
 
     def before_log(self):
-        self.viewer = "chart"
+        self.spec.viewer = "chart"
         import matplotlib
 
-        if not self._body or not isinstance(
-            self._body, (bytes, matplotlib.figure.Figure)
+        if not self.spec.get_body() or not isinstance(
+            self.spec.get_body(), (bytes, matplotlib.figure.Figure)
         ):
             raise ValueError(
                 "matplotlib fig or png bytes must be provided as artifact body"
@@ -45,18 +56,24 @@ class PlotArtifact(Artifact):
     def get_body(self):
         """Convert Matplotlib figure 'fig' into a <img> tag for HTML use
         using base64 encoding."""
-        if isinstance(self._body, bytes):
-            data = self._body
+        if isinstance(self.spec.get_body(), bytes):
+            data = self.spec.get_body()
         else:
             from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
-            canvas = FigureCanvas(self._body)
+            canvas = FigureCanvas(self.spec.get_body())
             png_output = BytesIO()
             canvas.print_png(png_output)
             data = png_output.getvalue()
 
         data_uri = base64.b64encode(data).decode("utf-8")
-        return self._TEMPLATE.format(self.description or self.key, self.key, data_uri)
+        return self._TEMPLATE.format(
+            self.metadata.description or self.metadata.key, self.metadata.key, data_uri
+        )
+
+
+class ChartArtifactMetadata(ArtifactMetadata):
+    kind = "chart"
 
 
 class ChartArtifact(Artifact):
@@ -83,8 +100,6 @@ class ChartArtifact(Artifact):
   </body>
 </html>
 """
-
-    kind = "chart"
 
     def __init__(
         self,
@@ -113,6 +128,14 @@ class ChartArtifact(Artifact):
         self.chart = chart or "LineChart"
         self.format = "html"
 
+    @property
+    def metadata(self) -> ChartArtifactMetadata:
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, metadata):
+        self._metadata = self._verify_dict(metadata, "metadata", ChartArtifactMetadata)
+
     def add_row(self, row):
         self.rows += [row]
 
@@ -125,6 +148,10 @@ class ChartArtifact(Artifact):
             .replace("$opts$", dict_to_json(self.options))
             .replace("$chart$", self.chart)
         )
+
+
+class BokehArtifactMetadata(ArtifactMetadata):
+    kind = "bokeh"
 
 
 class BokehArtifact(Artifact):
@@ -164,7 +191,15 @@ class BokehArtifact(Artifact):
 
         # Continue initializing the bokeh artifact:
         self._figure = figure
-        self.format = "html"
+        self.spec.format = "html"
+
+    @property
+    def metadata(self) -> BokehArtifactMetadata:
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, metadata):
+        self._metadata = self._verify_dict(metadata, "metadata", BokehArtifactMetadata)
 
     def get_body(self):
         """
@@ -175,15 +210,17 @@ class BokehArtifact(Artifact):
         from bokeh.embed import file_html
         from bokeh.resources import CDN
 
-        return file_html(self._figure, CDN, self.key)
+        return file_html(self._figure, CDN, self.metadata.key)
+
+
+class PlotlyArtifactMetadata(ArtifactMetadata):
+    kind = "plotly"
 
 
 class PlotlyArtifact(Artifact):
     """
     Plotly artifact is an artifact for saving Plotly generated figures. They will be stored in a html format.
     """
-
-    kind = "plotly"
 
     def __init__(
         self,
@@ -215,7 +252,15 @@ class PlotlyArtifact(Artifact):
 
         # Continue initializing the plotly artifact:
         self._figure = figure
-        self.format = "html"
+        self.spec.format = "html"
+
+    @property
+    def metadata(self) -> PlotlyArtifactMetadata:
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, metadata):
+        self._metadata = self._verify_dict(metadata, "metadata", PlotlyArtifactMetadata)
 
     def get_body(self):
         """

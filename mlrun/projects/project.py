@@ -610,11 +610,11 @@ class ProjectSpec(ModelObj):
             if not isinstance(artifact, dict) and not hasattr(artifact, "to_dict"):
                 raise ValueError("artifacts must be a dict or class")
             if isinstance(artifact, dict):
-                key = artifact.get("key", "")
+                key = artifact.get("metadata").get("key", "")
                 if not key:
                     raise ValueError('artifacts "key" must be specified')
             else:
-                key = artifact.key
+                key = artifact.metadata.key
                 artifact = artifact.to_dict()
 
             artifacts_dict[key] = artifact
@@ -624,7 +624,7 @@ class ProjectSpec(ModelObj):
     def set_artifact(self, key, artifact):
         if hasattr(artifact, "base_dict"):
             artifact = artifact.base_dict()
-        artifact["key"] = key
+        artifact["metadata"]["key"] = key
         self._artifacts[key] = artifact
 
     def remove_artifact(self, key):
@@ -1025,8 +1025,8 @@ class MlrunProject(ModelObj):
         """
         if not artifact:
             artifact = Artifact()
-        artifact.target_path = target_path or artifact.target_path
-        if not artifact.target_path or "://" not in artifact.target_path:
+        artifact.spec.target_path = target_path or artifact.spec.target_path
+        if not artifact.spec.target_path or "://" not in artifact.spec.target_path:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "absolute target_path url to a shared/object storage must be specified"
             )

@@ -78,11 +78,26 @@ class StorePrefix:
 
 
 def get_artifact_target(item: dict, project=None):
-    kind = item.get("kind")
-    if kind in ["dataset", "model"] and item.get("db_key"):
+    # If the artifact is a LegacyArtifact, then it won't have a "metadata" field.
+    if "metadata" in item:
+        kind = item["metadata"].get("kind")
+        db_key = item["spec"].get("db_key")
+        project_str = project or item["metadata"].get("project")
+        tree = item["metadata"].get("tree")
+    else:
+        kind = item.get("kind")
+        db_key = item.get("db_key")
         project_str = project or item.get("project")
-        return f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{item.get('db_key')}:{item.get('tree')}"
-    return item.get("target_path")
+        tree = item.get("tree")
+
+    if kind in ["dataset", "model"] and db_key:
+        return f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}:{tree}"
+
+    return (
+        item["spec"].get("target_path")
+        if "metadata" in item
+        else item.get("target_path")
+    )
 
 
 logger = create_logger(config.log_level, config.log_formatter, "mlrun", sys.stdout)

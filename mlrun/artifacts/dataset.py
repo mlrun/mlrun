@@ -34,10 +34,6 @@ ddf_sample_pct = 0.2
 max_ddf_size = 1
 
 
-class TableArtifactMetadata(ArtifactMetadata):
-    kind = "table"
-
-
 class TableArtifactSpec(ArtifactSpec):
     _dict_fields = ArtifactSpec._dict_fields + ["schema", "header"]
 
@@ -48,6 +44,8 @@ class TableArtifactSpec(ArtifactSpec):
 
 
 class TableArtifact(Artifact):
+    kind = "table"
+
     def __init__(
         self,
         key=None,
@@ -84,14 +82,6 @@ class TableArtifact(Artifact):
         self.spec.viewer = viewer
 
     @property
-    def metadata(self) -> TableArtifactMetadata:
-        return self._metadata
-
-    @metadata.setter
-    def metadata(self, metadata):
-        self._metadata = self._verify_dict(metadata, "metadata", TableArtifactMetadata)
-
-    @property
     def spec(self) -> TableArtifactSpec:
         return self._spec
 
@@ -105,10 +95,6 @@ class TableArtifact(Artifact):
         csv_buffer = StringIO()
         self.get_body().to_csv(csv_buffer, line_terminator="\n", encoding="utf-8")
         return csv_buffer.getvalue()
-
-
-class DatasetArtifactMetadata(ArtifactMetadata):
-    kind = "dataset"
 
 
 class DatasetArtifactSpec(ArtifactSpec):
@@ -132,6 +118,7 @@ class DatasetArtifactSpec(ArtifactSpec):
 
 
 class DatasetArtifact(Artifact):
+    kind = "dataset"
     # List of all the supported saving formats of a DataFrame:
     SUPPORTED_FORMATS = ["csv", "parquet", "pq", "tsdb", "kv"]
 
@@ -174,14 +161,6 @@ class DatasetArtifact(Artifact):
 
         self._df = df
         self._kw = kwargs
-
-    @property
-    def metadata(self) -> DatasetArtifactMetadata:
-        return self._metadata
-
-    @metadata.setter
-    def metadata(self, metadata):
-        self._metadata = self._verify_dict(metadata, "metadata", DatasetArtifactMetadata)
 
     @property
     def spec(self) -> DatasetArtifactSpec:
@@ -615,7 +594,7 @@ def update_dataset_meta(
     else:
         raise ValueError("model path must be a model store object/URL/DataItem")
 
-    if not artifact_spec or artifact_spec.artifact_kind() != "dataset":
+    if not artifact_spec or artifact_spec.kind != "dataset":
         raise ValueError(f"store artifact ({artifact}) is not dataset kind")
 
     if from_df is not None:

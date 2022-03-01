@@ -36,10 +36,6 @@ from .base import (
 model_spec_filename = "model_spec.yaml"
 
 
-class ModelArtifactMetadata(ArtifactMetadata):
-    kind = "model"
-
-
 class ModelArtifactSpec(ArtifactSpec):
     _dict_fields = ArtifactSpec._dict_fields + [
         "model_file",
@@ -123,6 +119,7 @@ class ModelArtifact(Artifact):
     Store link to ML model file(s) along with the model metrics, parameters, schema, and stats
     """
 
+    kind = "model"
     _store_prefix = StorePrefix.Model
 
     def __init__(
@@ -157,14 +154,6 @@ class ModelArtifact(Artifact):
         self.spec.feature_vector = feature_vector
         self.spec.feature_weights = feature_weights
         self.spec.feature_stats = None
-
-    @property
-    def metadata(self) -> ModelArtifactMetadata:
-        return self._metadata
-
-    @metadata.setter
-    def metadata(self, metadata):
-        self._metadata = self._verify_dict(metadata, "metadata", ModelArtifactMetadata)
 
     @property
     def spec(self) -> ModelArtifactSpec:
@@ -598,7 +587,7 @@ def get_model(model_dir, suffix=""):
 
     if is_store_uri(model_dir):
         model_spec, target = store_manager.get_store_artifact(model_dir)
-        if not model_spec or model_spec.artifact_kind() != "model":
+        if not model_spec or model_spec.kind != "model":
             raise ValueError(f"store artifact ({model_dir}) is not model kind")
         model_file = _get_file_path(target, model_spec.model_file)
         extra_dataitems = _get_extra(target, model_spec.extra_data)
@@ -708,7 +697,7 @@ def update_model(
     else:
         raise ValueError("model path must be a model store object/URL/DataItem")
 
-    if not model_spec or model_spec.artifact_kind() != "model":
+    if not model_spec or model_spec.kind != "model":
         raise ValueError(f"store artifact ({model_artifact}) is not model kind")
 
     if parameters:

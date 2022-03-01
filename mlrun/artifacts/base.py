@@ -28,8 +28,7 @@ calc_hash = True
 
 
 class ArtifactMetadata(ModelObj):
-    kind = ""
-    _dict_fields = ["kind", "key", "project", "iter", "tree", "description", "hash"]
+    _dict_fields = ["key", "project", "iter", "tree", "description", "hash"]
     _extra_fields = ["updated", "labels"]
 
     def __init__(
@@ -296,9 +295,6 @@ class Artifact(ModelObj):
             self.metadata.hash = calculate_local_file_hash(src)
         self.spec.size = os.stat(src).st_size
         store_manager.object(url=target or self.spec.target_path).upload(src)
-
-    def artifact_kind(self):
-        return self.metadata.kind
 
     # Following properties are for backwards compatibility with the ArtifactLegacy class. They should be
     # removed once we only work with the new Artifact structure.
@@ -640,10 +636,6 @@ class Artifact(ModelObj):
         self.metadata.project = project
 
 
-class DirArtifactMetadata(ArtifactMetadata):
-    kind = "dir"
-
-
 class DirArtifactSpec(ArtifactSpec):
     _dict_fields = [
         "src_path",
@@ -653,6 +645,8 @@ class DirArtifactSpec(ArtifactSpec):
 
 
 class DirArtifact(Artifact):
+    kind = "dir"
+
     _dict_fields = [
         "key",
         "kind",
@@ -663,14 +657,6 @@ class DirArtifact(Artifact):
         "description",
         "db_key",
     ]
-
-    @property
-    def metadata(self) -> DirArtifactMetadata:
-        return self._metadata
-
-    @metadata.setter
-    def metadata(self, metadata):
-        self._metadata = self._verify_dict(metadata, "metadata", DirArtifactMetadata)
 
     @property
     def spec(self) -> DirArtifactSpec:
@@ -718,11 +704,9 @@ class LinkArtifactSpec(ArtifactSpec):
         self.link_tree = link_tree
 
 
-class LinkArtifactMetadata(ArtifactMetadata):
+class LinkArtifact(Artifact):
     kind = "link"
 
-
-class LinkArtifact(Artifact):
     def __init__(
         self,
         key=None,
@@ -732,7 +716,7 @@ class LinkArtifact(Artifact):
         link_tree=None,
         # All params up until here are legacy params for compatibility with legacy artifacts.
         project=None,
-        metadata: LinkArtifactMetadata = None,
+        metadata: ArtifactMetadata = None,
         spec: LinkArtifactSpec = None,
     ):
         super().__init__(
@@ -741,14 +725,6 @@ class LinkArtifact(Artifact):
         self.spec.link_iteration = link_iteration
         self.spec.link_key = link_key
         self.spec.link_tree = link_tree
-
-    @property
-    def metadata(self) -> LinkArtifactMetadata:
-        return self._metadata
-
-    @metadata.setter
-    def metadata(self, metadata):
-        self._metadata = self._verify_dict(metadata, "metadata", LinkArtifactMetadata)
 
     @property
     def spec(self) -> LinkArtifactSpec:

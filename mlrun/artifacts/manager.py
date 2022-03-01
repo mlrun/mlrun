@@ -26,10 +26,10 @@ from .base import (
     LinkArtifact,
 )
 from .dataset import DatasetArtifact, TableArtifact
-
-# TODO - complete dataset artifacts!
+from .dataset import LegacyDatasetArtifact, LegacyTableArtifact
 from .model import LegacyModelArtifact, ModelArtifact
-from .plots import ChartArtifact, PlotArtifact
+from .plots import ChartArtifact, PlotArtifact, PlotlyArtifact, BokehArtifact
+from .plots import LegacyPlotArtifact, LegacyPlotlyArtifact, LegacyChartArtifact, LegacyBokehArtifact
 
 artifact_types = {
     "": Artifact,
@@ -40,6 +40,8 @@ artifact_types = {
     "table": TableArtifact,
     "model": ModelArtifact,
     "dataset": DatasetArtifact,
+    "plotly": PlotlyArtifact,
+    "bokeh": BokehArtifact,
 }
 
 # TODO - Remove this when legacy types are deleted (1.2.0?)
@@ -47,11 +49,13 @@ legacy_artifact_types = {
     "": LegacyArtifact,
     "dir": LegacyDirArtifact,
     "link": LegacyLinkArtifact,
-    "plot": PlotArtifact,
-    "chart": ChartArtifact,
-    "table": TableArtifact,
+    "plot": LegacyPlotArtifact,
+    "chart": LegacyChartArtifact,
+    "table": LegacyTableArtifact,
     "model": LegacyModelArtifact,
-    "dataset": DatasetArtifact,
+    "dataset": LegacyDatasetArtifact,
+    "plotly": LegacyPlotlyArtifact,
+    "bokeh": LegacyBokehArtifact,
 }
 
 
@@ -73,11 +77,11 @@ class ArtifactProducer:
 def dict_to_artifact(struct: dict):
     # Need to distinguish between LegacyArtifact classes and Artifact classes. Use existence of the "metadata"
     # property to make this distinction
+    kind = struct.get("kind", "")
+
     if "metadata" in struct:
-        kind = struct["metadata"].get("kind", "")
         artifact_class = artifact_types[kind]
     else:
-        kind = struct.get("kind", "")
         artifact_class = legacy_artifact_types[kind]
 
     return artifact_class.from_dict(struct)

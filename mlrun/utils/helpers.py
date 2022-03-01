@@ -80,16 +80,15 @@ class StorePrefix:
 def get_artifact_target(item: dict, project=None):
     # If the artifact is a LegacyArtifact, then it won't have a "metadata" field.
     if "metadata" in item:
-        kind = item["metadata"].get("kind")
         db_key = item["spec"].get("db_key")
         project_str = project or item["metadata"].get("project")
         tree = item["metadata"].get("tree")
     else:
-        kind = item.get("kind")
         db_key = item.get("db_key")
         project_str = project or item.get("project")
         tree = item.get("tree")
 
+    kind = item.get("kind")
     if kind in ["dataset", "model"] and db_key:
         return f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}:{tree}"
 

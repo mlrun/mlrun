@@ -53,6 +53,7 @@ class KubeResourceSpec(FunctionSpec):
         "node_selector",
         "affinity",
         "priority_class_name",
+        "tolerations",
     ]
 
     def __init__(
@@ -80,6 +81,7 @@ class KubeResourceSpec(FunctionSpec):
         affinity=None,
         disable_auto_mount=False,
         priority_class_name=None,
+        tolerations=None,
     ):
         super().__init__(
             command=command,
@@ -115,6 +117,7 @@ class KubeResourceSpec(FunctionSpec):
         self.priority_class_name = (
             priority_class_name or mlrun.mlconf.default_function_priority_class_name
         )
+        self.tolerations = tolerations or []
 
     @property
     def volumes(self) -> list:

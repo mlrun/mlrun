@@ -49,7 +49,7 @@ def pipe_test():
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestProject(TestMLRunSystem):
-    project_name = "project-system-test-project"
+    project_name = "project-system-test-project2"
 
     def custom_setup(self):
         pass
@@ -97,6 +97,22 @@ class TestProject(TestMLRunSystem):
         project2 = mlrun.load_project(str(self.assets_path), name=name)
         run = project2.run("main", watch=True, artifact_path=f"v3io:///projects/{name}")
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+
+        # test the list_runs/artifacts/functions methods
+        runs = project2.list_runs(
+            name="test", labels={"workflow": run.run_id}
+        ).objects()
+        assert runs[0].status.state == "completed"
+        assert runs[0].metadata.name == "test"
+
+        artifacts = project2.list_artifacts(tag=run.run_id).objects()
+        assert len(artifacts) == 4  # cleaned_data, test_set_preds, model, test_set
+        assert artifacts[0].producer["workflow"] == run.run_id
+
+        functions = project2.list_functions(tag="latest")
+        assert len(functions) == 3  # prep-data, train, test
+        assert functions[0].metadata.project == name
+
         self._delete_test_project(name)
 
     def test_run_artifact_path(self):
@@ -231,6 +247,12 @@ class TestProject(TestMLRunSystem):
 
         # get project should read from DB
         shutil.rmtree(project_dir, ignore_errors=True)
+        project = mlrun.get_or_create_project(name, project_dir)
+        project.save()
+        assert project.spec.description == "mytest", "failed to get project"
+        self._delete_test_project(name)
+
+        # get project should read from context (project.yaml)
         project = mlrun.get_or_create_project(name, project_dir)
         assert project.spec.description == "mytest", "failed to get project"
         self._delete_test_project(name)

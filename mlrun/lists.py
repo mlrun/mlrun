@@ -116,6 +116,10 @@ class RunList(list):
         if not display:
             return html
 
+    def objects(self) -> List["mlrun.RunObject"]:
+        """Return a list of Run Objects"""
+        return [mlrun.RunObject.from_dict(run) for run in self]
+
 
 class ArtifactList(list):
     def __init__(self, *args):

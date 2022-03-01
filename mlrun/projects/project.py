@@ -1319,7 +1319,7 @@ class MlrunProject(ModelObj):
 
     def set_function(
         self,
-        func: typing.Union[str, mlrun.runtimes.BaseRuntime],
+        func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
         name: str = "",
         kind: str = "",
         image: str = None,

@@ -25,13 +25,7 @@ from ..datastore import is_store_uri, store_manager
 from ..features import Feature
 from ..model import ObjectList
 from ..utils import StorePrefix
-from .base import (
-    Artifact,
-    ArtifactMetadata,
-    ArtifactSpec,
-    LegacyArtifact,
-    upload_extra_data,
-)
+from .base import Artifact, ArtifactSpec, LegacyArtifact, upload_extra_data
 
 model_spec_filename = "model_spec.yaml"
 

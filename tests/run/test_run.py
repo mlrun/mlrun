@@ -167,7 +167,9 @@ def test_local_context():
     db = mlrun.get_run_db()
     run = db.read_run(context._uid, project=project_name)
     assert run["status"]["state"] == "completed", "run status not updated in db"
-    assert run["status"]["artifacts"][0]["metadata"]["key"] == "xx", "artifact not updated in db"
+    assert (
+        run["status"]["artifacts"][0]["metadata"]["key"] == "xx"
+    ), "artifact not updated in db"
     assert (
         run["status"]["artifacts"][0]["spec"]["format"] == "z"
     ), "run/artifact attribute not updated in db"

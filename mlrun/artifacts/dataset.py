@@ -25,7 +25,7 @@ import mlrun
 import mlrun.utils.helpers
 
 from ..datastore import is_store_uri, store_manager
-from .base import Artifact, ArtifactMetadata, ArtifactSpec, LegacyArtifact
+from .base import Artifact, ArtifactSpec, LegacyArtifact
 
 default_preview_rows_length = 20
 max_preview_columns = 100
@@ -231,7 +231,9 @@ class DatasetArtifact(Artifact):
         artifact.spec.schema = build_table_schema(preview_df)
         if (
             stats
-            or (artifact.spec.length < max_csv and len(df.columns) < max_preview_columns)
+            or (
+                artifact.spec.length < max_csv and len(df.columns) < max_preview_columns
+            )
             or ignore_preview_limits
         ):
             artifact.spec.stats = get_df_stats(df)

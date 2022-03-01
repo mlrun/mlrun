@@ -185,6 +185,7 @@ class PlotlyArtifact(Artifact):
     """
     Plotly artifact is an artifact for saving Plotly generated figures. They will be stored in a html format.
     """
+
     kind = "plotly"
 
     def __init__(

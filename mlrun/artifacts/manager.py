@@ -25,11 +25,23 @@ from .base import (
     LegacyLinkArtifact,
     LinkArtifact,
 )
-from .dataset import DatasetArtifact, TableArtifact
-from .dataset import LegacyDatasetArtifact, LegacyTableArtifact
+from .dataset import (
+    DatasetArtifact,
+    LegacyDatasetArtifact,
+    LegacyTableArtifact,
+    TableArtifact,
+)
 from .model import LegacyModelArtifact, ModelArtifact
-from .plots import ChartArtifact, PlotArtifact, PlotlyArtifact, BokehArtifact
-from .plots import LegacyPlotArtifact, LegacyPlotlyArtifact, LegacyChartArtifact, LegacyBokehArtifact
+from .plots import (
+    BokehArtifact,
+    ChartArtifact,
+    LegacyBokehArtifact,
+    LegacyChartArtifact,
+    LegacyPlotArtifact,
+    LegacyPlotlyArtifact,
+    PlotArtifact,
+    PlotlyArtifact,
+)
 
 artifact_types = {
     "": Artifact,

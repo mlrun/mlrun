@@ -292,6 +292,7 @@ class DaskCluster(KubejobRuntime):
 
         try:
             client = default_client()
+            client.shutdown()
             client.close()
         except ValueError:
             pass

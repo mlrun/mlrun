@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
+import traceback
 from datetime import datetime
 from typing import List, Union
 from urllib.parse import urlparse
@@ -326,6 +327,8 @@ def ingest(
 
     """
     if featureset:
+        print(f"BBBBB - ingest - {featureset.get_target_path()}")
+        traceback.print_stack()
         if isinstance(featureset, str):
             # need to strip store prefix from the uri
             _, stripped_name = parse_store_uri(featureset)

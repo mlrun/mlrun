@@ -22,7 +22,6 @@ def test_artifacts_export_required_fields():
 
     required_metadata_fields = [
         "key",
-        "kind",
     ]
 
     required_spec_fields = [

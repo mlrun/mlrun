@@ -138,7 +138,7 @@ def get_kfp_outputs(artifacts, labels, project):
                 }
                 outputs += [meta]
 
-        elif output.get("metadata")["kind"] == "dataset":
+        elif output.get("kind") == "dataset":
             header = output_spec.get("header")
             preview = output_spec.get("preview")
             if preview:

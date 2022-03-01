@@ -45,6 +45,7 @@ from .plots import (
 
 artifact_types = {
     "": Artifact,
+    "artifact": Artifact,
     "dir": DirArtifact,
     "link": LinkArtifact,
     "plot": PlotArtifact,

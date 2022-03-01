@@ -635,6 +635,30 @@ class Artifact(ModelObj):
         )
         self.metadata.project = project
 
+    @property
+    def hash(self):
+        """This is a property of the metadata, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.metadata.hash instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.metadata.hash
+
+    @hash.setter
+    def hash(self, hash):
+        """This is a property of the metadata, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the metadata, use artifact.metadata.hash instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        self.metadata.hash = hash
+
 
 class DirArtifactSpec(ArtifactSpec):
     _dict_fields = [

@@ -1,3 +1,4 @@
+import math
 import re
 from typing import Dict, List, Optional
 
@@ -92,31 +93,167 @@ class Feature(ModelObj):
         self._validator = validator
 
 
+class BasicTypeValidator:
+    def __init__(self):
+        pass
+
+    def check(self, value_type, value):
+        return True, {}
+
+
+class ConvertTypeValidator(BasicTypeValidator):
+    def __init__(self, func):
+        super().__init__()
+        self.func = func
+
+    def check(self, value_type, value):
+        ok, args = super().check(value_type, value)
+        if ok:
+            try:
+                self.func(value)
+            except Exception as err:
+                return (
+                    False,
+                    {"message": err, "type": value_type, "value": value},
+                )
+        return ok, args
+
+
+class RangeTypeValidator(BasicTypeValidator):
+    def __init__(self, min, max):
+        super().__init__()
+        self.min = min
+        self.max = max
+
+    def check(self, value_type, value):
+        ok, args = super().check(value_type, value)
+        if ok:
+            try:
+                if value < self.min:
+                    return (
+                        False,
+                        {
+                            "message": "Value is smaller than min range",
+                            "type": value_type,
+                            "min range": self.min,
+                            "value": value,
+                        },
+                    )
+                if value > self.max:
+                    return (
+                        False,
+                        {
+                            "message": "Value is greater than max range",
+                            "type": value_type,
+                            "max range": self.max,
+                            "value": value,
+                        },
+                    )
+            except Exception as err:
+                return (
+                    False,
+                    {"message": err, "type": value_type, "value": value},
+                )
+
+        return ok, args
+
+
+# TODO: add addition validation for commented types
+type_validator = {
+    ValueType.BOOL: ConvertTypeValidator(bool),
+    ValueType.INT8: RangeTypeValidator(-128, 127),
+    ValueType.INT16: RangeTypeValidator(-32768, 32767),
+    ValueType.INT32: RangeTypeValidator(-2147483648, 2147483647),
+    ValueType.INT64: RangeTypeValidator(-9223372036854775808, 9223372036854775807),
+    ValueType.INT128: RangeTypeValidator(-math.pow(2, 127), math.pow(2, 127) - 1),
+    ValueType.UINT8: RangeTypeValidator(0, 255),
+    ValueType.UINT16: RangeTypeValidator(0, 65535),
+    ValueType.UINT32: RangeTypeValidator(0, 4294967295),
+    ValueType.UINT64: RangeTypeValidator(0, 18446744073709551615),
+    ValueType.UINT128: RangeTypeValidator(0, math.pow(2, 128)),
+    #   ValueType.FLOAT16: None,
+    ValueType.FLOAT: ConvertTypeValidator(float),
+    ValueType.DOUBLE: ConvertTypeValidator(float),
+    #   ValueType.BFLOAT16: None,
+    ValueType.BYTES: ConvertTypeValidator(bytes),
+    ValueType.STRING: ConvertTypeValidator(str),
+    #   ValueType.DATETIME: None,
+    #   ValueType.BYTES_LIST: None,
+    #   ValueType.STRING_LIST: None,
+    #   ValueType.INT32_LIST: None,
+    #   ValueType.INT64_LIST: None,
+    #   ValueType.DOUBLE_LIST: None,
+    #   ValueType.FLOAT_LIST: None,
+    #   ValueType.BOOL_LIST: None,
+}
+
+
 class Validator(ModelObj):
-    """base validator"""
+    """Base validator"""
 
     kind = ""
     _dict_fields = ["kind", "check_type", "severity"]
 
-    def __init__(self, check_type=None, severity=None):
+    def __init__(self, check_type: bool = None, severity: str = None):
+        """Base validator
+
+        example::
+
+            from mlrun.features import Validator
+
+            # Add validator to the feature 'bid' with check type
+            quotes_set["bid"].validator = Validator(
+                check_type=True,
+                severity="info"
+            )
+
+        :param check_type:  check feature type e.g. True, False
+        :param severity:    severity name e.g. info, warning, etc.
+        """
         self._feature = None
         self.check_type = check_type
         self.severity = severity
 
-    def set_feature(self, feature):
+    def set_feature(self, feature: Feature):
         self._feature = feature
 
     def check(self, value):
+        if self.check_type:
+            if self._feature.value_type is not None:
+                if self._feature.value_type in type_validator:
+                    return type_validator[self._feature.value_type].check(
+                        self._feature.value_type, value
+                    )
         return True, {}
 
 
 class MinMaxValidator(Validator):
-    """validate min/max value ranges"""
+    """Validate min/max value ranges"""
 
     kind = "minmax"
     _dict_fields = Validator._dict_fields + ["min", "max"]
 
-    def __init__(self, check_type=None, severity=None, min=None, max=None):
+    def __init__(
+        self, check_type: bool = None, severity: str = None, min=None, max=None
+    ):
+        """Validate min/max value ranges
+
+        example::
+
+            from mlrun.features import MinMaxValidator
+
+            # Add validator to the feature 'bid', where valid
+            # minimal value is 52
+            quotes_set["bid"].validator = MinMaxValidator(
+                min=52,
+                severity="info"
+            )
+
+        :param check_type:  check feature type e.g. True, False
+        :param severity:    severity name e.g. info, warning, etc.
+        :param min:         minimal valid size
+        :param max:         maximal valid size
+        """
         super().__init__(check_type, severity)
         self.min = min
         self.max = max
@@ -153,12 +290,14 @@ class MinMaxLenValidator(Validator):
     kind = "minmaxlen"
     _dict_fields = Validator._dict_fields + ["min", "max"]
 
-    def __init__(self, check_type=None, severity=None, min=None, max=None):
+    def __init__(
+        self, check_type: bool = None, severity: str = None, min=None, max=None
+    ):
         """Validate min/max length value ranges
 
         example::
 
-            from mlrun.features import MinMaxValidator
+            from mlrun.features import MinMaxLenValidator
 
             # Add length validator to the feature 'ticker', where valid
             # minimal length is 1 and maximal length is 10
@@ -168,7 +307,7 @@ class MinMaxLenValidator(Validator):
                 severity="info"
             )
 
-        :param check_type:  ..
+        :param check_type:  check feature type e.g. True, False
         :param severity:    severity name e.g. info, warning, etc.
         :param min:         minimal valid length size
         :param max:         maximal valid length size
@@ -209,20 +348,22 @@ class RegexValidator(Validator):
     kind = "regex"
     _dict_fields = Validator._dict_fields + ["regex"]
 
-    def __init__(self, check_type=None, severity=None, regex=None):
+    def __init__(self, check_type: bool = None, severity: str = None, regex=None):
         """Validate value based on regular expression
 
         example::
 
             from mlrun.features import RegexValidator
 
-            # Add regular expression validator to the feature 'name'
+            # Add regular expression validator to the feature 'name' and
+            # expression '(\b[A-Za-z]{1}[0-9]{7}\b)' where valid values are
+            # e.g. A1234567, z9874563, etc.
             quotes_set["name"].validator = RegexValidator(
                 regex=r"(\b[A-Za-z]{1}[0-9]{7}\b)",
                 severity="info"
             )
 
-        :param check_type:  ..
+        :param check_type:  check feature type e.g. True, False
         :param severity:    severity name e.g. info, warning, etc.
         :param regex:       regular expression for validation
         """

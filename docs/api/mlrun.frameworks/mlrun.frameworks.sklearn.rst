@@ -1,5 +1,5 @@
 mlrun.frameworks.sklearn
-=========================
+========================
 
 .. automodule:: mlrun.frameworks.sklearn
    :members:

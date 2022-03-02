@@ -1,5 +1,5 @@
 mlrun.frameworks.pytorch
-=========================
+========================
 
 .. automodule:: mlrun.frameworks.pytorch
    :members:

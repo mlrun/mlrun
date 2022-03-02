@@ -3,7 +3,9 @@
 mlrun.frameworks
 ================
 
-MLRun is providing a quick and easy integration into your code with mlrun.frameworks: a collection of sub-modules for the most commonly used machine and deep learning frameworks, providing features such as automatic logging, model management, and distributed training.
+MLRun is providing a quick and easy integration into your code with mlrun.frameworks: a collection of sub-modules for
+the most commonly used machine and deep learning frameworks, providing features such as automatic logging, model
+management, and distributed training.
 
 .. toctree::
   :maxdepth: 1

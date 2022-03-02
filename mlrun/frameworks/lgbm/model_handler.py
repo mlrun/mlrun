@@ -137,6 +137,7 @@ class LGBMModelHandler(MLModelHandler):
                     f"'{self._model_path}'"
                 )
 
+    # TODO: Will be split into two: _save_lgbmmodel, _save_booster. Each with its own mlrun interface decorator.
     @without_mlrun_interface(interface=LGBMModelMLRunInterface)
     def save(self, output_path: str = None, **kwargs):
         """

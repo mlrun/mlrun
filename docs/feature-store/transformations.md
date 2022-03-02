@@ -294,6 +294,7 @@ def ingest_handler(context):
 Ingestion invocation:
 ```python
 from mlrun.datastore.sources import CSVSource
+from mlrun.datastore.targets import ParquetTarget
 from mlrun import code_to_function
 import mlrun.feature_store as fstore
 
@@ -301,11 +302,11 @@ feature_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker"
 
 source = CSVSource("mycsv", path="v3io:///projects/quotes.csv")
 
-spark_service_name = "iguazio-spark-service" # As configured & shown in the Iguazio dashboard
+spark_service_name = "spark" # As configured & shown in the Iguazio dashboard
 
 fn = code_to_function(kind='remote-spark',  name='func')
 
-run_config=fs.RunConfig(local=False, function=fn, handler="ingest_handler")
+run_config = fstore.RunConfig(local=False, function=fn, handler="ingest_handler")
 run_config.with_secret('kubernetes', ['s3_access_key', 's3_secret_key'])
 run_config.parameters = {
     "s3_endpoint" : "s3.us-east-2.amazonaws.com",
@@ -317,6 +318,6 @@ target = ParquetTarget(
     partitioned = False,
 )
 
-fstore.ingest(feature_set, source, targets=[target], run_config=config, spark_context=spark_service_name)
+fstore.ingest(feature_set, source, targets=[target], run_config=run_config, spark_context=spark_service_name)
 ```
 

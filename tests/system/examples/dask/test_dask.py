@@ -1,4 +1,6 @@
+import datetime
 import os
+import time
 
 import kfp
 import kfp.compiler
@@ -110,3 +112,31 @@ class TestDask(TestMLRunSystem):
 
         # remove compiled dask.yaml file
         os.remove("daskpipe.yaml")
+
+    def test_dask_close(self):
+        self._logger.info("Initializing dask cluster")
+        cluster_start_time = datetime.datetime.now()
+
+        # initialize the dask cluster and get its dashboard url
+        client = self.dask_function.client
+        time_took = (datetime.datetime.now() - cluster_start_time).seconds
+        self._logger.info(
+            "Dask cluster initialization completed", took_in_seconds=time_took
+        )
+
+        worker_start_time = datetime.datetime.now()
+        client.wait_for_workers(self.dask_function.spec.replicas)
+        time_took = (datetime.datetime.now() - worker_start_time).seconds
+        self._logger.info("Workers initialization completed", took_in_seconds=time_took)
+
+        self._logger.info("Shutting Down Cluster")
+        self.dask_function.close()
+        time.sleep(20)  # wait for scheduler and workers to go down
+
+        # Client supposed to be closed
+        with pytest.raises(AttributeError):
+            client.list_datasets()
+
+        # Cluster supposed to be decommissioned
+        with pytest.raises(RuntimeError):
+            client.restart()

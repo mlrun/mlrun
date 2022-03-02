@@ -433,11 +433,11 @@ class FeatureSet(ModelObj):
         ingestion_target_names = [t if isinstance(t, str) else t.name for t in targets]
         # silent=True always because targets are not guaranteed to be found in status
 
-        status_targets = []
+        status_targets = {}
         if not overwrite:
             status_targets = self._reload_and_get_status_targets(
                 target_names=ingestion_target_names, silent=True
-            )
+            ) or {}
 
         run_uuid = DataTargetBase.generate_target_run_uuid()
         for target in targets:

@@ -813,7 +813,6 @@ def _ingest_with_spark(
 def _post_ingestion(context, featureset, spark=None):
     featureset.save()
     if context:
-        traceback.print_stack()
         context.logger.info("ingestion task completed, targets:")
         context.logger.info(f"{featureset.status.targets.to_dict()}")
         context.log_result("featureset", featureset.uri)

@@ -343,8 +343,6 @@ class FeatureSet(ModelObj):
             return None
 
     def get_target_path(self, name=None):
-        print("BBBBB - get_target_path")
-        traceback.print_stack()
         """get the url/path for an offline or specified data target"""
         target = get_offline_target(self, name=name)
         if target:

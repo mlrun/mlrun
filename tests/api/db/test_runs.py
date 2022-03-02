@@ -241,7 +241,11 @@ def test_store_and_update_run_update_name_failure(db: DBInterface, db_session: S
     ):
         run["metadata"]["name"] = "new-name"
         db.store_run(
-            db_session, run, uid, project, iteration,
+            db_session,
+            run,
+            uid,
+            project,
+            iteration,
         )
 
     with pytest.raises(
@@ -249,7 +253,11 @@ def test_store_and_update_run_update_name_failure(db: DBInterface, db_session: S
         match="Changing name for an existing run is invalid",
     ):
         db.update_run(
-            db_session, {"metadata.name": "new-name"}, uid, project, iteration,
+            db_session,
+            {"metadata.name": "new-name"},
+            uid,
+            project,
+            iteration,
         )
 
 
@@ -263,7 +271,9 @@ def test_list_runs_limited_unsorted_failure(db: DBInterface, db_session: Session
         match="Limiting the number of returned records without sorting will provide non-deterministic results",
     ):
         db.list_runs(
-            db_session, sort=False, last=1,
+            db_session,
+            sort=False,
+            last=1,
         )
 
 

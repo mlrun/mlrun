@@ -25,12 +25,11 @@ class MLArtifactsLibrary(ArtifactsLibrary, ABC):
     some_artifact = SomeArtifactPlan
     """
 
-    # calibration_curve = CalibrationCurvePlan
+    calibration_curve = CalibrationCurvePlan
     confusion_matrix = ConfusionMatrixPlan
     dataset = DatasetPlan
-    # feature_importance = FeatureImportancePlan
-    # learning_curves = LearningCurvesPlan
-    # roc_curve = ROCCurvePlan
+    feature_importance = FeatureImportancePlan
+    roc_curve = ROCCurvePlan
 
     @classmethod
     def default(
@@ -60,12 +59,16 @@ class MLArtifactsLibrary(ArtifactsLibrary, ABC):
                     ConfusionMatrixPlan(),
                     ROCCurvePlan(),
                 ]
-            if algorithm_functionality.is_binary_classification():
-                plans += [CalibrationCurvePlan()]
+                if algorithm_functionality.is_binary_classification():
+                    plans += [CalibrationCurvePlan()]
 
         # Add regression plans:
         if algorithm_functionality.is_regression():
             if algorithm_functionality.is_single_output():
                 plans += [FeatureImportancePlan()]
+
+        # Filter out the plans by probabilities requirement:
+        if not hasattr(model, "predict_proba"):
+            plans = [plan for plan in plans if not plan.need_probabilities]
 
         return plans

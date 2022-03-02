@@ -128,7 +128,9 @@ def grafana_list_endpoints(
 
     if project:
         mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
+            project,
+            mlrun.api.schemas.AuthorizationAction.read,
+            auth_info,
         )
     endpoint_list = mlrun.api.crud.ModelEndpoints().list_endpoints(
         auth_info=auth_info,
@@ -143,7 +145,10 @@ def grafana_list_endpoints(
     allowed_endpoints = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         endpoint_list.endpoints,
-        lambda _endpoint: (_endpoint.metadata.project, _endpoint.metadata.uid,),
+        lambda _endpoint: (
+            _endpoint.metadata.project,
+            _endpoint.metadata.uid,
+        ),
         auth_info,
     )
     endpoint_list.endpoints = allowed_endpoints
@@ -341,7 +346,9 @@ def grafana_incoming_features(
     _, container, path = parse_model_endpoint_store_prefix(path)
 
     client = get_frames_client(
-        token=auth_info.data_session, address=config.v3io_framesd, container=container,
+        token=auth_info.data_session,
+        address=config.v3io_framesd,
+        container=container,
     )
 
     data: pd.DataFrame = client.read(
@@ -354,7 +361,7 @@ def grafana_incoming_features(
     )
 
     data.drop(["endpoint_id"], axis=1, inplace=True, errors="ignore")
-    data.index = data.index.astype(np.int64) // 10 ** 6
+    data.index = data.index.astype(np.int64) // 10**6
 
     for feature, indexed_values in data.to_dict().items():
         target = GrafanaTimeSeriesTarget(target=feature)

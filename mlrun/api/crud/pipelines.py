@@ -18,7 +18,9 @@ import mlrun.utils.singleton
 from mlrun.utils import logger
 
 
-class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
+class Pipelines(
+    metaclass=mlrun.utils.singleton.Singleton,
+):
     def list_pipelines(
         self,
         db_session: sqlalchemy.orm.Session,

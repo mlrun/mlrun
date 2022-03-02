@@ -404,7 +404,10 @@ def test_list_feature_vectors_tags(db: Session, client: TestClient) -> None:
                 feature_vector,
             )
     _list_tags_and_assert(
-        client, "feature_vectors", project_name, tags,
+        client,
+        "feature_vectors",
+        project_name,
+        tags,
     )
 
 
@@ -458,11 +461,16 @@ def test_verify_feature_vector_features_permissions(
             (project, "some-feature-set"),
         ]
         assert (
-            deepdiff.DeepDiff(expected_resources, resources, ignore_order=True,) == {}
+            deepdiff.DeepDiff(
+                expected_resources,
+                resources,
+                ignore_order=True,
+            )
+            == {}
         )
 
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions = unittest.mock.Mock(
-        side_effect=_verify_queried_resources
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions = (
+        unittest.mock.Mock(side_effect=_verify_queried_resources)
     )
     mlrun.api.api.endpoints.feature_store._verify_feature_vector_features_permissions(
         mlrun.api.schemas.AuthInfo(),

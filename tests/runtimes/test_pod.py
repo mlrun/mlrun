@@ -1,6 +1,7 @@
 import inspect
 
 import pytest
+from deepdiff import DeepDiff
 
 import mlrun
 import mlrun.runtimes.mpijob.abstract
@@ -63,3 +64,116 @@ def test_runtimes_inheritance():
         pytest.fail(
             f"Found classes that are not accepting all of their parent classes kwargs: {invalid_classes}"
         )
+
+
+def test_resource_enrichment_in_resource_spec_initialization():
+    mlrun.mlconf.default_function_pod_resources = {
+        "requests": {"cpu": "25m", "memory": "1M"},
+        "limits": {"cpu": "2", "memory": "1G"},
+    }
+    expected_resources = {
+        "requests": {"cpu": "25m", "memory": "1M"},
+        "limits": {"cpu": "2", "memory": "1G"},
+    }
+
+    # without setting resources
+    spec = mlrun.runtimes.pod.KubeResourceSpec()
+    assert (
+        DeepDiff(
+            spec.resources,
+            expected_resources,
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    # setting partial requests
+    mlrun.mlconf.default_function_pod_resources = {
+        "requests": {"cpu": "25m", "memory": "1M"},
+        "limits": {"cpu": "2", "memory": "1G"},
+    }
+    expected_resources = {
+        "requests": {"cpu": "1", "memory": "1M"},
+        "limits": {"cpu": "2", "memory": "1G"},
+    }
+    spec_requests = {"cpu": "1"}
+    spec = mlrun.runtimes.pod.KubeResourceSpec(resources={"requests": spec_requests})
+    assert (
+        DeepDiff(
+            spec.resources,
+            expected_resources,
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    # setting partial requests and limits
+    mlrun.mlconf.default_function_pod_resources = {
+        "requests": {"cpu": "25m", "memory": "1M"},
+        "limits": {"cpu": "2", "memory": "1G"},
+    }
+    expected_resources = {
+        "requests": {"cpu": "1", "memory": "500M"},
+        "limits": {"cpu": "2", "memory": "2G"},
+    }
+
+    spec_requests = {"cpu": "1", "memory": "500M"}
+    spec_limits = {"memory": "2G"}
+    spec = mlrun.runtimes.pod.KubeResourceSpec(
+        resources={"requests": spec_requests, "limits": spec_limits}
+    )
+    assert (
+        DeepDiff(
+            spec.resources,
+            expected_resources,
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    # setting only gpu request without limits
+    with pytest.raises(mlrun.errors.MLRunConflictError):
+        spec_requests = {"nvidia.com/gpu": "1"}
+        mlrun.runtimes.pod.KubeResourceSpec(
+            resources={"requests": spec_requests, "limits": spec_limits}
+        )
+
+    # setting different gpu requests and limits
+    with pytest.raises(mlrun.errors.MLRunConflictError):
+        spec_requests = {"nvidia.com/gpu": "1"}
+        spec_limits = {"nvidia.com/gpu": "2"}
+        mlrun.runtimes.pod.KubeResourceSpec(
+            resources={"requests": spec_requests, "limits": spec_limits}
+        )
+
+    # setting resource not in the k8s resources patterns
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        spec_requests = {"cpu": "1wrong"}
+        mlrun.runtimes.pod.KubeResourceSpec(
+            resources={"requests": spec_requests, "limits": spec_limits}
+        )
+
+    # setting partial requests and limits with equal gpus
+    mlrun.mlconf.default_function_pod_resources = {
+        "requests": {"cpu": "25m", "memory": "1M"},
+        "limits": {"cpu": "2", "memory": "1G"},
+    }
+    expected_resources = {
+        "requests": {"cpu": "25m", "memory": "1M"},
+        "limits": {"cpu": "2", "memory": "1G", "nvidia.com/gpu": "2"},
+    }
+    spec_requests = {"nvidia.com/gpu": "2"}
+    spec_limits = {"nvidia.com/gpu": "2"}
+
+    spec = mlrun.runtimes.pod.KubeResourceSpec(
+        resources={"requests": spec_requests, "limits": spec_limits}
+    )
+
+    assert (
+        DeepDiff(
+            spec.resources,
+            expected_resources,
+            ignore_order=True,
+        )
+        == {}
+    )

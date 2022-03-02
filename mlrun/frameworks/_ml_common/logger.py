@@ -15,11 +15,11 @@ from .utils import to_array
 
 class LoggerMode(Enum):
     """
-    The logger's mode, can be training or testing.
+    The logger's mode, can be training or evaluation.
     """
 
-    TRAINING = "Training"
-    TESTING = "Testing"
+    TRAINING = "training"
+    EVALUATION = "evaluation"
 
 
 class Logger:
@@ -184,7 +184,8 @@ class Logger:
             self._context.commit(completed=False)
 
     def log_run(
-        self, model_handler: MLModelHandler,
+        self,
+        model_handler: MLModelHandler,
     ):
         """
         End the logger's run, logging the collected artifacts and metrics results with the model. The model will be
@@ -196,11 +197,13 @@ class Logger:
         # model artifact:
         if self._mode == LoggerMode.TRAINING:
             model_handler.log(
-                metrics=self._logged_results, artifacts=self._logged_artifacts,
+                metrics=self._logged_results,
+                artifacts=self._logged_artifacts,
             )
         else:
             model_handler.update(
-                metrics=self._logged_results, artifacts=self._logged_artifacts,
+                metrics=self._logged_results,
+                artifacts=self._logged_artifacts,
             )
 
         # Commit:
@@ -239,6 +242,15 @@ class Logger:
         # Clear the old plans:
         self._plans = plans
 
+        # Add evaluation prefix if in Evaluation mode:
+        if self._mode == LoggerMode.EVALUATION:
+            self._not_logged_artifacts = {
+                f"evaluation-{key}": value
+                for key, value in self._not_logged_artifacts.items()
+            }
+            for artifact in self._not_logged_artifacts.values():
+                artifact.key = f"evaluation-{artifact.key}"
+
     def _calculate_results(
         self,
         y_true: Union[np.ndarray, pd.DataFrame, pd.Series],
@@ -262,6 +274,13 @@ class Logger:
             if metric.need_probabilities == is_probabilities:
                 self._not_logged_results[metric.name] = metric(y_true, y_pred)
 
+        # Add evaluation prefix if in Evaluation mode:
+        if self._mode == LoggerMode.EVALUATION:
+            self._not_logged_results = {
+                f"evaluation_{key}": value
+                for key, value in self._not_logged_results.items()
+            }
+
     def _log_artifacts(self):
         """
         Log the produced plans artifacts using the logger's context.
@@ -284,7 +303,7 @@ class Logger:
         Log the calculated metrics results using the logger's context.
         """
         # Use the context to log each metric result:
-        self._context.log_results(results=self._not_logged_results)
+        self._context.log_results(self._not_logged_results)
 
         # Collect the logged results:
         self._logged_results = {**self._logged_results, **self._not_logged_results}

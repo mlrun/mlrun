@@ -183,7 +183,9 @@ def test_projects_crud(db: SQLDB, db_session: Session):
     project_output = db.get_project(db_session, name=project.metadata.name)
     assert (
         deepdiff.DeepDiff(
-            project.dict(), project_output.dict(exclude={"id"}), ignore_order=True,
+            project.dict(),
+            project_output.dict(exclude={"id"}),
+            ignore_order=True,
         )
         == {}
     )

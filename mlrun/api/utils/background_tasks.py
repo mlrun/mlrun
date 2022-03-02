@@ -41,7 +41,11 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
         return self.get_project_background_task(project, name)
 
     def create_background_task(
-        self, background_tasks: fastapi.BackgroundTasks, function, *args, **kwargs,
+        self,
+        background_tasks: fastapi.BackgroundTasks,
+        function,
+        *args,
+        **kwargs,
     ) -> mlrun.api.schemas.BackgroundTask:
         name = str(uuid.uuid4())
         # sanity
@@ -69,7 +73,9 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
         )
 
     def get_project_background_task(
-        self, project: str, name: str,
+        self,
+        project: str,
+        name: str,
     ) -> mlrun.api.schemas.BackgroundTask:
         if (
             project in self._project_background_tasks
@@ -79,7 +85,10 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
         else:
             return self._generate_background_task_not_found_response(name, project)
 
-    def get_background_task(self, name: str,) -> mlrun.api.schemas.BackgroundTask:
+    def get_background_task(
+        self,
+        name: str,
+    ) -> mlrun.api.schemas.BackgroundTask:
         if name in self._background_tasks:
             return self._background_tasks[name]
         else:

@@ -43,7 +43,8 @@ class ONNXMLRunInterface:
 
         # initialize the onnx run time session:
         self._inference_session = onnxruntime.InferenceSession(
-            onnx._serialize(model), providers=self._execution_providers,
+            onnx._serialize(model),
+            providers=self._execution_providers,
         )
 
         # Get the input layers names:

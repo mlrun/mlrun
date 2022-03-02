@@ -98,22 +98,22 @@ class BaseSourceDriver(DataSource):
 
 class CSVSource(BaseSourceDriver):
     """
-        Reads CSV file as input source for a flow.
+    Reads CSV file as input source for a flow.
 
-        :parameter name: name of the source
-        :parameter path: path to CSV file
-        :parameter key_field: the CSV field to be used as the key for events. May be an int (field index) or string
-            (field name) if with_header is True. Defaults to None (no key). Can be a list of keys.
-        :parameter time_field: the CSV field to be parsed as the timestamp for events. May be an int (field index) or
-            string (field name) if with_header is True. Defaults to None (no timestamp field). The field will be parsed
-            from isoformat (ISO-8601 as defined in datetime.fromisoformat()). In case the format is not isoformat,
-            timestamp_format (as defined in datetime.strptime()) should be passed in attributes.
-        :parameter schedule: string to configure scheduling of the ingestion job.
-        :parameter attributes: additional parameters to pass to storey. For example:
-            attributes={"timestamp_format": '%Y%m%d%H'}
-        :parameter parse_dates: Optional. List of columns (names or integers, other than time_field) that will be
-            attempted to parse as date column.
-        """
+    :parameter name: name of the source
+    :parameter path: path to CSV file
+    :parameter key_field: the CSV field to be used as the key for events. May be an int (field index) or string
+        (field name) if with_header is True. Defaults to None (no key). Can be a list of keys.
+    :parameter time_field: the CSV field to be parsed as the timestamp for events. May be an int (field index) or
+        string (field name) if with_header is True. Defaults to None (no timestamp field). The field will be parsed
+        from isoformat (ISO-8601 as defined in datetime.fromisoformat()). In case the format is not isoformat,
+        timestamp_format (as defined in datetime.strptime()) should be passed in attributes.
+    :parameter schedule: string to configure scheduling of the ingestion job.
+    :parameter attributes: additional parameters to pass to storey. For example:
+        attributes={"timestamp_format": '%Y%m%d%H'}
+    :parameter parse_dates: Optional. List of columns (names or integers, other than time_field) that will be
+        attempted to parse as date column.
+    """
 
     kind = "csv"
     support_storey = True
@@ -172,21 +172,21 @@ class CSVSource(BaseSourceDriver):
 
 class ParquetSource(BaseSourceDriver):
     """
-       Reads Parquet file/dir as input source for a flow.
+    Reads Parquet file/dir as input source for a flow.
 
-       :parameter name: name of the source
-       :parameter path: path to Parquet file or directory
-       :parameter key_field: the column to be used as the key for events. Can be a list of keys.
-       :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
-       :parameter start_filter: datetime. If not None, the results will be filtered by partitions and
-            'filter_column' > start_filter. Default is None
-       :parameter end_filter: datetime. If not None, the results will be filtered by partitions
-            'filter_column' <= end_filter. Default is None
-       :parameter filter_column: Optional. if not None, the results will be filtered by this column and
-            start_filter & end_filter
-       :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
-            cause the job to run every 30 minutes
-       :parameter attributes: additional parameters to pass to storey.
+    :parameter name: name of the source
+    :parameter path: path to Parquet file or directory
+    :parameter key_field: the column to be used as the key for events. Can be a list of keys.
+    :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
+    :parameter start_filter: datetime. If not None, the results will be filtered by partitions and
+         'filter_column' > start_filter. Default is None
+    :parameter end_filter: datetime. If not None, the results will be filtered by partitions
+         'filter_column' <= end_filter. Default is None
+    :parameter filter_column: Optional. if not None, the results will be filtered by this column and
+         start_filter & end_filter
+    :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
+         cause the job to run every 30 minutes
+    :parameter attributes: additional parameters to pass to storey.
     """
 
     kind = "parquet"
@@ -261,33 +261,33 @@ class ParquetSource(BaseSourceDriver):
 
 class BigQuerySource(BaseSourceDriver):
     """
-       Reads Google BigQuery query results as input source for a flow.
+    Reads Google BigQuery query results as input source for a flow.
 
-       example::
+    example::
 
-            # use sql query
-            query_string = "SELECT * FROM `the-psf.pypi.downloads20210328` LIMIT 5000"
-            source = BigQuerySource("bq1", query=query_string,
-                                    gcp_project="my_project",
-                                    materialization_dataset="dataviews")
+         # use sql query
+         query_string = "SELECT * FROM `the-psf.pypi.downloads20210328` LIMIT 5000"
+         source = BigQuerySource("bq1", query=query_string,
+                                 gcp_project="my_project",
+                                 materialization_dataset="dataviews")
 
-            # read a table
-            source = BigQuerySource("bq2", table="the-psf.pypi.downloads20210328", gcp_project="my_project")
+         # read a table
+         source = BigQuerySource("bq2", table="the-psf.pypi.downloads20210328", gcp_project="my_project")
 
 
-       :parameter name:  source name
-       :parameter table: table name/path, cannot be used together with query
-       :parameter query: sql query string
-       :parameter materialization_dataset: for query with spark, The target dataset for the materialized view.
-                                           This dataset should be in same location as the view or the queried tables.
-                                           must be set to a dataset where the GCP user has table creation permission
-       :parameter chunksize: number of rows per chunk (default large single chunk)
-       :parameter key_field: the column to be used as the key for events. Can be a list of keys.
-       :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
-       :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
-            cause the job to run every 30 minutes
-       :parameter gcp_project:  google cloud project name
-       :parameter spark_options: additional spart read options
+    :parameter name:  source name
+    :parameter table: table name/path, cannot be used together with query
+    :parameter query: sql query string
+    :parameter materialization_dataset: for query with spark, The target dataset for the materialized view.
+                                        This dataset should be in same location as the view or the queried tables.
+                                        must be set to a dataset where the GCP user has table creation permission
+    :parameter chunksize: number of rows per chunk (default large single chunk)
+    :parameter key_field: the column to be used as the key for events. Can be a list of keys.
+    :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
+    :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
+         cause the job to run every 30 minutes
+    :parameter gcp_project:  google cloud project name
+    :parameter spark_options: additional spart read options
     """
 
     kind = "bigquery"
@@ -298,6 +298,7 @@ class BigQuerySource(BaseSourceDriver):
         self,
         name: str = "",
         table: str = None,
+        max_results_for_table: int = None,
         query: str = None,
         materialization_dataset: str = None,
         chunksize: int = None,
@@ -311,9 +312,14 @@ class BigQuerySource(BaseSourceDriver):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot specify both table and query args"
             )
+        if not query and not table:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "must specify at least one of table or query args"
+            )
         attrs = {
             "query": query,
             "table": table,
+            "max_results": max_results_for_table,
             "chunksize": chunksize,
             "gcp_project": gcp_project,
             "spark_options": spark_options,
@@ -352,17 +358,40 @@ class BigQuerySource(BaseSourceDriver):
     def to_dataframe(self):
         from google.cloud import bigquery
 
+        def schema_to_dtypes(schema):
+            from mlrun.data_types.data_types import gbq_to_pandas_dtype
+
+            dtypes = {}
+            for field in schema:
+                dtypes[field.name] = gbq_to_pandas_dtype(field.field_type)
+            return dtypes
+
         credentials, gcp_project = self._get_credentials()
         bqclient = bigquery.Client(project=gcp_project, credentials=credentials)
-        query_job = bqclient.query(self.attributes.get("query"))
 
+        query = self.attributes.get("query")
         chunksize = self.attributes.get("chunksize")
-        if chunksize:
-            self._rows_iterator = query_job.result(page_size=chunksize)
-            return self._rows_iterator.to_dataframe_iterable()
+        if query:
+            query_job = bqclient.query(query)
 
-        self._rows_iterator = query_job.result(page_size=chunksize)
-        return self._rows_iterator.to_dataframe()
+            self._rows_iterator = query_job.result(page_size=chunksize)
+            dtypes = schema_to_dtypes(self._rows_iterator.schema)
+            if chunksize:
+                return self._rows_iterator.to_dataframe_iterable(dtypes=dtypes)
+            else:
+                return self._rows_iterator.to_dataframe(dtypes=dtypes)
+        else:
+            table = self.attributes.get("table")
+            max_results = self.attributes.get("max_results")
+
+            rows = bqclient.list_rows(
+                table, page_size=chunksize, max_results=max_results
+            )
+            dtypes = schema_to_dtypes(rows.schema)
+            if chunksize:
+                return rows.to_dataframe_iterable(dtypes=dtypes)
+            else:
+                return rows.to_dataframe(dtypes=dtypes)
 
     def is_iterator(self):
         return True if self.attributes.get("chunksize") else False
@@ -425,11 +454,11 @@ class CustomSource(BaseSourceDriver):
 
 class DataFrameSource:
     """
-       Reads data frame as input source for a flow.
+    Reads data frame as input source for a flow.
 
-       :parameter key_field: the column to be used as the key for events. Can be a list of keys. Defaults to None
-       :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
-       :parameter context: MLRun context. Defaults to None
+    :parameter key_field: the column to be used as the key for events. Can be a list of keys. Defaults to None
+    :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
+    :parameter context: MLRun context. Defaults to None
     """
 
     support_storey = True
@@ -543,14 +572,14 @@ class StreamSource(OnlineSource):
         **kwargs,
     ):
         """
-           Sets stream source for the flow. If stream doesn't exist it will create it
+        Sets stream source for the flow. If stream doesn't exist it will create it
 
-           :param name: stream name. Default "stream"
-           :param group: consumer group. Default "serving"
-           :param seek_to: from where to consume the stream. Default earliest
-           :param shards: number of shards in the stream. Default 1
-           :param retention_in_hours: if stream doesn't exist and it will be created set retention time. Default 24h
-           :param extra_attributes: additional nuclio trigger attributes (key/value dict)
+        :param name: stream name. Default "stream"
+        :param group: consumer group. Default "serving"
+        :param seek_to: from where to consume the stream. Default earliest
+        :param shards: number of shards in the stream. Default 1
+        :param retention_in_hours: if stream doesn't exist and it will be created set retention time. Default 24h
+        :param extra_attributes: additional nuclio trigger attributes (key/value dict)
         """
         attrs = {
             "group": group,
@@ -602,13 +631,13 @@ class KafkaSource(OnlineSource):
     ):
         """Sets kafka source for the flow
 
-           :param brokers: list of broker IP addresses
-           :param topics: list of topic names on which to listen.
-           :param group: consumer group. Default "serving"
-           :param initial_offset: from where to consume the stream. Default earliest
-           :param partitions: Optional, A list of partitions numbers for which the function receives events.
-           :param sasl_user: Optional, user name to use for sasl authentications
-           :param sasl_pass: Optional, password to use for sasl authentications
+        :param brokers: list of broker IP addresses
+        :param topics: list of topic names on which to listen.
+        :param group: consumer group. Default "serving"
+        :param initial_offset: from where to consume the stream. Default earliest
+        :param partitions: Optional, A list of partitions numbers for which the function receives events.
+        :param sasl_user: Optional, user name to use for sasl authentications
+        :param sasl_pass: Optional, password to use for sasl authentications
         """
         if isinstance(topics, str):
             topics = [topics]

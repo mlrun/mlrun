@@ -24,6 +24,8 @@ import pandas as pd
 from kubernetes import client
 
 import mlrun
+import mlrun.builder
+import mlrun.utils.regex
 from mlrun.db import get_run_db
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
 from mlrun.k8s_utils import get_k8s_helper
@@ -31,7 +33,7 @@ from mlrun.runtimes.constants import MPIJobCRDVersions
 
 from ..artifacts import TableArtifact
 from ..config import config
-from ..utils import get_in, helpers, logger
+from ..utils import get_in, helpers, logger, verify_field_regex
 from .generators import selector
 
 
@@ -290,20 +292,58 @@ def log_iter_artifacts(execution, df, header):
         pass
 
 
-def generate_function_image_name(function) -> str:
+def resolve_function_image_name(function, image: typing.Optional[str] = None) -> str:
     project = function.metadata.project or config.default_project
+    name = function.metadata.name
     tag = function.metadata.tag or "latest"
+    if image:
+        image_name_prefix = resolve_function_target_image_name_prefix(project, name)
+        registries_to_enforce_prefix = (
+            resolve_function_target_image_registries_to_enforce_prefix()
+        )
+        for registry in registries_to_enforce_prefix:
+            if image.startswith(registry):
+                prefix_with_registry = f"{registry}{image_name_prefix}"
+                if not image.startswith(prefix_with_registry):
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Configured registry enforces image name to start with this prefix: {image_name_prefix}"
+                    )
+        return image
+    return generate_function_image_name(project, name, tag)
+
+
+def generate_function_image_name(project: str, name: str, tag: str) -> str:
     _, repository = helpers.get_parsed_docker_registry()
     repository = helpers.get_docker_repository_or_default(repository)
     return fill_function_image_name_template(
-        ".", repository, project, function.metadata.name, tag
+        mlrun.builder.IMAGE_NAME_ENRICH_REGISTRY_PREFIX, repository, project, name, tag
     )
 
 
 def fill_function_image_name_template(
-    registry: str, repository: str, project: str, name: str, tag: str,
+    registry: str,
+    repository: str,
+    project: str,
+    name: str,
+    tag: str,
 ) -> str:
-    return f"{registry}{repository}/func-{project}-{name}:{tag}"
+    image_name_prefix = resolve_function_target_image_name_prefix(project, name)
+    return f"{registry}{repository}/{image_name_prefix}:{tag}"
+
+
+def resolve_function_target_image_name_prefix(project: str, name: str):
+    return config.httpdb.builder.function_target_image_name_prefix_template.format(
+        project=project, name=name
+    )
+
+
+def resolve_function_target_image_registries_to_enforce_prefix():
+    registry, repository = helpers.get_parsed_docker_registry()
+    repository = helpers.get_docker_repository_or_default(repository)
+    return [
+        f"{mlrun.builder.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}{repository}/",
+        f"{registry}/{repository}/",
+    ]
 
 
 def set_named_item(obj, item):
@@ -384,6 +424,55 @@ def get_resource_labels(function, run=None, scrape_metrics=None):
         labels[mlrun_key + "owner"] = run_owner
 
     return labels
+
+
+def verify_limits(
+    resources_field_name,
+    mem=None,
+    cpu=None,
+    gpus=None,
+    gpu_type="nvidia.com/gpu",
+):
+    if mem:
+        verify_field_regex(
+            f"function.spec.{resources_field_name}.limits.memory",
+            mem,
+            mlrun.utils.regex.k8s_resource_quantity_regex,
+        )
+    if cpu:
+        verify_field_regex(
+            f"function.spec.{resources_field_name}.limits.cpu",
+            cpu,
+            mlrun.utils.regex.k8s_resource_quantity_regex,
+        )
+    # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
+    if gpus:
+        verify_field_regex(
+            f"function.spec.{resources_field_name}.limits.gpus",
+            gpus,
+            mlrun.utils.regex.k8s_resource_quantity_regex,
+        )
+    return generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type)
+
+
+def verify_requests(
+    resources_field_name,
+    mem=None,
+    cpu=None,
+):
+    if mem:
+        verify_field_regex(
+            f"function.spec.{resources_field_name}.requests.memory",
+            mem,
+            mlrun.utils.regex.k8s_resource_quantity_regex,
+        )
+    if cpu:
+        verify_field_regex(
+            f"function.spec.{resources_field_name}.requests.cpu",
+            cpu,
+            mlrun.utils.regex.k8s_resource_quantity_regex,
+        )
+    return generate_resources(mem=mem, cpu=cpu)
 
 
 def generate_resources(mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
@@ -482,7 +571,8 @@ def enrich_function_from_dict(function, function_dict):
                         function.set_env(env_dict["name"], env_dict["value"])
                     else:
                         function.set_env(
-                            env_dict["name"], value_from=env_dict["valueFrom"],
+                            env_dict["name"],
+                            value_from=env_dict["valueFrom"],
                         )
             elif attribute == "volumes":
                 function.spec.update_vols_and_mounts(override_value, [])

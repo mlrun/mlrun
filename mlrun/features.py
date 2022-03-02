@@ -72,7 +72,7 @@ class Feature(ModelObj):
         :param labels:      a set of key/value labels (tags)
         """
         self.name = name or ""
-        self.value_type = value_type or ""
+        self.value_type = value_type
         self.dims = dims
         self.description = description
         self.default = default
@@ -266,7 +266,7 @@ class MinMaxValidator(Validator):
                     return (
                         False,
                         {
-                            "message": "value is smaller than min",
+                            "message": "Value is smaller than min",
                             "min": self.min,
                             "value": value,
                         },
@@ -276,7 +276,7 @@ class MinMaxValidator(Validator):
                     return (
                         False,
                         {
-                            "message": "value is greater than max",
+                            "message": "Value is greater than max",
                             "max": self.max,
                             "value": value,
                         },

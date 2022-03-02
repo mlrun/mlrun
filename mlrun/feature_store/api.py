@@ -39,6 +39,7 @@ from .common import (
     RunConfig,
     get_feature_set_by_uri,
     get_feature_vector_by_uri,
+    verify_feature_set_exists,
     verify_feature_set_permissions,
     verify_feature_vector_permissions,
 )
@@ -195,18 +196,45 @@ def get_online_feature_service(
     """initialize and return online feature vector service api,
     returns :py:class:`~mlrun.feature_store.OnlineVectorService`
 
-    example::
+    There are two ways to use the function
+    1. As context manager
+        example::
 
-        svc = get_online_feature_service(vector_uri)
-        resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
-        print(resp)
-        resp = svc.get([{"ticker": "AAPL"}], as_list=True)
-        print(resp)
+                with get_online_feature_service(vector_uri) as svc:
+                    resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
+                    print(resp)
+                    resp = svc.get([{"ticker": "AAPL"}], as_list=True)
+                    print(resp)
 
-    example with imputing::
+            example with imputing::
 
-        svc = get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0))
-        resp = svc.get([{"id": "C123487"}])
+                with get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0)) as svc:
+                    resp = svc.get([{"id": "C123487"}])
+
+    2. as simple function, note that in that option you need to close the session.
+        example::
+
+            svc = get_online_feature_service(vector_uri)
+            try:
+                resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
+                print(resp)
+                resp = svc.get([{"ticker": "AAPL"}], as_list=True)
+                print(resp)
+
+            finally:
+                svc.close()
+
+
+        example with imputing::
+
+            svc = get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0))
+            try:
+                resp = svc.get([{"id": "C123487"}])
+            except Exception as e:
+                handling exception...
+            finally:
+                svc.close()
+
 
     :param feature_vector:    feature vector uri or FeatureVector object. passing feature vector obj requires update
                               permissions
@@ -232,6 +260,10 @@ def get_online_feature_service(
     service.initialize()
 
     # todo: support remote service (using remote nuclio/mlrun function if run_config)
+
+    for old_name in service.vector.get_feature_aliases().keys():
+        if old_name in service.vector.status.features.keys():
+            del service.vector.status.features[old_name]
     return service
 
 
@@ -439,7 +471,10 @@ def ingest(
     )
     if schema_options:
         preview(
-            featureset, source, options=schema_options, namespace=namespace,
+            featureset,
+            source,
+            options=schema_options,
+            namespace=namespace,
         )
     infer_stats = InferOptions.get_common_options(
         infer_options, InferOptions.all_stats()
@@ -449,7 +484,11 @@ def ingest(
 
     targets = targets or featureset.spec.targets or get_default_targets()
     df = init_featureset_graph(
-        source, featureset, namespace, targets=targets, return_df=return_df,
+        source,
+        featureset,
+        namespace,
+        targets=targets,
+        return_df=return_df,
     )
     if not InferOptions.get_common_options(
         infer_stats, InferOptions.Index
@@ -611,6 +650,8 @@ def deploy_ingestion_service(
     verify_feature_set_permissions(
         featureset, mlrun.api.schemas.AuthorizationAction.update
     )
+
+    verify_feature_set_exists(featureset)
 
     run_config = run_config.copy() if run_config else RunConfig()
     if isinstance(source, StreamSource) and not source.path:
@@ -839,7 +880,7 @@ def get_feature_vector(uri, project=None):
 
 
 def delete_feature_set(name, project="", tag=None, uid=None, force=False):
-    """ Delete a :py:class:`~mlrun.feature_store.FeatureSet` object from the DB.
+    """Delete a :py:class:`~mlrun.feature_store.FeatureSet` object from the DB.
     :param name: Name of the object to delete
     :param project: Name of the object's project
     :param tag: Specific object's version tag
@@ -861,7 +902,7 @@ def delete_feature_set(name, project="", tag=None, uid=None, force=False):
 
 
 def delete_feature_vector(name, project="", tag=None, uid=None):
-    """ Delete a :py:class:`~mlrun.feature_store.FeatureVector` object from the DB.
+    """Delete a :py:class:`~mlrun.feature_store.FeatureVector` object from the DB.
     :param name: Name of the object to delete
     :param project: Name of the object's project
     :param tag: Specific object's version tag

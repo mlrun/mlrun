@@ -33,6 +33,7 @@ from distutils.util import strtobool
 from os.path import expanduser
 from threading import Lock
 
+import dotenv
 import semver
 import yaml
 
@@ -127,13 +128,13 @@ default_config = {
     "httpdb": {
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
-        "dsn": "sqlite:////mlrun/db/mlrun.db?check_same_thread=false",
+        "dsn": "sqlite:///db/mlrun.db?check_same_thread=false",
         "old_dsn": "",
         "debug": False,
         "user": "",
         "password": "",
         "token": "",
-        "logs_path": "/mlrun/db/logs",
+        "logs_path": "./db/logs",
         "data_volume": "",
         "real_path": "",
         "db_type": "sqldb",
@@ -225,6 +226,12 @@ default_config = {
             # index.docker.io/<username>, if not included repository will default to mlrun
             "docker_registry": "",
             "docker_registry_secret": "",
+            # whether to allow the docker registry we're pulling from to be insecure. "enabled", "disabled" or "auto"
+            # which will resolve by the existence of secret
+            "insecure_pull_registry_mode": "auto",
+            # whether to allow the docker registry we're pushing to, to be insecure. "enabled", "disabled" or "auto"
+            # which will resolve by the existence of secret
+            "insecure_push_registry_mode": "auto",
             # the requirement specifier used by the builder when installing mlrun in images when it runs
             # pip install <requirement_specifier>, e.g. mlrun==0.5.4, mlrun~=0.5,
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
@@ -236,6 +243,9 @@ default_config = {
             "pip_ca_secret_name": "",
             "pip_ca_secret_key": "",
             "pip_ca_path": "/etc/ssl/certs/mlrun/pip-ca-certificates.crt",
+            # template for the prefix that the function target image will be enforced to have (as long as it's targeted
+            # to be in the configured registry). Supported template values are: {project} {name}
+            "function_target_image_name_prefix_template": "func-{project}-{name}",
         },
         "v3io_api": "",
         "v3io_framesd": "",
@@ -310,6 +320,15 @@ default_config = {
         # 1. A string of comma-separated parameters, using this format: "param1=value1,param2=value2"
         # 2. A base-64 encoded json dictionary containing the list of parameters
         "auto_mount_params": "",
+    },
+    "default_function_pod_resources": {
+        "requests": {"cpu": None, "memory": None, "gpu": None},
+        "limits": {"cpu": None, "memory": None, "gpu": None},
+    },
+    # preemptible node selector and tolerations to be added when running on spot nodes
+    "preemptible_nodes": {
+        "node_selector": "e30=",
+        "tolerations": "e30=",
     },
 }
 
@@ -391,17 +410,41 @@ class Config:
         return config.hub_url
 
     @staticmethod
-    def get_default_function_node_selector():
-        default_function_node_selector = {}
-        if config.default_function_node_selector:
-            default_function_node_selector_json_string = base64.b64decode(
-                config.default_function_node_selector
-            ).decode()
-            default_function_node_selector = json.loads(
-                default_function_node_selector_json_string
-            )
+    def decode_base64_config_and_load_to_dict(attribute_path: str):
+        attributes = attribute_path.split(".")
+        raw_attribute_value = config
+        for part in attributes:
+            try:
+                raw_attribute_value = raw_attribute_value.__getattr__(part)
+            except AttributeError:
+                raise mlrun.errors.MLRunNotFoundError(
+                    "Attribute does not exist in config"
+                )
+        if raw_attribute_value:
+            try:
+                decoded_attribute_value = base64.b64decode(raw_attribute_value).decode()
+            except Exception:
+                raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                    f"Unable to decode {attribute_path}"
+                )
+            parsed_attribute_value = json.loads(decoded_attribute_value)
+            return parsed_attribute_value
+        return {}
 
-        return default_function_node_selector
+    def get_default_function_node_selector(self):
+        return self.decode_base64_config_and_load_to_dict(
+            "default_function_node_selector"
+        )
+
+    def get_preemptible_node_selector(self):
+        return self.decode_base64_config_and_load_to_dict(
+            "preemptible_nodes.node_selector"
+        )
+
+    def get_preemptible_tolerations(self):
+        return self.decode_base64_config_and_load_to_dict(
+            "preemptible_nodes.tolerations"
+        )
 
     @staticmethod
     def get_valid_function_priority_class_names():
@@ -470,6 +513,17 @@ class Config:
             )
 
         return auto_mount_params
+
+    @staticmethod
+    def get_default_function_pod_resources():
+        resources: dict = copy.deepcopy(config.default_function_pod_resources.to_dict())
+        gpu_type = "nvidia.com/gpu"
+        gpu = "gpu"
+        resource_requirements = ["requests", "limits"]
+        for requirement in resource_requirements:
+            resources.setdefault(requirement, {}).setdefault(gpu)
+            resources[requirement][gpu_type] = resources.get(requirement).pop(gpu)
+        return resources
 
     def to_dict(self):
         return copy.copy(self._cfg)
@@ -590,6 +644,9 @@ def _populate():
 def _do_populate(env=None):
     global config
 
+    if "MLRUN_ENV_FILE" in os.environ:
+        dotenv.load_dotenv(os.environ["MLRUN_ENV_FILE"], override=True)
+
     if not config:
         config = Config.from_dict(default_config)
     else:
@@ -617,6 +674,40 @@ def _do_populate(env=None):
     del config._cfg["dask_kfp_image"]
     config._cfg["_iguazio_api_url"] = config._cfg["iguazio_api_url"]
     del config._cfg["iguazio_api_url"]
+
+    _validate_config(config)
+
+
+def _validate_config(config):
+    import mlrun.k8s_utils
+
+    try:
+        limits_gpu = config.default_function_pod_resources.limits.gpu
+        requests_gpu = config.default_function_pod_resources.requests.gpu
+        mlrun.k8s_utils.verify_gpu_requests_and_limits(
+            requests_gpu=requests_gpu,
+            limits_gpu=limits_gpu,
+        )
+    except AttributeError:
+        pass
+
+
+def _convert_resources_to_str(config: dict = None):
+    resources_types = ["cpu", "memory", "gpu"]
+    resource_requirements = ["requests", "limits"]
+    if not config.get("default_function_pod_resources"):
+        return
+    for requirement in resource_requirements:
+        resource_requirement = config.get("default_function_pod_resources").get(
+            requirement
+        )
+        if not resource_requirement:
+            continue
+        for resource_type in resources_types:
+            value = resource_requirement.setdefault(resource_type, "")
+            if value is None:
+                continue
+            resource_requirement[resource_type] = str(value)
 
 
 def _convert_str(value, typ):
@@ -650,17 +741,27 @@ def read_env(env=None, prefix=env_prefix):
             cfg = cfg.setdefault(name, {})
         cfg[path[0]] = value
 
+    env_dbpath = env.get("MLRUN_DBPATH", "")
+    is_remote_mlrun = (
+        env_dbpath.startswith("https://mlrun-api.") and "tenant." in env_dbpath
+    )
     # It's already a standard to set this env var to configure the v3io api, so we're supporting it (instead
-    # of MLRUN_V3IO_API)
+    # of MLRUN_V3IO_API), in remote usage this can be auto detected from the DBPATH
     v3io_api = env.get("V3IO_API")
     if v3io_api:
         config["v3io_api"] = v3io_api
+    elif is_remote_mlrun:
+        config["v3io_api"] = env_dbpath.replace("https://mlrun-api.", "https://webapi.")
 
     # It's already a standard to set this env var to configure the v3io framesd, so we're supporting it (instead
-    # of MLRUN_V3IO_FRAMESD)
+    # of MLRUN_V3IO_FRAMESD), in remote usage this can be auto detected from the DBPATH
     v3io_framesd = env.get("V3IO_FRAMESD")
     if v3io_framesd:
         config["v3io_framesd"] = v3io_framesd
+    elif is_remote_mlrun:
+        config["v3io_framesd"] = env_dbpath.replace(
+            "https://mlrun-api.", "https://framesd."
+        )
 
     uisvc = env.get("MLRUN_UI_SERVICE_HOST")
     igz_domain = env.get("IGZ_NAMESPACE_DOMAIN")
@@ -698,7 +799,9 @@ def read_env(env=None, prefix=env_prefix):
         # logger created (because of imports mess) before the config is loaded (in tests), therefore we're changing its
         # level manually
         mlrun.utils.logger.set_logger_level(config["log_level"])
-
+    # The default function pod resource values are of type str; however, when reading from environment variable numbers,
+    # it converts them to type int if contains only number, so we want to convert them to str.
+    _convert_resources_to_str(config)
     return config
 
 

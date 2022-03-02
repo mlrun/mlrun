@@ -15,7 +15,8 @@ router = fastapi.APIRouter()
 
 
 @router.get(
-    "/frontend-spec", response_model=mlrun.api.schemas.FrontendSpec,
+    "/frontend-spec",
+    response_model=mlrun.api.schemas.FrontendSpec,
 )
 def get_frontend_spec(
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
@@ -33,8 +34,20 @@ def get_frontend_spec(
     feature_flags = _resolve_feature_flags()
     registry, repository = mlrun.utils.helpers.get_parsed_docker_registry()
     repository = mlrun.utils.helpers.get_docker_repository_or_default(repository)
-    function_deployment_target_image_template = mlrun.runtimes.utils.fill_function_image_name_template(
-        f"{registry}/", repository, "{project}", "{name}", "{tag}",
+    function_deployment_target_image_template = (
+        mlrun.runtimes.utils.fill_function_image_name_template(
+            f"{registry}/",
+            repository,
+            "{project}",
+            "{name}",
+            "{tag}",
+        )
+    )
+    registries_to_enforce_prefix = (
+        mlrun.runtimes.utils.resolve_function_target_image_registries_to_enforce_prefix()
+    )
+    function_target_image_name_prefix_template = (
+        config.httpdb.builder.function_target_image_name_prefix_template
     )
     return mlrun.api.schemas.FrontendSpec(
         jobs_dashboard_url=jobs_dashboard_url,
@@ -44,10 +57,13 @@ def get_frontend_spec(
         valid_function_priority_class_names=config.get_valid_function_priority_class_names(),
         default_function_image_by_kind=mlrun.mlconf.function_defaults.image_by_kind.to_dict(),
         function_deployment_target_image_template=function_deployment_target_image_template,
+        function_deployment_target_image_name_prefix_template=function_target_image_name_prefix_template,
+        function_deployment_target_image_registries_to_enforce_prefix=registries_to_enforce_prefix,
         function_deployment_mlrun_command=mlrun.builder.resolve_mlrun_install_command(),
         auto_mount_type=config.storage.auto_mount_type,
         auto_mount_params=config.get_storage_auto_mount_params(),
         default_artifact_path=config.artifact_path,
+        default_function_pod_resources=mlrun.mlconf.default_function_pod_resources.to_dict(),
     )
 
 

@@ -81,10 +81,8 @@ def test_requirement_specifiers_convention():
         "kfp": {"~=1.8.0"},
         "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
-        "storey": {"~=0.8.11, <0.8.12"},
+        "storey": {"~=1.0.1"},
         "bokeh": {"~=2.4, >=2.4.2"},
-        # Black is not stable yet and does not have a release that is not beta, so can't be used with ~=
-        "black": {"<=19.10b0"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},
         "python-dotenv": {""},
@@ -105,9 +103,7 @@ def test_requirement_specifiers_convention():
         "urllib3": {">=1.25.4, <1.27"},
         "cryptography": {"~=3.0, <3.4"},
         "chardet": {">=3.0.2, <4.0"},
-        "google-auth": {">=1.25.0, <2.0dev"},
         "numpy": {">=1.16.5, <1.22.0"},
-        "orjson": {">=3,<3.4"},
         "alembic": {"~=1.4,<1.6.0"},
         "boto3": {"~=1.9, <1.17.107"},
         "azure-storage-blob": {"~=12.0, <12.7.0"},
@@ -115,7 +111,10 @@ def test_requirement_specifiers_convention():
         "pyarrow": {">=1,<6"},
     }
 
-    for (ignored_requirement_name, ignored_specifiers,) in ignored_invalid_map.items():
+    for (
+        ignored_requirement_name,
+        ignored_specifiers,
+    ) in ignored_invalid_map.items():
         if ignored_requirement_name in invalid_requirement_specifiers_map:
             diff = deepdiff.DeepDiff(
                 invalid_requirement_specifiers_map[ignored_requirement_name],

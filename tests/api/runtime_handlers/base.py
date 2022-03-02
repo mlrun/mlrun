@@ -111,6 +111,15 @@ class TestRuntimeHandlerBase:
         pod = client.V1Pod(metadata=metadata, status=status)
         return pod
 
+    @staticmethod
+    def _generate_config_map(name, labels, data=None):
+        metadata = client.V1ObjectMeta(
+            name=name, labels=labels, namespace=get_k8s().resolve_namespace()
+        )
+        if data is None:
+            data = {"key": "value"}
+        return client.V1ConfigMap(metadata=metadata, data=data)
+
     def _generate_get_logger_pods_label_selector(self, runtime_handler):
         run_label_selector = runtime_handler._get_run_label_selector(
             self.project, self.run_uid
@@ -157,7 +166,8 @@ class TestRuntimeHandlerBase:
         resources = runtime_handler.list_resources(project, group_by=group_by)
         crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
         get_k8s().v1api.list_namespaced_pod.assert_called_once_with(
-            get_k8s().resolve_namespace(), label_selector=label_selector,
+            get_k8s().resolve_namespace(),
+            label_selector=label_selector,
         )
         if expected_crds:
             get_k8s().crdapi.list_namespaced_custom_object.assert_called_once_with(
@@ -169,7 +179,8 @@ class TestRuntimeHandlerBase:
             )
         if expected_services:
             get_k8s().v1api.list_namespaced_service.assert_called_once_with(
-                get_k8s().resolve_namespace(), label_selector=label_selector,
+                get_k8s().resolve_namespace(),
+                label_selector=label_selector,
             )
         assertion_func(
             self,
@@ -280,7 +291,9 @@ class TestRuntimeHandlerBase:
                 )
                 assert (
                     deepdiff.DeepDiff(
-                        resource.status, expected_resource["status"], ignore_order=True,
+                        resource.status,
+                        expected_resource["status"],
+                        ignore_order=True,
                     )
                     == {}
                 )
@@ -407,6 +420,14 @@ class TestRuntimeHandlerBase:
         return calls
 
     @staticmethod
+    def _mock_list_namespaced_config_map(config_maps):
+        config_maps_list = client.V1ConfigMapList(items=config_maps)
+        get_k8s().v1api.list_namespaced_config_map = unittest.mock.Mock(
+            return_value=config_maps_list
+        )
+        return config_maps
+
+    @staticmethod
     def _mock_list_services(services):
         services_list = client.V1ServiceList(items=services)
         get_k8s().v1api.list_namespaced_service = unittest.mock.Mock(
@@ -457,7 +478,8 @@ class TestRuntimeHandlerBase:
     ):
         if logger_pod_name is not None:
             get_k8s().v1api.read_namespaced_pod_log.assert_called_once_with(
-                name=logger_pod_name, namespace=get_k8s().resolve_namespace(),
+                name=logger_pod_name,
+                namespace=get_k8s().resolve_namespace(),
             )
         _, log = crud.Logs().get_logs(db, project, uid, source=LogSources.PERSISTENCY)
         assert log == expected_log.encode()

@@ -57,6 +57,7 @@ from .frontend_spec import (
     ProjectMembershipFeatureFlag,
 )
 from .function import FunctionState
+from .k8s import Resources, ResourceSpec
 from .marketplace import (
     IndexedMarketplaceSource,
     MarketplaceCatalog,

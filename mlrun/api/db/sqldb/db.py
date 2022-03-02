@@ -13,6 +13,7 @@ from sqlalchemy import and_, distinct, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, aliased
 
+import mlrun
 import mlrun.api.db.session
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.errors
@@ -73,7 +74,12 @@ class SQLDB(DBInterface):
         pass
 
     def store_log(
-        self, session, uid, project="", body=b"", append=False,
+        self,
+        session,
+        uid,
+        project="",
+        body=b"",
+        append=False,
     ):
         raise NotImplementedError("DB should not be used for logs storage")
 
@@ -93,7 +99,12 @@ class SQLDB(DBInterface):
         return self._query(session, Log, project=project).all()
 
     def store_run(
-        self, session, run_data, uid, project="", iter=0,
+        self,
+        session,
+        run_data,
+        uid,
+        project="",
+        iter=0,
     ):
         logger.debug(
             "Storing run to db", project=project, uid=uid, iter=iter, run=run_data
@@ -270,10 +281,23 @@ class SQLDB(DBInterface):
         run_dict.setdefault("status", {})["state"] = state
 
     def store_artifact(
-        self, session, key, artifact, uid, iter=None, tag="", project="",
+        self,
+        session,
+        key,
+        artifact,
+        uid,
+        iter=None,
+        tag="",
+        project="",
     ):
         self._store_artifact(
-            session, key, artifact, uid, iter, tag, project,
+            session,
+            key,
+            artifact,
+            uid,
+            iter,
+            tag,
+            project,
         )
 
     def _store_artifact(
@@ -492,7 +516,13 @@ class SQLDB(DBInterface):
             self.del_artifact(session, key, "", project)
 
     def store_function(
-        self, session, function, name, project="", tag="", versioned=False,
+        self,
+        session,
+        function,
+        name,
+        project="",
+        tag="",
+        versioned=False,
     ) -> str:
         logger.debug(
             "Storing function to DB",
@@ -532,7 +562,11 @@ class SQLDB(DBInterface):
             function.setdefault("metadata", {})["name"] = name
         fn = self._get_class_instance_by_uid(session, Function, name, project, uid)
         if not fn:
-            fn = Function(name=name, project=project, uid=uid,)
+            fn = Function(
+                name=name,
+                project=project,
+                uid=uid,
+            )
         fn.updated = updated
         labels = get_in(function, "metadata.labels", {})
         update_labels(fn, labels)
@@ -564,8 +598,12 @@ class SQLDB(DBInterface):
         if obj:
             function = obj.struct
 
-            # If queried by hash key remove status
-            if hash_key:
+            # If queried by hash key and nuclio/serving function remove status
+            is_nuclio = (
+                function.get("kind", "")
+                in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
+            )
+            if hash_key and is_nuclio:
                 function["status"] = None
 
             # If connected to a tag add it to metadata
@@ -838,7 +876,12 @@ class SQLDB(DBInterface):
     def tag_artifacts(self, session, artifacts, project: str, name: str):
         for artifact in artifacts:
             query = (
-                self._query(session, artifact.Tag, project=project, name=name,)
+                self._query(
+                    session,
+                    artifact.Tag,
+                    project=project,
+                    name=name,
+                )
                 .join(Artifact)
                 .filter(Artifact.key == artifact.key)
             )
@@ -990,7 +1033,10 @@ class SQLDB(DBInterface):
             project_to_schedule_count,
             project_to_feature_set_count,
             project_to_models_count,
-            (project_to_recent_failed_runs_count, project_to_running_runs_count,),
+            (
+                project_to_recent_failed_runs_count,
+                project_to_running_runs_count,
+            ),
         ) = results
         return (
             project_to_files_count,
@@ -1160,7 +1206,9 @@ class SQLDB(DBInterface):
         # If a bad kind value was passed, it will fail here (return 422 to caller)
         project = schemas.Project(**project_record_full_object)
         self.store_project(
-            session, name, project,
+            session,
+            name,
+            project,
         )
 
         project_record.full_object = project_record_full_object
@@ -1247,7 +1295,13 @@ class SQLDB(DBInterface):
             )
 
     def _get_record_by_name_tag_and_uid(
-        self, session, cls, project: str, name: str, tag: str = None, uid: str = None,
+        self,
+        session,
+        cls,
+        project: str,
+        name: str,
+        tag: str = None,
+        uid: str = None,
     ):
         query = self._query(session, cls, name=name, project=project)
         computed_tag = tag or "latest"
@@ -1264,7 +1318,12 @@ class SQLDB(DBInterface):
         return computed_tag, object_tag_uid, query.one_or_none()
 
     def _get_feature_set(
-        self, session, project: str, name: str, tag: str = None, uid: str = None,
+        self,
+        session,
+        project: str,
+        name: str,
+        tag: str = None,
+        uid: str = None,
     ):
         (
             computed_tag,
@@ -1284,7 +1343,12 @@ class SQLDB(DBInterface):
             return None
 
     def get_feature_set(
-        self, session, project: str, name: str, tag: str = None, uid: str = None,
+        self,
+        session,
+        project: str,
+        name: str,
+        tag: str = None,
+        uid: str = None,
     ) -> schemas.FeatureSet:
         feature_set = self._get_feature_set(session, project, name, tag, uid)
         if not feature_set:
@@ -1337,7 +1401,8 @@ class SQLDB(DBInterface):
         return schemas.FeatureSetDigestOutput(
             metadata=feature_set.metadata,
             spec=schemas.FeatureSetDigestSpec(
-                entities=feature_set.spec.entities, features=feature_set.spec.features,
+                entities=feature_set.spec.entities,
+                features=feature_set.spec.features,
             ),
         )
 
@@ -1590,7 +1655,9 @@ class SQLDB(DBInterface):
         return schemas.FeatureSetsOutput(feature_sets=feature_sets)
 
     def list_feature_sets_tags(
-        self, session, project: str,
+        self,
+        session,
+        project: str,
     ):
         query = (
             session.query(FeatureSet.name, FeatureSet.Tag.name)
@@ -1646,7 +1713,10 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _common_object_validate_and_perform_uid_change(
-        object_dict: dict, tag, versioned, existing_uid=None,
+        object_dict: dict,
+        tag,
+        versioned,
+        existing_uid=None,
     ):
         uid = fill_object_hash(object_dict, "uid", tag)
         if not versioned:
@@ -1662,7 +1732,9 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _update_db_record_from_object_dict(
-        db_object, common_object_dict: dict, uid,
+        db_object,
+        common_object_dict: dict,
+        uid,
     ):
         db_object.name = common_object_dict["metadata"]["name"]
         updated_datetime = datetime.now(timezone.utc)
@@ -1737,7 +1809,12 @@ class SQLDB(DBInterface):
         return uid
 
     def _validate_and_enrich_record_for_creation(
-        self, session, new_object, db_class, project, versioned,
+        self,
+        session,
+        new_object,
+        db_class,
+        project,
+        versioned,
     ):
         object_type = new_object.__class__.__name__
 
@@ -1764,7 +1841,11 @@ class SQLDB(DBInterface):
         return uid, new_object.metadata.tag, object_dict
 
     def create_feature_set(
-        self, session, project, feature_set: schemas.FeatureSet, versioned=True,
+        self,
+        session,
+        project,
+        feature_set: schemas.FeatureSet,
+        versioned=True,
     ) -> str:
         (uid, tag, feature_set_dict,) = self._validate_and_enrich_record_for_creation(
             session, feature_set, FeatureSet, project, versioned
@@ -1853,7 +1934,11 @@ class SQLDB(DBInterface):
         self._delete_feature_store_object(session, FeatureSet, project, name, tag, uid)
 
     def create_feature_vector(
-        self, session, project, feature_vector: schemas.FeatureVector, versioned=True,
+        self,
+        session,
+        project,
+        feature_vector: schemas.FeatureVector,
+        versioned=True,
     ) -> str:
         (
             uid,
@@ -1875,7 +1960,12 @@ class SQLDB(DBInterface):
         return uid
 
     def _get_feature_vector(
-        self, session, project: str, name: str, tag: str = None, uid: str = None,
+        self,
+        session,
+        project: str,
+        name: str,
+        tag: str = None,
+        uid: str = None,
     ):
         (
             computed_tag,
@@ -1964,7 +2054,9 @@ class SQLDB(DBInterface):
         return schemas.FeatureVectorsOutput(feature_vectors=feature_vectors)
 
     def list_feature_vectors_tags(
-        self, session, project: str,
+        self,
+        session,
+        project: str,
     ):
         query = (
             session.query(FeatureVector.name, FeatureVector.Tag.name)
@@ -2207,7 +2299,10 @@ class SQLDB(DBInterface):
                 Artifact.key,
                 func.max(Artifact.updated),
             )
-            .group_by(Artifact.project, Artifact.key.label("key"),)
+            .group_by(
+                Artifact.project,
+                Artifact.key.label("key"),
+            )
             .subquery("max_key")
         )
 
@@ -2460,7 +2555,8 @@ class SQLDB(DBInterface):
             session.commit()
 
     def _transform_schedule_record_to_scheme(
-        self, schedule_record: Schedule,
+        self,
+        schedule_record: Schedule,
     ) -> schemas.ScheduleRecord:
         schedule = schemas.ScheduleRecord.from_orm(schedule_record)
         schedule.creation_time = self._add_utc_timezone(schedule.creation_time)
@@ -2478,7 +2574,8 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _transform_feature_set_model_to_schema(
-        feature_set_record: FeatureSet, tag=None,
+        feature_set_record: FeatureSet,
+        tag=None,
     ) -> schemas.FeatureSet:
         feature_set_full_dict = feature_set_record.full_object
         feature_set_resp = schemas.FeatureSet(**feature_set_full_dict)
@@ -2488,7 +2585,8 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _transform_feature_vector_model_to_schema(
-        feature_vector_record: FeatureVector, tag=None,
+        feature_vector_record: FeatureVector,
+        tag=None,
     ) -> schemas.FeatureVector:
         feature_vector_full_dict = feature_vector_record.full_object
         feature_vector_resp = schemas.FeatureVector(**feature_vector_full_dict)
@@ -2504,13 +2602,16 @@ class SQLDB(DBInterface):
         if not project_record.full_object:
             project = schemas.Project(
                 metadata=schemas.ProjectMetadata(
-                    name=project_record.name, created=project_record.created,
+                    name=project_record.name,
+                    created=project_record.created,
                 ),
                 spec=schemas.ProjectSpec(
                     description=project_record.description,
                     source=project_record.source,
                 ),
-                status=schemas.ObjectStatus(state=project_record.state,),
+                status=schemas.ObjectStatus(
+                    state=project_record.state,
+                ),
             )
             self.store_project(session, project_record.name, project)
             return project
@@ -2647,7 +2748,10 @@ class SQLDB(DBInterface):
         )
 
     def store_marketplace_source(
-        self, session, name, ordered_source: schemas.IndexedMarketplaceSource,
+        self,
+        session,
+        name,
+        ordered_source: schemas.IndexedMarketplaceSource,
     ):
         logger.debug(
             "Storing marketplace source in DB", index=ordered_source.index, name=name
@@ -2739,7 +2843,8 @@ class SQLDB(DBInterface):
 
     def create_data_version(self, session, version):
         logger.debug(
-            "Creating data version in DB", version=version,
+            "Creating data version in DB",
+            version=version,
         )
 
         now = datetime.now(timezone.utc)

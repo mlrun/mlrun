@@ -7,7 +7,8 @@ router = APIRouter()
 
 
 @router.get(
-    "/healthz", response_model=mlrun.api.schemas.ClientSpec,
+    "/healthz",
+    response_model=mlrun.api.schemas.ClientSpec,
 )
 def health():
 

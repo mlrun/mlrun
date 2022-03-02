@@ -49,8 +49,9 @@ def run_function(
     watch: bool = True,
     local: bool = False,
     verbose: bool = None,
+    selector: str = None,
     project_object=None,
-    auto_build=None,
+    auto_build: bool = None,
 ) -> Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -94,6 +95,7 @@ def run_function(
     :param name:            execution name
     :param params:          input parameters (dict)
     :param hyperparams:     hyper parameters
+    :param selector:        selection criteria for hyper params e.g. "max.accuracy"
     :param hyper_param_options:  hyper param options (selector, early stop, strategy, ..)
                             see: :py:class:`~mlrun.model.HyperParamOptions`
     :param inputs:          input objects (dict of key: path)
@@ -104,6 +106,7 @@ def run_function(
     :param watch:           watch/follow run log, True by default
     :param local:           run the function locally vs on the runtime/cluster
     :param verbose:         add verbose prints/logs
+    :param project_object:  override the project object to use, will default to the project set in the runtime context.
     :param auto_build:      when set to True and the function require build it will be built on the first
                             function run, use only if you dont plan on changing the build config between runs
 
@@ -118,6 +121,7 @@ def run_function(
         hyper_param_options=hyper_param_options,
         inputs=inputs,
         base=base_task,
+        selector=selector,
     )
     task.spec.verbose = task.spec.verbose or verbose
 
@@ -129,7 +133,11 @@ def run_function(
         if pipeline_context.workflow:
             local = local or pipeline_context.workflow.run_local
         task.metadata.labels = task.metadata.labels or labels or {}
-        task.metadata.labels["workflow"] = pipeline_context.workflow_id
+        if pipeline_context.workflow_id:
+            task.metadata.labels["workflow"] = pipeline_context.workflow_id
+        if function.kind == "local":
+            command, function = mlrun.run.load_func_code(function)
+            function.spec.command = command
         run_result = function.run(
             runspec=task,
             workdir=workdir,
@@ -189,15 +197,18 @@ def build_function(
     :param mlrun_version_specifier:  which mlrun package version to include (if not current)
     :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
                             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
+    :param project_object:  override the project object to use, will default to the project set in the runtime context.
+    :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
+                            e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
     """
     engine, function = _get_engine_and_function(function, project_object)
     if requirements:
         function.with_requirements(requirements)
-        if commands and function.spec.build.commands:
-            # merge requirements with commands
-            for command in function.spec.build.commands:
-                if command not in commands:
-                    commands.append(command)
+    if commands and function.spec.build.commands:
+        # add commands to existing build commands
+        for command in commands:
+            if command not in function.spec.build.commands:
+                function.spec.build.commands.append(command)
 
     if function.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -259,6 +270,7 @@ def deploy_function(
     :param env:        dict of extra environment variables
     :param tag:        extra version tag
     :param verbose     add verbose prints/logs
+    :param project_object:  override the project object to use, will default to the project set in the runtime context.
     """
     engine, function = _get_engine_and_function(function, project_object)
     if function.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():

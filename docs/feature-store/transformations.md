@@ -302,7 +302,7 @@ feature_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker"
 
 source = CSVSource("mycsv", path="v3io:///projects/quotes.csv")
 
-spark_service_name = "iguazio-spark-service" # As configured & shown in the Iguazio dashboard
+spark_service_name = "spark" # As configured & shown in the Iguazio dashboard
 
 fn = code_to_function(kind='remote-spark',  name='func')
 

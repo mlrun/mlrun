@@ -432,19 +432,19 @@ class FeatureSet(ModelObj):
     ):
         ingestion_target_names = [t if isinstance(t, str) else t.name for t in targets]
         # silent=True always because targets are not guaranteed to be found in status
-        status_targets = self._reload_and_get_status_targets(
-            target_names=ingestion_target_names, silent=True
-        )
+
+        status_targets = []
+        if not overwrite:
+            status_targets = self._reload_and_get_status_targets(
+                target_names=ingestion_target_names, silent=True
+            )
 
         run_uuid = DataTargetBase.generate_target_run_uuid()
         for target in targets:
             if overwrite or not (target.name in status_targets.keys()):
                 target.run_uuid = run_uuid
-                print(f"BBBBB - overwrite - {target.run_uuid}")
-                traceback.print_stack()
             else:
                 target.run_uuid = status_targets[target.name].run_uuid
-                print(f"BBBBB - unchanged - {target.run_uuid}")
 
     def _reload_and_get_status_targets(
         self, target_names: List[str] = None, silent: bool = False

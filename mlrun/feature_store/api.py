@@ -327,8 +327,6 @@ def ingest(
 
     """
     if featureset:
-        print(f"BBBBB - ingest - {featureset.get_target_path()}")
-        traceback.print_stack()
         if isinstance(featureset, str):
             # need to strip store prefix from the uri
             _, stripped_name = parse_store_uri(featureset)
@@ -439,9 +437,10 @@ def ingest(
 
         from mlrun.model import DataTargetBase
 
-        run_uuid = DataTargetBase.generate_target_run_uuid()
-        for t in targets_to_ingest:
-            t.run_uuid = run_uuid
+        featureset.update_targets_run_uuid(
+            targets=targets_to_ingest,
+            overwrite=overwrite,
+        )
     else:
         featureset.update_targets_run_uuid(
             targets=targets_to_ingest,

@@ -28,6 +28,8 @@ from .datastore import store_manager
 from .k8s_utils import BasePod, get_k8s_helper
 from .utils import enrich_image_url, get_parsed_docker_registry, logger, normalize_name
 
+IMAGE_NAME_ENRICH_REGISTRY_PREFIX = "."
+
 
 def make_dockerfile(
     base_image,
@@ -103,6 +105,7 @@ def make_kaniko_pod(
         project=project,
     )
     kpod.env = builder_env
+    kpod.set_node_selector(mlrun.mlconf.get_default_function_node_selector())
 
     if secret_name:
         items = [{"key": ".dockerconfigjson", "path": "config.json"}]
@@ -192,7 +195,7 @@ def build_image(
 
     if registry:
         dest = "/".join([registry, dest])
-    elif dest.startswith("."):
+    elif dest.startswith(IMAGE_NAME_ENRICH_REGISTRY_PREFIX):
         dest = dest[1:]
         registry, _ = get_parsed_docker_registry()
         secret_name = secret_name or config.httpdb.builder.docker_registry_secret
@@ -321,9 +324,9 @@ def resolve_mlrun_install_command(mlrun_version_specifier=None, client_version=N
 def build_runtime(
     auth_info: mlrun.api.schemas.AuthInfo,
     runtime,
-    with_mlrun,
-    mlrun_version_specifier,
-    skip_deployed,
+    with_mlrun=True,
+    mlrun_version_specifier=None,
+    skip_deployed=False,
     interactive=False,
     builder_env=None,
     client_version=None,
@@ -331,7 +334,7 @@ def build_runtime(
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
     project = runtime.metadata.project
-    if skip_deployed and runtime.is_deployed:
+    if skip_deployed and runtime.is_deployed():
         runtime.status.state = mlrun.api.schemas.FunctionState.ready
         return True
     if build.base_image:
@@ -349,9 +352,9 @@ def build_runtime(
             if build.base_image:
                 runtime.spec.image = build.base_image
             elif runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict():
-                runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[
-                    runtime.kind
-                ]
+                runtime.spec.image = (
+                    mlrun.mlconf.function_defaults.image_by_kind.to_dict()[runtime.kind]
+                )
         if not runtime.spec.image:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "The deployment was not successful because no image was specified or there are missing build parameters"
@@ -360,9 +363,7 @@ def build_runtime(
         runtime.status.state = mlrun.api.schemas.FunctionState.ready
         return True
 
-    build.image = build.image or mlrun.runtimes.utils.generate_function_image_name(
-        runtime
-    )
+    build.image = mlrun.runtimes.utils.resolve_function_image_name(runtime, build.image)
     runtime.status.state = ""
 
     inline = None  # noqa: F841

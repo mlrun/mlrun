@@ -92,8 +92,13 @@ class K8sSecretsMock:
             for key in secrets:
                 self.project_secrets_map.get(project, {}).pop(key, None)
 
-    def get_project_secret_keys(self, project, namespace=""):
-        return list(self.project_secrets_map.get(project, {}).keys())
+    def get_project_secret_keys(self, project, namespace="", filter_internal=False):
+        secret_keys = list(self.project_secrets_map.get(project, {}).keys())
+        if filter_internal:
+            secret_keys = list(
+                filter(lambda key: not key.startswith("mlrun."), secret_keys)
+            )
+        return secret_keys
 
     def get_project_secret_data(self, project, secret_keys=None, namespace=""):
         secrets_data = self.project_secrets_map.get(project, {})
@@ -126,7 +131,9 @@ class K8sSecretsMock:
     def assert_project_secrets(self, project: str, secrets: dict):
         assert (
             deepdiff.DeepDiff(
-                self.project_secrets_map[project], secrets, ignore_order=True,
+                self.project_secrets_map[project],
+                secrets,
+                ignore_order=True,
             )
             == {}
         )
@@ -168,20 +175,20 @@ def k8s_secrets_mock(client: TestClient) -> K8sSecretsMock:
         for name in mocked_function_names
     }
 
-    mlrun.api.utils.singletons.k8s.get_k8s().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
-        side_effect=k8s_secrets_mock.is_running_in_k8s_cluster
+    mlrun.api.utils.singletons.k8s.get_k8s().is_running_inside_kubernetes_cluster = (
+        unittest.mock.Mock(side_effect=k8s_secrets_mock.is_running_in_k8s_cluster)
     )
-    mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_keys = unittest.mock.Mock(
-        side_effect=k8s_secrets_mock.get_project_secret_keys
+    mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_keys = (
+        unittest.mock.Mock(side_effect=k8s_secrets_mock.get_project_secret_keys)
     )
-    mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_data = unittest.mock.Mock(
-        side_effect=k8s_secrets_mock.get_project_secret_data
+    mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_data = (
+        unittest.mock.Mock(side_effect=k8s_secrets_mock.get_project_secret_data)
     )
     mlrun.api.utils.singletons.k8s.get_k8s().store_project_secrets = unittest.mock.Mock(
         side_effect=k8s_secrets_mock.store_project_secrets
     )
-    mlrun.api.utils.singletons.k8s.get_k8s().delete_project_secrets = unittest.mock.Mock(
-        side_effect=k8s_secrets_mock.delete_project_secrets
+    mlrun.api.utils.singletons.k8s.get_k8s().delete_project_secrets = (
+        unittest.mock.Mock(side_effect=k8s_secrets_mock.delete_project_secrets)
     )
 
     yield k8s_secrets_mock

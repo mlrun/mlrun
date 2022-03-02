@@ -317,7 +317,9 @@ class TestRuntimeBase:
             )
         if expected_labels:
             diff_result = deepdiff.DeepDiff(
-                function_metadata["labels"], expected_labels, ignore_order=True,
+                function_metadata["labels"],
+                expected_labels,
+                ignore_order=True,
             )
             # We just care that the values we look for are fully there.
             diff_result.pop("dictionary_item_removed", None)
@@ -542,7 +544,9 @@ class TestRuntimeBase:
         if expected_node_selector:
             assert (
                 deepdiff.DeepDiff(
-                    pod.spec.node_selector, expected_node_selector, ignore_order=True,
+                    pod.spec.node_selector,
+                    expected_node_selector,
+                    ignore_order=True,
                 )
                 == {}
             )
@@ -581,4 +585,38 @@ class TestRuntimeBase:
                     ignore_order=True,
                 )
                 == {}
+            )
+
+    def assert_run_without_specifying_resources(self):
+        for test_case in [
+            {
+                # when are not defaults defined
+                "default_function_pod_resources": {
+                    "requests": {"cpu": None, "memory": None, "gpu": None},
+                    "limits": {"cpu": None, "memory": None, "gpu": None},
+                },
+                "expected_resources": {},
+            },
+            {
+                # with defaults
+                "default_function_pod_resources": {
+                    "requests": {"cpu": "25m", "memory": "1M"},
+                    "limits": {"cpu": "2", "memory": "1G"},
+                },
+                "expected_resources": {
+                    "requests": {"cpu": "25m", "memory": "1M"},
+                    "limits": {"cpu": "2", "memory": "1G"},
+                },
+            },
+        ]:
+            mlconf.default_function_pod_resources = test_case.get(
+                "default_function_pod_resources"
+            )
+
+            runtime = self._generate_runtime()
+            expected_resources = test_case.get("expected_resources")
+            self._assert_container_resources(
+                runtime.spec,
+                expected_limits=expected_resources.get("limits"),
+                expected_requests=expected_resources.get("requests"),
             )

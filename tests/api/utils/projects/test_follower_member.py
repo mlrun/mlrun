@@ -82,7 +82,10 @@ def test_create_project(
     nop_leader: mlrun.api.utils.projects.remotes.leader.Member,
 ):
     project = _generate_project()
-    created_project, _ = projects_follower.create_project(None, project,)
+    created_project, _ = projects_follower.create_project(
+        None,
+        project,
+    )
     _assert_projects_equal(project, created_project)
     _assert_project_in_follower(projects_follower, project)
 
@@ -96,7 +99,9 @@ def test_store_project(
 
     # project doesn't exist - store will create
     created_project, _ = projects_follower.store_project(
-        None, project.metadata.name, project,
+        None,
+        project.metadata.name,
+        project,
     )
     _assert_projects_equal(project, created_project)
     _assert_project_in_follower(projects_follower, project)
@@ -104,7 +109,9 @@ def test_store_project(
     project_update = _generate_project(description="new description")
     # project exists - store will update
     updated_project, _ = projects_follower.store_project(
-        None, project.metadata.name, project_update,
+        None,
+        project.metadata.name,
+        project_update,
     )
     _assert_projects_equal(project_update, updated_project)
     _assert_project_in_follower(projects_follower, project_update)
@@ -119,7 +126,9 @@ def test_patch_project(
 
     # project doesn't exist - store will create
     created_project, _ = projects_follower.store_project(
-        None, project.metadata.name, project,
+        None,
+        project.metadata.name,
+        project,
     )
     _assert_projects_equal(project, created_project)
     _assert_project_in_follower(projects_follower, project)
@@ -142,20 +151,23 @@ def test_delete_project(
 ):
     project = _generate_project()
     projects_follower.create_project(
-        None, project,
+        None,
+        project,
     )
     _assert_project_in_follower(projects_follower, project)
-    mlrun.api.utils.singletons.db.get_db().verify_project_has_no_related_resources = unittest.mock.Mock(
-        return_value=None
+    mlrun.api.utils.singletons.db.get_db().verify_project_has_no_related_resources = (
+        unittest.mock.Mock(return_value=None)
     )
     projects_follower.delete_project(
-        None, project.metadata.name,
+        None,
+        project.metadata.name,
     )
     _assert_project_not_in_follower(projects_follower, project.metadata.name)
 
     # make sure another delete doesn't fail
     projects_follower.delete_project(
-        None, project.metadata.name,
+        None,
+        project.metadata.name,
     )
 
 
@@ -166,7 +178,8 @@ def test_get_project(
 ):
     project = _generate_project()
     projects_follower.create_project(
-        None, project,
+        None,
+        project,
     )
     # this functions uses get_project to assert, second assert will verify we're raising not found error
     _assert_project_in_follower(projects_follower, project)
@@ -183,7 +196,8 @@ def test_get_project_owner(
     nop_leader.project_owner_session = owner_session
     project = _generate_project(owner=owner)
     projects_follower.create_project(
-        None, project,
+        None,
+        project,
     )
     project_owner = projects_follower.get_project_owner(None, project.metadata.name)
     assert project_owner.username == owner
@@ -223,7 +237,8 @@ def test_list_project(
     }
     for _project in all_projects.values():
         projects_follower.create_project(
-            None, _project,
+            None,
+            _project,
         )
     # list all
     _assert_list_projects(projects_follower, list(all_projects.values()))
@@ -237,7 +252,9 @@ def test_list_project(
 
     # list by owner
     _assert_list_projects(
-        projects_follower, [project, archived_project], owner=owner,
+        projects_follower,
+        [project, archived_project],
+        owner=owner,
     )
 
     # list specific names only
@@ -249,7 +266,9 @@ def test_list_project(
 
     # list no valid names
     _assert_list_projects(
-        projects_follower, [], names=[],
+        projects_follower,
+        [],
+        names=[],
     )
 
     # list labeled - key existence
@@ -339,7 +358,11 @@ def test_list_project_leader_format(
         projects_role=mlrun.api.schemas.ProjectsRole.nop,
     )
     assert (
-        deepdiff.DeepDiff(projects.projects[0].data, project.dict(), ignore_order=True,)
+        deepdiff.DeepDiff(
+            projects.projects[0].data,
+            project.dict(),
+            ignore_order=True,
+        )
         == {}
     )
 
@@ -364,7 +387,9 @@ def _assert_list_projects(
     assert len(projects.projects) == len(expected_projects)
     assert (
         deepdiff.DeepDiff(
-            projects.projects, list(expected_projects_map.keys()), ignore_order=True,
+            projects.projects,
+            list(expected_projects_map.keys()),
+            ignore_order=True,
         )
         == {}
     )
@@ -381,15 +406,24 @@ def _generate_project(
     return mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=name, labels=labels),
         spec=mlrun.api.schemas.ProjectSpec(
-            description=description, desired_state=desired_state, owner=owner,
+            description=description,
+            desired_state=desired_state,
+            owner=owner,
         ),
-        status=mlrun.api.schemas.ProjectStatus(state=state,),
+        status=mlrun.api.schemas.ProjectStatus(
+            state=state,
+        ),
     )
 
 
 def _assert_projects_equal(project_1, project_2):
     assert (
-        deepdiff.DeepDiff(project_1.dict(), project_2.dict(), ignore_order=True,) == {}
+        deepdiff.DeepDiff(
+            project_1.dict(),
+            project_2.dict(),
+            ignore_order=True,
+        )
+        == {}
     )
 
 

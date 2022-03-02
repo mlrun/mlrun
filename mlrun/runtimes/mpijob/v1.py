@@ -147,6 +147,11 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
             "command",
             ["mpirun", *quoted_mpi_args, *quoted_args],
         )
+        self._update_container(
+            launcher_pod_template,
+            "resources",
+            mlconf.get_default_function_pod_resources(),
+        )
 
     def _enrich_worker_configurations(self, worker_pod_template):
         if self.spec.resources:
@@ -155,7 +160,10 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
             )
 
     def _generate_mpi_job(
-        self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta,
+        self,
+        runobj: RunObject,
+        execution: MLClientCtx,
+        meta: client.V1ObjectMeta,
     ) -> dict:
         pod_labels = deepcopy(meta.labels)
         pod_labels["mlrun/job"] = meta.name
@@ -185,7 +193,9 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
             self._update_container(pod_template, "env", extra_env + self.spec.env)
             if self.spec.image_pull_policy:
                 self._update_container(
-                    pod_template, "imagePullPolicy", self.spec.image_pull_policy,
+                    pod_template,
+                    "imagePullPolicy",
+                    self.spec.image_pull_policy,
                 )
             if self.spec.workdir:
                 self._update_container(pod_template, "workingDir", self.spec.workdir)
@@ -226,16 +236,22 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
 
         # update the replicas only for workers
         update_in(
-            job, "spec.mpiReplicaSpecs.Worker.replicas", self.spec.replicas or 1,
+            job,
+            "spec.mpiReplicaSpecs.Worker.replicas",
+            self.spec.replicas or 1,
         )
 
         update_in(
-            job, "spec.cleanPodPolicy", self.spec.clean_pod_policy,
+            job,
+            "spec.cleanPodPolicy",
+            self.spec.clean_pod_policy,
         )
 
         if execution.get_param("slots_per_worker"):
             update_in(
-                job, "spec.slotsPerWorker", execution.get_param("slots_per_worker"),
+                job,
+                "spec.slotsPerWorker",
+                execution.get_param("slots_per_worker"),
             )
 
         update_in(job, "metadata", meta.to_dict())

@@ -19,5 +19,6 @@ class TestFeatureStore(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             fs.deploy_ingestion_service(
-                featureset=fset, source=v3io_source,
+                featureset=fset,
+                source=v3io_source,
             )

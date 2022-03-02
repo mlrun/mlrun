@@ -241,7 +241,10 @@ class TestModelMonitoringAPI(TestMLRunSystem):
 
         label_column = "label"
 
-        train_set = pd.DataFrame(iris["data"], columns=columns,)
+        train_set = pd.DataFrame(
+            iris["data"],
+            columns=columns,
+        )
 
         train_set[label_column] = iris["target"]
 

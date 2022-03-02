@@ -1411,17 +1411,21 @@ class MlrunProject(ModelObj):
         )
         return self.get_function(key, sync)
 
-    def get_function(self, key, sync=False, enrich=False) -> mlrun.runtimes.BaseRuntime:
+    def get_function(
+        self, key, sync=False, enrich=False, ignore_cache=False
+    ) -> mlrun.runtimes.BaseRuntime:
         """get function object by name
 
+        :param key:   name of key for search
         :param sync:  will reload/reinit the function
         :param enrich: add project info/config/source info to the function object
+        :param ignore_cache: read the function object from the DB (ignore the local cache)
 
         :returns: function object
         """
-        if key in self.spec._function_objects and not sync:
+        if key in self.spec._function_objects and not sync and not ignore_cache:
             function = self.spec._function_objects[key]
-        elif key in self.spec._function_definitions:
+        elif key in self.spec._function_definitions and not ignore_cache:
             self.sync_functions()
             function = self.spec._function_objects[key]
         else:
@@ -1432,7 +1436,7 @@ class MlrunProject(ModelObj):
         return function
 
     def get_function_objects(self) -> typing.Dict[str, mlrun.runtimes.BaseRuntime]:
-        """"get a virtual dict with all the project functions ready for use in a pipeline"""
+        """ "get a virtual dict with all the project functions ready for use in a pipeline"""
         self.sync_functions()
         return FunctionsDict(self)
 
@@ -1539,7 +1543,7 @@ class MlrunProject(ModelObj):
         Vault secret source has several options::
 
             proj.with_secrets('vault', {'user': <user name>, 'secrets': ['secret1', 'secret2' ...]})
-            proj.with_secrets('vault', {'project': <proj. name>, 'secrets': ['secret1', 'secret2' ...]})
+            proj.with_secrets('vault', {'project': <proj.name>, 'secrets': ['secret1', 'secret2' ...]})
             proj.with_secrets('vault', ['secret1', 'secret2' ...])
 
         The 2nd option uses the current project name as context.
@@ -1760,7 +1764,7 @@ class MlrunProject(ModelObj):
         :param artifact_path:
                        target path/url for workflow artifacts, the string
                        '{{workflow.uid}}' will be replaced by workflow id
-        :param ttl:    pipeline ttl in secs (after that the pods will be removed)
+        :param ttl:    pipeline ttl (time to live) in secs (after that the pods will be removed)
         """
         if not name or name not in self.spec._workflows:
             raise ValueError(f"workflow {name} not found")
@@ -1841,7 +1845,7 @@ class MlrunProject(ModelObj):
             fp.write(self.to_yaml())
 
     def set_model_monitoring_credentials(self, access_key: str):
-        """ Set the credentials that will be used by the project's model monitoring
+        """Set the credentials that will be used by the project's model monitoring
         infrastructure functions.
         The supplied credentials must have data access
 

@@ -232,7 +232,10 @@ def blob_hash(data):
 
 
 def upload_extra_data(
-    artifact_spec: Artifact, extra_data: dict, prefix="", update_spec=False,
+    artifact_spec: Artifact,
+    extra_data: dict,
+    prefix="",
+    update_spec=False,
 ):
     if not extra_data:
         return

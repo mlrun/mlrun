@@ -525,7 +525,10 @@ def test_list_feature_sets_tags(db: Session, client: TestClient) -> None:
                 client, project_name, feature_set["metadata"]["name"], tag, feature_set
             )
     _list_tags_and_assert(
-        client, "feature_sets", project_name, tags,
+        client,
+        "feature_sets",
+        project_name,
+        tags,
     )
 
 

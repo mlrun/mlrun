@@ -143,7 +143,9 @@ def list_functions(
     if project is None:
         project = config.default_project
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-        project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
+        project,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
     )
     functions = mlrun.api.crud.Functions().list_functions(
         db_session, project, name, tag, labels
@@ -348,7 +350,12 @@ def build_status(
             # the DB with intermediate or unusable versions, only successfully deployed versions
             versioned = True
         mlrun.api.crud.Functions().store_function(
-            db_session, fn, name, project, tag, versioned=versioned,
+            db_session,
+            fn,
+            name,
+            project,
+            tag,
+            versioned=versioned,
         )
         return Response(
             content=text,
@@ -382,8 +389,9 @@ def build_status(
         )
 
     # read from log file
+    terminal_states = ["failed", "error", "ready"]
     log_file = log_path(project, f"build_{name}__{tag or 'latest'}")
-    if state in ["failed", "error", "ready"] and log_file.exists():
+    if state in terminal_states and log_file.exists():
         with log_file.open("rb") as fp:
             fp.seek(offset)
             out = fp.read()
@@ -409,14 +417,14 @@ def build_status(
         logger.error(f"build {state}, watch the build pod logs: {pod}")
         state = mlrun.api.schemas.FunctionState.error
 
-    if logs and state != "pending":
+    if (logs and state != "pending") or state in terminal_states:
         resp = get_k8s().logs(pod)
-        if state in ["failed", "error", "ready"]:
+        if state in terminal_states:
             log_file.parent.mkdir(parents=True, exist_ok=True)
             with log_file.open("wb") as fp:
                 fp.write(resp.encode())
 
-        if resp:
+        if resp and logs:
             out = resp.encode()[offset:]
 
     update_in(fn, "status.state", state)
@@ -427,7 +435,12 @@ def build_status(
     if state == mlrun.api.schemas.FunctionState.ready:
         versioned = True
     mlrun.api.crud.Functions().store_function(
-        db_session, fn, name, project, tag, versioned=versioned,
+        db_session,
+        fn,
+        name,
+        project,
+        tag,
+        versioned=versioned,
     )
 
     return Response(
@@ -504,7 +517,7 @@ def _build_function(
                 fn.metadata.project,
                 f"build_{fn.metadata.name}__{fn.metadata.tag or 'latest'}",
             )
-            if log_file.exists() and not (skip_deployed and fn.is_deployed):
+            if log_file.exists() and not (skip_deployed and fn.is_deployed()):
                 # delete old build log file if exist and build is not skipped
                 os.remove(str(log_file))
 
@@ -680,7 +693,10 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
 
     provider = SecretProviderName.kubernetes
     secret_value = Secrets().get_secret(
-        project_name, provider, secret_key, allow_secrets_from_k8s=True,
+        project_name,
+        provider,
+        secret_key,
+        allow_secrets_from_k8s=True,
     )
     user_provided_key = secret_value is not None
     internal_key_name = Secrets().generate_model_monitoring_secret_key(secret_key)

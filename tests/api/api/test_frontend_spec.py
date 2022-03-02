@@ -57,6 +57,14 @@ def test_get_frontend_spec(
     assert frontend_spec.default_function_pod_resources, mlrun.api.schemas.Resources(
         **default_function_pod_resources
     )
+    assert (
+        frontend_spec.function_deployment_target_image_name_prefix_template
+        == mlrun.mlconf.httpdb.builder.function_target_image_name_prefix_template
+    )
+    assert (
+        frontend_spec.function_deployment_target_image_registries_to_enforce_prefix
+        == mlrun.runtimes.utils.resolve_function_target_image_registries_to_enforce_prefix()
+    )
 
 
 def test_get_frontend_spec_jobs_dashboard_url_resolution(
@@ -74,15 +82,20 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
 
     # no grafana (None returned) so no url
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
-    mlrun.api.utils.clients.iguazio.Client().verify_request_session = unittest.mock.Mock(
-        return_value=(
-            mlrun.api.schemas.AuthInfo(
-                username=None, session="some-session", user_id=None, user_group_ids=[]
+    mlrun.api.utils.clients.iguazio.Client().verify_request_session = (
+        unittest.mock.Mock(
+            return_value=(
+                mlrun.api.schemas.AuthInfo(
+                    username=None,
+                    session="some-session",
+                    user_id=None,
+                    user_group_ids=[],
+                )
             )
         )
     )
-    mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url = unittest.mock.Mock(
-        return_value=None
+    mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url = (
+        unittest.mock.Mock(return_value=None)
     )
     response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
@@ -92,8 +105,8 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
 
     # happy secnario - grafana url found, verify returned correctly
     grafana_url = "some-url.com"
-    mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url = unittest.mock.Mock(
-        return_value=grafana_url
+    mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url = (
+        unittest.mock.Mock(return_value=grafana_url)
     )
 
     response = client.get("frontend-spec")

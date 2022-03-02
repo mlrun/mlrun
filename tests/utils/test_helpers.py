@@ -509,7 +509,7 @@ def test_create_exponential_backoff():
     max_value = 120
     backoff = mlrun.utils.helpers.create_exponential_backoff(base, max_value)
     for i in range(1, 120):
-        expected_value = min(base ** i, max_value)
+        expected_value = min(base**i, max_value)
         assert expected_value, next(backoff)
 
 

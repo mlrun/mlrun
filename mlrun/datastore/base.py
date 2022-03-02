@@ -369,7 +369,11 @@ class DataItem:
         return self._local_path
 
     def as_df(
-        self, columns=None, df_module=None, format="", **kwargs,
+        self,
+        columns=None,
+        df_module=None,
+        format="",
+        **kwargs,
     ):
         """return a dataframe object (generated from the dataitem).
 

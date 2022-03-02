@@ -42,7 +42,9 @@ class PackageTester:
         }
 
     def run(self):
-        self._logger.info("Running package tests",)
+        self._logger.info(
+            "Running package tests",
+        )
 
         results = {}
         for extra, extra_tests_data in self._extras_tests_data.items():
@@ -84,13 +86,15 @@ class PackageTester:
 
     def _test_extra_imports(self, extra):
         self._logger.debug(
-            "Testing extra imports", extra=extra,
+            "Testing extra imports",
+            extra=extra,
         )
         test_command = (
             f"python -c '{self._extras_tests_data[extra]['import_test_command']}'"
         )
         self._run_command(
-            test_command, run_in_venv=True,
+            test_command,
+            run_in_venv=True,
         )
         if "api" not in extra:
             # When api is not in the extra it's an extra purposed for the client usage
@@ -104,33 +108,47 @@ class PackageTester:
 
     def _test_requirements_conflicts(self, extra):
         self._logger.debug(
-            "Testing requirements conflicts", extra=extra,
+            "Testing requirements conflicts",
+            extra=extra,
         )
         self._run_command(
-            "pip install pipdeptree", run_in_venv=True,
+            "pip install pipdeptree",
+            run_in_venv=True,
         )
         self._run_command(
-            "pipdeptree --warn fail", run_in_venv=True,
+            "pipdeptree --warn fail",
+            run_in_venv=True,
         )
 
     def _create_venv(self):
-        self._logger.debug("Creating venv",)
-        self._run_command("python -m venv test-venv",)
+        self._logger.debug(
+            "Creating venv",
+        )
+        self._run_command(
+            "python -m venv test-venv",
+        )
 
     def _clean_venv(self):
-        self._logger.debug("Cleaning venv",)
-        self._run_command("rm -rf test-venv",)
+        self._logger.debug(
+            "Cleaning venv",
+        )
+        self._run_command(
+            "rm -rf test-venv",
+        )
 
     def _install_extra(self, extra):
         self._logger.debug(
-            "Installing extra", extra=extra,
+            "Installing extra",
+            extra=extra,
         )
         self._run_command(
-            "python -m pip install --upgrade pip~=21.2.0", run_in_venv=True,
+            "python -m pip install --upgrade pip~=22.0.0",
+            run_in_venv=True,
         )
 
         self._run_command(
-            f"pip install '.{extra}'", run_in_venv=True,
+            f"pip install '.{extra}'",
+            run_in_venv=True,
         )
 
     def _run_command(self, command, run_in_venv=False, env=None):

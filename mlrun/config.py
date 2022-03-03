@@ -403,7 +403,10 @@ class Config:
     @staticmethod
     def get_default_function_node_selector():
         default_function_node_selector = {}
-        if config.default_function_node_selector and config.default_function_node_selector != "bnVsbA==":
+        if (
+            config.default_function_node_selector
+            and config.default_function_node_selector != "bnVsbA=="
+        ):
             default_function_node_selector_json_string = base64.b64decode(
                 config.default_function_node_selector
             ).decode()

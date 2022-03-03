@@ -222,8 +222,6 @@ def test_get_default_function_node_selector():
     assert mlconf.config.get_default_function_node_selector() == {}
 
 
-
-
 def test_setting_dbpath_trigger_connect(requests_mock: requests_mock_package.Mocker):
     api_url = "http://mlrun-api-url:8080"
     remote_host = "some-namespace"

@@ -1046,9 +1046,10 @@ class TestFeatureStore(TestMLRunSystem):
         finally:
             svc.close()
 
-    @pytest.mark.parametrize("partitioned", [True, False])
+    # @pytest.mark.parametrize("partitioned", [True, False])
+    @pytest.mark.parametrize("partitioned", [False])
     def test_schedule_on_filtered_by_time(self, partitioned):
-        name = f"sched-time-{str(partitioned)}"
+        name = f"sched-time-{str(partitioned).lower()}"
 
         now = datetime.now() + timedelta(minutes=2)
         data = pd.DataFrame(
@@ -1062,11 +1063,12 @@ class TestFeatureStore(TestMLRunSystem):
             }
         )
         # writing down a remote source
-        target2 = ParquetTarget()
-        data_set = fs.FeatureSet("data", entities=[Entity("first_name")])
-        fs.ingest(data_set, data, targets=[target2])
+        data_target = ParquetTarget()
+        data_set = fs.FeatureSet("sched_data", entities=[Entity("first_name")])
+        fs.ingest(data_set, data, targets=[data_target])
 
-        path = data_set.status.targets[0].path
+        path = data_set.status.targets[0].path.format(run_uuid=data_set.status.targets[0].run_uuid)
+        assert path == data_set.get_target_path()
 
         # the job will be scheduled every minute
         cron_trigger = "*/1 * * * *"
@@ -1130,7 +1132,7 @@ class TestFeatureStore(TestMLRunSystem):
                 }
             )
             # writing down a remote source
-            fs.ingest(data_set, data, targets=[target2])
+            fs.ingest(data_set, data, targets=[data_target], overwrite=False)
 
             sleep(60)
             resp = svc.get(
@@ -1847,7 +1849,7 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_stream_source(self):
         # create feature set, ingest sample data and deploy nuclio function with stream source
-        fset_name = "stream_test"
+        fset_name = "a2-stream_test"
         myset = FeatureSet(f"{fset_name}", entities=[Entity("ticker")])
         fs.ingest(myset, quotes)
         source = StreamSource(key_field="ticker", time_field="time")
@@ -1860,7 +1862,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         function = mlrun.code_to_function(
-            "ingest_transactions", kind="serving", filename=filename
+            "ingest_transactions", kind="serving", filename=filename, image="benben-image-ml"
         )
         function.spec.default_content_type = "application/json"
         run_config = fs.RunConfig(function=function, local=False).apply(
@@ -2108,7 +2110,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         function = mlrun.code_to_function(
-            "ingest_transactions", kind="serving", filename=filename
+            "ingest_transactions", kind="serving", filename=filename, image='benben-image-ml'
         )
         function.spec.default_content_type = "application/json"
         run_config = fs.RunConfig(function=function, local=False).apply(

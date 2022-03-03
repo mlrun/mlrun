@@ -708,7 +708,10 @@ class BaseRuntime(ModelObj):
             self._get_db().store_run(rundict, uid, project, iter=iter)
 
     def _update_run_state(
-        self, resp: dict = None, task: RunObject = None, err=None
+        self,
+        resp: dict = None,
+        task: RunObject = None,
+        err=None,
     ) -> dict:
         """update the task state in the DB"""
         was_none = False

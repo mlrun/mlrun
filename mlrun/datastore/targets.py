@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import random
+import time
 import typing
 import warnings
 from collections import Counter
@@ -54,6 +56,10 @@ class TargetTypes:
         ]
 
 
+def generate_target_run_uuid():
+    return f"{round(time.time() * 1000)}_{random.randint(0, 999)}"
+
+
 def default_target_names():
     targets = mlrun.mlconf.feature_store.default_targets
     return [target.strip() for target in targets.split(",")]
@@ -66,6 +72,15 @@ def get_default_targets():
     ]
 
 
+def update_targets_for_ingest(overwrite, targets, targets_in_status):
+    run_uuid = generate_target_run_uuid()
+    for target in targets:
+        if overwrite or not (target.name in targets_in_status.keys()):
+            target.run_uuid = run_uuid
+        else:
+            target.run_uuid = targets_in_status[target.name].run_uuid
+
+
 def get_default_prefix_for_target(kind):
     data_prefixes = mlrun.mlconf.feature_store.data_prefixes
     data_prefix = getattr(data_prefixes, kind, None)
@@ -75,7 +90,9 @@ def get_default_prefix_for_target(kind):
 
 
 def get_default_prefix_for_source(kind):
-    return get_default_prefix_for_target(kind).replace("/{run_uuid}/", "/")
+    return get_default_prefix_for_target(kind).replace(
+        f"/{mlrun.mlconf.feature_store.run_uuid_place_holder}/", "/"
+    )
 
 
 def validate_target_list(targets):
@@ -327,9 +344,7 @@ class BaseStoreTarget(DataTargetBase):
         self._secrets = {}
 
     def _get_store(self):
-        store, _ = mlrun.store_manager.get_or_create_store(
-            self._target_path.absolute_path()
-        )
+        store, _ = mlrun.store_manager.get_or_create_store(self.get_target_path())
         return store
 
     def _get_column_list(self, features, timestamp_key, key_columns, with_type=False):
@@ -474,10 +489,13 @@ class BaseStoreTarget(DataTargetBase):
         return None
 
     def get_target_path(self):
-        return self._target_path.absolute_path()
+        return self._target_path_object.get_absolute_path()
+
+    def get_target_templated_path(self):
+        return self._target_path_object.get_templated_path()
 
     @property
-    def _target_path(self):
+    def _target_path_object(self):
         """return the actual/computed target path"""
         is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
         return self.get_path() or PathObject(
@@ -487,7 +505,7 @@ class BaseStoreTarget(DataTargetBase):
     def update_resource_status(self, status="", producer=None, size=None):
         """update the data target status"""
         self._target = self._target or DataTarget(
-            self.kind, self.name, self._target_path.templated_path()
+            self.kind, self.name, self.get_target_templated_path()
         )
         target = self._target
         target.run_uuid = self.run_uuid
@@ -522,7 +540,7 @@ class BaseStoreTarget(DataTargetBase):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def purge(self):
-        self._get_store().rm(self._target_path.absolute_path(), recursive=True)
+        self._get_store().rm(self.get_target_path(), recursive=True)
 
     def as_df(
         self,
@@ -535,7 +553,7 @@ class BaseStoreTarget(DataTargetBase):
         **kwargs,
     ):
         """return the target data as dataframe"""
-        return mlrun.get_dataitem(self._target_path.absolute_path()).as_df(
+        return mlrun.get_dataitem(self.get_target_path()).as_df(
             columns=columns,
             df_module=df_module,
             start_time=start_time,
@@ -715,8 +733,8 @@ class ParquetTarget(BaseStoreTarget):
 
         if (
             not self.partitioned
-            and not self._target_path.absolute_path().endswith(".parquet")
-            and not self._target_path.absolute_path().endswith(".pq")
+            and not self.get_target_path().endswith(".parquet")
+            and not self.get_target_path().endswith(".pq")
         ):
             partition_cols = []
 
@@ -738,7 +756,7 @@ class ParquetTarget(BaseStoreTarget):
             after=after,
             graph_shape="cylinder",
             class_name="storey.ParquetTarget",
-            path=self._target_path.absolute_path(),
+            path=self.get_target_path(),
             columns=column_list,
             index_cols=tuple_key_columns,
             partition_cols=partition_cols,
@@ -765,7 +783,7 @@ class ParquetTarget(BaseStoreTarget):
                     if unit == time_partitioning_granularity:
                         break
         result = {
-            "path": store_path_to_spark(self._target_path.absolute_path()),
+            "path": store_path_to_spark(self.get_target_path()),
             "format": "parquet",
         }
         for partition_col in self.partition_cols or []:
@@ -788,7 +806,7 @@ class ParquetTarget(BaseStoreTarget):
         **kwargs,
     ):
         """return the target data as dataframe"""
-        return mlrun.get_dataitem(self._target_path.absolute_path()).as_df(
+        return mlrun.get_dataitem(self.get_target_path()).as_df(
             columns=columns,
             df_module=df_module,
             format="parquet",
@@ -846,7 +864,7 @@ class CSVTarget(BaseStoreTarget):
             after=after,
             graph_shape="cylinder",
             class_name="storey.CSVTarget",
-            path=self._target_path.absolute_path(),
+            path=self.get_target_path(),
             columns=column_list,
             header=True,
             index_cols=key_columns,
@@ -856,7 +874,7 @@ class CSVTarget(BaseStoreTarget):
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         return {
-            "path": store_path_to_spark(self._target_path.absolute_path()),
+            "path": store_path_to_spark(self.get_target_path()),
             "format": "csv",
             "header": "true",
         }
@@ -895,7 +913,7 @@ class NoSqlTarget(BaseStoreTarget):
         from storey import Table, V3ioDriver
 
         # TODO use options/cred
-        endpoint, uri = parse_v3io_path(self._target_path.absolute_path())
+        endpoint, uri = parse_v3io_path(self.get_target_path())
         return Table(
             uri,
             V3ioDriver(webapi=endpoint),
@@ -952,7 +970,7 @@ class NoSqlTarget(BaseStoreTarget):
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         spark_options = {
-            "path": store_path_to_spark(self._target_path.absolute_path()),
+            "path": store_path_to_spark(self.get_target_path()),
             "format": "io.iguaz.v3io.spark.sql.kv",
         }
         if isinstance(key_column, list) and len(key_column) >= 1:
@@ -987,7 +1005,7 @@ class NoSqlTarget(BaseStoreTarget):
                 "V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY")
             )
 
-            _, path_with_container = parse_v3io_path(self._target_path.absolute_path())
+            _, path_with_container = parse_v3io_path(self.get_target_path())
             container, path = split_path(path_with_container)
 
             frames_client = get_frames_client(
@@ -1028,7 +1046,7 @@ class StreamTarget(BaseStoreTarget):
         from storey import V3ioDriver
 
         key_columns = list(key_columns.keys())
-        endpoint, uri = parse_v3io_path(self._target_path.absolute_path())
+        endpoint, uri = parse_v3io_path(self.get_target_path())
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
@@ -1077,7 +1095,7 @@ class TSDBTarget(BaseStoreTarget):
         featureset_status=None,
     ):
         key_columns = list(key_columns.keys())
-        endpoint, uri = parse_v3io_path(self._target_path.absolute_path())
+        endpoint, uri = parse_v3io_path(self.get_target_path())
         if not timestamp_key:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "feature set timestamp_key must be specified for TSDBTarget writer"
@@ -1115,7 +1133,7 @@ class TSDBTarget(BaseStoreTarget):
                 key_column = [key_column]
             new_index.extend(key_column)
 
-        _, path_with_container = parse_v3io_path(self._target_path.absolute_path())
+        _, path_with_container = parse_v3io_path(self.get_target_path())
         container, path = split_path(path_with_container)
 
         frames_client = get_frames_client(
@@ -1273,7 +1291,10 @@ def _get_target_path(driver, resource):
     name = resource.metadata.name
     project = resource.metadata.project or mlrun.mlconf.default_project
     data_prefix = get_default_prefix_for_target(kind).format(
-        project=project, kind=kind, name=name, run_uuid="{run_uuid}"
+        project=project,
+        kind=kind,
+        name=name,
+        run_uuid=mlrun.mlconf.feature_store.run_uuid_place_holder,
     )
     # todo: handle ver tag changes, may need to copy files?
     name = f"{name}"
@@ -1281,7 +1302,7 @@ def _get_target_path(driver, resource):
 
 
 def generate_path_with_chunk(target, chunk_id):
-    prefix, suffix = os.path.splitext(target._target_path.absolute_path())
+    prefix, suffix = os.path.splitext(target.get_target_path())
     if chunk_id and not target.partitioned and not target.time_partitioning_granularity:
         return f"{prefix}/{chunk_id:0>4}{suffix}"
-    return target._target_path.absolute_path()
+    return target.get_target_path()

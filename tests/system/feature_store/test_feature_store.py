@@ -1046,8 +1046,7 @@ class TestFeatureStore(TestMLRunSystem):
         finally:
             svc.close()
 
-    # @pytest.mark.parametrize("partitioned", [True, False])
-    @pytest.mark.parametrize("partitioned", [False])
+    @pytest.mark.parametrize("partitioned", [True, False])
     def test_schedule_on_filtered_by_time(self, partitioned):
         name = f"sched-time-{str(partitioned).lower()}"
 
@@ -1067,7 +1066,9 @@ class TestFeatureStore(TestMLRunSystem):
         data_set = fs.FeatureSet("sched_data", entities=[Entity("first_name")])
         fs.ingest(data_set, data, targets=[data_target])
 
-        path = data_set.status.targets[0].path.format(run_uuid=data_set.status.targets[0].run_uuid)
+        path = data_set.status.targets[0].path.format(
+            run_uuid=data_set.status.targets[0].run_uuid
+        )
         assert path == data_set.get_target_path()
 
         # the job will be scheduled every minute
@@ -1173,7 +1174,7 @@ class TestFeatureStore(TestMLRunSystem):
         data_set = fs.FeatureSet("data", entities=[Entity("first_name")])
         fs.ingest(data_set, data, targets=[target2])
 
-        path = data_set.status.targets[0].get_path().absolute_path()
+        path = data_set.status.targets[0].get_path().get_absolute_path()
 
         # the job will be scheduled every minute
         cron_trigger = "*/1 * * * *"
@@ -2225,7 +2226,7 @@ class TestFeatureStore(TestMLRunSystem):
             name="test_map_with_state_with_table_fset", entities=[fs.Entity("name")]
         )
         fs.ingest(fset, df, targets=[NoSqlTarget(path=table_url)])
-        table_url_with_run_uid = fset.status.targets[0].get_path().absolute_path()
+        table_url_with_run_uid = fset.status.targets[0].get_path().get_absolute_path()
         df = pd.DataFrame({"key": ["a", "a", "b"], "x": [2, 3, 4]})
 
         fset = fs.FeatureSet("myfset", entities=[Entity("key")])

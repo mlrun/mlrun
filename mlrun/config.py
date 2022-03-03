@@ -291,6 +291,7 @@ default_config = {
             "default": "v3io:///projects/{project}/FeatureStore/{name}/{run_uuid}/{kind}",
             "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{run_uuid}/{kind}",
         },
+        "run_uuid_place_holder": "{run_uuid}",
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
         "flush_interval": None,

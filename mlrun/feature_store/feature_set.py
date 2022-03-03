@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import traceback
 import warnings
 from datetime import datetime
 from typing import Dict, List, Optional, Union
@@ -346,7 +345,7 @@ class FeatureSet(ModelObj):
         """get the url/path for an offline or specified data target"""
         target = get_offline_target(self, name=name)
         if target:
-            return target.get_path().absolute_path()
+            return target.get_path().get_absolute_path()
 
     def set_targets(
         self,
@@ -409,7 +408,10 @@ class FeatureSet(ModelObj):
         )
 
         if purge_targets:
-            run_uuid = DataTargetBase.generate_target_run_uuid()
+            # TODO - benb - run_uuid shouldn't be a part of purge - remove logic after toggle implementation
+            from mlrun.datastore.targets import generate_target_run_uuid
+
+            run_uuid = generate_target_run_uuid()
             purge_target_names = list(purge_targets.keys())
             for target_name in purge_target_names:
                 target = purge_targets[target_name]
@@ -423,26 +425,26 @@ class FeatureSet(ModelObj):
 
             self.save()
 
-    def update_targets_run_uuid(
+    def update_targets_for_ingest(
         self,
         targets: List[DataTargetBase],
         overwrite: bool = None,
     ):
         ingestion_target_names = [t if isinstance(t, str) else t.name for t in targets]
-        # silent=True always because targets are not guaranteed to be found in status
 
         status_targets = {}
         if not overwrite:
-            status_targets = self._reload_and_get_status_targets(
-                target_names=ingestion_target_names, silent=True
-            ) or {}
+            # silent=True always because targets are not guaranteed to be found in status
+            status_targets = (
+                self._reload_and_get_status_targets(
+                    target_names=ingestion_target_names, silent=True
+                )
+                or {}
+            )
 
-        run_uuid = DataTargetBase.generate_target_run_uuid()
-        for target in targets:
-            if overwrite or not (target.name in status_targets.keys()):
-                target.run_uuid = run_uuid
-            else:
-                target.run_uuid = status_targets[target.name].run_uuid
+        from mlrun.datastore.targets import update_targets_for_ingest
+
+        update_targets_for_ingest(overwrite, targets, status_targets)
 
     def _reload_and_get_status_targets(
         self, target_names: List[str] = None, silent: bool = False

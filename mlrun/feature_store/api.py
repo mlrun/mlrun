@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
-import traceback
 from datetime import datetime
 from typing import List, Union
 from urllib.parse import urlparse
@@ -435,14 +434,12 @@ def ingest(
         ]
         featureset.purge_targets(target_names=purge_target_names, silent=True)
 
-        from mlrun.model import DataTargetBase
-
-        featureset.update_targets_run_uuid(
+        featureset.update_targets_for_ingest(
             targets=targets_to_ingest,
             overwrite=overwrite,
         )
     else:
-        featureset.update_targets_run_uuid(
+        featureset.update_targets_for_ingest(
             targets=targets_to_ingest,
             overwrite=overwrite,
         )

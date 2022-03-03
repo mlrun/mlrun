@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import inspect
-import random
 import re
 import time
 import warnings
@@ -1021,7 +1020,7 @@ def new_task(
 
 class PathObject:
 
-    _run_uuid_place_holder = "{run_uuid}"
+    _run_uuid_place_holder = config.feature_store.run_uuid_place_holder
 
     def __init__(
         self,
@@ -1040,10 +1039,10 @@ class PathObject:
                     self.full_path_template + self._run_uuid_place_holder
                 )
 
-    def templated_path(self):
+    def get_templated_path(self):
         return self.full_path_template
 
-    def absolute_path(self):
+    def get_absolute_path(self):
         return self.full_path_template.format(run_uuid=self.run_uuid)
 
 
@@ -1121,10 +1120,6 @@ class DataTargetBase(ModelObj):
         return super().from_dict(
             struct, fields=fields, deprecated_fields={"after_state": "after_step"}
         )
-
-    @staticmethod
-    def generate_target_run_uuid():
-        return f"{round(time.time() * 1000)}_{random.randint(0, 999)}"
 
     def get_path(self):
         if self.path:

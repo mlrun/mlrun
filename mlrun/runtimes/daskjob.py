@@ -284,7 +284,6 @@ class DaskCluster(KubejobRuntime):
                     time.sleep(5)
                     now = datetime.datetime.utcnow()
         else:
-            self._add_secrets_to_spec_before_running(project=self.metadata.project)
             self._cluster = deploy_function(self)
             self.save(versioned=False)
 
@@ -506,6 +505,10 @@ def deploy_function(function: DaskCluster, secrets=None, client_version: str = N
             exc,
         )
         raise exc
+
+    # Is it possible that the function will not have a project at this point?
+    if function.metadata.project:
+        function._add_secrets_to_spec_before_running(project=function.metadata.project)
 
     spec = function.spec
     meta = function.metadata

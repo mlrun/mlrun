@@ -777,6 +777,8 @@ def show_kfp_run(run, clear_output=False):
 def add_default_function_node_selector(
     container_op: dsl.ContainerOp,
 ) -> dsl.ContainerOp:
-    for label_name, label_value in config.get_default_function_node_selector().items():
-        container_op.add_node_selector_constraint(label_name, label_value)
+    node_selector = config.get_default_function_node_selector()
+    if node_selector:
+        for label_name, label_value in node_selector.items():
+            container_op.add_node_selector_constraint(label_name, label_value)
     return container_op

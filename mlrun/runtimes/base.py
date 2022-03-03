@@ -776,7 +776,11 @@ class BaseRuntime(ModelObj):
             self._get_db().store_run(rundict, uid, project, iter=iter)
 
     def _update_run_state(
-        self, resp: dict = None, task: RunObject = None, err=None
+        self,
+        resp: dict = None,
+        task: RunObject = None,
+        err=None,
+        is_dask_run=False,
     ) -> dict:
         """update the task state in the DB"""
         was_none = False
@@ -808,7 +812,7 @@ class BaseRuntime(ModelObj):
             err = get_in(resp, "status.error")
             if err:
                 updates["status.error"] = str(err)
-        elif not was_none and last_state != "completed":
+        elif not was_none and last_state != "completed" or (is_dask_run and not err):
             updates = {"status.last_update": now_date().isoformat()}
             updates["status.state"] = "completed"
             update_in(resp, "status.state", "completed")

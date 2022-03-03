@@ -506,6 +506,10 @@ def deploy_function(function: DaskCluster, secrets=None, client_version: str = N
         )
         raise exc
 
+    # Is it possible that the function will not have a project at this point?
+    if function.metadata.project:
+        function._add_secrets_to_spec_before_running(project=function.metadata.project)
+
     spec = function.spec
     meta = function.metadata
     spec.remote = True

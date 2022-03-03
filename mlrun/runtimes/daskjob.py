@@ -284,6 +284,7 @@ class DaskCluster(KubejobRuntime):
                     time.sleep(5)
                     now = datetime.datetime.utcnow()
         else:
+            self._add_secrets_to_spec_before_running(project=self.metadata.project)
             self._cluster = deploy_function(self)
             self.save(versioned=False)
 

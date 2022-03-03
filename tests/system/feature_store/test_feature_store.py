@@ -1863,7 +1863,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         function = mlrun.code_to_function(
-            "ingest_transactions", kind="serving", filename=filename, image="benben-image-ml"
+            "ingest_transactions", kind="serving", filename=filename
         )
         function.spec.default_content_type = "application/json"
         run_config = fs.RunConfig(function=function, local=False).apply(
@@ -2111,7 +2111,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         function = mlrun.code_to_function(
-            "ingest_transactions", kind="serving", filename=filename, image='benben-image-ml'
+            "ingest_transactions", kind="serving", filename=filename
         )
         function.spec.default_content_type = "application/json"
         run_config = fs.RunConfig(function=function, local=False).apply(

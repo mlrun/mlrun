@@ -780,7 +780,6 @@ class BaseRuntime(ModelObj):
         resp: dict = None,
         task: RunObject = None,
         err=None,
-        is_dask_run=False,
     ) -> dict:
         """update the task state in the DB"""
         was_none = False
@@ -812,7 +811,7 @@ class BaseRuntime(ModelObj):
             err = get_in(resp, "status.error")
             if err:
                 updates["status.error"] = str(err)
-        elif not was_none and last_state != "completed" or (is_dask_run and not err):
+        elif not was_none and last_state != "completed":
             updates = {"status.last_update": now_date().isoformat()}
             updates["status.state"] = "completed"
             update_in(resp, "status.state", "completed")

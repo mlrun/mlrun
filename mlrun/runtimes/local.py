@@ -75,9 +75,9 @@ class ParallelRunner:
             runobj = RunObject.from_dict(resp)
             try:
                 log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
-                resp = self._update_run_state(resp, is_dask_run=True)
+                resp = self._update_run_state(resp)
             except RunError as err:
-                resp = self._update_run_state(resp, is_dask_run=True, err=str(err))
+                resp = self._update_run_state(resp, err=str(err))
                 num_errors += 1
             results.append(resp)
             if num_errors > generator.max_errors:

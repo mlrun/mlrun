@@ -294,18 +294,7 @@ class KubejobRuntime(KubeResource):
         k8s = self._get_k8s()
         new_meta = self._get_meta(runobj)
 
-        if self._secrets:
-            if self._secrets.has_vault_source():
-                self._add_vault_params_to_spec(runobj)
-            if self._secrets.has_azure_vault_source():
-                self._add_azure_vault_params_to_spec(
-                    self._secrets.get_azure_vault_k8s_secret()
-                )
-            self._add_project_k8s_secrets_to_spec(
-                self._secrets.get_k8s_secrets(), runobj
-            )
-        else:
-            self._add_project_k8s_secrets_to_spec(None, runobj)
+        self._add_secrets_to_spec_before_running(runobj)
 
         pod_spec = func_to_pod(
             self.full_image_path(

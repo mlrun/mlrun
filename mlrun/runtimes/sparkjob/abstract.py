@@ -382,6 +382,8 @@ class AbstractSparkRuntime(KubejobRuntime):
 
         update_in(job, "spec.volumes", self.spec.volumes)
 
+        self._add_secrets_to_spec_before_running(runobj)
+
         command, args, extra_env = self._get_cmd_args(runobj)
         code = None
         if "MLRUN_EXEC_CODE" in [e.get("name") for e in extra_env]:

@@ -410,7 +410,7 @@ class Config:
         return config.hub_url
 
     @staticmethod
-    def decode_base64_config_and_load_to_dict(attribute_path: str):
+    def decode_base64_config_and_load_to_dict(attribute_path: str) -> dict:
         attributes = attribute_path.split(".")
         raw_attribute_value = config
         for part in attributes:
@@ -420,7 +420,9 @@ class Config:
                 raise mlrun.errors.MLRunNotFoundError(
                     "Attribute does not exist in config"
                 )
-        if raw_attribute_value:
+        # There is a bug in the installer component in iguazio system that causes the configrued value to be base64 of
+        # null (without conditioning it we will end up returning None instead of empty dict)
+        if raw_attribute_value and raw_attribute_value != "bnVsbA==":
             try:
                 decoded_attribute_value = base64.b64decode(raw_attribute_value).decode()
             except Exception:
@@ -431,17 +433,17 @@ class Config:
             return parsed_attribute_value
         return {}
 
-    def get_default_function_node_selector(self):
+    def get_default_function_node_selector(self) -> dict:
         return self.decode_base64_config_and_load_to_dict(
             "default_function_node_selector"
         )
 
-    def get_preemptible_node_selector(self):
+    def get_preemptible_node_selector(self) -> dict:
         return self.decode_base64_config_and_load_to_dict(
             "preemptible_nodes.node_selector"
         )
 
-    def get_preemptible_tolerations(self):
+    def get_preemptible_tolerations(self) -> dict:
         return self.decode_base64_config_and_load_to_dict(
             "preemptible_nodes.tolerations"
         )

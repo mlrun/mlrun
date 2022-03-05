@@ -1,7 +1,6 @@
 import asyncio
 import collections
 import re
-import time
 import typing
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
@@ -119,7 +118,6 @@ class SQLDB(DBInterface):
             "project_resources_counters": {"value": None, "ttl": datetime.min}
         }
         self._name_with_iter_regex = re.compile("^[0-9]+-.+$")
-        self._been_here = 0
 
     def initialize(self, session):
         pass
@@ -619,10 +617,6 @@ class SQLDB(DBInterface):
                 project=project,
                 uid=uid,
             )
-
-        if self._been_here == 0:
-            time.sleep(5)
-        self._been_here += 1
         fn.updated = updated
         labels = get_in(function, "metadata.labels", {})
         update_labels(fn, labels)

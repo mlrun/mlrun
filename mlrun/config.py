@@ -144,6 +144,8 @@ default_config = {
         "db": {
             "commit_retry_timeout": 30,
             "commit_retry_interval": 3,
+            "conflict_retry_timeout": 15,
+            "conflict_retry_interval": None,
             # Whether to perform data migrations on initialization. enabled or disabled
             "data_migrations_mode": "enabled",
             # Whether or not to perform database migration from sqlite to mysql on initialization

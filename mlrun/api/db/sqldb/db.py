@@ -79,7 +79,8 @@ def retry_on_conflict(function):
                 return function(*args, **kwargs)
             except Exception as exc:
                 conflict_messages = [
-                    "(sqlite3.IntegrityError) UNIQUE constraint failed"
+                    "(sqlite3.IntegrityError) UNIQUE constraint failed",
+                    "(pymysql.err.IntegrityError) (1062, \"Duplicate entry"
                 ]
                 if mlrun.utils.helpers.are_strings_in_exception_chain_messages(exc, conflict_messages):
                     logger.warning(

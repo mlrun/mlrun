@@ -844,7 +844,6 @@ def retry_until_successful(
             return result
 
         except mlrun.errors.MLRunFatalFailureError as exc:
-            logger.debug("Fatal failure exception raised. Not retrying")
             raise exc.original_exception
         except Exception as exc:
             last_exception = exc

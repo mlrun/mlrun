@@ -750,12 +750,6 @@ def fill_function_hash(function_dict, tag=""):
     return fill_object_hash(function_dict, "hash", tag)
 
 
-class FatalFailureException(Exception):
-    def __init__(self, original_exception: Exception, *args: object) -> None:
-        super().__init__(*args)
-        self.original_exception = original_exception
-
-
 def create_linear_backoff(base=2, coefficient=2, stop_value=120):
     """
     Create a generator of linear backoff. Check out usage example in test_helpers.py
@@ -849,7 +843,7 @@ def retry_until_successful(
             result = _function(*args, **kwargs)
             return result
 
-        except FatalFailureException as exc:
+        except mlrun.errors.MLRunFatalFailureException as exc:
             logger.debug("Fatal failure exception raised. Not retrying")
             raise exc.original_exception
         except Exception as exc:

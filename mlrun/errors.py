@@ -131,6 +131,16 @@ class MLRunTimeoutError(MLRunHTTPStatusError, TimeoutError):
     error_status_code = HTTPStatus.GATEWAY_TIMEOUT.value
 
 
+class MLRunFatalFailureException(Exception):
+    """
+    Internal exception meant to be used inside mlrun.utils.helpers.retry_until_successful to signal the loop not to
+    retry
+    """
+    def __init__(self, original_exception: Exception, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.original_exception = original_exception
+
+
 STATUS_ERRORS = {
     HTTPStatus.BAD_REQUEST.value: MLRunBadRequestError,
     HTTPStatus.UNAUTHORIZED.value: MLRunUnauthorizedError,

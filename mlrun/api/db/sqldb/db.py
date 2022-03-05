@@ -2270,7 +2270,7 @@ class SQLDB(DBInterface):
                             f"Conflict - {cls} already exists: {obj.get_identifier_string()}"
                         ) from err
                     except mlrun.errors.MLRunConflictError as exc:
-                        raise mlrun.utils.helpers.FatalFailureException(
+                        raise mlrun.errors.MLRunFatalFailureException(
                             original_exception=exc
                         )
 

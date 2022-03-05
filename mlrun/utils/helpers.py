@@ -892,6 +892,14 @@ def get_workflow_url(project, id=None):
     return url
 
 
+def are_strings_in_exception_chain_messages(exception: Exception, strings_list = typing.List[str]) -> bool:
+    while exception is not None:
+        if any([string in str(exception) for string in strings_list]):
+            return True
+        exception = exception.__cause__
+    return False
+
+
 class RunNotifications:
     def __init__(self, with_ipython=True, with_slack=False, secrets=None):
         self._hooks = []

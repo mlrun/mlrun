@@ -62,6 +62,44 @@ run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 unversioned_tagged_object_uid_prefix = "unversioned-"
 
 
+def retry_on_conflict(function):
+    def wrapper(*args, **kwargs):
+        def _try_function():
+            try:
+                return function(*args, **kwargs)
+            except Exception as exc:
+                conflict_messages = [
+                    "(sqlite3.IntegrityError) UNIQUE constraint failed"
+                ]
+                if mlrun.utils.helpers.are_strings_in_exception_chain_messages(exc, conflict_messages):
+                    logger.warning(
+                        "Got conflict error from DB. Retrying", err=str(exc)
+                    )
+                    raise mlrun.errors.MLRunRuntimeError(
+                        "Got conflict error from DB"
+                    ) from exc
+                raise mlrun.errors.MLRunFatalFailureError(
+                    original_exception=exc
+                )
+        if config.httpdb.db.conflict_retry_timeout:
+            interval = config.httpdb.db.conflict_retry_interval
+            if interval is None:
+                interval = mlrun.utils.create_step_backoff(
+                    [[0.0001, 1], [3, None]]
+                )
+            return mlrun.utils.helpers.retry_until_successful(
+                interval,
+                config.httpdb.db.conflict_retry_timeout,
+                logger,
+                False,
+                _try_function,
+            )
+        else:
+            return function(*args, **kwargs)
+
+    return wrapper
+
+
 class SQLDB(DBInterface):
     def __init__(self, dsn):
         self.dsn = dsn
@@ -515,6 +553,7 @@ class SQLDB(DBInterface):
         for key in distinct_keys:
             self.del_artifact(session, key, "", project)
 
+    @retry_on_conflict
     def store_function(
         self,
         session,

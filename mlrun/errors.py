@@ -1,3 +1,4 @@
+import typing
 from http import HTTPStatus
 
 import requests
@@ -135,8 +136,9 @@ class MLRunFatalFailureError(Exception):
     """
     Internal exception meant to be used inside mlrun.utils.helpers.retry_until_successful to signal the loop not to
     retry
+    Allowing to pass to original exception that will be raised from the loop (instead of this exception)
     """
-    def __init__(self, original_exception: Exception, *args, **kwargs) -> None:
+    def __init__(self, *args, original_exception: typing.Optional[Exception] = None, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.original_exception = original_exception
 

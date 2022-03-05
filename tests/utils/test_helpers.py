@@ -26,7 +26,7 @@ def test_retry_until_successful_fatal_failure():
     original_exception = Exception("original")
 
     def _raise_fatal_failure():
-        raise mlrun.errors.MLRunFatalFailureError(original_exception)
+        raise mlrun.errors.MLRunFatalFailureError(original_exception=original_exception)
 
     with pytest.raises(Exception, match=str(original_exception)):
         mlrun.utils.helpers.retry_until_successful(

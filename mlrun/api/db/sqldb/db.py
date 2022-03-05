@@ -63,6 +63,16 @@ unversioned_tagged_object_uid_prefix = "unversioned-"
 
 
 def retry_on_conflict(function):
+    """
+    Most of our store_x functions starting from doing get, then if nothing is found creating the object otherwise
+    updating attributes on the existing object. On the SQL level this translates to either INSERT or UPDATE queries.
+    Sometimes we have a race condition in which two requests do the get, find nothing, create a new object, but only the
+    SQL query of the first one will succeed, the second will get a conflict error, in that case, a retry like we're
+    doing on the bottom most layer (like the one for the database is locked error) won't help, cause the object does not
+    hold a reference to the existing DB object, and therefore will always translate to an INSERT query, therefore, in
+    order to make it work, we need to do the get again, and in other words, call the whole store_x function again
+    This why we implemented this retry as a decorator that comes "around" the existing functions
+    """
     def wrapper(*args, **kwargs):
         def _try_function():
             try:

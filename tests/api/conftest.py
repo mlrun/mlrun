@@ -1,10 +1,10 @@
-import unittest.mock
 import typing
-import httpx
+import unittest.mock
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Generator
 
 import deepdiff
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -50,7 +50,8 @@ def db() -> Generator:
 
 
 def set_base_url_for_test_client(
-    client: typing.Union[httpx.AsyncClient, TestClient], prefix: str = BASE_VERSIONED_API_PREFIX
+    client: typing.Union[httpx.AsyncClient, TestClient],
+    prefix: str = BASE_VERSIONED_API_PREFIX,
 ):
     if isinstance(client, httpx.AsyncClient):
         client.base_url = client.base_url.join(prefix)

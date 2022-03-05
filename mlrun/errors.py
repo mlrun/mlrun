@@ -21,7 +21,11 @@ class MLRunTaskNotReady(MLRunBaseError):
 
 class MLRunHTTPError(MLRunBaseError, requests.HTTPError):
     def __init__(
-        self, *args, response: requests.Response = None, status_code: int = None, **kwargs
+        self,
+        *args,
+        response: requests.Response = None,
+        status_code: int = None,
+        **kwargs,
     ):
 
         # because response object is probably with an error, it returns False, so we
@@ -138,7 +142,10 @@ class MLRunFatalFailureError(Exception):
     retry
     Allowing to pass to original exception that will be raised from the loop (instead of this exception)
     """
-    def __init__(self, *args, original_exception: typing.Optional[Exception] = None, **kwargs) -> None:
+
+    def __init__(
+        self, *args, original_exception: typing.Optional[Exception] = None, **kwargs
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.original_exception = original_exception
 

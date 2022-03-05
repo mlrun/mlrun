@@ -73,6 +73,7 @@ def retry_on_conflict(function):
     order to make it work, we need to do the get again, and in other words, call the whole store_x function again
     This why we implemented this retry as a decorator that comes "around" the existing functions
     """
+
     def wrapper(*args, **kwargs):
         def _try_function():
             try:
@@ -80,24 +81,21 @@ def retry_on_conflict(function):
             except Exception as exc:
                 conflict_messages = [
                     "(sqlite3.IntegrityError) UNIQUE constraint failed",
-                    "(pymysql.err.IntegrityError) (1062, \"Duplicate entry"
+                    '(pymysql.err.IntegrityError) (1062, "Duplicate entry',
                 ]
-                if mlrun.utils.helpers.are_strings_in_exception_chain_messages(exc, conflict_messages):
-                    logger.warning(
-                        "Got conflict error from DB. Retrying", err=str(exc)
-                    )
+                if mlrun.utils.helpers.are_strings_in_exception_chain_messages(
+                    exc, conflict_messages
+                ):
+                    logger.warning("Got conflict error from DB. Retrying", err=str(exc))
                     raise mlrun.errors.MLRunRuntimeError(
                         "Got conflict error from DB"
                     ) from exc
-                raise mlrun.errors.MLRunFatalFailureError(
-                    original_exception=exc
-                )
+                raise mlrun.errors.MLRunFatalFailureError(original_exception=exc)
+
         if config.httpdb.db.conflict_retry_timeout:
             interval = config.httpdb.db.conflict_retry_interval
             if interval is None:
-                interval = mlrun.utils.create_step_backoff(
-                    [[0.0001, 1], [3, None]]
-                )
+                interval = mlrun.utils.create_step_backoff([[0.0001, 1], [3, None]])
             return mlrun.utils.helpers.retry_until_successful(
                 interval,
                 config.httpdb.db.conflict_retry_timeout,

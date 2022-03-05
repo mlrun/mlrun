@@ -1,12 +1,10 @@
 import asyncio
-import tests.conftest
 import unittest.mock
-
-import httpx
-import pytest
 from http import HTTPStatus
 
+import httpx
 import kubernetes.client.rest
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -18,6 +16,7 @@ import mlrun.api.utils.singletons.k8s
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
 import mlrun.errors
+import tests.conftest
 
 
 def test_build_status_pod_not_found(db: Session, client: TestClient):
@@ -56,7 +55,9 @@ def test_build_status_pod_not_found(db: Session, client: TestClient):
 
 
 @pytest.mark.asyncio
-async def test_multiple_store_function_race_condition(db: Session, async_client: httpx.AsyncClient):
+async def test_multiple_store_function_race_condition(
+    db: Session, async_client: httpx.AsyncClient
+):
     """
     This is testing the case that the retry_on_conflict decorator is coming to solve, see its docstring for more details
     """
@@ -66,15 +67,17 @@ async def test_multiple_store_function_race_condition(db: Session, async_client:
         }
     }
     response = await async_client.post(
-        f"projects",
+        "projects",
         json=project,
     )
     assert response.status_code == HTTPStatus.CREATED.value
     # Make the get function method to return None on the first two calls, and then use the original function
-    get_function_mock = tests.conftest.MockSpecificCalls(mlrun.api.utils.singletons.db.get_db()._get_class_instance_by_uid,
-                                          [1, 2],
-                                          None).mock_function
-    mlrun.api.utils.singletons.db.get_db()._get_class_instance_by_uid = unittest.mock.Mock(side_effect=get_function_mock)
+    get_function_mock = tests.conftest.MockSpecificCalls(
+        mlrun.api.utils.singletons.db.get_db()._get_class_instance_by_uid, [1, 2], None
+    ).mock_function
+    mlrun.api.utils.singletons.db.get_db()._get_class_instance_by_uid = (
+        unittest.mock.Mock(side_effect=get_function_mock)
+    )
     function = {
         "kind": "job",
         "metadata": {
@@ -84,14 +87,18 @@ async def test_multiple_store_function_race_condition(db: Session, async_client:
         },
     }
 
-    request1_task = asyncio.create_task(async_client.post(
-        f"func/{function['metadata']['project']}/{function['metadata']['name']}",
-        json=function,
-    ))
-    request2_task = asyncio.create_task(async_client.post(
-        f"func/{function['metadata']['project']}/{function['metadata']['name']}",
-        json=function,
-    ))
+    request1_task = asyncio.create_task(
+        async_client.post(
+            f"func/{function['metadata']['project']}/{function['metadata']['name']}",
+            json=function,
+        )
+    )
+    request2_task = asyncio.create_task(
+        async_client.post(
+            f"func/{function['metadata']['project']}/{function['metadata']['name']}",
+            json=function,
+        )
+    )
     response1, response2 = await asyncio.gather(
         request1_task,
         request2_task,

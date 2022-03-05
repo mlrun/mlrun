@@ -21,7 +21,7 @@ class MLRunTaskNotReady(MLRunBaseError):
 
 class MLRunHTTPError(MLRunBaseError, requests.HTTPError):
     def __init__(
-        self, message: str, response: requests.Response = None, status_code: int = None
+        self, *args, response: requests.Response = None, status_code: int = None, **kwargs
     ):
 
         # because response object is probably with an error, it returns False, so we
@@ -31,7 +31,7 @@ class MLRunHTTPError(MLRunBaseError, requests.HTTPError):
         if status_code:
             response.status_code = status_code
 
-        requests.HTTPError.__init__(self, message, response=response)
+        requests.HTTPError.__init__(self, *args, response=response, **kwargs)
 
 
 class MLRunHTTPStatusError(MLRunHTTPError):
@@ -43,9 +43,9 @@ class MLRunHTTPStatusError(MLRunHTTPError):
 
     error_status_code = None
 
-    def __init__(self, message: str, response: requests.Response = None):
+    def __init__(self, *args, response: requests.Response = None, **kwargs):
         super(MLRunHTTPStatusError, self).__init__(
-            message, response=response, status_code=self.error_status_code
+            *args, response=response, status_code=self.error_status_code, **kwargs
         )
 
 

@@ -145,6 +145,7 @@ class SQLDB(DBInterface):
     def _list_logs(self, session: Session, project: str):
         return self._query(session, Log, project=project).all()
 
+    @retry_on_conflict
     def store_run(
         self,
         session,
@@ -327,6 +328,7 @@ class SQLDB(DBInterface):
         run_record.state = state
         run_dict.setdefault("status", {})["state"] = state
 
+    @retry_on_conflict
     def store_artifact(
         self,
         session,
@@ -968,6 +970,7 @@ class SQLDB(DBInterface):
         update_labels(project_record, labels)
         self._upsert(session, project_record)
 
+    @retry_on_conflict
     def store_project(self, session: Session, name: str, project: schemas.Project):
         logger.debug("Storing project in DB", name=name, project=project)
         project_record = self._get_project_record(
@@ -1807,6 +1810,7 @@ class SQLDB(DBInterface):
         labels = common_object_dict["metadata"].pop("labels", {}) or {}
         update_labels(db_object, labels)
 
+    @retry_on_conflict
     def store_feature_set(
         self,
         session,
@@ -2114,6 +2118,7 @@ class SQLDB(DBInterface):
         )
         return [(project, row[0], row[1]) for row in query]
 
+    @retry_on_conflict
     def store_feature_vector(
         self,
         session,
@@ -2795,6 +2800,7 @@ class SQLDB(DBInterface):
             session, source_record, move_to=order, move_from=None
         )
 
+    @retry_on_conflict
     def store_marketplace_source(
         self,
         session,

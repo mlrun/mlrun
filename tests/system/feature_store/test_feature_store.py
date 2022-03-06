@@ -1204,8 +1204,6 @@ class TestFeatureStore(TestMLRunSystem):
         resp = fs.get_offline_features(vec)
         assert len(resp.to_dataframe()) == 2
 
-        sleep(30)
-
     @pytest.mark.parametrize(
         "fixed_window_type",
         [FixedWindowType.CurrentOpenWindow, FixedWindowType.LastClosedWindow],

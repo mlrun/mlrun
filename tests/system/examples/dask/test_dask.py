@@ -1,11 +1,11 @@
 import datetime
 import os
-import time
 
 import kfp
 import kfp.compiler
 import pytest
 
+import mlrun.utils
 from mlrun import (
     code_to_function,
     mount_v3io,
@@ -13,6 +13,7 @@ from mlrun import (
     run_pipeline,
     wait_for_pipeline_completion,
 )
+from mlrun.run import RunStatuses
 from tests.system.base import TestMLRunSystem
 
 
@@ -131,7 +132,16 @@ class TestDask(TestMLRunSystem):
 
         self._logger.info("Shutting Down Cluster")
         self.dask_function.close()
-        time.sleep(20)  # wait for scheduler and workers to go down
+
+        # wait for the dask cluster to completely shut down
+        mlrun.utils.retry_until_successful(
+            5,
+            40,
+            self._logger,
+            True,
+            wait_for_dask_cluster_to_shutdown,
+            "mydask",
+        )
 
         # Client supposed to be closed
         with pytest.raises(AttributeError):
@@ -140,3 +150,21 @@ class TestDask(TestMLRunSystem):
         # Cluster supposed to be decommissioned
         with pytest.raises(RuntimeError):
             client.restart()
+
+
+def wait_for_dask_cluster_to_shutdown(dask_cluster_name):
+    resources = mlrun.get_run_db().list_runtime_resources()
+    pods = resources[0].resources.pod_resources
+    pod_counter = 0
+    for pod in pods:
+        if pod.name.startswith(f"mlrun-{dask_cluster_name}"):
+            if pod.status.get("phase") != RunStatuses.succeeded:
+                raise mlrun.errors.MLRunRuntimeError("Cluster still running")
+            pod_counter += 1
+            if pod_counter > 1:
+                raise mlrun.errors.MLRunRuntimeError(
+                    "Cluster did not completely clean up"
+                )
+    if pod_counter != 1:
+        raise mlrun.errors.MLRunRuntimeError("There is no cluster scheduler")
+    return True

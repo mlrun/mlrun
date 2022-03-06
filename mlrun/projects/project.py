@@ -39,7 +39,7 @@ from ..model import EntrypointParam, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
 from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
-from ..utils import RunNotifications, get_in, is_ipython, logger, update_in
+from ..utils import RunNotifications, is_ipython, logger, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from .operations import build_function, deploy_function, run_function
@@ -142,7 +142,6 @@ def new_project(
 
     repo, url = init_repo(context, remote, init_git or remote)
     project.spec.repo = repo
-    project.spec.user_project = user_project or project.spec.user_project
     if remote and url != remote:
         project.create_remote(remote)
     elif url:
@@ -224,7 +223,6 @@ def load_project(
     if not from_db or (url and url.startswith("git://")):
         project.spec.source = url or project.spec.source
         project.spec.origin_url = url or project.spec.origin_url
-    project.spec.user_project = user_project or project.spec.user_project
     project.spec.repo = repo
     if repo:
         try:
@@ -342,7 +340,7 @@ def _load_project_dir(context, name="", subpath=""):
     return project
 
 
-def _add_username_to_project_name_if_needed(name, user_project, skip_if_added=False):
+def _add_username_to_project_name_if_needed(name, user_project):
     if user_project:
         if not name:
             raise ValueError("user_project must be specified together with name")
@@ -354,8 +352,6 @@ def _add_username_to_project_name_if_needed(name, user_project, skip_if_added=Fa
                 username=username,
                 normalized_username=normalized_username,
             )
-        if skip_if_added and name.endswith(f"-{normalized_username}"):
-            return name
         name = f"{name}-{normalized_username}"
     return name
 
@@ -407,12 +403,9 @@ def _project_instance_from_struct(struct, name):
         project.spec._function_objects = legacy_project._function_objects
         project.spec.functions = legacy_project.functions
     else:
-        name = name or get_in(struct, "metadata.name", "")
-        user_project = get_in(struct, "spec.user_project", False)
-        name = _add_username_to_project_name_if_needed(
-            name, user_project, skip_if_added=True
-        )
-        struct.setdefault("metadata", {})["name"] = name
+        struct.setdefault("metadata", {})["name"] = name or struct.get(
+            "metadata", {}
+        ).get("name", "")
         project = MlrunProject.from_dict(struct)
     return project
 
@@ -467,7 +460,6 @@ class ProjectSpec(ModelObj):
         desired_state=mlrun.api.schemas.ProjectState.online.value,
         owner=None,
         disable_auto_mount=False,
-        user_project=False,
     ):
         self.repo = None
 
@@ -498,7 +490,6 @@ class ProjectSpec(ModelObj):
         self._function_definitions = {}
         self.functions = functions or []
         self.disable_auto_mount = disable_auto_mount
-        self.user_project = user_project
 
     @property
     def source(self) -> str:
@@ -2021,15 +2012,18 @@ class MlrunProject(ModelObj):
         best_iteration: bool = False,
         kind: str = None,
         category: typing.Union[str, mlrun.api.schemas.ArtifactCategories] = None,
-    ) -> list:
+    ) -> mlrun.lists.ArtifactList:
         """List artifacts filtered by various parameters.
+
+        The returned result is an `ArtifactList` (list of dict), use `.objects()` to convert it to a list of RunObjects,
+        `.show()` to view graphically in Jupyter, and `.to_df()` to convert to a DataFrame.
 
         Examples::
 
-            # Show latest version of all artifacts in project
-            latest_artifacts = db.list_artifacts('', tag='latest', project='iris')
-            # check different artifact versions for a specific artifact
-            result_versions = db.list_artifacts('results', tag='*', project='iris')
+            # Get latest version of all artifacts in project
+            latest_artifacts = project.list_artifacts('', tag='latest')
+            # check different artifact versions for a specific artifact, return as objects list
+            result_versions = project.list_artifacts('results', tag='*').objects()
 
         :param name: Name of artifacts to retrieve. Name is used as a like query, and is not case-sensitive. This means
             that querying for ``name`` may return artifacts named ``my_Name_1`` or ``surname``.
@@ -2059,8 +2053,55 @@ class MlrunProject(ModelObj):
             category=category,
         )
 
+    def list_models(
+        self,
+        name=None,
+        tag=None,
+        labels=None,
+        since=None,
+        until=None,
+        iter: int = None,
+        best_iteration: bool = False,
+    ):
+        """List models in project, filtered by various parameters.
+
+        Examples::
+
+            # Get latest version of all models in project
+            latest_models = project.list_models('', tag='latest')
+
+        :param name: Name of artifacts to retrieve. Name is used as a like query, and is not case-sensitive. This means
+            that querying for ``name`` may return artifacts named ``my_Name_1`` or ``surname``.
+        :param tag: Return artifacts assigned this tag.
+        :param labels: Return artifacts that have these labels.
+        :param since: Not in use in :py:class:`HTTPRunDB`.
+        :param until: Not in use in :py:class:`HTTPRunDB`.
+        :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
+            ``None`` (default) return artifacts from all iterations.
+        :param best_iteration: Returns the artifact which belongs to the best iteration of a given run, in the case of
+            artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
+            from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
+        """
+        db = get_run_db(secrets=self._secrets)
+        return db.list_artifacts(
+            name,
+            self.metadata.name,
+            tag,
+            labels=labels,
+            since=since,
+            until=until,
+            iter=iter,
+            best_iteration=best_iteration,
+            kind="model",
+        ).objects()
+
     def list_functions(self, name=None, tag=None, labels=None):
         """Retrieve a list of functions, filtered by specific criteria.
+
+        example::
+
+            functions = project.list_functions(tag="latest")
+
 
         :param name: Return only functions with a specific name.
         :param tag: Return function versions with specific tags.
@@ -2077,7 +2118,6 @@ class MlrunProject(ModelObj):
         self,
         name=None,
         uid=None,
-        project=None,
         labels=None,
         state=None,
         sort=True,
@@ -2090,11 +2130,18 @@ class MlrunProject(ModelObj):
         **kwargs,
     ) -> mlrun.lists.RunList:
         """Retrieve a list of runs, filtered by various options.
+
+        The returned result is a `` (list of dict), use `.objects()` to convert it to a list of RunObjects,
+        `.show()` to view graphically in Jupyter, `.to_df()` to convert to a DataFrame, and `compare()` to
+        generate comparison table and PCP plot.
+
         Example::
 
-            runs = db.list_runs(name='download', project='iris', labels='owner=admin')
+            # return a list of runs matching the name and label and compare
+            runs = project.list_runs(name='download', labels='owner=admin')
+            runs.compare()
             # If running in Jupyter, can use the .show() function to display the results
-            db.list_runs(name='', project=project_name).show()
+            project.list_runs(name='').show()
 
 
         :param name: Name of the run to retrieve.
@@ -2127,6 +2174,7 @@ class MlrunProject(ModelObj):
             start_time_to=start_time_to,
             last_update_time_from=last_update_time_from,
             last_update_time_to=last_update_time_to,
+            **kwargs,
         )
 
 

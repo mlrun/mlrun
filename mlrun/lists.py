@@ -17,6 +17,7 @@ from typing import List
 import pandas as pd
 
 import mlrun
+import mlrun.frameworks
 
 from .artifacts import Artifact, dict_to_artifact
 from .config import config
@@ -119,6 +120,41 @@ class RunList(list):
     def objects(self) -> List["mlrun.RunObject"]:
         """Return a list of Run Objects"""
         return [mlrun.RunObject.from_dict(run) for run in self]
+
+    def compare(
+        self,
+        hide_identical: bool = True,
+        exclude: list = None,
+        show: bool = None,
+        extend_iterations=True,
+        filename=None,
+        colorscale: str = None,
+    ):
+        """return/show parallel coordinates plot + table to compare between the list of runs
+
+        example:
+
+            # return a list of runs in the project, and compare them (show charts)
+            runs = project.list_runs(name='download', labels='owner=admin')
+            runs.compare()
+
+        :param hide_identical: hide columns with identical values
+        :param exclude:        User-provided list of parameters to be excluded from the plot
+        :param show:           Allows the user to display the plot within the notebook
+        :param extend_iterations: include the iteration (hyper-param) results
+        :param filename:       Output filename to save the plot html file
+        :param colorscale:     colors used for the lines in the parallel coordinate plot
+        :return:  plot html
+        """
+        return mlrun.frameworks.parallel_coordinates.compare_run_objects(
+            self.objects(),
+            hide_identical=hide_identical,
+            exclude=exclude,
+            show=show,
+            extend_iterations=extend_iterations,
+            filename=filename,
+            colorscale=colorscale,
+        )
 
 
 class ArtifactList(list):

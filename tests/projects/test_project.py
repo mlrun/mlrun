@@ -161,21 +161,6 @@ def test_user_project():
             project.metadata.name
             == f"{project_name}-{inflection.dasherize(username.lower())}"
         ), "project name doesnt include user name"
-        assert project.spec.user_project
-    if original_username is not None:
-        os.environ["V3IO_USERNAME"] = original_username
-
-
-def test_load_user_project():
-    project_name = "project-name"
-    original_username = os.environ.get("V3IO_USERNAME")
-    username = "justme"
-    os.environ["V3IO_USERNAME"] = username
-    project_file_path = str(pathlib.Path(__file__).parent / "assets" / "userproj.yaml")
-
-    project = mlrun.load_project(".", project_file_path, project_name)
-    assert project.metadata.name == f"{project_name}-{username}"
-    assert project.spec.user_project
     if original_username is not None:
         os.environ["V3IO_USERNAME"] = original_username
 

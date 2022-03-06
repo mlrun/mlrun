@@ -1,6 +1,0 @@
-kind: project
-metadata:
-  name: pipe2
-spec:
-  description: test
-  user_project: true

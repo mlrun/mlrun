@@ -1,5 +1,8 @@
+import base64
+import json
 import unittest.mock
 
+import deepdiff
 import pytest
 
 import mlrun
@@ -15,7 +18,10 @@ def test_build_runtime_use_base_image_when_no_build():
     base_image = "mlrun/ml-models"
     fn.build_config(base_image=base_image)
     assert fn.spec.image == ""
-    ready = mlrun.builder.build_runtime(mlrun.api.schemas.AuthInfo(), fn,)
+    ready = mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        fn,
+    )
     assert ready is True
     assert fn.spec.image == base_image
 
@@ -27,10 +33,24 @@ def test_build_runtime_use_image_when_no_build():
     )
     assert fn.spec.image == image
     ready = mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(), fn, with_mlrun=False,
+        mlrun.api.schemas.AuthInfo(),
+        fn,
+        with_mlrun=False,
     )
     assert ready is True
     assert fn.spec.image == image
+
+
+def test_build_config_with_multiple_commands():
+    image = "mlrun/ml-models"
+    fn = mlrun.new_function(
+        "some-function", "some-project", "some-tag", image=image, kind="job"
+    )
+    fn.build_config(commands=["pip install pandas", "pip install numpy"])
+    assert len(fn.spec.build.commands) == 2
+
+    fn.build_config(commands=["pip install pandas"])
+    assert len(fn.spec.build.commands) == 2
 
 
 def test_build_runtime_insecure_registries(monkeypatch):
@@ -94,7 +114,8 @@ def test_build_runtime_insecure_registries(monkeypatch):
         mlrun.mlconf.httpdb.builder.insecure_push_registry_mode = case["push_mode"]
         mlrun.mlconf.httpdb.builder.docker_registry_secret = case["secret"]
         mlrun.builder.build_runtime(
-            mlrun.api.schemas.AuthInfo(), function,
+            mlrun.api.schemas.AuthInfo(),
+            function,
         )
         assert (
             insecure_flags.issubset(
@@ -130,12 +151,15 @@ def test_build_runtime_target_image(monkeypatch):
         kind="job",
         requirements=["some-package"],
     )
-    image_name_prefix = mlrun.mlconf.httpdb.builder.function_target_image_name_prefix_template.format(
-        project=function.metadata.project, name=function.metadata.name
+    image_name_prefix = (
+        mlrun.mlconf.httpdb.builder.function_target_image_name_prefix_template.format(
+            project=function.metadata.project, name=function.metadata.name
+        )
     )
 
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(), function,
+        mlrun.api.schemas.AuthInfo(),
+        function,
     )
 
     # assert the default target image
@@ -147,7 +171,8 @@ def test_build_runtime_target_image(monkeypatch):
         f"{registry}/{image_name_prefix}-some-addition:{function.metadata.tag}"
     )
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(), function,
+        mlrun.api.schemas.AuthInfo(),
+        function,
     )
     target_image = _get_target_image_from_create_pod_mock()
     assert target_image == function.spec.build.image
@@ -159,7 +184,8 @@ def test_build_runtime_target_image(monkeypatch):
         f"/{image_name_prefix}-some-addition:{function.metadata.tag}"
     )
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(), function,
+        mlrun.api.schemas.AuthInfo(),
+        function,
     )
     target_image = _get_target_image_from_create_pod_mock()
     assert (
@@ -175,7 +201,8 @@ def test_build_runtime_target_image(monkeypatch):
         function.spec.build.image = invalid_image
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             mlrun.builder.build_runtime(
-                mlrun.api.schemas.AuthInfo(), function,
+                mlrun.api.schemas.AuthInfo(),
+                function,
             )
 
     # assert if we can not-stick to the regex if it's a different registry
@@ -184,10 +211,47 @@ def test_build_runtime_target_image(monkeypatch):
         f":{function.metadata.tag}"
     )
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(), function,
+        mlrun.api.schemas.AuthInfo(),
+        function,
     )
     target_image = _get_target_image_from_create_pod_mock()
     assert target_image == function.spec.build.image
+
+
+def test_build_runtime_use_default_node_selector(monkeypatch):
+    get_k8s_helper_mock = unittest.mock.Mock()
+    monkeypatch.setattr(
+        mlrun.builder, "get_k8s_helper", lambda *args, **kwargs: get_k8s_helper_mock
+    )
+    mlrun.builder.get_k8s_helper().create_pod = unittest.mock.Mock(
+        side_effect=lambda pod: (pod, "some-namespace")
+    )
+    mlrun.mlconf.httpdb.builder.docker_registry = "registry.hub.docker.com/username"
+    node_selector = {
+        "label-1": "val1",
+        "label-2": "val2",
+    }
+    mlrun.mlconf.default_function_node_selector = base64.b64encode(
+        json.dumps(node_selector).encode("utf-8")
+    )
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind="job",
+        requirements=["some-package"],
+    )
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    assert (
+        deepdiff.DeepDiff(
+            _create_pod_mock_pod_spec().node_selector, node_selector, ignore_order=True
+        )
+        == {}
+    )
 
 
 def test_resolve_mlrun_install_command():
@@ -272,9 +336,8 @@ def test_resolve_mlrun_install_command():
 
 
 def _get_target_image_from_create_pod_mock():
-    return (
-        mlrun.builder.get_k8s_helper()
-        .create_pod.call_args[0][0]
-        .pod.spec.containers[0]
-        .args[5]
-    )
+    return _create_pod_mock_pod_spec().containers[0].args[5]
+
+
+def _create_pod_mock_pod_spec():
+    return mlrun.builder.get_k8s_helper().create_pod.call_args[0][0].pod.spec

@@ -25,15 +25,17 @@ import mlrun.errors
 import mlrun.utils.regex
 
 from ..config import config as mlconf
+from ..k8s_utils import verify_gpu_requests_and_limits
 from ..secrets import SecretsStore
-from ..utils import logger, normalize_name, update_in, verify_field_regex
+from ..utils import logger, normalize_name, update_in
 from .base import BaseRuntime, FunctionSpec, spec_fields
 from .utils import (
     apply_kfp,
-    generate_resources,
     get_item_name,
     get_resource_labels,
     set_named_item,
+    verify_limits,
+    verify_requests,
 )
 
 
@@ -97,7 +99,10 @@ class KubeResourceSpec(FunctionSpec):
         self.volumes = volumes or []
         self.volume_mounts = volume_mounts or []
         self.env = env or []
-        self.resources = resources or {}
+        self._resources = self.enrich_resources_with_default_pod_resources(
+            "resources", resources
+        )
+
         self.replicas = replicas
         self.image_pull_policy = image_pull_policy
         self.service_account = service_account
@@ -140,6 +145,16 @@ class KubeResourceSpec(FunctionSpec):
     @affinity.setter
     def affinity(self, affinity):
         self._affinity = self._transform_affinity_to_k8s_class_instance(affinity)
+
+    @property
+    def resources(self) -> dict:
+        return self._resources
+
+    @resources.setter
+    def resources(self, resources):
+        self._resources = self.enrich_resources_with_default_pod_resources(
+            "resources", resources
+        )
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(fields, exclude=["affinity"])
@@ -191,12 +206,101 @@ class KubeResourceSpec(FunctionSpec):
         return api.sanitize_for_serialization(self.affinity)
 
     def _set_volume_mount(self, volume_mount):
-        # calculate volume mount hash
-        volume_name = get_item_name(volume_mount, "name")
-        volume_sub_path = get_item_name(volume_mount, "subPath")
-        volume_mount_path = get_item_name(volume_mount, "mountPath")
-        volume_mount_key = hash(f"{volume_name}-{volume_sub_path}-{volume_mount_path}")
-        self._volume_mounts[volume_mount_key] = volume_mount
+        # using the mountPath as the key cause it must be unique (k8s limitation)
+        self._volume_mounts[get_item_name(volume_mount, "mountPath")] = volume_mount
+
+    def _verify_and_set_limits(
+        self,
+        resources_field_name,
+        mem=None,
+        cpu=None,
+        gpus=None,
+        gpu_type="nvidia.com/gpu",
+    ):
+        resources = verify_limits(
+            resources_field_name, mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type
+        )
+        update_in(
+            getattr(self, resources_field_name),
+            "limits",
+            resources,
+        )
+
+    def _verify_and_set_requests(
+        self,
+        resources_field_name,
+        mem=None,
+        cpu=None,
+    ):
+        resources = verify_requests(resources_field_name, mem=mem, cpu=cpu)
+        update_in(
+            getattr(self, resources_field_name),
+            "requests",
+            resources,
+        )
+
+    def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
+        """set pod cpu/memory/gpu limits"""
+        self._verify_and_set_limits("resources", mem, cpu, gpus, gpu_type)
+
+    def with_requests(self, mem=None, cpu=None):
+        """set requested (desired) pod cpu/memory resources"""
+        self._verify_and_set_requests("resources", mem, cpu)
+
+    def enrich_resources_with_default_pod_resources(
+        self, resources_field_name: str, resources: dict
+    ):
+        resources_types = ["cpu", "memory", "nvidia.com/gpu"]
+        resource_requirements = ["requests", "limits"]
+        gpu_type = "nvidia.com/gpu"
+        default_resources = mlconf.get_default_function_pod_resources()
+
+        if resources:
+            verify_gpu_requests_and_limits(
+                requests_gpu=resources.setdefault("requests", {}).setdefault(gpu_type),
+                limits_gpu=resources.setdefault("limits", {}).setdefault(gpu_type),
+            )
+            for resource_requirement in resource_requirements:
+                for resource_type in resources_types:
+                    if (
+                        resources.setdefault(resource_requirement, {}).setdefault(
+                            resource_type
+                        )
+                        is None
+                    ):
+                        if resource_type == gpu_type:
+                            if resource_requirement == "requests":
+                                continue
+                            else:
+                                resources[resource_requirement][
+                                    resource_type
+                                ] = default_resources[resource_requirement].get(
+                                    gpu_type
+                                )
+                        else:
+                            resources[resource_requirement][
+                                resource_type
+                            ] = default_resources[resource_requirement][resource_type]
+        # This enables the user to define that no defaults would be applied on the resources
+        elif resources == {}:
+            return resources
+        else:
+            resources = default_resources
+        resources["requests"] = verify_requests(
+            resources_field_name,
+            mem=resources["requests"]["memory"],
+            cpu=resources["requests"]["cpu"],
+        )
+        resources["limits"] = verify_limits(
+            resources_field_name,
+            mem=resources["limits"]["memory"],
+            cpu=resources["limits"]["cpu"],
+            gpus=resources["limits"][gpu_type],
+            gpu_type=gpu_type,
+        )
+        if not resources["requests"] and not resources["limits"]:
+            return {}
+        return resources
 
 
 class AutoMountType(str, Enum):
@@ -364,11 +468,11 @@ class KubeResource(BaseRuntime):
 
     def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
         """set pod cpu/memory/gpu limits"""
-        self._verify_and_set_limits("resources", mem, cpu, gpus, gpu_type)
+        self.spec.with_limits(mem, cpu, gpus, gpu_type)
 
     def with_requests(self, mem=None, cpu=None):
         """set requested (desired) pod cpu/memory resources"""
-        self._verify_and_set_requests("resources", mem, cpu)
+        self.spec.with_requests(mem, cpu)
 
     def with_node_selection(
         self,
@@ -418,57 +522,6 @@ class KubeResource(BaseRuntime):
     def get_default_priority_class_name(self):
         return mlconf.default_function_priority_class_name
 
-    def _verify_and_set_limits(
-        self,
-        resources_field_name,
-        mem=None,
-        cpu=None,
-        gpus=None,
-        gpu_type="nvidia.com/gpu",
-    ):
-        if mem:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.limits.memory",
-                mem,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        if cpu:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.limits.cpu",
-                cpu,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        if gpus:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.limits.gpus",
-                gpus,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        update_in(
-            getattr(self.spec, resources_field_name),
-            "limits",
-            generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type),
-        )
-
-    def _verify_and_set_requests(self, resources_field_name, mem=None, cpu=None):
-        if mem:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.requests.memory",
-                mem,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        if cpu:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.requests.cpu",
-                cpu,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        update_in(
-            getattr(self.spec, resources_field_name),
-            "requests",
-            generate_resources(mem=mem, cpu=cpu),
-        )
-
     def _get_meta(self, runobj, unique=False):
         namespace = self._get_k8s().resolve_namespace()
 
@@ -484,6 +537,20 @@ class KubeResource(BaseRuntime):
         else:
             new_meta.generate_name = norm_name
         return new_meta
+
+    def _add_secrets_to_spec_before_running(self, runobj=None, project=None):
+        if self._secrets:
+            if self._secrets.has_vault_source():
+                self._add_vault_params_to_spec(runobj=runobj, project=project)
+            if self._secrets.has_azure_vault_source():
+                self._add_azure_vault_params_to_spec(
+                    self._secrets.get_azure_vault_k8s_secret()
+                )
+            self._add_project_k8s_secrets_to_spec(
+                self._secrets.get_k8s_secrets(), runobj=runobj, project=project
+            )
+        else:
+            self._add_project_k8s_secrets_to_spec(None, runobj=runobj, project=project)
 
     def _add_azure_vault_params_to_spec(self, k8s_secret_name=None):
         secret_name = (
@@ -510,9 +577,6 @@ class KubeResource(BaseRuntime):
     def _add_project_k8s_secrets_to_spec(
         self, secrets, runobj=None, project=None, encode_key_names=True
     ):
-        # Needs to happen here to avoid circular dependencies
-        from mlrun.api.crud.secrets import Secrets
-
         # the secrets param may be an empty dictionary (asking for all secrets of that project) -
         # it's a different case than None (not asking for project secrets at all).
         if (
@@ -527,12 +591,10 @@ class KubeResource(BaseRuntime):
             return
 
         secret_name = self._get_k8s().get_project_secret_name(project_name)
-        existing_secret_keys = (
-            Secrets()
-            .list_secret_keys(
-                project_name, mlrun.api.schemas.SecretProviderName.kubernetes
-            )
-            .secret_keys
+        # Not utilizing the same functionality from the Secrets crud object because this code also runs client-side
+        # in the nuclio remote-dashboard flow, which causes dependency problems.
+        existing_secret_keys = self._get_k8s().get_project_secret_keys(
+            project_name, filter_internal=True
         )
 
         # If no secrets were passed or auto-adding all secrets, we need all existing keys
@@ -559,8 +621,10 @@ class KubeResource(BaseRuntime):
             logger.warning("No project provided. Cannot add vault parameters")
             return
 
-        service_account_name = mlconf.secret_stores.vault.project_service_account_name.format(
-            project=project_name
+        service_account_name = (
+            mlconf.secret_stores.vault.project_service_account_name.format(
+                project=project_name
+            )
         )
 
         project_vault_secret_name = self._get_k8s().get_project_vault_secret_name(

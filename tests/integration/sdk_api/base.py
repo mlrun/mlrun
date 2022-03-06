@@ -100,9 +100,14 @@ class TestMLRunIntegration:
     def _run_db(self):
         self._logger.debug("Starting DataBase")
         self._run_command(
-            "make", args=["run-test-db"], cwd=TestMLRunIntegration.root_path,
+            "make",
+            args=["run-test-db"],
+            cwd=TestMLRunIntegration.root_path,
         )
-        output = self._run_command("docker", args=["ps", "--last", "1", "-q"],)
+        output = self._run_command(
+            "docker",
+            args=["ps", "--last", "1", "-q"],
+        )
         self.db_container_id = output.strip()
 
         self._logger.debug("Started DataBase", container_id=self.db_container_id)
@@ -119,7 +124,10 @@ class TestMLRunIntegration:
             ),
             cwd=TestMLRunIntegration.root_path,
         )
-        output = self._run_command("docker", args=["ps", "--last", "1", "-q"],)
+        output = self._run_command(
+            "docker",
+            args=["ps", "--last", "1", "-q"],
+        )
         self.api_container_id = output.strip()
         # retrieve container bind port + host
         output = self._run_command(
@@ -155,7 +163,8 @@ class TestMLRunIntegration:
                 "docker", args=["rm", "--force", self.db_container_id]
             )
             self._logger.debug(
-                "Removed Database container", out=out,
+                "Removed Database container",
+                out=out,
             )
 
     def _ensure_database_liveness(self, retry_interval=2, timeout=30):

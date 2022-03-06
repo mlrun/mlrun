@@ -99,7 +99,11 @@ class DaskFeatureMerger(BaseMerger):
         )
 
         merged_df = merge_asof(
-            entity_df, featureset_df, left_index=True, right_index=True, by=indexes,
+            entity_df,
+            featureset_df,
+            left_index=True,
+            right_index=True,
+            by=indexes,
         )
 
         return merged_df

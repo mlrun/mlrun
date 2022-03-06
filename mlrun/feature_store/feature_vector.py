@@ -245,7 +245,25 @@ class FeatureVector(ModelObj):
     def get_stats_table(self):
         """get feature statistics table (as dataframe)"""
         if self.status.stats:
+            feature_aliases = self.get_feature_aliases()
+            for old_name, new_name in feature_aliases.items():
+                if old_name in self.status.stats:
+                    self.status.stats[new_name] = self.status.stats[old_name]
+                    del self.status.stats[old_name]
             return pd.DataFrame.from_dict(self.status.stats, orient="index")
+
+    def get_feature_aliases(self):
+        feature_aliases = {}
+        for feature in self.spec.features:
+            column_names = feature.split(" as ")
+            # split 'feature_set.old_name as new_name'
+            if len(column_names) == 2:
+                old_name_with_feature_set, new_name = column_names
+                # split 'feature_set.old_name'
+                feature_set, old_name = column_names[0].split(".")
+                if new_name != old_name:
+                    feature_aliases[old_name] = new_name
+        return feature_aliases
 
     def get_target_path(self, name=None):
         target = get_offline_target(self, name=name)
@@ -464,6 +482,7 @@ class OnlineVectorService:
 
         for row in entity_rows:
             futures.append(self._controller.emit(row, return_awaitable_result=True))
+
         for future in futures:
             result = future.await_result()
             data = result.body

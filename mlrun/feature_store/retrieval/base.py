@@ -144,20 +144,31 @@ class BaseMerger(abc.ABC):
                 merge_func = self._join
 
             merged_df = merge_func(
-                merged_df, entity_timestamp_column, featureset, featureset_df,
+                merged_df,
+                entity_timestamp_column,
+                featureset,
+                featureset_df,
             )
 
         self._result_df = merged_df
 
     @abc.abstractmethod
     def _asof_join(
-        self, entity_df, entity_timestamp_column: str, featureset, featureset_df,
+        self,
+        entity_df,
+        entity_timestamp_column: str,
+        featureset,
+        featureset_df,
     ):
         raise NotImplementedError("_asof_join() operation not implemented in class")
 
     @abc.abstractmethod
     def _join(
-        self, entity_df, entity_timestamp_column: str, featureset, featureset_df,
+        self,
+        entity_df,
+        entity_timestamp_column: str,
+        featureset,
+        featureset_df,
     ):
         raise NotImplementedError("_join() operation not implemented in class")
 

@@ -164,7 +164,9 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
         """
         with self._file_writer.as_default():
             tf.summary.text(
-                name=tag, data=text, step=step,
+                name=tag,
+                data=text,
+                step=step,
             )
 
     def _write_scalar_to_tensorboard(self, name: str, value: float, step: int):
@@ -177,7 +179,9 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
         """
         with self._file_writer.as_default():
             tf.summary.scalar(
-                name=name, data=value, step=step,
+                name=name,
+                data=value,
+                step=step,
             )
 
     def _write_weight_histogram_to_tensorboard(
@@ -192,7 +196,9 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
         """
         with self._file_writer.as_default():
             tf.summary.histogram(
-                name=name, data=weight, step=step,
+                name=name,
+                data=weight,
+                step=step,
             )
 
     def _write_weight_image_to_tensorboard(

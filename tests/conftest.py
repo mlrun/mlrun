@@ -14,6 +14,7 @@
 
 import shutil
 import traceback
+import typing
 from datetime import datetime
 from http import HTTPStatus
 from os import environ
@@ -134,3 +135,24 @@ def exec_mlrun(args, cwd=None, op="run"):
         print(traceback.format_exc())
         raise Exception(out.stderr.decode("utf-8"))
     return out.stdout.decode("utf-8")
+
+
+class MockSpecificCalls:
+    def __init__(
+        self,
+        original_function: typing.Callable,
+        call_indexes_to_mock: typing.List[int],
+        return_value: typing.Any,
+    ):
+        self.original_function = original_function
+        self.call_indexes_to_mock = call_indexes_to_mock
+        self.return_value = return_value
+
+    calls = 0
+
+    def mock_function(self, *args, **kwargs):
+        self.calls += 1
+        if self.calls not in self.call_indexes_to_mock:
+            return self.original_function(*args, **kwargs)
+        else:
+            return self.return_value

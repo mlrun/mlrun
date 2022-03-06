@@ -154,7 +154,10 @@ def get_store_resource(uri, db=None, secrets=None, project=None):
         if resource.get("kind", "") == "link":
             # todo: support other link types (not just iter, move this to the db/api layer
             resource = db.read_artifact(
-                key, tag=tag, iter=resource.get("link_iteration", 0), project=project,
+                key,
+                tag=tag,
+                iter=resource.get("link_iteration", 0),
+                project=project,
             )
         if resource:
             # import here to avoid circular imports

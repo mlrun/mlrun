@@ -13,6 +13,7 @@
 # limitations under the License.
 import base64
 import time
+import typing
 from datetime import datetime
 from sys import stdout
 
@@ -296,7 +297,8 @@ class K8sHelper:
         )
         try:
             api_response = self.v1api.create_namespaced_service_account(
-                namespace, k8s_service_account,
+                namespace,
+                k8s_service_account,
             )
             return api_response
         except ApiException as exc:
@@ -394,12 +396,17 @@ class K8sHelper:
 
         return k8s_secret.data
 
-    def get_project_secret_keys(self, project, namespace=""):
+    def get_project_secret_keys(self, project, namespace="", filter_internal=False):
         secrets_data = self._get_project_secrets_raw_data(project, namespace)
         if not secrets_data:
-            return None
+            return []
 
-        return list(secrets_data.keys())
+        secret_keys = list(secrets_data.keys())
+        if filter_internal:
+            secret_keys = list(
+                filter(lambda key: not key.startswith("mlrun."), secret_keys)
+            )
+        return secret_keys
 
     def get_project_secret_data(self, project, secret_keys=None, namespace=""):
         results = {}
@@ -438,6 +445,7 @@ class BasePod:
         self._volumes = []
         self._mounts = []
         self.env = None
+        self.node_selector = None
         self.project = project or mlrun.mlconf.default_project
         self._labels = {
             "mlrun/task-name": task_name,
@@ -514,11 +522,17 @@ class BasePod:
         self.add_volume(
             client.V1Volume(
                 name=name,
-                secret=client.V1SecretVolumeSource(secret_name=name, items=items,),
+                secret=client.V1SecretVolumeSource(
+                    secret_name=name,
+                    items=items,
+                ),
             ),
             mount_path=path,
             sub_path=sub_path,
         )
+
+    def set_node_selector(self, node_selector: typing.Optional[typing.Dict[str, str]]):
+        self.node_selector = node_selector
 
     def _get_spec(self, template=False):
 
@@ -538,7 +552,10 @@ class BasePod:
         )
 
         pod_spec = client.V1PodSpec(
-            containers=[container], restart_policy="Never", volumes=self._volumes
+            containers=[container],
+            restart_policy="Never",
+            volumes=self._volumes,
+            node_selector=self.node_selector,
         )
 
         if self._init_container:
@@ -558,8 +575,21 @@ class BasePod:
 
 
 def format_labels(labels):
-    """ Convert a dictionary of labels into a comma separated string """
+    """Convert a dictionary of labels into a comma separated string"""
     if labels:
         return ",".join([f"{k}={v}" for k, v in labels.items()])
     else:
         return ""
+
+
+def verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = None):
+    # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
+    if requests_gpu and not limits_gpu:
+        raise mlrun.errors.MLRunConflictError(
+            "You cannot specify GPU requests without specifying limits"
+        )
+    if requests_gpu and limits_gpu and requests_gpu != limits_gpu:
+        raise mlrun.errors.MLRunConflictError(
+            f"When specifying both GPU requests and limits these two values must be equal, "
+            f"requests_gpu={requests_gpu}, limits_gpu={limits_gpu}"
+        )

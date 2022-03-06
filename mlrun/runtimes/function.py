@@ -197,8 +197,8 @@ class NuclioSpec(KubeResourceSpec):
                 {"volume": self._volumes[volume_name], "volumeMount": volume_mount}
             )
 
-        volumes_without_volume_mounts = volume_with_volume_mounts_names.symmetric_difference(
-            self._volumes.keys()
+        volumes_without_volume_mounts = (
+            volume_with_volume_mounts_names.symmetric_difference(self._volumes.keys())
         )
         if volumes_without_volume_mounts:
             raise ValueError(
@@ -272,7 +272,11 @@ class RemoteRuntime(KubeResource):
         return self
 
     def with_source_archive(
-        self, source, handler="", runtime="", secrets=None,
+        self,
+        source,
+        handler="",
+        runtime="",
+        secrets=None,
     ):
         """Load nuclio function from remote source
         :param source: a full path to the nuclio function source (code entry) to load the function from
@@ -475,7 +479,9 @@ class RemoteRuntime(KubeResource):
     def from_image(self, image):
         config = nuclio.config.new_config()
         update_in(
-            config, "spec.handler", self.spec.function_handler or "main:handler",
+            config,
+            "spec.handler",
+            self.spec.function_handler or "main:handler",
         )
         update_in(config, "spec.image", image)
         update_in(config, "spec.build.codeEntryType", "image")
@@ -625,7 +631,10 @@ class RemoteRuntime(KubeResource):
             self.save(versioned=False)
             self._ensure_run_db()
             internal_invocation_urls, external_invocation_urls = deploy_nuclio_function(
-                self, dashboard=dashboard, watch=True, auth_info=auth_info,
+                self,
+                dashboard=dashboard,
+                watch=True,
+                auth_info=auth_info,
             )
             self.status.internal_invocation_urls = internal_invocation_urls
             self.status.external_invocation_urls = external_invocation_urls
@@ -1009,7 +1018,11 @@ class RemoteRuntime(KubeResource):
                 self.store_run(task)
                 task.spec.secret_sources = secrets or []
                 resp = submit(session, url, task, semaphore, headers=headers)
-                runs.append(asyncio.ensure_future(resp,))
+                runs.append(
+                    asyncio.ensure_future(
+                        resp,
+                    )
+                )
 
             for result in asyncio.as_completed(runs):
                 status, resp, logs, task = await result
@@ -1179,9 +1192,11 @@ def compile_function_config(function: RemoteRuntime, client_version: str = None)
     for key, value in labels.items():
         function.set_config(f"metadata.labels.{key}", value)
 
-    # Add vault configurations to function's pod spec, if vault secret source was added.
+    # Add secret configurations to function's pod spec, if secret sources were added.
     # Needs to be here, since it adds env params, which are handled in the next lines.
-    function.add_secrets_config_to_spec()
+    # This only needs to run if we're running within k8s context. If running in Docker, for example, skip.
+    if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+        function.add_secrets_config_to_spec()
 
     env_dict, external_source_env_dict = function.get_nuclio_config_spec_env()
     spec = nuclio.ConfigSpec(

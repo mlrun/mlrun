@@ -236,8 +236,20 @@ class AbstractSparkRuntime(KubejobRuntime):
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
+        show_on_failure: bool = False,
     ):
-        """deploy function, build container with dependencies"""
+        """deploy function, build container with dependencies
+
+        :param watch:      wait for the deploy to complete (and print build logs)
+        :param with_mlrun: add the current mlrun package to the container build
+        :param skip_deployed: skip the build if we already have an image for the function
+        :param mlrun_version_specifier:  which mlrun package version to include (if not current)
+        :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
+                              e.g. builder_env={"GIT_TOKEN": token}
+        :param show_on_failure:  show logs only in case of build failure
+
+        :return True if the function is ready (deployed)
+        """
         # connect will populate the config from the server config
         get_run_db()
         if not self.spec.build.base_image:
@@ -248,6 +260,7 @@ class AbstractSparkRuntime(KubejobRuntime):
             skip_deployed=skip_deployed,
             is_kfp=is_kfp,
             mlrun_version_specifier=mlrun_version_specifier,
+            show_on_failure=show_on_failure,
         )
 
     @staticmethod
@@ -343,7 +356,10 @@ class AbstractSparkRuntime(KubejobRuntime):
         update_in(job, "spec.driver.labels", pod_labels)
         update_in(job, "spec.executor.labels", pod_labels)
         verify_and_update_in(
-            job, "spec.executor.instances", self.spec.replicas or 1, int,
+            job,
+            "spec.executor.instances",
+            self.spec.replicas or 1,
+            int,
         )
         if self.spec.node_selector:
             update_in(job, "spec.nodeSelector", self.spec.node_selector)
@@ -365,6 +381,8 @@ class AbstractSparkRuntime(KubejobRuntime):
         )
 
         update_in(job, "spec.volumes", self.spec.volumes)
+
+        self._add_secrets_to_spec_before_running(runobj)
 
         command, args, extra_env = self._get_cmd_args(runobj)
         code = None
@@ -430,7 +448,10 @@ with ctx:
                 update_in(job, "spec.executor.gpu.name", gpu_type)
                 if gpu_quantity:
                     verify_and_update_in(
-                        job, "spec.executor.gpu.quantity", gpu_quantity, int,
+                        job,
+                        "spec.executor.gpu.quantity",
+                        gpu_quantity,
+                        int,
                     )
         if "limits" in self.spec.driver_resources:
             if "cpu" in self.spec.driver_resources["limits"]:
@@ -456,7 +477,10 @@ with ctx:
                 update_in(job, "spec.driver.gpu.name", gpu_type)
                 if gpu_quantity:
                     verify_and_update_in(
-                        job, "spec.driver.gpu.quantity", gpu_quantity, int,
+                        job,
+                        "spec.driver.gpu.quantity",
+                        gpu_quantity,
+                        int,
                     )
 
         self._enrich_job(job)
@@ -475,7 +499,10 @@ with ctx:
         raise NotImplementedError()
 
     def _submit_job(
-        self, job, meta, code=None,
+        self,
+        job,
+        meta,
+        code=None,
     ):
         namespace = meta.namespace
         k8s = self._get_k8s()
@@ -666,7 +693,6 @@ with ctx:
         _ = self._get_k8s()
         return list(pods.items())[0]
 
-    @property
     def is_deployed(self):
         if (
             not self.spec.build.source
@@ -674,7 +700,7 @@ with ctx:
             and not self.spec.build.extra
         ):
             return True
-        return super().is_deployed
+        return super().is_deployed()
 
     @property
     def spec(self) -> AbstractSparkJobSpec:

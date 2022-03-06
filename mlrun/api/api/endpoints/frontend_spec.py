@@ -15,7 +15,8 @@ router = fastapi.APIRouter()
 
 
 @router.get(
-    "/frontend-spec", response_model=mlrun.api.schemas.FrontendSpec,
+    "/frontend-spec",
+    response_model=mlrun.api.schemas.FrontendSpec,
 )
 def get_frontend_spec(
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
@@ -33,8 +34,14 @@ def get_frontend_spec(
     feature_flags = _resolve_feature_flags()
     registry, repository = mlrun.utils.helpers.get_parsed_docker_registry()
     repository = mlrun.utils.helpers.get_docker_repository_or_default(repository)
-    function_deployment_target_image_template = mlrun.runtimes.utils.fill_function_image_name_template(
-        f"{registry}/", repository, "{project}", "{name}", "{tag}",
+    function_deployment_target_image_template = (
+        mlrun.runtimes.utils.fill_function_image_name_template(
+            f"{registry}/",
+            repository,
+            "{project}",
+            "{name}",
+            "{tag}",
+        )
     )
     registries_to_enforce_prefix = (
         mlrun.runtimes.utils.resolve_function_target_image_registries_to_enforce_prefix()

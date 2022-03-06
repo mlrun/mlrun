@@ -26,7 +26,7 @@ def test_retry_until_successful_fatal_failure():
     original_exception = Exception("original")
 
     def _raise_fatal_failure():
-        raise mlrun.utils.helpers.FatalFailureException(original_exception)
+        raise mlrun.errors.MLRunFatalFailureError(original_exception=original_exception)
 
     with pytest.raises(Exception, match=str(original_exception)):
         mlrun.utils.helpers.retry_until_successful(
@@ -509,7 +509,7 @@ def test_create_exponential_backoff():
     max_value = 120
     backoff = mlrun.utils.helpers.create_exponential_backoff(base, max_value)
     for i in range(1, 120):
-        expected_value = min(base ** i, max_value)
+        expected_value = min(base**i, max_value)
         assert expected_value, next(backoff)
 
 

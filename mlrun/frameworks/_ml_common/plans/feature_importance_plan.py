@@ -80,7 +80,8 @@ class FeatureImportancePlan(MLPlotPlan):
 
         # Creating the artifact:
         self._artifacts[self._ARTIFACT_NAME] = PlotlyArtifact(
-            key=self._ARTIFACT_NAME, figure=fig,
+            key=self._ARTIFACT_NAME,
+            figure=fig,
         )
 
         return self._artifacts

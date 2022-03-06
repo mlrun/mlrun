@@ -104,6 +104,80 @@ def test_env_override(config):
     assert config.namespace == env_ns, "env did not override"
 
 
+def test_decode_base64_config_and_load_to_dict():
+    encoded_attribute = "eyJlbmNvZGVkIjogImF0dHJpYnV0ZSJ9"
+    expected_decoded_output = {"encoded": "attribute"}
+
+    # Non-hierarchical attribute loading
+    mlconf.config.encoded_attribute = encoded_attribute
+    decoded_output = mlconf.config.decode_base64_config_and_load_to_dict(
+        "encoded_attribute"
+    )
+    assert decoded_output == expected_decoded_output
+
+    # Hierarchical attribute loading
+    mlconf.config.for_test = {"encoded_attribute": encoded_attribute}
+    decoded_output = mlconf.config.decode_base64_config_and_load_to_dict(
+        "for_test.encoded_attribute"
+    )
+    assert decoded_output == expected_decoded_output
+
+    # Not defined attribute
+    mlconf.config.for_test = {"encoded_attribute": None}
+    decoded_output = mlconf.config.decode_base64_config_and_load_to_dict(
+        "for_test.encoded_attribute"
+    )
+    assert decoded_output == {}
+
+    # Non existing attribute loading
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        mlconf.config.decode_base64_config_and_load_to_dict("non_existing_attribute")
+
+    # Attribute defined but not encoded
+    mlconf.config.for_test = {"encoded_attribute": "notencoded"}
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError):
+        mlconf.config.decode_base64_config_and_load_to_dict(
+            "for_test.encoded_attribute"
+        )
+
+
+def test_gpu_validation(config):
+    dfpr_env_key = f"{mlconf.env_prefix}DEFAULT_FUNCTION_POD_RESOURCES__"
+    request_gpu_env_key = f"{dfpr_env_key}REQUESTS__GPU"
+    limits_gpu_env_key = f"{dfpr_env_key}LIMITS__GPU"
+
+    # when gpu requests and gpu limits are not equal
+    requests_gpu = "3"
+    limits_gpu = "2"
+    env = {request_gpu_env_key: requests_gpu, limits_gpu_env_key: limits_gpu}
+    with patch_env(env):
+        with pytest.raises(mlrun.errors.MLRunConflictError):
+            mlconf.config.reload()
+
+    # when only gpu request is set
+    requests_gpu = "3"
+    env = {request_gpu_env_key: requests_gpu}
+    with patch_env(env):
+        with pytest.raises(mlrun.errors.MLRunConflictError):
+            mlconf.config.reload()
+
+    # when gpu requests and gpu limits are equal
+    requests_gpu = "2"
+    limits_gpu = "2"
+    env = {request_gpu_env_key: requests_gpu, limits_gpu_env_key: limits_gpu}
+    with patch_env(env):
+        mlconf.config.reload()
+    assert config.default_function_pod_resources.requests.gpu == requests_gpu
+    assert config.default_function_pod_resources.limits.gpu == limits_gpu
+
+    # None of the requests and limits gpu are set
+    env = {}
+    with patch_env(env):
+        mlconf.config.reload()
+    assert config.default_function_pod_resources.requests.gpu is None
+    assert config.default_function_pod_resources.limits.gpu is None
+
+
 old_config_value = None
 new_config_value = "blabla"
 
@@ -208,6 +282,20 @@ def test_get_parsed_igz_version():
     assert igz_version.patch == 0
 
 
+def test_get_default_function_node_selector():
+    mlconf.config.default_function_node_selector = None
+    assert mlconf.config.get_default_function_node_selector() == {}
+
+    mlconf.config.default_function_node_selector = ""
+    assert mlconf.config.get_default_function_node_selector() == {}
+
+    mlconf.config.default_function_node_selector = "e30="
+    assert mlconf.config.get_default_function_node_selector() == {}
+
+    mlconf.config.default_function_node_selector = "bnVsbA=="
+    assert mlconf.config.get_default_function_node_selector() == {}
+
+
 def test_setting_dbpath_trigger_connect(requests_mock: requests_mock_package.Mocker):
     api_url = "http://mlrun-api-url:8080"
     remote_host = "some-namespace"
@@ -216,7 +304,8 @@ def test_setting_dbpath_trigger_connect(requests_mock: requests_mock_package.Moc
         "remote_host": remote_host,
     }
     requests_mock.get(
-        f"{api_url}/{HTTPRunDB.get_api_path_prefix()}/client-spec", json=response_body,
+        f"{api_url}/{HTTPRunDB.get_api_path_prefix()}/client-spec",
+        json=response_body,
     )
     assert "" == mlconf.config.remote_host
     mlconf.config.dbpath = api_url

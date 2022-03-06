@@ -117,7 +117,9 @@ def list_secrets(
 
 
 @router.post("/user-secrets", status_code=HTTPStatus.CREATED.value)
-def add_user_secrets(secrets: schemas.UserSecretCreationRequest,):
+def add_user_secrets(
+    secrets: schemas.UserSecretCreationRequest,
+):
     if secrets.provider != schemas.SecretProviderName.vault:
         return fastapi.Response(
             status_code=HTTPStatus.BAD_REQUEST.vault,

@@ -314,7 +314,8 @@ class FeatureSet(ModelObj):
         return fullname
 
     def _override_run_db(
-        self, session,
+        self,
+        session,
     ):
         # Import here, since this method only runs in API context. If this import was global, client would need
         # API requirements and would fail.
@@ -382,9 +383,9 @@ class FeatureSet(ModelObj):
             self.spec.graph.final_step = default_final_step
 
     def purge_targets(self, target_names: List[str] = None, silent: bool = False):
-        """ Delete data of specific targets
+        """Delete data of specific targets
         :param target_names: List of names of targets to delete (default: delete all ingested targets)
-        :param silent: Fail silently if target doesn't exist in featureset status """
+        :param silent: Fail silently if target doesn't exist in featureset status"""
 
         verify_feature_set_permissions(
             self, mlrun.api.schemas.AuthorizationAction.delete
@@ -752,7 +753,8 @@ class SparkAggregateByKey(StepToDict):
                     aggs.append(agg)
                 window_column = funcs.window(time_column, spark_window, spark_period)
                 df = input_df.groupBy(
-                    *self.key_columns, window_column.end.alias(time_column),
+                    *self.key_columns,
+                    window_column.end.alias(time_column),
                 ).agg(*aggs)
                 df = df.withColumn(f"{time_column}_window", funcs.lit(window))
                 dfs.append(df)

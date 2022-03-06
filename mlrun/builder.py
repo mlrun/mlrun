@@ -105,6 +105,7 @@ def make_kaniko_pod(
         project=project,
     )
     kpod.env = builder_env
+    kpod.set_node_selector(mlrun.mlconf.get_default_function_node_selector())
 
     if secret_name:
         items = [{"key": ".dockerconfigjson", "path": "config.json"}]
@@ -333,7 +334,7 @@ def build_runtime(
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
     project = runtime.metadata.project
-    if skip_deployed and runtime.is_deployed:
+    if skip_deployed and runtime.is_deployed():
         runtime.status.state = mlrun.api.schemas.FunctionState.ready
         return True
     if build.base_image:
@@ -351,9 +352,9 @@ def build_runtime(
             if build.base_image:
                 runtime.spec.image = build.base_image
             elif runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict():
-                runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[
-                    runtime.kind
-                ]
+                runtime.spec.image = (
+                    mlrun.mlconf.function_defaults.image_by_kind.to_dict()[runtime.kind]
+                )
         if not runtime.spec.image:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "The deployment was not successful because no image was specified or there are missing build parameters"

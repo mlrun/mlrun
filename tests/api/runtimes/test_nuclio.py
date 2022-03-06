@@ -331,7 +331,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         function_name, project_name, config = compile_function_config(function)
         service_type = "ClusterIP"
         enrich_function_with_ingress(
-            config, NuclioIngressAddTemplatedIngressModes.on_cluster_ip, service_type,
+            config,
+            NuclioIngressAddTemplatedIngressModes.on_cluster_ip,
+            service_type,
         )
         ingresses = resolve_function_ingresses(config["spec"])
         assert ingresses[0]["hostTemplate"] != ""
@@ -449,7 +451,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self, db: Session, k8s_secrets_mock: K8sSecretsMock
     ):
         """When spec.image and also spec.build.base_image are both defined the spec.image should be applied
-         to spec.baseImage in nuclio."""
+        to spec.baseImage in nuclio."""
 
         function = self._generate_runtime(self.runtime_kind)
         function.spec.build.base_image = "mlrun/base_mlrun:latest"
@@ -733,6 +735,11 @@ class TestNuclioRuntime(TestRuntimeBase):
                 },
             },
         }
+
+    def test_nuclio_run_without_specifying_resources(
+        self, db: Session, client: TestClient
+    ):
+        self.assert_run_without_specifying_resources()
 
     def test_load_function_with_source_archive_s3(self):
         fn = self._generate_runtime(self.runtime_kind)

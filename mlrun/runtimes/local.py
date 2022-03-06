@@ -36,7 +36,7 @@ from mlrun.lists import RunList
 
 from ..execution import MLClientCtx
 from ..model import RunObject
-from ..utils import get_handler_extended, logger
+from ..utils import get_handler_extended, get_in, logger
 from ..utils.clones import extract_source
 from .base import BaseRuntime
 from .kubejob import KubejobRuntime
@@ -93,6 +93,13 @@ class ParallelRunner:
 
         completed_iter = as_completed([])
         for task in tasks:
+            task_struct = task.to_dict()
+            project = get_in(task_struct, "metadata.project")
+            uid = get_in(task_struct, "metadata.uid")
+            iter = get_in(task_struct, "metadata.iteration", 0)
+            mlrun.get_run_db().store_run(
+                task_struct, uid=uid, project=project, iter=iter
+            )
             resp = client.submit(
                 remote_handler_wrapper, task.to_json(), handler, self.spec.workdir
             )
@@ -122,7 +129,11 @@ def remote_handler_wrapper(task, handler, workdir=None):
     if task and not isinstance(task, dict):
         task = json.loads(task)
 
-    context = MLClientCtx.from_dict(task, autocommit=False, host=socket.gethostname(),)
+    context = MLClientCtx.from_dict(
+        task,
+        autocommit=False,
+        host=socket.gethostname(),
+    )
     runobj = RunObject.from_dict(task)
 
     sout, serr = exec_from_params(handler, runobj, context, workdir)
@@ -176,7 +187,6 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         if pythonpath:
             self.spec.pythonpath = pythonpath
 
-    @property
     def is_deployed(self):
         return True
 

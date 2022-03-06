@@ -371,7 +371,9 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
                 self._parameters.pop(label)
 
     def set_extra_data(
-        self, to_add: Dict[str, ExtraDataType] = None, to_remove: List[str] = None,
+        self,
+        to_add: Dict[str, ExtraDataType] = None,
+        to_remove: List[str] = None,
     ):
         """
         Update the extra data dictionary of this model artifact.
@@ -1038,7 +1040,8 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
         return artifacts
 
     def _read_io_samples(
-        self, samples: Union[IOSampleType, List[IOSampleType]],
+        self,
+        samples: Union[IOSampleType, List[IOSampleType]],
     ) -> List[Feature]:
         """
         Read the given inputs / output sample to / from the model into a list of MLRun Features (ports) to log in

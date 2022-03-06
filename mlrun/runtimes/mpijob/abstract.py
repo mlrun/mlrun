@@ -107,7 +107,10 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
     @abc.abstractmethod
     def _generate_mpi_job(
-        self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta,
+        self,
+        runobj: RunObject,
+        execution: MLClientCtx,
+        meta: client.V1ObjectMeta,
     ) -> typing.Dict:
         pass
 
@@ -172,7 +175,8 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
                         execution.set_state("completed")
                     else:
                         execution.set_state(
-                            "error", f"MpiJob {meta.name} finished with state {status}",
+                            "error",
+                            f"MpiJob {meta.name} finished with state {status}",
                         )
                 else:
                     txt = f"MpiJob {meta.name} launcher pod {launcher} state {state}"

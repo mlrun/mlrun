@@ -1,17 +1,12 @@
 import mlrun.api.schemas
 import mlrun.utils.singleton
-from mlrun.api.utils.clients import nuclio
 from mlrun.config import Config, config, default_config
 from mlrun.runtimes.utils import resolve_mpijob_crd_version
-from mlrun.utils import logger
 
 
 class ClientSpec(
     metaclass=mlrun.utils.singleton.Singleton,
 ):
-    def __init__(self):
-        self._cached_nuclio_version = None
-
     def get_client_spec(self):
         mpijob_crd_version = resolve_mpijob_crd_version(api_context=True)
         return mlrun.api.schemas.ClientSpec(
@@ -28,7 +23,7 @@ class ClientSpec(
             kfp_image=config.kfp_image,
             dask_kfp_image=config.dask_kfp_image,
             api_url=config.httpdb.api_url,
-            nuclio_version=self._resolve_nuclio_version(),
+            nuclio_version=mlrun.mlconf.resolve_nuclio_version(),
             # These don't have a default value, but we don't send them if they are not set to allow the client to know
             # when to use server value and when to use client value (server only if set). Since their default value is
             # empty and not set is also empty we can use the same _get_config_value_if_not_default
@@ -83,23 +78,3 @@ class ClientSpec(
             return None
         else:
             return current_config_value
-
-    # if nuclio version specified on mlrun config set it likewise,
-    # if not specified, get it from nuclio api client
-    # since this is a heavy operation (sending requests to API), and it's unlikely that the version
-    # will change - cache it (this means if we upgrade nuclio, we need to restart mlrun to re-fetch the new version)
-    def _resolve_nuclio_version(self):
-        if not self._cached_nuclio_version:
-
-            # config override everything
-            nuclio_version = config.nuclio_version
-            if not nuclio_version and config.nuclio_dashboard_url:
-                try:
-                    nuclio_client = nuclio.Client()
-                    nuclio_version = nuclio_client.get_dashboard_version()
-                except Exception as exc:
-                    logger.warning("Failed to resolve nuclio version", exc=str(exc))
-
-            self._cached_nuclio_version = nuclio_version
-
-        return self._cached_nuclio_version

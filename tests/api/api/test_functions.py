@@ -106,6 +106,11 @@ async def test_multiple_store_function_race_condition(
 
     assert response1.status_code == HTTPStatus.OK.value
     assert response2.status_code == HTTPStatus.OK.value
+    # 2 times for two store function requests + 1 time on retry for one of them
+    assert (
+        mlrun.api.utils.singletons.db.get_db()._get_class_instance_by_uid.call_count
+        == 3
+    )
 
 
 def test_build_function_with_mlrun_bool(db: Session, client: TestClient):

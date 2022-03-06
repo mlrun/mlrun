@@ -16,8 +16,6 @@ def test_health(
 ) -> None:
     overridden_ui_projects_prefix = "some-prefix"
     mlrun.mlconf.ui.projects_prefix = overridden_ui_projects_prefix
-    # init cached value to empty string in case another test set it
-    mlrun.mlconf._cached_nuclio_version = ""
     nuclio_version = "x.x.x"
     mlrun.mlconf.nuclio_version = nuclio_version
     response = client.get("healthz")

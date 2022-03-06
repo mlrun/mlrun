@@ -162,8 +162,8 @@ def test_get_frontend_spec_nuclio_streams(
             "expected_feature_flag": mlrun.api.schemas.NuclioStreamsFeatureFlag.enabled,
         },
     ]:
-        # init cached value to empty string in the beginning of the test case
-        mlrun.mlconf._cached_nuclio_version = ""
+        # init cached value to None in the beginning of each test case
+        mlrun.runtimes.utils.cached_nuclio_version = None
         mlrun.mlconf.igz_version = testcase["iguazio_version"]
         mlrun.mlconf.nuclio_version = testcase["nuclio_version"]
 

@@ -491,33 +491,6 @@ class Config:
             return f"http://ml-pipeline.{namespace}.svc.cluster.local:8888"
         return None
 
-    # if nuclio version specified on mlrun config set it likewise,
-    # if not specified, get it from nuclio api client
-    # since this is a heavy operation (sending requests to API), and it's unlikely that the version
-    # will change - cache it (this means if we upgrade nuclio, we need to restart mlrun to re-fetch the new version)
-    def resolve_nuclio_version(self):
-        from mlrun.api.utils.clients import nuclio
-        from mlrun.utils import logger
-
-        try:
-            if not config._cached_nuclio_version:
-                raise AttributeError
-
-        except AttributeError:
-
-            # config override everything
-            nuclio_version = config.nuclio_version
-            if not nuclio_version and config.nuclio_dashboard_url:
-                try:
-                    nuclio_client = nuclio.Client()
-                    nuclio_version = nuclio_client.get_dashboard_version()
-                except Exception as exc:
-                    logger.warning("Failed to resolve nuclio version", exc=str(exc))
-
-            config._cached_nuclio_version = nuclio_version
-
-        return config._cached_nuclio_version
-
     @staticmethod
     def get_storage_auto_mount_params():
         auto_mount_params = {}

@@ -90,7 +90,7 @@ def _resolve_feature_flags() -> mlrun.api.schemas.FeatureFlags:
     nuclio_streams = mlrun.api.schemas.NuclioStreamsFeatureFlag.disabled
 
     if mlrun.mlconf.get_parsed_igz_version() and semver.VersionInfo.parse(
-        mlrun.mlconf.resolve_nuclio_version()
+        mlrun.runtimes.utils.resolve_nuclio_version()
     ) >= semver.VersionInfo.parse("1.7.8"):
         nuclio_streams = mlrun.api.schemas.NuclioStreamsFeatureFlag.enabled
     return mlrun.api.schemas.FeatureFlags(

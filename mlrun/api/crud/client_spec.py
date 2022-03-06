@@ -1,7 +1,7 @@
 import mlrun.api.schemas
 import mlrun.utils.singleton
 from mlrun.config import Config, config, default_config
-from mlrun.runtimes.utils import resolve_mpijob_crd_version
+from mlrun.runtimes.utils import resolve_mpijob_crd_version, resolve_nuclio_version
 
 
 class ClientSpec(
@@ -23,7 +23,7 @@ class ClientSpec(
             kfp_image=config.kfp_image,
             dask_kfp_image=config.dask_kfp_image,
             api_url=config.httpdb.api_url,
-            nuclio_version=mlrun.mlconf.resolve_nuclio_version(),
+            nuclio_version=resolve_nuclio_version(),
             # These don't have a default value, but we don't send them if they are not set to allow the client to know
             # when to use server value and when to use client value (server only if set). Since their default value is
             # empty and not set is also empty we can use the same _get_config_value_if_not_default

@@ -145,6 +145,8 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
         meta = self._get_meta(runobj, True)
 
+        self._add_secrets_to_spec_before_running(runobj)
+
         job = self._generate_mpi_job(runobj, execution, meta)
 
         resp = self._submit_mpijob(job, meta.namespace)

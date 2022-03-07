@@ -49,7 +49,7 @@ def pipe_test():
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestProject(TestMLRunSystem):
-    project_name = "project-system-test-project2"
+    project_name = "project-system-test-project"
 
     def custom_setup(self):
         pass

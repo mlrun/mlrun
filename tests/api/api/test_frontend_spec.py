@@ -140,7 +140,7 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
 def test_get_frontend_spec_nuclio_streams(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
-    for testcase in [
+    for test_case in [
         {
             "iguazio_version": "3.2.0",
             "nuclio_version": "1.6.23",
@@ -164,12 +164,12 @@ def test_get_frontend_spec_nuclio_streams(
     ]:
         # init cached value to None in the beginning of each test case
         mlrun.runtimes.utils.cached_nuclio_version = None
-        mlrun.mlconf.igz_version = testcase["iguazio_version"]
-        mlrun.mlconf.nuclio_version = testcase["nuclio_version"]
+        mlrun.mlconf.igz_version = test_case.get("iguazio_version")
+        mlrun.mlconf.nuclio_version = test_case.get("nuclio_version")
 
         response = client.get("frontend-spec")
         frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
         assert response.status_code == http.HTTPStatus.OK.value
-        assert frontend_spec.feature_flags.nuclio_streams == testcase.get(
+        assert frontend_spec.feature_flags.nuclio_streams == test_case.get(
             "expected_feature_flag"
         )

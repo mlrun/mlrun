@@ -26,6 +26,7 @@ from kubernetes import client
 import mlrun
 import mlrun.builder
 import mlrun.utils.regex
+from mlrun.api.utils.clients import nuclio
 from mlrun.db import get_run_db
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
 from mlrun.k8s_utils import get_k8s_helper
@@ -124,8 +125,6 @@ def resolve_spark_operator_version():
 # since this is a heavy operation (sending requests to API), and it's unlikely that the version
 # will change - cache it (this means if we upgrade nuclio, we need to restart mlrun to re-fetch the new version)
 def resolve_nuclio_version():
-    from mlrun.api.utils.clients import nuclio
-
     global cached_nuclio_version
 
     if not cached_nuclio_version:

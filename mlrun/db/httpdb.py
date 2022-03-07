@@ -615,7 +615,9 @@ class HTTPRunDB(RunDBInterface):
         tag = tag or "latest"
         path = f"projects/{project}/artifact/{key}?tag={tag}"
         error = f"read artifact {project}/{key}"
-        params = {"iter": str(iter)} if iter else {}
+        params = {"legacy-format": False}
+        if iter:
+            params["iter"] = str(iter)
         resp = self.api_call("GET", path, error, params=params)
         return resp.json()["data"]
 
@@ -681,6 +683,7 @@ class HTTPRunDB(RunDBInterface):
             "best-iteration": best_iteration,
             "kind": kind,
             "category": category,
+            "legacy-format": False,
         }
         error = "list artifacts"
         resp = self.api_call("GET", "artifacts", error, params=params)

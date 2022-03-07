@@ -846,7 +846,11 @@ def test_data_migration_fix_datasets_large_previews(
             artifact_with_valid_preview_after_migration,
             artifact_with_valid_preview.to_dict(),
             ignore_order=True,
-            exclude_paths=["root['metadata']['updated']", "root['metadata']['tag']", "root['spec']['db_key']"],
+            exclude_paths=[
+                "root['metadata']['updated']",
+                "root['metadata']['tag']",
+                "root['spec']['db_key']",
+            ],
         )
         == {}
     )

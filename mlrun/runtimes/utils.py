@@ -313,8 +313,8 @@ def log_iter_artifacts(execution, df, header):
             body=gen_pcp_plot(df, index_col="iter"),
             local_path="parallel_coordinates.html",
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning(f"failed to log iter artifacts, {exc}")
 
 
 def resolve_function_image_name(function, image: typing.Optional[str] = None) -> str:

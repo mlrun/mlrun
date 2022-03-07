@@ -136,10 +136,10 @@ class TestDask(TestMLRunSystem):
         # wait for the dask cluster to completely shut down
         mlrun.utils.retry_until_successful(
             5,
-            40,
+            60,
             self._logger,
             True,
-            wait_for_dask_cluster_to_shutdown,
+            self._wait_for_dask_cluster_to_shutdown,
             "mydask",
         )
 
@@ -151,20 +151,18 @@ class TestDask(TestMLRunSystem):
         with pytest.raises(RuntimeError):
             client.restart()
 
+    def _wait_for_dask_cluster_to_shutdown(self, dask_cluster_name):
+        runtime_resources = mlrun.get_run_db().list_runtime_resources(
+            project=self.project_name,
+            kind="dask",
+            object_id=dask_cluster_name,
+            label_selector={"mlrun/function": dask_cluster_name},
+        )
+        resources = runtime_resources[0].resources
+        if len(resources.pod_resources) > 1:
+            raise mlrun.errors.MLRunRuntimeError("Cluster did not completely clean up")
 
-def wait_for_dask_cluster_to_shutdown(dask_cluster_name):
-    resources = mlrun.get_run_db().list_runtime_resources()
-    pods = resources[0].resources.pod_resources
-    pod_counter = 0
-    for pod in pods:
-        if pod.name.startswith(f"mlrun-{dask_cluster_name}"):
+        for pod in resources.pod_resources:
             if pod.status.get("phase") != RunStatuses.succeeded:
                 raise mlrun.errors.MLRunRuntimeError("Cluster still running")
-            pod_counter += 1
-            if pod_counter > 1:
-                raise mlrun.errors.MLRunRuntimeError(
-                    "Cluster did not completely clean up"
-                )
-    if pod_counter != 1:
-        raise mlrun.errors.MLRunRuntimeError("There is no cluster scheduler")
-    return True
+        return True

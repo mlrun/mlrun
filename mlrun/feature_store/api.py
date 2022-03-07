@@ -16,6 +16,7 @@ from typing import List, Union
 from urllib.parse import urlparse
 
 import pandas as pd
+import pyspark.sql
 
 import mlrun
 import mlrun.errors
@@ -447,9 +448,12 @@ def ingest(
             "featureset.spec.engine must be set to 'spark' to ingest with spark"
         )
     if featureset.spec.engine == "spark":
-        if isinstance(source, pd.DataFrame) and run_config is not None:
+        if (
+            isinstance(source, (pd.DataFrame, pyspark.sql.DataFrame))
+            and run_config is not None
+        ):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "DataFrame source is illegal when ingesting with spark"
+                "DataFrame source is illegal when ingesting with remote spark or spark operator"
             )
         # use local spark session to ingest
         return _ingest_with_spark(
@@ -719,7 +723,7 @@ def _ingest_with_spark(
 
         if isinstance(source, pd.DataFrame):
             df = spark.createDataFrame(source)
-        else:
+        elif not isinstance(source, pyspark.sql.DataFrame):
             df = source.to_spark_df(spark)
             df = source.filter_df_start_end_time(df)
         if featureset.spec.graph and featureset.spec.graph.steps:

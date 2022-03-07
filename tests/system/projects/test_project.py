@@ -100,11 +100,11 @@ class TestProject(TestMLRunSystem):
 
         # test the list_runs/artifacts/functions methods
         runs_list = project2.list_runs(name="test", labels={"workflow": run.run_id})
-        runs = runs_list.objects()
+        runs = runs_list.to_objects()
         assert runs[0].status.state == "completed"
         assert runs[0].metadata.name == "test"
         runs_list.compare(filename=f"{projects_dir}/compare.html")
-        artifacts = project2.list_artifacts(tag=run.run_id).objects()
+        artifacts = project2.list_artifacts(tag=run.run_id).to_objects()
         assert len(artifacts) == 4  # cleaned_data, test_set_preds, model, test_set
         assert artifacts[0].producer["workflow"] == run.run_id
 

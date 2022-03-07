@@ -299,7 +299,7 @@ The project object provides an easy way to retrieve MLRun database objects
 *  {py:meth}`~mlrun.projects.list_models`  - return a list of `ModelArtifact` model objects
 
 the `RunList` and `ArtifactList` can be viewed as a list of dict, and have few conversion methods:
-* `objects()` - return as a list of MLRun run/artifact objects 
+* `to_objects()` - return as a list of MLRun run/artifact objects 
 * `to_df()` - return as a DataFrame object
 * `to_rows` - return as flattened rows
 * `show()` - show a graphical widget in Jupyter
@@ -320,7 +320,7 @@ project.list_runs(name='').show()
 # Get latest version of all artifacts in project
 latest_artifacts = project.list_artifacts('', tag='latest')
 # check different artifact versions for a specific artifact, return as objects list
-result_versions = project.list_artifacts('results', tag='*').objects()
+result_versions = project.list_artifacts('results', tag='*').to_objects()
 
 # Get latest version of all models in project
 latest_models = project.list_models('', tag='latest')

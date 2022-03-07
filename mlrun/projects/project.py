@@ -2015,7 +2015,7 @@ class MlrunProject(ModelObj):
     ) -> mlrun.lists.ArtifactList:
         """List artifacts filtered by various parameters.
 
-        The returned result is an `ArtifactList` (list of dict), use `.objects()` to convert it to a list of RunObjects,
+        The returned result is an `ArtifactList` (list of dict), use `.to_objects()` to convert it to a list of RunObjects,
         `.show()` to view graphically in Jupyter, and `.to_df()` to convert to a DataFrame.
 
         Examples::
@@ -2023,7 +2023,7 @@ class MlrunProject(ModelObj):
             # Get latest version of all artifacts in project
             latest_artifacts = project.list_artifacts('', tag='latest')
             # check different artifact versions for a specific artifact, return as objects list
-            result_versions = project.list_artifacts('results', tag='*').objects()
+            result_versions = project.list_artifacts('results', tag='*').to_objects()
 
         :param name: Name of artifacts to retrieve. Name is used as a like query, and is not case-sensitive. This means
             that querying for ``name`` may return artifacts named ``my_Name_1`` or ``surname``.
@@ -2093,7 +2093,7 @@ class MlrunProject(ModelObj):
             iter=iter,
             best_iteration=best_iteration,
             kind="model",
-        ).objects()
+        ).to_objects()
 
     def list_functions(self, name=None, tag=None, labels=None):
         """Retrieve a list of functions, filtered by specific criteria.
@@ -2131,7 +2131,7 @@ class MlrunProject(ModelObj):
     ) -> mlrun.lists.RunList:
         """Retrieve a list of runs, filtered by various options.
 
-        The returned result is a `` (list of dict), use `.objects()` to convert it to a list of RunObjects,
+        The returned result is a `` (list of dict), use `.to_objects()` to convert it to a list of RunObjects,
         `.show()` to view graphically in Jupyter, `.to_df()` to convert to a DataFrame, and `compare()` to
         generate comparison table and PCP plot.
 

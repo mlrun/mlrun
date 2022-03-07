@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import warnings
 from copy import copy
 from typing import List
 
@@ -117,7 +118,7 @@ class RunList(list):
         if not display:
             return html
 
-    def objects(self) -> List["mlrun.RunObject"]:
+    def to_objects(self) -> List["mlrun.RunObject"]:
         """Return a list of Run Objects"""
         return [mlrun.RunObject.from_dict(run) for run in self]
 
@@ -147,7 +148,7 @@ class RunList(list):
         :return:  plot html
         """
         return mlrun.frameworks.parallel_coordinates.compare_run_objects(
-            self.objects(),
+            self.to_objects(),
             hide_identical=hide_identical,
             exclude=exclude,
             show=show,
@@ -206,8 +207,16 @@ class ArtifactList(list):
         if not display:
             return html
 
+    def to_objects(self) -> List[Artifact]:
+        """return as a list of artifact objects"""
+        return [dict_to_artifact(artifact) for artifact in self]
+
     def objects(self) -> List[Artifact]:
         """return as a list of artifact objects"""
+        warnings.warn(
+            "This is replaced with .to_objects(), and will be deprecated in 1.1.x",
+            PendingDeprecationWarning,
+        )
         return [dict_to_artifact(artifact) for artifact in self]
 
     def dataitems(self) -> List["mlrun.DataItem"]:

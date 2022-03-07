@@ -156,9 +156,9 @@ class TestDask(TestMLRunSystem):
             project=self.project_name,
             kind="dask",
             object_id=dask_cluster_name,
-            label_selector={"mlrun/function": dask_cluster_name},
         )
         resources = runtime_resources[0].resources
+        # Waiting for workers so be removed and to scheduler status to completed
         if len(resources.pod_resources) > 1:
             raise mlrun.errors.MLRunRuntimeError("Cluster did not completely clean up")
 

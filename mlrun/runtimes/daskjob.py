@@ -292,13 +292,11 @@ class DaskCluster(KubejobRuntime):
 
         try:
             client = default_client()
+            # shutdown the cluster first, then close the client
+            client.shutdown()
             client.close()
         except ValueError:
             pass
-
-        # meta = self.metadata
-        # s = get_func_selector(meta.project, meta.name, meta.tag)
-        # clean_objects(s, running)
 
     def get_status(self):
         meta = self.metadata

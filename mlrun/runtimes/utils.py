@@ -556,18 +556,8 @@ class k8s_resource:
     def del_object(self, name, namespace=None):
         pass
 
-    def list_objects(self, namespace=None, selector=[], states=None):
-        return []
-
     def get_pods(self, name, namespace=None, master=False):
         return {}
-
-    def clean_objects(self, namespace=None, selector=[], states=None):
-        if not selector and not states:
-            raise ValueError("labels selector or states list must be specified")
-        items = self.list_objects(namespace, selector, states)
-        for item in items:
-            self.del_object(item.metadata.name, item.metadata.namespace)
 
 
 def enrich_function_from_dict(function, function_dict):

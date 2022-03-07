@@ -16,7 +16,6 @@ from typing import List, Union
 from urllib.parse import urlparse
 
 import pandas as pd
-import pyspark.sql
 
 import mlrun
 import mlrun.errors
@@ -448,6 +447,8 @@ def ingest(
             "featureset.spec.engine must be set to 'spark' to ingest with spark"
         )
     if featureset.spec.engine == "spark":
+        import pyspark.sql
+
         if (
             isinstance(source, (pd.DataFrame, pyspark.sql.DataFrame))
             and run_config is not None
@@ -708,9 +709,10 @@ def _ingest_with_spark(
     overwrite=None,
 ):
     try:
+        import pyspark.sql
+
         if spark is None or spark is True:
             # create spark context
-            from pyspark.sql import SparkSession
 
             if mlrun_context:
                 session_name = f"{mlrun_context.name}-{mlrun_context.uid}"
@@ -719,7 +721,7 @@ def _ingest_with_spark(
                     f"{featureset.metadata.project}-{featureset.metadata.name}"
                 )
 
-            spark = SparkSession.builder.appName(session_name).getOrCreate()
+            spark = pyspark.sql.SparkSession.builder.appName(session_name).getOrCreate()
 
         if isinstance(source, pd.DataFrame):
             df = spark.createDataFrame(source)

@@ -42,6 +42,10 @@ def test_get_frontend_spec(
         frontend_spec.feature_flags.authentication
         == mlrun.api.schemas.AuthenticationFeatureFlag.none
     )
+    assert (
+        frontend_spec.feature_flags.nuclio_streams
+        == mlrun.api.schemas.NuclioStreamsFeatureFlag.disabled
+    )
     assert frontend_spec.default_function_image_by_kind is not None
     assert frontend_spec.function_deployment_mlrun_command is not None
     assert frontend_spec.default_artifact_path is not None
@@ -131,3 +135,41 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
         f"&var-groupBy={{filter_name}}&var-filter={{filter_value}}"
     )
     mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url.assert_called_once()
+
+
+def test_get_frontend_spec_nuclio_streams(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    for test_case in [
+        {
+            "iguazio_version": "3.2.0",
+            "nuclio_version": "1.6.23",
+            "expected_feature_flag": mlrun.api.schemas.NuclioStreamsFeatureFlag.disabled,
+        },
+        {
+            "iguazio_version": None,
+            "nuclio_version": "1.6.23",
+            "expected_feature_flag": mlrun.api.schemas.NuclioStreamsFeatureFlag.disabled,
+        },
+        {
+            "iguazio_version": None,
+            "nuclio_version": "1.7.8",
+            "expected_feature_flag": mlrun.api.schemas.NuclioStreamsFeatureFlag.disabled,
+        },
+        {
+            "iguazio_version": "3.4.0",
+            "nuclio_version": "1.7.8",
+            "expected_feature_flag": mlrun.api.schemas.NuclioStreamsFeatureFlag.enabled,
+        },
+    ]:
+        # init cached value to None in the beginning of each test case
+        mlrun.runtimes.utils.cached_nuclio_version = None
+        mlrun.mlconf.igz_version = test_case.get("iguazio_version")
+        mlrun.mlconf.nuclio_version = test_case.get("nuclio_version")
+
+        response = client.get("frontend-spec")
+        frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
+        assert response.status_code == http.HTTPStatus.OK.value
+        assert frontend_spec.feature_flags.nuclio_streams == test_case.get(
+            "expected_feature_flag"
+        )

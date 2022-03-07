@@ -2015,8 +2015,8 @@ class MlrunProject(ModelObj):
     ) -> mlrun.lists.ArtifactList:
         """List artifacts filtered by various parameters.
 
-        The returned result is an `ArtifactList` (list of dict), use `.to_objects()` to convert it to a list of RunObjects,
-        `.show()` to view graphically in Jupyter, and `.to_df()` to convert to a DataFrame.
+        The returned result is an `ArtifactList` (list of dict), use `.to_objects()` to convert it to a list of
+        RunObjects, `.show()` to view graphically in Jupyter, and `.to_df()` to convert to a DataFrame.
 
         Examples::
 

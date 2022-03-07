@@ -300,6 +300,48 @@ class SQLDB(DBInterface):
             project,
         )
 
+    @staticmethod
+    def _process_stored_artifact_dict(artifact, key, iter=None):
+        updated = artifact["metadata"].get("updated")
+        if not updated:
+            updated = artifact["metadata"]["updated"] = datetime.now(timezone.utc)
+        db_key = artifact["spec"].get("db_key")
+        if db_key and db_key != key:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Conflict between requested key and key in artifact body"
+            )
+        if not db_key:
+            artifact["spec"]["db_key"] = key
+        if iter:
+            key = f"{iter}-{key}"
+        labels = artifact["metadata"].get("labels", {})
+
+        # Ensure there is no "tag" field in the object, to avoid inconsistent situations between
+        # body and tag parameter provided.
+        artifact["metadata"].pop("tag", None)
+        return updated, key, labels
+
+    @staticmethod
+    def _process_stored_legacy_artifact_dict(artifact, key, iter=None):
+        updated = artifact.get("updated")
+        if not updated:
+            updated = artifact["updated"] = datetime.now(timezone.utc)
+        db_key = artifact.get("db_key")
+        if db_key and db_key != key:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Conflict between requested key and key in artifact body"
+            )
+        if not db_key:
+            artifact["db_key"] = key
+        if iter:
+            key = f"{iter}-{key}"
+        labels = artifact.get("labels", {})
+
+        # Ensure there is no "tag" field in the object, to avoid inconsistent situations between
+        # body and tag parameter provided.
+        artifact.pop("tag", None)
+        return updated, key, labels
+
     def _store_artifact(
         self,
         session,
@@ -313,27 +355,19 @@ class SQLDB(DBInterface):
     ):
         project = project or config.default_project
         artifact = deepcopy(artifact)
-        updated = artifact.get("updated")
-        if not updated:
-            updated = artifact["updated"] = datetime.now(timezone.utc)
-        db_key = artifact.get("db_key")
-        if db_key and db_key != key:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Conflict between requested key and key in artifact body"
+        if "metadata" in artifact:
+            updated, key, labels = self._process_stored_artifact_dict(
+                artifact, key, iter
             )
-        if not db_key:
-            artifact["db_key"] = key
-        if iter:
-            key = f"{iter}-{key}"
+        else:
+            updated, key, labels = self._process_stored_legacy_artifact_dict(
+                artifact, key, iter
+            )
+
         art = self._get_artifact(session, uid, project, key)
-        labels = artifact.get("labels", {})
         if not art:
             art = Artifact(key=key, uid=uid, updated=updated, project=project)
         update_labels(art, labels)
-
-        # Ensure there is no "tag" field in the object, to avoid inconsistent situations between
-        # body and tag parameter provided.
-        artifact.pop("tag", None)
 
         art.struct = artifact
         self._upsert(session, art)
@@ -341,12 +375,19 @@ class SQLDB(DBInterface):
             tag = tag or "latest"
             self.tag_artifacts(session, [art], project, tag)
 
+    @staticmethod
+    def _set_tag_in_artifact_struct(artifact, tag):
+        if "metadata" in artifact:
+            artifact["metadata"]["tag"] = tag
+        else:
+            artifact["tag"] = tag
+
     def _add_tags_to_artifact_struct(
         self, session, artifact_struct, artifact_id, tag=None
     ):
         artifacts = []
         if tag and tag != "*":
-            artifact_struct["tag"] = tag
+            self._set_tag_in_artifact_struct(artifact_struct, tag)
             artifacts.append(artifact_struct)
         else:
             tag_results = self._query(session, Artifact.Tag, obj_id=artifact_id).all()
@@ -354,7 +395,7 @@ class SQLDB(DBInterface):
                 return [artifact_struct]
             for tag_object in tag_results:
                 artifact_with_tag = artifact_struct.copy()
-                artifact_with_tag["tag"] = tag_object.name
+                self._set_tag_in_artifact_struct(artifact_with_tag, tag_object.name)
                 artifacts.append(artifact_with_tag)
         return artifacts
 
@@ -394,7 +435,7 @@ class SQLDB(DBInterface):
         artifact_struct = art.struct
         # We only set a tag in the object if the user asked specifically for this tag.
         if db_tag:
-            artifact_struct["tag"] = db_tag
+            self._set_tag_in_artifact_struct(artifact_struct, db_tag)
         return artifact_struct
 
     def list_artifacts(
@@ -443,7 +484,11 @@ class SQLDB(DBInterface):
             if best_iteration:
                 if has_iteration:
                     continue
-                link_iteration = artifact.struct.get("link_iteration")
+                if "spec" in artifact.struct:
+                    link_iteration = artifact.struct["spec"].get("link_iteration")
+                else:
+                    link_iteration = artifact.struct.get("link_iteration")
+
                 if link_iteration:
                     linked_key = f"{link_iteration}-{artifact.key}"
                     linked_artifact = indexed_artifacts.get(linked_key)
@@ -2463,7 +2508,10 @@ class SQLDB(DBInterface):
                 link_artifacts.append(artifact)
 
         for link_artifact in link_artifacts:
-            link_iteration = link_artifact.struct.get("link_iteration")
+            if "spec" in link_artifact.struct:
+                link_iteration = link_artifact.struct["spec"].get("link_iteration")
+            else:
+                link_iteration = link_artifact.struct.get("link_iteration")
             if not link_iteration:
                 continue
             linked_key = f"{link_iteration}-{link_artifact.key}"

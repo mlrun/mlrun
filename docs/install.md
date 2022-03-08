@@ -130,7 +130,7 @@ Where `<registry-url` is the registry URL which can be authenticated by the `reg
 
 > **Note: Installing on AKS**
 >
-> AKS uses [containerd as the container 
+> [AKS](https://azure.microsoft.com/en-us/services/kubernetes-service/) uses [containerd as the container 
 > runtime](https://docs.microsoft.com/en-us/azure/aks/cluster-configuration#container-runtime-configuration) on k8s 
 > v1.19 and above, therefore Nuclio can't access the docker engine and should be configured to use 
 > [Kaniko](https://github.com/GoogleContainerTools/kaniko) to build images. To do that set the 

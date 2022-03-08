@@ -242,10 +242,10 @@ fstore.ingest(feature_set, source, run_config=config, spark_context=spark_servic
 ```
 
 ### Spark operator ingestion example
-When using spark operator execution the MLRun run execution details would be returned, allowing tracking of its status and results.
+When running with spark operator, the MLRun  execution details are returned, allowing tracking of the job's status and results.
 
-The following code should be executed only once to build the spark job image before running the first ingest
-It may take a few minutes to prepare the image
+The following code should be executed only once to build the spark job image before running the first ingest.
+It may take a few minutes to prepare the image.
 ```python
 from mlrun.runtimes import Spark3Runtime
 Spark3Runtime.deploy_default_image()
@@ -254,18 +254,16 @@ Spark3Runtime.deploy_default_image()
 Spark operator ingestion:
 ```python
 # mlrun: start-code
-```
-```python
+
 from mlrun.feature_store.api import ingest
+
 def ingest_handler(context):
     ingest(mlrun_context=context) # The handler function must call ingest with the mlrun_context
-```
-You can run your PySpark code for ingesting data into the feature store by adding:
-```python
+
+# You can add your own PySpark code as a graph step:
 def my_spark_func(df, context=None):
     return df.filter("bid>55") # PySpark code
-```
-```python
+
 # mlrun: end-code
 ```
 ```python

@@ -20,11 +20,12 @@ workflow execute the registered functions in a sequence/graph (DAG), can referen
 Projects can also be loaded and workflows/pipelines can be executed using the CLI (using `mlrun project` command)
 
 - [**Creating a new project**](#creating-a-new-project)
-- [**Load & Run projects from context, git or archive**](#setting-up-git-remote-repository)
+- [**Load & Run projects from context, git or archive**](load-run-projects-from-context-git-or-archive)
 - [**Get from DB or create (get_or_create_project)**](#get-from-db-or-create-get-or-create-project)
 - [**Working with Git**](#working-with-git)
 - [**Updating and using project functions**](#updating-and-using-project-functions)
 - [**Run, Build, and Deploy functions**](#run-build-and-deploy-functions)
+- [**Retrieve Project Functions, Runs, and Artifacts**](#retrieve-project-functions-runs-and-artifacts)
 
 ## Creating a new project
 
@@ -224,14 +225,14 @@ the preferred approach would be to use `set_function` (which also records the fu
 
 The {py:meth}`~mlrun.projects.MlrunProject.set_function` method allow you to add/update many types of functions:
 * **marketplace functions** - load/register a marketplace function into the project (func="hub://...")
-* **notebook file** - convert a notebook file into a function (func="path/to/file.ipynb")
+* **notebook file** - convert a notebook file into a function (func=`None` for current notebook or func="path/to/file.ipynb")
 * **python file** - convert a python file into a function (func="path/to/file.py")
 * **database function** - function stored in MLRun DB (func="db://project/func-name:version")
 * **function yaml file** - read the function object from a yaml file (func="path/to/file.yaml")
 * **inline function spec** - save the full function spec in the project definition file (func=func_object), not recommended
 
 When loading a function from code file (py, ipynb) you should also specify a container `image` and the runtime `kind` (will use `job` kind as default),
-you can optionally specify the function `handler` (the function handler to invoke), and a `name`.
+you can optionally specify package `requirements` (file path or list), the function `handler` (the function handler to invoke), and a `name`.
 
 If the function is not a single file function, and it require access to multiple files/libraries in the project, 
 you should set the `with_repo=True` which will add the entire repo code into the destination container during build or run time.
@@ -246,8 +247,8 @@ Examples:
 ```python
     project.set_function('hub://sklearn_classifier', 'train')
     project.set_function('http://.../mynb.ipynb', 'test', image="mlrun/mlrun")
-    project.set_function('./src/mycode.py', 'ingest',
-                         image='myrepo/ing:latest', with_repo=True)
+    project.set_function('./src/mycode.py', 'ingest', image='myrepo/ing:latest',
+                         requirements="requirements.txt", with_repo=True)
     project.set_function('db://project/func-name:version')
     project.set_function('./func.yaml')
     project.set_function(func_object)
@@ -286,3 +287,41 @@ The first parameter in those three methods is the function name (in the project)
         serving,
         models=[{"key": "mymodel", "model_path": train.outputs["model"]}],
     )
+
+
+## Retrieve Project Functions, Runs, and Artifacts
+
+The project object provides an easy way to retrieve MLRun database objects 
+
+*  {py:meth}`~mlrun.projects.list_functions`  - return a list of function objects
+*  {py:meth}`~mlrun.projects.list_runs`  - return a `RunList` object
+*  {py:meth}`~mlrun.projects.list_artifacts`  - return an `ArtifactList` object
+*  {py:meth}`~mlrun.projects.list_models`  - return a list of `ModelArtifact` model objects
+
+the `RunList` and `ArtifactList` can be viewed as a list of dict, and have few conversion methods:
+* `to_objects()` - return as a list of MLRun run/artifact objects 
+* `to_df()` - return as a DataFrame object
+* `to_rows` - return as flattened rows
+* `show()` - show a graphical widget in Jupyter
+* `compare()` - return/show parallel coordinates plot + table to comparison table (for runs only)
+
+Usage Examples:
+
+```python
+# Get latest version of all functions in project
+functions = project.list_functions(tag="latest")
+
+# return a list of runs matching the name and label and compare
+runs = project.list_runs(name='download', labels='owner=admin')
+runs.compare()
+# If running in Jupyter, can use the .show() function to display the results
+project.list_runs(name='').show()
+
+# Get latest version of all artifacts in project
+latest_artifacts = project.list_artifacts('', tag='latest')
+# check different artifact versions for a specific artifact, return as objects list
+result_versions = project.list_artifacts('results', tag='*').to_objects()
+
+# Get latest version of all models in project
+latest_models = project.list_models('', tag='latest')
+```

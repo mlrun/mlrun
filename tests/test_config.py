@@ -104,6 +104,43 @@ def test_env_override(config):
     assert config.namespace == env_ns, "env did not override"
 
 
+def test_decode_base64_config_and_load_to_dict():
+    encoded_attribute = "eyJlbmNvZGVkIjogImF0dHJpYnV0ZSJ9"
+    expected_decoded_output = {"encoded": "attribute"}
+
+    # Non-hierarchical attribute loading
+    mlconf.config.encoded_attribute = encoded_attribute
+    decoded_output = mlconf.config.decode_base64_config_and_load_to_dict(
+        "encoded_attribute"
+    )
+    assert decoded_output == expected_decoded_output
+
+    # Hierarchical attribute loading
+    mlconf.config.for_test = {"encoded_attribute": encoded_attribute}
+    decoded_output = mlconf.config.decode_base64_config_and_load_to_dict(
+        "for_test.encoded_attribute"
+    )
+    assert decoded_output == expected_decoded_output
+
+    # Not defined attribute
+    mlconf.config.for_test = {"encoded_attribute": None}
+    decoded_output = mlconf.config.decode_base64_config_and_load_to_dict(
+        "for_test.encoded_attribute"
+    )
+    assert decoded_output == {}
+
+    # Non existing attribute loading
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        mlconf.config.decode_base64_config_and_load_to_dict("non_existing_attribute")
+
+    # Attribute defined but not encoded
+    mlconf.config.for_test = {"encoded_attribute": "notencoded"}
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError):
+        mlconf.config.decode_base64_config_and_load_to_dict(
+            "for_test.encoded_attribute"
+        )
+
+
 def test_gpu_validation(config):
     dfpr_env_key = f"{mlconf.env_prefix}DEFAULT_FUNCTION_POD_RESOURCES__"
     request_gpu_env_key = f"{dfpr_env_key}REQUESTS__GPU"
@@ -243,6 +280,20 @@ def test_get_parsed_igz_version():
     assert igz_version.major == 3
     assert igz_version.minor == 0
     assert igz_version.patch == 0
+
+
+def test_get_default_function_node_selector():
+    mlconf.config.default_function_node_selector = None
+    assert mlconf.config.get_default_function_node_selector() == {}
+
+    mlconf.config.default_function_node_selector = ""
+    assert mlconf.config.get_default_function_node_selector() == {}
+
+    mlconf.config.default_function_node_selector = "e30="
+    assert mlconf.config.get_default_function_node_selector() == {}
+
+    mlconf.config.default_function_node_selector = "bnVsbA=="
+    assert mlconf.config.get_default_function_node_selector() == {}
 
 
 def test_setting_dbpath_trigger_connect(requests_mock: requests_mock_package.Mocker):

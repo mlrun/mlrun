@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import datetime
 import getpass
 import pathlib
 import shutil
@@ -21,6 +22,7 @@ from os import environ, makedirs, path
 import dotenv
 import inflection
 import kfp
+import nuclio
 import yaml
 from git import Repo
 
@@ -37,7 +39,7 @@ from ..model import EntrypointParam, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
 from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
-from ..utils import RunNotifications, logger, update_in
+from ..utils import RunNotifications, is_ipython, logger, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from .operations import build_function, deploy_function, run_function
@@ -194,6 +196,7 @@ def load_project(
 
     from_db = False
     if url:
+        url = str(url)  # to support path objects
         if url.endswith(".yaml"):
             project = _load_project_file(url, name, secrets)
         elif url.startswith("git://"):
@@ -269,6 +272,7 @@ def get_or_create_project(
     """
 
     try:
+        # load project from the DB
         project = load_project(
             context,
             name,
@@ -283,7 +287,9 @@ def get_or_create_project(
         return project
 
     except mlrun.errors.MLRunNotFoundError:
-        if url:
+        spec_path = path.join(context, subpath, "project.yaml")
+        if url or path.isfile(spec_path):
+            # load project from archive or local project.yaml
             project = load_project(
                 context,
                 url,
@@ -296,6 +302,7 @@ def get_or_create_project(
             )
             logger.info(f"loaded project {name} from {url} or context")
         else:
+            # create a new project
             project = new_project(
                 name,
                 context,
@@ -723,24 +730,11 @@ class MlrunProject(ModelObj):
 
     @property
     def name(self) -> str:
-        """This is a property of the metadata, look there for documentation
-        leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
-        warnings.warn(
-            "This is a property of the metadata, use project.metadata.name instead"
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
+        """Project name, this is a property of the project metadata"""
         return self.metadata.name
 
     @name.setter
     def name(self, name):
-        warnings.warn(
-            "This is a property of the metadata, use project.metadata.name instead"
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
         self.metadata.name = name
 
     @property
@@ -1316,7 +1310,7 @@ class MlrunProject(ModelObj):
 
     def set_function(
         self,
-        func: typing.Union[str, mlrun.runtimes.BaseRuntime],
+        func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
         name: str = "",
         kind: str = "",
         image: str = None,
@@ -1342,7 +1336,7 @@ class MlrunProject(ModelObj):
             proj.set_function('./func.yaml')
             proj.set_function('hub://get_toy_data', 'getdata')
 
-        :param func:      function object or spec/code url
+        :param func:      function object or spec/code url, None refers to current Notebook
         :param name:      name of the function (under the project)
         :param kind:      runtime kind e.g. job, nuclio, spark, dask, mpijob
                           default: job
@@ -1354,6 +1348,19 @@ class MlrunProject(ModelObj):
 
         :returns: project object
         """
+        if func is None:
+            # use the current notebook as default
+            if not is_ipython:
+                raise ValueError(
+                    "function must be specified (when not running inside a Notebook)"
+                )
+            from IPython import get_ipython
+
+            kernel = get_ipython()
+            func = nuclio.utils.notebook_file_name(kernel)
+            if func.startswith(path.abspath(self.spec.context)):
+                func = path.relpath(func, self.spec.context)
+
         if isinstance(func, str):
             # in hub or db functions name defaults to the function name
             if not name and not (func.startswith("db://") or func.startswith("hub://")):
@@ -1992,6 +1999,182 @@ class MlrunProject(ModelObj):
             tag=tag,
             verbose=verbose,
             project_object=self,
+        )
+
+    def list_artifacts(
+        self,
+        name=None,
+        tag=None,
+        labels=None,
+        since=None,
+        until=None,
+        iter: int = None,
+        best_iteration: bool = False,
+        kind: str = None,
+        category: typing.Union[str, mlrun.api.schemas.ArtifactCategories] = None,
+    ) -> mlrun.lists.ArtifactList:
+        """List artifacts filtered by various parameters.
+
+        The returned result is an `ArtifactList` (list of dict), use `.to_objects()` to convert it to a list of
+        RunObjects, `.show()` to view graphically in Jupyter, and `.to_df()` to convert to a DataFrame.
+
+        Examples::
+
+            # Get latest version of all artifacts in project
+            latest_artifacts = project.list_artifacts('', tag='latest')
+            # check different artifact versions for a specific artifact, return as objects list
+            result_versions = project.list_artifacts('results', tag='*').to_objects()
+
+        :param name: Name of artifacts to retrieve. Name is used as a like query, and is not case-sensitive. This means
+            that querying for ``name`` may return artifacts named ``my_Name_1`` or ``surname``.
+        :param tag: Return artifacts assigned this tag.
+        :param labels: Return artifacts that have these labels.
+        :param since: Not in use in :py:class:`HTTPRunDB`.
+        :param until: Not in use in :py:class:`HTTPRunDB`.
+        :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
+            ``None`` (default) return artifacts from all iterations.
+        :param best_iteration: Returns the artifact which belongs to the best iteration of a given run, in the case of
+            artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
+            from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
+        :param kind: Return artifacts of the requested kind.
+        :param category: Return artifacts of the requested category.
+        """
+        db = get_run_db(secrets=self._secrets)
+        return db.list_artifacts(
+            name,
+            self.metadata.name,
+            tag,
+            labels=labels,
+            since=since,
+            until=until,
+            iter=iter,
+            best_iteration=best_iteration,
+            kind=kind,
+            category=category,
+        )
+
+    def list_models(
+        self,
+        name=None,
+        tag=None,
+        labels=None,
+        since=None,
+        until=None,
+        iter: int = None,
+        best_iteration: bool = False,
+    ):
+        """List models in project, filtered by various parameters.
+
+        Examples::
+
+            # Get latest version of all models in project
+            latest_models = project.list_models('', tag='latest')
+
+        :param name: Name of artifacts to retrieve. Name is used as a like query, and is not case-sensitive. This means
+            that querying for ``name`` may return artifacts named ``my_Name_1`` or ``surname``.
+        :param tag: Return artifacts assigned this tag.
+        :param labels: Return artifacts that have these labels.
+        :param since: Not in use in :py:class:`HTTPRunDB`.
+        :param until: Not in use in :py:class:`HTTPRunDB`.
+        :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
+            ``None`` (default) return artifacts from all iterations.
+        :param best_iteration: Returns the artifact which belongs to the best iteration of a given run, in the case of
+            artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
+            from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
+        """
+        db = get_run_db(secrets=self._secrets)
+        return db.list_artifacts(
+            name,
+            self.metadata.name,
+            tag,
+            labels=labels,
+            since=since,
+            until=until,
+            iter=iter,
+            best_iteration=best_iteration,
+            kind="model",
+        ).to_objects()
+
+    def list_functions(self, name=None, tag=None, labels=None):
+        """Retrieve a list of functions, filtered by specific criteria.
+
+        example::
+
+            functions = project.list_functions(tag="latest")
+
+
+        :param name: Return only functions with a specific name.
+        :param tag: Return function versions with specific tags.
+        :param labels: Return functions that have specific labels assigned to them.
+        :returns: List of function objects.
+        """
+        db = get_run_db(secrets=self._secrets)
+        functions = db.list_functions(name, self.metadata.name, tag=tag, labels=labels)
+        if functions:
+            # convert dict to function objects
+            return [mlrun.new_function(runtime=func) for func in functions]
+
+    def list_runs(
+        self,
+        name=None,
+        uid=None,
+        labels=None,
+        state=None,
+        sort=True,
+        last=0,
+        iter=False,
+        start_time_from: datetime.datetime = None,
+        start_time_to: datetime.datetime = None,
+        last_update_time_from: datetime.datetime = None,
+        last_update_time_to: datetime.datetime = None,
+        **kwargs,
+    ) -> mlrun.lists.RunList:
+        """Retrieve a list of runs, filtered by various options.
+
+        The returned result is a `` (list of dict), use `.to_objects()` to convert it to a list of RunObjects,
+        `.show()` to view graphically in Jupyter, `.to_df()` to convert to a DataFrame, and `compare()` to
+        generate comparison table and PCP plot.
+
+        Example::
+
+            # return a list of runs matching the name and label and compare
+            runs = project.list_runs(name='download', labels='owner=admin')
+            runs.compare()
+            # If running in Jupyter, can use the .show() function to display the results
+            project.list_runs(name='').show()
+
+
+        :param name: Name of the run to retrieve.
+        :param uid: Unique ID of the run.
+        :param project: Project that the runs belongs to.
+        :param labels: List runs that have a specific label assigned. Currently only a single label filter can be
+            applied, otherwise result will be empty.
+        :param state: List only runs whose state is specified.
+        :param sort: Whether to sort the result according to their start time. Otherwise results will be
+            returned by their internal order in the DB (order will not be guaranteed).
+        :param last: Deprecated - currently not used.
+        :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
+        :param start_time_from: Filter by run start time in ``[start_time_from, start_time_to]``.
+        :param start_time_to: Filter by run start time in ``[start_time_from, start_time_to]``.
+        :param last_update_time_from: Filter by run last update time in ``(last_update_time_from,
+            last_update_time_to)``.
+        :param last_update_time_to: Filter by run last update time in ``(last_update_time_from, last_update_time_to)``.
+        """
+        db = get_run_db(secrets=self._secrets)
+        return db.list_runs(
+            name,
+            uid,
+            self.metadata.name,
+            labels=labels,
+            state=state,
+            sort=sort,
+            last=last,
+            iter=iter,
+            start_time_from=start_time_from,
+            start_time_to=start_time_to,
+            last_update_time_from=last_update_time_from,
+            last_update_time_to=last_update_time_to,
+            **kwargs,
         )
 
 

@@ -18,6 +18,9 @@ import os
 import os.path
 from copy import deepcopy
 
+from kfp import dsl
+from kubernetes import client as k8s_client
+
 import mlrun
 
 from .config import config
@@ -254,11 +257,6 @@ def mlrun_op(
             train.outputs['model-txt']).apply(mount_v3io())
 
     """
-    from os import environ
-
-    from kfp import dsl
-    from kubernetes import client as k8s_client
-
     secrets = [] if secrets is None else secrets
     params = {} if params is None else params
     hyperparams = {} if hyperparams is None else hyperparams
@@ -343,7 +341,7 @@ def mlrun_op(
     inputs = inputs or {}
     secrets = secrets or []
 
-    if "V3IO_USERNAME" in environ and "v3io_user" not in labels:
+    if "V3IO_USERNAME" in os.environ and "v3io_user" not in labels:
         labels["v3io_user"] = os.environ.get("V3IO_USERNAME")
     if "owner" not in labels:
         labels["owner"] = os.environ.get("V3IO_USERNAME") or getpass.getuser()
@@ -411,6 +409,7 @@ def mlrun_op(
             "mlpipeline-metrics": "/mlpipeline-metrics.json",
         },
     )
+    cop = add_default_function_node_selector(cop)
 
     add_annotations(cop, PipelineRunType.run, function, func_url, project)
     if code_env:
@@ -441,8 +440,6 @@ def deploy_op(
     tag="",
     verbose=False,
 ):
-    from kfp import dsl
-    from kubernetes import client as k8s_client
 
     cmd = ["python", "-m", "mlrun", "deploy"]
     if source:
@@ -482,6 +479,7 @@ def deploy_op(
         command=cmd,
         file_outputs={"endpoint": "/tmp/output", "name": "/tmp/name"},
     )
+    cop = add_default_function_node_selector(cop)
 
     add_annotations(cop, PipelineRunType.deploy, function, func_url)
     add_default_env(k8s_client, cop)
@@ -499,8 +497,6 @@ def add_env(env=None):
     env = {} if env is None else env
 
     def _add_env(task):
-        from kubernetes import client as k8s_client
-
         for k, v in env.items():
             task.add_env_variable(k8s_client.V1EnvVar(name=k, value=v))
         return task
@@ -520,11 +516,6 @@ def build_op(
     skip_deployed=False,
 ):
     """build Docker image."""
-
-    from os import environ
-
-    from kfp import dsl
-    from kubernetes import client as k8s_client
 
     cmd = ["python", "-m", "mlrun", "build", "--kfp"]
     if function:
@@ -556,6 +547,7 @@ def build_op(
         command=cmd,
         file_outputs={"state": "/tmp/state", "image": "/tmp/image"},
     )
+    cop = add_default_function_node_selector(cop)
 
     add_annotations(cop, PipelineRunType.build, function, func_url)
     if config.httpdb.builder.docker_registry:
@@ -565,7 +557,7 @@ def build_op(
                 value=config.httpdb.builder.docker_registry,
             )
         )
-    if "IGZ_NAMESPACE_DOMAIN" in environ:
+    if "IGZ_NAMESPACE_DOMAIN" in os.environ:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
                 name="IGZ_NAMESPACE_DOMAIN",
@@ -576,7 +568,7 @@ def build_op(
     is_v3io = function.spec.build.source and function.spec.build.source.startswith(
         "v3io"
     )
-    if "V3IO_ACCESS_KEY" in environ and is_v3io:
+    if "V3IO_ACCESS_KEY" in os.environ and is_v3io:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
                 name="V3IO_ACCESS_KEY", value=os.environ.get("V3IO_ACCESS_KEY")
@@ -781,3 +773,11 @@ def show_kfp_run(run, clear_output=False):
             IPython.display.display(html, dag)
         except Exception as exc:
             logger.warning(f"failed to plot graph, {exc}")
+
+
+def add_default_function_node_selector(
+    container_op: dsl.ContainerOp,
+) -> dsl.ContainerOp:
+    for label_name, label_value in config.get_default_function_node_selector().items():
+        container_op.add_node_selector_constraint(label_name, label_value)
+    return container_op

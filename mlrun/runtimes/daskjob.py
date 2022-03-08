@@ -292,13 +292,11 @@ class DaskCluster(KubejobRuntime):
 
         try:
             client = default_client()
+            # shutdown the cluster first, then close the client
+            client.shutdown()
             client.close()
         except ValueError:
             pass
-
-        # meta = self.metadata
-        # s = get_func_selector(meta.project, meta.name, meta.tag)
-        # clean_objects(s, running)
 
     def get_status(self):
         meta = self.metadata
@@ -378,14 +376,27 @@ class DaskCluster(KubejobRuntime):
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
+        show_on_failure: bool = False,
     ):
-        """deploy function, build container with dependencies"""
+        """deploy function, build container with dependencies
+
+        :param watch:      wait for the deploy to complete (and print build logs)
+        :param with_mlrun: add the current mlrun package to the container build
+        :param skip_deployed: skip the build if we already have an image for the function
+        :param mlrun_version_specifier:  which mlrun package version to include (if not current)
+        :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
+                              e.g. builder_env={"GIT_TOKEN": token}
+        :param show_on_failure:  show logs only in case of build failure
+
+        :return True if the function is ready (deployed)
+        """
         return super().deploy(
             watch,
             with_mlrun,
             skip_deployed,
             is_kfp=is_kfp,
             mlrun_version_specifier=mlrun_version_specifier,
+            show_on_failure=show_on_failure,
         )
 
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
@@ -492,6 +503,10 @@ def deploy_function(function: DaskCluster, secrets=None, client_version: str = N
             exc,
         )
         raise exc
+
+    # Is it possible that the function will not have a project at this point?
+    if function.metadata.project:
+        function._add_secrets_to_spec_before_running(project=function.metadata.project)
 
     spec = function.spec
     meta = function.metadata

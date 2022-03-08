@@ -792,7 +792,9 @@ class MlrunProject(ModelObj):
         self.spec.load_source_on_run = pull_at_runtime
         self.spec.source = source or self.spec.source
 
-    def get_artifact_uri(self, key: str, category: str ="artifact", tag: str = None) -> str:
+    def get_artifact_uri(
+        self, key: str, category: str = "artifact", tag: str = None
+    ) -> str:
         """return the project artifact uri (store://..) from the artifact key
 
         example::

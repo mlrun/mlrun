@@ -725,7 +725,9 @@ def _ingest_with_spark(
 
         if isinstance(source, pd.DataFrame):
             df = spark.createDataFrame(source)
-        elif not isinstance(source, pyspark.sql.DataFrame):
+        elif isinstance(source, pyspark.sql.DataFrame):
+            df = source
+        else:
             df = source.to_spark_df(spark)
             df = source.filter_df_start_end_time(df)
         if featureset.spec.graph and featureset.spec.graph.steps:

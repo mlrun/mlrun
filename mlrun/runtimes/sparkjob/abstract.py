@@ -491,14 +491,14 @@ with ctx:
             update_in(job, "spec.mainApplicationFile", self.spec.command)
 
         verify_list_and_update_in(job, "spec.arguments", self.spec.args or [], str)
-        self._submit_sparkjob(job, meta, code)
+        self._submit_spark_job(job, meta, code)
 
         return None
 
     def _enrich_job(self, job):
         raise NotImplementedError()
 
-    def _submit_sparkjob(
+    def _submit_spark_job(
         self,
         job,
         meta,

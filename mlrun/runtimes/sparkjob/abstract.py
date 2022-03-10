@@ -139,6 +139,7 @@ class AbstractSparkJobSpec(KubeResourceSpec):
         pythonpath=None,
         node_name=None,
         affinity=None,
+        tolerations=None,
     ):
 
         super().__init__(
@@ -165,6 +166,7 @@ class AbstractSparkJobSpec(KubeResourceSpec):
             pythonpath=pythonpath,
             node_name=node_name,
             affinity=affinity,
+            tolerations=tolerations,
         )
 
         self.driver_resources = driver_resources or {}

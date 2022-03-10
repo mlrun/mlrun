@@ -11,7 +11,20 @@ import mlrun.runtimes.pod
 
 def test_runtimes_inheritance():
     classes_map = {
+        # Base function spec for all runtimes
         mlrun.runtimes.base.FunctionSpec: [
+            mlrun.runtimes.pod.KubeResourceSpec,
+            mlrun.runtimes.daskjob.DaskSpec,
+            mlrun.runtimes.function.NuclioSpec,
+            mlrun.runtimes.serving.ServingSpec,
+            mlrun.runtimes.mpijob.abstract.MPIResourceSpec,
+            mlrun.runtimes.mpijob.v1.MPIV1ResourceSpec,
+            mlrun.runtimes.remotesparkjob.RemoteSparkSpec,
+            mlrun.runtimes.sparkjob.spark2job.Spark2JobSpec,
+            mlrun.runtimes.sparkjob.spark3job.Spark3JobSpec,
+        ],
+        # All specs running on k8s
+        mlrun.runtimes.pod.KubeResourceSpec: [
             mlrun.runtimes.daskjob.DaskSpec,
             mlrun.runtimes.function.NuclioSpec,
             mlrun.runtimes.serving.ServingSpec,
@@ -25,6 +38,7 @@ def test_runtimes_inheritance():
             mlrun.runtimes.daskjob.DaskStatus,
             mlrun.runtimes.function.NuclioStatus,
         ],
+        # All runtimes
         mlrun.runtimes.base.BaseRuntime: [
             mlrun.runtimes.local.HandlerRuntime,
             mlrun.runtimes.local.BaseRuntime,
@@ -35,8 +49,23 @@ def test_runtimes_inheritance():
             mlrun.runtimes.mpijob.v1.MpiRuntimeV1,
             mlrun.runtimes.mpijob.v1alpha1.MpiRuntimeV1Alpha1,
             mlrun.runtimes.remotesparkjob.RemoteSparkRuntime,
+            mlrun.runtimes.sparkjob.abstract.AbstractSparkRuntime,
             mlrun.runtimes.sparkjob.spark2job.Spark2Runtime,
             mlrun.runtimes.sparkjob.spark3job.Spark3Runtime,
+        ],
+        # All runtimes running on k8s by mlrun
+        mlrun.runtimes.kubejob.KubejobRuntime: [
+            mlrun.runtimes.daskjob.DaskCluster,
+            mlrun.runtimes.mpijob.v1.MpiRuntimeV1,
+            mlrun.runtimes.mpijob.v1alpha1.MpiRuntimeV1Alpha1,
+            mlrun.runtimes.remotesparkjob.RemoteSparkRuntime,
+            mlrun.runtimes.sparkjob.abstract.AbstractSparkRuntime,
+            mlrun.runtimes.sparkjob.spark2job.Spark2Runtime,
+            mlrun.runtimes.sparkjob.spark3job.Spark3Runtime,
+        ],
+        # Remote runtimes managed by nuclio
+        mlrun.runtimes.function.RemoteRuntime: [
+            mlrun.runtimes.serving.ServingRuntime,
         ],
     }
     checked_classes = set()

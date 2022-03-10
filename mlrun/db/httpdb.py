@@ -1391,9 +1391,9 @@ class HTTPRunDB(RunDBInterface):
         :param page_size: Size of a single page when applying pagination.
         """
 
-        if project != "*" and (page_token or page_size or sort_by or filter_):
+        if project != "*" and (page_token or page_size or sort_by):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Filtering by project can not be used together with pagination, sorting, or custom filter"
+                "Filtering by project can not be used together with pagination, or sorting"
             )
         if isinstance(format_, mlrun.api.schemas.PipelinesFormat):
             format_ = format_.value

@@ -141,6 +141,7 @@ class NuclioSpec(KubeResourceSpec):
         pythonpath=None,
         workdir=None,
         image_pull_secret=None,
+        tolerations=None,
     ):
 
         super().__init__(
@@ -167,6 +168,7 @@ class NuclioSpec(KubeResourceSpec):
             pythonpath=pythonpath,
             workdir=workdir,
             image_pull_secret=image_pull_secret,
+            tolerations=tolerations,
         )
 
         self.base_spec = base_spec or {}
@@ -688,9 +690,14 @@ class RemoteRuntime(KubeResource):
         node_name: typing.Optional[str] = None,
         node_selector: typing.Optional[typing.Dict[str, str]] = None,
         affinity: typing.Optional[client.V1Affinity] = None,
+        tolerations: typing.Optional[typing.List[client.V1Toleration]] = None,
     ):
         """k8s node selection attributes"""
-        super().with_node_selection(node_name, node_selector, affinity)
+        if tolerations and not validate_nuclio_version_compatibility("1.7.5"):
+            raise mlrun.errors.MLRunIncompatibleVersionError(
+                "tolerations are only supported from nuclio version 1.7.5"
+            )
+        super().with_node_selection(node_name, node_selector, affinity, tolerations)
 
     @min_nuclio_versions("1.6.18")
     def with_priority_class(self, name: typing.Optional[str] = None):
@@ -1228,7 +1235,18 @@ def compile_function_config(function: RemoteRuntime, client_version: str = None)
         if function.spec.node_name:
             spec.set_config("spec.nodeName", function.spec.node_name)
         if function.spec.affinity:
-            spec.set_config("spec.affinity", function.spec._get_sanitized_affinity())
+            spec.set_config(
+                "spec.affinity", function.spec._get_sanitized_attribute("affinity")
+            )
+
+    # don't send tolerations if nuclio is not compatible
+    if validate_nuclio_version_compatibility("1.7.5"):
+        if function.spec.tolerations:
+            spec.set_config(
+                "spec.tolerations",
+                function.spec._get_sanitized_attribute("tolerations"),
+            )
+
     # don't send default or any priority class name if nuclio is not compatible
     if (
         function.spec.priority_class_name

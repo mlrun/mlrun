@@ -101,6 +101,7 @@ class DaskSpec(KubeResourceSpec):
         disable_auto_mount=False,
         pythonpath=None,
         workdir=None,
+        tolerations=None,
     ):
 
         super().__init__(
@@ -127,6 +128,7 @@ class DaskSpec(KubeResourceSpec):
             disable_auto_mount=disable_auto_mount,
             pythonpath=pythonpath,
             workdir=workdir,
+            tolerations=tolerations,
         )
         self.args = args
 

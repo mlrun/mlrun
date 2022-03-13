@@ -248,7 +248,7 @@ def mount_v3iod(namespace, v3io_config_configmap):
             )
 
         igz_version = mlrun.mlconf.get_parsed_igz_version()
-        if igz_version and igz_version >= semver.VersionInfo.parse("3.2.3"):
+        if True: #igz_version and igz_version >= semver.VersionInfo.parse("3.2.3"):
             add_vol(
                 name="shm",
                 mount_path="/var/run/iguazio/dayman-shm",

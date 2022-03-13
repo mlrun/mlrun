@@ -138,7 +138,7 @@ default_config = {
         "data_volume": "",
         "real_path": "",
         "db_type": "sqldb",
-        "max_workers": "",
+        "max_workers": 64,
         # See mlrun.api.schemas.APIStates for options
         "state": "online",
         "db": {

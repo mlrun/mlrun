@@ -24,6 +24,8 @@ class TestKubeResource(TestRuntimeBase):
             )
             == {}
         )
+        print(affinity)
+        print(affinity.to_dict())
 
     def test_with_limits_regex_validation(self):
         cases = [
@@ -50,3 +52,21 @@ class TestKubeResource(TestRuntimeBase):
                 )
                 if not case.get("gpus"):
                     kube_resource.with_requests(case.get("memory"), case.get("cpu"))
+
+    # def test_get_sanitized_attribute(self):
+    #     for test_case in [
+    #         {
+    #             "attribute_name":"affinity",
+    #             "expected_spec_attribute": {
+    #
+    #             }
+    #         }
+    #     ]
+    #     assert (
+    #             DeepDiff(
+    #                 parsed_function_object.spec._get_sanitized_attribute("affinity"),
+    #                 submit_job_body["function"]["spec"]["affinity"],
+    #                 ignore_order=True,
+    #             )
+    #             == {}
+    #     )

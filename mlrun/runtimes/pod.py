@@ -248,6 +248,7 @@ class KubeResourceSpec(FunctionSpec):
             and attribute_config["contains_many"]
             and isinstance(attribute, attribute_config["sub_attribute_type"])
         ):
+            # initialize attribute instance and add attribute to it
             attribute_instance = attribute_config["attribute_type"]()
             return attribute_instance.append(attribute)
         return attribute

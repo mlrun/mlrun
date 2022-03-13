@@ -281,27 +281,6 @@ class KubeResourceSpec(FunctionSpec):
         api = client.ApiClient()
         return api.sanitize_for_serialization(attribute)
 
-    def _get_sanitized_affinity(self):
-        """
-        When using methods like to_dict() on kubernetes class instances we're getting the attributes in snake_case
-        Which is ok if we're using the kubernetes python package but not if for example we're creating CRDs that we
-        apply directly. For that we need the sanitized (CamelCase) version.
-        """
-        if not self.affinity:
-            return {}
-        if isinstance(self.affinity, dict):
-            # heuristic - if node_affinity is part of the dict it means to_dict on the kubernetes object performed,
-            # there's nothing we can do at that point to transform it to the sanitized version
-            if "node_affinity" in self.affinity:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Affinity must be instance of kubernetes' V1Affinity class"
-                )
-            elif "nodeAffinity" in self.affinity:
-                # then it's already the sanitized version
-                return self.affinity
-        api = client.ApiClient()
-        return api.sanitize_for_serialization(self.affinity)
-
     def _set_volume_mount(self, volume_mount):
         # using the mountPath as the key cause it must be unique (k8s limitation)
         self._volume_mounts[get_item_name(volume_mount, "mountPath")] = volume_mount

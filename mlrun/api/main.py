@@ -157,7 +157,9 @@ async def startup_event():
     )
     loop = asyncio.get_running_loop()
     loop.set_default_executor(
-        concurrent.futures.ThreadPoolExecutor(max_workers=int(config.httpdb.max_workers))
+        concurrent.futures.ThreadPoolExecutor(
+            max_workers=int(config.httpdb.max_workers)
+        )
     )
 
     initialize_logs_dir()

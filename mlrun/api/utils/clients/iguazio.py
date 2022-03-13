@@ -61,7 +61,7 @@ class Client(
         super().__init__()
         http_adapter = requests.adapters.HTTPAdapter(
             max_retries=urllib3.util.retry.Retry(total=3, backoff_factor=1),
-            pool_maxsize=int(mlrun.mlconf.httpdb.max_workers)
+            pool_maxsize=int(mlrun.mlconf.httpdb.max_workers),
         )
         self._session = requests.Session()
         self._session.mount("http://", http_adapter)

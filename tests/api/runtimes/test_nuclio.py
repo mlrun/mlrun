@@ -259,6 +259,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         expected_node_name=None,
         expected_node_selector=None,
         expected_affinity=None,
+        expected_tolerations=None,
     ):
         args, _ = nuclio.deploy.deploy_config.call_args
         deploy_spec = args[0]["spec"]
@@ -279,10 +280,21 @@ class TestNuclioRuntime(TestRuntimeBase):
             # deploy_spec returns affinity in CamelCase, V1Affinity is in snake_case
             assert (
                 deepdiff.DeepDiff(
-                    kube_resource_spec._transform_affinity_to_k8s_class_instance(
-                        deploy_spec["affinity"]
+                    kube_resource_spec._transform_attribute_to_k8s_class_instance(
+                        "affinity", deploy_spec["affinity"]
                     ),
                     expected_affinity,
+                    ignore_order=True,
+                )
+                == {}
+            )
+        if expected_tolerations:
+            assert (
+                deepdiff.DeepDiff(
+                    kube_resource_spec._transform_attribute_to_k8s_class_instance(
+                        "tolerations", deploy_spec["tolerations"]
+                    ),
+                    expected_tolerations,
                     ignore_order=True,
                 )
                 == {}
@@ -583,6 +595,32 @@ class TestNuclioRuntime(TestRuntimeBase):
             expected_node_name=node_name,
             expected_node_selector=node_selector,
             expected_affinity=affinity,
+        )
+
+        tolerations = [
+            {
+                "key": "test1",
+                "operator": "Exists",
+                "effect": "NoSchedule",
+                "toleration_seconds": 3600,
+            }
+        ]
+        mlconf.nuclio_version = "1.7.6"
+        tolerations = [
+            kubernetes.client.V1Toleration(
+                effect="NoSchedule", key="test1", operator="Exists"
+            )
+        ]
+        function = self._generate_runtime(self.runtime_kind)
+        function.with_node_selection(tolerations=tolerations)
+
+        self._serialize_and_deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(
+            call_count=6, expected_class=self.class_name
+        )
+        self._assert_node_selections(
+            function.spec,
+            expected_tolerations=tolerations,
         )
 
     def test_deploy_with_priority_class_name(self, db: Session, client: TestClient):

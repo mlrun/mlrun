@@ -24,8 +24,6 @@ class TestKubeResource(TestRuntimeBase):
             )
             == {}
         )
-        print(affinity)
-        print(affinity.to_dict())
 
     def test_with_limits_regex_validation(self):
         cases = [

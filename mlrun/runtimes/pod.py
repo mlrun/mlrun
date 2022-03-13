@@ -194,9 +194,10 @@ class KubeResourceSpec(FunctionSpec):
         )
 
     def to_dict(self, fields=None, exclude=None):
-        struct = super().to_dict(fields, exclude=["affinity"])
+        struct = super().to_dict(fields, exclude=["affinity", "tolerations"])
         api = client.ApiClient()
         struct["affinity"] = api.sanitize_for_serialization(self.affinity)
+        struct["tolerations"] = api.sanitize_for_serialization(self.tolerations)
         return struct
 
     def update_vols_and_mounts(self, volumes, volume_mounts):
@@ -247,7 +248,8 @@ class KubeResourceSpec(FunctionSpec):
             and attribute_config["contains_many"]
             and isinstance(attribute, attribute_config["sub_attribute_type"])
         ):
-            return attribute_config["attribute_type"](attribute)
+            attribute_instance = attribute_config["attribute_type"]()
+            return attribute_instance.append(attribute)
         return attribute
 
     def _get_sanitized_attribute(self, attribute_name: str):

@@ -2303,6 +2303,7 @@ class SQLDB(DBInterface):
     def _upsert(self, session, objects, ignore=False):
         if not objects:
             return
+
         def _try_commit_obj():
             try:
                 for object_ in objects:
@@ -2320,7 +2321,9 @@ class SQLDB(DBInterface):
                     ) from err
                 logger.warning("Conflict adding resource to DB", cls=cls, err=str(err))
                 if not ignore:
-                    identifiers = ",".join(object_.get_identifier_string() for object_ in objects)
+                    identifiers = ",".join(
+                        object_.get_identifier_string() for object_ in objects
+                    )
                     # We want to retry only when database is locked so for any other scenario escalate to fatal failure
                     try:
                         raise mlrun.errors.MLRunConflictError(

@@ -447,9 +447,14 @@ def ingest(
             "featureset.spec.engine must be set to 'spark' to ingest with spark"
         )
     if featureset.spec.engine == "spark":
-        if isinstance(source, pd.DataFrame) and run_config is not None:
+        import pyspark.sql
+
+        if (
+            isinstance(source, (pd.DataFrame, pyspark.sql.DataFrame))
+            and run_config is not None
+        ):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "DataFrame source is illegal when ingesting with spark"
+                "DataFrame source is illegal when ingesting with remote spark or spark operator"
             )
         # use local spark session to ingest
         return _ingest_with_spark(
@@ -704,9 +709,10 @@ def _ingest_with_spark(
     overwrite=None,
 ):
     try:
+        import pyspark.sql
+
         if spark is None or spark is True:
             # create spark context
-            from pyspark.sql import SparkSession
 
             if mlrun_context:
                 session_name = f"{mlrun_context.name}-{mlrun_context.uid}"
@@ -715,10 +721,12 @@ def _ingest_with_spark(
                     f"{featureset.metadata.project}-{featureset.metadata.name}"
                 )
 
-            spark = SparkSession.builder.appName(session_name).getOrCreate()
+            spark = pyspark.sql.SparkSession.builder.appName(session_name).getOrCreate()
 
         if isinstance(source, pd.DataFrame):
             df = spark.createDataFrame(source)
+        elif isinstance(source, pyspark.sql.DataFrame):
+            df = source
         else:
             df = source.to_spark_df(spark)
             df = source.filter_df_start_end_time(df)

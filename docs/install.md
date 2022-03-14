@@ -127,6 +127,25 @@ Where `<registry-url` is the registry URL which can be authenticated by the `reg
 >
 > Where `$(minikube ip)` shell command resolving the external node address of the k8s node VM.
 
+
+> **Note: Installing on AKS**
+>
+> [AKS](https://azure.microsoft.com/en-us/services/kubernetes-service/) uses [containerd as the container 
+> runtime](https://docs.microsoft.com/en-us/azure/aks/cluster-configuration#container-runtime-configuration) on k8s 
+> v1.19 and above, therefore Nuclio can't access the docker engine and should be configured to use 
+> [Kaniko](https://github.com/GoogleContainerTools/kaniko) to build images. To do that set the 
+> `nuclio.dashboard.containerBuilderKind` value to `kaniko` as shown below:
+>
+> ```bash
+> helm --namespace mlrun \
+>     install my-mlrun \
+>     --wait \
+>     --set global.registry.url=<registry URL e.g. index.docker.io/iguazio > \
+>     --set global.registry.secretName=registry-credentials \
+>     --set nuclio.dashboard.containerBuilderKind=kaniko \
+>     v3io-stable/mlrun-kit
+> ```
+
 ### Install Kubeflow
 
 MLRun enables you to run your functions while saving outputs and artifacts in a way that is visible to Kubeflow Pipelines.

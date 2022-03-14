@@ -1,6 +1,6 @@
 import deepdiff
+import kubernetes
 import pytest
-from kubernetes import client
 
 import mlrun
 import mlrun.errors
@@ -9,14 +9,9 @@ from tests.api.runtimes.base import TestRuntimeBase
 
 
 class TestKubeResource(TestRuntimeBase):
-    def test_attribute_serializations(self):
-        def set_with_node_selection(resource, attr_name, attr):
-            if attr_name == "tolerations":
-                resource.with_node_selection(tolerations=attr)
-            if attr_name == "affinity":
-                resource.with_node_selection(affinity=attr)
+    api = kubernetes.client.ApiClient()
 
-        api = client.ApiClient()
+    def test_attribute_serializations(self):
         for test_case in [
             {
                 "attribute_name": "affinity",
@@ -32,19 +27,103 @@ class TestKubeResource(TestRuntimeBase):
             kube_resource = mlrun.runtimes.pod.KubeResource()
 
             # simulating the client - setting from a class instance
-            set_with_node_selection(kube_resource, attribute_name, attribute)
+            self.__set_with_node_selection(kube_resource, attribute_name, attribute)
             # simulating sending to API - serialization through dict
             kube_resource_dict = kube_resource.to_dict()
             kube_resource = kube_resource.from_dict(kube_resource_dict)
-
             assert (
                 deepdiff.DeepDiff(
                     kube_resource.spec.to_dict()[attribute_name],
-                    api.sanitize_for_serialization(attribute),
+                    self.api.sanitize_for_serialization(attribute),
                     ignore_order=True,
                 )
                 == {}
             )
+
+    def test_transform_attribute_to_k8s_class_instance(self):
+        for test_case in [
+            {
+                "attribute_name": "tolerations",
+                "expect_failure": True,
+                "attribute": [
+                    {
+                        "key": "test1",
+                        "operator": "Exists",
+                        "effect": "NoSchedule",
+                        "toleration_seconds": 3600,
+                    },
+                ],
+            },
+            {
+                "attribute_name": "tolerations",
+                "expect_failure": False,
+                "attribute": {
+                    "key": "test1",
+                    "operator": "Exists",
+                    "effect": "NoSchedule",
+                    "tolerationSeconds": 3600,
+                },
+                "expected_attribute": self._generate_tolerations(),
+            },
+            {
+                "attribute_name": "tolerations",
+                "expect_failure": False,
+                "attribute": self._generate_toleration(),
+                "expected_attribute": self._generate_tolerations(),
+            },
+            {
+                "attribute_name": "tolerations",
+                "expect_failure": False,
+                "attribute": self._generate_tolerations(),
+                "expected_attribute": self._generate_tolerations(),
+            },
+            {
+                "attribute_name": "affinity",
+                "expect_failure": False,
+                "attribute": self._generate_affinity(),
+                "expected_attribute": self._generate_affinity(),
+            },
+            {
+                "attribute_name": "affinity",
+                "expect_failure": True,
+                "attribute": self._generate_affinity().to_dict(),
+            },
+            {
+                "attribute_name": "affinity",
+                "expect_failure": False,
+                "attribute": self.api.sanitize_for_serialization(
+                    self._generate_affinity()
+                ),
+                "expected_attribute": self._generate_affinity(),
+            },
+            {
+                "attribute_name": "affinity",
+                "expect_failure": False,
+                "attribute": None,
+                "expected_attribute": None,
+            },
+        ]:
+            attribute_name = test_case.get("attribute_name")
+            attribute = test_case.get("attribute")
+            expect_failure = test_case.get("expect_failure", False)
+            expected_attribute = test_case.get("expected_attribute")
+
+            kube_resource = mlrun.runtimes.pod.KubeResource()
+            if expect_failure:
+                with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError):
+                    self.__set_with_node_selection(
+                        kube_resource, attribute_name, attribute
+                    )
+            else:
+                self.__set_with_node_selection(kube_resource, attribute_name, attribute)
+                assert (
+                    deepdiff.DeepDiff(
+                        getattr(kube_resource.spec, attribute_name),
+                        expected_attribute,
+                        ignore_order=True,
+                    )
+                    == {}
+                )
 
     def test_with_limits_regex_validation(self):
         cases = [
@@ -71,3 +150,12 @@ class TestKubeResource(TestRuntimeBase):
                 )
                 if not case.get("gpus"):
                     kube_resource.with_requests(case.get("memory"), case.get("cpu"))
+
+    @staticmethod
+    def __set_with_node_selection(
+        resource: mlrun.runtimes.pod.KubeResource, attr_name: str, attr
+    ):
+        if attr_name == "tolerations":
+            resource.with_node_selection(tolerations=attr)
+        if attr_name == "affinity":
+            resource.with_node_selection(affinity=attr)

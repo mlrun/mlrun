@@ -115,14 +115,15 @@ class TestRuntimeBase:
         )
 
     def _generate_tolerations(self):
-        return [
-            k8s_client.V1Toleration(
-                effect="NoSchedule",
-                key="test1",
-                operator="Exists",
-                toleration_seconds=3600,
-            ),
-        ]
+        return [self._generate_toleration()]
+
+    def _generate_toleration(self):
+        return k8s_client.V1Toleration(
+            effect="NoSchedule",
+            key="test1",
+            operator="Exists",
+            toleration_seconds=3600,
+        )
 
     def _generate_affinity(self):
         return k8s_client.V1Affinity(

@@ -6,6 +6,16 @@ MLRun provides some facilities that allow handling secrets and passing those sec
 important to understand how these facilities work, as this has implications on the level of security they provide
 and how much exposure they create for your secrets.
 
+**Contents**
+- [Overview](#overview)
+- [Secret providers](#secret-propviders)
+   - [Inline](#inline)
+   - [Environment](#environment)
+   - [File](#file)
+   - [Kubernetes](#kubernetes)
+   - [Azure Vault](#azure-vault)
+
+
 ## Overview
 MLRun uses the concept of Tasks to encapsulate runtime parameters. Tasks are used to specify execution context
 such as hyper-parameters. They can also be used to pass details about secrets that are going to be used in the 

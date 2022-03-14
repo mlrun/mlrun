@@ -39,7 +39,7 @@ realtime-pipelines
 build-graph-model-serving
 writing-custom-steps
 available-steps
-<!-- best-practice -->
+best-practice
 demos
 graph-ha-cfg
 ```

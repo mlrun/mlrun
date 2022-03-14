@@ -1,22 +1,25 @@
-## Project Workflows and Automation
+# Project Workflows and Automation
 
-Workflows are used to run multiple dependent steps in a graph (DAG) which execute project functions and access project data, parameters, secrets. 
+A workflow is a definition of execution of functions. It defines the order of execution of multiple dependent steps in a DAG. A workflow 
+can reference the project’s params, secrets, artifacts, etc. It can also use a function execution output as a function execution 
+input (which, of course, defines the order of execution).
 
-MLRun support running workflows on a `local` or [`kubeflow`](https://www.kubeflow.org/docs/components/pipelines/overview/pipelines-overview/) pipeline engine, the `local` engine runs the workflow as a 
-local process which is simpler for debug and running simple/sequential tasks, the `kubeflow` ("kfp") engine runs as a task over the 
-cluster and support more advanced operations (conditions, branches, etc.). you can select the engine at runtime (kubeflow 
-specific directives like conditions and branches are not supported by the `local` engine).
+MLRun supports running workflows on a `local` or [`kubeflow`](https://www.kubeflow.org/docs/components/pipelines/overview/pipelines-overview/) pipeline engine. The `local` engine runs the workflow as a 
+local process, which is simpler for debuggimg and running simple/sequential tasks. The `kubeflow` ("kfp") engine runs as a task over the 
+cluster and supports more advanced operations (conditions, branches, etc.). You can select the engine at runtime. Kubeflow-specific
+directives like conditions and branches are not supported by the `local` engine.
 
-Workflowes are saved/registered in the project using the {py:meth}`~mlrun.projects.MlrunProject.set_workflow`, 
-workflows are executed using the {py:meth}`~mlrun.projects.MlrunProject.run` method or using the CLI command `mlrun project`.
+Workflows are saved/registered in the project using the {py:meth}`~mlrun.projects.MlrunProject.set_workflow`.  
+Workflows are executed using the {py:meth}`~mlrun.projects.MlrunProject.run` method or using the CLI command `mlrun project`.
 
-Please refer to the [**tutorials section**](../tutorial/index.md) for complete examples.
+Refer to the [**tutorials section**](../tutorial/index.md) for complete examples.
 
+**Contents**
 * [**Composing workflows**](#composing-workflows)
 * [**Saving workflows**](#saving-workflows)
 * [**Running workflows**](#running-workflows)
 
-### Composing workflows
+## Composing workflows
 
 Workflows are written as a python function which make use of function [operations (run, build, deploy)](Run_project_functions)
 operations and can access project parameters, secrets and artifacts using {py:meth}`~mlrun.projects.MlrunProject.get_param`, {py:meth}`~mlrun.projects.MlrunProject.get_secret` and {py:meth}`~mlrun.projects.MlrunProject.get_artifact_uri`.
@@ -98,7 +101,7 @@ def newpipe():
     )
 ```
 
-### Saving workflows
+## Saving workflows
 
 If we want to use workflows as part of an automated flow we should save them and register them in the project. 
 We use the {py:meth}`~mlrun.projects.MlrunProject.set_workflow` method to register workflows, we specify a workflow name, 
@@ -128,7 +131,7 @@ Example:
         # run the workflow
         project.run("main", arguments={"model_pkg_class": "sklearn.ensemble.RandomForestClassifier"})
 
-### Running workflows
+## Running workflows
 
 We use the {py:meth}`~mlrun.projects.MlrunProject.run` method to execute workflows, we specify the workflow using its `name`
 or `workflow_path` (path to the workflow file) or `workflow_handler` (the workflow function handler).

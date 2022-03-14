@@ -1,5 +1,5 @@
 (Function_storage_auto_mount)=
-## Applying storage configurations to functions
+## Attach storage to functions
 
 In the vast majority of cases, an MLRun function requires access to storage. This storage
 may be used to provide inputs to the function including data-sets to process or data-streams that contain input events.

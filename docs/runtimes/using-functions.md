@@ -1,5 +1,5 @@
 
-# Creating and Using Functions
+# Configuring Functions
 
 **MLRun Functions** (function objects) can be created by using any of the following methods:
 
@@ -14,9 +14,9 @@ When you create a function, you can:
 - Use the {py:meth}`~mlrun.runtimes.BaseRuntime.save` function method to save a function object in the MLRun database.
 - Use the {py:meth}`~mlrun.runtimes.BaseRuntime.export` method to save a YAML function-configuration to your preferred 
 local or remote location.
-- Use the {py:meth}`~mlrun.runtimes.BaseRuntime.run` to execute a task.
-- Use the {py:meth}`~mlrun.runtimes.BaseRuntime.as_step` to convert a function to a Kubeflow pipeline step.
-- Use `.deploy()` to build/deploy the function. (Deploy for batch functions builds the image and adds the required packages. 
+- Use the {py:meth}`~mlrun.runtimes.BaseRuntime.run` method to execute a task.
+- Use the {py:meth}`~mlrun.runtimes.BaseRuntime.as_step` method to convert a function to a Kubeflow pipeline step.
+- Use the `.deploy()` method to build/deploy the function. (Deploy for batch functions builds the image and adds the required packages. 
 For online/real-time runtimes like `nuclio` and `serving` it also deploys it as an online service.)
 
 Functions are stored in the project and are versioned so you can always view previous code and go back to previous functions if needed.
@@ -42,16 +42,17 @@ When using `code_to_function()` or `new_function()`, you can provide code in sev
 ### Provide code as part of the function object
 This method is great for small and single file functions or for using code derived from notebooks. This example uses the mlrun 
 {py:func}`~mlrun.code_to_function` method to create functions from code files or notebooks. 
-For more on how to create functions from notebook code, see [Converting notebook code to a function](./mlrun_code_annotations.ipynb).
 
     # create a function from py or notebook (ipynb) file, specify the default function handler
     my_func = mlrun.code_to_function(name='prep_data', filename='./prep_data.py', kind='job', 
     image='mlrun/mlrun', handler='my_func')
 
+For more on how to create functions from notebook code, see [Converting notebook code to a function](./mlrun_code_annotations.ipynb).
+
 ### Provide code as part of the function image
 
-Providing code as part of the image is good for ensuring that the function image has the integrated code + dependencies, 
-and it avoids the dependency, or overhead, of loading code at runtime. 
+Providing code as part of the image is good for ensuring that the function image has the integrated code and dependencies, 
+and it avoids the overhead of loading code at runtime. 
 
 Use the {py:meth}`~mlrun.runtimes.KubejobRuntime.deploy()` method to build a function image with source code, 
 dependencies, etc. Specify the build configuration using the {py:meth}`~mlrun.runtimes.KubejobRuntime.build_config` method. 
@@ -87,8 +88,8 @@ This option is the most efficient when doing iterative development with multiple
 make small code changes and re-run the job without building images, etc. You can use this option with the 
 {py:func}`~mlrun.run.new_function` method.
 
-The `local`, `job`, `mpijob` and `remote-spark` runtimes support dynamic load from archive or file shares (other 
-runtimes will be added later). Enable this by setting the `spec.build.source=<archive>` and 
+The `local`, `job`, `mpijob` and `remote-spark` runtimes support dynamic load from archive or file shares. (Other 
+runtimes will be added later.) Enable this by setting the `spec.build.source=<archive>` and 
 `spec.build.load_source_on_run=True` 
 or simply by setting the `source` attribute in `new_function`). In the CLI, use the `--source` flag. 
 
@@ -96,7 +97,7 @@ or simply by setting the `source` attribute in `new_function`). In the CLI, use 
                             source='git://github.com/mlrun/ci-demo.git#master')
     run_results = fn.run(handler='my_func', params={"x": 100})
 
-See more details and examples on [running jobs with code from Archives or shares](./code-archive.ipynb)
+See more details and examples on [running jobs with code from Archives or shares](./code-archive.ipynb).
 
 ## Specifying the function execution handler or command
 
@@ -141,11 +142,14 @@ Functions can also run and be debugged locally by using the `local` runtime or b
 
 Functions can host multiple methods (handlers). You can set the default handler per function. You
  need to specify which handler you intend to call in the run command. 
- 
-You can pass data objects to the function's `run()` method using the inputs dictionary argument, where the dictionary 
-keys match the function's handler argument names and the MLRun data urls are provided as the values. The data is passed 
-into the function as a {py:class}`~mlrun.datastore.DataItem` object that handles data movement, tracking and security in 
-an optimal way. Read more about data objects in [Data Stores & Data Items](../store/datastore.md).
+
+You can pass `parameters` (arguments) or data `inputs` (such as datasets, feature-vectors, models, or files) to the functions through the `run` method.
+- Inside the function you can access the parameters/inputs by simply adding them as parameters to the function or you can get them from the context object (using `get_param()` and ` get_input()`).
+- Various data objects (files, tables, models, etc.) are passed to the function as data item objects. You can pass data objects using the 
+inputs dictionary argument, where the dictionary keys match the function's handler argument names and the MLRun data urls are provided 
+as the values. The data is passed into the function as a {py:class}`~mlrun.datastore.DataItem` object that handles data movement, 
+tracking and security in an optimal way. Read more about data objects in [Data Stores & Data Items](../store/datastore.md).
+
 
     run_results = fn.run(params={"label_column": "label"}, inputs={'data': data_url})
 
@@ -169,7 +173,6 @@ Run object has the following methods/properties:
 - `refresh()` &mdash; refresh run state from the db/service
 - `to_dict()`, `to_yaml()`, `to_json()` &mdash; converts the run object to a dictionary, YAML, or JSON format (respectively).
 
-
 <br>You can view the job details, logs, and artifacts in the UI. When you first open the **Monitor 
 Jobs** tab it displays the last jobs that ran and their data. Click a job name to view its run history, and click a run to view more of the 
 run's data.
@@ -179,9 +182,10 @@ run's data.
 
 ## MLRun Execution Context
 
-In the function's handler code signature you can add context as the first argument. 
-The context provides access to the job metadata, parameters, inputs, secrets, and API for logging and monitoring the results. 
-Alternatively if it does not run inside a function handler (e.g. in Python main or Notebook) you can obtain the `context` 
+Functions can be built from standard code files or function handlers. To gain the maximum value MLRun uses the job `context` object inside 
+the code. This provides access to job metadata, parameters, inputs, secrets, and API for logging and monitoring the results, as well as log text, files, artifacts, and labels.
+- If `context` is specified as the first parameter in the function signature, MLRun injects the current job context into it.
+- Alternatively, if it does not run inside a function handler (e.g. in Python main or Notebook) you can obtain the `context` 
 object from the environment using the {py:func}`~mlrun.run.get_or_create_ctx` function.
 
 Example function and usage of the context object:
@@ -250,8 +254,8 @@ if __name__ == "__main__":
     context.commit(completed=True)
 ```
 
-Note that MLRun context is also a python context and can be used in a `with` statement (eliminating the need for `commit`)
-d development
+Note that MLRun context is also a python context and can be used in a `with` statement (eliminating the need for `commit`).
+
 ```python
 if __name__ == "__main__":
     with mlrun.get_or_create_ctx('train') as context:

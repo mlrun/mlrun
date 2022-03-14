@@ -15,16 +15,23 @@ The feature set object contains the following information:
 - **Target stores**&mdash;The type (i.e. parquet/csv or key value), location and status for the feature set materialized data. 
 - **Function**&mdash;The type (storey, pandas, spark) and attributes of the data pipeline serverless functions.
 
-## Building and Using Feature Sets
+**Contents**
+- [Create a Feature Set](#create-a-feature-set)
+- [Add transformations](#add-transformations)
+- [Simulate and debug the data pipeline with a small dataset](#simulate-the-data-pipeline-with-a-small-dataset)
+- [Ingest data into the Feature Store](#ingest-data-into-the-feature-store)
+   - [Ingest data locally](#ingest-data-locally)
+   - [Ingest data using an MLRun job](#ingest-data-using-an-mlrun-job)
+   - [Real-time ingestion](#real-time-ingestion)
+   - [Incremental ingestion](#incremental-ingestion)
+   - [Data sources](#data-sources)
+   - [Target stores](#target-stores)
+   
+   
+## Create a Feature Set
 
-Creating a feature set comprises of the following steps:
-* Create a new {py:class}`~mlrun.feature_store.FeatureSet` with the base definitions (name, entities, engine, etc.).
-* Define the data processing steps using a transformations graph (DAG).
-* Simulate and debug the data pipeline with a small dataset.
-* Define the source and material targets, and start the ingestion process (as local process, remote job, 
-  or real-time function).
+Create a new {py:class}`~mlrun.feature_store.FeatureSet` with the base definitions:
 
-### Create a FeatureSet
 * **name**&mdash;The feature set name is a unique name within a project. 
 * **entities**&mdash;Each feature set must be associated with one or more index column. When joining feature sets, the entity is used as the key column.
 * **timestamp_key**&mdash;(optional) Used for specifying the time field when joining by time.
@@ -47,7 +54,9 @@ Feature sets can also be created in the UI. To create a feature set:
 3. After completing the form, press **Save and Ingest** to start the process, or **Save** to save the set for later ingestion.
 ```
 
-### Add Transformations 
+## Add transformations 
+
+Define the data processing steps using a transformations graph (DAG).
 
 A feature set data pipeline takes raw data from online or offline sources and transforms it to meaningful features.
 The MLRun feature store supports three processing engines (storey, pandas, spark) that can run in the client 
@@ -89,7 +98,9 @@ df = fstore.ingest(stocks_set, stocks_df)
 
 The graph steps can use built-in transformation classes, simple python classes, or function handlers. 
 
-### Simulate The Data Pipeline
+See more details in [Feature set transformations](transformations.md).
+
+## Simulate and debug the data pipeline with a small dataset
 During the development phase it's pretty common to check the feature set definition and to simulate the creation of the feature set before ingesting the entire dataset, since ingesting the entire feature set can take time. <br>
 This allows you to get a preview of the results (in the returned dataframe). The simulation method is called `infer`. It infers the source data schema as well as processing the graph logic (assuming there is one) on a small subset of data. 
 The infer operation also learns the feature set schema and does statistical analysis on the result by default.
@@ -101,19 +112,26 @@ df = fstore.preview(quotes_set, quotes)
 print(quotes_set.get_stats_table())
 ```
 
-## Ingest Data into the Feature Store
+## Ingest data into the Feature Store
 
-Data can be ingested as a batch process either by running the ingest command on demand or as a scheduled job.
-The data source could be a DataFrame or files (e.g. csv, parquet). Files can be either local files residing on a volume (e.g. v3io), and remote (e.g. S3, Azure blob). MLRun also supports Google BigQuery as a data source. If you define a transformation graph, then the ingestion process runs the graph transformations, infers metadata and stats, and writes the results to a target data store.
+Define the source and material targets, and start the ingestion process (as [local process](#ingest-data-locally), [remote job](#ingest-data-using-an-mlrun-job), or [real-time function](real-time-ingestion)).
+
+Data can be ingested as a batch process either by running the ingest command on demand or as a scheduled job. Batch ingestion 
+can be done locally (i.e. running as a python process in the Jupyter pod) or as an MLRun job.
+
+The data source can be a DataFrame or files (e.g. csv, parquet). Files can be either local files residing on a volume (e.g. v3io), 
+or remote (e.g. S3, Azure blob). MLRun also supports Google BigQuery as a data source. If you define a transformation graph, then 
+the ingestion process runs the graph transformations, infers metadata and stats, and writes the results to a target data store.
+
 When targets are not specified, data is stored in the configured default targets (i.e. NoSQL for real-time and Parquet for offline).
-Batch ingestion can be done locally (i.e. running as a python process in the Jupyter pod) or as an MLRun job.
+
 
 ```{admonition} Limitation
 Do not name columns starting with either `t_` or `aggr_`. They are reserved for internal use, and the data does not ingest correctly. See 
 also general limitations in [Attribute name restrictions](https://www.iguazio.com/docs/latest-release/data-layer/objects/attributes/#attribute-names).
 ```
 
-### Ingest data (locally)
+### Ingest data locally
 
 Use a Feature Set to create the basic feature-set definition and then an ingest method to run a simple ingestion "locally" in the Jupyter Notebook pod.
 
@@ -145,7 +163,7 @@ config = RunConfig(image='mlrun/mlrun')
 df = ingest(stocks_set, stocks, run_config=config)
 ```
 
-### Real time ingestion
+### Real-time ingestion
 
 Real time use cases (e.g. real time fraud detection) require feature engineering on live data (e.g. z-score calculation)
 while the data is coming from a streaming engine (e.g. kafka) or a live http endpoint. <br>
@@ -181,7 +199,7 @@ For the storey engine, the feature is currently implemented for ParquetSource on
 
 ### Data sources
 
-For batch ingestion the feature store supports dataframes or files (i.e. csv & parquet). <br>
+For batch ingestion the feature store supports dataframes and files (i.e. csv & parquet). <br>
 The files can reside on S3, NFS, Azure blob storage, or the Iguazio platform. MLRun also supports Google BigQuery as a data source. 
 When working with S3/Azure, there are additional requirements. Use pip install mlrun[s3] or pip install mlrun[azure-blob-storage] to install them. 
 - Azure: define the environment variable `AZURE_STORAGE_CONNECTION_STRING`. 

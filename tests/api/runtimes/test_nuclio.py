@@ -606,11 +606,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             }
         ]
         mlconf.nuclio_version = "1.7.6"
-        tolerations = [
-            kubernetes.client.V1Toleration(
-                effect="NoSchedule", key="test1", operator="Exists"
-            )
-        ]
+        tolerations = self._generate_tolerations()
         function = self._generate_runtime(self.runtime_kind)
         function.with_node_selection(tolerations=tolerations)
 

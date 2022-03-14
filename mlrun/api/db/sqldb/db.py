@@ -2712,9 +2712,11 @@ class SQLDB(DBInterface):
 
         for source_record in query:
             source_record.index = source_record.index + modifier
+            # using merge since primary key is changing
             session.merge(source_record)
 
         if move_to:
+            # using merge since primary key is changing
             session.merge(moved_object)
         else:
             session.delete(moved_object)

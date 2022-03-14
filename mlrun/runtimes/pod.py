@@ -39,9 +39,9 @@ from .utils import (
     verify_requests,
 )
 
-available_sanitized_attributes = {
+sanitized_attributes = {
     "affinity": {
-        "kubernetes_name": "V1Affinity",
+        "attribute_type_name": "V1Affinity",
         "attribute_type": kubernetes.client.V1Affinity,
         "sub_attribute_type": None,
         "contains_many": False,
@@ -50,7 +50,7 @@ available_sanitized_attributes = {
         "sanitized": "nodeAffinity",
     },
     "tolerations": {
-        "kubernetes_name": "List[V1.Toleration]",
+        "attribute_type_name": "List[V1.Toleration]",
         "attribute_type": list,
         "contains_many": True,
         "sub_attribute_type": kubernetes.client.V1Toleration,
@@ -215,23 +215,24 @@ class KubeResourceSpec(FunctionSpec):
     def _transform_attribute_to_k8s_class_instance(
         self, attribute_name, attribute, is_sub_attr: bool = False
     ):
-        if attribute_name not in available_sanitized_attributes:
+        if attribute_name not in sanitized_attributes:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"{attribute_name} isn't in the available sanitized attributes"
             )
         if not attribute:
             return None
-        attribute_config = available_sanitized_attributes[attribute_name]
+        attribute_config = sanitized_attributes[attribute_name]
         if isinstance(attribute, dict):
-            api = client.ApiClient()
-            # not ideal to use their private method, but looks like that's the only option
-            # Taken from https://github.com/kubernetes-client/python/issues/977
-            attribute_type = attribute_config["attribute_type"]
-            if attribute_config["contains_many"]:
-                attribute_type = attribute_config["sub_attribute_type"]
-            attribute = api._ApiClient__deserialize(attribute, attribute_type)
+            if self.__resolve_if_type_sanitized(attribute_name, attribute):
+                api = client.ApiClient()
+                # not ideal to use their private method, but looks like that's the only option
+                # Taken from https://github.com/kubernetes-client/python/issues/977
+                attribute_type = attribute_config["attribute_type"]
+                if attribute_config["contains_many"]:
+                    attribute_type = attribute_config["sub_attribute_type"]
+                attribute = api._ApiClient__deserialize(attribute, attribute_type)
 
-        if isinstance(attribute, list):
+        elif isinstance(attribute, list):
             attribute_instance = []
             for sub_attr in attribute:
                 if not isinstance(sub_attr, dict):
@@ -242,15 +243,17 @@ class KubeResourceSpec(FunctionSpec):
                     )
                 )
             attribute = attribute_instance
-        # if user have set one attribute but its part of a attribute that contains many then return inside a list
+        # if user have set one attribute but its part of an attribute that contains many then return inside a list
         if (
             not is_sub_attr
             and attribute_config["contains_many"]
             and isinstance(attribute, attribute_config["sub_attribute_type"])
         ):
-            # initialize attribute instance and add attribute to it
+            # initialize attribute instance and add attribute to it,
+            # mainly done when attribute is a list but user defines only sets the attribute not in the list
             attribute_instance = attribute_config["attribute_type"]()
-            return attribute_instance.append(attribute)
+            attribute_instance.append(attribute)
+            return attribute_instance
         return attribute
 
     def _get_sanitized_attribute(self, attribute_name: str):
@@ -260,14 +263,15 @@ class KubeResourceSpec(FunctionSpec):
         apply directly. For that we need the sanitized (CamelCase) version.
         """
         attribute = getattr(self, attribute_name)
-        if attribute_name not in available_sanitized_attributes:
+        if attribute_name not in sanitized_attributes:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"{attribute_name} isn't in the available sanitized attributes"
             )
-        attribute_config = available_sanitized_attributes[attribute_name]
+        attribute_config = sanitized_attributes[attribute_name]
         if not attribute:
             return attribute_config["not_sanitized_class"]()
 
+        # check if attribute of type dict, and then check if type is sanitized
         if isinstance(attribute, dict):
             if attribute_config["not_sanitized_class"] != dict:
                 raise mlrun.errors.MLRunInvalidArgumentTypeError(
@@ -276,7 +280,9 @@ class KubeResourceSpec(FunctionSpec):
             if self.__resolve_if_type_sanitized(attribute_name, attribute):
                 return attribute
 
-        if isinstance(attribute, list):
+        elif isinstance(attribute, list) and not isinstance(
+            attribute[0], attribute_config["sub_attribute_type"]
+        ):
             if attribute_config["not_sanitized_class"] != list:
                 raise mlrun.errors.MLRunInvalidArgumentTypeError(
                     f"expected to to be of type {attribute_config.get('not_sanitized_class')} but got list"
@@ -287,13 +293,14 @@ class KubeResourceSpec(FunctionSpec):
         api = client.ApiClient()
         return api.sanitize_for_serialization(attribute)
 
-    def __resolve_if_type_sanitized(self, attribute_name, attribute):
-        attribute_config = available_sanitized_attributes[attribute_name]
+    @staticmethod
+    def __resolve_if_type_sanitized(attribute_name, attribute):
+        attribute_config = sanitized_attributes[attribute_name]
         # heuristic - if one of the keys contains _ as part of the dict it means to_dict on the kubernetes
         # object performed, there's nothing we can do at that point to transform it to the sanitized version
         if get_in(attribute, attribute_config["not_sanitized"]):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"{attribute_name} must be instance of kubernetes {attribute_config.get('kubernetes_name')} class"
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                f"{attribute_name} must be instance of kubernetes {attribute_config.get('attribute_type_name')} class"
             )
         # then it's already the sanitized version
         elif get_in(attribute, attribute_config["sanitized"]):
@@ -478,8 +485,10 @@ class KubeResource(BaseRuntime):
 
     def to_dict(self, fields=None, exclude=None, strip=False):
         struct = super().to_dict(fields, exclude, strip=strip)
+        # print(struct)
         api = client.ApiClient()
         struct = api.sanitize_for_serialization(struct)
+        # print(struct)
         if strip:
             spec = struct["spec"]
             for attr in ["volumes", "volume_mounts"]:

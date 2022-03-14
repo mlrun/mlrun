@@ -289,6 +289,7 @@ class TestNuclioRuntime(TestRuntimeBase):
                 == {}
             )
         if expected_tolerations:
+            # deploy_spec returns tolerations in CamelCase, [V1Toleration] is in snake_case
             assert (
                 deepdiff.DeepDiff(
                     kube_resource_spec._transform_attribute_to_k8s_class_instance(
@@ -597,19 +598,14 @@ class TestNuclioRuntime(TestRuntimeBase):
             expected_affinity=affinity,
         )
 
-        tolerations = [
-            {
-                "key": "test1",
-                "operator": "Exists",
-                "effect": "NoSchedule",
-                "toleration_seconds": 3600,
-            }
-        ]
-        mlconf.nuclio_version = "1.7.6"
         tolerations = self._generate_tolerations()
         function = self._generate_runtime(self.runtime_kind)
-        function.with_node_selection(tolerations=tolerations)
+        with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
+            function.with_node_selection(tolerations=tolerations)
 
+        mlconf.nuclio_version = "1.7.6"
+        function = self._generate_runtime(self.runtime_kind)
+        function.with_node_selection(tolerations=tolerations)
         self._serialize_and_deploy_nuclio_function(function)
         self._assert_deploy_called_basic_config(
             call_count=6, expected_class=self.class_name

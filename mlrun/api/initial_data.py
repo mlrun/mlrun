@@ -407,7 +407,7 @@ def _align_runs_table(
             )
         db._update_run_updated_time(run, run_dict, updated)
         run.struct = run_dict
-        db._upsert(db_session, run, ignore=True)
+        db._upsert(db_session, [run], ignore=True)
 
 
 def _perform_version_1_data_migrations(

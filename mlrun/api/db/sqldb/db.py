@@ -2303,11 +2303,13 @@ class SQLDB(DBInterface):
     def _upsert(self, session, objects, ignore=False):
         if not objects:
             return
+        for object_ in objects:
+            session.add(object_)
+        self._commit(session, objects, ignore)
 
+    def _commit(self, session, objects, ignore=False):
         def _try_commit_obj():
             try:
-                for object_ in objects:
-                    session.merge(object_)
                 session.commit()
             except SQLAlchemyError as err:
                 session.rollback()
@@ -2317,19 +2319,19 @@ class SQLDB(DBInterface):
                         "Database is locked. Retrying", cls=cls, err=str(err)
                     )
                     raise mlrun.errors.MLRunRuntimeError(
-                        "Failed adding resource, database is locked"
+                        "Failed committing changes, database is locked"
                     ) from err
-                logger.warning("Conflict adding resource to DB", cls=cls, err=str(err))
+                logger.warning("Failed committing changes to DB", cls=cls, err=str(err))
                 if not ignore:
                     identifiers = ",".join(
                         object_.get_identifier_string() for object_ in objects
                     )
                     # We want to retry only when database is locked so for any other scenario escalate to fatal failure
                     try:
-                        raise mlrun.errors.MLRunConflictError(
-                            f"Conflict - {cls} already exists: {identifiers}"
+                        raise mlrun.errors.MLRunRuntimeError(
+                            f"Failed committing changes to DB. class={cls} objects={identifiers}"
                         ) from err
-                    except mlrun.errors.MLRunConflictError as exc:
+                    except mlrun.errors.MLRunRuntimeError as exc:
                         raise mlrun.errors.MLRunFatalFailureError(
                             original_exception=exc
                         )

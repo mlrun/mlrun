@@ -156,9 +156,10 @@ async def startup_event():
         version=mlrun.utils.version.Version().get(),
     )
     loop = asyncio.get_running_loop()
-    max_workers = config.httpdb.max_workers or 64
     loop.set_default_executor(
-        concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+        concurrent.futures.ThreadPoolExecutor(
+            max_workers=int(config.httpdb.max_workers)
+        )
     )
 
     initialize_logs_dir()

@@ -136,9 +136,8 @@ class ModelArtifact(Artifact):
         if not self.model_file:
             raise ValueError("model_file attr must be specified")
 
-        for key, item in self.extra_data.items():
-            if hasattr(item, "target_path"):
-                self.extra_data[key] = item.target_path
+        super(ModelArtifact, self).before_log()
+
         if self.framework:
             self.labels = self.labels or {}
             self.labels["framework"] = self.framework

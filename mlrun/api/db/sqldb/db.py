@@ -2334,7 +2334,7 @@ class SQLDB(DBInterface):
                         if any([message in str(err) for message in conflict_messages]):
                             raise mlrun.errors.MLRunConflictError(
                                 f"Conflict - {cls} already exists: {identifiers}"
-                            )
+                            ) from err
                         raise mlrun.errors.MLRunRuntimeError(
                             f"Failed committing changes to DB. class={cls} objects={identifiers}"
                         ) from err
@@ -2698,7 +2698,9 @@ class SQLDB(DBInterface):
 
         if move_from == move_to:
             # It's just modifying the same object - update and exit.
-            self._upsert(session, [moved_object])
+            # using merge since primary key is changing
+            session.merge(moved_object)
+            session.commit()
             return
 
         modifier = 1

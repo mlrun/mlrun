@@ -264,22 +264,40 @@ class KubeResourceSpec(FunctionSpec):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"{attribute_name} isn't in the available sanitized attributes"
             )
-        resource_config = available_sanitized_attributes[attribute_name]
+        attribute_config = available_sanitized_attributes[attribute_name]
         if not attribute:
-            return resource_config["not_sanitized_class"]()
+            return attribute_config["not_sanitized_class"]()
+
         if isinstance(attribute, dict):
-            # heuristic - if one of the keys contains _ as part of the dict it means to_dict on the kubernetes
-            # object performed, there's nothing we can do at that point to transform it to the sanitized version
-            if get_in(attribute, resource_config["not_sanitized"]):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"{attribute_name} must be instance of kubernetes {resource_config.get('kubernetes_name')} class"
+            if attribute_config["not_sanitized_class"] != dict:
+                raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                    f"expected to to be of type {attribute_config.get('not_sanitized_class')} but got dict"
                 )
-            # then it's already the sanitized version
-            elif get_in(attribute, resource_config["sanitized"]):
+            if self.__resolve_if_type_sanitized(attribute_name, attribute):
+                return attribute
+
+        if isinstance(attribute, list):
+            if attribute_config["not_sanitized_class"] != list:
+                raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                    f"expected to to be of type {attribute_config.get('not_sanitized_class')} but got list"
+                )
+            if self.__resolve_if_type_sanitized(attribute_name, attribute[0]):
                 return attribute
 
         api = client.ApiClient()
         return api.sanitize_for_serialization(attribute)
+
+    def __resolve_if_type_sanitized(self, attribute_name, attribute):
+        attribute_config = available_sanitized_attributes[attribute_name]
+        # heuristic - if one of the keys contains _ as part of the dict it means to_dict on the kubernetes
+        # object performed, there's nothing we can do at that point to transform it to the sanitized version
+        if get_in(attribute, attribute_config["not_sanitized"]):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"{attribute_name} must be instance of kubernetes {attribute_config.get('kubernetes_name')} class"
+            )
+        # then it's already the sanitized version
+        elif get_in(attribute, attribute_config["sanitized"]):
+            return attribute
 
     def _set_volume_mount(self, volume_mount):
         # using the mountPath as the key cause it must be unique (k8s limitation)

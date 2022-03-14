@@ -62,6 +62,13 @@ run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 unversioned_tagged_object_uid_prefix = "unversioned-"
 
 
+conflict_messages = [
+    "(sqlite3.IntegrityError) UNIQUE constraint failed",
+    "(pymysql.err.IntegrityError) (1062",
+    "(pymysql.err.IntegrityError) (1586",
+]
+
+
 def retry_on_conflict(function):
     """
     Most of our store_x functions starting from doing get, then if nothing is found creating the object otherwise
@@ -79,11 +86,7 @@ def retry_on_conflict(function):
             try:
                 return function(*args, **kwargs)
             except Exception as exc:
-                conflict_messages = [
-                    "(sqlite3.IntegrityError) UNIQUE constraint failed",
-                    "(pymysql.err.IntegrityError) (1062",
-                    "(pymysql.err.IntegrityError) (1586",
-                ]
+
                 if mlrun.utils.helpers.are_strings_in_exception_chain_messages(
                     exc, conflict_messages
                 ):
@@ -2328,10 +2331,17 @@ class SQLDB(DBInterface):
                     )
                     # We want to retry only when database is locked so for any other scenario escalate to fatal failure
                     try:
+                        if any([message in str(err) for message in conflict_messages]):
+                            raise mlrun.errors.MLRunConflictError(
+                                f"Conflict - {cls} already exists: {identifiers}"
+                            )
                         raise mlrun.errors.MLRunRuntimeError(
                             f"Failed committing changes to DB. class={cls} objects={identifiers}"
                         ) from err
-                    except mlrun.errors.MLRunRuntimeError as exc:
+                    except (
+                        mlrun.errors.MLRunRuntimeError,
+                        mlrun.errors.MLRunConflictError,
+                    ) as exc:
                         raise mlrun.errors.MLRunFatalFailureError(
                             original_exception=exc
                         )

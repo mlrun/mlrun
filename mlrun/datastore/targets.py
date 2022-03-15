@@ -1297,7 +1297,6 @@ def _get_target_path(driver, resource):
         run_uuid=mlrun.mlconf.feature_store.run_uuid_place_holder,
     )
     # todo: handle ver tag changes, may need to copy files?
-    name = f"{name}"
     return f"{data_prefix}/{kind_prefix}/{name}{suffix}"
 
 

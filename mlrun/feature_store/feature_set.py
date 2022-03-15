@@ -19,7 +19,6 @@ import pandas as pd
 
 import mlrun
 import mlrun.api.schemas
-from mlrun.errors import MLRunNotFoundError
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri
@@ -332,15 +331,6 @@ class FeatureSet(ModelObj):
         else:
             return mlrun.get_run_db()
 
-    def _get_feature_set_for_tag(self, tag):
-        tag = tag or self.metadata.tag
-        try:
-            return self._get_run_db().get_feature_set(
-                self.metadata.name, self.metadata.project, tag
-            )
-        except MLRunNotFoundError:
-            return None
-
     def get_target_path(self, name=None):
         """get the url/path for an offline or specified data target"""
         target = get_offline_target(self, name=name)
@@ -430,7 +420,9 @@ class FeatureSet(ModelObj):
         targets: List[DataTargetBase],
         overwrite: bool = None,
     ):
-        ingestion_target_names = [t if isinstance(t, str) else t.name for t in targets]
+        from mlrun.datastore.targets import update_targets_for_ingest
+
+        ingestion_target_names = [t.name for t in targets]
 
         status_targets = {}
         if not overwrite:
@@ -441,8 +433,6 @@ class FeatureSet(ModelObj):
                 )
                 or {}
             )
-
-        from mlrun.datastore.targets import update_targets_for_ingest
 
         update_targets_for_ingest(overwrite, targets, status_targets)
 

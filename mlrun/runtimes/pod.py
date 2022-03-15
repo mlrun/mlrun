@@ -604,7 +604,7 @@ class KubeResource(BaseRuntime):
             self.spec.node_selector = node_selector
         if affinity:
             self.spec.affinity = affinity
-        if tolerations:
+        if tolerations is not None:
             self.spec.tolerations = tolerations
 
     def with_priority_class(self, name: typing.Optional[str] = None):

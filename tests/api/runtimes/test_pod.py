@@ -27,7 +27,7 @@ class TestKubeResource(TestRuntimeBase):
             kube_resource = mlrun.runtimes.pod.KubeResource()
 
             # simulating the client - setting from a class instance
-            self.__set_with_node_selection(kube_resource, attribute_name, attribute)
+            self._set_with_node_selection(kube_resource, attribute_name, attribute)
             # simulating sending to API - serialization through dict
             kube_resource_dict = kube_resource.to_dict()
             kube_resource = kube_resource.from_dict(kube_resource_dict)
@@ -111,11 +111,11 @@ class TestKubeResource(TestRuntimeBase):
             kube_resource = mlrun.runtimes.pod.KubeResource()
             if expect_failure:
                 with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError):
-                    self.__set_with_node_selection(
+                    self._set_with_node_selection(
                         kube_resource, attribute_name, attribute
                     )
             else:
-                self.__set_with_node_selection(kube_resource, attribute_name, attribute)
+                self._set_with_node_selection(kube_resource, attribute_name, attribute)
                 assert (
                     deepdiff.DeepDiff(
                         getattr(kube_resource.spec, attribute_name),
@@ -152,7 +152,7 @@ class TestKubeResource(TestRuntimeBase):
                     kube_resource.with_requests(case.get("memory"), case.get("cpu"))
 
     @staticmethod
-    def __set_with_node_selection(
+    def _set_with_node_selection(
         resource: mlrun.runtimes.pod.KubeResource, attr_name: str, attr
     ):
         if attr_name == "tolerations":

@@ -231,7 +231,7 @@ class KubeResourceSpec(FunctionSpec):
             return None
         attribute_config = sanitized_attributes[attribute_name]
         if isinstance(attribute, dict):
-            if self.__resolve_if_type_sanitized(attribute_name, attribute):
+            if self._resolve_if_type_sanitized(attribute_name, attribute):
                 api = client.ApiClient()
                 # not ideal to use their private method, but looks like that's the only option
                 # Taken from https://github.com/kubernetes-client/python/issues/977
@@ -285,7 +285,7 @@ class KubeResourceSpec(FunctionSpec):
                 raise mlrun.errors.MLRunInvalidArgumentTypeError(
                     f"expected to to be of type {attribute_config.get('not_sanitized_class')} but got dict"
                 )
-            if self.__resolve_if_type_sanitized(attribute_name, attribute):
+            if self._resolve_if_type_sanitized(attribute_name, attribute):
                 return attribute
 
         elif isinstance(attribute, list) and not isinstance(
@@ -295,14 +295,14 @@ class KubeResourceSpec(FunctionSpec):
                 raise mlrun.errors.MLRunInvalidArgumentTypeError(
                     f"expected to to be of type {attribute_config.get('not_sanitized_class')} but got list"
                 )
-            if self.__resolve_if_type_sanitized(attribute_name, attribute[0]):
+            if self._resolve_if_type_sanitized(attribute_name, attribute[0]):
                 return attribute
 
         api = client.ApiClient()
         return api.sanitize_for_serialization(attribute)
 
     @staticmethod
-    def __resolve_if_type_sanitized(attribute_name, attribute):
+    def _resolve_if_type_sanitized(attribute_name, attribute):
         attribute_config = sanitized_attributes[attribute_name]
         # heuristic - if one of the keys contains _ as part of the dict it means to_dict on the kubernetes
         # object performed, there's nothing we can do at that point to transform it to the sanitized version

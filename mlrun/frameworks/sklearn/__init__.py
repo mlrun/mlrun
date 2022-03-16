@@ -1,3 +1,4 @@
+import warnings
 from typing import Dict, List, Union
 
 import mlrun
@@ -59,21 +60,29 @@ def apply_mlrun(
                                      modules will be imported globally. If multiple objects needed to be imported
                                      from the same module a list can be given. The map can be passed as a path to a
                                      json file as well. For example:
-                                     {
-                                         "module1": None,  # => import module1
-                                         "module2": ["func1", "func2"],  # => from module2 import func1, func2
-                                         "module3.sub_module": "func3",  # => from module3.sub_module import func3
-                                     }
+
+                                     .. code-block:: python
+
+                                         {
+                                             "module1": None,  # import module1
+                                             "module2": ["func1", "func2"],  # from module2 import func1, func2
+                                             "module3.sub_module": "func3",  # from module3.sub_module import func3
+                                         }
+
                                      If the model path given is of a store object, the modules map will be read from
                                      the logged modules map artifact of the model.
     :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key is
                                      a path to a python file and its value is the custom object name to import from it.
                                      If multiple objects needed to be imported from the same py file a list can be
                                      given. The map can be passed as a path to a json file as well. For example:
-                                     {
-                                         "/.../custom_model.py": "MyModel",
-                                         "/.../custom_objects.py": ["object1", "object2"]
-                                     }
+
+                                     .. code-block:: python
+
+                                         {
+                                             "/.../custom_model.py": "MyModel",
+                                             "/.../custom_objects.py": ["object1", "object2"]
+                                         }
+
                                      All the paths will be accessed from the given 'custom_objects_directory', meaning
                                      each py file will be read from 'custom_objects_directory/<MAP VALUE>'. If the model
                                      path given is of a store object, the custom objects map will be read from the
@@ -110,6 +119,20 @@ def apply_mlrun(
 
     :return: The model handler initialized with the provided model.
     """
+    if "X_test" in kwargs:
+        warnings.warn(
+            "The attribute 'X_test' was changed to 'x_test' and will be removed next version.",
+            # TODO: Remove in mlrun 1.0.0
+            PendingDeprecationWarning,
+        )
+        x_test = kwargs["X_test"]
+    if "X_train" in kwargs or "y_train" in kwargs:
+        warnings.warn(
+            "The attributes 'X_train' and 'y_train' are no longer required and will be removed next version.",
+            # TODO: Remove in mlrun 1.0.0
+            PendingDeprecationWarning,
+        )
+
     # Get the default context:
     if context is None:
         context = mlrun.get_or_create_ctx(SKLearnMLRunInterface.DEFAULT_CONTEXT_NAME)

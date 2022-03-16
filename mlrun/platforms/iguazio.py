@@ -18,6 +18,7 @@ from datetime import datetime
 from http import HTTPStatus
 from urllib.parse import urlparse
 
+import kfp.dsl
 import requests
 import urllib3
 import v3io
@@ -47,9 +48,17 @@ def xcp_op(
     if recursive:
         args = ["-r"] + args
 
-    return dsl.ContainerOp(
-        name="xcp", image="yhaviv/invoke", command=["xcp"], arguments=args,
+    container_op = dsl.ContainerOp(
+        name="xcp",
+        image="yhaviv/invoke",
+        command=["xcp"],
+        arguments=args,
     )
+    # import here to avoid circular imports
+    import mlrun.kfpops
+
+    container_op = mlrun.kfpops.add_default_function_node_selector(container_op)
+    return container_op
 
 
 VolumeMount = namedtuple("Mount", ["path", "sub_path"])
@@ -89,21 +98,21 @@ def mount_v3io_extended(
     ):
         raise TypeError("mounts should be a list of Mount")
 
-    def _mount_v3io_extended(task):
+    def _mount_v3io_extended(container_op: kfp.dsl.ContainerOp):
         from kubernetes import client as k8s_client
 
         vol = v3io_to_vol(name, remote, access_key, user, secret=secret)
-        task.add_volume(vol)
+        container_op.add_volume(vol)
         for mount in mounts:
-            task.add_volume_mount(
+            container_op.container.add_volume_mount(
                 k8s_client.V1VolumeMount(
                     mount_path=mount.path, sub_path=mount.sub_path, name=name
                 )
             )
 
         if not secret:
-            task = v3io_cred(access_key=access_key, user=user)(task)
-        return task
+            container_op = v3io_cred(access_key=access_key, user=user)(container_op)
+        return container_op
 
     return _mount_v3io_extended
 
@@ -210,21 +219,21 @@ def mount_v3io_legacy(
 
 
 def mount_spark_conf():
-    def _mount_spark(task):
+    def _mount_spark(container_op: kfp.dsl.ContainerOp):
         from kubernetes import client as k8s_client
 
-        task.add_volume_mount(
+        container_op.container.add_volume_mount(
             k8s_client.V1VolumeMount(
                 name="spark-master-config", mount_path="/etc/config/spark"
             )
         )
-        return task
+        return container_op
 
     return _mount_spark
 
 
 def mount_v3iod(namespace, v3io_config_configmap):
-    def _mount_v3iod(task):
+    def _mount_v3iod(container_op: kfp.dsl.ContainerOp):
         from kubernetes import client as k8s_client
 
         def add_vol(name, mount_path, host_path):
@@ -232,7 +241,8 @@ def mount_v3iod(namespace, v3io_config_configmap):
                 name=name,
                 host_path=k8s_client.V1HostPathVolumeSource(path=host_path, type=""),
             )
-            task.add_volume(vol).add_volume_mount(
+            container_op.add_volume(vol)
+            container_op.container.add_volume_mount(
                 k8s_client.V1VolumeMount(mount_path=mount_path, name=name)
             )
 
@@ -246,7 +256,8 @@ def mount_v3iod(namespace, v3io_config_configmap):
         vol = k8s_client.V1Volume(
             name="daemon-health", empty_dir=k8s_client.V1EmptyDirVolumeSource()
         )
-        task.add_volume(vol).add_volume_mount(
+        container_op.add_volume(vol)
+        container_op.container.add_volume_mount(
             k8s_client.V1VolumeMount(
                 mount_path="/var/run/iguazio/daemon_health", name="daemon-health"
             )
@@ -258,11 +269,12 @@ def mount_v3iod(namespace, v3io_config_configmap):
                 name=v3io_config_configmap, default_mode=420
             ),
         )
-        task.add_volume(vol).add_volume_mount(
+        container_op.add_volume(vol)
+        container_op.container.add_volume_mount(
             k8s_client.V1VolumeMount(mount_path="/etc/config/v3io", name="v3io-config")
         )
 
-        task.add_env_variable(
+        container_op.container.add_env_variable(
             k8s_client.V1EnvVar(
                 name="CURRENT_NODE_IP",
                 value_from=k8s_client.V1EnvVarSource(
@@ -272,20 +284,20 @@ def mount_v3iod(namespace, v3io_config_configmap):
                 ),
             )
         )
-        task.add_env_variable(
+        container_op.container.add_env_variable(
             k8s_client.V1EnvVar(
                 name="IGZ_DATA_CONFIG_FILE", value="/igz/java/conf/v3io.conf"
             )
         )
 
-        return task
+        return container_op
 
     return _mount_v3iod
 
 
 def v3io_cred(api="", user="", access_key=""):
     """
-    Modifier function to copy local v3io env vars to task
+    Modifier function to copy local v3io env vars to container
 
     Usage::
 
@@ -293,7 +305,7 @@ def v3io_cred(api="", user="", access_key=""):
         train.apply(use_v3io_cred())
     """
 
-    def _use_v3io_cred(task):
+    def _use_v3io_cred(container_op: kfp.dsl.ContainerOp):
         from os import environ
 
         from kubernetes import client as k8s_client
@@ -304,7 +316,9 @@ def v3io_cred(api="", user="", access_key=""):
         v3io_framesd = mlconf.v3io_framesd or environ.get("V3IO_FRAMESD")
 
         return (
-            task.add_env_variable(k8s_client.V1EnvVar(name="V3IO_API", value=web_api))
+            container_op.container.add_env_variable(
+                k8s_client.V1EnvVar(name="V3IO_API", value=web_api)
+            )
             .add_env_variable(k8s_client.V1EnvVar(name="V3IO_USERNAME", value=_user))
             .add_env_variable(
                 k8s_client.V1EnvVar(name="V3IO_ACCESS_KEY", value=_access_key)

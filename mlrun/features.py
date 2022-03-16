@@ -85,7 +85,7 @@ class Feature(ModelObj):
         :param labels:      a set of key/value labels (tags)
         """
         self.name = name or ""
-        self.value_type = value_type or ""
+        self.value_type = value_type
         self.dims = dims
         self.description = description
         self.default = default

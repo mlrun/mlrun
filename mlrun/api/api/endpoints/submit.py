@@ -25,6 +25,9 @@ async def submit_job(
     username: Optional[str] = Header(None, alias="x-remote-user"),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
+    client_version: Optional[str] = Header(
+        None, alias=mlrun.api.schemas.HeaderNames.client_version
+    ),
 ):
     data = None
     try:
@@ -84,6 +87,13 @@ async def submit_job(
             labels.setdefault("v3io_user", username)
             labels.setdefault("owner", username)
 
+    client_version = client_version or data["task"]["metadata"].get("labels", {}).get(
+        "mlrun/client_version"
+    )
+    if client_version is not None:
+        data["task"]["metadata"].setdefault("labels", {}).update(
+            {"mlrun/client_version": client_version}
+        )
     logger.info("Submit run", data=data)
     response = await mlrun.api.api.utils.submit_run(db_session, auth_info, data)
     return response

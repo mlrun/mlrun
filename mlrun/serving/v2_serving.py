@@ -167,31 +167,31 @@ class V2ModelServer(StepToDict):
     def get_model(self, suffix=""):
         """get the model file(s) and metadata from model store
 
-    the method returns a path to the model file and the extra data (dict of dataitem objects)
-    it also loads the model metadata into the self.model_spec attribute, allowing direct access
-    to all the model metadata attributes.
+        the method returns a path to the model file and the extra data (dict of dataitem objects)
+        it also loads the model metadata into the self.model_spec attribute, allowing direct access
+        to all the model metadata attributes.
 
-    get_model is usually used in the model .load() method to init the model
-    Examples
-    --------
-    ::
+        get_model is usually used in the model .load() method to init the model
+        Examples
+        --------
+        ::
 
-        def load(self):
-            model_file, extra_data = self.get_model(suffix='.pkl')
-            self.model = load(open(model_file, "rb"))
-            categories = extra_data['categories'].as_df()
+            def load(self):
+                model_file, extra_data = self.get_model(suffix='.pkl')
+                self.model = load(open(model_file, "rb"))
+                categories = extra_data['categories'].as_df()
 
-    Parameters
-    ----------
-    suffix : str
-        optional, model file suffix (when the model_path is a directory)
+        Parameters
+        ----------
+        suffix : str
+            optional, model file suffix (when the model_path is a directory)
 
-    Returns
-    -------
-    str
-        (local) model file
-    dict
-        extra dataitems dictionary
+        Returns
+        -------
+        str
+            (local) model file
+        dict
+            extra dataitems dictionary
 
         """
         model_file, self.model_spec, extra_dataitems = mlrun.artifacts.get_model(
@@ -327,7 +327,7 @@ class V2ModelServer(StepToDict):
     def logged_results(self, request: dict, response: dict, op: str):
         """hook for controlling which results are tracked by the model monitoring
 
-        this hook allow controlling which input/output data is logged by the model monitoring
+        this hook allows controlling which input/output data is logged by the model monitoring
         allow filtering out columns or adding custom values, can also be used to monitor derived metrics
         for example in image classification calculate and track the RGB values vs the image bitmap
 

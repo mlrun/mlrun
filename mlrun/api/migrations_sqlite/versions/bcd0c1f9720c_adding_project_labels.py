@@ -33,7 +33,10 @@ def upgrade():
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["parent"], ["projects.id"],),
+        sa.ForeignKeyConstraint(
+            ["parent"],
+            ["projects.id"],
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("name", "parent", name="_projects_labels_uc"),
     )

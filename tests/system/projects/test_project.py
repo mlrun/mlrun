@@ -252,6 +252,9 @@ class TestProject(TestMLRunSystem):
             watch=True,
         )
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        fn = project.get_function("gen-iris", ignore_cache=True)
+        assert fn.status.state == "ready"
+        assert fn.spec.image, "image path got cleared"
         self._delete_test_project(name)
 
     def test_local_pipeline(self):
@@ -265,7 +268,10 @@ class TestProject(TestMLRunSystem):
         name = "lclclipipe"
         project = self._create_project(name)
         project.set_function(
-            "gen_iris.py", "gen-iris", image="mlrun/mlrun", handler="iris_generator",
+            "gen_iris.py",
+            "gen-iris",
+            image="mlrun/mlrun",
+            handler="iris_generator",
         )
         project.save()
         print(project.to_yaml())
@@ -329,6 +335,7 @@ class TestProject(TestMLRunSystem):
         fn.spec.build.auto_build = True
         run_result = project.run_function(fn, params={"text": "good morning"})
         assert fn.status.state == "ready"
+        assert fn.spec.image, "image path got cleared"
         assert run_result.output("score")
 
         self._delete_test_project(name)

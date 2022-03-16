@@ -16,7 +16,6 @@ import importlib.util as imputil
 import inspect
 import json
 import os
-import shlex
 import socket
 import sys
 import tempfile
@@ -123,7 +122,11 @@ def remote_handler_wrapper(task, handler, workdir=None):
     if task and not isinstance(task, dict):
         task = json.loads(task)
 
-    context = MLClientCtx.from_dict(task, autocommit=False, host=socket.gethostname(),)
+    context = MLClientCtx.from_dict(
+        task,
+        autocommit=False,
+        host=socket.gethostname(),
+    )
     runobj = RunObject.from_dict(task)
 
     sout, serr = exec_from_params(handler, runobj, context, workdir)
@@ -177,7 +180,6 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         if pythonpath:
             self.spec.pythonpath = pythonpath
 
-    @property
     def is_deployed(self):
         return True
 
@@ -271,7 +273,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 new_args = []
                 for arg in args:
                     arg = arg.format(**runobj.spec.parameters)
-                    new_args.append(shlex.quote(arg))
+                    new_args.append(arg)
                 args = new_args
 
             sout, serr = run_exec(cmd, args, env=env, cwd=execution._current_workdir)

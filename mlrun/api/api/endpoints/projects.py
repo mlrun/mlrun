@@ -131,7 +131,9 @@ def get_project(
     # skip permission check if it's the leader
     if not _is_request_from_leader(auth_info.projects_role):
         mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            name, mlrun.api.schemas.AuthorizationAction.read, auth_info,
+            name,
+            mlrun.api.schemas.AuthorizationAction.read,
+            auth_info,
         )
     return project
 
@@ -199,8 +201,11 @@ def list_projects(
             auth_info.projects_role,
             auth_info.session,
         )
-        allowed_project_names = mlrun.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
-            projects_output.projects, auth_info,
+        allowed_project_names = (
+            mlrun.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
+                projects_output.projects,
+                auth_info,
+            )
         )
     return get_project_member().list_projects(
         db_session,

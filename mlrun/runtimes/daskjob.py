@@ -141,8 +141,32 @@ class DaskSpec(KubeResourceSpec):
         # supported format according to https://github.com/dask/dask/blob/master/dask/utils.py#L1402
         self.scheduler_timeout = scheduler_timeout or "60 minutes"
         self.nthreads = nthreads or 1
-        self.scheduler_resources = scheduler_resources or {}
-        self.worker_resources = worker_resources or {}
+        self._scheduler_resources = self.enrich_resources_with_default_pod_resources(
+            "scheduler_resources", scheduler_resources
+        )
+        self._worker_resources = self.enrich_resources_with_default_pod_resources(
+            "worker_resources", scheduler_resources
+        )
+
+    @property
+    def scheduler_resources(self) -> dict:
+        return self._scheduler_resources
+
+    @scheduler_resources.setter
+    def scheduler_resources(self, resources):
+        self._scheduler_resources = self.enrich_resources_with_default_pod_resources(
+            "scheduler_resources", resources
+        )
+
+    @property
+    def worker_resources(self) -> dict:
+        return self._worker_resources
+
+    @worker_resources.setter
+    def worker_resources(self, resources):
+        self._worker_resources = self.enrich_resources_with_default_pod_resources(
+            "worker_resources", resources
+        )
 
 
 class DaskStatus(FunctionStatus):
@@ -190,11 +214,10 @@ class DaskCluster(KubejobRuntime):
     def status(self, status):
         self._status = self._verify_dict(status, "status", DaskStatus)
 
-    @property
     def is_deployed(self):
         if not self.spec.remote:
             return True
-        return super().is_deployed
+        return super().is_deployed()
 
     @property
     def initialized(self):
@@ -223,7 +246,7 @@ class DaskCluster(KubejobRuntime):
             self.try_auto_mount_based_on_config()
             self.fill_credentials()
             db = self._get_db()
-            if not self.is_deployed:
+            if not self.is_deployed():
                 raise RunError(
                     "function image is not built/ready, use .deploy()"
                     " method first, or set base dask image (daskdev/dask:latest)"
@@ -355,14 +378,27 @@ class DaskCluster(KubejobRuntime):
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
+        show_on_failure: bool = False,
     ):
-        """deploy function, build container with dependencies"""
+        """deploy function, build container with dependencies
+
+        :param watch:      wait for the deploy to complete (and print build logs)
+        :param with_mlrun: add the current mlrun package to the container build
+        :param skip_deployed: skip the build if we already have an image for the function
+        :param mlrun_version_specifier:  which mlrun package version to include (if not current)
+        :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
+                              e.g. builder_env={"GIT_TOKEN": token}
+        :param show_on_failure:  show logs only in case of build failure
+
+        :return True if the function is ready (deployed)
+        """
         return super().deploy(
             watch,
             with_mlrun,
             skip_deployed,
             is_kfp=is_kfp,
             mlrun_version_specifier=mlrun_version_specifier,
+            show_on_failure=show_on_failure,
         )
 
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
@@ -395,13 +431,15 @@ class DaskCluster(KubejobRuntime):
         self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"
     ):
         """set scheduler pod resources limits"""
-        self._verify_and_set_limits("scheduler_resources", mem, cpu, gpus, gpu_type)
+        self.spec._verify_and_set_limits(
+            "scheduler_resources", mem, cpu, gpus, gpu_type
+        )
 
     def with_worker_limits(
         self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"
     ):
         """set worker pod resources limits"""
-        self._verify_and_set_limits("worker_resources", mem, cpu, gpus, gpu_type)
+        self.spec._verify_and_set_limits("worker_resources", mem, cpu, gpus, gpu_type)
 
     def with_requests(self, mem=None, cpu=None):
         warnings.warn(
@@ -418,11 +456,11 @@ class DaskCluster(KubejobRuntime):
 
     def with_scheduler_requests(self, mem=None, cpu=None):
         """set scheduler pod resources requests"""
-        self._verify_and_set_requests("scheduler_resources", mem, cpu)
+        self.spec._verify_and_set_requests("scheduler_resources", mem, cpu)
 
     def with_worker_requests(self, mem=None, cpu=None):
         """set worker pod resources requests"""
-        self._verify_and_set_requests("worker_resources", mem, cpu)
+        self.spec._verify_and_set_requests("worker_resources", mem, cpu)
 
     def _run(self, runobj: RunObject, execution):
 
@@ -432,19 +470,19 @@ class DaskCluster(KubejobRuntime):
         extra_env = self._generate_runtime_env(runobj)
         environ.update(extra_env)
 
-        if not inspect.isfunction(handler):
-            if not self.spec.command:
-                raise ValueError(
-                    "specified handler (string) without command "
-                    "(py file path), specify command or use handler pointer"
-                )
-            mod, handler = load_module(self.spec.command, handler)
         context = MLClientCtx.from_dict(
             runobj.to_dict(),
             rundb=self.spec.rundb,
             autocommit=False,
             host=socket.gethostname(),
         )
+        if not inspect.isfunction(handler):
+            if not self.spec.command:
+                raise ValueError(
+                    "specified handler (string) without command "
+                    "(py file path), specify command or use handler pointer"
+                )
+            handler = load_module(self.spec.command, handler, context=context)
         client = self.client
         setattr(context, "dask_client", client)
         sout, serr = exec_from_params(handler, runobj, context)
@@ -452,7 +490,7 @@ class DaskCluster(KubejobRuntime):
         return context.to_dict()
 
 
-def deploy_function(function: DaskCluster, secrets=None):
+def deploy_function(function: DaskCluster, secrets=None, client_version: str = None):
 
     # TODO: why is this here :|
     try:
@@ -472,7 +510,9 @@ def deploy_function(function: DaskCluster, secrets=None):
     meta = function.metadata
     spec.remote = True
 
-    image = function.full_image_path() or "daskdev/dask:latest"
+    image = (
+        function.full_image_path(client_version=client_version) or "daskdev/dask:latest"
+    )
     env = spec.env
     namespace = meta.namespace or config.namespace
     if spec.extra_pip:

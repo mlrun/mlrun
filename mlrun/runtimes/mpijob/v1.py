@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import shlex
 import typing
 from copy import deepcopy
 from datetime import datetime
@@ -142,11 +141,16 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
         quoted_args = args or []
         quoted_mpi_args = []
         for arg in self.spec.mpi_args:
-            quoted_mpi_args.append(shlex.quote(arg))
+            quoted_mpi_args.append(arg)
         self._update_container(
             launcher_pod_template,
             "command",
             ["mpirun", *quoted_mpi_args, *quoted_args],
+        )
+        self._update_container(
+            launcher_pod_template,
+            "resources",
+            mlconf.get_default_function_pod_resources(),
         )
 
     def _enrich_worker_configurations(self, worker_pod_template):
@@ -156,7 +160,10 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
             )
 
     def _generate_mpi_job(
-        self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta,
+        self,
+        runobj: RunObject,
+        execution: MLClientCtx,
+        meta: client.V1ObjectMeta,
     ) -> dict:
         pod_labels = deepcopy(meta.labels)
         pod_labels["mlrun/job"] = meta.name
@@ -171,14 +178,24 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
         # configuration for both launcher and workers
         for pod_template in [launcher_pod_template, worker_pod_template]:
             if self.spec.image:
-                self._update_container(pod_template, "image", self.full_image_path())
+                self._update_container(
+                    pod_template,
+                    "image",
+                    self.full_image_path(
+                        client_version=runobj.metadata.labels.get(
+                            "mlrun/client_version"
+                        )
+                    ),
+                )
             self._update_container(
                 pod_template, "volumeMounts", self.spec.volume_mounts
             )
             self._update_container(pod_template, "env", extra_env + self.spec.env)
             if self.spec.image_pull_policy:
                 self._update_container(
-                    pod_template, "imagePullPolicy", self.spec.image_pull_policy,
+                    pod_template,
+                    "imagePullPolicy",
+                    self.spec.image_pull_policy,
                 )
             if self.spec.workdir:
                 self._update_container(pod_template, "workingDir", self.spec.workdir)
@@ -219,16 +236,22 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
 
         # update the replicas only for workers
         update_in(
-            job, "spec.mpiReplicaSpecs.Worker.replicas", self.spec.replicas or 1,
+            job,
+            "spec.mpiReplicaSpecs.Worker.replicas",
+            self.spec.replicas or 1,
         )
 
         update_in(
-            job, "spec.cleanPodPolicy", self.spec.clean_pod_policy,
+            job,
+            "spec.cleanPodPolicy",
+            self.spec.clean_pod_policy,
         )
 
         if execution.get_param("slots_per_worker"):
             update_in(
-                job, "spec.slotsPerWorker", execution.get_param("slots_per_worker"),
+                job,
+                "spec.slotsPerWorker",
+                execution.get_param("slots_per_worker"),
             )
 
         update_in(job, "metadata", meta.to_dict())

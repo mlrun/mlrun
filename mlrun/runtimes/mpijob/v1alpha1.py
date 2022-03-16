@@ -73,7 +73,13 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
         update_in(job, "spec.template.metadata.labels", pod_labels)
         update_in(job, "spec.replicas", self.spec.replicas or 1)
         if self.spec.image:
-            self._update_container(job, "image", self.full_image_path())
+            self._update_container(
+                job,
+                "image",
+                self.full_image_path(
+                    client_version=runobj.metadata.labels.get("mlrun/client_version")
+                ),
+            )
         update_in(job, "spec.template.spec.volumes", self.spec.volumes)
         self._update_container(job, "volumeMounts", self.spec.volume_mounts)
         update_in(job, "spec.template.spec.nodeName", self.spec.node_name)

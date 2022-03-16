@@ -31,6 +31,7 @@ function-storage
 mlrun_code_annotations
 code-archive
 mlrun_jobs
+images
 node-affinity
 load-from-marketplace
 ```

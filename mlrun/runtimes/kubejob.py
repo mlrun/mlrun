@@ -38,7 +38,6 @@ class KubejobRuntime(KubeResource):
 
     _is_remote = True
 
-    @property
     def is_deployed(self):
         """check if the function is deployed (have a valid container)"""
         if self.spec.image:
@@ -104,6 +103,7 @@ class KubejobRuntime(KubeResource):
                 raise ValueError("commands must be a string list")
             self.spec.build.commands = self.spec.build.commands or []
             self.spec.build.commands += commands
+            self.spec.build.commands = list(set(self.spec.build.commands))
         if extra:
             self.spec.build.extra = extra
         if secret:
@@ -127,6 +127,7 @@ class KubejobRuntime(KubeResource):
         is_kfp=False,
         mlrun_version_specifier=None,
         builder_env: dict = None,
+        show_on_failure: bool = False,
     ) -> bool:
         """deploy function, build container with dependencies
 
@@ -136,6 +137,7 @@ class KubejobRuntime(KubeResource):
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
                               e.g. builder_env={"GIT_TOKEN": token}
+        :param show_on_failure:  show logs only in case of build failure
 
         :return True if the function is ready (deployed)
         """
@@ -178,7 +180,7 @@ class KubejobRuntime(KubeResource):
                     f"Started building image: {data.get('data', {}).get('spec', {}).get('build', {}).get('image')}"
                 )
             if watch and not ready:
-                state = self._build_watch(watch)
+                state = self._build_watch(watch, show_on_failure=show_on_failure)
                 ready = state == "ready"
                 self.status.state = state
         else:
@@ -197,7 +199,7 @@ class KubejobRuntime(KubeResource):
             raise mlrun.errors.MLRunRuntimeError("Deploy failed")
         return ready
 
-    def _build_watch(self, watch=True, logs=True):
+    def _build_watch(self, watch=True, logs=True, show_on_failure=False):
         db = self._get_db()
         offset = 0
         try:
@@ -205,16 +207,27 @@ class KubejobRuntime(KubeResource):
         except RunDBError:
             raise ValueError("function or build process not found")
 
-        if text:
-            print(text)
+        def print_log(text):
+            if text and (not show_on_failure or self.status.state == "error"):
+                print(text, end="")
+
+        print_log(text)
+        offset += len(text)
         if watch:
             while self.status.state in ["pending", "running"]:
-                offset += len(text)
                 time.sleep(2)
-                text, _ = db.get_builder_status(self, offset, logs=logs)
-                if text:
-                    print(text, end="")
+                if show_on_failure:
+                    text = ""
+                    db.get_builder_status(self, 0, logs=False)
+                    if self.status.state == "error":
+                        # re-read the full log on failure
+                        text, _ = db.get_builder_status(self, offset, logs=logs)
+                else:
+                    text, _ = db.get_builder_status(self, offset, logs=logs)
+                print_log(text)
+                offset += len(text)
 
+        print()
         return self.status.state
 
     def builder_status(self, watch=True, logs=True):
@@ -281,21 +294,17 @@ class KubejobRuntime(KubeResource):
         k8s = self._get_k8s()
         new_meta = self._get_meta(runobj)
 
-        if self._secrets:
-            if self._secrets.has_vault_source():
-                self._add_vault_params_to_spec(runobj)
-            if self._secrets.has_azure_vault_source():
-                self._add_azure_vault_params_to_spec(
-                    self._secrets.get_azure_vault_k8s_secret()
-                )
-            self._add_project_k8s_secrets_to_spec(
-                self._secrets.get_k8s_secrets(), runobj
-            )
-        else:
-            self._add_project_k8s_secrets_to_spec(None, runobj)
+        self._add_secrets_to_spec_before_running(runobj)
 
         pod_spec = func_to_pod(
-            self.full_image_path(), self, extra_env, command, args, self.spec.workdir
+            self.full_image_path(
+                client_version=runobj.metadata.labels.get("mlrun/client_version")
+            ),
+            self,
+            extra_env,
+            command,
+            args,
+            self.spec.workdir,
         )
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:

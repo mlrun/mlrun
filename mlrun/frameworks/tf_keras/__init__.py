@@ -5,6 +5,7 @@ from tensorflow import keras
 
 import mlrun
 
+from .callbacks import MLRunLoggingCallback, TensorboardLoggingCallback
 from .mlrun_interface import TFKerasMLRunInterface
 from .model_handler import TFKerasModelHandler
 from .model_server import TFKerasModelServer
@@ -48,11 +49,15 @@ def apply_mlrun(
                                         modules will be imported globally. If multiple objects needed to be imported
                                         from the same module a list can be given. The map can be passed as a path to a
                                         json file as well. For example:
-                                        {
-                                            "module1": None,  # => import module1
-                                            "module2": ["func1", "func2"],  # => from module2 import func1, func2
-                                            "module3.sub_module": "func3",  # => from module3.sub_module import func3
-                                        }
+
+                                        .. code-block:: python
+
+                                            {
+                                                "module1": None,  # import module1
+                                                "module2": ["func1", "func2"],  # from module2 import func1, func2
+                                                "module3.sub_module": "func3",  # from module3.sub_module import func3
+                                            }
+
                                         If the model path given is of a store object, the modules map will be read from
                                         the logged modules map artifact of the model.
     :param custom_objects_map:          A dictionary of all the custom objects required for loading the model. Each key
@@ -60,10 +65,14 @@ def apply_mlrun(
                                         from it. If multiple objects needed to be imported from the same py file a list
                                         can be given. The map can be passed as a path to a json file as well. For
                                         example:
-                                        {
-                                            "/.../custom_optimizer.py": "optimizer",
-                                            "/.../custom_layers.py": ["layer1", "layer2"]
-                                        }
+
+                                        .. code-block:: python
+
+                                            {
+                                                "/.../custom_optimizer.py": "optimizer",
+                                                "/.../custom_layers.py": ["layer1", "layer2"]
+                                            }
+
                                         All the paths will be accessed from the given 'custom_objects_directory',
                                         meaning each py file will be read from 'custom_objects_directory/<MAP VALUE>'.
                                         If the model path given is of a store object, the custom objects map will be
@@ -143,16 +152,23 @@ def apply_mlrun(
         tensorboard_callback_kwargs = (
             {} if tensorboard_callback_kwargs is None else tensorboard_callback_kwargs
         )
-        # Add the additional parameters to Tensorboard's callback kwargs dictionary:
-        tensorboard_callback_kwargs["tensorboard_directory"] = tensorboard_directory
-        # Add the additional parameters to MLRun's callback kwargs dictionary:
-        mlrun_callback_kwargs["model_handler"] = handler
-        mlrun_callback_kwargs["log_model_tag"] = tag
         # Add the logging callbacks with the provided parameters:
-        model.auto_log(
-            context=context,
-            mlrun_callback_kwargs=mlrun_callback_kwargs,
-            tensorboard_callback_kwargs=tensorboard_callback_kwargs,
+        model.add_logging_callback(
+            logging_callback=MLRunLoggingCallback(
+                context=context,
+                model_handler=handler,
+                log_model_tag=tag,
+                auto_log=auto_log,
+                **mlrun_callback_kwargs
+            )
+        )
+        model.add_logging_callback(
+            logging_callback=TensorboardLoggingCallback(
+                context=context,
+                tensorboard_directory=tensorboard_directory,
+                auto_log=auto_log,
+                **tensorboard_callback_kwargs
+            )
         )
 
     return handler

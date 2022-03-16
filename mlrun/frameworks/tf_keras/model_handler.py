@@ -13,7 +13,9 @@ from mlrun.artifacts import Artifact
 from mlrun.data_types import ValueType
 from mlrun.features import Feature
 
+from .._common import without_mlrun_interface
 from .._dl_common import DLModelHandler
+from .mlrun_interface import TFKerasMLRunInterface
 
 
 class TFKerasModelHandler(DLModelHandler):
@@ -192,6 +194,7 @@ class TFKerasModelHandler(DLModelHandler):
             self._labels[self._LabelKeys.SAVE_TRACES] = self._save_traces
 
     # TODO: output_path won't work well with logging artifacts. Need to look into changing the logic of 'log_artifact'.
+    @without_mlrun_interface(interface=TFKerasMLRunInterface)
     def save(
         self, output_path: str = None, **kwargs
     ) -> Union[Dict[str, Artifact], None]:

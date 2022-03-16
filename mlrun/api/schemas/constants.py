@@ -77,6 +77,7 @@ class HeaderNames:
     deletion_strategy = f"{headers_prefix}deletion-strategy"
     secret_store_token = f"{headers_prefix}secret-store-token"
     pipeline_arguments = f"{headers_prefix}pipeline-arguments"
+    client_version = f"{headers_prefix}client-version"
 
 
 class FeatureStorePartitionByField(str, Enum):

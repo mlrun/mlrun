@@ -23,8 +23,10 @@ from os import environ, path
 from pprint import pprint
 from subprocess import Popen
 from sys import executable
+from urllib.parse import urlparse
 
 import click
+import pandas as pd
 import yaml
 from tabulate import tabulate
 
@@ -37,7 +39,13 @@ from .k8s_utils import K8sHelper
 from .model import RunTemplate
 from .platforms import auto_mount as auto_mount_modifier
 from .projects import load_project
-from .run import get_object, import_function, import_function_to_dict, new_function
+from .run import (
+    get_object,
+    import_function,
+    import_function_to_dict,
+    load_func_code,
+    new_function,
+)
 from .runtimes import RemoteRuntime, RunError, RuntimeKinds, ServingRuntime
 from .secrets import SecretsStore
 from .utils import (
@@ -51,6 +59,8 @@ from .utils import (
 )
 from .utils.version import Version
 
+pd.set_option("mode.chained_assignment", None)
+
 
 @click.group()
 def main():
@@ -62,7 +72,7 @@ def main():
 @click.option(
     "--param",
     "-p",
-    default="",
+    default=[],
     multiple=True,
     help="parameter name and value tuples, e.g. -p x=37 -p y='text'",
 )
@@ -71,7 +81,10 @@ def main():
 @click.option("--in-path", help="default input path/url (prefix) for artifact")
 @click.option("--out-path", help="default output path/url (prefix) for artifact")
 @click.option(
-    "--secrets", "-s", multiple=True, help="secrets file=<filename> or env=ENV_KEY1,.."
+    "--secrets",
+    "-s",
+    multiple=True,
+    help="secrets file=<filename> or env=ENV_KEY1,..",
 )
 @click.option("--uid", help="unique run ID")
 @click.option("--name", help="run name")
@@ -87,7 +100,7 @@ def main():
 @click.option(
     "--hyperparam",
     "-x",
-    default="",
+    default=[],
     multiple=True,
     help="hyper parameters (will expand to multiple tasks) e.g. --hyperparam p2=[1,2,3]",
 )
@@ -105,7 +118,9 @@ def main():
     help="hyperparam tuning strategy list | grid | random",
 )
 @click.option(
-    "--hyper-param-options", default="", help="hyperparam options json string",
+    "--hyper-param-options",
+    default="",
+    help="hyperparam options json string",
 )
 @click.option(
     "--func-url",
@@ -137,6 +152,14 @@ def main():
     "--scrape-metrics",
     is_flag=True,
     help="whether to add the `mlrun/scrape-metrics` label to this run's resources",
+)
+@click.option(
+    "--env-file", default="", help="path to .env file to load config/variables from"
+)
+@click.option(
+    "--auto-build",
+    is_flag=True,
+    help="when set functions will be built prior to run if needed",
 )
 @click.argument("run_args", nargs=-1, type=click.UNPROCESSED)
 def run(
@@ -177,9 +200,14 @@ def run(
     watch,
     verbose,
     scrape_metrics,
+    env_file,
+    auto_build,
     run_args,
 ):
     """Execute a task and inject parameters."""
+
+    if env_file:
+        mlrun.set_env_from_file(env_file)
 
     out_path = out_path or environ.get("MLRUN_ARTIFACT_PATH")
     config = environ.get("MLRUN_EXEC_CONFIG")
@@ -333,7 +361,9 @@ def run(
         if auto_mount:
             fn.apply(auto_mount_modifier())
         fn.is_child = from_env and not kfp
-        resp = fn.run(runobj, watch=watch, schedule=schedule, local=local)
+        resp = fn.run(
+            runobj, watch=watch, schedule=schedule, local=local, auto_build=auto_build
+        )
         if resp and dump:
             print(resp.to_yaml())
     except RunError as err:
@@ -354,7 +384,7 @@ def run(
 @click.option(
     "--command",
     "-c",
-    default="",
+    default=[],
     multiple=True,
     help="build commands, e.g. '-c pip install pandas'",
 )
@@ -370,6 +400,9 @@ def run(
     "--kfp", is_flag=True, help="running inside Kubeflow Piplines, do not use"
 )
 @click.option("--skip", is_flag=True, help="skip if already deployed")
+@click.option(
+    "--env-file", default="", help="path to .env file to load config/variables from"
+)
 def build(
     func_url,
     name,
@@ -387,8 +420,12 @@ def build(
     runtime,
     kfp,
     skip,
+    env_file,
 ):
     """Build a container image from code and requirements."""
+
+    if env_file:
+        mlrun.set_env_from_file(env_file)
 
     if db:
         mlconf.dbpath = db
@@ -448,6 +485,7 @@ def build(
         # todo: replace function.yaml inside the tar
         b.source = target
 
+    with_mlrun = True if with_mlrun else None  # False will map to None
     if hasattr(func, "deploy"):
         logger.info("remote deployment started")
         try:
@@ -492,8 +530,16 @@ def build(
 @click.option("--tag", default="", help="version tag")
 @click.option("--env", "-e", multiple=True, help="environment variables")
 @click.option("--verbose", is_flag=True, help="verbose log")
-def deploy(spec, source, func_url, dashboard, project, model, tag, kind, env, verbose):
+@click.option(
+    "--env-file", default="", help="path to .env file to load config/variables from"
+)
+def deploy(
+    spec, source, func_url, dashboard, project, model, tag, kind, env, verbose, env_file
+):
     """Deploy model or function"""
+    if env_file:
+        mlrun.set_env_from_file(env_file)
+
     if func_url:
         runtime = func_url_to_runtime(func_url)
         if runtime is None:
@@ -663,13 +709,34 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
 @main.command()
 @click.option("--port", "-p", help="port to listen on", type=int)
 @click.option("--dirpath", "-d", help="database directory (dirpath)")
-def db(port, dirpath):
+@click.option("--dsn", "-s", help="database dsn, e.g. sqlite:///db/mlrun.db")
+@click.option("--logs-path", "-l", help="logs directory path")
+@click.option("--data-volume", "-v", help="path prefix to the location of artifacts")
+@click.option("--verbose", is_flag=True, help="verbose log")
+def db(port, dirpath, dsn, logs_path, data_volume, verbose):
     """Run HTTP api/database server"""
     env = environ.copy()
     if port is not None:
         env["MLRUN_httpdb__port"] = str(port)
     if dirpath is not None:
         env["MLRUN_httpdb__dirpath"] = dirpath
+    if dsn is not None:
+        if dsn.startswith("sqlite://") and "check_same_thread=" not in dsn:
+            dsn += "?check_same_thread=false"
+        env["MLRUN_HTTPDB__DSN"] = dsn
+    if logs_path is not None:
+        env["MLRUN_HTTPDB__LOGS_PATH"] = logs_path
+    if data_volume is not None:
+        env["MLRUN_HTTPDB__DATA_VOLUME"] = data_volume
+    if verbose:
+        env["MLRUN_LOG_LEVEL"] = "DEBUG"
+
+    # create the DB dir if needed
+    dsn = dsn or mlconf.httpdb.dsn
+    if dsn and dsn.startswith("sqlite:///"):
+        parsed = urlparse(dsn)
+        p = pathlib.Path(parsed.path[1:]).parent
+        p.mkdir(parents=True, exist_ok=True)
 
     cmd = [executable, "-m", "mlrun.api.main"]
     child = Popen(cmd, env=env)
@@ -712,7 +779,7 @@ def logs(uid, project, offset, db, watch):
 @click.option(
     "--arguments",
     "-a",
-    default="",
+    default=[],
     multiple=True,
     help="Kubeflow pipeline arguments name and value tuples (with -r flag), e.g. -a x=6",
 )
@@ -720,12 +787,15 @@ def logs(uid, project, offset, db, watch):
 @click.option(
     "--param",
     "-x",
-    default="",
+    default=[],
     multiple=True,
     help="mlrun project parameter name and value tuples, e.g. -p x=37 -p y='text'",
 )
 @click.option(
-    "--secrets", "-s", multiple=True, help="secrets file=<filename> or env=ENV_KEY1,.."
+    "--secrets",
+    "-s",
+    multiple=True,
+    help="secrets file=<filename> or env=ENV_KEY1,..",
 )
 @click.option("--namespace", help="k8s namespace")
 @click.option("--db", help="api and db service path/url")
@@ -747,6 +817,9 @@ def logs(uid, project, offset, db, watch):
 @click.option("--handler", default=None, help="workflow function handler name")
 @click.option("--engine", default=None, help="workflow engine (kfp/local)")
 @click.option("--local", is_flag=True, help="try to run workflow functions locally")
+@click.option(
+    "--env-file", default="", help="path to .env file to load config/variables from"
+)
 def project(
     context,
     name,
@@ -768,8 +841,12 @@ def project(
     handler,
     engine,
     local,
+    env_file,
 ):
     """load and/or run a project"""
+    if env_file:
+        mlrun.set_env_from_file(env_file)
+
     if db:
         mlconf.dbpath = db
 
@@ -1009,9 +1086,16 @@ def func_url_to_runtime(func_url):
             project_instance, name, tag, hash_key = parse_versioned_object_uri(func_url)
             run_db = get_run_db(mlconf.dbpath)
             runtime = run_db.get_function(name, project_instance, tag, hash_key)
-        else:
+        elif func_url == "." or func_url.endswith(".yaml"):
             func_url = "function.yaml" if func_url == "." else func_url
             runtime = import_function_to_dict(func_url, {})
+        else:
+            mlrun_project = load_project(".")
+            function = mlrun_project.get_function(func_url, enrich=True)
+            if function.kind == "local":
+                command, function = load_func_code(function)
+                function.spec.command = command
+            runtime = function.to_dict()
     except Exception as exc:
         logger.error(f"function {func_url} not found, {exc}")
         return None

@@ -147,7 +147,7 @@ def test_local_args():
     log = str(log)
     print(state)
     print(log)
-    assert log.find(", '--xyz', '789']") != -1, "params not detected in argv"
+    assert log.find(", --xyz, 789") != -1, "params not detected in argv"
 
 
 def test_local_context():
@@ -205,3 +205,20 @@ def test_run_from_module():
     fn = mlrun.new_function("mytst", kind="job")
     run = fn.run(handler="json.dumps", params={"obj": {"x": 99}}, local=True)
     assert run.output("return") == '{"x": 99}'
+
+
+def test_args_integrity():
+    spec = tag_test(base_spec, "test_local_no_context")
+    spec.spec.parameters = {"xyz": "789"}
+    result = new_function(
+        command=f"{tests_root_directory}/no_ctx.py",
+        args=["It's", "a", "nice", "day!"],
+    ).run(spec)
+    verify_state(result)
+
+    db = get_run_db()
+    state, log = db.get_log(result.metadata.uid)
+    log = str(log)
+    print(state)
+    print(log)
+    assert log.find("It's, a, nice, day!") != -1, "params not detected in argv"

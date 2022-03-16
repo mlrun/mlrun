@@ -1,12 +1,14 @@
 import mlrun.api.schemas
 import mlrun.utils.singleton
 from mlrun.api.utils.clients import nuclio
-from mlrun.config import config, default_config
+from mlrun.config import Config, config, default_config
 from mlrun.runtimes.utils import resolve_mpijob_crd_version
 from mlrun.utils import logger
 
 
-class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
+class ClientSpec(
+    metaclass=mlrun.utils.singleton.Singleton,
+):
     def __init__(self):
         self._cached_nuclio_version = None
 
@@ -59,9 +61,13 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             default_tensorboard_logs_path=self._get_config_value_if_not_default(
                 "default_tensorboard_logs_path"
             ),
+            default_function_pod_resources=self._get_config_value_if_not_default(
+                "default_function_pod_resources"
+            ),
         )
 
-    def _get_config_value_if_not_default(self, config_key):
+    @staticmethod
+    def _get_config_value_if_not_default(config_key):
         config_key_parts = config_key.split(".")
         current_config_value = config
         current_default_config_value = default_config
@@ -70,6 +76,9 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             current_default_config_value = current_default_config_value.get(
                 config_key_part, ""
             )
+        # when accessing attribute in Config, if the object is of type Mapping it returns the object in type Config
+        if isinstance(current_config_value, Config):
+            current_config_value = current_config_value.to_dict()
         if current_config_value == current_default_config_value:
             return None
         else:

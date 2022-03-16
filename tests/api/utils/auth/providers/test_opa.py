@@ -36,7 +36,9 @@ async def permission_filter_path() -> str:
 
 @pytest.fixture()
 async def opa_provider(
-    api_url: str, permission_query_path: str, permission_filter_path: str,
+    api_url: str,
+    permission_query_path: str,
+    permission_filter_path: str,
 ) -> mlrun.api.utils.auth.providers.opa.Provider:
     mlrun.mlconf.httpdb.authorization.opa.log_level = 10
     mlrun.mlconf.httpdb.authorization.mode = "opa"
@@ -133,7 +135,9 @@ def test_filter_by_permission(
     )
     assert (
         deepdiff.DeepDiff(
-            expected_allowed_resources, allowed_resources, ignore_order=True,
+            expected_allowed_resources,
+            allowed_resources,
+            ignore_order=True,
         )
         == {}
     )

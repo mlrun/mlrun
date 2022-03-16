@@ -150,7 +150,11 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_project(self, name: str, project: schemas.Project,) -> schemas.Project:
+    def store_project(
+        self,
+        name: str,
+        project: schemas.Project,
+    ) -> schemas.Project:
         pass
 
     @abstractmethod
@@ -163,7 +167,10 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def create_project(self, project: schemas.Project,) -> schemas.Project:
+    def create_project(
+        self,
+        project: schemas.Project,
+    ) -> schemas.Project:
         pass
 
     @abstractmethod
@@ -209,7 +216,11 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def list_entities(
-        self, project: str, name: str = None, tag: str = None, labels: List[str] = None,
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: List[str] = None,
     ) -> schemas.EntitiesOutput:
         pass
 

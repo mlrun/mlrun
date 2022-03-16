@@ -384,6 +384,8 @@ class AbstractSparkRuntime(KubejobRuntime):
 
         update_in(job, "spec.volumes", self.spec.volumes)
 
+        self._add_secrets_to_spec_before_running(runobj)
+
         command, args, extra_env = self._get_cmd_args(runobj)
         code = None
         if "MLRUN_EXEC_CODE" in [e.get("name") for e in extra_env]:
@@ -491,14 +493,14 @@ with ctx:
             update_in(job, "spec.mainApplicationFile", self.spec.command)
 
         verify_list_and_update_in(job, "spec.arguments", self.spec.args or [], str)
-        self._submit_job(job, meta, code)
+        self._submit_spark_job(job, meta, code)
 
         return None
 
     def _enrich_job(self, job):
         raise NotImplementedError()
 
-    def _submit_job(
+    def _submit_spark_job(
         self,
         job,
         meta,

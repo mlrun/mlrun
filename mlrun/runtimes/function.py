@@ -760,7 +760,7 @@ class RemoteRuntime(KubeResource):
 
         # no reference was passed
         if len(split_source) != 2:
-            return source
+            return source, ""
 
         reference = split_source[1]
         if reference.startswith("refs"):

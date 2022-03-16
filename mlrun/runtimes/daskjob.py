@@ -294,13 +294,11 @@ class DaskCluster(KubejobRuntime):
 
         try:
             client = default_client()
+            # shutdown the cluster first, then close the client
+            client.shutdown()
             client.close()
         except ValueError:
             pass
-
-        # meta = self.metadata
-        # s = get_func_selector(meta.project, meta.name, meta.tag)
-        # clean_objects(s, running)
 
     def get_status(self):
         meta = self.metadata
@@ -507,6 +505,10 @@ def deploy_function(function: DaskCluster, secrets=None, client_version: str = N
             exc,
         )
         raise exc
+
+    # Is it possible that the function will not have a project at this point?
+    if function.metadata.project:
+        function._add_secrets_to_spec_before_running(project=function.metadata.project)
 
     spec = function.spec
     meta = function.metadata

@@ -166,14 +166,14 @@ class K8sSecretsMock:
         secrets = {}
         if default_service_account:
             secrets[
-                mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key(
-                    "default"
+                mlrun.api.crud.secrets.Secrets().generate_client_secret_key(
+                    mlrun.api.crud.secrets.SecretsClientType.service_accounts, "default"
                 )
             ] = default_service_account
         if allowed_service_accounts:
             secrets[
-                mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key(
-                    "allowed"
+                mlrun.api.crud.secrets.Secrets().generate_client_secret_key(
+                    mlrun.api.crud.secrets.SecretsClientType.service_accounts, "allowed"
                 )
             ] = ",".join(allowed_service_accounts)
         self.store_project_secrets(project, secrets)

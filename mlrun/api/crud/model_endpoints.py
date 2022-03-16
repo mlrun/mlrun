@@ -15,7 +15,7 @@ import mlrun.api.utils.singletons.k8s
 import mlrun.datastore.store_resources
 from mlrun.api.api.endpoints.functions import _build_function
 from mlrun.api.api.utils import _submit_run, get_run_db_instance
-from mlrun.api.crud.secrets import Secrets
+from mlrun.api.crud.secrets import Secrets, SecretsClientType
 from mlrun.api.schemas import (
     Features,
     Metric,
@@ -694,8 +694,8 @@ class ModelEndpoints:
         fn.set_env_from_secret(
             "MODEL_MONITORING_ACCESS_KEY",
             mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
-            Secrets().generate_model_monitoring_secret_key(
-                "MODEL_MONITORING_ACCESS_KEY"
+            Secrets().generate_client_secret_key(
+                SecretsClientType.model_monitoring, "MODEL_MONITORING_ACCESS_KEY"
             ),
         )
 

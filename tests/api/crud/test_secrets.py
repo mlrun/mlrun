@@ -42,7 +42,9 @@ def test_store_secrets_with_key_map_verifications(
 ):
     project = "project-name"
     provider = mlrun.api.schemas.SecretProviderName.kubernetes
-    key_map_secret_key = mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
+    key_map_secret_key = mlrun.api.crud.Secrets().generate_client_key_map_secret_key(
+        mlrun.api.crud.SecretsClientType.schedules
+    )
     # not allowed to edit key map
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
         mlrun.api.crud.Secrets().store_secrets(
@@ -101,7 +103,9 @@ def test_get_secret_verifications(
 ):
     project = "project-name"
     provider = mlrun.api.schemas.SecretProviderName.kubernetes
-    key_map_secret_key = mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
+    key_map_secret_key = mlrun.api.crud.Secrets().generate_client_key_map_secret_key(
+        mlrun.api.crud.SecretsClientType.schedules
+    )
 
     # verifications check
     # not allowed from k8s
@@ -126,7 +130,9 @@ def test_get_secret(
     _mock_secrets_crud_uuid_generation()
     project = "project-name"
     provider = mlrun.api.schemas.SecretProviderName.kubernetes
-    key_map_secret_key = mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
+    key_map_secret_key = mlrun.api.crud.Secrets().generate_client_key_map_secret_key(
+        mlrun.api.crud.SecretsClientType.schedules
+    )
     invalid_secret_key = "invalid/key"
     invalid_secret_value = "some-value"
     invalid_secret_2_key = "invalid/key/2"
@@ -204,9 +210,11 @@ def test_delete_secret_verifications(
 ):
     project = "project-name"
     provider = mlrun.api.schemas.SecretProviderName.kubernetes
-    key_map_secret_key = mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
-    internal_key = mlrun.api.crud.Secrets().generate_schedule_access_key_secret_key(
-        "some-name"
+    key_map_secret_key = mlrun.api.crud.Secrets().generate_client_key_map_secret_key(
+        mlrun.api.crud.SecretsClientType.schedules
+    )
+    internal_key = mlrun.api.crud.Secrets().generate_client_secret_key(
+        mlrun.api.crud.SecretsClientType.schedules, "some-name", "access_key"
     )
 
     # verifications check
@@ -244,7 +252,9 @@ def test_delete_secret(
     _mock_secrets_crud_uuid_generation()
     project = "project-name"
     provider = mlrun.api.schemas.SecretProviderName.kubernetes
-    key_map_secret_key = mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
+    key_map_secret_key = mlrun.api.crud.Secrets().generate_client_key_map_secret_key(
+        mlrun.api.crud.SecretsClientType.schedules
+    )
     invalid_secret_key = "invalid/key"
     invalid_secret_value = "some-value"
     invalid_secret_2_key = "invalid/key/2"
@@ -335,7 +345,9 @@ def test_store_secrets_with_key_map_success(
     _mock_secrets_crud_uuid_generation()
     project = "project-name"
     provider = mlrun.api.schemas.SecretProviderName.kubernetes
-    key_map_secret_key = mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
+    key_map_secret_key = mlrun.api.crud.Secrets().generate_client_key_map_secret_key(
+        mlrun.api.crud.SecretsClientType.schedules
+    )
     invalid_secret_key = "invalid/key"
     invalid_secret_value = "some-value"
     invalid_secret_value_2 = "some-value-2"

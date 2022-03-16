@@ -39,7 +39,7 @@ from .utils import (
     verify_requests,
 )
 
-sanitized_attributes = {
+sanitized_types = {
     "affinity": {
         "attribute_type_name": "V1Affinity",
         "attribute_type": kubernetes.client.V1Affinity,
@@ -58,6 +58,14 @@ sanitized_attributes = {
         "not_sanitized_class": list,
         "sanitized": "tolerationSeconds",
     },
+}
+
+
+sanitized_attributes = {
+    "affinity": sanitized_types["affinity"],
+    "tolerations": sanitized_types["tolerations"],
+    "executor_tolerations": sanitized_types["tolerations"],
+    "driver_tolerations": sanitized_types["tolerations"],
 }
 
 

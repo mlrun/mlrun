@@ -6,6 +6,14 @@ from .data_types import ValueType
 from .model import ModelObj
 
 
+def _limited_string(value: str, max_size: int = 40):
+    """
+    Provide limited string size, typically for reporting original value
+    in case of error (and for better identification of error location
+    based on presenting part of original value)
+    """
+    return value if (value is None) or (len(value)<=max_size) else value[:max_size]+'...'
+
 class Entity(ModelObj):
     """data entity (index)"""
 
@@ -114,7 +122,10 @@ class ConvertTypeValidator(BasicTypeValidator):
             except Exception as err:
                 return (
                     False,
-                    {"message": err, "type": value_type, "value": value},
+                    {
+                        "message": str(err),
+                        "type": value_type
+                    },
                 )
         return ok, args
 
@@ -136,7 +147,7 @@ class RangeTypeValidator(BasicTypeValidator):
                             "message": "Value is smaller than min range",
                             "type": value_type,
                             "min range": self.min,
-                            "value": value,
+                            "value": _limited_string(value),
                         },
                     )
                 if value > self.max:
@@ -146,13 +157,16 @@ class RangeTypeValidator(BasicTypeValidator):
                             "message": "Value is greater than max range",
                             "type": value_type,
                             "max range": self.max,
-                            "value": value,
+                            "value": _limited_string(value),
                         },
                     )
             except Exception as err:
                 return (
                     False,
-                    {"message": err, "type": value_type, "value": value},
+                    {
+                        "message": str(err),
+                        "type": value_type,
+                    },
                 )
 
         return ok, args
@@ -160,7 +174,7 @@ class RangeTypeValidator(BasicTypeValidator):
 
 # TODO: add addition validation for commented types
 type_validator = {
-    ValueType.BOOL: ConvertTypeValidator(bool),
+    #   ValueType.BOOL: it does not make sense to do validation for BOOL (everything is True or False by default)
     ValueType.INT8: RangeTypeValidator(-128, 127),
     ValueType.INT16: RangeTypeValidator(-32768, 32767),
     ValueType.INT32: RangeTypeValidator(-2147483648, 2147483647),
@@ -176,7 +190,7 @@ type_validator = {
     ValueType.DOUBLE: ConvertTypeValidator(float),
     #   ValueType.BFLOAT16: None,
     ValueType.BYTES: ConvertTypeValidator(bytes),
-    ValueType.STRING: ConvertTypeValidator(str),
+    #   ValueType.STRING: it does not make sense to do validation for STRING (everything is valid also '\x00' and '\xff')
     #   ValueType.DATETIME: None,
     #   ValueType.BYTES_LIST: None,
     #   ValueType.STRING_LIST: None,
@@ -261,26 +275,35 @@ class MinMaxValidator(Validator):
     def check(self, value):
         ok, args = super().check(value)
         if ok:
-            if self.min is not None:
-                if value < self.min:
-                    return (
-                        False,
-                        {
-                            "message": "value is smaller than min",
-                            "min": self.min,
-                            "value": value,
-                        },
-                    )
-            if self.max is not None:
-                if value > self.max:
-                    return (
-                        False,
-                        {
-                            "message": "value is greater than max",
-                            "max": self.max,
-                            "value": value,
-                        },
-                    )
+            try:
+                if self.min is not None:
+                    if value < self.min:
+                        return (
+                            False,
+                            {
+                                "message": "value is smaller than min",
+                                "min": self.min,
+                                "value": _limited_string(str(value)),
+                            },
+                        )
+                if self.max is not None:
+                    if value > self.max:
+                        return (
+                            False,
+                            {
+                                "message": "value is greater than max",
+                                "max": self.max,
+                                "value": _limited_string(str(value)),
+                            },
+                        )
+            except Exception as err:
+                return (
+                    False,
+                    {
+                        "message": str(err),
+                        "type": self.kind,
+                    },
+                )
         return ok, args
 
 
@@ -319,26 +342,36 @@ class MinMaxLenValidator(Validator):
     def check(self, value):
         ok, args = super().check(value)
         if ok:
-            if self.min is not None:
-                if len(value) < self.min:
-                    return (
-                        False,
-                        {
-                            "message": "Length value is smaller than min",
-                            "min": self.min,
-                            "length value": len(value),
-                        },
-                    )
-            if self.max is not None:
-                if len(value) > self.max:
-                    return (
-                        False,
-                        {
-                            "message": "Length value is greater than max",
-                            "max": self.max,
-                            "length value": len(value),
-                        },
-                    )
+            try:
+                if self.min is not None:
+                    if len(value) < self.min:
+                        return (
+                            False,
+                            {
+                                "message": "Length value is smaller than min",
+                                "min": self.min,
+                                "length value": len(value),
+                            },
+                        )
+                if self.max is not None:
+                    if len(value) > self.max:
+                        return (
+                            False,
+                            {
+                                "message": "Length value is greater than max",
+                                "max": self.max,
+                                "length value": len(value),
+                            },
+                        )
+            except Exception as err:
+                return (
+                    False,
+                    {
+                        "message": str(err),
+                        "type": self.kind,
+                    },
+                )
+
         return ok, args
 
 
@@ -374,16 +407,25 @@ class RegexValidator(Validator):
     def check(self, value):
         ok, args = super().check(value)
         if ok:
-            if self.regex is not None:
-                if not re.fullmatch(self.regex_compile, value):
-                    return (
-                        False,
-                        {
-                            "message": "Value is not valid with regular expression",
-                            "regexp": self.regex,
-                            "value": value,
-                        },
-                    )
+            try:
+                if self.regex is not None:
+                    if not re.fullmatch(self.regex_compile, value):
+                        return (
+                            False,
+                            {
+                                "message": "Value is not valid with regular expression",
+                                "regexp": self.regex,
+                                "value": _limited_string(str(value)),
+                            },
+                        )
+            except Exception as err:
+                return (
+                    False,
+                    {
+                        "message": str(err),
+                        "type": self.kind,
+                    },
+                )
         return ok, args
 
 

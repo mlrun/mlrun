@@ -493,10 +493,8 @@ class KubeResource(BaseRuntime):
 
     def to_dict(self, fields=None, exclude=None, strip=False):
         struct = super().to_dict(fields, exclude, strip=strip)
-        # print(struct)
         api = client.ApiClient()
         struct = api.sanitize_for_serialization(struct)
-        # print(struct)
         if strip:
             spec = struct["spec"]
             for attr in ["volumes", "volume_mounts"]:

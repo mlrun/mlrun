@@ -420,7 +420,7 @@ class FeatureSet(ModelObj):
         targets: List[DataTargetBase],
         overwrite: bool = None,
     ):
-        from mlrun.datastore.targets import update_targets_for_ingest
+        from mlrun.datastore.targets import update_targets_run_uuid_for_ingest
 
         ingestion_target_names = [t.name for t in targets]
 
@@ -434,7 +434,7 @@ class FeatureSet(ModelObj):
                 or {}
             )
 
-        update_targets_for_ingest(overwrite, targets, status_targets)
+        update_targets_run_uuid_for_ingest(overwrite, targets, status_targets)
 
     def _reload_and_get_status_targets(
         self, target_names: List[str] = None, silent: bool = False

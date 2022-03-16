@@ -24,7 +24,7 @@ import pandas as pd
 import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
-from mlrun.model import DataTarget, DataTargetBase, PathObject
+from mlrun.model import DataTarget, DataTargetBase
 from mlrun.utils import now_date
 from mlrun.utils.v3io_clients import get_frames_client
 
@@ -32,6 +32,9 @@ from .. import errors
 from ..data_types import ValueType
 from ..platforms.iguazio import parse_v3io_path, split_path
 from .utils import store_path_to_spark
+
+# Changing {run_uuid} will break and will not be backward compatible.
+RUN_UUID_PLACE_HOLDER = "{run_uuid}"  # IMPORTANT: shouldn't be changed.
 
 
 class TargetTypes:
@@ -72,7 +75,7 @@ def get_default_targets():
     ]
 
 
-def update_targets_for_ingest(overwrite, targets, targets_in_status):
+def update_targets_run_uuid_for_ingest(overwrite, targets, targets_in_status):
     run_uuid = generate_target_run_uuid()
     for target in targets:
         if overwrite or not (target.name in targets_in_status.keys()):
@@ -91,7 +94,7 @@ def get_default_prefix_for_target(kind):
 
 def get_default_prefix_for_source(kind):
     return get_default_prefix_for_target(kind).replace(
-        f"/{mlrun.mlconf.feature_store.run_uuid_place_holder}/", "/"
+        f"/{RUN_UUID_PLACE_HOLDER}/", "/"
     )
 
 
@@ -498,7 +501,7 @@ class BaseStoreTarget(DataTargetBase):
     def _target_path_object(self):
         """return the actual/computed target path"""
         is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
-        return self.get_path() or PathObject(
+        return self.get_path() or TargetPathObject(
             _get_target_path(self, self._resource), self.run_uuid, is_single_file
         )
 
@@ -1273,6 +1276,34 @@ kind_to_driver = {
 }
 
 
+class TargetPathObject:
+
+    _run_uuid_place_holder = RUN_UUID_PLACE_HOLDER
+
+    def __init__(
+        self,
+        base_path=None,
+        run_uuid=None,
+        is_single_file=False,
+    ):
+        self.base_path = base_path
+        self.run_uuid = run_uuid
+        self.full_path_template = self.base_path
+        if not is_single_file:
+            if RUN_UUID_PLACE_HOLDER not in self.full_path_template:
+                if self.full_path_template[-1] != "/":
+                    self.full_path_template = self.full_path_template + "/"
+                self.full_path_template = (
+                    self.full_path_template + RUN_UUID_PLACE_HOLDER
+                )
+
+    def get_templated_path(self):
+        return self.full_path_template
+
+    def get_absolute_path(self):
+        return self.full_path_template.format(run_uuid=self.run_uuid)
+
+
 def _get_target_path(driver, resource):
     """return the default target path given the resource and target kind"""
     kind = driver.kind
@@ -1294,7 +1325,7 @@ def _get_target_path(driver, resource):
         project=project,
         kind=kind,
         name=name,
-        run_uuid=mlrun.mlconf.feature_store.run_uuid_place_holder,
+        run_uuid=RUN_UUID_PLACE_HOLDER,
     )
     # todo: handle ver tag changes, may need to copy files?
     return f"{data_prefix}/{kind_prefix}/{name}{suffix}"

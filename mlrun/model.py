@@ -1018,34 +1018,6 @@ def new_task(
     return run
 
 
-class PathObject:
-
-    _run_uuid_place_holder = config.feature_store.run_uuid_place_holder
-
-    def __init__(
-        self,
-        base_path=None,
-        run_uuid=None,
-        is_single_file=False,
-    ):
-        self.base_path = base_path
-        self.run_uuid = run_uuid
-        self.full_path_template = self.base_path
-        if not is_single_file:
-            if self._run_uuid_place_holder not in self.full_path_template:
-                if self.full_path_template[-1] != "/":
-                    self.full_path_template = self.full_path_template + "/"
-                self.full_path_template = (
-                    self.full_path_template + self._run_uuid_place_holder
-                )
-
-    def get_templated_path(self):
-        return self.full_path_template
-
-    def get_absolute_path(self):
-        return self.full_path_template.format(run_uuid=self.run_uuid)
-
-
 class DataSource(ModelObj):
     """online or offline data source spec"""
 

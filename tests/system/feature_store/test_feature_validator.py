@@ -22,6 +22,7 @@ class TestFeatureValidator(TestMLRunSystem):
 # test set for type checks
 validators_check_type = {
     # ValueType: [(expected result, testing value), ...]
+    # BOOL is without validation
     ValueType.BOOL: [(True, True), (True, False), (True, "test"), (True, 60)],
     ValueType.INT8: [(True, -128), (True, 127), (False, -129), (False, 128)],
     ValueType.INT16: [(True, -32768), (True, 32767), (False, -32769), (False, 32768)],
@@ -71,5 +72,13 @@ validators_check_type = {
         (False, "WDC"),
         (True, "6378"),
         (False, ""),
+    ],
+    # STRING is without validation (it can be use later for compatibility test between Code pages, etc.)
+    ValueType.STRING: [
+        (True, "aa"),
+        (True, "\x00\x01"),
+        (True, "\x00\x01\x02\x03\xff"),
+        (True, False),
+        (True, 3.1415927),
     ],
 }

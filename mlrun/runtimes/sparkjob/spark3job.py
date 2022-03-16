@@ -119,8 +119,28 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         self.driver_node_selector = driver_node_selector
         self.executor_node_selector = executor_node_selector
         self.monitoring = monitoring or {}
-        self.driver_tolerations = driver_tolerations
-        self.executor_tolerations = executor_tolerations
+        self._driver_tolerations = driver_tolerations
+        self._executor_tolerations = executor_tolerations
+
+    @property
+    def executor_tolerations(self) -> typing.List[client.V1Toleration]:
+        return self._executor_tolerations
+
+    @executor_tolerations.setter
+    def executor_tolerations(self, executor_tolerations):
+        self._executor_tolerations = self._transform_attribute_to_k8s_class_instance(
+            "executor_tolerations", executor_tolerations
+        )
+
+    @property
+    def driver_tolerations(self) -> typing.List[client.V1Toleration]:
+        return self._driver_tolerations
+
+    @driver_tolerations.setter
+    def driver_tolerations(self, driver_tolerations):
+        self._driver_tolerations = self._transform_attribute_to_k8s_class_instance(
+            "driver_tolerations", driver_tolerations
+        )
 
 
 class Spark3Runtime(AbstractSparkRuntime):

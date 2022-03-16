@@ -622,10 +622,6 @@ with ctx:
             raise NotImplementedError(
                 "Setting affinity is not supported for spark runtime"
             )
-        if tolerations:
-            raise NotImplementedError(
-                "Setting tolerations is not supported for spark runtime"
-            )
         super().with_node_selection(node_name, node_selector, affinity, tolerations)
 
     def with_executor_requests(

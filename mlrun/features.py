@@ -12,7 +12,12 @@ def _limited_string(value: str, max_size: int = 40):
     in case of error (and for better identification of error location
     based on presenting part of original value)
     """
-    return value if (value is None) or (len(value)<=max_size) else value[:max_size]+'...'
+    return (
+        value
+        if (value is None) or (len(value) <= max_size)
+        else value[:max_size] + "..."
+    )
+
 
 class Entity(ModelObj):
     """data entity (index)"""
@@ -122,10 +127,7 @@ class ConvertTypeValidator(BasicTypeValidator):
             except Exception as err:
                 return (
                     False,
-                    {
-                        "message": str(err),
-                        "type": value_type
-                    },
+                    {"message": str(err), "type": value_type},
                 )
         return ok, args
 
@@ -163,10 +165,7 @@ class RangeTypeValidator(BasicTypeValidator):
             except Exception as err:
                 return (
                     False,
-                    {
-                        "message": str(err),
-                        "type": value_type,
-                    },
+                    {"message": str(err), "type": value_type},
                 )
 
         return ok, args
@@ -190,7 +189,7 @@ type_validator = {
     ValueType.DOUBLE: ConvertTypeValidator(float),
     #   ValueType.BFLOAT16: None,
     ValueType.BYTES: ConvertTypeValidator(bytes),
-    #   ValueType.STRING: it does not make sense to do validation for STRING (everything is valid also '\x00' and '\xff')
+    #   ValueType.STRING: it does not make sense to do validation for STRING (everything is valid also '\x00', '\xff')
     #   ValueType.DATETIME: None,
     #   ValueType.BYTES_LIST: None,
     #   ValueType.STRING_LIST: None,
@@ -299,10 +298,7 @@ class MinMaxValidator(Validator):
             except Exception as err:
                 return (
                     False,
-                    {
-                        "message": str(err),
-                        "type": self.kind,
-                    },
+                    {"message": str(err), "type": self.kind},
                 )
         return ok, args
 
@@ -366,10 +362,7 @@ class MinMaxLenValidator(Validator):
             except Exception as err:
                 return (
                     False,
-                    {
-                        "message": str(err),
-                        "type": self.kind,
-                    },
+                    {"message": str(err), "type": self.kind},
                 )
 
         return ok, args
@@ -421,10 +414,7 @@ class RegexValidator(Validator):
             except Exception as err:
                 return (
                     False,
-                    {
-                        "message": str(err),
-                        "type": self.kind,
-                    },
+                    {"message": str(err), "type": self.kind},
                 )
         return ok, args
 

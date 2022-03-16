@@ -27,7 +27,6 @@ import mlrun
 from .config import config
 from .utils import dict_to_json, dict_to_yaml, get_artifact_target
 
-
 # Changing {run_uuid} will break and will not be backward compatible.
 RUN_UUID_PLACE_HOLDER = "{run_uuid}"  # IMPORTANT: shouldn't be changed.
 

@@ -24,7 +24,12 @@ import pandas as pd
 import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
-from mlrun.model import DataTarget, DataTargetBase, TargetPathObject, RUN_UUID_PLACE_HOLDER
+from mlrun.model import (
+    RUN_UUID_PLACE_HOLDER,
+    DataTarget,
+    DataTargetBase,
+    TargetPathObject,
+)
 from mlrun.utils import now_date
 from mlrun.utils.v3io_clients import get_frames_client
 

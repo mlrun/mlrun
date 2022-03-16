@@ -27,6 +27,7 @@ from ..datastore.targets import (
     default_target_names,
     get_offline_target,
     get_target_driver,
+    update_targets_run_uuid_for_ingest,
     validate_target_list,
     validate_target_placement,
 )
@@ -420,8 +421,6 @@ class FeatureSet(ModelObj):
         targets: List[DataTargetBase],
         overwrite: bool = None,
     ):
-        from mlrun.datastore.targets import update_targets_run_uuid_for_ingest
-
         ingestion_target_names = [t.name for t in targets]
 
         status_targets = {}

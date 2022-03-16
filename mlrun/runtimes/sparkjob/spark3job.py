@@ -27,7 +27,6 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         "driver_node_selector",
         "executor_node_selector",
         "dynamic_allocation",
-        # https://github.com/GoogleCloudPlatform/spark-on-k8s-operator/blob/55732a6a392cbe1d6546c7ec6823193ab055d2fa/pkg/apis/sparkoperator.k8s.io/v1beta2/types.go#L494
         "driver_tolerations",
         "executor_tolerations",
     ]

@@ -24,7 +24,7 @@ import pandas as pd
 import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
-from mlrun.model import DataTarget, DataTargetBase
+from mlrun.model import DataTarget, DataTargetBase, TargetPathObject, RUN_UUID_PLACE_HOLDER
 from mlrun.utils import now_date
 from mlrun.utils.v3io_clients import get_frames_client
 
@@ -32,9 +32,6 @@ from .. import errors
 from ..data_types import ValueType
 from ..platforms.iguazio import parse_v3io_path, split_path
 from .utils import store_path_to_spark
-
-# Changing {run_uuid} will break and will not be backward compatible.
-RUN_UUID_PLACE_HOLDER = "{run_uuid}"  # IMPORTANT: shouldn't be changed.
 
 
 class TargetTypes:
@@ -1274,34 +1271,6 @@ kind_to_driver = {
     TargetTypes.tsdb: TSDBTarget,
     TargetTypes.custom: CustomTarget,
 }
-
-
-class TargetPathObject:
-
-    _run_uuid_place_holder = RUN_UUID_PLACE_HOLDER
-
-    def __init__(
-        self,
-        base_path=None,
-        run_uuid=None,
-        is_single_file=False,
-    ):
-        self.base_path = base_path
-        self.run_uuid = run_uuid
-        self.full_path_template = self.base_path
-        if not is_single_file:
-            if RUN_UUID_PLACE_HOLDER not in self.full_path_template:
-                if self.full_path_template[-1] != "/":
-                    self.full_path_template = self.full_path_template + "/"
-                self.full_path_template = (
-                    self.full_path_template + RUN_UUID_PLACE_HOLDER
-                )
-
-    def get_templated_path(self):
-        return self.full_path_template
-
-    def get_absolute_path(self):
-        return self.full_path_template.format(run_uuid=self.run_uuid)
 
 
 def _get_target_path(driver, resource):

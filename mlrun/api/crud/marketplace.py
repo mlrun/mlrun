@@ -29,9 +29,9 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
     @staticmethod
     def _in_k8s():
         k8s_helper = get_k8s()
-        if not k8s_helper or not k8s_helper.is_running_inside_kubernetes_cluster():
-            return False
-        return True
+        return (
+            k8s_helper is not None and k8s_helper.is_running_inside_kubernetes_cluster()
+        )
 
     @staticmethod
     def _generate_credentials_secret_key(source, key=""):

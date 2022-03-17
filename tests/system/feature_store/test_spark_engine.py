@@ -25,7 +25,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     spark_service = ""
     pq_source = "testdata.parquet"
     spark_image_deployed = (
-        False  # Set to True if you want to avoid the image building phase
+        True  # Set to True if you want to avoid the image building phase
     )
     test_branch = ""  # For testing specific branche. e.g.: "https://github.com/mlrun/mlrun.git@development"
 
@@ -237,6 +237,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 "first_name": ["moshe", "yosi", "yosi", "moshe", "yosi"],
                 "last_name": ["cohen", "levi", "levi", "cohen", "levi"],
                 "bid": [2000, 10, 11, 12, 16],
+                "mood": ["bad", "good", "bad", "good", "good"],
             }
         )
 
@@ -261,6 +262,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         df = fs.ingest(data_set, source, targets=[])
 
         assert df.to_dict() == {
+            "mood": {("moshe", "cohen"): "good", ("yosi", "levi"): "good"},
             "bid": {("moshe", "cohen"): 12, ("yosi", "levi"): 16},
             "bid_sum_1h": {("moshe", "cohen"): 2012, ("yosi", "levi"): 37},
             "bid_max_1h": {("moshe", "cohen"): 2000, ("yosi", "levi"): 16},
@@ -301,6 +303,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             vector, entity_timestamp_column="time", with_indexes=True
         )
         assert resp.to_dataframe().to_dict() == {
+            "mood": {("moshe", "cohen"): "good", ("yosi", "levi"): "good"},
+            "bid": {("moshe", "cohen"): 12, ("yosi", "levi"): 16},
             "bid_sum_1h": {("moshe", "cohen"): 2012, ("yosi", "levi"): 37},
             "bid_max_1h": {("moshe", "cohen"): 2000, ("yosi", "levi"): 16},
             "time": {

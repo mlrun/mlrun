@@ -427,7 +427,7 @@ def build_status(
         if resp and logs:
             # start from offset line, then concat all lines with \n and then encode
             output_lines = resp.splitlines()[offset:]
-            out = ''.join(f"{row}\n" for row in output_lines).encode()
+            out = "".join(f"{row}\n" for row in output_lines).encode()
 
     update_in(fn, "status.state", state)
     if state == mlrun.api.schemas.FunctionState.ready:

@@ -16,6 +16,8 @@ import typing
 
 from kubernetes import client
 
+import mlrun.errors
+
 from ...utils import update_in, verify_and_update_in
 from .abstract import AbstractSparkJobSpec, AbstractSparkRuntime
 
@@ -243,6 +245,28 @@ class Spark3Runtime(AbstractSparkRuntime):
     @spec.setter
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", Spark3JobSpec)
+
+    def with_node_selection(
+        self,
+        node_name: typing.Optional[str] = None,
+        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        affinity: typing.Optional[client.V1Affinity] = None,
+        tolerations: typing.Optional[typing.List[client.V1Toleration]] = None,
+    ):
+        if node_name:
+            raise NotImplementedError(
+                "Setting node name is not supported for spark runtime"
+            )
+        if affinity:
+            raise NotImplementedError(
+                "Setting affinity is not supported for spark runtime"
+            )
+        if tolerations:
+            raise mlrun.errors.MLRunConflictError(
+                "Tolerations can be set in spark runtime but not in with_node_selection. "
+                "Instead, use with_driver_node_selection and with_executor_node_selection to set tolerations"
+            )
+        super().with_node_selection(node_name, node_selector, affinity, tolerations)
 
     def with_driver_node_selection(
         self,

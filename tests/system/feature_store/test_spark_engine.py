@@ -25,7 +25,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     spark_service = ""
     pq_source = "testdata.parquet"
     spark_image_deployed = (
-        True  # Set to True if you want to avoid the image building phase
+        False  # Set to True if you want to avoid the image building phase
     )
     test_branch = ""  # For testing specific branche. e.g.: "https://github.com/mlrun/mlrun.git@development"
 

@@ -737,7 +737,7 @@ class SparkAggregateByKey(StepToDict):
         last_value_aggs = [
             funcs.last(column).alias(column)
             for column in input_df.columns
-            if column not in self.key_columns and column != self.time_column
+            if column not in self.key_columns and column != time_column
         ]
 
         dfs = []

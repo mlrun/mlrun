@@ -1,16 +1,16 @@
 (create-projects)=
 # Create and load projects
 
-Projects refer to a `context` directory which holds all the project code and configuration, the `context` dir is 
-usually mapped to a `git` repository and/or to an IDE (PyCharm, VSCode, ..) project.   
+Projects refer to a `context` directory that holds all the project code and configuration. The `context` dir is 
+usually mapped to a `git` repository and/or to an IDE (PyCharm, VSCode, etc.) project.   
 
 There are three ways to create/load a `project` object:
-* {py:meth}`~mlrun.projects.new_project`  - Create a new MLRun project and optionally load it from a yaml/zip/git template
-* {py:meth}`~mlrun.projects.load_project` - Load a project from a context directory or remote git/zip/tar archive 
-* {py:meth}`~mlrun.projects.get_or_create_project` - Load a project from the MLRun DB if it exists, or from specified 
+* {py:meth}`~mlrun.projects.new_project`  &mdash; Create a new MLRun project and optionally load it from a yaml/zip/git template.
+* {py:meth}`~mlrun.projects.load_project` &mdash; Load a project from a context directory or remote git/zip/tar archive.
+* {py:meth}`~mlrun.projects.get_or_create_project` &mdash; Load a project from the MLRun DB if it exists, or from a specified 
   context/archive. 
 
-Projects can also be loaded and workflows/pipelines can be executed using the CLI (using `mlrun project` command)
+Projects can also be loaded and workflows/pipelines can be executed using the CLI (using the `mlrun project` command).
 
 **Contents**
 - [**Creating a new project**](#creating-a-new-project)
@@ -20,9 +20,9 @@ Projects can also be loaded and workflows/pipelines can be executed using the CL
 
 ## Creating a new project
 
-To define a new project from scratch we use {py:meth}`~mlrun.projects.new_project`, we must specify a `name`, 
+To define a new project from scratch, use {py:meth}`~mlrun.projects.new_project`. You must specify a `name`, 
 location for the `context` directory (e.g. `./`) and other optional parameters (see below).
-The `context` dir holds the configuration, code, and workflow files, file paths in the project are relative to the context root.
+The `context` dir holds the configuration, code, and workflow files. File paths in the project are relative to the context root.
 
 ```python
     # create a project with local and marketplace functions
@@ -43,9 +43,9 @@ The `context` dir holds the configuration, code, and workflow files, file paths 
 ```
 
 
-When projects are saved a `project.yaml` file with project definitions is written to the context dir (alternatively we
-can manually create the `project.yaml` file and load it using `load_project()` or the `from_template` parameter).
-the generated `project.yaml` for the above project will look like:
+When projects are saved a `project.yaml` file with project definitions is written to the `context` dir. Alternatively you
+can manually create the `project.yaml` file and load it using `load_project()` or the `from_template` parameter.
+The generated `project.yaml` for the above project looks like:
 
 ```yaml
 kind: project
@@ -70,13 +70,13 @@ spec:
     key: data
 ```
  
-Projects can also be created from a template (yaml file, zip file, or git repo), allowing users to create reusable skeletons,
+Projects can also be created from a template (yaml file, zip file, or git repo), allowing users to create reusable skeletons. The
 content of the zip/tar/git archive is copied into the context dir.
 
-The `init_git` flag is used to initialize git in the context dir, `remote` attribute is used to register the remote 
-git repository URL, and `user_project` flag indicate the project name is unique to the user. 
+The `init_git` flag is used to initialize git in the context dir, the `remote` attribute is used to register the remote 
+git repository URL, and the `user_project` flag indicates that the project name is unique to the user. 
 
-Example create a new project from a zip template:
+Example of creating a new project from a zip template:
 
 ```python
     # create a project from zip, initialize a local git, and register the git remote path
@@ -89,21 +89,21 @@ Example create a new project from a zip template:
 ```
 
 ```{admonition} Note
-* Projects are visible in the MLRun dashboard only after they're saved to the MLRun database (with `.save()`) or workflows are executed (with `.run()`).
-* You can ensure the project name is unique per user by setting the the `user_project` parameter to `True`
+* Projects are visible in the MLRun dashboard only after they're saved to the MLRun database (with `.save()`) or after the workflows are executed (with `.run()`).
+* You can ensure the project name is unique per user by setting the the `user_project` parameter to `True`.
 ```
 
 ## Load and Run projects from context, git or archive
 
-When our project is already created and stored in a git archive we can quickly load and use it with the 
-{py:meth}`~mlrun.projects.load_project` method. `load_project` will use a local context directory (with initialized `git`) 
-or clone a remote repo into the local dir and return a project object.
+When a project is already created and stored in a git archive you can quickly load and use it with the 
+{py:meth}`~mlrun.projects.load_project` method. `load_project` uses a local context directory (with initialized `git`) 
+or clones a remote repo into the local dir and returns a project object.
 
-Users need to provide the path to the `context` dir and the git/zip/tar archive `url`, the `name` can be specified or taken 
+You need to provide the path to the `context` dir and the git/zip/tar archive `url`. The `name` can be specified or taken 
 from the project object, they can also specify `secrets` (repo credentials), `init_git` flag (to initialize git in the context dir), 
 `clone` flag (indicating we must clone and ignore/remove local copy), and `user_project` flag (indicate the project name is unique to the user).
 
-example, load a project from git and run the `main` workflow:
+Example of loading a project from git and running the `main` workflow:
 
 ```python
     project = mlrun.load_project("./", "git://github.com/mlrun/project-demo.git")
@@ -111,11 +111,11 @@ example, load a project from git and run the `main` workflow:
 ```
 
 ```{admonition} Note
-If the `url` parameter is not specified it will search for Git repo inside the context dir and use its metadata, 
-or use the init_git=True flag to initialize a Git repo in the target context directory.
+If the `url` parameter is not specified it searches for Git repo inside the context dir and uses its metadata, 
+or uses the init_git=True flag to initialize a Git repo in the target context directory.
 ```
 
-### Load & run using the CLI
+### Load and run using the CLI
 
 Loading a project from `git` into `./` :
 
@@ -156,8 +156,8 @@ Options:
 ## Get from DB or create (`get_or_create_project`)
 
 If you already have a project saved in the DB and you need to access/use it (for example from a different notebook or file), 
-use the {py:meth}`~mlrun.projects.get_or_create_project` method. It will first try to read the project from the DB, 
-and only if it doesnt exist in the DB it will load/create it. 
+use the {py:meth}`~mlrun.projects.get_or_create_project` method. It first tries to read the project from the DB, 
+and only if it doesn't exist in the DB it loads/creates it. 
 
 ```{admonition} Note
 If you update the project object from different files/notebooks/users, make sure you `.save()` your project after a change, 
@@ -173,24 +173,23 @@ Example:
     project.run("main", arguments={'data': data_url})  # run the workflow "main"
 ```
 
-
 ## Working with Git
 
-A user can update the code using the standard Git process (commit, push, ..), if you update/edit the project object you 
-need to run `project.save()` which will update the `project.yaml` file in your context directory, followed by pushing your updates.
+You can update the code using the standard Git process (commit, push, ..). If you update/edit the project object you 
+need to run `project.save()`, which updates the `project.yaml` file in your context directory, followed by pushing your updates.
 
-You can use the standard `git` cli to `pull`, `commit`, `push`, etc. MLRun project will sync with the local git state.
-You can also use project methods with the same functionality, it simplifies the work for common task but does not expose the full git functionality.
+You can use the standard `git` cli to `pull`, `commit`, `push`, etc. MLRun project syncs with the local git state.
+You can also use project methods with the same functionality. It simplifies the work for common task but does not expose the full git functionality.
 
-* **{py:meth}`~mlrun.projects.MlrunProject.pull`** - pull/update sources from git or tar into the context dir
-* **{py:meth}`~mlrun.projects.MlrunProject.create_remote`** - create remote for the project git
-* **{py:meth}`~mlrun.projects.MlrunProject.push`** - save project state and commit/push updates to remote git repo
+* **{py:meth}`~mlrun.projects.MlrunProject.pull`** &mdash; pull/update sources from git or tar into the context dir
+* **{py:meth}`~mlrun.projects.MlrunProject.create_remote`** &mdash; create remote for the project git
+* **{py:meth}`~mlrun.projects.MlrunProject.push`** &mdash; save project state and commit/push updates to remote git repo
 
-e.g. `proj.push(branch, commit_message, add=[])` will save the state to DB & yaml, commit updates, push
+For example: `proj.push(branch, commit_message, add=[])` saves the state to DB & yaml, commits updates, push
 
 ```{admonition} Note
-you must push updates before you build functions or run workflows which use code from git,
-since the builder or containers will pull the code from the git repo.
+You must push updates before you build functions or run workflows which use code from git,
+since the builder or containers pull the code from the git repo.
 ```
 
 If you are using containerized Jupyter you may need to first set your Git parameters, e.g. using the following commands:
@@ -201,7 +200,7 @@ git config --global user.name "<name>"
 git config --global credential.helper store
 ```
 
-After that you would need to login once to git with your password as well as restart the notebook
+After that you need to login once to git with your password as well as restart the notebook.
 
 ``` python
 project.push('master', 'some edits')

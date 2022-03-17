@@ -1,11 +1,18 @@
 (datastore)=
-# Data Stores & Data Items
+# Data stores
 
+*Contents***
+- [Shared data stores](#shared-data-stores)
+- [Storage credentials and parameters](#storage-credentials-and-parameters)
+   - [v3io](#v3io)
+   - [S3](#s3)
+   - [Azure Blob storage](#azureblob-storage)
+   - [Google cloud storage](#google-cloud-storage)
 
-## Shared Data Stores
+## Shared data store
 
-MLRun supports multiple data sources (more can easily added by extending the `DataStore` class)
-data sources are referred to using the schema prefix (e.g. `s3://my-bucket/path`). The currently supported schemas and their urls:
+MLRun supports multiple data stores. (More can easily added by extending the `DataStore` class.)
+Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`). The currently supported schemas and their urls:
 * **files** &mdash; local/shared file paths, format: `/file-dir/path/to/file`
 * **http, https** &mdash; read data from HTTP sources (read-only), format: `https://host/path/to/file`
 * **s3** &mdash; S3 objects (AWS or other endpoints), format: `s3://<bucket>/path/to/file`
@@ -16,7 +23,7 @@ data sources are referred to using the schema prefix (e.g. `s3://my-bucket/path`
 * **memory** &mdash; in memory data registry for passing data within the same process, format `memory://key`, 
   use `mlrun.datastore.set_in_memory_item(key, value)` to register in memory data items (byte buffers or DataFrames).
 
-### Storage credentials and parameters
+## Storage credentials and parameters
 Data stores might require connection credentials. These can be provided through environment variables 
 or project/job context secrets. The exact credentials depend on the type of the data store and are listed in
 the following table. Each parameter specified can be provided as an environment variable, or as a project-secret that
@@ -63,7 +70,7 @@ remote_run = func.run(name='aws_test', inputs={'source_url': source_url})
 
 The following sections list the credentials and configuration parameters applicable to each storage type.
 
-#### v3io
+### v3io
 When running in an Iguazio system, MLRun automatically configures executed functions to use `v3io` storage, and passes 
 the needed parameters (such as access-key) for authentication. Refer to the 
 [auto-mount](Function_storage_auto_mount) section for more details on this process.
@@ -75,13 +82,13 @@ In some cases, the v3io configuration needs to be overridden. The following para
 * `V3IO_USERNAME` &mdash; the user-name authenticating with v3io. While not strictly required when using an access-key to 
 authenticate, it is used in several use-cases, such as resolving paths to the home-directory.
 
-#### S3
+### S3
 * `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` &mdash; [access key](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html)
   parameters
 * `S3_ENDPOINT_URL` &mdash; the S3 endpoint to use. If not specified, it defaults to AWS. For example, to access 
   a storage bucket in Wasabi storage, use `S3_ENDPOINT_URL = "https://s3.wasabisys.com"`
 
-#### Azure Blob storage
+### Azure Blob storage
 The Azure Blob storage can utilize several methods of authentication. Each requires a different set of parameters as listed
 here:
 
@@ -92,7 +99,7 @@ here:
 | [Account key](https://docs.microsoft.com/en-us/azure/storage/common/storage-account-keys-manage?tabs=azure-portal) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_ACCOUNT_KEY` |
 | [Service principal with a client secret](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_CLIENT_ID`<br/>`AZURE_STORAGE_CLIENT_SECRET`<br/>`AZURE_STORAGE_TENANT_ID` |
 
-#### Google cloud storage
+### Google cloud storage
 * `GOOGLE_APPLICATION_CREDENTIALS` &mdash; path to the application credentials to use (in the form of a JSON file). This can
 be used if this file is located in a location on shared storage, accessible to pods executing MLRun jobs.
 * `GCP_CREDENTIALS` &mdash; when the credentials file cannot be mounted to the pod, this environment variable may contain

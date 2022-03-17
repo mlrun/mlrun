@@ -2,7 +2,7 @@
 # Projects
 
 A project is a container for all your work on a particular activity/application. It is the basic starting point for your work. 
-Projects can be mapped to GIT repositories or IDE project (in PyCharm, VSCode, etc.), which enables versioning, collaboration, and CI/CD. 
+Projects can be mapped to `git` repositories or IDE project (in PyCharm, VSCode, etc.), which enables versioning, collaboration, and CI/CD. 
 Project access can be restricted to a set of users and roles.
 
 You can create project definitions using the SDK or a yaml file and store those in the MLRun DB, a file, or an archive. Project definitions 
@@ -13,7 +13,7 @@ Projects can be loaded/cloned using a single command. Once the project is loaded
 
 **Contents**
 ```{toctree}
-:maxdepth: 1
+:maxdepth: 2
 
 create-load-import-project
 use-project

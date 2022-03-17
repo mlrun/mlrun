@@ -95,7 +95,7 @@ Table Of Contents
    model_monitoring/model-registry-mgmt
    serving/serving-graph
    serving/build-graph-model-serving
-   model_monitoring/model-monitoring
+   model_monitoring/index
    model_monitoring/ci-cd-rolling-upgrades-git
 
 .. toctree::

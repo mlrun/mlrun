@@ -23,12 +23,12 @@ fv = svc.get([{<key name>: <key value>}])
 
 ## Incorporating to the serving model
 
-MLRun enables you to easily serve your models using the [model server](../serving/serving-graph.md) ([example](https://github.com/mlrun/functions/blob/master/v2_model_server/v2_model_server.ipynb)).
-It enables you to define a serving model class and the computational graph required to run your entire prediction pipeline and deploy it as serverless functions using [nuclio](https://github.com/nuclio/nuclio).
+MLRun enables you to easily serve your models using the [model server](../serving/serving-graph.md). ( See an [example](https://github.com/mlrun/functions/blob/master/v2_model_server/v2_model_server.ipynb)).
+It enables you to define a serving model class and the computational graph required to run your entire prediction pipeline and deploy it as a serverless function using [nuclio](https://github.com/nuclio/nuclio).
 
-To embed the online feature service in your model server, all you need to do is create the feature vector service once when the model initializes and then use it to retrieve the feature vectors of incoming keys.
+To embed the online feature service in your model server, all you need to do is create the feature vector service once when the model initializes, and then use it to retrieve the feature vectors of incoming keys.
 
-You can import ready-made classes and functions from our [function marketplace](https://github.com/mlrun/functions) or write your own.
+You can import ready-made classes and functions from the MLRun [function marketplace](https://github.com/mlrun/functions) or write your own.
 As example of a scikit-learn based model server (taken from the MLRun feature store demo):
 
 ```python
@@ -67,7 +67,7 @@ class ClassifierModel(mlrun.serving.V2ModelServer):
                     new_vec.append(v)
             feature_vectors.append(new_vec)
             
-        # Set the final feature vector as our inputs
+        # Set the final feature vector as the inputs
         # to pass to the predict function
         body['inputs'] = feature_vectors
         return body
@@ -79,10 +79,10 @@ class ClassifierModel(mlrun.serving.V2ModelServer):
         return result.tolist()
 ```
 
-Which we can deploy with:
+Which you can deploy with:
 
 ```python
-# Create the serving function from our code above
+# Create the serving function from the code above
 fn = mlrun.code_to_function(<function_name>, 
                             kind='serving')
 
@@ -95,7 +95,7 @@ fn.add_model(<model_name>,
 fn.set_tracking()
 
 # Add the system mount to the function so
-# it will have access to our model files
+# it will have access to the model files
 fn.apply(mlrun.mount_v3io())
 
 # Deploy the function to the cluster

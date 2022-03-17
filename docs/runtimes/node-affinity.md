@@ -61,19 +61,19 @@ However, when you use multiple labels a logical `and` is performed on the labels
 5. In the **Node Selector** section, press **+**.
    <br>
    <br/>
-   <img src="../_static/images/ml_run-job_resources_node_selector.png" width="800"/>
+   <img src="../_static/images/ml_run-job_resources_node_selector.png" width="600"/>
 <br>
 <br/>
 6. Enter a **key:value** pair. For example:
    <br>
    <br/>
-   <img src="../_static/images/mlrun_jobs_key_non-preemtible.png" width="800"/>
+   <img src="../_static/images/mlrun_jobs_key_non-preemtible.png" width="600"/>
    <br>
    <br/>
    or
    <br>
    <br/>
-   <img src="../_static/images/mlrun_jobs_key_preemtible.png" width="800"/>
+   <img src="../_static/images/mlrun_jobs_key_preemtible.png" width="600"/>
    <br>
    <br/>
    When complete press **Run now** or **Schedule for later**.  

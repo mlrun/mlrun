@@ -1,6 +1,6 @@
-# Project Workflows and Automation
+# Project workflows and automation
 
-A workflow is a definition of execution of functions. It defines the order of execution of multiple dependent steps in a DAG. A workflow 
+A workflow is a definition of execution of functions. It defines the order of execution of multiple dependent steps in a  directed acyclic graph (DAG0. A workflow 
 can reference the project’s params, secrets, artifacts, etc. It can also use a function execution output as a function execution 
 input (which, of course, defines the order of execution).
 
@@ -21,8 +21,8 @@ Refer to the [**tutorials section**](../tutorial/index.md) for complete examples
 
 ## Composing workflows
 
-Workflows are written as a python function which make use of function [operations (run, build, deploy)](Run_project_functions)
-operations and can access project parameters, secrets and artifacts using {py:meth}`~mlrun.projects.MlrunProject.get_param`, {py:meth}`~mlrun.projects.MlrunProject.get_secret` and {py:meth}`~mlrun.projects.MlrunProject.get_artifact_uri`.
+Workflows are written as python functions that make use of function [operations (run, build, deploy)](Run_project_functions)
+operations and can access project parameters, secrets, and artifacts using {py:meth}`~mlrun.projects.MlrunProject.get_param`, {py:meth}`~mlrun.projects.MlrunProject.get_secret` and {py:meth}`~mlrun.projects.MlrunProject.get_artifact_uri`.
 
 For workflows to work in Kubeflow you need to add a decorator (`@dsl.pipeline(..)`) as shown below.
 
@@ -103,15 +103,15 @@ def newpipe():
 
 ## Saving workflows
 
-If we want to use workflows as part of an automated flow we should save them and register them in the project. 
-We use the {py:meth}`~mlrun.projects.MlrunProject.set_workflow` method to register workflows, we specify a workflow name, 
-the path to the workflow file, and the function `handler` name (or it will look for a handler named "pipeline"), and can
+If you want to use workflows as part of an automated flow, save them and register them in the project. 
+Use the {py:meth}`~mlrun.projects.MlrunProject.set_workflow` method to register workflows, to specify a workflow name, 
+the path to the workflow file, and the function `handler` name (or it looks for a handler named "pipeline"), and can
 set the default `engine` (local or kfp).
 
-if we set the `embed` flag to True, the workflow code will be embedded in the project file (can be used if we want to 
+When setting the `embed` flag to True, the workflow code is embedded in the project file (can be used if you want to 
 describe the entire project using a single YAML file).
 
-We can define the schema for workflow arguments (data type, default, doc, etc.) by setting the `args_schema` with a list 
+You can define the schema for workflow arguments (data type, default, doc, etc.) by setting the `args_schema` with a list 
 of **{py:class}`~mlrun.model.EntrypointParam`** objects.
 
 Example:
@@ -133,20 +133,20 @@ Example:
 
 ## Running workflows
 
-We use the {py:meth}`~mlrun.projects.MlrunProject.run` method to execute workflows, we specify the workflow using its `name`
+Use the {py:meth}`~mlrun.projects.MlrunProject.run` method to execute workflows. Specify the workflow using its `name`
 or `workflow_path` (path to the workflow file) or `workflow_handler` (the workflow function handler).
-We can specify the input `arguments` for the workflow and can override the system default `artifact_path`.
+You can specify the input `arguments` for the workflow and can override the system default `artifact_path`.
 
-Workflows are asynchronous by default, we can set the `watch` flag to True and the run operation will block until 
-completion and print out the workflow progress, alternatively you can use `.wait_for_completion()` on the run object.
+Workflows are asynchronous by default. You can set the `watch` flag to True and the run operation blocks until 
+completion and prints out the workflow progress. Alternatively you can use `.wait_for_completion()` on the run object.
 
-The default workflow engine is `kfp`, we can override it by specifying the `engine` in the `run()` or `set_workflow()` methods,
-using the `local` engine will execute the workflow state machine loaclly (its functions will still run as cluster jobs).
-if we set the `local` flag to True the workflow will use the `local` engine AND the functions will will run as local process,
-this mode is used for local debugging of workflows.
+The default workflow engine is `kfp`. You can override it by specifying the `engine` in the `run()` or `set_workflow()` methods. 
+Using the `local` engine executes the workflow state machine locally (its functions still run as cluster jobs).
+If you set the `local` flag to True, the workflow uses the `local` engine AND the functions run as local process.
+This mode is used for local debugging of workflows.
 
 When running workflows from a git enabled context it first verifies that there are no uncommitted git changes 
-(to guarantee that workflows which load from git will not use old code versions), you can suppress that check by setting the `dirty` flag to True.
+(to guarantee that workflows that load from git do not use old code versions). You can suppress that check by setting the `dirty` flag to True.
 
 Examples:
 

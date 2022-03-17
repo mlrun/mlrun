@@ -175,8 +175,8 @@ spec cannot see the secret values.
 
 Users, however, can view the secrets using the following methods:
 
-1. Run `kubectl` to view the actual contents of the k8s secret.
-2. Perform `kubectl exec` into the running pod, and examine the environment variables.
+-  Run `kubectl` to view the actual contents of the k8s secret.
+-  Perform `kubectl exec` into the running pod, and examine the environment variables.
 
 To maintain the confidentiality of secret values, these operations must be strictly limited across the system by using 
 k8s RBAC and ensuring that elevated permissions are granted to a very limited number of users (very few users have and 
@@ -199,19 +199,19 @@ To enable this functionality, a secret must first be created in the k8s cluster 
 credentials. This secret should include credentials providing access to your specific Azure key Vault. 
 To configure this, the following steps are needed:
 
-1. Set up a key vault in your Azure subscription
+1. Set up a key vault in your Azure subscription.
 2. Create a service principal in Azure that will be granted access to the key vault. For creating a service principal 
    through the Azure portal follow the steps listed in [this page]( 
-   https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal)
+   https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal).
 3. Assign a key vault access policy to the service principal, as described in 
-   [this page](https://docs.microsoft.com/en-us/azure/key-vault/general/assign-access-policy-portal)
+   [this page](https://docs.microsoft.com/en-us/azure/key-vault/general/assign-access-policy-portal).
 4. Create a secret access key for the service principal, following the steps listed in [this page]( 
    https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal#get-tenant-and-app-id-values-for-signing-in). 
     Make sure you have access to the following three identifiers:
    
-    1. Directory (tenant) id
-    2. Application (client) id
-    3. Secret key
+    - Directory (tenant) id
+    - Application (client) id
+    - Secret key
 
 5. Generate a k8s secret with those details. Use the following command:
 

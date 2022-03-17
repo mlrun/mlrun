@@ -5,7 +5,7 @@ With MLRun Serving you compose a graph of steps (composed of pre-defined graph b
 **This section describes:**
 
 ```{toctree}
-:maxdepth: 1
+:maxdepth: 2
 model-serving-get-started
 advanced-routing
 custom-model-serving-class

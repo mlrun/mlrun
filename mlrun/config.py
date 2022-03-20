@@ -518,16 +518,28 @@ class Config:
 
         return auto_mount_params
 
+    def get_default_function_pod_resources(self):
+        resources = {}
+        resource_requirements = ["requests", "limits"]
+        for requirement in resource_requirements:
+            resources[
+                requirement
+            ] = self.get_default_function_pod_requirement_resources(requirement)
+        return resources
+
     @staticmethod
-    def get_default_function_pod_resources():
+    def get_default_function_pod_requirement_resources(requirement: str):
+        """
+
+        :param requirement: kubernetes requirement resource one of the following : requests, limits
+        :return: a dict containing the defaults resources (cpu, memory, nvidia.com/gpu)
+        """
         resources: dict = copy.deepcopy(config.default_function_pod_resources.to_dict())
         gpu_type = "nvidia.com/gpu"
         gpu = "gpu"
-        resource_requirements = ["requests", "limits"]
-        for requirement in resource_requirements:
-            resources.setdefault(requirement, {}).setdefault(gpu)
-            resources[requirement][gpu_type] = resources.get(requirement).pop(gpu)
-        return resources
+        resource_requirement = resources.get(requirement, {}).setdefault(gpu)
+        resource_requirement[gpu_type] = resource_requirement.pop(gpu)
+        return resource_requirement
 
     def to_dict(self):
         return copy.copy(self._cfg)

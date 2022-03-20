@@ -262,7 +262,7 @@ class Spark3Runtime(AbstractSparkRuntime):
                 "Setting affinity is not supported for spark runtime"
             )
         if tolerations:
-            raise mlrun.errors.MLRunConflictError(
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 "Tolerations can be set in spark runtime but not in with_node_selection"
                 "Instead, use with_driver_node_selection and with_executor_node_selection to set tolerations"
             )

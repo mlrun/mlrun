@@ -139,6 +139,7 @@ class AbstractSparkJobSpec(KubeResourceSpec):
         pythonpath=None,
         node_name=None,
         affinity=None,
+        tolerations=None,
     ):
 
         super().__init__(
@@ -165,6 +166,7 @@ class AbstractSparkJobSpec(KubeResourceSpec):
             pythonpath=pythonpath,
             node_name=node_name,
             affinity=affinity,
+            tolerations=tolerations,
         )
 
         self.driver_resources = driver_resources or {}
@@ -610,16 +612,19 @@ with ctx:
         node_name: typing.Optional[str] = None,
         node_selector: typing.Optional[typing.Dict[str, str]] = None,
         affinity: typing.Optional[client.V1Affinity] = None,
+        tolerations: typing.Optional[typing.List[client.V1Toleration]] = None,
     ):
         if node_name:
             raise NotImplementedError(
                 "Setting node name is not supported for spark runtime"
             )
+        # TODO add affinity support
+        # https://github.com/GoogleCloudPlatform/spark-on-k8s-operator/blob/master/pkg/apis/sparkoperator.k8s.io/v1beta2/types.go#L491
         if affinity:
             raise NotImplementedError(
                 "Setting affinity is not supported for spark runtime"
             )
-        super().with_node_selection(node_name, node_selector, affinity)
+        super().with_node_selection(node_name, node_selector, affinity, tolerations)
 
     def with_executor_requests(
         self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"

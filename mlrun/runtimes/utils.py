@@ -574,6 +574,7 @@ def enrich_function_from_dict(function, function_dict):
         "affinity",
         "priority_class_name",
         "credentials",
+        "tolerations",
     ]:
         if attribute == "credentials":
             override_value = getattr(override_function.metadata, attribute, None)

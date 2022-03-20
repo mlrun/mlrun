@@ -717,7 +717,7 @@ class SparkAggregateByKey(StepToDict):
         unit = duration[-1:]
         if unit == "d":
             unit = "day"
-        if unit == "h":
+        elif unit == "h":
             unit = "hour"
         elif unit == "m":
             unit = "minute"

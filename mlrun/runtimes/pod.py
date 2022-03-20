@@ -18,6 +18,7 @@ import uuid
 from enum import Enum
 
 import dotenv
+import kubernetes.client
 from kfp.dsl import ContainerOp, _container_op
 from kubernetes import client
 
@@ -27,7 +28,7 @@ import mlrun.utils.regex
 from ..config import config as mlconf
 from ..k8s_utils import verify_gpu_requests_and_limits
 from ..secrets import SecretsStore
-from ..utils import logger, normalize_name, update_in
+from ..utils import get_in, logger, normalize_name, update_in
 from .base import BaseRuntime, FunctionSpec, spec_fields
 from .utils import (
     apply_kfp,
@@ -37,6 +38,35 @@ from .utils import (
     verify_limits,
     verify_requests,
 )
+
+sanitized_types = {
+    "affinity": {
+        "attribute_type_name": "V1Affinity",
+        "attribute_type": kubernetes.client.V1Affinity,
+        "sub_attribute_type": None,
+        "contains_many": False,
+        "not_sanitized": "node_affinity",
+        "not_sanitized_class": dict,
+        "sanitized": "nodeAffinity",
+    },
+    "tolerations": {
+        "attribute_type_name": "List[V1.Toleration]",
+        "attribute_type": list,
+        "contains_many": True,
+        "sub_attribute_type": kubernetes.client.V1Toleration,
+        "not_sanitized": "toleration_seconds",
+        "not_sanitized_class": list,
+        "sanitized": "tolerationSeconds",
+    },
+}
+
+
+sanitized_attributes = {
+    "affinity": sanitized_types["affinity"],
+    "tolerations": sanitized_types["tolerations"],
+    "executor_tolerations": sanitized_types["tolerations"],
+    "driver_tolerations": sanitized_types["tolerations"],
+}
 
 
 class KubeResourceSpec(FunctionSpec):
@@ -53,6 +83,7 @@ class KubeResourceSpec(FunctionSpec):
         "node_selector",
         "affinity",
         "priority_class_name",
+        "tolerations",
     ]
 
     def __init__(
@@ -80,6 +111,7 @@ class KubeResourceSpec(FunctionSpec):
         affinity=None,
         disable_auto_mount=False,
         priority_class_name=None,
+        tolerations=None,
     ):
         super().__init__(
             command=command,
@@ -115,6 +147,7 @@ class KubeResourceSpec(FunctionSpec):
         self.priority_class_name = (
             priority_class_name or mlrun.mlconf.default_function_priority_class_name
         )
+        self._tolerations = tolerations
 
     @property
     def volumes(self) -> list:
@@ -144,7 +177,19 @@ class KubeResourceSpec(FunctionSpec):
 
     @affinity.setter
     def affinity(self, affinity):
-        self._affinity = self._transform_affinity_to_k8s_class_instance(affinity)
+        self._affinity = self._transform_attribute_to_k8s_class_instance(
+            "affinity", affinity
+        )
+
+    @property
+    def tolerations(self) -> typing.List[client.V1Toleration]:
+        return self._tolerations
+
+    @tolerations.setter
+    def tolerations(self, tolerations):
+        self._tolerations = self._transform_attribute_to_k8s_class_instance(
+            "tolerations", tolerations
+        )
 
     @property
     def resources(self) -> dict:
@@ -157,9 +202,10 @@ class KubeResourceSpec(FunctionSpec):
         )
 
     def to_dict(self, fields=None, exclude=None):
-        struct = super().to_dict(fields, exclude=["affinity"])
+        struct = super().to_dict(fields, exclude=["affinity", "tolerations"])
         api = client.ApiClient()
         struct["affinity"] = api.sanitize_for_serialization(self.affinity)
+        struct["tolerations"] = api.sanitize_for_serialization(self.tolerations)
         return struct
 
     def update_vols_and_mounts(self, volumes, volume_mounts):
@@ -174,36 +220,99 @@ class KubeResourceSpec(FunctionSpec):
     def _get_affinity_as_k8s_class_instance(self):
         pass
 
-    def _transform_affinity_to_k8s_class_instance(self, affinity):
-        if not affinity:
+    def _transform_attribute_to_k8s_class_instance(
+        self, attribute_name, attribute, is_sub_attr: bool = False
+    ):
+        if attribute_name not in sanitized_attributes:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"{attribute_name} isn't in the available sanitized attributes"
+            )
+        if not attribute:
             return None
-        if isinstance(affinity, dict):
-            api = client.ApiClient()
-            # not ideal to use their private method, but looks like that's the only option
-            # Taken from https://github.com/kubernetes-client/python/issues/977
-            affinity = api._ApiClient__deserialize(affinity, "V1Affinity")
-        return affinity
+        attribute_config = sanitized_attributes[attribute_name]
+        if isinstance(attribute, dict):
+            if self._resolve_if_type_sanitized(attribute_name, attribute):
+                api = client.ApiClient()
+                # not ideal to use their private method, but looks like that's the only option
+                # Taken from https://github.com/kubernetes-client/python/issues/977
+                attribute_type = attribute_config["attribute_type"]
+                if attribute_config["contains_many"]:
+                    attribute_type = attribute_config["sub_attribute_type"]
+                attribute = api._ApiClient__deserialize(attribute, attribute_type)
 
-    def _get_sanitized_affinity(self):
+        elif isinstance(attribute, list):
+            attribute_instance = []
+            for sub_attr in attribute:
+                if not isinstance(sub_attr, dict):
+                    return attribute
+                attribute_instance.append(
+                    self._transform_attribute_to_k8s_class_instance(
+                        attribute_name, sub_attr, is_sub_attr=True
+                    )
+                )
+            attribute = attribute_instance
+        # if user have set one attribute but its part of an attribute that contains many then return inside a list
+        if (
+            not is_sub_attr
+            and attribute_config["contains_many"]
+            and isinstance(attribute, attribute_config["sub_attribute_type"])
+        ):
+            # initialize attribute instance and add attribute to it,
+            # mainly done when attribute is a list but user defines only sets the attribute not in the list
+            attribute_instance = attribute_config["attribute_type"]()
+            attribute_instance.append(attribute)
+            return attribute_instance
+        return attribute
+
+    def _get_sanitized_attribute(self, attribute_name: str):
         """
         When using methods like to_dict() on kubernetes class instances we're getting the attributes in snake_case
         Which is ok if we're using the kubernetes python package but not if for example we're creating CRDs that we
         apply directly. For that we need the sanitized (CamelCase) version.
         """
-        if not self.affinity:
-            return {}
-        if isinstance(self.affinity, dict):
-            # heuristic - if node_affinity is part of the dict it means to_dict on the kubernetes object performed,
-            # there's nothing we can do at that point to transform it to the sanitized version
-            if "node_affinity" in self.affinity:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Affinity must be instance of kubernetes' V1Affinity class"
+        attribute = getattr(self, attribute_name)
+        if attribute_name not in sanitized_attributes:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"{attribute_name} isn't in the available sanitized attributes"
+            )
+        attribute_config = sanitized_attributes[attribute_name]
+        if not attribute:
+            return attribute_config["not_sanitized_class"]()
+
+        # check if attribute of type dict, and then check if type is sanitized
+        if isinstance(attribute, dict):
+            if attribute_config["not_sanitized_class"] != dict:
+                raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                    f"expected to to be of type {attribute_config.get('not_sanitized_class')} but got dict"
                 )
-            elif "nodeAffinity" in self.affinity:
-                # then it's already the sanitized version
-                return self.affinity
+            if self._resolve_if_type_sanitized(attribute_name, attribute):
+                return attribute
+
+        elif isinstance(attribute, list) and not isinstance(
+            attribute[0], attribute_config["sub_attribute_type"]
+        ):
+            if attribute_config["not_sanitized_class"] != list:
+                raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                    f"expected to to be of type {attribute_config.get('not_sanitized_class')} but got list"
+                )
+            if self._resolve_if_type_sanitized(attribute_name, attribute[0]):
+                return attribute
+
         api = client.ApiClient()
-        return api.sanitize_for_serialization(self.affinity)
+        return api.sanitize_for_serialization(attribute)
+
+    @staticmethod
+    def _resolve_if_type_sanitized(attribute_name, attribute):
+        attribute_config = sanitized_attributes[attribute_name]
+        # heuristic - if one of the keys contains _ as part of the dict it means to_dict on the kubernetes
+        # object performed, there's nothing we can do at that point to transform it to the sanitized version
+        if get_in(attribute, attribute_config["not_sanitized"]):
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                f"{attribute_name} must be instance of kubernetes {attribute_config.get('attribute_type_name')} class"
+            )
+        # then it's already the sanitized version
+        elif get_in(attribute, attribute_config["sanitized"]):
+            return attribute
 
     def _set_volume_mount(self, volume_mount):
         # using the mountPath as the key cause it must be unique (k8s limitation)
@@ -479,6 +588,7 @@ class KubeResource(BaseRuntime):
         node_name: typing.Optional[str] = None,
         node_selector: typing.Optional[typing.Dict[str, str]] = None,
         affinity: typing.Optional[client.V1Affinity] = None,
+        tolerations: typing.Optional[typing.List[client.V1Toleration]] = None,
     ):
         """
         Enables to control on which k8s node the job will run
@@ -488,6 +598,11 @@ class KubeResource(BaseRuntime):
         :param affinity:        Expands the types of constraints you can express - see
                                 https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
                                 for details
+        :param tolerations:     Tolerations are applied to pods, and allow (but do not require) the pods to schedule
+                                onto nodes with matching taints - see
+                                https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration
+                                for details
+
         """
         if node_name:
             self.spec.node_name = node_name
@@ -495,6 +610,8 @@ class KubeResource(BaseRuntime):
             self.spec.node_selector = node_selector
         if affinity:
             self.spec.affinity = affinity
+        if tolerations is not None:
+            self.spec.tolerations = tolerations
 
     def with_priority_class(self, name: typing.Optional[str] = None):
         """
@@ -721,6 +838,7 @@ def kube_resource_spec_to_pod_spec(
         priority_class_name=kube_resource_spec.priority_class_name
         if len(mlconf.get_valid_function_priority_class_names())
         else None,
+        tolerations=kube_resource_spec.tolerations,
     )
 
 

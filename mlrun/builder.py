@@ -97,12 +97,16 @@ def make_kaniko_pod(
     if verbose:
         args += ["--verbosity", "debug"]
 
+    resources = {
+        "requests": config.get_default_function_pod_requirement_resources("requests")
+    }
     kpod = BasePod(
         name or "mlrun-build",
         config.httpdb.builder.kaniko_image,
         args=args,
         kind="build",
         project=project,
+        resources=resources,
     )
     kpod.env = builder_env
     kpod.set_node_selector(mlrun.mlconf.get_default_function_node_selector())

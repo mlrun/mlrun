@@ -263,7 +263,7 @@ class Spark3Runtime(AbstractSparkRuntime):
             )
         if tolerations:
             raise mlrun.errors.MLRunConflictError(
-                "Tolerations can be set in spark runtime but not in with_node_selection. "
+                "Tolerations can be set in spark runtime but not in with_node_selection"
                 "Instead, use with_driver_node_selection and with_executor_node_selection to set tolerations"
             )
         super().with_node_selection(node_name, node_selector, affinity, tolerations)

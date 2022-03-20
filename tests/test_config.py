@@ -16,6 +16,7 @@ from contextlib import contextmanager
 from os import environ
 from tempfile import NamedTemporaryFile
 
+import deepdiff
 import pytest
 import requests_mock as requests_mock_package
 import yaml
@@ -25,6 +26,9 @@ from mlrun import config as mlconf
 from mlrun.db.httpdb import HTTPRunDB
 
 ns_env_key = f"{mlconf.env_prefix}NAMESPACE"
+dfpr_env_key = f"{mlconf.env_prefix}DEFAULT_FUNCTION_POD_RESOURCES__"
+request_gpu_env_key = f"{dfpr_env_key}REQUESTS__GPU"
+limits_gpu_env_key = f"{dfpr_env_key}LIMITS__GPU"
 
 
 @pytest.fixture
@@ -141,11 +145,52 @@ def test_decode_base64_config_and_load_to_dict():
         )
 
 
-def test_gpu_validation(config):
-    dfpr_env_key = f"{mlconf.env_prefix}DEFAULT_FUNCTION_POD_RESOURCES__"
-    request_gpu_env_key = f"{dfpr_env_key}REQUESTS__GPU"
-    limits_gpu_env_key = f"{dfpr_env_key}LIMITS__GPU"
+def test_get_default_function_pod_resources(config):
+    requests_gpu = "2"
+    limits_gpu = "2"
+    env = {request_gpu_env_key: requests_gpu, limits_gpu_env_key: limits_gpu}
+    expected_resources = {
+        "requests": {"cpu": None, "memory": None, "nvidia.com/gpu": requests_gpu},
+        "limits": {"cpu": None, "memory": None, "nvidia.com/gpu": limits_gpu},
+    }
+    with patch_env(env):
+        mlconf.config.reload()
+        resources = config.get_default_function_pod_resources()
+        assert (
+            deepdiff.DeepDiff(
+                resources,
+                expected_resources,
+                ignore_order=True,
+            )
+            == {}
+        )
 
+        requests_resources = config.get_default_function_pod_requirement_resources(
+            "requests"
+        )
+        assert (
+            deepdiff.DeepDiff(
+                requests_resources,
+                expected_resources["requests"],
+                ignore_order=True,
+            )
+            == {}
+        )
+
+        limits_resources = config.get_default_function_pod_requirement_resources(
+            "limits"
+        )
+        assert (
+            deepdiff.DeepDiff(
+                limits_resources,
+                expected_resources["limits"],
+                ignore_order=True,
+            )
+            == {}
+        )
+
+
+def test_gpu_validation(config):
     # when gpu requests and gpu limits are not equal
     requests_gpu = "3"
     limits_gpu = "2"

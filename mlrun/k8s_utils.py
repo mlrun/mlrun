@@ -435,6 +435,7 @@ class BasePod:
         namespace="",
         kind="job",
         project=None,
+        resources=None,
     ):
         self.namespace = namespace
         self.name = ""
@@ -454,6 +455,7 @@ class BasePod:
         }
         self._annotations = {}
         self._init_container = None
+        self.resources = resources
 
     @property
     def pod(self):
@@ -549,6 +551,7 @@ class BasePod:
             command=self.command,
             args=self.args,
             volume_mounts=self._mounts,
+            resources=self.resources,
         )
 
         pod_spec = client.V1PodSpec(

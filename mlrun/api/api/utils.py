@@ -200,7 +200,9 @@ def process_function_service_account(function):
     allowed_service_accounts = mlrun.api.crud.secrets.Secrets().get_secret(
         function.metadata.project,
         SecretProviderName.kubernetes,
-        mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key("allowed"),
+        mlrun.api.crud.secrets.Secrets().generate_client_secret_key(
+            mlrun.api.crud.secrets.SecretsClientType.service_accounts, "allowed"
+        ),
         allow_secrets_from_k8s=True,
         allow_internal_secrets=True,
     )
@@ -213,7 +215,9 @@ def process_function_service_account(function):
     default_service_account = mlrun.api.crud.secrets.Secrets().get_secret(
         function.metadata.project,
         SecretProviderName.kubernetes,
-        mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key("default"),
+        mlrun.api.crud.secrets.Secrets().generate_client_secret_key(
+            mlrun.api.crud.secrets.SecretsClientType.service_accounts, "default"
+        ),
         allow_secrets_from_k8s=True,
         allow_internal_secrets=True,
     )

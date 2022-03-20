@@ -310,10 +310,10 @@ class AbstractSparkRuntime(KubejobRuntime):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Sparkjob must contain executor requests"
             )
-        if "requests" not in self.spec.driver_resources:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Sparkjob must contain driver requests"
-            )
+        # if "requests" not in self.spec.driver_resources:
+        #     raise mlrun.errors.MLRunInvalidArgumentError(
+        #         "Sparkjob must contain driver requests"
+        #     )
 
     def _get_spark_version(self):
         raise NotImplementedError()

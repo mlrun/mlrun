@@ -562,7 +562,7 @@ class BasePod:
         )
 
         # if attribute isn't defined use default pod spec attributes
-        for key, val in self.default_pod_spec_attributes:
+        for key, val in self.default_pod_spec_attributes.items():
             if not getattr(pod_spec, key, None):
                 setattr(pod_spec, key, val)
 

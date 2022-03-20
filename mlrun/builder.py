@@ -82,7 +82,7 @@ def make_kaniko_pod(
     extra_runtime_spec = {}
     # set kaniko's spec attributes from the runtime spec
     for attribute in get_kaniko_spec_attributes_from_runtime():
-        attr_value = runtime_spec.get(attribute)
+        attr_value = getattr(runtime_spec, attribute, None)
         if attr_value:
             extra_runtime_spec[attribute] = attr_value
 
@@ -110,7 +110,7 @@ def make_kaniko_pod(
         args=args,
         kind="build",
         project=project,
-        extra_pod_spec=extra_runtime_spec,
+        default_pod_spec_attributes=extra_runtime_spec,
     )
     kpod.env = builder_env
 

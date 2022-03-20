@@ -537,7 +537,8 @@ class Config:
         resources: dict = copy.deepcopy(config.default_function_pod_resources.to_dict())
         gpu_type = "nvidia.com/gpu"
         gpu = "gpu"
-        resource_requirement = resources.get(requirement, {}).setdefault(gpu)
+        resource_requirement = resources.get(requirement, {})
+        resource_requirement.setdefault(gpu)
         resource_requirement[gpu_type] = resource_requirement.pop(gpu)
         return resource_requirement
 
@@ -720,7 +721,7 @@ def _convert_resources_to_str(config: dict = None):
         if not resource_requirement:
             continue
         for resource_type in resources_types:
-            value = resource_requirement.setdefault(resource_type, "")
+            value = resource_requirement.setdefault(resource_type, None)
             if value is None:
                 continue
             resource_requirement[resource_type] = str(value)

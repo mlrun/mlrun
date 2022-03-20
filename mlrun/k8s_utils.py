@@ -435,6 +435,7 @@ class BasePod:
         namespace="",
         kind="job",
         project=None,
+        default_pod_spec_attributes=None,
     ):
         self.namespace = namespace
         self.name = ""
@@ -454,6 +455,8 @@ class BasePod:
         }
         self._annotations = {}
         self._init_container = None
+        # will be applied on the pod spec only when calling .pod(), allows to override spec attributes
+        self.default_pod_spec_attributes = default_pod_spec_attributes
 
     @property
     def pod(self):
@@ -557,6 +560,11 @@ class BasePod:
             volumes=self._volumes,
             node_selector=self.node_selector,
         )
+
+        # if attribute isn't defined use default pod spec attributes
+        for key, val in self.default_pod_spec_attributes.items():
+            if not getattr(pod_spec, key, None):
+                setattr(pod_spec, key, val)
 
         if self._init_container:
             self._init_container.volume_mounts = self._mounts

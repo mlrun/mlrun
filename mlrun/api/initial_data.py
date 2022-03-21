@@ -19,21 +19,21 @@ from mlrun.api.db.session import close_session, create_session
 from mlrun.config import config
 from mlrun.utils import logger
 
-from .utils.db.alembic import AlembicUtil
-from .utils.db.backup import DBBackupUtil
-from .utils.db.mysql import MySQLUtil
-from .utils.db.sqlite_migration import SQLiteMigrationUtil
+import mlrun.api.utils.db.alembic
+import mlrun.api.utils.db.backup
+import mlrun.api.utils.db.mysql
+import mlrun.api.utils.db.sqlite_migration
 
 
 def init_data(
     from_scratch: bool = False, perform_migrations_if_needed: bool = False
 ) -> None:
     logger.info("Initializing DB data")
-    MySQLUtil.wait_for_db_liveness(logger)
+    mlrun.api.utils.db.mysql.MySQLUtil.wait_for_db_liveness(logger)
 
     sqlite_migration_util = None
     if not from_scratch and config.httpdb.db.database_migration_mode == "enabled":
-        sqlite_migration_util = SQLiteMigrationUtil()
+        sqlite_migration_util = mlrun.api.utils.db.sqlite_migration.SQLiteMigrationUtil()
     alembic_util = _create_alembic_util()
     (
         is_migration_needed,
@@ -43,7 +43,7 @@ def init_data(
 
     if is_backup_needed:
         logger.info("DB Backup is needed, backing up...")
-        db_backup = DBBackupUtil()
+        db_backup = mlrun.api.utils.db.backup.DBBackupUtil()
         db_backup.backup_database()
 
     if (
@@ -95,8 +95,8 @@ latest_data_version = 2
 
 
 def _resolve_needed_operations(
-    alembic_util: AlembicUtil,
-    sqlite_migration_util: typing.Optional[SQLiteMigrationUtil],
+    alembic_util: mlrun.api.utils.db.alembic.AlembicUtil,
+    sqlite_migration_util: typing.Optional[mlrun.api.utils.db.sqlite_migration.SQLiteMigrationUtil],
     force_from_scratch: bool = False,
 ) -> typing.Tuple[bool, bool, bool]:
     is_database_migration_needed = False
@@ -135,20 +135,20 @@ def _resolve_needed_operations(
     return is_migration_needed, is_migration_from_scratch, is_backup_needed
 
 
-def _create_alembic_util() -> AlembicUtil:
+def _create_alembic_util() -> mlrun.api.utils.db.alembic.AlembicUtil:
     alembic_config_file_name = "alembic.ini"
-    if MySQLUtil.get_mysql_dsn_data():
+    if mlrun.api.utils.db.mysql.MySQLUtil.get_mysql_dsn_data():
         alembic_config_file_name = "alembic_mysql.ini"
 
     # run schema migrations on existing DB or create it with alembic
     dir_path = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
     alembic_config_path = dir_path / alembic_config_file_name
 
-    alembic_util = AlembicUtil(alembic_config_path, _is_latest_data_version())
+    alembic_util = mlrun.api.utils.db.alembic.AlembicUtil(alembic_config_path, _is_latest_data_version())
     return alembic_util
 
 
-def _perform_schema_migrations(alembic_util: AlembicUtil):
+def _perform_schema_migrations(alembic_util: mlrun.api.utils.db.alembic.AlembicUtil):
     logger.info("Performing schema migration")
     alembic_util.init_alembic()
 
@@ -166,7 +166,7 @@ def _is_latest_data_version():
 
 
 def _perform_database_migration(
-    sqlite_migration_util: typing.Optional[SQLiteMigrationUtil],
+    sqlite_migration_util: typing.Optional[mlrun.api.utils.db.sqlite_migration.SQLiteMigrationUtil],
 ):
     if sqlite_migration_util:
         logger.info("Performing database migration")

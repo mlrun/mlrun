@@ -1241,16 +1241,11 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", path, error_message)
         return schemas.BackgroundTask(**response.json())
 
-    def get_background_task(
-        self,
-        name: str
-    ) -> schemas.BackgroundTask:
+    def get_background_task(self, name: str) -> schemas.BackgroundTask:
         """Retrieve updated information on a background task being executed."""
 
         path = f"background-tasks/{name}"
-        error_message = (
-            f"Failed getting background task. name={name}"
-        )
+        error_message = f"Failed getting background task. name={name}"
         response = self.api_call("GET", path, error_message)
         return schemas.BackgroundTask(**response.json())
 
@@ -2145,15 +2140,12 @@ class HTTPRunDB(RunDBInterface):
         )
 
     def _wait_for_background_task_to_reach_terminal_state(
-            self, name: str
+        self, name: str
     ) -> schemas.BackgroundTask:
         def _verify_background_task_in_terminal_state():
             background_task = self.get_background_task(name)
             state = background_task.status.state
-            if (
-                    state
-                    not in mlrun.api.schemas.BackgroundTaskState.terminal_states()
-            ):
+            if state not in mlrun.api.schemas.BackgroundTaskState.terminal_states():
                 raise Exception(
                     f"Background task not in terminal state. name={name}, state={state}"
                 )
@@ -2161,7 +2153,7 @@ class HTTPRunDB(RunDBInterface):
 
         return mlrun.utils.helpers.retry_until_successful(
             self._wait_for_background_task_terminal_state_retry_interval,
-            60*60,
+            60 * 60,
             logger,
             False,
             _verify_background_task_in_terminal_state,
@@ -2772,9 +2764,7 @@ class HTTPRunDB(RunDBInterface):
             body=dict_to_json(authorization_verification_input.dict()),
         )
 
-    def trigger_migrations(
-            self
-    ) -> Optional[schemas.BackgroundTask]:
+    def trigger_migrations(self) -> Optional[schemas.BackgroundTask]:
         """Trigger migrations (will do nothing if no migrations are needed) and wait for them to finish if actually
         triggered
         :returns: :py:class:`~mlrun.api.schemas.BackgroundTask`.
@@ -2786,7 +2776,9 @@ class HTTPRunDB(RunDBInterface):
         )
         if response.status_code == http.HTTPStatus.ACCEPTED:
             background_task = schemas.BackgroundTask(**response.json())
-            return self._wait_for_background_task_to_reach_terminal_state(background_task.metadata.name)
+            return self._wait_for_background_task_to_reach_terminal_state(
+                background_task.metadata.name
+            )
         return None
 
 

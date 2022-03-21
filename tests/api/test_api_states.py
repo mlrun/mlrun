@@ -45,34 +45,21 @@ def test_migrations_states(
         assert expected_message in response.text
 
 
-def test_init_data_migration_required_recognition() -> None:
-    original_sqlite_migration_util = mlrun.api.utils.db.sqlite_migration.SQLiteMigrationUtil
+def test_init_data_migration_required_recognition(monkeypatch) -> None:
     sqlite_migration_util_mock = unittest.mock.Mock()
-    mlrun.api.utils.db.sqlite_migration.SQLiteMigrationUtil = sqlite_migration_util_mock
-
-    original_alembic_util = mlrun.api.utils.db.alembic.AlembicUtil
+    monkeypatch.setattr(mlrun.api.utils.db.sqlite_migration, "SQLiteMigrationUtil", sqlite_migration_util_mock)
     alembic_util_mock = unittest.mock.Mock()
-    mlrun.api.utils.db.alembic.AlembicUtil = alembic_util_mock
-
-    original_is_latest_data_version = mlrun.api.initial_data._is_latest_data_version
+    monkeypatch.setattr(mlrun.api.utils.db.alembic, "AlembicUtil", alembic_util_mock)
     is_latest_data_version_mock = unittest.mock.Mock()
-    mlrun.api.initial_data._is_latest_data_version = is_latest_data_version_mock
-
-    original_db_backup_util = mlrun.api.utils.db.backup.DBBackupUtil
+    monkeypatch.setattr(mlrun.api.initial_data, "_is_latest_data_version", is_latest_data_version_mock)
     db_backup_util_mock = unittest.mock.Mock()
-    mlrun.api.utils.db.backup.DBBackupUtil = db_backup_util_mock
-
-    original_perform_schema_migrations = mlrun.api.initial_data._perform_schema_migrations
+    monkeypatch.setattr(mlrun.api.utils.db.backup, "DBBackupUtil", db_backup_util_mock)
     perform_schema_migrations_mock = unittest.mock.Mock()
-    mlrun.api.initial_data._perform_schema_migrations = perform_schema_migrations_mock
-
-    original_perform_database_migration = mlrun.api.initial_data._perform_database_migration
+    monkeypatch.setattr(mlrun.api.initial_data, "_perform_schema_migrations", perform_schema_migrations_mock)
     perform_database_migration_mock = unittest.mock.Mock()
-    mlrun.api.initial_data._perform_database_migration = perform_database_migration_mock
-
-    original_perform_data_migrations = mlrun.api.initial_data._perform_data_migrations
+    monkeypatch.setattr(mlrun.api.initial_data, "_perform_database_migration", perform_database_migration_mock)
     perform_data_migrations_mock = unittest.mock.Mock()
-    mlrun.api.initial_data._perform_data_migrations = perform_data_migrations_mock
+    monkeypatch.setattr(mlrun.api.initial_data, "_perform_data_migrations", perform_data_migrations_mock)
 
     for case in [
         # All 4 schema and data combinations with database and not from scratch
@@ -162,12 +149,3 @@ def test_init_data_migration_required_recognition() -> None:
         assert perform_schema_migrations_mock.call_count == 0, failure_message
         assert perform_database_migration_mock.call_count == 0, failure_message
         assert perform_data_migrations_mock.call_count == 0, failure_message
-
-
-    mlrun.api.utils.db.alembic.AlembicUtil = original_alembic_util
-    mlrun.api.utils.db.sqlite_migration.SQLiteMigrationUtil = original_sqlite_migration_util
-    mlrun.api.initial_data._is_latest_data_version = original_is_latest_data_version
-    mlrun.api.utils.db.backup.DBBackupUtil = original_db_backup_util
-    mlrun.api.initial_data._perform_schema_migrations = original_perform_schema_migrations
-    mlrun.api.initial_data._perform_database_migrations = original_perform_database_migration
-    mlrun.api.initial_data._perform_data_migrations = original_perform_data_migrations

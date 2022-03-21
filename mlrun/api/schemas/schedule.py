@@ -11,7 +11,7 @@ from mlrun.api.schemas.object import LabelRecord
 class ScheduleCronTrigger(BaseModel):
     """
     See this link for help
-    https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
+    https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
     """
 
     year: Optional[Union[int, str]]

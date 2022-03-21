@@ -1,8 +1,14 @@
 # Retrieve offline data and use it for training
 
+**Contents**
+- [Creating an offline dataset](#creating-an-offline-dataset)
+_ [Training](#training)
+
 ## Creating an offline dataset
 
-An "offline" dataset is a specific instance of the feature vector definition.  To create this instance, use the feature store's `get_offline_features(<feature_vector>, <target>)` function on the feature vector using the `store://<project_name>/<feature_vector>` reference and an offline target (as in Parquet, CSV, etc.).
+An offline dataset is a specific instance of the feature vector definition. To create this instance, use the feature store's 
+`get_offline_features(<feature_vector>, <target>)` function on the feature vector using the `store://<project_name>/<feature_vector>` 
+reference and an offline target (as in Parquet, CSV, etc.).
 
 <br><img src="../_static/images/mlrun-feature-vector-ui.png" alt="feature-store-vector-ui" width="800"/><br>
 
@@ -25,14 +31,14 @@ You can also use MLRun's `log_dataset()` to log the specific dataset to the proj
 
 Training your model using the feature store is a fairly simple task. (The offline dataset can also be used for your EDA.)
 
-To retrieve a feature vector's offline dataset, use the MLRun's DataItem mechanism, referencing the feature vector and 
+To retrieve a feature vector's offline dataset, use MLRun's data item mechanism, referencing the feature vector and 
 specifying to receive it as a DataFrame.
 
 ```python
 df = mlrun.get_dataitem(f'store://feature-vectors/{project}/patient-deterioration').as_df()
 ```
 
-When trying to retrieve the dataset in your training function, you can simply put the feature vector reference as an input to 
+When trying to retrieve the dataset in your training function, you can put the feature vector reference as an input to 
 the function and use the `as_df()` function to retrieve it automatically.
 
 ```python
@@ -50,12 +56,12 @@ def my_training_function(context, # MLRun context
 And now you can create the MLRun function and run it locally or over the kubernetes cluster:
 
 ```python
-# Creating the training MLRun function with our code
+# Creating the training MLRun function with the code
 fn = mlrun.code_to_function('training', 
                             kind='job',
                             handler='my_training_function')
 
-# Creating the task to run our function with our dataset
+# Creating the task to run the function with its dataset
 task = mlrun.new_task('training', 
                       inputs={'dataset': f'store://feature-vectors/{project}/{feature_vector_name}'}) # The feature vector is given as an input to the function
 

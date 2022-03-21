@@ -47,7 +47,7 @@ Table Of Contents
    :caption: MLRun basics
 
    architecture
-   MLOps-development-flow
+   mlops-dev-flow
    quick-start
    tutorial/index
       Add MLRun to existing code

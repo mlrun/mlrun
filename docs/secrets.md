@@ -22,8 +22,7 @@ such as hyper-parameters. They can also be used to pass details about secrets th
 runtime.
 
 To pass secret parameters, use the Task's {py:func}`~mlrun.model.RunTemplate.with_secrets()` function. For example, the following command 
-passes secrets provided by a kubernetes secret to the execution context (see next sections for a discussion of secret
-providers):
+passes secrets provided by a kubernetes secret to the execution context:
 
 ```{code-block} python
 :emphasize-lines: 8-8
@@ -69,7 +68,7 @@ As mentioned, MLRun provides the user with several secret providers. Each of tho
 has different traits with respect to what secrets can be passed and how they're handled. It's important to understand 
 these parameters to make sure secrets are not compromised and that their secrecy is maintained.
 
-Generally speaking, the [Inline](#inline), [Env](#environment) and [File](#file) providers do not guarantee 
+Generally speaking, the [Inline](#inline), [environment](#environment) and [file](#file) providers do not guarantee 
 confidentiality of the secret values handled by them, and should only be used for development and demo purposes. 
 The [Kubernetes](#kubernetes) and [Azure Vault](#azure-vault) providers are secure and should be used for any 
 other use-case.

@@ -1,7 +1,7 @@
 (datastore)=
 # Data stores
 
-*Contents***
+**Contents***
 - [Shared data stores](#shared-data-stores)
 - [Storage credentials and parameters](#storage-credentials-and-parameters)
    - [v3io](#v3io)

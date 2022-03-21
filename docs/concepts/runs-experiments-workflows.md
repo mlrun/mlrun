@@ -31,8 +31,4 @@ time-series metrics in the context.
 ## Auto logging & MLOps 
 
 
-```{toctree}
-:maxdepth: 2
-  
-../runtimes/distributed
-```
+## Multi-stage workflows

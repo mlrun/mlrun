@@ -30,16 +30,7 @@ Functions can scale-out across multiple containers. Read more in [**Distributed 
 
 ## Distributed function runtimes
 
-Many of the runtimes support horizontal scaling. You can specify the number of `replicas` or the 
-min&ndash;max value range (for auto scaling in Dask or Nuclio). When scaling functions, MLRun uses a high speed
-messaging protocol and shared storage (volumes, objects, databases, or streams). MLRun runtimes
-handle the orchestration and monitoring of the distributed task.
 
-<img src="../_static/images/runtime-scaling.png" alt="runtime-scaling" width="600"/><br>
-
-MLRun also supports iterative tasks for automatic and distributed execution of many tasks with variable parameters (hyper-params).
- The iterative tasks can be distributed across multiple containers, and support hyper-parameter training, AutoML, and other parallel tasks.
- See [Hyper-Param and Iterative jobs](../hyper-params.ipynb).
 
 ## Nuclio real-time functions
 

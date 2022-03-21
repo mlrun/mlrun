@@ -1,6 +1,5 @@
 # Deployment and monitoring
 
-  
 ## Real-time Pipelines
 
 MLRun serving graphs allow to easily build real-time pipelines that include data processing, advanced model serving, custom logic, and fast access to a variety of data systems, and deploy them quickly to production with minimal effort.

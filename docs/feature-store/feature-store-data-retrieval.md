@@ -1,8 +1,8 @@
 # Feature Store:  Data retrieval
+Learn how to retrieve data with the feature store, and use it.
 
 
-
-
+**Contents**
 ```{toctree}
 :maxdepth: 1
 

@@ -7,17 +7,17 @@ when simulating data flow for inferring its metadata. This graph utilizes MLRun'
 
 The graph contains steps that represent data sources and targets, and may also contain steps whose
 purpose is transformations and enrichment of the data passed through the feature set. These transformations
-can be provided in one of 3 ways:
+can be provided in one of three ways:
 
-* [**Aggregations**](#aggregations) - MLRun supports adding aggregate features to a feature set through the 
+* [**Aggregations**](#aggregations) &mdash; MLRun supports adding aggregate features to a feature set through the 
   {py:func}`~mlrun.feature_store.FeatureSet.add_aggregation` function.
 
-* [**Built-in transformations**](#built-in-transformations) - MLRun is equipped with a set of transformations 
+* [**Built-in transformations**](#built-in-transformations) &mdash; MLRun is equipped with a set of transformations 
   provided through the {py:mod}`storey.transformations` package. These transformations can be added to the 
   execution graph to perform common operations and transformations.
   
-* [**Custom transformations**](#custom-transformations) - It is possible to extend the built-in functionality by 
-  adding new classes which perform any custom operation and using them in the serving graph.
+* [**Custom transformations**](#custom-transformations) &mdash; You can extend the built-in functionality by 
+  adding new classes that perform any custom operation and use them in the serving graph.
 
 Once a feature-set is created, its internal execution graph can be observed by calling the feature-set's 
 {py:func}`~mlrun.feature_store.FeatureSet.plot` function, which generates a `graphviz` plot based on the internal
@@ -33,7 +33,7 @@ UI, where the full graph can be seen and specific step properties can be observe
 <br><img src="../_static/images/mlrun-ui-feature-set-graph.png" alt="ui-feature-set-graph" width="800"/><br>
 
 For a full end-to-end example of feature-store and usage of the functionality described in this page, refer
-to the [feature store example](./feature-store-demo.ipynb).
+to the [feature store example](./basic-demo).
 
 ## Aggregations
 
@@ -43,9 +43,8 @@ feature-set that is created by performing some aggregate function over feature's
 sliding window.
 
 For example, if a feature-set contains stock trading data including the specific bid price for each bid at any
-given time, the user may wish to introduce aggregate features which show the minimal and maximal bidding price over all 
-the bids in the last hour, per stock ticker (which is the entity in question). To perform that, the following code
-can be used:
+given time, you could introduce aggregate features that show the minimal and maximal bidding price over all 
+the bids in the last hour, per stock ticker (which is the entity in question). To do that, use the code:
 
 ```python
 import mlrun.feature_store as fstore
@@ -93,7 +92,7 @@ list of existing functions). The transformations are also accessible directly fr
 ```{admonition} Note
 Internally, MLRun makes use of functions defined in the `storey` package for various purposes. When creating a 
 feature-set and configuring it with sources and targets, what MLRun does behind the scenes is to add steps to the 
-execution graph that wraps methods and classes which perform the actions. When defining an async execution graph,
+execution graph that wraps methods and classes, which perform the actions. When defining an async execution graph,
 `storey` classes are used. For example, when defining a Parquet data-target in MLRun, a graph step is created that 
 wraps storey's {py:func}`~storey.writers.WriteToParquet` function.
 ```
@@ -142,6 +141,6 @@ quotes_set.graph.add_step("MyMap", "multi", after="filter", multiplier=3)
 ```
 
 This uses the `add_step` function of the graph to add a step called `multi` utilizing `MyMap` after the `filter` step 
-that was added previously. The class will be initialized with a multiplier of 3.
+that was added previously. The class is initialized with a multiplier of 3.
 
 

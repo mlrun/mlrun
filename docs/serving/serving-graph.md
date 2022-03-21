@@ -2,13 +2,14 @@
 
 # Real-time serving pipelines (graphs)
 
-MLRun Graphs enable building and running DAGs (directed acyclic graph). Graphs are composed of individual steps. 
+MLRun graphs enable building and running DAGs (directed acyclic graph). Graphs are composed of individual steps. 
 The first graph element accepts an `Event` object, transform/process the event and pass the result to the next steps
 in the graph. The final result can be written out to some destination (file, DB, stream, etc.) or returned back to the caller
 (one of the graph steps can be marked with `.respond()`). 
 
-The serving graphs can be composed of [pre-defined graph steps](./available-steps.md), block-type elements (model servers, routers, ensembles, data readers and writers, data engineering tasks, validators, etc.), [custom steps](./writing-custom-steps.ipynb), or from native python classes/functions. Graphs can auto-scale and span multiple function 
-containers (connected through streaming protocols).
+The serving graphs can be composed of [pre-defined graph steps](./available-steps.md), block-type elements (model servers, routers, ensembles, 
+data readers and writers, data engineering tasks, validators, etc.), [custom steps](./writing-custom-steps.ipynb), or from native python 
+classes/functions. Graphs can auto-scale and span multiple function containers (connected through streaming protocols).
 
 ![serving graph high level](../_static/images/serving-graph-high-level.png)
   
@@ -28,7 +29,6 @@ and other MLRun facilities.
 getting-started
 use-cases
 realtime-pipelines
-build-graph-model-serving
 writing-custom-steps
 available-steps
 best-practice

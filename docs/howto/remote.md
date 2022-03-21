@@ -20,7 +20,7 @@ Before you begin, ensure that the following prerequisites are met:
 
 1. Install MLRun locally.
 
-    You need to install MLRun locally and make sure the that the MLRun version you install is the same as the MLRun service version. Install a specific version using the following command; replace the `<version>`  placeholder with the MLRun version number (e.g., `0.5.4`):
+    You need to install MLRun locally and make sure the that the MLRun version you install is the same as the MLRun service version. Install a specific version using the following command; replace the `<version>`  placeholder with the MLRun version number (e.g., `1.0.0`):
  
     ```sh
     pip install mlrun==<version>
@@ -46,7 +46,7 @@ Set environment variables to define your MLRun configuration. As a minimum requi
     MLRUN_DBPATH=<API endpoint of the MLRun APIs service endpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
     ```
     
-2. In order to store the artifacts on the remote server, you need to set the `MLRUN_ARTIFACT_PATH` to the desired root folder of your artifact. You can use `{{project}}` to include the project name in the path `{{run.uid}}` to include the specific run uid in the artifact path. For example:
+2. To store the artifacts on the remote server, you need to set the `MLRUN_ARTIFACT_PATH` to the desired root folder of your artifact. You can use `{{project}}` to include the project name in the path `{{run.uid}}` to include the specific run uid in the artifact path. For example:
 
     ```ini
     MLRUN_ARTIFACT_PATH=/User/artifacts/{{project}}
@@ -117,7 +117,7 @@ To generate a `launch.json` file with Python configurations, do the following st
 
 1. Click the **create a launch.json file** link (circled in the image above) or use the **Run** > **Open configurations** menu command.
 
-2. A configuration menu will open from the Command Palette allowing you to choose the type of debug configuration you want for the opened file. For now, in the **Select a debug configuration** menu that appears, select **Python File**.
+2. A configuration menu opens from the Command Palette. Select the type of debug configuration you want for the opened file. For now, in the **Select a debug configuration** menu that appears, select **Python File**.
 ![Debug configurations menu](../_static/images/vscode/debug-configurations.png)
 
    > **Note** Starting a debugging session through the Debug Panel, **F5** or **Run > Start Debugging**, when no configuration exists will also bring up the debug configuration menu, but will not create a launch.json file.

@@ -2,7 +2,7 @@
 
 The feature store supports using Spark for ingesting, transforming and writing results to data targets. When 
 using Spark, the internal execution graph is executed synchronously, by utilizing a Spark session to perform read and
-write operations, as well as potential transformations on the data. Note that executing synchronously means that the 
+write operations, as well as potential transformations on the data. Executing synchronously means that the 
 source data is fully read into a data-frame that is processed, writing the output to the targets defined.
 
 
@@ -65,7 +65,7 @@ fstore.ingest(feature_set, source, spark_context=spark)
 
 When using remote execution the MLRun run execution details are returned, allowing tracking of its status and results.
 
-The following code should be executed only once to build the remote spark image before running the first ingest
+The following code should be executed only once to build the remote spark image before running the first ingest.
 It may take a few minutes to prepare the image.
 
 ```python
@@ -169,20 +169,20 @@ feature set to S3 in the parquet format in a remote k8s job:
 
 One-time setup:
 1. Deploy the default image for your job (this takes several minutes but should be executed only once per cluster for any MLRun/Iguazio upgrade):
-```python
-from mlrun.runtimes import RemoteSparkRuntime
-RemoteSparkRuntime.deploy_default_image()
-```
+   ```python
+   from mlrun.runtimes import RemoteSparkRuntime
+   RemoteSparkRuntime.deploy_default_image()
+   ```
 2. Store your S3 credentials in a k8s [secret](../secrets.md):
-```python
-import mlrun
-secrets = {'s3_access_key': AWS_ACCESS_KEY, 's3_secret_key': AWS_SECRET_KEY}
-mlrun.get_run_db().create_project_secrets(
-    project = "uhuh-proj",
-    provider=mlrun.api.schemas.SecretProviderName.kubernetes,
-    secrets=secrets
-)
-```
+   ```python
+   import mlrun
+   secrets = {'s3_access_key': AWS_ACCESS_KEY, 's3_secret_key': AWS_SECRET_KEY}
+   mlrun.get_run_db().create_project_secrets(
+       project = "uhuh-proj",
+       provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+       secrets=secrets
+   )
+   ```
 
 Ingestion job code (to be executed in the remote pod):
 ```python

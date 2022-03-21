@@ -23,8 +23,8 @@ fv = svc.get([{<key name>: <key value>}])
 
 ## Incorporating to the serving model
 
-MLRun enables you to easily serve your models using the [model server](../serving/serving-graph.md). ( See an [example](https://github.com/mlrun/functions/blob/master/v2_model_server/v2_model_server.ipynb)).
-It enables you to define a serving model class and the computational graph required to run your entire prediction pipeline and deploy it as a serverless function using [nuclio](https://github.com/nuclio/nuclio).
+You can serve your models using the [model server](../serving/serving-graph.md). ( See an [example](https://github.com/mlrun/functions/blob/master/v2_model_server/v2_model_server.ipynb)).
+You define a serving model class and the computational graph required to run your entire prediction pipeline and deploy it as a serverless function using [nuclio](https://github.com/nuclio/nuclio).
 
 To embed the online feature service in your model server, all you need to do is create the feature vector service once when the model initializes, and then use it to retrieve the feature vectors of incoming keys.
 

@@ -1,10 +1,10 @@
 # Creating and using feature vectors
 
 In MLRun, you can define a group of features from different feature sets as a {py:class}`~mlrun.feature_store.FeatureVector`.  
-Feature Vectors are used as an input for models, allowing you to define the feature vector once and in turn create and track the datasets created from it or the online manifestation of the vector for real-time prediction needs.
+Feature vectors are used as an input for models, allowing you to define the feature vector once, and in turn create and track the datasets created from it or the online manifestation of the vector for real-time prediction needs.
 
 The feature vector handles all the merging logic for you using an `asof merge` type merge that accounts for both the time and the entity.
-It ensures that all the latest relevant data is fetched, and without concerns about "seeing the future" or other types of common time related errors.
+It ensures that all the latest relevant data is fetched, without concerns about "seeing the future" or other types of common time related errors.
 
 **Contents**
 
@@ -17,11 +17,11 @@ It ensures that all the latest relevant data is fetched, and without concerns ab
 
 The feature vector object holds the following information:
 
-- **Name**: the feature vector's name as will be later addressed in the store reference `store://feature_vectors/<project>/<feature-vector-name>` and the UI (after saving the vector).
-- **Description**: a string description of the feature vector.
-- **Features**: a list of features that comprise the feature vector.  
+- Name &mdash; the feature vector's name as will be later addressed in the store reference `store://feature_vectors/<project>/<feature-vector-name>` and the UI (after saving the vector).
+- Description &mdash; a string description of the feature vector.
+- Features &mdash; a list of features that comprise the feature vector.  
 The feature list is defined by specifying the `<feature-set>.<feature-name>` for specific features or `<feature-set>.*` for all the feature set's features.
-- **Label feature**: the feature that is the label for this specific feature vector, as a `<feature-set>.<feature-name>` string specification.
+- Label feature &mdash; the feature that is the label for this specific feature vector, as a `<feature-set>.<feature-name>` string specification.
 
 Example of creating a feature vector:
 
@@ -82,10 +82,10 @@ Optional.
 - **start_time** &mdash;  datetime, low limit of time needed to be filtered. Optional.
 - **end_time** &mdash;  datetime, high limit of time needed to be filtered. Optional.
 
-Here is an example of a new dataset from a parquet target:
+Here's an example of a new dataset from a parquet target:
 
 ```python
-# Import the Parquet Target, so we can build our dataset from a parquet file
+# Import the Parquet Target, so you can build your dataset from a parquet file
 from mlrun.datastore.targets import ParquetTarget
 
 # Get offline feature vector based on vector and parquet target
@@ -102,7 +102,7 @@ For example:
 ```python
 fn = mlrun.import_function('hub://sklearn-classifier').apply(auto_mount())
 
-# Define the training task, including our feature vector and label
+# Define the training task, including the feature vector and label
 task = mlrun.new_task('training', 
                       inputs={'dataset': f'store://feature-vectors/{project}/{feature_vector_name}'},
                       params={'label_column': 'label'}
@@ -112,7 +112,7 @@ task = mlrun.new_task('training',
 run = fn.run(task)
 ```
 
-You can see a full example of using the offline feature vector to create an ML model in [part 2 of our end-to-end demo](./end-to-end-demo/02-create-training-model.ipynb).
+You can see a full example of using the offline feature vector to create an ML model in [part 2 of the end-to-end demo](./end-to-end-demo/02-create-training-model.ipynb).
 
 ### Creating an online feature vector
 
@@ -132,7 +132,7 @@ svc = fstore.get_online_feature_service(feature_vector)
 
 The online feature service supports value imputing (substitute NaN/Inf values with statistical or constant value). You 
 can set the `impute_policy` parameter with the imputing policy, and specify which constant or statistical value will be used
-instead of NaN/Inf value. Tthis can be defined per column or for all the columns (`"*"`).
+instead of NaN/Inf value. This can be defined per column or for all the columns (`"*"`).
 The replaced value can be a fixed number for constants or $mean, $max, $min, $std, $count for statistical values.
 "*" is used to specify the default for all features, fot example: 
 
@@ -152,7 +152,7 @@ entities = [{<feature-vector-entity-column-name>: <entity>}]
 svc.get(entities)
 ```
 
-The `entities` can be a list of dictionaries as shown in the example, or a list of list where the values in the internal 
+The `entities` can be a list of dictionaries as shown in the example, or a list of lists where the values in the internal 
 list correspond to the entity values (e.g. `entities = [["Joe"], ["Mike"]]`). The `.get()` method returns a dict by default
 . If you want to return an ordered list of values, set the `as_list` parameter to `True`. The list input is required by many ML 
 frameworks and this eliminates additional glue logic.  

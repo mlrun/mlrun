@@ -75,12 +75,57 @@ def test_init_data_migration_required_recognition() -> None:
     mlrun.api.initial_data._perform_data_migrations = perform_data_migrations_mock
 
     for case in [
+        # All 4 schema and data combinations with database and not from scratch
         {
             "database_migration": True,
             "schema_migration": False,
             "data_migration": False,
             "from_scratch": False,
         },
+        {
+            "database_migration": True,
+            "schema_migration": True,
+            "data_migration": False,
+            "from_scratch": False,
+        },
+        {
+            "database_migration": True,
+            "schema_migration": True,
+            "data_migration": True,
+            "from_scratch": False,
+        },
+        {
+            "database_migration": True,
+            "schema_migration": False,
+            "data_migration": True,
+            "from_scratch": False,
+        },
+        # All 4 schema and data combinations with database and from scratch
+        {
+            "database_migration": True,
+            "schema_migration": False,
+            "data_migration": False,
+            "from_scratch": True,
+        },
+        {
+            "database_migration": True,
+            "schema_migration": True,
+            "data_migration": False,
+            "from_scratch": True,
+        },
+        {
+            "database_migration": True,
+            "schema_migration": True,
+            "data_migration": True,
+            "from_scratch": True,
+        },
+        {
+            "database_migration": True,
+            "schema_migration": False,
+            "data_migration": True,
+            "from_scratch": True,
+        },
+        # No database, not from scratch, at least of schema and data 3 combinations
         {
             "database_migration": False,
             "schema_migration": True,
@@ -99,30 +144,7 @@ def test_init_data_migration_required_recognition() -> None:
             "data_migration": True,
             "from_scratch": False,
         },
-        {
-            "database_migration": True,
-            "schema_migration": False,
-            "data_migration": False,
-            "from_scratch": True,
-        },
-        {
-            "database_migration": True,
-            "schema_migration": True,
-            "data_migration": False,
-            "from_scratch": True,
-        },
-        {
-            "database_migration": True,
-            "schema_migration": True,
-            "data_migration": True,
-            "from_scratch": True,
-        },
-        {
-            "database_migration": True,
-            "schema_migration": False,
-            "data_migration": True,
-            "from_scratch": True,
-        },
+
     ]:
         sqlite_migration_util_mock.return_value.is_database_migration_needed.return_value = case.get("database_migration", False)
         alembic_util_mock.return_value.is_migration_from_scratch.return_value = case.get("from_scratch", False)

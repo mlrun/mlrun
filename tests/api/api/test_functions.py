@@ -59,22 +59,15 @@ async def test_multiple_store_function_race_condition(
     """
     This is testing the case that the retry_on_conflict decorator is coming to solve, see its docstring for more details
     """
-    project = {
-        "metadata": {
-            "name": "project-name",
-        }
-    }
-    response = await async_client.post(
-        "projects",
-        json=project,
-    )
+    project = {"metadata": {"name": "project-name"}}
+    response = await async_client.post("projects", json=project,)
     assert response.status_code == HTTPStatus.CREATED.value
     # Make the get function method to return None on the first two calls, and then use the original function
     get_function_mock = tests.conftest.MockSpecificCalls(
         mlrun.api.utils.singletons.db.get_db()._get_class_instance_by_uid, [1, 2], None
     ).mock_function
-    mlrun.api.utils.singletons.db.get_db()._get_class_instance_by_uid = (
-        unittest.mock.Mock(side_effect=get_function_mock)
+    mlrun.api.utils.singletons.db.get_db()._get_class_instance_by_uid = unittest.mock.Mock(
+        side_effect=get_function_mock
     )
     function = {
         "kind": "job",
@@ -97,10 +90,7 @@ async def test_multiple_store_function_race_condition(
             json=function,
         )
     )
-    response1, response2 = await asyncio.gather(
-        request1_task,
-        request2_task,
-    )
+    response1, response2 = await asyncio.gather(request1_task, request2_task,)
 
     assert response1.status_code == HTTPStatus.OK.value
     assert response2.status_code == HTTPStatus.OK.value

@@ -151,9 +151,7 @@ class TestDask(TestMLRunSystem):
 
     def _wait_for_dask_cluster_to_shutdown(self, dask_cluster_name):
         runtime_resources = mlrun.get_run_db().list_runtime_resources(
-            project=self.project_name,
-            kind="dask",
-            object_id=dask_cluster_name,
+            project=self.project_name, kind="dask", object_id=dask_cluster_name,
         )
         resources = runtime_resources[0].resources
         # Waiting for workers to be removed and scheduler status to completed

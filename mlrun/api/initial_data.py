@@ -28,6 +28,7 @@ from .utils.db.sqlite_migration import SQLiteMigrationUtil
 def init_data(
     from_scratch: bool = False, perform_migrations_if_needed: bool = False
 ) -> None:
+    logger.info("Initializing DB data")
     MySQLUtil.wait_for_db_liveness(logger)
 
     sqlite_migration_util = None

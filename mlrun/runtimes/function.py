@@ -771,7 +771,7 @@ class RemoteRuntime(KubeResource):
 
         reference = split_source[1]
         if reference.startswith("refs/"):
-            return split_source, reference, ""
+            return split_source[0], reference, ""
 
         return split_source[0], "", reference
 

@@ -13,16 +13,15 @@ import mlrun.api.db.sqldb.db
 import mlrun.api.db.sqldb.helpers
 import mlrun.api.db.sqldb.models
 import mlrun.api.schemas
+import mlrun.api.utils.db.alembic
+import mlrun.api.utils.db.backup
+import mlrun.api.utils.db.mysql
+import mlrun.api.utils.db.sqlite_migration
 import mlrun.artifacts
 from mlrun.api.db.init_db import init_db
 from mlrun.api.db.session import close_session, create_session
 from mlrun.config import config
 from mlrun.utils import logger
-
-import mlrun.api.utils.db.alembic
-import mlrun.api.utils.db.backup
-import mlrun.api.utils.db.mysql
-import mlrun.api.utils.db.sqlite_migration
 
 
 def init_data(
@@ -33,7 +32,9 @@ def init_data(
 
     sqlite_migration_util = None
     if not from_scratch and config.httpdb.db.database_migration_mode == "enabled":
-        sqlite_migration_util = mlrun.api.utils.db.sqlite_migration.SQLiteMigrationUtil()
+        sqlite_migration_util = (
+            mlrun.api.utils.db.sqlite_migration.SQLiteMigrationUtil()
+        )
     alembic_util = _create_alembic_util()
     (
         is_migration_needed,
@@ -96,7 +97,9 @@ latest_data_version = 2
 
 def _resolve_needed_operations(
     alembic_util: mlrun.api.utils.db.alembic.AlembicUtil,
-    sqlite_migration_util: typing.Optional[mlrun.api.utils.db.sqlite_migration.SQLiteMigrationUtil],
+    sqlite_migration_util: typing.Optional[
+        mlrun.api.utils.db.sqlite_migration.SQLiteMigrationUtil
+    ],
     force_from_scratch: bool = False,
 ) -> typing.Tuple[bool, bool, bool]:
     is_database_migration_needed = False
@@ -146,7 +149,9 @@ def _create_alembic_util() -> mlrun.api.utils.db.alembic.AlembicUtil:
     dir_path = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
     alembic_config_path = dir_path / alembic_config_file_name
 
-    alembic_util = mlrun.api.utils.db.alembic.AlembicUtil(alembic_config_path, _is_latest_data_version())
+    alembic_util = mlrun.api.utils.db.alembic.AlembicUtil(
+        alembic_config_path, _is_latest_data_version()
+    )
     return alembic_util
 
 
@@ -168,7 +173,9 @@ def _is_latest_data_version():
 
 
 def _perform_database_migration(
-    sqlite_migration_util: typing.Optional[mlrun.api.utils.db.sqlite_migration.SQLiteMigrationUtil],
+    sqlite_migration_util: typing.Optional[
+        mlrun.api.utils.db.sqlite_migration.SQLiteMigrationUtil
+    ],
 ):
     if sqlite_migration_util:
         logger.info("Performing database migration")

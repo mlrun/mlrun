@@ -239,7 +239,9 @@ def _cleanup_runtimes():
 def main():
     init_data()
     logger.info(
-        "Starting API server", port=config.httpdb.port, debug=config.httpdb.debug,
+        "Starting API server",
+        port=config.httpdb.port,
+        debug=config.httpdb.debug,
     )
     uvicorn.run(
         "mlrun.api.main:app",

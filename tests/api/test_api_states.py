@@ -40,6 +40,9 @@ def test_migrations_states(
         response = client.get("projects/some-project/background-tasks/some-task")
         assert response.status_code == http.HTTPStatus.OK.value
 
+        response = client.get("client-spec")
+        assert response.status_code == http.HTTPStatus.OK.value
+
         response = client.get("projects")
         assert response.status_code == http.HTTPStatus.PRECONDITION_FAILED.value
         assert expected_message in response.text

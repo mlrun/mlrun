@@ -276,13 +276,15 @@ class RemoteRuntime(KubeResource):
     def with_source_archive(
         self,
         source,
-        handler="",
+        handler=None,
+        workdir=None,
         runtime="",
-        secrets=None,
+        secrets=None,  # todo: remove and use project secrets
     ):
         """Load nuclio function from remote source
         :param source: a full path to the nuclio function source (code entry) to load the function from
         :param handler: a path to the function's handler, including path inside archive/git repo
+        :param workdir: working dir  relative to the archive root (e.g. 'subdir')
         :param runtime: (optional) the runtime of the function (defaults to python:3.7)
         :param secrets: a dictionary of secrets to be used to fetch the function from the source.
                (can also be passed using env vars). options:
@@ -296,11 +298,13 @@ class RemoteRuntime(KubeResource):
         Examples::
             git:
                 ("git://github.com/org/repo#my-branch",
-                 handler="path/inside/repo#main:handler",
+                 handler="main:handler",
+                 workdir="path/inside/repo",
                  secrets={"GIT_PASSWORD": "my-access-token"})
             s3:
                 ("s3://my-bucket/path/in/bucket/my-functions-archive",
-                 handler="path/inside/functions/archive#main:Handler",
+                 handler="main:Handler",
+                 workdir="path/inside/functions/archive",
                  runtime="golang",
                  secrets={"AWS_ACCESS_KEY_ID": "some-id", "AWS_SECRET_ACCESS_KEY": "some-secret"})
         """
@@ -314,6 +318,7 @@ class RemoteRuntime(KubeResource):
 
         # resolve work_dir and handler
         work_dir, handler = self._resolve_work_dir_and_handler(handler)
+        work_dir = workdir or work_dir
         if work_dir != "":
             code_entry_attributes["workDir"] = work_dir
 
@@ -361,9 +366,11 @@ class RemoteRuntime(KubeResource):
             if source.startswith("git://"):
                 source = source.replace("git://", "https://")
 
-            source, reference = self._resolve_git_reference_from_source(source)
+            source, reference, branch = self._resolve_git_reference_from_source(source)
             if reference:
                 code_entry_attributes["reference"] = reference
+            if branch:
+                code_entry_attributes["branch"] = branch
 
             code_entry_attributes["username"] = secrets.get("GIT_USERNAME", "")
             code_entry_attributes["password"] = secrets.get(
@@ -760,13 +767,13 @@ class RemoteRuntime(KubeResource):
 
         # no reference was passed
         if len(split_source) != 2:
-            return source, ""
+            return source, "", ""
 
         reference = split_source[1]
-        if reference.startswith("refs"):
-            return split_source, reference
+        if reference.startswith("refs/"):
+            return split_source, reference, ""
 
-        return split_source[0], f"refs/heads/{reference}"
+        return split_source[0], "", reference
 
     def _resolve_work_dir_and_handler(self, handler):
         """
@@ -776,14 +783,14 @@ class RemoteRuntime(KubeResource):
 
         Example: ("a/b/c#main:Handler") -> ("a/b/c", "main:Handler")
         """
-        if handler == "":
+        if not handler:
             return "", self.spec.function_handler or "main:handler"
 
         split_handler = handler.split("#")
         if len(split_handler) == 1:
             return "", handler
 
-        return "/".join(split_handler[:-1]), split_handler[-1]
+        return split_handler[0], split_handler[1] or "main:handler"
 
     @staticmethod
     def _resolve_code_entry_type(source):

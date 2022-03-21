@@ -738,7 +738,40 @@ class TestNuclioRuntime(TestRuntimeBase):
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
             "git://github.com/org/repo#my-branch",
-            handler="path/inside/repo#main:handler",
+            handler="main:handler",
+            workdir="path/inside/repo",
+            secrets={"GIT_PASSWORD": "my-access-token"},
+        )
+
+        assert fn.spec.base_spec == {
+            "apiVersion": "nuclio.io/v1",
+            "kind": "Function",
+            "metadata": {"name": "notebook", "labels": {}, "annotations": {}},
+            "spec": {
+                "runtime": "python:3.7",
+                "handler": "main:handler",
+                "env": [],
+                "volumes": [],
+                "build": {
+                    "commands": [],
+                    "noBaseImagesPull": True,
+                    "path": "https://github.com/org/repo",
+                    "codeEntryType": "git",
+                    "codeEntryAttributes": {
+                        "workDir": "path/inside/repo",
+                        "branch": "my-branch",
+                        "username": "",
+                        "password": "my-access-token",
+                    },
+                },
+            },
+        }
+
+        fn = self._generate_runtime(self.runtime_kind)
+        fn.with_source_archive(
+            "git://github.com/org/repo#refs/heads/my-branch",
+            handler="main:handler",
+            workdir="path/inside/repo",
             secrets={"GIT_PASSWORD": "my-access-token"},
         )
 
@@ -775,7 +808,8 @@ class TestNuclioRuntime(TestRuntimeBase):
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
             "s3://my-bucket/path/in/bucket/my-functions-archive",
-            handler="path/inside/functions/archive#main:Handler",
+            handler="main:Handler",
+            workdir="path/inside/functions/archive",
             runtime="golang",
             secrets={
                 "AWS_ACCESS_KEY_ID": "some-id",
@@ -813,7 +847,8 @@ class TestNuclioRuntime(TestRuntimeBase):
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
             "v3ios://host.com/container/my-functions-archive.zip",
-            handler="path/inside/functions/archive#main:handler",
+            handler="main:handler",
+            workdir="path/inside/functions/archive",
             secrets={"V3IO_ACCESS_KEY": "ma-access-key"},
         )
 

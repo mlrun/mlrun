@@ -56,19 +56,24 @@ class KubejobRuntime(KubeResource):
             return True
         return False
 
-    def with_source_archive(self, source, pythonpath=None, pull_at_runtime=True):
+    def with_source_archive(
+        self, source, handler=None, workdir=None, pull_at_runtime=True
+    ):
         """load the code from git/tar/zip archive at runtime or build
 
         :param source:     valid path to git, zip, or tar file, e.g.
                            git://github.com/mlrun/something.git
                            http://some/url/file.zip
-        :param pythonpath: python search path relative to the archive root or absolute (e.g. './subdir')
+        :param handler: default function handler
+        :param workdir: working dir relative to the archive root or absolute (e.g. './subdir')
         :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
         """
         self.spec.build.load_source_on_run = pull_at_runtime
         self.spec.build.source = source
-        if pythonpath:
-            self.spec.pythonpath = pythonpath
+        if handler:
+            self.spec.default_handler = handler
+        if workdir:
+            self.spec.workdir = workdir
 
     def build_config(
         self,

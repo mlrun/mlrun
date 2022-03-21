@@ -174,18 +174,21 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             obj.spec.image = image
         return obj
 
-    def with_source_archive(self, source, pythonpath=None):
+    def with_source_archive(self, source, handler=None, workdir=None):
         """load the code from git/tar/zip archive at runtime or build
 
         :param source:     valid path to git, zip, or tar file, e.g.
                            git://github.com/mlrun/something.git
                            http://some/url/file.zip
-        :param pythonpath: python search path relative to the archive root or absolute (e.g. './subdir')
+        :param handler: default function handler
+        :param workdir: working dir relative to the archive root or absolute (e.g. './subdir')
         """
         self.spec.build.source = source
         self.spec.build.load_source_on_run = True
-        if pythonpath:
-            self.spec.pythonpath = pythonpath
+        if handler:
+            self.spec.default_handler = handler
+        if workdir:
+            self.spec.workdir = workdir
 
     def is_deployed(self):
         return True

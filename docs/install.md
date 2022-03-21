@@ -201,16 +201,16 @@ Define your MLRun configuration. As a minimum requirement:
 
 2. To store the artifacts on the remote server, you need to set the `MLRUN_ARTIFACT_PATH` to the desired root folder of your 
 artifact. You can use template values in the artifact path. The supported values are:
-- `{{project}}` to include the project name in the path.
-- `{{run.uid}}` to include the specific run uid in the artifact path. 
+   - `{{project}}` to include the project name in the path.
+   - `{{run.uid}}` to include the specific run uid in the artifact path. 
 
-For example:
+   For example:
 
     ```ini
     MLRUN_ARTIFACT_PATH=/User/artifacts/{{project}}
     ```
     
-or:
+   or:
 
     ```ini
     MLRUN_ARTIFACT_PATH=/User/artifacts/{{project}}/{{run.uid}}

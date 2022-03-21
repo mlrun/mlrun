@@ -2728,9 +2728,7 @@ class HTTPRunDB(RunDBInterface):
         :returns: :py:class:`~mlrun.api.schemas.BackgroundTask`.
         """
         response = self.api_call(
-            "POST",
-            "operations/migrations",
-            "Failed triggering migrations",
+            "POST", "operations/migrations", "Failed triggering migrations",
         )
         if response.status_code == http.HTTPStatus.ACCEPTED:
             background_task = schemas.BackgroundTask(**response.json())

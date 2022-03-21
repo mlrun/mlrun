@@ -154,11 +154,11 @@ def test_init_data_migration_required_recognition(monkeypatch) -> None:
         sqlite_migration_util_mock.return_value.is_database_migration_needed.return_value = case.get(
             "database_migration", False
         )
-        alembic_util_mock.return_value.is_migration_from_scratch.return_value = (
-            case.get("from_scratch", False)
+        alembic_util_mock.return_value.is_migration_from_scratch.return_value = case.get(
+            "from_scratch", False
         )
-        alembic_util_mock.return_value.is_schema_migration_needed.return_value = (
-            case.get("schema_migration", False)
+        alembic_util_mock.return_value.is_schema_migration_needed.return_value = case.get(
+            "schema_migration", False
         )
         is_latest_data_version_mock.return_value = not case.get("data_migration", False)
 

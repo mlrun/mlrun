@@ -775,7 +775,7 @@ class SparkAggregateByKey(StepToDict):
 
                 for window in windows:
                     spark_window = self._duration_to_spark_format(window)
-                    aggs = [last_value_aggs]
+                    aggs = last_value_aggs
                     for operation in operations:
                         func = getattr(funcs, operation)
                         agg_name = f"{name if name else column}_{operation}_{window}"

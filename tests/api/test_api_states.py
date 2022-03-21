@@ -81,7 +81,18 @@ def test_init_data_migration_required_recognition() -> None:
             "data_migration": False,
             "from_scratch": False,
         },
-
+        {
+            "database_migration": False,
+            "schema_migration": True,
+            "data_migration": False,
+            "from_scratch": False,
+        },
+        {
+            "database_migration": False,
+            "schema_migration": False,
+            "data_migration": True,
+            "from_scratch": False,
+        },
     ]:
         sqlite_migration_util_mock.return_value.is_database_migration_needed.return_value = case.get("database_migration", False)
         alembic_util_mock.return_value.is_migration_from_scratch.return_value = case.get("from_scratch", False)

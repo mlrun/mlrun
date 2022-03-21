@@ -755,6 +755,14 @@ class SparkAggregateByKey(StepToDict):
         time_column = self.time_column or "time"
 
         if not self._emit_by_row:
+            input_df = event
+
+            last_value_aggs = [
+                funcs.last(column).alias(column)
+                for column in input_df.columns
+                if column not in self.key_columns and column != time_column
+            ]
+
             dfs = []
             for aggregate in self.aggregates:
                 (
@@ -765,10 +773,9 @@ class SparkAggregateByKey(StepToDict):
                     spark_period,
                 ) = self._extract_fields_from_aggregate_dict(aggregate)
 
-                input_df = event
                 for window in windows:
                     spark_window = self._duration_to_spark_format(window)
-                    aggs = []
+                    aggs = [last_value_aggs]
                     for operation in operations:
                         func = getattr(funcs, operation)
                         agg_name = f"{name if name else column}_{operation}_{window}"

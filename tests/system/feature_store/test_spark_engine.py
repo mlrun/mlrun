@@ -237,6 +237,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 "first_name": ["moshe", "yosi", "yosi", "moshe", "yosi"],
                 "last_name": ["cohen", "levi", "levi", "cohen", "levi"],
                 "bid": [2000, 10, 11, 12, 16],
+                "mood": ["bad", "good", "bad", "good", "good"],
             }
         )
 
@@ -261,6 +262,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         df = fs.ingest(data_set, source, targets=[])
 
         assert df.to_dict() == {
+            "mood": {("moshe", "cohen"): "good", ("yosi", "levi"): "good"},
             "bid": {("moshe", "cohen"): 12, ("yosi", "levi"): 16},
             "bid_sum_1h": {("moshe", "cohen"): 2012, ("yosi", "levi"): 37},
             "bid_max_1h": {("moshe", "cohen"): 2000, ("yosi", "levi"): 16},
@@ -301,6 +303,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             vector, entity_timestamp_column="time", with_indexes=True
         )
         assert resp.to_dataframe().to_dict() == {
+            "mood": {("moshe", "cohen"): "good", ("yosi", "levi"): "good"},
+            "bid": {("moshe", "cohen"): 12, ("yosi", "levi"): 16},
             "bid_sum_1h": {("moshe", "cohen"): 2012, ("yosi", "levi"): 37},
             "bid_max_1h": {("moshe", "cohen"): 2000, ("yosi", "levi"): 16},
             "time": {
@@ -309,3 +313,73 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             },
             "time_window": {("moshe", "cohen"): "1h", ("yosi", "levi"): "1h"},
         }
+
+    def test_aggregations_emit_per_row(self):
+        name = f"measurements_{uuid.uuid4()}"
+        test_base_time = datetime.fromisoformat("2020-07-21T21:40:00+00:00")
+
+        df = pd.DataFrame(
+            {
+                "time": [
+                    test_base_time,
+                    test_base_time + pd.Timedelta(minutes=1),
+                    test_base_time + pd.Timedelta(minutes=2),
+                    test_base_time + pd.Timedelta(minutes=3),
+                    test_base_time + pd.Timedelta(minutes=4),
+                ],
+                "first_name": ["moshe", "yosi", "yosi", "moshe", "yosi"],
+                "last_name": ["cohen", "levi", "levi", "cohen", "levi"],
+                "bid": [2000, 10, 11, 12, 16],
+            }
+        )
+
+        path = "v3io:///bigdata/test_aggregations.parquet"
+        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        df.to_parquet(path=path, filesystem=fsys)
+
+        source = ParquetSource("myparquet", path=path, time_field="time")
+        name_spark = f"{name}_spark"
+
+        data_set = fs.FeatureSet(
+            name_spark,
+            entities=[Entity("first_name"), Entity("last_name")],
+            engine="spark",
+        )
+
+        data_set.add_aggregation(
+            column="bid",
+            operations=["sum", "max"],
+            windows=["1h", "2h"],
+            period="10m",
+            spark_emit_by_row=True,
+        )
+
+        fs.ingest(
+            data_set,
+            source,
+            spark_context=self.spark_service,
+            run_config=fs.RunConfig(local=False),
+        )
+
+        features = [
+            f"{name_spark}.*",
+        ]
+
+        vector = fs.FeatureVector("my-vec", features)
+        resp = fs.get_offline_features(
+            vector, entity_timestamp_column="time", with_indexes=True
+        )
+
+        result = resp.to_dataframe().to_dict()
+
+        print(result)
+
+        # assert resp.to_dataframe().to_dict() == {
+        #     "bid_sum_1h": {("moshe", "cohen"): 2012, ("yosi", "levi"): 37},
+        #     "bid_max_1h": {("moshe", "cohen"): 2000, ("yosi", "levi"): 16},
+        #     "time": {
+        #         ("moshe", "cohen"): pd.Timestamp("2020-07-21 22:00:00"),
+        #         ("yosi", "levi"): pd.Timestamp("2020-07-21 22:30:00"),
+        #     },
+        #     "time_window": {("moshe", "cohen"): "1h", ("yosi", "levi"): "1h"},
+        # }

@@ -41,11 +41,6 @@ def init_data(
         is_backup_needed,
     ) = _resolve_needed_operations(alembic_util, sqlite_migration_util, from_scratch)
 
-    if is_backup_needed:
-        logger.info("DB Backup is needed, backing up...")
-        db_backup = mlrun.api.utils.db.backup.DBBackupUtil()
-        db_backup.backup_database()
-
     if (
         not is_migration_from_scratch
         and not perform_migrations_if_needed
@@ -55,6 +50,11 @@ def init_data(
         logger.info("Migration is needed, changing API state", state=state)
         config.httpdb.state = state
         return
+
+    if is_backup_needed:
+        logger.info("DB Backup is needed, backing up...")
+        db_backup = mlrun.api.utils.db.backup.DBBackupUtil()
+        db_backup.backup_database()
 
     logger.info("Creating initial data")
     config.httpdb.state = mlrun.api.schemas.APIStates.migrations_in_progress

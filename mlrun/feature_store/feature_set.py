@@ -806,6 +806,7 @@ class SparkAggregateByKey(StepToDict):
             df = input_df.withColumn(rowid_col, funcs.monotonically_increasing_id())
 
             drop_columns = [rowid_col]
+            window_rank_cols = []
             union_df = None
             for aggregate in self.aggregates:
                 (
@@ -818,19 +819,29 @@ class SparkAggregateByKey(StepToDict):
 
                 for window in windows:
                     spark_window = self._duration_to_spark_format(window)
-                    window_name = f"__mlrun_window_{window_counter}"
-                    window_counter += 1
+                    window_col = f"__mlrun_window_{window_counter}"
                     win_df = df.withColumn(
-                        window_name,
+                        window_col,
                         funcs.window(time_column, spark_window, spark_period).end,
                     )
-                    drop_columns.append(window_name)
-                    function_window = Window.partitionBy(*self.key_columns, window_name)
+                    function_window = Window.partitionBy(*self.key_columns, window_col)
+
+                    window_rank_col = f"__mlrun_win_rank_{window_counter}"
+                    rank_window = Window.partitionBy(rowid_col).orderBy(window_col)
+                    win_df = win_df.withColumn(
+                        window_rank_col, funcs.row_number().over(rank_window)
+                    )
+                    window_rank_cols.append(window_rank_col)
+                    drop_columns.extend([window_col, window_rank_col])
+
+                    window_counter += 1
 
                     for operation in operations:
                         func = getattr(funcs, operation)
                         agg_name = f"{name if name else column}_{operation}_{window}"
-                        win_df = win_df.withColumn(agg_name, func(column).over(function_window))
+                        win_df = win_df.withColumn(
+                            agg_name, func(column).over(function_window)
+                        )
 
                     union_df = (
                         union_df.unionByName(win_df, allowMissingColumns=True)
@@ -838,23 +849,28 @@ class SparkAggregateByKey(StepToDict):
                         else win_df
                     )
 
-            # Collapse multiple windows for each input row (identified by the rowid). This will also get rid of the
-            # columns we want to drop (drop_columns). The reason this is needed is because the use of the window() func
-            # along with the union generates a DF of this format (assuming 2 windows, there are more than 1 row per
-            # window in the case of a sliding window):
-            # ROWID | Window 1 time | Agg 1    | Window 2 time | Agg 2
-            # R     | t1            | Z        | Null          | Null
-            # R     | t2            | X        | Null          | Null
-            # R     | Null          | Null     | t3            | N
-            # R     | Null          | Null     | t4            | Y
-            # By grouping over rowid with last(ignorenulls) and removing the window time, this converges to a single
-            # row. Without ignorenulls, we would get Nulls for every aggregate but one, so it's mandatory:
-            # R     | X        | Y
-            # Then we are removing the rowid, keeping just the aggregates and the rest of the input fields.
-            last_value_aggs = [
+            # We need to collapse the multiple window rows that were generated during the query processing. For that
+            # purpose we'll pick just the 1st row for each window, and then group-by with ignorenulls. Basically since
+            # the result is a union of multiple windows, we'll get something like this for each input row:
+            # row   window_1    rank_window_1   window_2    rank_window_2   ...calculations and fields...
+            # 1     10:00       1               null        null            ...
+            # 2     10:10       2               null        null            ...
+            # 3     null        null            10:00       1               ...
+            # 4     null        null            10:10       2               ...
+            # And we want to take rows 1 and 3 in this case. Then the group-by will merge them to a single line since
+            # it ignores nulls, so it will take the values for window_1 from row 1 and for window_2 from row 3.
+            window_filter = " or ".join(
+                [f"{window_rank_col} == 1" for window_rank_col in window_rank_cols]
+            )
+            first_value_aggs = [
                 funcs.first(column, ignorenulls=True).alias(column)
                 for column in union_df.columns
                 if column not in drop_columns
             ]
-            union_df = union_df.groupBy(rowid_col).agg(*last_value_aggs).drop(rowid_col)
-            return union_df
+
+            return (
+                union_df.filter(window_filter)
+                .groupBy(rowid_col)
+                .agg(*first_value_aggs)
+                .drop(rowid_col)
+            )

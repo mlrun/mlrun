@@ -783,14 +783,23 @@ class RemoteRuntime(KubeResource):
 
         Example: ("a/b/c#main:Handler") -> ("a/b/c", "main:Handler")
         """
+
+        def extend_handler(base_handler):
+            # return default handler and module if not specified
+            if not base_handler:
+                return "main:handler"
+            if ":" not in base_handler:
+                base_handler = f"{base_handler}:handler"
+            return base_handler
+
         if not handler:
-            return "", self.spec.function_handler or "main:handler"
+            return "", extend_handler(self.spec.function_handler)
 
         split_handler = handler.split("#")
         if len(split_handler) == 1:
             return "", handler
 
-        return split_handler[0], split_handler[1] or "main:handler"
+        return split_handler[0], extend_handler(split_handler[1])
 
     @staticmethod
     def _resolve_code_entry_type(source):

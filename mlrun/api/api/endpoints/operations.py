@@ -22,7 +22,7 @@ current_migration_background_task_name = None
         http.HTTPStatus.ACCEPTED.value: {"model": mlrun.api.schemas.BackgroundTask},
     },
 )
-def start_migration(
+def trigger_migrations(
     background_tasks: fastapi.BackgroundTasks, response: fastapi.Response,
 ):
     # we didn't yet decide who should have permissions to such actions, therefore no authorization at the moment

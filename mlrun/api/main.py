@@ -1,6 +1,5 @@
 import asyncio
 import concurrent.futures
-import os
 import traceback
 import uuid
 
@@ -157,12 +156,10 @@ async def startup_event():
         version=mlrun.utils.version.Version().get(),
     )
     loop = asyncio.get_running_loop()
-    # Using python 3.8 default instead of 3.7 one - max(1, os.cpu_count()) * 5 cause it's causing to high memory
-    # consumption - https://bugs.python.org/issue35279
-    # TODO: remove when moving to python 3.8
-    max_workers = config.httpdb.max_workers or min(32, os.cpu_count() + 4)
     loop.set_default_executor(
-        concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+        concurrent.futures.ThreadPoolExecutor(
+            max_workers=int(config.httpdb.max_workers)
+        )
     )
 
     initialize_logs_dir()
@@ -241,6 +238,9 @@ def _cleanup_runtimes():
 
 def main():
     init_data()
+    logger.info(
+        "Starting API server", port=config.httpdb.port, debug=config.httpdb.debug,
+    )
     uvicorn.run(
         "mlrun.api.main:app",
         host="0.0.0.0",

@@ -200,11 +200,11 @@ def build_function(
     engine, function = _get_engine_and_function(function, project_object)
     if requirements:
         function.with_requirements(requirements)
-        if commands and function.spec.build.commands:
-            # merge requirements with commands
-            for command in function.spec.build.commands:
-                if command not in commands:
-                    commands.append(command)
+    if commands and function.spec.build.commands:
+        # add commands to existing build commands
+        for command in commands:
+            if command not in function.spec.build.commands:
+                function.spec.build.commands.append(command)
 
     if function.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
         raise mlrun.errors.MLRunInvalidArgumentError(

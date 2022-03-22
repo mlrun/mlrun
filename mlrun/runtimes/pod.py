@@ -191,12 +191,8 @@ class KubeResourceSpec(FunctionSpec):
         return api.sanitize_for_serialization(self.affinity)
 
     def _set_volume_mount(self, volume_mount):
-        # calculate volume mount hash
-        volume_name = get_item_name(volume_mount, "name")
-        volume_sub_path = get_item_name(volume_mount, "subPath")
-        volume_mount_path = get_item_name(volume_mount, "mountPath")
-        volume_mount_key = hash(f"{volume_name}-{volume_sub_path}-{volume_mount_path}")
-        self._volume_mounts[volume_mount_key] = volume_mount
+        # using the mountPath as the key cause it must be unique (k8s limitation)
+        self._volume_mounts[get_item_name(volume_mount, "mountPath")] = volume_mount
 
 
 class AutoMountType(str, Enum):
@@ -485,6 +481,20 @@ class KubeResource(BaseRuntime):
             new_meta.generate_name = norm_name
         return new_meta
 
+    def _add_secrets_to_spec_before_running(self, runobj=None, project=None):
+        if self._secrets:
+            if self._secrets.has_vault_source():
+                self._add_vault_params_to_spec(runobj=runobj, project=project)
+            if self._secrets.has_azure_vault_source():
+                self._add_azure_vault_params_to_spec(
+                    self._secrets.get_azure_vault_k8s_secret()
+                )
+            self._add_project_k8s_secrets_to_spec(
+                self._secrets.get_k8s_secrets(), runobj=runobj, project=project
+            )
+        else:
+            self._add_project_k8s_secrets_to_spec(None, runobj=runobj, project=project)
+
     def _add_azure_vault_params_to_spec(self, k8s_secret_name=None):
         secret_name = (
             k8s_secret_name or mlconf.secret_stores.azure_vault.default_secret_name
@@ -510,9 +520,6 @@ class KubeResource(BaseRuntime):
     def _add_project_k8s_secrets_to_spec(
         self, secrets, runobj=None, project=None, encode_key_names=True
     ):
-        # Needs to happen here to avoid circular dependencies
-        from mlrun.api.crud.secrets import Secrets
-
         # the secrets param may be an empty dictionary (asking for all secrets of that project) -
         # it's a different case than None (not asking for project secrets at all).
         if (
@@ -527,12 +534,10 @@ class KubeResource(BaseRuntime):
             return
 
         secret_name = self._get_k8s().get_project_secret_name(project_name)
-        existing_secret_keys = (
-            Secrets()
-            .list_secret_keys(
-                project_name, mlrun.api.schemas.SecretProviderName.kubernetes
-            )
-            .secret_keys
+        # Not utilizing the same functionality from the Secrets crud object because this code also runs client-side
+        # in the nuclio remote-dashboard flow, which causes dependency problems.
+        existing_secret_keys = self._get_k8s().get_project_secret_keys(
+            project_name, filter_internal=True
         )
 
         # If no secrets were passed or auto-adding all secrets, we need all existing keys

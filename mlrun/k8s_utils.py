@@ -13,6 +13,7 @@
 # limitations under the License.
 import base64
 import time
+import typing
 from datetime import datetime
 from sys import stdout
 
@@ -394,12 +395,17 @@ class K8sHelper:
 
         return k8s_secret.data
 
-    def get_project_secret_keys(self, project, namespace=""):
+    def get_project_secret_keys(self, project, namespace="", filter_internal=False):
         secrets_data = self._get_project_secrets_raw_data(project, namespace)
         if not secrets_data:
-            return None
+            return []
 
-        return list(secrets_data.keys())
+        secret_keys = list(secrets_data.keys())
+        if filter_internal:
+            secret_keys = list(
+                filter(lambda key: not key.startswith("mlrun."), secret_keys)
+            )
+        return secret_keys
 
     def get_project_secret_data(self, project, secret_keys=None, namespace=""):
         results = {}
@@ -438,6 +444,7 @@ class BasePod:
         self._volumes = []
         self._mounts = []
         self.env = None
+        self.node_selector = None
         self.project = project or mlrun.mlconf.default_project
         self._labels = {
             "mlrun/task-name": task_name,
@@ -520,6 +527,9 @@ class BasePod:
             sub_path=sub_path,
         )
 
+    def set_node_selector(self, node_selector: typing.Optional[typing.Dict[str, str]]):
+        self.node_selector = node_selector
+
     def _get_spec(self, template=False):
 
         pod_obj = client.V1PodTemplate if template else client.V1Pod
@@ -538,7 +548,10 @@ class BasePod:
         )
 
         pod_spec = client.V1PodSpec(
-            containers=[container], restart_policy="Never", volumes=self._volumes
+            containers=[container],
+            restart_policy="Never",
+            volumes=self._volumes,
+            node_selector=self.node_selector,
         )
 
         if self._init_container:

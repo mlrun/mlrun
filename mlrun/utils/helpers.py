@@ -750,12 +750,6 @@ def fill_function_hash(function_dict, tag=""):
     return fill_object_hash(function_dict, "hash", tag)
 
 
-class FatalFailureException(Exception):
-    def __init__(self, original_exception: Exception, *args: object) -> None:
-        super().__init__(*args)
-        self.original_exception = original_exception
-
-
 def create_linear_backoff(base=2, coefficient=2, stop_value=120):
     """
     Create a generator of linear backoff. Check out usage example in test_helpers.py
@@ -849,8 +843,7 @@ def retry_until_successful(
             result = _function(*args, **kwargs)
             return result
 
-        except FatalFailureException as exc:
-            logger.debug("Fatal failure exception raised. Not retrying")
+        except mlrun.errors.MLRunFatalFailureError as exc:
             raise exc.original_exception
         except Exception as exc:
             last_exception = exc
@@ -897,6 +890,16 @@ def get_workflow_url(project, id=None):
             mlrun.mlconf.resolve_ui_url(), mlrun.mlconf.ui.projects_prefix, project, id
         )
     return url
+
+
+def are_strings_in_exception_chain_messages(
+    exception: Exception, strings_list=typing.List[str]
+) -> bool:
+    while exception is not None:
+        if any([string in str(exception) for string in strings_list]):
+            return True
+        exception = exception.__cause__
+    return False
 
 
 class RunNotifications:

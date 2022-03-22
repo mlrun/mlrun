@@ -366,6 +366,8 @@ class AbstractSparkRuntime(KubejobRuntime):
 
         update_in(job, "spec.volumes", self.spec.volumes)
 
+        self._add_secrets_to_spec_before_running(runobj)
+
         command, args, extra_env = self._get_cmd_args(runobj)
         code = None
         if "MLRUN_EXEC_CODE" in [e.get("name") for e in extra_env]:
@@ -666,7 +668,6 @@ with ctx:
         _ = self._get_k8s()
         return list(pods.items())[0]
 
-    @property
     def is_deployed(self):
         if (
             not self.spec.build.source
@@ -674,7 +675,7 @@ with ctx:
             and not self.spec.build.extra
         ):
             return True
-        return super().is_deployed
+        return super().is_deployed()
 
     @property
     def spec(self) -> AbstractSparkJobSpec:

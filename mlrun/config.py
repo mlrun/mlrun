@@ -138,12 +138,14 @@ default_config = {
         "data_volume": "",
         "real_path": "",
         "db_type": "sqldb",
-        "max_workers": "",
+        "max_workers": 64,
         # See mlrun.api.schemas.APIStates for options
         "state": "online",
         "db": {
             "commit_retry_timeout": 30,
             "commit_retry_interval": 3,
+            "conflict_retry_timeout": 15,
+            "conflict_retry_interval": None,
             # Whether to perform data migrations on initialization. enabled or disabled
             "data_migrations_mode": "enabled",
             # Whether or not to perform database migration from sqlite to mysql on initialization
@@ -226,6 +228,12 @@ default_config = {
             # index.docker.io/<username>, if not included repository will default to mlrun
             "docker_registry": "",
             "docker_registry_secret": "",
+            # whether to allow the docker registry we're pulling from to be insecure. "enabled", "disabled" or "auto"
+            # which will resolve by the existence of secret
+            "insecure_pull_registry_mode": "auto",
+            # whether to allow the docker registry we're pushing to, to be insecure. "enabled", "disabled" or "auto"
+            # which will resolve by the existence of secret
+            "insecure_push_registry_mode": "auto",
             # the requirement specifier used by the builder when installing mlrun in images when it runs
             # pip install <requirement_specifier>, e.g. mlrun==0.5.4, mlrun~=0.5,
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
@@ -237,6 +245,9 @@ default_config = {
             "pip_ca_secret_name": "",
             "pip_ca_secret_key": "",
             "pip_ca_path": "/etc/ssl/certs/mlrun/pip-ca-certificates.crt",
+            # template for the prefix that the function target image will be enforced to have (as long as it's targeted
+            # to be in the configured registry). Supported template values are: {project} {name}
+            "function_target_image_name_prefix_template": "func-{project}-{name}",
         },
         "v3io_api": "",
         "v3io_framesd": "",
@@ -394,7 +405,10 @@ class Config:
     @staticmethod
     def get_default_function_node_selector():
         default_function_node_selector = {}
-        if config.default_function_node_selector:
+        if (
+            config.default_function_node_selector
+            and config.default_function_node_selector != "bnVsbA=="
+        ):
             default_function_node_selector_json_string = base64.b64decode(
                 config.default_function_node_selector
             ).decode()

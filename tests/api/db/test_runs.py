@@ -138,7 +138,7 @@ def test_data_migration_align_runs_table(db: DBInterface, db_session: Session):
     runs = db._find_runs(db_session, None, "*", None).all()
     for run in runs:
         _change_run_record_to_before_align_runs_migration(run, time_before_creation)
-        db._upsert(db_session, run, ignore=True)
+        db._upsert(db_session, [run], ignore=True)
 
     # run the migration
     mlrun.api.initial_data._align_runs_table(db, db_session)
@@ -168,7 +168,7 @@ def test_data_migration_align_runs_table_with_empty_run_body(
     # change to be as it will be in field (before the migration) and then empty the body
     _change_run_record_to_before_align_runs_migration(run, time_before_creation)
     run.struct = {}
-    db._upsert(db_session, run, ignore=True)
+    db._upsert(db_session, [run], ignore=True)
 
     # run the migration
     mlrun.api.initial_data._align_runs_table(db, db_session)

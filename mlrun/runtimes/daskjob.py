@@ -190,11 +190,10 @@ class DaskCluster(KubejobRuntime):
     def status(self, status):
         self._status = self._verify_dict(status, "status", DaskStatus)
 
-    @property
     def is_deployed(self):
         if not self.spec.remote:
             return True
-        return super().is_deployed
+        return super().is_deployed()
 
     @property
     def initialized(self):
@@ -223,7 +222,7 @@ class DaskCluster(KubejobRuntime):
             self.try_auto_mount_based_on_config()
             self.fill_credentials()
             db = self._get_db()
-            if not self.is_deployed:
+            if not self.is_deployed():
                 raise RunError(
                     "function image is not built/ready, use .deploy()"
                     " method first, or set base dask image (daskdev/dask:latest)"
@@ -269,13 +268,11 @@ class DaskCluster(KubejobRuntime):
 
         try:
             client = default_client()
+            # shutdown the cluster first, then close the client
+            client.shutdown()
             client.close()
         except ValueError:
             pass
-
-        # meta = self.metadata
-        # s = get_func_selector(meta.project, meta.name, meta.tag)
-        # clean_objects(s, running)
 
     def get_status(self):
         meta = self.metadata
@@ -467,6 +464,10 @@ def deploy_function(function: DaskCluster, secrets=None, client_version: str = N
             exc,
         )
         raise exc
+
+    # Is it possible that the function will not have a project at this point?
+    if function.metadata.project:
+        function._add_secrets_to_spec_before_running(project=function.metadata.project)
 
     spec = function.spec
     meta = function.metadata

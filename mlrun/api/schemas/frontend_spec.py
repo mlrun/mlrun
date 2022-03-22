@@ -29,6 +29,8 @@ class FrontendSpec(pydantic.BaseModel):
     valid_function_priority_class_names: typing.List[str] = []
     default_function_image_by_kind: typing.Dict[str, str] = {}
     function_deployment_target_image_template: typing.Optional[str]
+    function_deployment_target_image_name_prefix_template: str
+    function_deployment_target_image_registries_to_enforce_prefix: typing.List[str] = []
     function_deployment_mlrun_command: typing.Optional[str]
     auto_mount_type: typing.Optional[str]
     auto_mount_params: typing.Dict[str, str] = {}

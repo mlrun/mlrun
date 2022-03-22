@@ -2,7 +2,7 @@
 
 
 
-**IN this section**
+**In this section**
 ```{toctree}
 :maxdepth: 1
 

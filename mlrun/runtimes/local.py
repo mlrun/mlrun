@@ -210,13 +210,12 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 self.spec.workdir,
                 secrets=execution._secrets_manager,
             )
-            sys.path.append(".")
-            # if not self.spec.pythonpath:
-            #     self.spec.pythonpath = workdir or "./"
 
         if execution._current_workdir:
             execution._old_workdir = os.getcwd()
-            os.chdir(execution._current_workdir)
+            workdir = os.path.realpath(execution._current_workdir)
+            set_paths(workdir)
+            os.chdir(workdir)
 
         if (
             runobj.metadata.labels["kind"] == RemoteSparkRuntime.kind

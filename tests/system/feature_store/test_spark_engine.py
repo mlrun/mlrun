@@ -25,9 +25,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     spark_service = ""
     pq_source = "testdata.parquet"
     spark_image_deployed = (
-        True  # Set to True if you want to avoid the image building phase
+        False  # Set to True if you want to avoid the image building phase
     )
-    test_branch = "https://github.com/theSaarco/mlrun.git@spark-emit-per-row"  # For testing specific branche. e.g.: "https://github.com/mlrun/mlrun.git@development"
+    test_branch = ""  # For testing specific branche. e.g.: "https://github.com/mlrun/mlrun.git@development"
 
     @classmethod
     def _init_env_from_file(cls):
@@ -351,7 +351,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             operations=["sum", "max"],
             windows=["1h", "2h"],
             period="10m",
-            spark_emit_by_row=True,
+            spark_emit_by_row=False,
         )
 
         fs.ingest(

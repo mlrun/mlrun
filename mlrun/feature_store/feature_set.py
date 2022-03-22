@@ -715,9 +715,6 @@ class SparkAggregateByKey(StepToDict):
         aggregates: List[Dict],
         emit_by_row=False,
     ):
-        print(f"SparkAggregateByKey init!!!!!\nkey_columns={key_columns}\ntime_column={time_column}\n")
-        print(f"aggregates={aggregates}\nemit_by_row={emit_by_row}\n")
-
         self.key_columns = key_columns
         self.time_column = time_column
         self.aggregates = aggregates
@@ -755,7 +752,6 @@ class SparkAggregateByKey(StepToDict):
         import pyspark.sql.functions as funcs
         from pyspark.sql import Window
 
-        print(f"SparkAggregateByKey called!!!!! emit_by_row={self._emit_by_row} \nevent=\n{event.collect()}\n")
         time_column = self.time_column or "time"
 
         if not self._emit_by_row:
@@ -798,8 +794,6 @@ class SparkAggregateByKey(StepToDict):
             union_df = dfs[0]
             for df in dfs[1:]:
                 union_df = union_df.unionByName(df, allowMissingColumns=True)
-
-            print(f"SparkAggregateByKey end!!!!! emit_by_row={self._emit_by_row} \nresult=\n{union_df.collect()}\n")
 
             return union_df
 
@@ -863,7 +857,4 @@ class SparkAggregateByKey(StepToDict):
                 if column not in drop_columns
             ]
             union_df = union_df.groupBy(rowid_col).agg(*last_value_aggs).drop(rowid_col)
-
-            print(f"SparkAggregateByKey end!!!!! emit_by_row={self._emit_by_row} \nresult=\n{union_df.collect()}\n")
-
             return union_df

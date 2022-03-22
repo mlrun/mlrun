@@ -43,6 +43,7 @@ class Artifact(ModelObj):
         "size",
         "db_key",
         "extra_data",
+        "tag",
     ]
     kind = ""
     _store_prefix = StorePrefix.Artifact

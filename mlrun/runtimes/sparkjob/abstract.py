@@ -654,7 +654,9 @@ with ctx:
         self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"
     ):
         """set executor pod required cpu/memory/gpu resources"""
-        resources = self._verify_spark_job_requests("executor_resources", mem, cpu, gpus, gpu_type)
+        resources = self._verify_spark_job_requests(
+            "executor_resources", mem, cpu, gpus, gpu_type
+        )
         update_in(
             self.spec.executor_resources,
             "requests",
@@ -664,15 +666,15 @@ with ctx:
     def with_executor_limits(self, cpu=None):
         """set executor pod cpu limits"""
         resources = self._verify_spark_job_limits("executor_resources", cpu)
-        update_in(
-            self.spec.executor_resources, "limits", resources
-        )
+        update_in(self.spec.executor_resources, "limits", resources)
 
     def with_driver_requests(
         self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"
     ):
         """set driver pod required cpu/memory/gpu resources"""
-        resources = self._verify_spark_job_requests("driver_resources", mem, cpu, gpus, gpu_type)
+        resources = self._verify_spark_job_requests(
+            "driver_resources", mem, cpu, gpus, gpu_type
+        )
         update_in(
             self.spec.driver_resources,
             "requests",
@@ -682,9 +684,7 @@ with ctx:
     def with_driver_limits(self, cpu=None):
         """set driver pod cpu limits"""
         resources = self._verify_spark_job_limits("", cpu)
-        update_in(
-            self.spec.driver_resources, "limits", resources
-        )
+        update_in(self.spec.driver_resources, "limits", resources)
 
     def with_restart_policy(
         self,
@@ -745,8 +745,8 @@ with ctx:
 
     @staticmethod
     def _verify_spark_job_limits(
-            resources_field_name,
-            cpu=None,
+        resources_field_name,
+        cpu=None,
     ):
         if cpu:
             verify_field_regex(
@@ -758,11 +758,11 @@ with ctx:
 
     @staticmethod
     def _verify_spark_job_requests(
-            resources_field_name,
-            mem=None,
-            cpu=None,
-            gpus=None,
-            gpu_type="nvidia.com/gpu",
+        resources_field_name,
+        mem=None,
+        cpu=None,
+        gpus=None,
+        gpu_type="nvidia.com/gpu",
     ):
         if mem:
             verify_field_regex(

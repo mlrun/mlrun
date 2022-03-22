@@ -444,7 +444,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         fs.ingest(fset, source, targets=[target])
 
-        path_with_runid = path + "/" + fset.status.targets[0].run_uuid
+        path_with_runid = path + "/" + fset.status.targets[0].run_id
 
         list_files = os.listdir(path_with_runid)
         assert len(list_files) == 1 and not os.path.isdir(
@@ -611,7 +611,7 @@ class TestFeatureStore(TestMLRunSystem):
             name=name,
             kind=kind,
             project=self.project_name,
-            run_uuid=measurements.status.targets[0].run_uuid,
+            run_id=measurements.status.targets[0].run_id,
         )
         dataset = pq.ParquetDataset(
             path,
@@ -1067,7 +1067,7 @@ class TestFeatureStore(TestMLRunSystem):
         fs.ingest(data_set, data, targets=[data_target])
 
         path = data_set.status.targets[0].path.format(
-            run_uuid=data_set.status.targets[0].run_uuid
+            run_id=data_set.status.targets[0].run_id
         )
         assert path == data_set.get_target_path()
 
@@ -1914,8 +1914,8 @@ class TestFeatureStore(TestMLRunSystem):
             name="test_join_with_table_fset", entities=[fs.Entity("name")]
         )
         fs.ingest(fset, df, targets=[NoSqlTarget(path=table_url)])
-        run_uuid = fset.status.targets[0].run_uuid
-        table_url = f"{table_url}/{run_uuid}"
+        run_id = fset.status.targets[0].run_id
+        table_url = f"{table_url}/{run_id}"
         df = pd.DataFrame(
             {
                 "key": ["mykey1", "mykey2", "mykey3"],

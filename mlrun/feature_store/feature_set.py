@@ -27,7 +27,7 @@ from ..datastore.targets import (
     default_target_names,
     get_offline_target,
     get_target_driver,
-    update_targets_run_uuid_for_ingest,
+    update_targets_run_id_for_ingest,
     validate_target_list,
     validate_target_placement,
 )
@@ -399,19 +399,19 @@ class FeatureSet(ModelObj):
         )
 
         if purge_targets:
-            # TODO - benb - run_uuid shouldn't be a part of purge - remove logic after toggle implementation
-            from mlrun.datastore.targets import generate_target_run_uuid
+            # TODO - benb - run_id shouldn't be a part of purge - remove logic after 'toggle' implementation
+            # from mlrun.datastore.targets import generate_target_run_id
 
-            run_uuid = generate_target_run_uuid()
+            # run_id = generate_target_run_id()
             purge_target_names = list(purge_targets.keys())
             for target_name in purge_target_names:
                 target = purge_targets[target_name]
                 driver = get_target_driver(target_spec=target, resource=self)
                 try:
                     driver.purge()
-                    driver.run_uuid = run_uuid
                 except FileNotFoundError:
                     pass
+                # driver.run_id = run_id
                 del self.status.targets[target_name]
 
             self.save()
@@ -433,7 +433,7 @@ class FeatureSet(ModelObj):
                 or {}
             )
 
-        update_targets_run_uuid_for_ingest(overwrite, targets, status_targets)
+        update_targets_run_id_for_ingest(overwrite, targets, status_targets)
 
     def _reload_and_get_status_targets(
         self, target_names: List[str] = None, silent: bool = False

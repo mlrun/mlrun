@@ -27,8 +27,8 @@ import mlrun
 from .config import config
 from .utils import dict_to_json, dict_to_yaml, get_artifact_target
 
-# Changing {run_uuid} will break and will not be backward compatible.
-RUN_UUID_PLACE_HOLDER = "{run_uuid}"  # IMPORTANT: shouldn't be changed.
+# Changing {run_id} will break and will not be backward compatible.
+RUN_ID_PLACE_HOLDER = "{run_id}"  # IMPORTANT: shouldn't be changed.
 
 
 class ModelObj:
@@ -1023,30 +1023,28 @@ def new_task(
 
 class TargetPathObject:
 
-    _run_uuid_place_holder = RUN_UUID_PLACE_HOLDER
-
     def __init__(
         self,
         base_path=None,
-        run_uuid=None,
+        run_id=None,
         is_single_file=False,
     ):
         self.base_path = base_path
-        self.run_uuid = run_uuid
+        self.run_id = run_id
         self.full_path_template = self.base_path
         if not is_single_file:
-            if self._run_uuid_place_holder not in self.full_path_template:
+            if RUN_ID_PLACE_HOLDER not in self.full_path_template:
                 if self.full_path_template[-1] != "/":
                     self.full_path_template = self.full_path_template + "/"
                 self.full_path_template = (
-                    self.full_path_template + self._run_uuid_place_holder
+                    self.full_path_template + RUN_ID_PLACE_HOLDER
                 )
 
     def get_templated_path(self):
         return self.full_path_template
 
     def get_absolute_path(self):
-        return self.full_path_template.format(run_uuid=self.run_uuid)
+        return self.full_path_template.format(run_id=self.run_id)
 
 
 class DataSource(ModelObj):
@@ -1114,7 +1112,7 @@ class DataTargetBase(ModelObj):
         "max_events",
         "flush_after_seconds",
         "storage_options",
-        "run_uuid",
+        "run_id",
     ]
 
     # TODO - remove once "after_state" is fully deprecated
@@ -1127,7 +1125,7 @@ class DataTargetBase(ModelObj):
     def get_path(self):
         if self.path:
             is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
-            return TargetPathObject(self.path, self.run_uuid, is_single_file)
+            return TargetPathObject(self.path, self.run_id, is_single_file)
         else:
             return None
 
@@ -1168,7 +1166,7 @@ class DataTargetBase(ModelObj):
         self.max_events = max_events
         self.flush_after_seconds = flush_after_seconds
         self.storage_options = storage_options
-        self.run_uuid = None
+        self.run_id = None
 
 
 class FeatureSetProducer(ModelObj):
@@ -1195,7 +1193,7 @@ class DataTarget(DataTargetBase):
         "updated",
         "size",
         "last_written",
-        "run_uuid",
+        "run_id",
     ]
 
     def __init__(

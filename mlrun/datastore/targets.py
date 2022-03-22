@@ -25,7 +25,7 @@ import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
 from mlrun.model import (
-    RUN_UUID_PLACE_HOLDER,
+    RUN_ID_PLACE_HOLDER,
     DataTarget,
     DataTargetBase,
     TargetPathObject,
@@ -61,7 +61,7 @@ class TargetTypes:
         ]
 
 
-def generate_target_run_uuid():
+def generate_target_run_id():
     return f"{round(time.time() * 1000)}_{random.randint(0, 999)}"
 
 
@@ -77,13 +77,13 @@ def get_default_targets():
     ]
 
 
-def update_targets_run_uuid_for_ingest(overwrite, targets, targets_in_status):
-    run_uuid = generate_target_run_uuid()
+def update_targets_run_id_for_ingest(overwrite, targets, targets_in_status):
+    run_id = generate_target_run_id()
     for target in targets:
         if overwrite or not (target.name in targets_in_status.keys()):
-            target.run_uuid = run_uuid
+            target.run_id = run_id
         else:
-            target.run_uuid = targets_in_status[target.name].run_uuid
+            target.run_id = targets_in_status[target.name].run_id
 
 
 def get_default_prefix_for_target(kind):
@@ -96,7 +96,7 @@ def get_default_prefix_for_target(kind):
 
 def get_default_prefix_for_source(kind):
     return get_default_prefix_for_target(kind).replace(
-        f"/{RUN_UUID_PLACE_HOLDER}/", "/"
+        f"/{RUN_ID_PLACE_HOLDER}/", "/"
     )
 
 
@@ -486,7 +486,7 @@ class BaseStoreTarget(DataTargetBase):
         driver.storage_options = spec.storage_options
 
         driver._resource = resource
-        driver.run_uuid = spec.run_uuid
+        driver.run_id = spec.run_id
         return driver
 
     def get_table_object(self):
@@ -504,7 +504,7 @@ class BaseStoreTarget(DataTargetBase):
         """return the actual/computed target path"""
         is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
         return self.get_path() or TargetPathObject(
-            _get_target_path(self, self._resource), self.run_uuid, is_single_file
+            _get_target_path(self, self._resource), self.run_id, is_single_file
         )
 
     def update_resource_status(self, status="", producer=None, size=None):
@@ -513,7 +513,7 @@ class BaseStoreTarget(DataTargetBase):
             self.kind, self.name, self.get_target_templated_path()
         )
         target = self._target
-        target.run_uuid = self.run_uuid
+        target.run_id = self.run_id
         target.status = status or target.status or "created"
         target.updated = now_date().isoformat()
         target.size = size
@@ -1299,7 +1299,7 @@ def _get_target_path(driver, resource):
         project=project,
         kind=kind,
         name=name,
-        run_uuid=RUN_UUID_PLACE_HOLDER,
+        run_id=RUN_ID_PLACE_HOLDER,
     )
     # todo: handle ver tag changes, may need to copy files?
     return f"{data_prefix}/{kind_prefix}/{name}{suffix}"

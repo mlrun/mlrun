@@ -1029,9 +1029,8 @@ class TargetPathObject:
         run_id=None,
         is_single_file=False,
     ):
-        self.base_path = base_path
         self.run_id = run_id
-        self.full_path_template = self.base_path
+        self.full_path_template = base_path
         if not is_single_file:
             if RUN_ID_PLACE_HOLDER not in self.full_path_template:
                 if self.full_path_template[-1] != "/":

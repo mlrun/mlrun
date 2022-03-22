@@ -24,7 +24,6 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import mlrun
 
-from .config import config
 from .utils import dict_to_json, dict_to_yaml, get_artifact_target
 
 

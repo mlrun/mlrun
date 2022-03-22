@@ -15,7 +15,7 @@ from mlrun.datastore.sources import ParquetSource
 from mlrun.datastore.targets import NoSqlTarget, ParquetTarget
 from mlrun.features import Entity
 from tests.system.base import TestMLRunSystem
-
+from mlrun.feature_store.feature_set import EmitPolicy, EmitPolicyType
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 # Marked as enterprise because of v3io mount and remote spark
@@ -322,10 +322,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             {
                 "time": [
                     test_base_time,
-                    test_base_time + pd.Timedelta(minutes=1),
-                    test_base_time + pd.Timedelta(minutes=2),
-                    test_base_time + pd.Timedelta(minutes=3),
-                    test_base_time + pd.Timedelta(minutes=4),
+                    test_base_time + pd.Timedelta(minutes=20),
+                    test_base_time + pd.Timedelta(minutes=40),
+                    test_base_time + pd.Timedelta(minutes=60),
+                    test_base_time + pd.Timedelta(minutes=80),
                 ],
                 "first_name": ["moshe", "yosi", "yosi", "moshe", "yosi"],
                 "last_name": ["cohen", "levi", "levi", "cohen", "levi"],
@@ -348,10 +348,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         data_set.add_aggregation(
             column="bid",
-            operations=["sum", "max"],
+            operations=["sum", "max", "count"],
             windows=["1h", "2h"],
             period="10m",
-            spark_emit_by_row=False,
+            emit_policy=EmitPolicy(EmitPolicyType.every_event),
         )
 
         fs.ingest(
@@ -361,27 +361,23 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=fs.RunConfig(local=False),
         )
 
-        print(f"Feature-set: \n{data_set.to_dict()}\n\n")
+        print(f"Results:\n{data_set.to_dataframe().to_string()}\n")
+        result_dict = data_set.to_dataframe().to_dict()
+        print(result_dict)
 
-        features = [
-            f"{name_spark}.*",
-        ]
-
-        vector = fs.FeatureVector("my-vec", features)
-        resp = fs.get_offline_features(
-            vector, entity_timestamp_column="time", with_indexes=True
+        storey_data_set = fs.FeatureSet(
+            f"{name}_storey",
+            entities=[Entity("first_name"), Entity("last_name")],
         )
 
-        result = resp.to_dataframe().to_dict()
+        storey_data_set.add_aggregation(
+            column="bid",
+            operations=["sum", "max", "count"],
+            windows=["1h", "2h"],
+            period="10m",
+        )
 
-        print(result)
-
-        # assert resp.to_dataframe().to_dict() == {
-        #     "bid_sum_1h": {("moshe", "cohen"): 2012, ("yosi", "levi"): 37},
-        #     "bid_max_1h": {("moshe", "cohen"): 2000, ("yosi", "levi"): 16},
-        #     "time": {
-        #         ("moshe", "cohen"): pd.Timestamp("2020-07-21 22:00:00"),
-        #         ("yosi", "levi"): pd.Timestamp("2020-07-21 22:30:00"),
-        #     },
-        #     "time_window": {("moshe", "cohen"): "1h", ("yosi", "levi"): "1h"},
-        # }
+        fs.ingest(storey_data_set, source)
+        print(f"Storey results:\n{storey_data_set.to_dataframe().to_string()}\n")
+        storey_result_dict = storey_data_set.to_dataframe().to_dict()
+        print(storey_result_dict)

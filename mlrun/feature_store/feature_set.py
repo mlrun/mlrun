@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime
+import enum
 import warnings
 from typing import Dict, List, Optional, Union
 
 import pandas as pd
+from storey import EmitAfterPeriod, EmitAfterWindow, EmitEveryEvent
 
 import mlrun
 import mlrun.api.schemas
@@ -46,6 +48,29 @@ from ..utils import StorePrefix
 from .common import verify_feature_set_permissions
 
 aggregates_step = "Aggregates"
+
+
+class EmitPolicyType(str, enum.Enum):
+    every_event = EmitEveryEvent.name()
+    after_period = EmitAfterPeriod.name()
+    after_window = EmitAfterWindow.name()
+
+
+class EmitPolicy(ModelObj):
+    _dict_fields = ["mode"]
+
+    def __init__(
+        self, policy_type: EmitPolicyType = EmitPolicyType.after_period, **kwargs
+    ):
+        self.mode = policy_type.value
+        self.policy_args = kwargs
+
+    def to_dict(self, fields=None, exclude=None):
+        struct = super().to_dict(fields, exclude)
+        if self.policy_args:
+            for key, value in self.policy_args.items():
+                struct[key] = value
+        return struct
 
 
 class FeatureAggregation(ModelObj):
@@ -499,7 +524,7 @@ class FeatureSet(ModelObj):
         after=None,
         before=None,
         state_name=None,
-        spark_emit_by_row=False,
+        emit_policy: EmitPolicy = None,
     ):
         """add feature aggregation rule
 
@@ -534,8 +559,7 @@ class FeatureSet(ModelObj):
         :param state_name: *Deprecated* - use step_name instead
         :param after:      optional, after which graph step it runs
         :param before:     optional, comes before graph step
-        :param spark_emit_by_row: optional, when using Spark as engine, use emit-by-window (default - False) or
-                                    emit-by-key which will produce an output record for each input record
+        :param emit_policy: optional, which emit policy to use when performing the aggregations
         """
         if isinstance(operations, str):
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -576,6 +600,8 @@ class FeatureSet(ModelObj):
             step.class_args["aggregates"] = list(self._aggregations.values())
         else:
             class_args = {}
+            if emit_policy:
+                class_args["emit_policy"] = emit_policy.to_dict()
             self._aggregations[aggregation["name"]] = aggregation
             if not self.spec.engine or self.spec.engine == "storey":
                 step = graph.add_step(
@@ -596,7 +622,6 @@ class FeatureSet(ModelObj):
                     key_columns=key_columns,
                     time_column=self.spec.timestamp_key,
                     aggregates=[aggregation],
-                    emit_by_row=spark_emit_by_row,
                     after=after or previous_step,
                     before=before,
                     class_name="mlrun.feature_store.feature_set.SparkAggregateByKey",
@@ -713,12 +738,16 @@ class SparkAggregateByKey(StepToDict):
         key_columns: List[str],
         time_column: str,
         aggregates: List[Dict],
-        emit_by_row=False,
+        emit_policy: Union[EmitPolicy, Dict] = None,
     ):
         self.key_columns = key_columns
         self.time_column = time_column
         self.aggregates = aggregates
-        self._emit_by_row = emit_by_row
+        self.emit_policy_mode = None
+        if emit_policy:
+            if isinstance(emit_policy, EmitPolicy):
+                emit_policy = emit_policy.to_dict()
+            self.emit_policy_mode = emit_policy["mode"]
 
     @staticmethod
     def _duration_to_spark_format(duration):
@@ -754,7 +783,10 @@ class SparkAggregateByKey(StepToDict):
 
         time_column = self.time_column or "time"
 
-        if not self._emit_by_row:
+        if (
+            not self.emit_policy_mode
+            or self.emit_policy_mode != EmitPolicyType.every_event.value
+        ):
             input_df = event
 
             last_value_aggs = [

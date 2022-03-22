@@ -283,7 +283,7 @@ class BaseMetadata(ModelObj):
         self.tag = tag
         self.hash = hash
         self.namespace = namespace
-        self.project = project or config.default_project
+        self.project = project or ""
         self.labels = labels or {}
         self.categories = categories or []
         self.annotations = annotations or {}

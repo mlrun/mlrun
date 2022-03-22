@@ -391,6 +391,7 @@ test: clean ## Run mlrun tests
 		--ignore=tests/system \
 		--ignore=tests/test_notebooks.py \
 		--ignore=tests/rundb/test_httpdb.py \
+		--ignore=tests/run/test_hyper.py \
 		-rf \
 		tests
 

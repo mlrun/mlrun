@@ -820,7 +820,7 @@ class SparkAggregateByKey(StepToDict):
                     spark_window = self._duration_to_spark_format(window)
                     window_name = f"__mlrun_window_{window_counter}"
                     window_counter += 1
-                    df = df.withColumn(
+                    win_df = df.withColumn(
                         window_name,
                         funcs.window(time_column, spark_window, spark_period).end,
                     )
@@ -830,12 +830,12 @@ class SparkAggregateByKey(StepToDict):
                     for operation in operations:
                         func = getattr(funcs, operation)
                         agg_name = f"{name if name else column}_{operation}_{window}"
-                        df = df.withColumn(agg_name, func(column).over(function_window))
+                        win_df = win_df.withColumn(agg_name, func(column).over(function_window))
 
                     union_df = (
-                        union_df.unionByName(df, allowMissingColumns=True)
+                        union_df.unionByName(win_df, allowMissingColumns=True)
                         if union_df
-                        else df
+                        else win_df
                     )
 
             # Collapse multiple windows for each input row (identified by the rowid). This will also get rid of the
@@ -852,7 +852,7 @@ class SparkAggregateByKey(StepToDict):
             # R     | X        | Y
             # Then we are removing the rowid, keeping just the aggregates and the rest of the input fields.
             last_value_aggs = [
-                funcs.last(column, ignorenulls=True).alias(column)
+                funcs.first(column, ignorenulls=True).alias(column)
                 for column in union_df.columns
                 if column not in drop_columns
             ]

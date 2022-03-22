@@ -49,10 +49,13 @@ class ArtifactProducer:
         return {"kind": self.kind, "name": self.name, "tag": self.tag}
 
 
-def dict_to_artifact(struct: dict):
+def dict_to_artifact(struct: dict, with_tag=False):
     kind = struct.get("kind", "")
     artifact_class = artifact_types[kind]
-    return artifact_class.from_dict(struct)
+    artifact_object = artifact_class.from_dict(struct)
+    if with_tag:
+        artifact_object.tag = struct.get("tag", None)
+    return artifact_object
 
 
 class ArtifactManager:
@@ -157,7 +160,9 @@ class ArtifactManager:
             item.upload()
 
         if db_key:
-            self._log_to_db(db_key, producer.project, producer.inputs, item, tag)
+            self._log_to_db(
+                db_key, producer.project, producer.inputs, item, tag or item.tag
+            )
         size = str(item.size) or "?"
         db_str = "Y" if (self.artifact_db and db_key) else "N"
         logger.debug(

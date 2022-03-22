@@ -32,11 +32,17 @@ class TestNewProject:
     def test_set_artifact(self):
         project = mlrun.new_project("test-sa")
         project.set_artifact("data1", mlrun.artifacts.Artifact(target_path=data_url))
-        project.set_artifact("data2", target_path=data_url)  # test the short form
+        project.set_artifact(
+            "data2", target_path=data_url, tag="x"
+        )  # test the short form
+        project.register_artifacts()
 
         for artifact in project.spec.artifacts:
             assert artifact["key"] in ["data1", "data2"]
             assert artifact["target_path"] == data_url
+
+        artifacts = project.list_artifacts(tag="x")
+        assert len(artifacts) == 1
 
     def test_run_alone(self):
         mlrun.projects.pipeline_context.clear(with_project=True)

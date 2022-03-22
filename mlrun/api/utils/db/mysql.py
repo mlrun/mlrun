@@ -28,9 +28,13 @@ class MySQLUtil(object):
         logger.debug("Waiting for database liveness")
         mysql_dsn_data = MySQLUtil.get_mysql_dsn_data()
         if not mysql_dsn_data:
-            logger.warn(
-                f"Invalid mysql dsn: {MySQLUtil.get_dsn()}, assuming sqlite and skipping liveness verification"
-            )
+            dsn = MySQLUtil.get_dsn()
+            if "sqlite" in dsn:
+                logger.debug("SQLite DB is used, liveness check not needed")
+            else:
+                logger.warn(
+                    f"Invalid mysql dsn: {MySQLUtil.get_dsn()}, assuming live and skipping liveness verification"
+                )
             return
 
         tmp_connection = mlrun.utils.retry_until_successful(

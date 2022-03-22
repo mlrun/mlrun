@@ -49,13 +49,10 @@ class ArtifactProducer:
         return {"kind": self.kind, "name": self.name, "tag": self.tag}
 
 
-def dict_to_artifact(struct: dict, with_tag=False):
+def dict_to_artifact(struct: dict):
     kind = struct.get("kind", "")
     artifact_class = artifact_types[kind]
-    artifact_object = artifact_class.from_dict(struct)
-    if with_tag:
-        artifact_object.tag = struct.get("tag", None)
-    return artifact_object
+    return artifact_class.from_dict(struct)
 
 
 class ArtifactManager:

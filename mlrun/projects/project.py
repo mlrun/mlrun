@@ -628,12 +628,10 @@ class ProjectSpec(ModelObj):
 
         self._artifacts = artifacts_dict
 
-    def set_artifact(self, key, artifact, tag=None):
+    def set_artifact(self, key, artifact):
         if hasattr(artifact, "base_dict"):
-            tag = tag or artifact.tag
             artifact = artifact.base_dict()
         artifact["key"] = key
-        artifact["tag"] = tag
         self._artifacts[key] = artifact
 
     def remove_artifact(self, key):
@@ -1037,7 +1035,8 @@ class MlrunProject(ModelObj):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "absolute target_path url to a shared/object storage must be specified"
             )
-        self.spec.set_artifact(key, artifact, tag=tag)
+        artifact.tag = tag or artifact.tag
+        self.spec.set_artifact(key, artifact)
 
     def register_artifacts(self):
         """register the artifacts in the MLRun DB (under this project)"""
@@ -1049,7 +1048,7 @@ class MlrunProject(ModelObj):
             tag=self._get_hexsha() or "latest",
         )
         for artifact_dict in self.spec.artifacts:
-            artifact = dict_to_artifact(artifact_dict, with_tag=True)
+            artifact = dict_to_artifact(artifact_dict)
             artifact_manager.log_artifact(producer, artifact, upload=False)
 
     def _get_artifact_manager(self):

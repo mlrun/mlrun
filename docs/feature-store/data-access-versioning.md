@@ -2,11 +2,11 @@
 
 
 
-**Contents**
+**In this section**
 ```{toctree}
 :maxdepth: 2
 
 use-cloud-storage
 connect-external-databases
-../store/artifacts
+../store/version-data-n-artifacts
 ```

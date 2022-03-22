@@ -15,13 +15,12 @@ classes/functions. Graphs can auto-scale and span multiple function containers (
   
 Different steps can run on the same local function, or run on a remote function. You can call existing functions from the graph and reuse them from other graphs, as well as scale up and down different components individually.
 
-Graphs can run inside your IDE or Notebook for test and simulation, and can then be deployed 
-into production serverless pipeline with a single command. Serving graphs are built on 
+Graphs can run inside your IDE or Notebook for test and simulation. Serving graphs are built on 
 top of [Nuclio](https://github.com/nuclio/nuclio) (real-time serverless engine), MLRun Jobs, 
 [MLRun Storey](<https://github.com/mlrun/storey>) (native Python async and stream processing engine), 
 and other MLRun facilities. 
 
-**These sections provide full details to get you started with serving graphs, including examples:**
+**In this section**
 
 ```{toctree}
 :maxdepth: 2

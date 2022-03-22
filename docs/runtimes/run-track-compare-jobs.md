@@ -1,5 +1,7 @@
 # Run, track, and compare jobs
 
+
+**In this section**
 ```{toctree}
 :maxdepth: 1
 
@@ -10,7 +12,4 @@ mlrun_jobs
 run-context-logging-tracking
 track-results-artifacts
 compare-runs-artifacts
-dask-overview
-horovod
-spark-operator
 ```

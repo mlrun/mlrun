@@ -35,7 +35,8 @@ This can be raw data (e.g., transaction amount, image pixel, etc.) or a calculat
 from average, pattern on image, etc.).
 - **Feature set** &mdash; A grouping of features. The grouping is done by setting the entity key or set-of keys. For example, a transaction 
 can be grouped by the person ID performing the transfer or by the device identifier used to perform the transaction. It is also possible to 
-define the timestamp source in the feature set. You can ingest data to a feature set. See more details in [feature sets](transformations.md).
+define the timestamp source in the feature set. You can ingest data to a feature set. See more details in 
+[feature sets](transformations.md).
 - **Execution graph** &mdash; A set of operations performed on the data while it is ingested. The graph contains steps that represent 
 data sources and targets, and can also contain steps that transform and enrich the data passed through the feature set.
 - **Feature vector** &mdash; A set of features, taken from one or more feature sets. The feature vector is defined prior to model training 
@@ -67,9 +68,11 @@ The next step is to define the [feature vector](feature-vectors.md). Call the `g
 Next, extract a versioned **offline** static dataset for training, based on the parquet target defined in the feature sets. You can train a 
 model with the feature vector data by providing the input in the form of `'store://feature-vectors/{project}/{feature_vector_name}'`.
 
-Training functions generate models and various model statistics. Use MLRun's `auto logging` capabilities to store the models along with all the relevant data, metadata and measurements.
+Training functions generate models and various model statistics. Use MLRun's `auto logging` capabilities to store the models along with all 
+the relevant data, metadata and measurements.
 
-<--! MLRun can apply all the MLOps functionality by simply using the framework specific `apply_mlrun()` method which manages the training process and automatically logs all the framework specific model details, data, metadata and metrics. -->
+MLRun can apply all the MLOps functionality by using the framework specific `apply_mlrun()` method, which manages the training process and 
+automatically logs all the framework specific model details, data, metadata and metrics. 
 
 The training job automatically generates a set of results and versioned artifacts (run `train_run.outputs` to view the job outputs).
 

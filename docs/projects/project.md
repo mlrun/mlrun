@@ -11,7 +11,7 @@ lists of parameters, and secrets. Project jobs/workflows refer to all project re
 
 Projects can be loaded/cloned using a single command. Once the project is loaded you can execute the functions or workflows locally, on a cluster, or inside a CI/CD framework.
 
-**Contents**
+**In this section**
 ```{toctree}
 :maxdepth: 2
 

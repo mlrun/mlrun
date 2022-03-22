@@ -12,7 +12,7 @@ There are three ways to create/load a `project` object:
 
 Projects can also be loaded and workflows/pipelines can be executed using the CLI (using the `mlrun project` command).
 
-**Contents**
+**In this section**
 - [**Creating a new project**](#creating-a-new-project)
 - [**Load & Run projects from context, git or archive**](#load-and-run-projects-from-context-git-or-archive)
 - [**Get from DB or create (get_or_create_project)**](#get-from-db-or-create-get-or-create-project)

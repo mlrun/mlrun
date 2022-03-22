@@ -30,6 +30,8 @@ real-time pipelines. As a result, ML teams often build separate data pipelines w
 services. 80% of data today is unstructured, so an essential part of building operational data pipelines is to convert unstructured textual, 
 audio, and visual data into machine learning- or deep learning-friendly data organization.
 
+<img src="_static/images/data-collect-and-prep.png" alt="data-collection-and-preparation" width="800" />
+
 MLOps solutions should incorporate a [feature store](../feature-store/feature-store) that defines the data collection and transformations 
 just once for both batch and real-time scenarios, processes features automatically without manual involvement, and serves the features from 
 a shared catalog to training, serving, and data governance applications. Feature stores must also extend beyond traditional analytics and 
@@ -45,6 +47,9 @@ data, metadata, code and results must be versioned and logged, providing quick r
 understand which data was used to produce each model.
 
 Pipelines can be more complex—for example, when ML teams need to develop a combination of models, or use Deep Learning or NLP.
+
+<img src="_static/images/model-dev.png" alt="training" width="800" />
+
 
 ML pipelines can be triggered manually, or preferably triggered automatically when:
 
@@ -87,6 +92,8 @@ The different services are interdependent. For example, if the inputs to a model
 along with the model serving and model monitoring services. These dependencies require online production pipelines (graphs) to reflect these 
 changes.
 
+<img src="_static/images/build-online-ml-services.png" alt="building-online-ml-services" width="800" />
+
 Production pipelines can be more complex when using unstructured data, deep learning, NLP or model ensembles, so having flexible mechanisms 
 to build and wire up our pipeline graphs is critical.
 
@@ -113,8 +120,7 @@ Once the model is deployed, use MLRun to track the operational statistics as wel
 When drift is identified, MLRun can trigger the training pipeline to train a new model.
 
 AI services and applications are becoming an essential part of any business. This trend brings with it liabilities, which drive further 
-complexity. ML teams need to add data, code and experiment tracking, monitor data to detect quality problems, [monitor models]
-(../model_monitoring/index) to detect concept drift and improve model accuracy through the use of AutoML techniques and ensembles, and so on.
+complexity. ML teams need to add data, code and experiment tracking, monitor data to detect quality problems, and [monitor models](../model_monitoring/index) to detect concept drift and improve model accuracy through the use of AutoML techniques and ensembles, and so on.
 
 Nothing lasts forever, not even carefully constructed models that have been trained using mountains of well-labeled data. ML teams need to 
 react quickly to adapt to constantly changing patterns in real-world data. Monitoring machine learning models is a core component of MLOps 

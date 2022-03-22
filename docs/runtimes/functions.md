@@ -2,10 +2,9 @@
 # Creating and using functions
 
 
-
-
+**In this section**
 ```{toctree}
-:maxdepth: 1
+   :maxdepth: 2
 
 using-functions
 mlrun_code_annotations
@@ -14,5 +13,4 @@ resource-allocation-cfg
 function-storage
 load-from-marketplace
 images
-node-affinity
 ``` 

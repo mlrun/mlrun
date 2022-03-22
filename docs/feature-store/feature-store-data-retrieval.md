@@ -2,7 +2,7 @@
 Learn how to retrieve data with the feature store, and use it.
 
 
-**Contents**
+**In this section**
 ```{toctree}
 :maxdepth: 1
 

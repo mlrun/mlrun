@@ -11,7 +11,7 @@ MLRun provides three main abstractions to access structured and unstructured dat
 
 Working with the abstractions enable you to securely access different data sources through a single API, many continuance methods (e.g. to/from DataFrame, get, download, list, ..), automated data movement, and versioning.
 
-**Contents**
+**In this section**
 ```{toctree}
 :maxdepth: 2
 ../store/datastore

@@ -16,27 +16,18 @@ Function objects are all inclusive (code, spec, API, and metadata definitions), 
 in a shared and versioned function market place. This means that different members of the team can produce or 
 consume functions. Each function is versioned and stored in the MLRun database with a unique hash code, 
 and gets a new hash code upon changes.
-There is also an open [public marketplace](https://www.mlrun.org/marketplace/functions/) that stores many pre-developed functions for
-use in your projects. 
 
-Functions can scale-out across multiple containers. Read more in [**Distributed and Parallel Jobs**](./distributed.md).
+MLRun also has an open [public marketplace](https://www.mlrun.org/marketplace/functions/) that stores many pre-developed functions for
+use in your projects. 
 
 <img src="../_static/images/mlrun-functions.png" alt="mlrun-architecture" width="600"/><br>
 
-**Contents**
-- [Distributed function runtimes](#distributed-function-runtimes)
-- [Nuclio real-time functions](#nuclio-real-time-functions)
-- [Node affinity for MLRun jobs](#node-affinity-for-mlrun-jobs)
+**In this section**
 
-## Distributed function runtimes
+```{toctree}
+   :maxdepth: 2
 
-
-
-## Nuclio real-time functions
-
-
-
-## Node affinity for MLRun jobs
-
-Node affinity can be applied to MLRun to determine on which nodes the jobs can run. The rules are defined using custom labels on 
-nodes and label selectors. Node affinity allows towards Spot or On Demand groups of nodes. See [Node affinity for MLRun jobs](../runtimes/node-affinity.md).
+../runtimes/distributed
+nuclio-real-time-functions
+../runtimes/node-affinity
+```

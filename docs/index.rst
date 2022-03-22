@@ -61,7 +61,7 @@ Table Of Contents
    :caption: Concepts
    
    projects/project
-   runtimes/functions-concepts
+   concepts/functions-concepts
    concepts/data-feature-store
    concepts/runs-experiments-workflows
    store/artifacts

@@ -1,6 +1,6 @@
 # Feature Store tutorials
 
-
+**In this section**
 ```{toctree}
 :maxdepth: 1
 

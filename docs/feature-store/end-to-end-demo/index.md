@@ -7,12 +7,12 @@ This demo shows the usage of MLRun and the feature store:
 - [**Model serving**](./03-deploy-serving-model.ipynb)
 - [**Building an automated ML pipeline**](./04-pipeline.ipynb)
 
-Fraud prevention,specifically,is a challenge as it requires processing raw transaction and events in real-time and being able to
+Fraud prevention, specifically, is a challenge since it requires processing raw transactions and events in real-time and being able to
 quickly respond and block transactions before they occur. Consider, for example, a case where you would like to evaluate the
 average transaction amount. When training the model, it is common to take a DataFrame and just calculate the average. However,
 when dealing with real-time/online scenarios, this average has to be calculated incrementally.
 
-In this demo you will learn how to **Ingest** different data sources to the **Feature Store**. Specifically, it covers two types of data:  
+This demo illustrates how to **Ingest** different data sources to the **Feature Store**. Specifically, it covers two types of data:  
 
 - **Transactions**: Monetary activity between two parties to transfer funds.
 - **Events**: Activity performed by a party, such as login or password change.
@@ -21,7 +21,7 @@ In this demo you will learn how to **Ingest** different data sources to the **Fe
 
 The demo walks through creation of an ingestion pipeline for each data source with all the needed preprocessing and validation. It runs the pipeline locally within the notebook and then launches a real-time function to **ingest live data** or schedule a cron to run the task when needed.
 
-Following the ingestion, you will create a feature vector, select the most relevant features and create a final model. Then you'll deploy the model and showcase the feature vector and model serving.
+Following the ingestion, you create a feature vector, select the most relevant features and create a final model. Then you deploy the model and showcase the feature vector and model serving.
 
 ```{toctree}
 :maxdepth: 1

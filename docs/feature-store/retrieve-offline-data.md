@@ -1,8 +1,8 @@
 # Retrieve offline data and use it for training
 
-**Contents**
+**In this section**
 - [Creating an offline dataset](#creating-an-offline-dataset)
-_ [Training](#training)
+- [Training](#training)
 
 ## Creating an offline dataset
 

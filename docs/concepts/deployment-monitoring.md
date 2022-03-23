@@ -1,8 +1,8 @@
 # Deployment and monitoring
 
-## Real-time Pipelines
+## Real-time pipelines
 
-MLRun graphs enable building and running DAGs (directed acyclic graph). Graphs are composed of individual steps. The first graph element accepts an Event object, transforms/processes the event and passes the result to the next step in the graph. The final result can be written out to some destination (file, DB, stream, etc.) or returned back to the caller (one of the graph steps can be marked with `.respond()`).
+MLRun graphs enable building and running DAGs (directed acyclic graphs). Graphs are composed of individual steps. The first graph element accepts an Event object, transforms/processes the event and passes the result to the next step in the graph. The final result can be written out to some destination (file, DB, stream, etc.) or returned back to the caller (one of the graph steps can be marked with `.respond()`).
 
 MLRun graph capabilities include:
 
@@ -16,7 +16,7 @@ The serving graphs are used by [MLRun’s Feature Store](../feature-store/featur
 
 Read more about [Real-time serving pipelines (graphs)](../serving/serving-graph).
 
-## Model Serving
+## Model serving
 
 MLRun Serving allow composition of multi-stage real-time pipelines made of serverless Nuclio functions, including data processing, 
 advanced model serving, custom logic, and fast access to a variety of data systems, and deploying them quickly to production with 
@@ -30,7 +30,7 @@ Graphs are used to deploy and serve ML/DL models. Graphs can be deployed into a 
 Read more about [model serving using the graphs](../serving/build-graph-model-serving).
 
 
-## Model Monitoring
+## Model monitoring
 
 Model performance monitoring is a basic operational task that is implemented after an AI model has been deployed. MLRun:
 - Monitors your models in production, and identifies and mitigates drift on the fly.
@@ -39,7 +39,7 @@ Model performance monitoring is a basic operational task that is implemented aft
 See full details in [Model monitoring](../model_monitoring/index).
 
 
-## CI/CD and Automation
+## CI/CD and automation
 
 You can run your ML Pipelines using CI frameworks like Github Actions, GitLab CI/CD, etc. MLRun supports a simple and native integration 
 with the CI systems. 

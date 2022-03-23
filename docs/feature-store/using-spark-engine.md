@@ -5,8 +5,6 @@ using Spark, the internal execution graph is executed synchronously, by utilizin
 write operations, as well as potential transformations on the data. Executing synchronously means that the 
 source data is fully read into a data-frame that is processed, writing the output to the targets defined.
 
-
-
 Spark execution can be done locally, utilizing a local Spark session provided to the ingestion call. To 
 use Spark as the transformation engine in ingestion, follow these steps:
 
@@ -108,7 +106,7 @@ fstore.ingest(feature_set, source, run_config=config, spark_context=spark_servic
 ```
 
 ## Spark operator ingestion example
-When running with spark operator, the MLRun execution details are returned, allowing tracking of the job's status and results.
+When running with a Spark operator, the MLRun execution details are returned, allowing tracking of the job's status and results.
 
 The following code should be executed only once to build the spark job image before running the first ingest.
 It may take a few minutes to prepare the image.

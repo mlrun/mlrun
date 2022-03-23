@@ -1,6 +1,9 @@
 
 # Online access and serving
 
+**In this section**
+- [Get online features](#get-online-features)
+- [Incorporating to the serving model](#incorporating-to-the-serving-model)
 
 ## Get online features
 
@@ -14,7 +17,7 @@ import mlrun.feature_store as fstore
 svc = fstore.get_online_feature_service(<feature vector name>)
 ```
 
-After creating the service you can use the feature vector's Entity to get the latest feature vector for it.
+After creating the service you can use the feature vector's ntity to get the latest feature vector for it.
 Pass a list of `{<key name>: <key value>}` pairs to receive a batch of feature vectors.
 
 ```python
@@ -26,10 +29,10 @@ fv = svc.get([{<key name>: <key value>}])
 You can serve your models using the [model server](../serving/serving-graph.md). ( See an [example](https://github.com/mlrun/functions/blob/master/v2_model_server/v2_model_server.ipynb)).
 You define a serving model class and the computational graph required to run your entire prediction pipeline and deploy it as a serverless function using [nuclio](https://github.com/nuclio/nuclio).
 
-To embed the online feature service in your model server, all you need to do is create the feature vector service once when the model initializes, and then use it to retrieve the feature vectors of incoming keys.
+To embed the online feature service in your model server, just create the feature vector service once when the model initializes, and then use it to retrieve the feature vectors of incoming keys.
 
 You can import ready-made classes and functions from the MLRun [function marketplace](https://github.com/mlrun/functions) or write your own.
-As example of a scikit-learn based model server (taken from the MLRun feature store demo):
+As example of a scikit-learn based model server (taken from the [feature store demo](./end-to-end-demo/03-deploy-serving-model.html#define-model-class)):
 
 ```python
 from cloudpickle import load

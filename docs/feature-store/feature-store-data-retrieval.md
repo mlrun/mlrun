@@ -1,5 +1,5 @@
 # Feature Store:  Data retrieval
-Learn how to retrieve data with the feature store, and use it.
+Learn how to retrieve and use data with the feature store.
 
 
 **In this section**

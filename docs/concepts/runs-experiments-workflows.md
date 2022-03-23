@@ -23,9 +23,10 @@ The run method accepts various parameters such as `name`, `handler`, `params`, `
 Alternatively you can pass a **`Task`** object (see: {py:func}`~mlrun.model.new_task`) that holds all of the 
 parameters plus the advanced options. 
 
-> **Run/simulate functions locally:** 
+```{admonition} Run/simulate functions locally: 
 Functions can also run and be debugged locally by using the `local` runtime or by setting the `local=True` 
-> parameter in the {py:meth}`~mlrun.runtimes.BaseRuntime.run` method (for batch functions).
+parameter in the {py:meth}`~mlrun.runtimes.BaseRuntime.run` method (for batch functions).
+```
 
 Functions can host multiple methods (handlers). You can set the default handler per function. You
  need to specify which handler you intend to call in the run command. 

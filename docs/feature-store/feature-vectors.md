@@ -1,12 +1,12 @@
 # Creating and using feature vectors
 
-In MLRun, you can define a group of features from different feature sets as a {py:class}`~mlrun.feature_store.FeatureVector`.  
+You can define a group of features from different feature sets as a {py:class}`~mlrun.feature_store.FeatureVector`.  
 Feature vectors are used as an input for models, allowing you to define the feature vector once, and in turn create and track the datasets created from it or the online manifestation of the vector for real-time prediction needs.
 
 The feature vector handles all the merging logic for you using an `asof merge` type merge that accounts for both the time and the entity.
 It ensures that all the latest relevant data is fetched, without concerns about "seeing the future" or other types of common time related errors.
 
-**Contents**
+**In this section**
 
 - [Creating a feature vector](#creating-a-feature-vector)
 - [Using a feature vector](#using-a-feature-vector)
@@ -118,7 +118,7 @@ You can see a full example of using the offline feature vector to create an ML m
 
 The online feature vector provides real-time feature vectors to the model using the latest data available.
 
-To do this, first create an `Online Feature Service` using {py:meth}`~mlrun.feature_store.get_online_feature_service`. Then you can feed the `Entity` of the feature vector to the service and receive the latest feature vector.
+First create an `Online Feature Service` using {py:meth}`~mlrun.feature_store.get_online_feature_service`. Then feed the `Entity` of the feature vector to the service and receive the latest feature vector.
 
 To create the {py:class}`~mlrun.feature_store.OnlineVectorService` you only need to pass it the feature vector's store reference.
 
@@ -133,8 +133,8 @@ svc = fstore.get_online_feature_service(feature_vector)
 The online feature service supports value imputing (substitute NaN/Inf values with statistical or constant value). You 
 can set the `impute_policy` parameter with the imputing policy, and specify which constant or statistical value will be used
 instead of NaN/Inf value. This can be defined per column or for all the columns (`"*"`).
-The replaced value can be a fixed number for constants or $mean, $max, $min, $std, $count for statistical values.
-"*" is used to specify the default for all features, fot example: 
+The replaced value can be a fixed number for constants or `$mean`, `$max`, `$min`, `$std`, `$count` for statistical values.
+`"*"` is used to specify the default for all features, for example: 
 
     svc = fstore.get_online_feature_service(feature_vector, impute_policy={"*": "$mean", "age": 33})
 
@@ -153,8 +153,8 @@ svc.get(entities)
 ```
 
 The `entities` can be a list of dictionaries as shown in the example, or a list of lists where the values in the internal 
-list correspond to the entity values (e.g. `entities = [["Joe"], ["Mike"]]`). The `.get()` method returns a dict by default
-. If you want to return an ordered list of values, set the `as_list` parameter to `True`. The list input is required by many ML 
+list correspond to the entity values (e.g. `entities = [["Joe"], ["Mike"]]`). The `.get()` method returns a dict by default. 
+If you want to return an ordered list of values, set the `as_list` parameter to `True`. The list input is required by many ML 
 frameworks and this eliminates additional glue logic.  
 
 See a full example of using the online feature service inside a serving function in [part 3 of the end-to-end demo](./end-to-end-demo/03-deploy-serving-model.ipynb).

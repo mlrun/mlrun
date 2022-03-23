@@ -14,8 +14,8 @@ Projects can also be loaded and workflows/pipelines can be executed using the CL
 
 **In this section**
 - [**Creating a new project**](#creating-a-new-project)
-- [**Load & Run projects from context, git or archive**](#load-and-run-projects-from-context-git-or-archive)
-- [**Get from DB or create (get_or_create_project)**](#get-from-db-or-create-get-or-create-project)
+- [**Load and run projects from context, git or archive**](#load-and-run-projects-from-context-git-or-archive)
+- [**Get a project from DB or create it (get_or_create_project)**](#get-from-db-or-create-get-or-create-project)
 - [**Working with Git**](#working-with-git)
 
 ## Creating a new project
@@ -93,7 +93,7 @@ Example of creating a new project from a zip template:
 * You can ensure the project name is unique per user by setting the the `user_project` parameter to `True`.
 ```
 
-## Load and Run projects from context, git or archive
+## Load and run projects from context, git or archive
 
 When a project is already created and stored in a git archive you can quickly load and use it with the 
 {py:meth}`~mlrun.projects.load_project` method. `load_project` uses a local context directory (with initialized `git`) 
@@ -153,7 +153,7 @@ Options:
   -d, --dirty               allow run with uncommitted git changes
 ```
 
-## Get from DB or create (`get_or_create_project`)
+## Get a project from DB or create it (`get_or_create_project`)
 
 If you already have a project saved in the DB and you need to access/use it (for example from a different notebook or file), 
 use the {py:meth}`~mlrun.projects.get_or_create_project` method. It first tries to read the project from the DB, 
@@ -175,7 +175,7 @@ Example:
 
 ## Working with Git
 
-You can update the code using the standard Git process (commit, push, ..). If you update/edit the project object you 
+You can update the code using the standard Git process (commit, push). If you update/edit the project object you 
 need to run `project.save()`, which updates the `project.yaml` file in your context directory, followed by pushing your updates.
 
 You can use the standard `git` cli to `pull`, `commit`, `push`, etc. MLRun project syncs with the local git state.
@@ -192,7 +192,7 @@ You must push updates before you build functions or run workflows which use code
 since the builder or containers pull the code from the git repo.
 ```
 
-If you are using containerized Jupyter you may need to first set your Git parameters, e.g. using the following commands:
+If you are using containerized Jupyter you might need to first set your Git parameters, e.g. using the following commands:
 
 ```
 git config --global user.email "<my@email.com>"
@@ -200,7 +200,7 @@ git config --global user.name "<name>"
 git config --global credential.helper store
 ```
 
-After that you need to login once to git with your password as well as restart the notebook.
+After that you need to login once to git with your password, as well as restart the notebook.
 
 ``` python
 project.push('master', 'some edits')

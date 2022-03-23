@@ -1022,7 +1022,6 @@ def new_task(
 
 
 class TargetPathObject:
-
     def __init__(
         self,
         base_path=None,
@@ -1035,9 +1034,7 @@ class TargetPathObject:
             if RUN_ID_PLACE_HOLDER not in self.full_path_template:
                 if self.full_path_template[-1] != "/":
                     self.full_path_template = self.full_path_template + "/"
-                self.full_path_template = (
-                    self.full_path_template + RUN_ID_PLACE_HOLDER
-                )
+                self.full_path_template = self.full_path_template + RUN_ID_PLACE_HOLDER
 
     def get_templated_path(self):
         return self.full_path_template

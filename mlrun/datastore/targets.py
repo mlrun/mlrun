@@ -95,9 +95,7 @@ def get_default_prefix_for_target(kind):
 
 
 def get_default_prefix_for_source(kind):
-    return get_default_prefix_for_target(kind).replace(
-        f"/{RUN_ID_PLACE_HOLDER}/", "/"
-    )
+    return get_default_prefix_for_target(kind).replace(f"/{RUN_ID_PLACE_HOLDER}/", "/")
 
 
 def validate_target_list(targets):

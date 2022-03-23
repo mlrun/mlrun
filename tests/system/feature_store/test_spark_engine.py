@@ -15,7 +15,7 @@ from mlrun.datastore.sources import ParquetSource
 from mlrun.datastore.targets import NoSqlTarget, ParquetTarget
 from mlrun.features import Entity
 from tests.system.base import TestMLRunSystem
-from mlrun.feature_store.feature_set import EmitPolicy, EmitPolicyType
+from storey import EmitEveryEvent
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 # Marked as enterprise because of v3io mount and remote spark
@@ -314,7 +314,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             "time_window": {("moshe", "cohen"): "1h", ("yosi", "levi"): "1h"},
         }
 
-    def test_aggregations_emit_per_row(self):
+    def test_aggregations_emit_every_event(self):
         name = f"measurements_{uuid.uuid4()}"
         test_base_time = datetime.fromisoformat("2020-07-21T21:40:00+00:00")
 
@@ -351,7 +351,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             operations=["sum", "max", "count"],
             windows=["1h", "2h"],
             period="10m",
-            emit_policy=EmitPolicy(EmitPolicyType.every_event),
+            emit_policy=EmitEveryEvent(),
         )
 
         fs.ingest(

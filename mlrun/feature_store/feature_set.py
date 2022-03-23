@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime
-import enum
 import warnings
 from typing import Dict, List, Optional, Union
 
 import pandas as pd
-from storey import EmitAfterPeriod, EmitAfterWindow, EmitEveryEvent
+from storey import EmitPolicy, EmitEveryEvent
 
 import mlrun
 import mlrun.api.schemas
@@ -48,29 +47,6 @@ from ..utils import StorePrefix
 from .common import verify_feature_set_permissions
 
 aggregates_step = "Aggregates"
-
-
-class EmitPolicyType(str, enum.Enum):
-    every_event = EmitEveryEvent.name()
-    after_period = EmitAfterPeriod.name()
-    after_window = EmitAfterWindow.name()
-
-
-class EmitPolicy(ModelObj):
-    _dict_fields = ["mode"]
-
-    def __init__(
-        self, policy_type: EmitPolicyType = EmitPolicyType.after_period, **kwargs
-    ):
-        self.mode = policy_type.value
-        self.policy_args = kwargs
-
-    def to_dict(self, fields=None, exclude=None):
-        struct = super().to_dict(fields, exclude)
-        if self.policy_args:
-            for key, value in self.policy_args.items():
-                struct[key] = value
-        return struct
 
 
 class FeatureAggregation(ModelObj):
@@ -246,6 +222,18 @@ class FeatureSetStatus(ModelObj):
         for target in self._targets:
             if target.path == target_path or target.path.rstrip("/") == target_path:
                 target.last_written = last_written
+
+
+def emit_policy_to_dict(policy: EmitPolicy):
+    # Storey expects the policy to be converted to a dictionary with specific params and won't allow extra params
+    # (see Storey's _dict_to_emit_policy function). This takes care of creating a dict conforming to it.
+    # TODO - fix Storey's handling of emit policy and parsing of dict in _dict_to_emit_policy.
+    struct = {"mode": policy.name()}
+    if hasattr(policy, "delay_in_seconds"):
+        struct["delay"] = getattr(policy, "delay_in_seconds")
+    if hasattr(policy, "max_events"):
+        struct["maxEvents"] = getattr(policy, "max_events")
+    return struct
 
 
 class FeatureSet(ModelObj):
@@ -598,10 +586,14 @@ class FeatureSet(ModelObj):
             step = graph.steps[step_name]
             self._add_aggregation_to_existing(aggregation)
             step.class_args["aggregates"] = list(self._aggregations.values())
+            if emit_policy:
+                # Using simple override here - we might want to consider exploding if different emit policies
+                # were used for multiple aggregations.
+                step.class_args["emit_policy"] = emit_policy_to_dict(emit_policy)
         else:
             class_args = {}
             if emit_policy:
-                class_args["emit_policy"] = emit_policy.to_dict()
+                class_args["emit_policy"] = emit_policy_to_dict(emit_policy)
             self._aggregations[aggregation["name"]] = aggregation
             if not self.spec.engine or self.spec.engine == "storey":
                 step = graph.add_step(
@@ -746,7 +738,7 @@ class SparkAggregateByKey(StepToDict):
         self.emit_policy_mode = None
         if emit_policy:
             if isinstance(emit_policy, EmitPolicy):
-                emit_policy = emit_policy.to_dict()
+                emit_policy = emit_policy_to_dict(emit_policy)
             self.emit_policy_mode = emit_policy["mode"]
 
     @staticmethod
@@ -782,13 +774,12 @@ class SparkAggregateByKey(StepToDict):
         from pyspark.sql import Window
 
         time_column = self.time_column or "time"
+        input_df = event
 
         if (
             not self.emit_policy_mode
-            or self.emit_policy_mode != EmitPolicyType.every_event.value
+            or self.emit_policy_mode != EmitEveryEvent.name()
         ):
-            input_df = event
-
             last_value_aggs = [
                 funcs.last(column).alias(column)
                 for column in input_df.columns
@@ -830,7 +821,6 @@ class SparkAggregateByKey(StepToDict):
             return union_df
 
         else:
-            input_df = event
             window_counter = 0
             # We'll use this column to identify our original row and group-by across the various windows
             # (either sliding windows or multiple windows provided). See below comment for more details.

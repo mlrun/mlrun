@@ -399,10 +399,6 @@ class FeatureSet(ModelObj):
         )
 
         if purge_targets:
-            # TODO - benb - run_id shouldn't be a part of purge - remove logic after 'toggle' implementation
-            # from mlrun.datastore.targets import generate_target_run_id
-
-            # run_id = generate_target_run_id()
             purge_target_names = list(purge_targets.keys())
             for target_name in purge_target_names:
                 target = purge_targets[target_name]
@@ -411,7 +407,6 @@ class FeatureSet(ModelObj):
                     driver.purge()
                 except FileNotFoundError:
                     pass
-                # driver.run_id = run_id
                 del self.status.targets[target_name]
 
             self.save()

@@ -586,14 +586,12 @@ class FeatureSet(ModelObj):
             step = graph.steps[step_name]
             self._add_aggregation_to_existing(aggregation)
             step.class_args["aggregates"] = list(self._aggregations.values())
-            if emit_policy:
+            if emit_policy and self.spec.engine == "spark":
                 # Using simple override here - we might want to consider exploding if different emit policies
                 # were used for multiple aggregations.
                 step.class_args["emit_policy"] = emit_policy_to_dict(emit_policy)
         else:
             class_args = {}
-            if emit_policy:
-                class_args["emit_policy"] = emit_policy_to_dict(emit_policy)
             self._aggregations[aggregation["name"]] = aggregation
             if not self.spec.engine or self.spec.engine == "storey":
                 step = graph.add_step(
@@ -607,6 +605,8 @@ class FeatureSet(ModelObj):
                 )
             elif self.spec.engine == "spark":
                 key_columns = []
+                if emit_policy:
+                    class_args["emit_policy"] = emit_policy_to_dict(emit_policy)
                 for entity in self.spec.entities:
                     key_columns.append(entity.name)
                 step = graph.add_step(

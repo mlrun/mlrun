@@ -11,8 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import datetime
 import warnings
+from datetime import datetime
 from typing import Dict, List, Optional, Union
 
 import pandas as pd
@@ -27,6 +27,7 @@ from ..datastore.targets import (
     default_target_names,
     get_offline_target,
     get_target_driver,
+    update_targets_run_id_for_ingest,
     validate_target_list,
     validate_target_placement,
 )
@@ -215,11 +216,13 @@ class FeatureSetStatus(ModelObj):
     def update_target(self, target: DataTarget):
         self._targets.update(target)
 
-    def update_last_written_for_target(
-        self, target_path: str, last_written: datetime.datetime
-    ):
+    def update_last_written_for_target(self, target_path: str, last_written: datetime):
         for target in self._targets:
-            if target.path == target_path or target.path.rstrip("/") == target_path:
+            actual_target_path = get_target_driver(target).get_target_path()
+            if (
+                actual_target_path == target_path
+                or actual_target_path.rstrip("/") == target_path
+            ):
                 target.last_written = last_written
 
 
@@ -333,7 +336,7 @@ class FeatureSet(ModelObj):
         """get the url/path for an offline or specified data target"""
         target = get_offline_target(self, name=name)
         if target:
-            return target.path
+            return target.get_path().get_absolute_path()
 
     def set_targets(
         self,
@@ -391,6 +394,45 @@ class FeatureSet(ModelObj):
             self, mlrun.api.schemas.AuthorizationAction.delete
         )
 
+        purge_targets = self._reload_and_get_status_targets(
+            target_names=target_names, silent=silent
+        )
+
+        if purge_targets:
+            purge_target_names = list(purge_targets.keys())
+            for target_name in purge_target_names:
+                target = purge_targets[target_name]
+                driver = get_target_driver(target_spec=target, resource=self)
+                try:
+                    driver.purge()
+                except FileNotFoundError:
+                    pass
+                del self.status.targets[target_name]
+
+            self.save()
+
+    def update_targets_for_ingest(
+        self,
+        targets: List[DataTargetBase],
+        overwrite: bool = None,
+    ):
+        ingestion_target_names = [t.name for t in targets]
+
+        status_targets = {}
+        if not overwrite:
+            # silent=True always because targets are not guaranteed to be found in status
+            status_targets = (
+                self._reload_and_get_status_targets(
+                    target_names=ingestion_target_names, silent=True
+                )
+                or {}
+            )
+
+        update_targets_run_id_for_ingest(overwrite, targets, status_targets)
+
+    def _reload_and_get_status_targets(
+        self, target_names: List[str] = None, silent: bool = False
+    ):
         try:
             self.reload(update_spec=False)
         except mlrun.errors.MLRunNotFoundError:
@@ -401,31 +443,23 @@ class FeatureSet(ModelObj):
                 raise
 
         if target_names:
-            purge_targets = ObjectList(DataTarget)
+            targets = ObjectList(DataTarget)
             for target_name in target_names:
                 try:
-                    purge_targets[target_name] = self.status.targets[target_name]
+                    targets[target_name] = self.status.targets[target_name]
                 except KeyError:
                     if silent:
                         pass
                     else:
                         raise mlrun.errors.MLRunNotFoundError(
                             "Target not found in status (fset={0}, target={1})".format(
-                                self.name, target_name
+                                self.metadata.name, target_name
                             )
                         )
         else:
-            purge_targets = self.status.targets
-        purge_target_names = list(purge_targets.keys())
-        for target_name in purge_target_names:
-            target = purge_targets[target_name]
-            driver = get_target_driver(target_spec=target, resource=self)
-            try:
-                driver.purge()
-            except FileNotFoundError:
-                pass
-            del self.status.targets[target_name]
-        self.save()
+            targets = self.status.targets
+
+        return targets
 
     def has_valid_source(self):
         """check if object's spec has a valid (non empty) source definition"""

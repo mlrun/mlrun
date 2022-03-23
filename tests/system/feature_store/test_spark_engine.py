@@ -7,6 +7,7 @@ import fsspec
 import pandas as pd
 import pytest
 import v3iofs
+from storey import EmitEveryEvent
 
 import mlrun
 import mlrun.feature_store as fs
@@ -15,7 +16,7 @@ from mlrun.datastore.sources import ParquetSource
 from mlrun.datastore.targets import NoSqlTarget, ParquetTarget
 from mlrun.features import Entity
 from tests.system.base import TestMLRunSystem
-from storey import EmitEveryEvent
+
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 # Marked as enterprise because of v3io mount and remote spark
@@ -316,20 +317,20 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     def test_aggregations_emit_every_event(self):
         name = f"measurements_{uuid.uuid4()}"
-        test_base_time = datetime.fromisoformat("2020-07-21T21:40:00+00:00")
+        test_base_time = datetime.fromisoformat("2020-07-21T21:40:00")
 
         df = pd.DataFrame(
             {
                 "time": [
                     test_base_time,
                     test_base_time + pd.Timedelta(minutes=20),
-                    test_base_time + pd.Timedelta(minutes=40),
                     test_base_time + pd.Timedelta(minutes=60),
-                    test_base_time + pd.Timedelta(minutes=80),
+                    test_base_time + pd.Timedelta(minutes=79),
+                    test_base_time + pd.Timedelta(minutes=81),
                 ],
-                "first_name": ["moshe", "yosi", "yosi", "moshe", "yosi"],
-                "last_name": ["cohen", "levi", "levi", "cohen", "levi"],
-                "bid": [2000, 10, 11, 12, 16],
+                "first_name": ["Moshe", "Yossi", "Moshe", "Yossi", "Yossi"],
+                "last_name": ["Cohen", "Levi", "Cohen", "Levi", "Levi"],
+                "bid": [2000, 10, 12, 16, 8],
             }
         )
 
@@ -361,23 +362,18 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=fs.RunConfig(local=False),
         )
 
-        print(f"Results:\n{data_set.to_dataframe().to_string()}\n")
-        result_dict = data_set.to_dataframe().to_dict()
-        print(result_dict)
+        print(f"Results:\n{data_set.to_dataframe().sort_values('time').to_string()}\n")
+        result_dict = data_set.to_dataframe().sort_values("time").to_dict(orient="list")
 
-        storey_data_set = fs.FeatureSet(
-            f"{name}_storey",
-            entities=[Entity("first_name"), Entity("last_name")],
+        expected_results = df.to_dict(orient="list")
+        expected_results.update(
+            {
+                "bid_sum_1h": [2000, 10, 12, 26, 24],
+                "bid_max_1h": [2000, 10, 12, 16, 16],
+                "bid_count_1h": [1, 1, 1, 2, 2],
+                "bid_sum_2h": [2000, 10, 2012, 26, 34],
+                "bid_max_2h": [2000, 10, 2000, 16, 16],
+                "bid_count_2h": [1, 1, 2, 2, 3],
+            }
         )
-
-        storey_data_set.add_aggregation(
-            column="bid",
-            operations=["sum", "max", "count"],
-            windows=["1h", "2h"],
-            period="10m",
-        )
-
-        fs.ingest(storey_data_set, source)
-        print(f"Storey results:\n{storey_data_set.to_dataframe().to_string()}\n")
-        storey_result_dict = storey_data_set.to_dataframe().to_dict()
-        print(storey_result_dict)
+        assert result_dict == expected_results

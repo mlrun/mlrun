@@ -16,7 +16,7 @@ import warnings
 from typing import Dict, List, Optional, Union
 
 import pandas as pd
-from storey import EmitPolicy, EmitEveryEvent
+from storey import EmitEveryEvent, EmitPolicy
 
 import mlrun
 import mlrun.api.schemas
@@ -776,10 +776,7 @@ class SparkAggregateByKey(StepToDict):
         time_column = self.time_column or "time"
         input_df = event
 
-        if (
-            not self.emit_policy_mode
-            or self.emit_policy_mode != EmitEveryEvent.name()
-        ):
+        if not self.emit_policy_mode or self.emit_policy_mode != EmitEveryEvent.name():
             last_value_aggs = [
                 funcs.last(column).alias(column)
                 for column in input_df.columns

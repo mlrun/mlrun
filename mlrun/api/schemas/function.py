@@ -1,3 +1,6 @@
+from enum import Enum
+
+
 # Ideally we would want this to be class FunctionState(str, enum.Enum) which is the "FastAPI-compatible" way of creating
 # schemas
 # But, when we save a function to the DB, we pickle the body, which saves the state as an instance of this class (and
@@ -23,3 +26,16 @@ class FunctionState:
     pending = "pending"
     # same goes for the build which is not coming from the pod, but is used and we can't just omit it for BC reasons
     build = "build"
+
+
+class PreemptionModes(str, Enum):
+    # makes function pods be able to run on preemptible nodes
+    allow = "allow"
+    # makes the function pods run on preemtible nodes only
+    constrain = "constrain"
+    # prevents the function pods from running on preemptible nodes
+    prevent = "prevent"
+
+    @classmethod
+    def has_preemption_mode(cls, value):
+        return value in cls._value2member_map_

@@ -547,7 +547,11 @@ class FeatureSet(ModelObj):
         :param state_name: *Deprecated* - use step_name instead
         :param after:      optional, after which graph step it runs
         :param before:     optional, comes before graph step
-        :param emit_policy: optional, which emit policy to use when performing the aggregations
+        :param emit_policy: optional, which emit policy to use when performing the aggregations. Use the derived
+                            classes of ``storey.EmitPolicy``. The default is to emit every period for Spark engine
+                            and emit every event for storey. Currently the only other supported option is to use
+                            ``emit_policy=storey.EmitEveryEvent()`` when using the Spark engine to emit every event
+
         """
         if isinstance(operations, str):
             raise mlrun.errors.MLRunInvalidArgumentError(

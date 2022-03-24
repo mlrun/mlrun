@@ -377,3 +377,25 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             }
         )
         assert result_dict == expected_results
+
+        # Compare Spark-generated results with Storey results (which are always per-event)
+        name_storey = f"{name}_storey"
+
+        storey_data_set = fs.FeatureSet(
+            name_storey,
+            entities=[Entity("first_name"), Entity("last_name")],
+        )
+
+        storey_data_set.add_aggregation(
+            column="bid",
+            operations=["sum", "max", "count"],
+            windows=["1h", "2h"],
+            period="10m",
+        )
+        fs.ingest(storey_data_set, source)
+
+        storey_df = storey_data_set.to_dataframe().reset_index().sort_values("time")
+        print(f"Storey results:\n{storey_df.to_string()}\n")
+        storey_result_dict = storey_df.to_dict(orient="list")
+
+        assert storey_result_dict == result_dict

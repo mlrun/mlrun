@@ -22,6 +22,7 @@ from mlrun.runtimes.function import (
     enrich_function_with_ingress,
     min_nuclio_versions,
     resolve_function_ingresses,
+    set_source_archive,
     validate_nuclio_version_compatibility,
 )
 from mlrun.runtimes.pod import KubeResourceSpec
@@ -734,27 +735,23 @@ class TestNuclioRuntime(TestRuntimeBase):
 
                 success()
 
-    def _xtest_load_function_with_source_archive_git(self):
+    def test_load_function_with_source_archive_git(self):
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
             "git://github.com/org/repo#my-branch",
             handler="main:handler",
             workdir="path/inside/repo",
-            secrets={"GIT_PASSWORD": "my-access-token"},
         )
+        secrets = {"GIT_PASSWORD": "my-access-token"}
+        spec = nuclio.ConfigSpec()
+        config = {}
+        set_source_archive(spec, fn, lambda x: secrets)
+        spec.merge(config)
 
-        assert fn.spec.base_spec == {
-            "apiVersion": "nuclio.io/v1",
-            "kind": "Function",
-            "metadata": {"name": "notebook", "labels": {}, "annotations": {}},
+        assert config == {
             "spec": {
-                "runtime": "python:3.7",
                 "handler": "main:handler",
-                "env": [],
-                "volumes": [],
                 "build": {
-                    "commands": [],
-                    "noBaseImagesPull": True,
                     "path": "https://github.com/org/repo",
                     "codeEntryType": "git",
                     "codeEntryAttributes": {
@@ -772,21 +769,16 @@ class TestNuclioRuntime(TestRuntimeBase):
             "git://github.com/org/repo#refs/heads/my-branch",
             handler="main:handler",
             workdir="path/inside/repo",
-            secrets={"GIT_PASSWORD": "my-access-token"},
         )
+        spec = nuclio.ConfigSpec()
+        config = {}
+        set_source_archive(spec, fn, lambda x: secrets)
+        spec.merge(config)
 
-        assert fn.spec.base_spec == {
-            "apiVersion": "nuclio.io/v1",
-            "kind": "Function",
-            "metadata": {"name": "notebook", "labels": {}, "annotations": {}},
+        assert config == {
             "spec": {
-                "runtime": "python:3.7",
                 "handler": "main:handler",
-                "env": [],
-                "volumes": [],
                 "build": {
-                    "commands": [],
-                    "noBaseImagesPull": True,
                     "path": "https://github.com/org/repo",
                     "codeEntryType": "git",
                     "codeEntryAttributes": {
@@ -804,31 +796,28 @@ class TestNuclioRuntime(TestRuntimeBase):
     ):
         self.assert_run_without_specifying_resources()
 
-    def _xtest_load_function_with_source_archive_s3(self):
+    def test_load_function_with_source_archive_s3(self):
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
             "s3://my-bucket/path/in/bucket/my-functions-archive",
             handler="main:Handler",
             workdir="path/inside/functions/archive",
             runtime="golang",
-            secrets={
-                "AWS_ACCESS_KEY_ID": "some-id",
-                "AWS_SECRET_ACCESS_KEY": "some-secret",
-            },
         )
+        secrets = {
+            "AWS_ACCESS_KEY_ID": "some-id",
+            "AWS_SECRET_ACCESS_KEY": "some-secret",
+        }
+        spec = nuclio.ConfigSpec()
+        config = {}
+        set_source_archive(spec, fn, lambda x: secrets)
+        spec.merge(config)
 
-        assert fn.spec.base_spec == {
-            "apiVersion": "nuclio.io/v1",
-            "kind": "Function",
-            "metadata": {"name": "notebook", "labels": {}, "annotations": {}},
+        assert config == {
             "spec": {
                 "runtime": "golang",
                 "handler": "main:Handler",
-                "env": [],
-                "volumes": [],
                 "build": {
-                    "commands": [],
-                    "noBaseImagesPull": True,
                     "path": "s3://my-bucket/path/in/bucket/my-functions-archive",
                     "codeEntryType": "s3",
                     "codeEntryAttributes": {
@@ -843,27 +832,23 @@ class TestNuclioRuntime(TestRuntimeBase):
             },
         }
 
-    def _xtest_load_function_with_source_archive_v3io(self):
+    def test_load_function_with_source_archive_v3io(self):
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
             "v3ios://host.com/container/my-functions-archive.zip",
             handler="main:handler",
             workdir="path/inside/functions/archive",
-            secrets={"V3IO_ACCESS_KEY": "ma-access-key"},
         )
+        secrets = {"V3IO_ACCESS_KEY": "ma-access-key"}
+        spec = nuclio.ConfigSpec()
+        config = {}
+        set_source_archive(spec, fn, lambda x: secrets)
+        spec.merge(config)
 
-        assert fn.spec.base_spec == {
-            "apiVersion": "nuclio.io/v1",
-            "kind": "Function",
-            "metadata": {"name": "notebook", "labels": {}, "annotations": {}},
+        assert config == {
             "spec": {
-                "runtime": "python:3.7",
                 "handler": "main:handler",
-                "env": [],
-                "volumes": [],
                 "build": {
-                    "commands": [],
-                    "noBaseImagesPull": True,
                     "path": "https://host.com/container/my-functions-archive.zip",
                     "codeEntryType": "archive",
                     "codeEntryAttributes": {

@@ -432,7 +432,7 @@ class ServingRuntime(RemoteRuntime):
                     stream.path, group=group, shards=stream.shards, **trigger_args
                 )
 
-    def _deploy_function_refs(self):
+    def _deploy_function_refs(self, builder_env: dict = None):
         """set metadata and deploy child functions"""
         for function_ref in self._spec.function_refs.values():
             logger.info(f"deploy child function {function_ref.name} ...")
@@ -454,7 +454,7 @@ class ServingRuntime(RemoteRuntime):
 
             function_object.verbose = self.verbose
             function_object.spec.secret_sources = self.spec.secret_sources
-            function_object.deploy()
+            function_object.deploy(builder_env=builder_env)
 
     def remove_states(self, keys: list):
         """remove one, multiple, or all states/models from the spec (blank list for all)"""
@@ -521,6 +521,7 @@ class ServingRuntime(RemoteRuntime):
         tag="",
         verbose=False,
         auth_info: mlrun.api.schemas.AuthInfo = None,
+        builder_env: dict = None,
     ):
         """deploy model serving function to a local/remote cluster
 
@@ -530,6 +531,7 @@ class ServingRuntime(RemoteRuntime):
         :param verbose:   verbose logging
         :param auth_info: The auth info to use to communicate with the Nuclio dashboard, required only when providing
                           dashboard
+        :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         """
         load_mode = self.spec.load_mode
         if load_mode and load_mode not in ["sync", "async"]:
@@ -555,7 +557,9 @@ class ServingRuntime(RemoteRuntime):
             self._deploy_function_refs()
             logger.info(f"deploy root function {self.metadata.name} ...")
 
-        return super().deploy(dashboard, project, tag, verbose, auth_info)
+        return super().deploy(
+            dashboard, project, tag, verbose, auth_info, builder_env=builder_env
+        )
 
     def _get_runtime_env(self):
         env = super()._get_runtime_env()

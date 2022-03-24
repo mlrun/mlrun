@@ -1,6 +1,5 @@
-(Functions)=
+(serverless-functions)=
 # MLRun serverless functions
-<!-- in Concepts -->
 
 
 **In this section**

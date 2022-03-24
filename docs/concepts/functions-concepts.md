@@ -1,6 +1,5 @@
-(Functions)=
+(Functions-concepts)=
 # MLRun serverless functions
-<!-- in Concepts -->
 
 All the executions in MLRun are based on **Serverless Functions**. The functions allow specifying code and 
 all the operational aspects (image, required packages, cpu/mem/gpu resources, storage, environment, etc.). 

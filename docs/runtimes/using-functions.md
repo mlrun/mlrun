@@ -25,7 +25,7 @@ The general concepts described in this section are illustrated in the following 
 
 <img src="../_static/images/mlrun_function_flow.png" alt="functions-flow" width="800"/>
 
-Read more in:
+**In this section**
 * [**Providing Function Code**](#providing-function-code)
 * [**Specifying the function’s execution handler or command**](#specifying-the-function-execution-handler-or-command)
 * [**Function Runtimes**](#function-runtimes)

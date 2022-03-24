@@ -1,4 +1,4 @@
-(Projects)=
+(Using-projects)=
 # Using projects
 
 You can add/update a project's functions, artifacts, or workflows using {py:meth}`~mlrun.projects.MlrunProject.set_function`, 

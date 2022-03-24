@@ -7,6 +7,7 @@ pytest-asyncio~=0.15.0
 pytest-alembic~=0.4.0
 pytest-httpserver~=1.0
 requests-mock~=1.8
+httpx~=0.22.0
 # needed for system tests
 matplotlib~=3.0
 graphviz~=0.16.0

@@ -1,3 +1,4 @@
+import typing
 from http import HTTPStatus
 
 import requests
@@ -20,7 +21,11 @@ class MLRunTaskNotReady(MLRunBaseError):
 
 class MLRunHTTPError(MLRunBaseError, requests.HTTPError):
     def __init__(
-        self, message: str, response: requests.Response = None, status_code: int = None
+        self,
+        *args,
+        response: requests.Response = None,
+        status_code: int = None,
+        **kwargs,
     ):
 
         # because response object is probably with an error, it returns False, so we
@@ -30,7 +35,7 @@ class MLRunHTTPError(MLRunBaseError, requests.HTTPError):
         if status_code:
             response.status_code = status_code
 
-        requests.HTTPError.__init__(self, message, response=response)
+        requests.HTTPError.__init__(self, *args, response=response, **kwargs)
 
 
 class MLRunHTTPStatusError(MLRunHTTPError):
@@ -42,9 +47,9 @@ class MLRunHTTPStatusError(MLRunHTTPError):
 
     error_status_code = None
 
-    def __init__(self, message: str, response: requests.Response = None):
+    def __init__(self, *args, response: requests.Response = None, **kwargs):
         super(MLRunHTTPStatusError, self).__init__(
-            message, response=response, status_code=self.error_status_code
+            *args, response=response, status_code=self.error_status_code, **kwargs
         )
 
 
@@ -129,6 +134,20 @@ class MLRunMissingDependencyError(MLRunInternalServerError):
 
 class MLRunTimeoutError(MLRunHTTPStatusError, TimeoutError):
     error_status_code = HTTPStatus.GATEWAY_TIMEOUT.value
+
+
+class MLRunFatalFailureError(Exception):
+    """
+    Internal exception meant to be used inside mlrun.utils.helpers.retry_until_successful to signal the loop not to
+    retry
+    Allowing to pass to original exception that will be raised from the loop (instead of this exception)
+    """
+
+    def __init__(
+        self, *args, original_exception: typing.Optional[Exception] = None, **kwargs
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.original_exception = original_exception
 
 
 STATUS_ERRORS = {

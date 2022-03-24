@@ -62,6 +62,57 @@ run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 unversioned_tagged_object_uid_prefix = "unversioned-"
 
 
+conflict_messages = [
+    "(sqlite3.IntegrityError) UNIQUE constraint failed",
+    "(pymysql.err.IntegrityError) (1062",
+    "(pymysql.err.IntegrityError) (1586",
+]
+
+
+def retry_on_conflict(function):
+    """
+    Most of our store_x functions starting from doing get, then if nothing is found creating the object otherwise
+    updating attributes on the existing object. On the SQL level this translates to either INSERT or UPDATE queries.
+    Sometimes we have a race condition in which two requests do the get, find nothing, create a new object, but only the
+    SQL query of the first one will succeed, the second will get a conflict error, in that case, a retry like we're
+    doing on the bottom most layer (like the one for the database is locked error) won't help, cause the object does not
+    hold a reference to the existing DB object, and therefore will always translate to an INSERT query, therefore, in
+    order to make it work, we need to do the get again, and in other words, call the whole store_x function again
+    This why we implemented this retry as a decorator that comes "around" the existing functions
+    """
+
+    def wrapper(*args, **kwargs):
+        def _try_function():
+            try:
+                return function(*args, **kwargs)
+            except Exception as exc:
+
+                if mlrun.utils.helpers.are_strings_in_exception_chain_messages(
+                    exc, conflict_messages
+                ):
+                    logger.warning("Got conflict error from DB. Retrying", err=str(exc))
+                    raise mlrun.errors.MLRunRuntimeError(
+                        "Got conflict error from DB"
+                    ) from exc
+                raise mlrun.errors.MLRunFatalFailureError(original_exception=exc)
+
+        if config.httpdb.db.conflict_retry_timeout:
+            interval = config.httpdb.db.conflict_retry_interval
+            if interval is None:
+                interval = mlrun.utils.create_step_backoff([[0.0001, 1], [3, None]])
+            return mlrun.utils.helpers.retry_until_successful(
+                interval,
+                config.httpdb.db.conflict_retry_timeout,
+                logger,
+                False,
+                _try_function,
+            )
+        else:
+            return function(*args, **kwargs)
+
+    return wrapper
+
+
 class SQLDB(DBInterface):
     def __init__(self, dsn):
         self.dsn = dsn
@@ -98,6 +149,7 @@ class SQLDB(DBInterface):
     def _list_logs(self, session: Session, project: str):
         return self._query(session, Log, project=project).all()
 
+    @retry_on_conflict
     def store_run(
         self,
         session,
@@ -133,7 +185,7 @@ class SQLDB(DBInterface):
         run.start_time = start_time
         self._update_run_updated_time(run, run_data, now=now)
         run.struct = run_data
-        self._upsert(session, run, ignore=True)
+        self._upsert(session, [run], ignore=True)
 
     def update_run(self, session, updates: dict, uid, project="", iter=0):
         project = project or config.default_project
@@ -152,8 +204,7 @@ class SQLDB(DBInterface):
         update_labels(run, run_labels(struct))
         self._update_run_updated_time(run, struct)
         run.struct = struct
-        session.merge(run)
-        session.commit()
+        self._upsert(session, [run])
         self._delete_empty_labels(session, Run.Label)
 
     def read_run(self, session, uid, project=None, iter=0):
@@ -280,6 +331,7 @@ class SQLDB(DBInterface):
         run_record.state = state
         run_dict.setdefault("status", {})["state"] = state
 
+    @retry_on_conflict
     def store_artifact(
         self,
         session,
@@ -336,7 +388,7 @@ class SQLDB(DBInterface):
         artifact.pop("tag", None)
 
         art.struct = artifact
-        self._upsert(session, art)
+        self._upsert(session, [art])
         if tag_artifact:
             tag = tag or "latest"
             self.tag_artifacts(session, [art], project, tag)
@@ -515,6 +567,7 @@ class SQLDB(DBInterface):
         for key in distinct_keys:
             self.del_artifact(session, key, "", project)
 
+    @retry_on_conflict
     def store_function(
         self,
         session,
@@ -571,7 +624,7 @@ class SQLDB(DBInterface):
         labels = get_in(function, "metadata.labels", {})
         update_labels(fn, labels)
         fn.struct = function
-        self._upsert(session, fn)
+        self._upsert(session, [fn])
         self.tag_objects_v2(session, [fn], project, tag)
         return hash_key
 
@@ -747,7 +800,7 @@ class SQLDB(DBInterface):
             cron_trigger=cron_trigger,
             concurrency_limit=concurrency_limit,
         )
-        self._upsert(session, schedule)
+        self._upsert(session, [schedule])
 
     def update_schedule(
         self,
@@ -786,8 +839,7 @@ class SQLDB(DBInterface):
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
-        session.merge(schedule)
-        session.commit()
+        self._upsert(session, [schedule])
 
     def list_schedules(
         self,
@@ -889,9 +941,10 @@ class SQLDB(DBInterface):
             if not tag:
                 tag = artifact.Tag(project=project, name=name)
             tag.obj_id = artifact.id
-            self._upsert(session, tag, ignore=True)
+            self._upsert(session, [tag], ignore=True)
 
     def tag_objects_v2(self, session, objs, project: str, name: str):
+        tags = []
         for obj in objs:
             query = self._query(
                 session, obj.Tag, name=name, project=project, obj_name=obj.name
@@ -900,8 +953,8 @@ class SQLDB(DBInterface):
             if not tag:
                 tag = obj.Tag(project=project, name=name, obj_name=obj.name)
             tag.obj_id = obj.id
-            session.add(tag)
-        session.commit()
+            tags.append(tag)
+        self._upsert(session, tags)
 
     def create_project(self, session: Session, project: schemas.Project):
         logger.debug("Creating project in DB", project=project)
@@ -918,8 +971,9 @@ class SQLDB(DBInterface):
         )
         labels = project.metadata.labels or {}
         update_labels(project_record, labels)
-        self._upsert(session, project_record)
+        self._upsert(session, [project_record])
 
+    @retry_on_conflict
     def store_project(self, session: Session, name: str, project: schemas.Project):
         logger.debug("Storing project in DB", name=name, project=project)
         project_record = self._get_project_record(
@@ -1188,7 +1242,7 @@ class SQLDB(DBInterface):
         project_record.state = project.status.state
         labels = project.metadata.labels or {}
         update_labels(project_record, labels)
-        self._upsert(session, project_record)
+        self._upsert(session, [project_record])
 
     def _patch_project_record_from_project(
         self,
@@ -1212,7 +1266,7 @@ class SQLDB(DBInterface):
         )
 
         project_record.full_object = project_record_full_object
-        self._upsert(session, project_record)
+        self._upsert(session, [project_record])
 
     def is_project_exists(self, session: Session, name: str, **kwargs):
         project_record = self._get_project_record(
@@ -1759,6 +1813,7 @@ class SQLDB(DBInterface):
         labels = common_object_dict["metadata"].pop("labels", {}) or {}
         update_labels(db_object, labels)
 
+    @retry_on_conflict
     def store_feature_set(
         self,
         session,
@@ -1803,7 +1858,7 @@ class SQLDB(DBInterface):
         self._update_db_record_from_object_dict(db_feature_set, feature_set_dict, uid)
 
         self._update_feature_set_spec(db_feature_set, feature_set_dict)
-        self._upsert(session, db_feature_set)
+        self._upsert(session, [db_feature_set])
         self.tag_objects_v2(session, [db_feature_set], project, tag)
 
         return uid
@@ -1856,7 +1911,7 @@ class SQLDB(DBInterface):
         self._update_db_record_from_object_dict(db_feature_set, feature_set_dict, uid)
         self._update_feature_set_spec(db_feature_set, feature_set_dict)
 
-        self._upsert(session, db_feature_set)
+        self._upsert(session, [db_feature_set])
         self.tag_objects_v2(session, [db_feature_set], project, tag)
 
         return uid
@@ -1954,7 +2009,7 @@ class SQLDB(DBInterface):
             db_feature_vector, feature_vector_dict, uid
         )
 
-        self._upsert(session, db_feature_vector)
+        self._upsert(session, [db_feature_vector])
         self.tag_objects_v2(session, [db_feature_vector], project, tag)
 
         return uid
@@ -2066,6 +2121,7 @@ class SQLDB(DBInterface):
         )
         return [(project, row[0], row[1]) for row in query]
 
+    @retry_on_conflict
     def store_feature_vector(
         self,
         session,
@@ -2113,7 +2169,7 @@ class SQLDB(DBInterface):
             db_feature_vector, feature_vector_dict, uid
         )
 
-        self._upsert(session, db_feature_vector)
+        self._upsert(session, [db_feature_vector])
         self.tag_objects_v2(session, [db_feature_vector], project, tag)
 
         return uid
@@ -2247,30 +2303,46 @@ class SQLDB(DBInterface):
         session.query(cls).filter(cls.parent == NULL).delete()
         session.commit()
 
-    def _upsert(self, session, obj, ignore=False):
+    def _upsert(self, session, objects, ignore=False):
+        if not objects:
+            return
+        for object_ in objects:
+            session.add(object_)
+        self._commit(session, objects, ignore)
+
+    def _commit(self, session, objects, ignore=False):
         def _try_commit_obj():
             try:
-                session.add(obj)
                 session.commit()
             except SQLAlchemyError as err:
                 session.rollback()
-                cls = obj.__class__.__name__
+                cls = objects[0].__class__.__name__
                 if "database is locked" in str(err):
                     logger.warning(
                         "Database is locked. Retrying", cls=cls, err=str(err)
                     )
                     raise mlrun.errors.MLRunRuntimeError(
-                        "Failed adding resource, database is locked"
+                        "Failed committing changes, database is locked"
                     ) from err
-                logger.warning("Conflict adding resource to DB", cls=cls, err=str(err))
+                logger.warning("Failed committing changes to DB", cls=cls, err=str(err))
                 if not ignore:
+                    identifiers = ",".join(
+                        object_.get_identifier_string() for object_ in objects
+                    )
                     # We want to retry only when database is locked so for any other scenario escalate to fatal failure
                     try:
-                        raise mlrun.errors.MLRunConflictError(
-                            f"Conflict - {cls} already exists: {obj.get_identifier_string()}"
+                        if any([message in str(err) for message in conflict_messages]):
+                            raise mlrun.errors.MLRunConflictError(
+                                f"Conflict - {cls} already exists: {identifiers}"
+                            ) from err
+                        raise mlrun.errors.MLRunRuntimeError(
+                            f"Failed committing changes to DB. class={cls} objects={identifiers}"
                         ) from err
-                    except mlrun.errors.MLRunConflictError as exc:
-                        raise mlrun.utils.helpers.FatalFailureException(
+                    except (
+                        mlrun.errors.MLRunRuntimeError,
+                        mlrun.errors.MLRunConflictError,
+                    ) as exc:
+                        raise mlrun.errors.MLRunFatalFailureError(
                             original_exception=exc
                         )
 
@@ -2626,6 +2698,7 @@ class SQLDB(DBInterface):
 
         if move_from == move_to:
             # It's just modifying the same object - update and exit.
+            # using merge since primary key is changing
             session.merge(moved_object)
             session.commit()
             return
@@ -2651,9 +2724,11 @@ class SQLDB(DBInterface):
 
         for source_record in query:
             source_record.index = source_record.index + modifier
+            # using merge since primary key is changing
             session.merge(source_record)
 
         if move_to:
+            # using merge since primary key is changing
             session.merge(moved_object)
         else:
             session.delete(moved_object)
@@ -2747,6 +2822,7 @@ class SQLDB(DBInterface):
             session, source_record, move_to=order, move_from=None
         )
 
+    @retry_on_conflict
     def store_marketplace_source(
         self,
         session,
@@ -2849,4 +2925,4 @@ class SQLDB(DBInterface):
 
         now = datetime.now(timezone.utc)
         data_version_record = DataVersion(version=version, created=now)
-        self._upsert(session, data_version_record)
+        self._upsert(session, [data_version_record])

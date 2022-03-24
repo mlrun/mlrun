@@ -154,7 +154,9 @@ def test_marketplace_credentials_removed_from_db(
         == {}
     )
     expected_credentials = {
-        f"source_1{mlrun.api.crud.marketplace.secret_name_separator}{key}": value
+        mlrun.api.crud.Marketplace()._generate_credentials_secret_key(
+            "source_1", key
+        ): value
         for key, value in credentials.items()
     }
     k8s_secrets_mock.assert_project_secrets(
@@ -167,13 +169,17 @@ def test_marketplace_source_manager(
 ) -> None:
     manager = mlrun.api.crud.Marketplace()
 
-    separator = mlrun.api.crud.marketplace.secret_name_separator
     credentials = {"secret1": "value1", "secret2": "value2"}
     expected_credentials = {}
     for i in range(3):
         source_dict = _generate_source_dict(i, f"source_{i}", credentials)
         expected_credentials.update(
-            {f"source_{i}{separator}{key}": value for key, value in credentials.items()}
+            {
+                mlrun.api.crud.Marketplace()._generate_credentials_secret_key(
+                    f"source_{i}", key
+                ): value
+                for key, value in credentials.items()
+            }
         )
         source_object = mlrun.api.schemas.MarketplaceSource(**source_dict["source"])
         manager.add_source(source_object)
@@ -184,7 +190,11 @@ def test_marketplace_source_manager(
 
     manager.remove_source("source_1")
     for key in credentials:
-        expected_credentials.pop(f"source_1{separator}{key}")
+        expected_credentials.pop(
+            mlrun.api.crud.Marketplace()._generate_credentials_secret_key(
+                "source_1", key
+            )
+        )
     k8s_secrets_mock.assert_project_secrets(
         config.marketplace.k8s_secrets_project_name, expected_credentials
     )

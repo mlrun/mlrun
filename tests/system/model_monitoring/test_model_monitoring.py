@@ -192,7 +192,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         serving_fn.add_model(
             model_name,
             model_path=project.get_artifact_uri(
-                key=f"{model_name}:latest", category="model"
+                key=model_name, category="model", tag="latest"
             ),
         )
 

@@ -18,9 +18,15 @@ class AuthenticationFeatureFlag(str, enum.Enum):
     iguazio = "iguazio"
 
 
+class NuclioStreamsFeatureFlag(str, enum.Enum):
+    enabled = "enabled"
+    disabled = "disabled"
+
+
 class FeatureFlags(pydantic.BaseModel):
     project_membership: ProjectMembershipFeatureFlag
     authentication: AuthenticationFeatureFlag
+    nuclio_streams: NuclioStreamsFeatureFlag
 
 
 class FrontendSpec(pydantic.BaseModel):

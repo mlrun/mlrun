@@ -9,4 +9,4 @@ from .pipelines import Pipelines  # noqa: F401
 from .projects import Projects  # noqa: F401
 from .runs import Runs  # noqa: F401
 from .runtime_resources import RuntimeResources  # noqa: F401
-from .secrets import Secrets  # noqa: F401
+from .secrets import Secrets, SecretsClientType  # noqa: F401

@@ -140,7 +140,7 @@ class ArtifactManager:
         item.producer = producer.get_meta()
         item.iter = producer.iteration
         item.project = producer.project
-        item.tag = tag
+        item.tag = tag or item.tag
 
         if db_key is None:
             # set the default artifact db key
@@ -157,7 +157,7 @@ class ArtifactManager:
             item.upload()
 
         if db_key:
-            self._log_to_db(db_key, producer.project, producer.inputs, item, tag)
+            self._log_to_db(db_key, producer.project, producer.inputs, item)
         size = str(item.size) or "?"
         db_str = "Y" if (self.artifact_db and db_key) else "N"
         logger.debug(

@@ -1,8 +1,10 @@
+import typing
 import unittest.mock
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Generator
 
 import deepdiff
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -48,12 +50,18 @@ def db() -> Generator:
 
 
 def set_base_url_for_test_client(
-    client: TestClient, prefix: str = BASE_VERSIONED_API_PREFIX
+    client: typing.Union[httpx.AsyncClient, TestClient],
+    prefix: str = BASE_VERSIONED_API_PREFIX,
 ):
-    client.base_url = client.base_url + prefix
+    if isinstance(client, httpx.AsyncClient):
+        client.base_url = client.base_url.join(prefix)
+    elif isinstance(client, TestClient):
+        client.base_url = client.base_url + prefix
 
-    # https://stackoverflow.com/questions/10893374/python-confusions-with-urljoin/10893427#10893427
-    client.base_url = client.base_url.rstrip("/") + "/"
+        # https://stackoverflow.com/questions/10893374/python-confusions-with-urljoin/10893427#10893427
+        client.base_url = client.base_url.rstrip("/") + "/"
+    else:
+        raise NotImplementedError(f"Unknown test client type: {type(client)}")
 
 
 @pytest.fixture()
@@ -64,9 +72,23 @@ def client(db) -> Generator:
         mlconf.runtimes_cleanup_interval = 0
         mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
 
-        with TestClient(app) as c:
-            set_base_url_for_test_client(c)
-            yield c
+        with TestClient(app) as test_client:
+            set_base_url_for_test_client(test_client)
+            yield test_client
+
+
+@pytest.fixture()
+@pytest.mark.asyncio
+async def async_client(db) -> Generator:
+    with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
+        mlconf.httpdb.logs_path = log_dir
+        mlconf.runs_monitoring_interval = 0
+        mlconf.runtimes_cleanup_interval = 0
+        mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
+
+        async with httpx.AsyncClient(app=app, base_url="http://test") as async_client:
+            set_base_url_for_test_client(async_client)
+            yield async_client
 
 
 class K8sSecretsMock:
@@ -144,14 +166,14 @@ class K8sSecretsMock:
         secrets = {}
         if default_service_account:
             secrets[
-                mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key(
-                    "default"
+                mlrun.api.crud.secrets.Secrets().generate_client_secret_key(
+                    mlrun.api.crud.secrets.SecretsClientType.service_accounts, "default"
                 )
             ] = default_service_account
         if allowed_service_accounts:
             secrets[
-                mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key(
-                    "allowed"
+                mlrun.api.crud.secrets.Secrets().generate_client_secret_key(
+                    mlrun.api.crud.secrets.SecretsClientType.service_accounts, "allowed"
                 )
             ] = ",".join(allowed_service_accounts)
         self.store_project_secrets(project, secrets)

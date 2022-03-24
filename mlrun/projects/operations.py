@@ -260,6 +260,7 @@ def deploy_function(
     env: dict = None,
     tag: str = None,
     verbose: bool = None,
+    builder_env: dict = None,
     project_object=None,
 ):
     """deploy real-time (nuclio based) functions
@@ -270,6 +271,7 @@ def deploy_function(
     :param env:        dict of extra environment variables
     :param tag:        extra version tag
     :param verbose     add verbose prints/logs
+    :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
     :param project_object:  override the project object to use, will default to the project set in the runtime context.
     """
     engine, function = _get_engine_and_function(function, project_object)
@@ -287,7 +289,9 @@ def deploy_function(
         if models:
             for model_args in models:
                 function.add_model(**model_args)
-        address = function.deploy(dashboard=dashboard, tag=tag, verbose=verbose)
+        address = function.deploy(
+            dashboard=dashboard, tag=tag, verbose=verbose, builder_env=builder_env
+        )
         # return object with the same outputs as the KFP op (allow using the same pipeline)
         return DeployStatus(
             state=function.status.state,

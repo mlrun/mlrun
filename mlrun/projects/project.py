@@ -1991,6 +1991,7 @@ class MlrunProject(ModelObj):
         env: dict = None,
         tag: str = None,
         verbose: bool = None,
+        builder_env: dict = None,
     ):
         """deploy real-time (nuclio based) functions
 
@@ -2000,6 +2001,7 @@ class MlrunProject(ModelObj):
         :param env:        dict of extra environment variables
         :param tag:        extra version tag
         :param verbose     add verbose prints/logs
+        :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         """
         return deploy_function(
             function,
@@ -2008,6 +2010,7 @@ class MlrunProject(ModelObj):
             env=env,
             tag=tag,
             verbose=verbose,
+            builder_env=builder_env,
             project_object=self,
         )
 

@@ -527,8 +527,7 @@ class RemoteRuntime(KubeResource):
         :param tag:        function tag
         :param verbose:    set True for verbose logging
         :param auth_info:  service AuthInfo
-        :param builder_env: env vars dict for build config/credentials)
-                              e.g. builder_env={"GIT_TOKEN": token}
+        :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         """
         # todo: verify that the function name is normalized
 

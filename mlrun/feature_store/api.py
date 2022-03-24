@@ -138,7 +138,7 @@ def get_offline_features(
         entity_timestamp_column must be passed when using time filtering.
     :param end_time:        datetime, high limit of time needed to be filtered. Optional.
         entity_timestamp_column must be passed when using time filtering.
-    :param with_indexes:    return vector with index columns (default False)
+    :param with_indexes:    return vector with index columns and timestamp_key from the feature sets (default False)
     :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
     :param engine:          processing engine kind ("local", "dask", or "spark")
     :param engine_args:     kwargs for the processing engine

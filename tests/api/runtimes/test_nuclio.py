@@ -743,12 +743,9 @@ class TestNuclioRuntime(TestRuntimeBase):
             workdir="path/inside/repo",
         )
         secrets = {"GIT_PASSWORD": "my-access-token"}
-        spec = nuclio.ConfigSpec()
-        config = {}
-        set_source_archive(spec, fn, lambda x: secrets)
-        spec.merge(config)
 
-        assert config == {
+        get_archive_spec(fn, secrets)
+        assert get_archive_spec(fn, secrets) == {
             "spec": {
                 "handler": "main:handler",
                 "build": {
@@ -770,12 +767,8 @@ class TestNuclioRuntime(TestRuntimeBase):
             handler="main:handler",
             workdir="path/inside/repo",
         )
-        spec = nuclio.ConfigSpec()
-        config = {}
-        set_source_archive(spec, fn, lambda x: secrets)
-        spec.merge(config)
 
-        assert config == {
+        assert get_archive_spec(fn, secrets) == {
             "spec": {
                 "handler": "main:handler",
                 "build": {
@@ -808,14 +801,10 @@ class TestNuclioRuntime(TestRuntimeBase):
             "AWS_ACCESS_KEY_ID": "some-id",
             "AWS_SECRET_ACCESS_KEY": "some-secret",
         }
-        spec = nuclio.ConfigSpec()
-        config = {}
-        set_source_archive(spec, fn, lambda x: secrets)
-        spec.merge(config)
 
-        assert config == {
+        assert fn.spec.function_runtime == "golang"
+        assert get_archive_spec(fn, secrets) == {
             "spec": {
-                "runtime": "golang",
                 "handler": "main:Handler",
                 "build": {
                     "path": "s3://my-bucket/path/in/bucket/my-functions-archive",
@@ -840,12 +829,8 @@ class TestNuclioRuntime(TestRuntimeBase):
             workdir="path/inside/functions/archive",
         )
         secrets = {"V3IO_ACCESS_KEY": "ma-access-key"}
-        spec = nuclio.ConfigSpec()
-        config = {}
-        set_source_archive(spec, fn, lambda x: secrets)
-        spec.merge(config)
 
-        assert config == {
+        assert get_archive_spec(fn, secrets) == {
             "spec": {
                 "handler": "main:handler",
                 "build": {
@@ -866,3 +851,11 @@ class TestNuclioMLRunRuntime(TestNuclioRuntime):
     def runtime_kind(self):
         # enables extending classes to run the same tests with different runtime
         return "nuclio:mlrun"
+
+
+def get_archive_spec(function, secrets):
+    spec = nuclio.ConfigSpec()
+    config = {}
+    set_source_archive(spec, function, lambda x: secrets)
+    spec.merge(config)
+    return config

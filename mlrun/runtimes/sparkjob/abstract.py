@@ -683,7 +683,7 @@ with ctx:
 
     def with_driver_limits(self, cpu=None):
         """set driver pod cpu limits"""
-        resources = self._verify_spark_job_limits("", cpu)
+        resources = self._verify_spark_job_limits("driver_resources", cpu)
         update_in(self.spec.driver_resources, "limits", resources)
 
     def with_restart_policy(

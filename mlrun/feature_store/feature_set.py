@@ -43,7 +43,7 @@ from ..model import (
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import BaseStep, RootFlowStep, previous_step
 from ..serving.utils import StepToDict
-from ..utils import StorePrefix
+from ..utils import StorePrefix, logger
 from .common import verify_feature_set_permissions
 
 aggregates_step = "Aggregates"
@@ -593,7 +593,14 @@ class FeatureSet(ModelObj):
             if emit_policy and self.spec.engine == "spark":
                 # Using simple override here - we might want to consider exploding if different emit policies
                 # were used for multiple aggregations.
-                step.class_args["emit_policy"] = emit_policy_to_dict(emit_policy)
+                emit_policy_dict = emit_policy_to_dict(emit_policy)
+                if "emit_policy" in step.class_args:
+                    curr_emit_policy = step.class_args["emit_policy"]["mode"]
+                    if curr_emit_policy != emit_policy_dict["mode"]:
+                        logger.warning(
+                            f"Current emit policy will be overridden: {curr_emit_policy} => {emit_policy_dict['mode']}"
+                        )
+                step.class_args["emit_policy"] = emit_policy_dict
         else:
             class_args = {}
             self._aggregations[aggregation["name"]] = aggregation

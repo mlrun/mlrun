@@ -204,7 +204,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         execution._current_workdir = self.spec.workdir
         execution._old_workdir = None
 
-        if self.spec.build.load_source_on_run:
+        if self.spec.build.source:
             execution._current_workdir = extract_source(
                 self.spec.build.source,
                 self.spec.workdir,

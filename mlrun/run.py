@@ -611,14 +611,15 @@ def new_function(
             raise ValueError(
                 f"source archive option is not supported for {kind} runtime"
             )
-        runner.with_source_archive(source, handler=handler, workdir=workdir)
+        runner.with_source_archive(source, handler=handler)
     else:
         if handler:
             runner.spec.default_handler = handler
             if kind.startswith("nuclio"):
                 runner.spec.function_handler = handler
-        if workdir:
-            runner.spec.workdir = workdir
+
+    if workdir:
+        runner.spec.workdir = workdir
 
     if requirements:
         runner.with_requirements(requirements)

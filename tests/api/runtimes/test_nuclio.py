@@ -734,7 +734,7 @@ class TestNuclioRuntime(TestRuntimeBase):
 
                 success()
 
-    def test_load_function_with_source_archive_git(self):
+    def _xtest_load_function_with_source_archive_git(self):
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
             "git://github.com/org/repo#my-branch",
@@ -804,7 +804,7 @@ class TestNuclioRuntime(TestRuntimeBase):
     ):
         self.assert_run_without_specifying_resources()
 
-    def test_load_function_with_source_archive_s3(self):
+    def _xtest_load_function_with_source_archive_s3(self):
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
             "s3://my-bucket/path/in/bucket/my-functions-archive",
@@ -843,7 +843,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             },
         }
 
-    def test_load_function_with_source_archive_v3io(self):
+    def _xtest_load_function_with_source_archive_v3io(self):
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
             "v3ios://host.com/container/my-functions-archive.zip",

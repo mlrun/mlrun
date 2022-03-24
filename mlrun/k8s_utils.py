@@ -17,6 +17,7 @@ import typing
 from datetime import datetime
 from sys import stdout
 
+import kubernetes.client
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
@@ -601,3 +602,79 @@ def verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = N
             f"When specifying both GPU requests and limits these two values must be equal, "
             f"requests_gpu={requests_gpu}, limits_gpu={limits_gpu}"
         )
+
+
+def compile_affinity_by_label_selector(node_selector_operator: str):
+    """
+    Compiles affinity spec based on pre-configured node selector.
+    operator represents a key's relationship to a set of values.
+    Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt
+
+    :param node_selector_operator: The operator of V1NodeSelectorRequirement
+    :return: List[V1NodeSelectorRequirement]
+    """
+    match_expressions = []
+    for (
+        node_selector_key,
+        node_selector_value,
+    ) in mlconfig.get_preemptible_node_selector():
+        match_expressions.append(
+            kubernetes.client.V1NodeSelectorRequirement(
+                key=node_selector_key,
+                operator=node_selector_operator,
+                values=node_selector_value,
+            )
+        )
+    return match_expressions
+
+
+def compile_anti_affinity_by_label_selector_no_schedule_on_matching_nodes() -> typing.List[
+    kubernetes.client.V1NodeSelectorTerm
+]:
+    """
+    Use for purpose of scheduling on node only if all match_expressions are satisfied.
+    This function uses a single term with potentially multiple expressions to ensure anti affinity.
+    https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
+    :return: List contains one nodeSelectorTerm with multiple expressions.
+    """
+    # import here to avoid circular imports
+    from mlrun.api.schemas import NodeSelectorOperator
+
+    # compile affinities with operator NotIn to make sure pods are not running on preemptible nodes.
+    anti_affinity = compile_affinity_by_label_selector(
+        NodeSelectorOperator.node_selector_op_not_in
+    )
+    return [
+        kubernetes.client.V1NodeSelectorTerm(
+            match_expressions=anti_affinity,
+        )
+    ]
+
+
+def compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes() -> typing.List[
+    kubernetes.client.V1NodeSelectorTerm
+]:
+    """
+    Use for purpose of scheduling on node having at least one of the node selectors.
+    When specifying multiple nodeSelectorTerms associated with nodeAffinity types,
+    then the pod can be scheduled onto a node if only one of the nodeSelectorTerms can be satisfied.
+    :return: List of nodeSelectorTerms associated with the preemptible nodes.
+    """
+    # import here to avoid circular imports
+    from mlrun.api.schemas import NodeSelectorOperator
+
+    node_selector_terms = []
+
+    # compile affinities with operator In so pods could schedule on at least one of the preemptible nodes.
+    affinity = compile_affinity_by_label_selector(
+        NodeSelectorOperator.node_selector_op_in
+    )
+    for expression in affinity:
+        node_selector_terms.append(
+            kubernetes.client.V1NodeSelectorTerm(
+                match_expressions=kubernetes.client.V1NodeSelectorRequirement(
+                    expression
+                )
+            )
+        )
+    return node_selector_terms

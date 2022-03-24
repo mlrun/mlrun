@@ -6,7 +6,8 @@ import cloudpickle
 import mlrun
 
 from .._common import without_mlrun_interface
-from .._ml_common import DatasetType, MLModelHandler
+from .._ml_common import MLModelHandler
+from .utils import SKLearnTypes
 from .mlrun_interface import SKLearnMLRunInterface
 
 
@@ -68,7 +69,7 @@ class SKLearnModelHandler(MLModelHandler):
         self,
         model_name: str = None,
         optimize: bool = True,
-        input_sample: DatasetType = None,
+        input_sample: SKLearnTypes.DatasetType = None,
         log: bool = None,
     ):
         """

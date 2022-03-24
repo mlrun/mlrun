@@ -4,7 +4,7 @@ from types import ModuleType
 import lightgbm as lgb
 import mlrun
 from .._common import MLRunInterface, RestorationInformation
-from .._ml_common import MLModelHandler, MLPlan, Metric
+from .._ml_common import MLModelHandler, MLPlan
 from ..sklearn import SKLearnMLRunInterface
 
 
@@ -39,7 +39,7 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
     def add_interface(
         cls,
         obj: ModuleType = None,
-        restoration_information: RestorationInformation = None,
+        restoration: RestorationInformation = None,
     ):
         # If the lightgbm module was not provided:
         if obj is None:
@@ -52,7 +52,7 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
 
         # Add the interface to the provided lightgbm module:
         super(LGBMMLRunInterface, cls).add_interface(
-            obj=obj, restoration_information=restoration_information
+            obj=obj, restoration=restoration
         )
 
     @staticmethod
@@ -110,7 +110,6 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
         self,
         context: mlrun.MLClientCtx = None,
         plans: List[MLPlan] = None,
-        metrics: List[Metric] = None,
     ):
         """
         Initialize the MLRun logger for this model using the provided context and artifacts plans, metrics and model

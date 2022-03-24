@@ -12,15 +12,14 @@ import numpy as np
 
 import mlrun
 from mlrun.artifacts import Artifact, ModelArtifact
-from mlrun.data_types import ValueType
 from mlrun.execution import MLClientCtx
 from mlrun.features import Feature
 
 from .mlrun_interface import MLRunInterface
-from .utils import ExtraDataType, IOSampleType, ModelType, PathType
+from .utils import Utils, Types
 
 
-class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
+class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
     """
     An abstract interface for handling a model of the supported frameworks.
     """
@@ -39,12 +38,12 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
 
     def __init__(
         self,
-        model: ModelType = None,
-        model_path: PathType = None,
+        model: Types.ModelType = None,
+        model_path: Types.PathType = None,
         model_name: str = None,
-        modules_map: Union[Dict[str, Union[None, str, List[str]]], PathType] = None,
-        custom_objects_map: Union[Dict[str, Union[str, List[str]]], PathType] = None,
-        custom_objects_directory: PathType = None,
+        modules_map: Union[Dict[str, Union[None, str, List[str]]], Types.PathType] = None,
+        custom_objects_map: Union[Dict[str, Union[str, List[str]]], Types.PathType] = None,
+        custom_objects_directory: Types.PathType = None,
         context: MLClientCtx = None,
         **kwargs,
     ):
@@ -135,7 +134,7 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
         # If the model path is of a store model object, this will be the extra data as DataItems ready to be downloaded.
         self._extra_data = kwargs.get(
             "extra_data", {}
-        )  # type: Dict[str, ExtraDataType]
+        )  # type: Dict[str, Types.ExtraDataType]
 
         # If the model key is passed, override the default:
         self._model_key = kwargs.get("model_key", "model")
@@ -165,7 +164,7 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
         return self._model_name
 
     @property
-    def model(self) -> ModelType:
+    def model(self) -> Types.ModelType:
         """
         Get the handled model. Will return None in case the model is not initialized.
 
@@ -237,7 +236,7 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
         """
         return self._parameters
 
-    def get_artifacts(self, committed_only: bool = False) -> Dict[str, ExtraDataType]:
+    def get_artifacts(self, committed_only: bool = False) -> Dict[str, Types.ExtraDataType]:
         """
         Get the registered artifacts of this model's artifact. By default all the artifacts (logged and to be logged -
         committed only) will be returned. To get only the artifacts registered in the current run whom are committed and
@@ -279,7 +278,7 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
         self._tag = tag
 
     def set_inputs(
-        self, from_sample: IOSampleType = None, features: List[Feature] = None, **kwargs
+        self, from_sample: Types.IOSampleType = None, features: List[Feature] = None, **kwargs
     ):
         """
         Read the inputs property of this model to be logged along with it. The inputs can be set directly by passing the
@@ -305,7 +304,7 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
         )
 
     def set_outputs(
-        self, from_sample: IOSampleType = None, features: List[Feature] = None, **kwargs
+        self, from_sample: Types.IOSampleType = None, features: List[Feature] = None, **kwargs
     ):
         """
         Read the outputs property of this model to be logged along with it. The outputs can be set directly by passing
@@ -372,7 +371,7 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
 
     def set_extra_data(
         self,
-        to_add: Dict[str, ExtraDataType] = None,
+        to_add: Dict[str, Types.ExtraDataType] = None,
         to_remove: List[str] = None,
     ):
         """
@@ -414,7 +413,7 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
 
     @abstractmethod
     def save(
-        self, output_path: PathType = None, **kwargs
+        self, output_path: Types.PathType = None, **kwargs
     ) -> Union[Dict[str, Artifact], None]:
         """
         Save the handled model at the given output path.
@@ -480,7 +479,7 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
         outputs: List[Feature] = None,
         metrics: Dict[str, Union[int, float]] = None,
         artifacts: Dict[str, Artifact] = None,
-        extra_data: Dict[str, ExtraDataType] = None,
+        extra_data: Dict[str, Types.ExtraDataType] = None,
         **kwargs,
     ):
         """
@@ -568,7 +567,7 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
             },
             algorithm=kwargs.get("algorithm", None),
             training_set=kwargs.get("sample_set", None),
-            label_column=kwargs.get("y_columns", None),
+            label_column=kwargs.get("target_columns", None),
             feature_vector=kwargs.get("feature_vector", None),
             feature_weights=kwargs.get("feature_weights", None),
         )
@@ -584,7 +583,7 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
         outputs: List[Feature] = None,
         metrics: Dict[str, Union[int, float]] = None,
         artifacts: Dict[str, Artifact] = None,
-        extra_data: Dict[str, ExtraDataType] = None,
+        extra_data: Dict[str, Types.ExtraDataType] = None,
         **kwargs,
     ):
         """
@@ -665,97 +664,6 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
             self._context.update_artifact(
                 self._model_artifact
             )  # Update the cached model to the database.
-
-    @staticmethod
-    def convert_value_type_to_np_dtype(
-        value_type: str,
-    ) -> np.dtype:  # TODO: Move to utils
-        """
-        Get the 'tensorflow.DType' equivalent to the given MLRun value type.
-
-        :param value_type: The MLRun value type to convert to numpy data type.
-
-        :return: The 'numpy.dtype' equivalent to the given MLRun data type.
-
-        :raise MLRunInvalidArgumentError: If numpy is not supporting the given data type.
-        """
-        # Initialize the mlrun to numpy data type conversion map:
-        conversion_map = {
-            ValueType.BOOL: np.bool,
-            ValueType.INT8: np.int8,
-            ValueType.INT16: np.int16,
-            ValueType.INT32: np.int32,
-            ValueType.INT64: np.int64,
-            ValueType.UINT8: np.uint8,
-            ValueType.UINT16: np.uint16,
-            ValueType.UINT32: np.uint32,
-            ValueType.UINT64: np.uint64,
-            ValueType.FLOAT16: np.float16,
-            ValueType.FLOAT: np.float32,
-            ValueType.DOUBLE: np.float64,
-        }
-
-        # Convert and return:
-        if value_type in conversion_map:
-            return conversion_map[value_type]
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"The ValueType given is not supported in numpy: '{value_type}'."
-        )
-
-    @staticmethod
-    def convert_np_dtype_to_value_type(
-        np_dtype: Union[np.dtype, type, str]
-    ) -> str:  # TODO: Move to utils
-        """
-        Convert the given numpy data type to MLRun value type. It is better to use explicit bit namings (for example:
-        instead of using 'np.double', use 'np.float64').
-
-        :param np_dtype: The numpy data type to convert to MLRun's value type. Expected to be a 'numpy.dtype', 'type' or
-                         'str'.
-
-        :return: The MLRun value type converted from the given data type.
-
-        :raise MLRunInvalidArgumentError: If the numpy data type is not supported by MLRun.
-        """
-        # Initialize the numpy to mlrun data type conversion map:
-        conversion_map = {
-            np.bool.__name__: ValueType.BOOL,
-            np.byte.__name__: ValueType.INT8,
-            np.int8.__name__: ValueType.INT8,
-            np.short.__name__: ValueType.INT16,
-            np.int16.__name__: ValueType.INT16,
-            np.int32.__name__: ValueType.INT32,
-            np.int.__name__: ValueType.INT64,
-            np.long.__name__: ValueType.INT64,
-            np.int64.__name__: ValueType.INT64,
-            np.ubyte.__name__: ValueType.UINT8,
-            np.uint8.__name__: ValueType.UINT8,
-            np.ushort.__name__: ValueType.UINT16,
-            np.uint16.__name__: ValueType.UINT16,
-            np.uint32.__name__: ValueType.UINT32,
-            np.uint.__name__: ValueType.UINT64,
-            np.uint64.__name__: ValueType.UINT64,
-            np.half.__name__: ValueType.FLOAT16,
-            np.float16.__name__: ValueType.FLOAT16,
-            np.single.__name__: ValueType.FLOAT,
-            np.float32.__name__: ValueType.FLOAT,
-            np.double.__name__: ValueType.DOUBLE,
-            np.float.__name__: ValueType.DOUBLE,
-            np.float64.__name__: ValueType.DOUBLE,
-        }
-
-        # Parse the given numpy data type to string:
-        if isinstance(np_dtype, np.dtype):
-            np_dtype = np_dtype.name
-        elif isinstance(np_dtype, type):
-            np_dtype = np_dtype.__name__
-
-        # Convert and return:
-        if np_dtype in conversion_map:
-            return conversion_map[np_dtype]
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"MLRun value type is not supporting the given numpy data type: '{np_dtype}'."
-        )
 
     def _collect_files_from_store_object(self):
         """
@@ -1041,7 +949,7 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
 
     def _read_io_samples(
         self,
-        samples: Union[IOSampleType, List[IOSampleType]],
+        samples: Union[Types.IOSampleType, List[Types.IOSampleType]],
     ) -> List[Feature]:
         """
         Read the given inputs / output sample to / from the model into a list of MLRun Features (ports) to log in
@@ -1057,7 +965,7 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
 
         return [self._read_sample(sample=sample) for sample in samples]
 
-    def _read_sample(self, sample: IOSampleType) -> Feature:
+    def _read_sample(self, sample: Types.IOSampleType) -> Feature:
         """
         Read the sample into a MLRun Feature. This abstract class is reading samples of 'numpy.ndarray'. For further
         types of samples, please inherit this method.
@@ -1071,7 +979,7 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
         # Supported types:
         if isinstance(sample, np.ndarray):
             return Feature(
-                value_type=self.convert_np_dtype_to_value_type(np_dtype=sample.dtype),
+                value_type=Utils.convert_np_dtype_to_value_type(np_dtype=sample.dtype),
                 dims=list(sample.shape),
             )
 
@@ -1082,7 +990,7 @@ class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
         )
 
     @staticmethod
-    def _validate_model_parameters(model_path: str, model: ModelType):
+    def _validate_model_parameters(model_path: str, model: Types.ModelType):
         """
         Validate the given model parameters.
 
@@ -1324,7 +1232,7 @@ def without_mlrun_interface(interface: Type[MLRunInterface]):
             if is_applied:
                 interface.add_interface(
                     obj=model_handler.model,
-                    restoration_information=restoration_information,
+                    restoration=restoration_information,
                 )
             return returned_value
 

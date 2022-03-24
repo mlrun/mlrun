@@ -18,8 +18,71 @@ class ArtifactsLibrary(ABC):
     some_artifact = SomeArtifactPlan
     """
 
+    # A constant name for the context parameter to use for passing a plans configuration:
+    CONTEXT_PARAMETER = "_artifacts"
+
     @classmethod
-    def from_dict(cls, plans_dictionary: Dict[str, dict]) -> List[Plan]:
+    def get_plans(
+        cls,
+        artifacts: Union[List[Plan], Dict[str, dict], List[str]] = None,
+        context: mlrun.MLClientCtx = None,
+        include_default: bool = True,
+        **default_kwargs,
+    ) -> List[Plan]:
+        """
+        Get plans for a run. The plans will be taken from the provided artifacts / configuration via code, from provided
+        configuration via MLRun context and if the 'include_default' is True, from the framework artifact library's
+        defaults.
+
+        :param artifacts:         The artifacts parameter passed to the function. Can be passed as a configuration
+                                  dictionary or an initialized plans list that will simply be returned.
+        :param context:           A context to look in if the configuration was passed as a parameter.
+        :param include_default:   Whether to include the default in addition to the provided plans. Defaulted to True.
+        :param default_kwargs:    Additional key word arguments to pass to the 'default' method of the given artifact
+                                  library class.
+
+        :return: The plans list.
+
+        :raise MLRunInvalidArgumentError: If the plans were not passed in a list or a dictionary.
+        """
+        # Setup the plans list:
+        parsed_plans = []  # type: List[Plan]
+
+        # Get the user input plans:
+        artifacts_from_context = None
+        if context is not None:
+            artifacts_from_context = context.parameters.get(
+                cls.CONTEXT_PARAMETER, None
+            )
+        for user_input in [artifacts, artifacts_from_context]:
+            if user_input is not None:
+                if isinstance(user_input, dict):
+                    parsed_plans += cls._from_dict(plans_dictionary=user_input)
+                elif isinstance(user_input, list):
+                    parsed_plans += cls._from_list(plans_list=user_input)
+                else:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Artifacts plans are expected to be given in a list or a dictionary, got: '{type(user_input)}'."
+                    )
+
+        # Get the library's default:
+        if include_default:
+            parsed_plans += cls.default(**default_kwargs)
+
+        return parsed_plans
+
+    @classmethod
+    @abstractmethod
+    def default(cls, **kwargs) -> List[Plan]:
+        """
+        Get the default artifacts plans list of this framework's library.
+
+        :return: The default artifacts plans list.
+        """
+        pass
+
+    @classmethod
+    def _from_dict(cls, plans_dictionary: Dict[str, dict]) -> List[Plan]:
         """
         Initialize a list of plans from a given configuration dictionary. The configuration is expected to be a
         dictionary of plans and their initialization parameters in the following format:
@@ -39,7 +102,7 @@ class ArtifactsLibrary(ABC):
                                           parameters in the plan initializer.
         """
         # Get all of the supported plans in this library:
-        library_plans = cls._get_plans()
+        library_plans = cls._get_library_plans()
 
         # Go through the given configuration an initialize the plans accordingly:
         plans = []  # type: List[Plan]
@@ -62,7 +125,7 @@ class ArtifactsLibrary(ABC):
         return plans
 
     @classmethod
-    def from_list(cls, plans_list: List[str]):
+    def _from_list(cls, plans_list: List[str]):
         """
         Initialize a list of plans from a given configuration list. The configuration is expected to be a list of plans
         names to be initialized with their default configuration.
@@ -74,7 +137,7 @@ class ArtifactsLibrary(ABC):
         :raise MLRunInvalidArgumentError: If the configuration was incorrect due to unsupported plan.
         """
         # Get all of the supported plans in this library:
-        library_plans = cls._get_plans()
+        library_plans = cls._get_library_plans()
 
         # Go through the given configuration an initialize the plans accordingly:
         plans = []  # type: List[Plan]
@@ -102,17 +165,7 @@ class ArtifactsLibrary(ABC):
         return plans
 
     @classmethod
-    @abstractmethod
-    def default(cls, **kwargs) -> List[Plan]:
-        """
-        Get the default artifacts plans list of this framework's library.
-
-        :return: The default artifacts plans list.
-        """
-        pass
-
-    @classmethod
-    def _get_plans(cls) -> Dict[str, Type[Plan]]:
+    def _get_library_plans(cls) -> Dict[str, Type[Plan]]:
         """
         Get all of the supported plans in this library.
 
@@ -123,58 +176,3 @@ class ArtifactsLibrary(ABC):
             for plan_name, plan_class in cls.__dict__.items()
             if isinstance(plan_class, type) and not plan_name.startswith("_")
         }
-
-
-# A constant name for the context parameter to use for passing a plans configuration:
-ARTIFACTS_CONTEXT_PARAMETER = "_artifacts"
-
-
-def get_plans(
-    artifacts_library: Type[ArtifactsLibrary],
-    artifacts: Union[List[Plan], Dict[str, dict], List[str]] = None,
-    context: mlrun.MLClientCtx = None,
-    include_default: bool = True,
-    **default_kwargs,
-) -> List[Plan]:
-    """
-    Get plans for a run. The plans will be taken from the provided artifacts / configuration via code, from provided
-    configuration via MLRun context and if the 'include_default' is True, from the framework artifact library's
-    defaults.
-
-    :param artifacts_library: The framework's artifacts library class to get its defaults.
-    :param artifacts:         The artifacts parameter passed to the function. Can be passed as a configuration
-                              dictionary or an initialized plans list that will simply be returned.
-    :param context:           A context to look in if the configuration was passed as a parameter.
-    :param include_default:   Whether to include the default in addition to the provided plans. Defaulted to True.
-    :param default_kwargs:    Additional key word arguments to pass to the 'default' method of the given artifact
-                              library class.
-
-    :return: The plans list.
-
-    :raise MLRunInvalidArgumentError: If the plans were not passed in a list or a dictionary.
-    """
-    # Setup the plans list:
-    parsed_plans = []  # type: List[Plan]
-
-    # Get the user input plans:
-    artifacts_from_context = None
-    if context is not None:
-        artifacts_from_context = context.parameters.get(
-            ARTIFACTS_CONTEXT_PARAMETER, None
-        )
-    for user_input in [artifacts, artifacts_from_context]:
-        if user_input is not None:
-            if isinstance(user_input, dict):
-                parsed_plans += artifacts_library.from_dict(plans_dictionary=user_input)
-            elif isinstance(user_input, list):
-                parsed_plans += artifacts_library.from_list(plans_list=user_input)
-            else:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Artifacts plans are expected to be given in a list or a dictionary, got: '{type(user_input)}'."
-                )
-
-    # Get the library's default:
-    if include_default:
-        parsed_plans += artifacts_library.default(**default_kwargs)
-
-    return parsed_plans

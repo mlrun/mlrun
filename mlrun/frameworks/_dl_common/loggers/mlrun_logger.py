@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 import mlrun
 from mlrun.artifacts import Artifact, PlotlyArtifact
 
-from ..._common import TrackableType
+from ..utils import DLTypes
 from ..model_handler import DLModelHandler
 from .logger import Logger, LoggerMode
 
@@ -129,9 +129,9 @@ class MLRunLogger(Logger):
         self,
         model_handler: DLModelHandler,
         tag: str = "",
-        labels: Dict[str, TrackableType] = None,
-        parameters: Dict[str, TrackableType] = None,
-        extra_data: Dict[str, Union[TrackableType, Artifact]] = None,
+        labels: Dict[str, DLTypes.TrackableType] = None,
+        parameters: Dict[str, DLTypes.TrackableType] = None,
+        extra_data: Dict[str, Union[DLTypes.TrackableType, Artifact]] = None,
     ):
         """
         Log the run, summarizing the validation metrics and dynamic hyperparameters across all epochs. If 'update' is

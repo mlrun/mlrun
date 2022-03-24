@@ -3,7 +3,7 @@ from typing import Dict, List
 
 import mlrun
 
-from ..._common import TrackableType
+from ..._common import Types
 
 
 class LoggerMode(Enum):
@@ -44,11 +44,11 @@ class Logger:
 
         # Store the static hyperparameters given - a dictionary of parameters and their values to note:
         # [Parameter: str] -> [value: Union[str, bool, float, int]]
-        self._static_hyperparameters = {}  # type: Dict[str, TrackableType]
+        self._static_hyperparameters = {}  # type: Dict[str, Types.TrackableType]
 
         # Setup the dynamic hyperparameters dictionary - a dictionary of all tracked hyperparameters by epochs:
         # [Hyperparameter: str] -> [Epoch: int] -> [value: Union[str, bool, float, int]]
-        self._dynamic_hyperparameters = {}  # type: Dict[str, List[TrackableType]]
+        self._dynamic_hyperparameters = {}  # type: Dict[str, List[Types.TrackableType]]
 
         # Setup the iterations counter:
         self._epochs = 0
@@ -116,7 +116,7 @@ class Logger:
         return self._validation_summaries
 
     @property
-    def static_hyperparameters(self) -> Dict[str, TrackableType]:
+    def static_hyperparameters(self) -> Dict[str, Types.TrackableType]:
         """
         Get the static hyperparameters logged. The hyperparameters will be stored in a dictionary where each key is the
         hyperparameter name and the value is his logged value.
@@ -126,7 +126,7 @@ class Logger:
         return self._static_hyperparameters
 
     @property
-    def dynamic_hyperparameters(self) -> Dict[str, List[TrackableType]]:
+    def dynamic_hyperparameters(self) -> Dict[str, List[Types.TrackableType]]:
         """
         Get the dynamic hyperparameters logged. The hyperparameters will be stored in a dictionary where each key is the
         hyperparameter name and the value is a list of his logged values per epoch.
@@ -241,7 +241,7 @@ class Logger:
         """
         self._validation_summaries[metric_name].append(result)
 
-    def log_static_hyperparameter(self, parameter_name: str, value: TrackableType):
+    def log_static_hyperparameter(self, parameter_name: str, value: Types.TrackableType):
         """
         Log the given parameter value in the static hyperparameters dictionary.
 
@@ -250,7 +250,7 @@ class Logger:
         """
         self._static_hyperparameters[parameter_name] = value
 
-    def log_dynamic_hyperparameter(self, parameter_name: str, value: TrackableType):
+    def log_dynamic_hyperparameter(self, parameter_name: str, value: Types.TrackableType):
         """
         Log the given parameter value in the dynamic hyperparameters dictionary at the current epoch (if its a new
         parameter it will be epoch 0). If the parameter appears in the static hyperparameters dictionary, it will be

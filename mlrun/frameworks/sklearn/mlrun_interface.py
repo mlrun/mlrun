@@ -3,13 +3,13 @@ from typing import List
 
 import mlrun
 
-from .._common import MLRunInterface, ModelType, RestorationInformation
-from .._ml_common.logger import Logger, LoggerMode
-from .._ml_common.metrics_library import Metric
+from .._common import MLRunInterface, LoggingMode
+from .._ml_common import MLProducer
+from .metric import Metric
 from .._ml_common.model_handler import MLModelHandler
 from .._ml_common.plan import MLPlan, MLPlanStages
-from .._ml_common.utils import DatasetType, concatenate_x_y
-from .utils import SKLearnModelType
+from .utils import SKLearnTypes, SKLearnUtils
+from .estimator import Estimator
 
 
 class SKLearnMLRunInterface(MLRunInterface, ABC):
@@ -25,11 +25,12 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
         # A model handler instance with the model for logging / updating the model (if not provided the model won't be
         # logged / updated at the end of training / testing):
         "_model_handler": None,  # type: MLModelHandler
-        # The logger that is logging this model's training / evaluation:
-        "_logger": None,  # type: Logger
+        # The objects that are logging this model's training / evaluation:
+        "_producer": None,  # type: MLProducer
+        "_estimator": None,  # type: Estimator
         # The test set (For validation post training or evaluation post prediction):
-        "_x_test": None,  # type: DatasetType
-        "_y_test": None,  # type: DatasetType
+        "_x_test": None,  # type: SKLearnTypes.DatasetType
+        "_y_test": None,  # type: SKLearnTypes.DatasetType
     }
     _METHODS = [
         "set_model_handler",
@@ -45,14 +46,14 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
 
     @classmethod
     def add_interface(
-        cls, obj: SKLearnModelType, restoration_information: RestorationInformation = None,
+        cls, obj: SKLearnTypes.ModelType, restoration: SKLearnTypes.MLRunInterfaceRestorationType = None,
     ):
         """
         Enrich the object with this interface properties, methods and functions so it will have this framework MLRun's
         features.
 
         :param obj:                     The model object to enrich his interface.
-        :param restoration_information: Restoration information tuple as returned from 'remove_interface' in order to
+        :param restoration: Restoration information tuple as returned from 'remove_interface' in order to
                                         add the interface in a certain state.
         """
         # Check if the given model has the 'predict_proba' method to replace:
@@ -61,7 +62,7 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
 
         # Add the interface to the model:
         super(SKLearnMLRunInterface, cls).add_interface(
-            obj=obj, restoration_information=restoration_information
+            obj=obj, restoration=restoration
         )
 
         # Restore the '_REPLACED_METHODS' list for next models:
@@ -83,7 +84,7 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
         """
 
         def wrapper(
-            self: ModelType, X: DatasetType, y: DatasetType = None, *args, **kwargs
+            self: SKLearnTypes.ModelType, X: SKLearnTypes.DatasetType, y: SKLearnTypes.DatasetType = None, *args, **kwargs
         ):
             # Restore the prediction methods as fit will use them:
             cls._restore_attribute(obj=self, attribute_name="predict")
@@ -107,7 +108,7 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
 
         return wrapper
 
-    def mlrun_predict(self, X: DatasetType, *args, **kwargs):
+    def mlrun_predict(self, X: SKLearnTypes.DatasetType, *args, **kwargs):
         """
         MLRun's wrapper for the common ML API predict method.
         """
@@ -119,7 +120,7 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
 
         return y_pred
 
-    def mlrun_predict_proba(self, X: DatasetType, *args, **kwargs):
+    def mlrun_predict_proba(self, X: SKLearnTypes.DatasetType, *args, **kwargs):
         """
         MLRun's wrapper for the common ML API predict_proba method.
         """
@@ -151,8 +152,8 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
         context: mlrun.MLClientCtx = None,
         plans: List[MLPlan] = None,
         metrics: List[Metric] = None,
-        x_test: DatasetType = None,
-        y_test: DatasetType = None,
+        x_test: SKLearnTypes.DatasetType = None,
+        y_test: SKLearnTypes.DatasetType = None,
     ):
         """
         Initialize the MLRun logger for this model using the provided context and artifacts plans, metrics and model
@@ -189,7 +190,7 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
         self._x_test = x_test
         self._y_test = y_test
 
-    def _pre_fit(self, x: DatasetType, y: DatasetType = None):
+    def _pre_fit(self, x: SKLearnTypes.DatasetType, y: SKLearnTypes.DatasetType = None):
         """
         Method for creating the artifacts before the fit method.
 
@@ -198,7 +199,7 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
         """
         self._logger.log_stage(stage=MLPlanStages.PRE_FIT, model=self, x=x, y=y)
 
-    def _post_fit(self, x: DatasetType, y: DatasetType = None):
+    def _post_fit(self, x: SKLearnTypes.DatasetType, y: SKLearnTypes.DatasetType = None):
         """
         Method for creating the artifacts after the fit method. If a validation set is available, the method will start
         a validation process calling predict - creating and calculating validation artifacts and metrics.
@@ -227,14 +228,14 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
             # Set the sample set to the training set if None:
             if self._model_handler.sample_set is None:
                 self._model_handler.set_sample_set(
-                    sample_set=concatenate_x_y(
-                        x=x, y=y, y_columns=self._model_handler.y_columns
+                    sample_set=SKLearnUtils.concatenate_x_y(
+                        x=x, y=y, target_columns_names=self._model_handler.target_columns
                     )[0]
                 )
             # Log the model:
             self._logger.log_run(model_handler=self._model_handler)
 
-    def _pre_predict(self, x: DatasetType, y: DatasetType):
+    def _pre_predict(self, x: SKLearnTypes.DatasetType, y: SKLearnTypes.DatasetType):
         """
         Method for creating the artifacts before the predict method.
 
@@ -242,16 +243,16 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
         :param y: The input dataset to the predict / predict_proba method ('y_test').
         """
         # This function is only called for evaluation, then set the logger's mode:
-        self._logger.set_mode(mode=LoggerMode.EVALUATION)
+        self._logger.set_mode(mode=LoggingMode.EVALUATION)
 
         # Produce and log all the artifacts pre prediction:
         self._logger.log_stage(stage=MLPlanStages.PRE_PREDICT, model=self, x=x, y=y)
 
     def _post_predict(
         self,
-        x: DatasetType,
-        y: DatasetType,
-        y_pred: DatasetType,
+        x: SKLearnTypes.DatasetType,
+        y: SKLearnTypes.DatasetType,
+        y_pred: SKLearnTypes.DatasetType,
         is_predict_proba: bool,
     ):
         """
@@ -294,7 +295,7 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
             )
 
         # If its part of validation post training, return:
-        if self._logger.mode == LoggerMode.TRAINING:
+        if self._logger.mode == LoggingMode.TRAINING:
             return
 
         # Update the model with the testing artifacts and results:

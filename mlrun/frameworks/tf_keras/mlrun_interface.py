@@ -63,18 +63,18 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
     def add_interface(
         cls,
         obj: keras.Model,
-        restoration_information: RestorationInformation = None,
+        restoration: RestorationInformation = None,
     ):
         """
         Enrich the object with this interface properties, methods and functions so it will have this framework MLRun's
         features.
 
         :param obj:                     The object to enrich his interface.
-        :param restoration_information: Restoration information tuple as returned from 'remove_interface' in order to
+        :param restoration: Restoration information tuple as returned from 'remove_interface' in order to
                                         add the interface in a certain state.
         """
         super(TFKerasMLRunInterface, cls).add_interface(
-            obj=obj, restoration_information=restoration_information
+            obj=obj, restoration=restoration
         )
 
     def mlrun_compile(self, *args, **kwargs):

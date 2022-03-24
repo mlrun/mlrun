@@ -3,29 +3,20 @@ from typing import Dict, List, Union
 
 import mlrun
 
-from .._common import ExtraDataType, get_plans
-from .._ml_common import (
-    DatasetType,
-    Metric,
-    MetricEntry,
-    MetricsLibrary,
-    MLArtifactsLibrary,
-    MLPlan,
-    PickleModelServer,
-    get_metrics,
-)
+from .._ml_common import PickleModelServer, MLPlan, MLArtifactsLibrary
+from mlrun.frameworks.sklearn.metric import Metric
+from .metrics_library import SKLearnMetricsLibrary
 from .mlrun_interface import SKLearnMLRunInterface
 from .model_handler import SKLearnModelHandler
-from .utils import SKLearnModelType
+from .utils import SKLearnTypes, SKLearnUtils
 
 # Placeholders as the SciKit-Learn API is commonly used among all of the ML frameworks:
+SKLearnModelServer = PickleModelServer
 SKLearnArtifactsLibrary = MLArtifactsLibrary
-SKLearnMetricsLibrary = MetricsLibrary
-SklearnModelServer = PickleModelServer
 
 
 def apply_mlrun(
-    model: SKLearnModelType = None,
+    model: SKLearnTypes.ModelType = None,
     model_name: str = "model",
     tag: str = "",
     model_path: str = None,
@@ -34,16 +25,20 @@ def apply_mlrun(
     custom_objects_directory: str = None,
     context: mlrun.MLClientCtx = None,
     artifacts: Union[List[MLPlan], List[str], Dict[str, dict]] = None,
-    metrics: Union[List[Metric], List[MetricEntry], Dict[str, MetricEntry]] = None,
-    x_test: DatasetType = None,
-    y_test: DatasetType = None,
-    sample_set: Union[DatasetType, mlrun.DataItem, str] = None,
+    metrics: Union[
+        List[Metric],
+        List[SKLearnTypes.MetricEntryType],
+        Dict[str, SKLearnTypes.MetricEntryType],
+    ] = None,
+    x_test: SKLearnTypes.DatasetType = None,
+    y_test: SKLearnTypes.DatasetType = None,
+    sample_set: Union[SKLearnTypes.DatasetType, mlrun.DataItem, str] = None,
     y_columns: Union[List[str], List[int]] = None,
     feature_vector: str = None,
     feature_weights: List[float] = None,
     labels: Dict[str, Union[str, int, float]] = None,
     parameters: Dict[str, Union[str, int, float]] = None,
-    extra_data: Dict[str, ExtraDataType] = None,
+    extra_data: Dict[str, SKLearnTypes.ExtraDataType] = None,
     auto_log: bool = True,
     **kwargs
 ) -> SKLearnModelHandler:
@@ -162,7 +157,7 @@ def apply_mlrun(
     if sample_set is not None:
         handler.set_sample_set(sample_set=sample_set)
     if y_columns is not None:
-        handler.set_y_columns(y_columns=y_columns)
+        handler.set_target_columns(target_columns=y_columns)
     if feature_vector is not None:
         handler.set_feature_vector(feature_vector=feature_vector)
     if feature_weights is not None:
@@ -183,7 +178,7 @@ def apply_mlrun(
     # Configure the logger:
     model.configure_logger(
         context=context,
-        plans=get_plans(
+        plans=SKLearnArtifactsLibrary.get_plans(
             artifacts_library=SKLearnArtifactsLibrary,
             artifacts=artifacts,
             context=context,
@@ -191,8 +186,7 @@ def apply_mlrun(
             model=model,
             y=y_test,
         ),
-        metrics=get_metrics(
-            metrics_library=SKLearnMetricsLibrary,
+        metrics=SKLearnMetricsLibrary.get_metrics(
             metrics=metrics,
             context=context,
             include_default=auto_log,

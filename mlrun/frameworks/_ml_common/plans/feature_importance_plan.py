@@ -6,9 +6,8 @@ import plotly.graph_objects as go
 import mlrun
 from mlrun.artifacts import Artifact, PlotlyArtifact
 
-from ..._common import ModelType
 from ..plan import MLPlanStages, MLPlotPlan
-from ..utils import DatasetType, to_dataframe
+from ..utils import MLTypes, MLUtils
 
 
 class FeatureImportancePlan(MLPlotPlan):
@@ -41,7 +40,7 @@ class FeatureImportancePlan(MLPlotPlan):
         return stage == MLPlanStages.POST_FIT
 
     def produce(
-        self, model: ModelType, x: DatasetType, **kwargs
+        self, model: MLTypes.ModelType, x: MLTypes.DatasetType, **kwargs
     ) -> Dict[str, Artifact]:
         """
         Produce the feature importance according to the given model and dataset ('x').
@@ -68,7 +67,7 @@ class FeatureImportancePlan(MLPlotPlan):
         # Create a table of features and their importance:
         df = pd.DataFrame(
             {
-                "features": to_dataframe(x).columns,
+                "features": MLUtils.to_dataframe(dataset=x).columns,
                 "feature_importance": importance_score,
             }
         ).sort_values(by="feature_importance", ascending=False)

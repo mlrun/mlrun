@@ -7,9 +7,8 @@ from sklearn.metrics import confusion_matrix
 
 from mlrun.artifacts import Artifact, PlotlyArtifact
 
-from ..._common import ModelType
 from ..plan import MLPlanStages, MLPlotPlan
-from ..utils import DatasetType, to_dataframe
+from ..utils import MLUtils, MLTypes
 
 
 class ConfusionMatrixPlan(MLPlotPlan):
@@ -61,10 +60,10 @@ class ConfusionMatrixPlan(MLPlotPlan):
 
     def produce(
         self,
-        y: DatasetType,
-        y_pred: DatasetType = None,
-        model: ModelType = None,
-        x: DatasetType = None,
+        y: MLTypes.DatasetType,
+        y_pred: MLTypes.DatasetType = None,
+        model: MLTypes.ModelType = None,
+        x: MLTypes.DatasetType = None,
         **kwargs
     ) -> Dict[str, Artifact]:
         """
@@ -82,8 +81,8 @@ class ConfusionMatrixPlan(MLPlotPlan):
         y_pred = self._calculate_predictions(y_pred=y_pred, model=model, x=x)
 
         # Convert to DataFrame:
-        y = to_dataframe(dataset=y)
-        y_pred = to_dataframe(dataset=y_pred)
+        y = MLUtils.to_dataframe(dataset=y)
+        y_pred = MLUtils.to_dataframe(dataset=y_pred)
 
         # Set the labels array it not set:
         if self._labels is None:

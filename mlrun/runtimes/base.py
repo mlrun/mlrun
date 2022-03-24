@@ -582,7 +582,9 @@ class BaseRuntime(ModelObj):
         if runspec.spec.handler_name:
             short_name = runspec.spec.handler_name
             if "::" in short_name:
-                short_name = short_name.split("::")[1]  # drop class name
+                short_name = short_name.split("::")[-1]  # drop class name
+            if "." in short_name:
+                short_name = short_name.split(".")[-1]  # drop module name
             def_name += "-" + short_name
         runspec.metadata.name = name or runspec.metadata.name or def_name
         verify_field_regex(

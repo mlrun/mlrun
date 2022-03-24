@@ -75,6 +75,19 @@ class KubejobRuntime(KubeResource):
         if workdir:
             self.spec.workdir = workdir
 
+        if (
+            self.spec.build.base_image
+            and not self.spec.build.commands
+            and pull_at_runtime
+            and not self.spec.image
+        ):
+            # if we load source from repo and dont need a full build use the base_image as the image
+            self.spec.image = self.spec.build.base_image
+        elif self.spec.build.base_image and not pull_at_runtime:
+            # clear the image so build will not be skipped
+            self.spec.image = ""
+        self.verify_base_image()
+
     def build_config(
         self,
         image="",

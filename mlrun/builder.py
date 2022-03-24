@@ -244,19 +244,19 @@ def build_image(
         else None
     )
 
+    parsed_url = urlparse(source)
     if inline_code:
         context = "/empty"
     elif source and "://" in source and not v3io:
-        context = source
-    elif source:
-        parsed_url = urlparse(source)
-        if v3io:
-            source = parsed_url.path
-        elif source.startswith("git://"):
+        if source.startswith("git://"):
             # if the user provided branch (w/o refs/..) we add the "refs/.."
             fragment = parsed_url.fragment or ""
             if not fragment.startswith("refs/"):
                 source = source.replace("#" + fragment, f"#refs/heads/{fragment}")
+        context = source
+    elif source:
+        if v3io:
+            source = parsed_url.path
         to_mount = True
         if source.endswith(".tar.gz"):
             source, src_dir = path.split(source)

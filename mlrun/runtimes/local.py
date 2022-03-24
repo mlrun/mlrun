@@ -214,8 +214,12 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         if execution._current_workdir:
             execution._old_workdir = os.getcwd()
             workdir = os.path.realpath(execution._current_workdir)
+            print(f">>> workdir={workdir}, old={execution._old_workdir}")
+            print(f">>> spec={self.spec.workdir}, curr={execution._current_workdir}")
             set_paths(workdir)
             os.chdir(workdir)
+            print(f">>> cwd={os.getcwd()}, ls={os.listdir()}")
+            print(str(sys.path))
 
         if (
             runobj.metadata.labels["kind"] == RemoteSparkRuntime.kind
@@ -242,6 +246,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         pythonpath = self.spec.pythonpath
 
         if handler:
+            print(f">> cwd={os.getcwd()}, pypath={pythonpath}")
             set_paths(pythonpath)
 
             context = MLClientCtx.from_dict(

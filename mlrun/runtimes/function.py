@@ -104,6 +104,7 @@ class NuclioSpec(KubeResourceSpec):
         "source",
         "function_kind",
         "readiness_timeout",
+        "function_handler",
         "function_runtime",
     ]
 
@@ -174,7 +175,7 @@ class NuclioSpec(KubeResourceSpec):
         self.function_kind = function_kind
         self.source = source or ""
         self.config = config or {}
-        self.function_handler = ""
+        self.function_handler = None
         self.function_runtime = None
         self.no_cache = no_cache
         self.readiness_timeout = readiness_timeout
@@ -257,9 +258,6 @@ class RemoteRuntime(KubeResource):
     def set_config(self, key, value):
         self.spec.config[key] = value
         return self
-
-    def add_volume(self, local, remote, name="fs", access_key="", user=""):
-        raise Exception("deprecated, use .apply(mount_v3io())")
 
     def add_trigger(self, name, spec):
         """add a nuclio trigger object/dict
@@ -1356,10 +1354,11 @@ def set_source_archive(
 
 
 def _resolve_git_reference_from_source(source):
-    split_source = source.split("#")
+    # kaniko allow multiple "#" e.g. #refs/..#commit
+    split_source = source.split("#", 1)
 
     # no reference was passed
-    if len(split_source) != 2:
+    if len(split_source) < 2:
         return source, "", ""
 
     reference = split_source[1]

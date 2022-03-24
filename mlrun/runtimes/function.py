@@ -15,7 +15,6 @@
 import asyncio
 import json
 import typing
-import warnings
 from datetime import datetime
 from time import sleep
 
@@ -656,7 +655,7 @@ class RemoteRuntime(KubeResource):
             runtime_env["MLRUN_AUTH_SESSION"] = self.metadata.credentials.access_key
         return runtime_env
 
-    def get_nuclio_config_spec_env(self):
+    def _get_nuclio_config_spec_env(self):
         env_dict = {}
         external_source_env_dict = {}
 
@@ -1056,7 +1055,7 @@ def compile_function_config(
         function.add_secrets_config_to_spec()
         inside_k8s = True
 
-    env_dict, external_source_env_dict = function.get_nuclio_config_spec_env()
+    env_dict, external_source_env_dict = function._get_nuclio_config_spec_env()
     spec = nuclio.ConfigSpec(
         env=env_dict,
         external_source_env=external_source_env_dict,

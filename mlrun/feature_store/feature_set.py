@@ -307,8 +307,8 @@ class FeatureSet(ModelObj):
         return get_store_uri(StorePrefix.FeatureSet, self.fullname)
 
     @property
-    def fullname(self):
-        """full name in the form project/name[:tag]"""
+    def fullname(self) -> str:
+        """full name in the form {project}/{name}[:{tag}]"""
         fullname = (
             f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
         )
@@ -475,6 +475,19 @@ class FeatureSet(ModelObj):
     ):
         """add/set an entity (dataset index)
 
+        example::
+
+            import mlrun.feature_store as fstore
+
+            ticks = fstore.FeatureSet("ticks",
+                            entities=["stock"],
+                            timestamp_key="timestamp")
+            ticks.add_entity("country",
+                            mlrun.data_types.ValueType.STRING,
+                            description="stock country")
+            ticks.add_entity("year", mlrun.data_types.ValueType.INT16)
+            ticks.save()
+
         :param name:        entity name
         :param value_type:  type of the entity (default to ValueType.STRING)
         :param description: description of the entity
@@ -483,8 +496,26 @@ class FeatureSet(ModelObj):
         entity = Entity(name, value_type, description=description, labels=labels)
         self._spec.entities.update(entity, name)
 
-    def add_feature(self, feature, name=None):
-        """add/set a feature"""
+    def add_feature(self, feature: mlrun.features.Feature, name=None):
+        """add/set a feature
+
+        example::
+
+            import mlrun.feature_store as fstore
+            from mlrun.features import Feature
+
+            ticks = fstore.FeatureSet("ticks",
+                            entities=["stock"],
+                            timestamp_key="timestamp")
+            ticks.add_feature(Feature(value_type=mlrun.data_types.ValueType.STRING,
+                            description="client consistency"),"ABC01")
+            ticks.add_feature(Feature(value_type=mlrun.data_types.ValueType.FLOAT,
+                            description="client volatility"),"SAB")
+            ticks.save()
+
+        :param feature:         setting of Feature
+        :param name:            feature name
+        """
         self._spec.features.update(feature, name)
 
     def link_analysis(self, name, uri):

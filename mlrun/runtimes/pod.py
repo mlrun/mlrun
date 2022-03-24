@@ -25,8 +25,12 @@ from kubernetes import client
 import mlrun.errors
 import mlrun.utils.regex
 
+from ..api.schemas import NodeSelectorOperator, PreemptionModes
 from ..config import config as mlconf
-from ..k8s_utils import verify_gpu_requests_and_limits
+from ..k8s_utils import (
+    compile_affinity_by_label_selector,
+    verify_gpu_requests_and_limits,
+)
 from ..secrets import SecretsStore
 from ..utils import get_in, logger, normalize_name, update_in
 from .base import BaseRuntime, FunctionSpec, spec_fields
@@ -60,7 +64,6 @@ sanitized_types = {
     },
 }
 
-
 sanitized_attributes = {
     "affinity": sanitized_types["affinity"],
     "tolerations": sanitized_types["tolerations"],
@@ -84,6 +87,7 @@ class KubeResourceSpec(FunctionSpec):
         "affinity",
         "priority_class_name",
         "tolerations",
+        "preemption_mode",
     ]
 
     def __init__(
@@ -112,6 +116,7 @@ class KubeResourceSpec(FunctionSpec):
         disable_auto_mount=False,
         priority_class_name=None,
         tolerations=None,
+        preemption_mode=None,
     ):
         super().__init__(
             command=command,
@@ -148,6 +153,7 @@ class KubeResourceSpec(FunctionSpec):
             priority_class_name or mlrun.mlconf.default_function_priority_class_name
         )
         self._tolerations = tolerations
+        self.preemption_mode = preemption_mode
 
     @property
     def volumes(self) -> list:
@@ -227,9 +233,13 @@ class KubeResourceSpec(FunctionSpec):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"{attribute_name} isn't in the available sanitized attributes"
             )
-        if not attribute:
-            return None
         attribute_config = sanitized_attributes[attribute_name]
+        # initialize empty attribute type
+        if attribute is None:
+            if attribute_config["attribute_type"] is None:
+                return None
+            return attribute_config["attribute_type"]()
+
         if isinstance(attribute, dict):
             if self._resolve_if_type_sanitized(attribute_name, attribute):
                 api = client.ApiClient()
@@ -410,6 +420,120 @@ class KubeResourceSpec(FunctionSpec):
         if not resources["requests"] and not resources["limits"]:
             return {}
         return resources
+
+    def enrich_with_node_selectors(self, node_selector: typing.Dict[str, str]):
+        if not node_selector:
+            return
+
+        # merge node selectors - precedence to existing node selector
+        self.node_selector = {**node_selector, **self.node_selector}
+
+    def enrich_with_tolerations(self, tolerations: typing.List[client.V1Toleration]):
+        if len(tolerations) == 0:
+            return
+
+        tolerations_to_add = []
+        # Only add non-matching tolerations to avoid duplications
+        for function_toleration in self.tolerations:
+            for toleration in tolerations:
+                if function_toleration != toleration:
+                    tolerations_to_add.append(toleration)
+
+        # In case function has no toleration, take all from input
+        if len(self.tolerations) == 0:
+            tolerations_to_add = tolerations
+
+        if len(tolerations_to_add) > 0:
+            self.tolerations += tolerations_to_add
+
+    def enrich_function_preemption_spec(self, mode):
+        """
+        Enriches function pod with the below described spec. if no platformConfiguration related
+        configuration is given, do nothing.
+            `Allow` 	- Adds Tolerations if taints were given.
+                        otherwise, assume pods can be scheduled on preemptible nodes.
+                        > Purges any `affinity` / `anti-affinity` preemption related configuration
+            `Constrain` - Uses node-affinity to make sure pods are assigned using OR on the given node label selectors.
+                        > Uses `Allow` configuration as well.
+                        > Purges any `anti-affinity` preemption related configuration
+            `Prevent`	- Prevention is done either using taints (if Tolerations were given) or anti-affinity.
+                        > Purges any `tolerations` / `gpuTolerations` preemption related configuration
+                        > Purges any `affinity` preemption related configuration
+                        > Adds anti-affinity IF no tolerations were given
+        """
+        # nothing to do here, configuration is not populated
+        if (
+            mlconf.get_preemptible_tolerations()
+            or mlconf.get_preemptible_node_selector()
+        ):
+            return mode
+
+        if not mode:
+            mode = PreemptionModes.prevent
+            logger.debug(
+                "No preemption mode was given, using the default",
+                new_preemption_mode=mode,
+            )
+
+        logger.debug(
+            "Enriching function spec for given preemption mode", preemption_mode=mode
+        )
+
+        if mode == PreemptionModes.allow:
+            # purge any affinity / anti-affinity preemption related configuration
+
+            # # remove anti-affinity
+            # self.prune_affinity_node_selector_requirement(
+            #     compile_affinity_by_label_selector(
+            #         NodeSelectorOperator.node_selector_op_not_in
+            #     ),
+            #     mode="matchAll",
+            # )
+            # # remove affinity
+            # self.prune_affinity_node_selector_requirement(
+            #     compile_affinity_by_label_selector(
+            #         NodeSelectorOperator.node_selector_op_in
+            #     ),
+            #     mode="oneOf",
+            # )
+
+            # remove preemptible nodes constrain
+            self.prune_node_selector(mlconf.get_preemptible_node_selector())
+
+            # enrich with tolerations
+            self.enrich_with_tolerations(mlconf.get_preemptible_tolerations())
+
+            # TODO add gpu tolerations enrichment
+
+    def prune_tolerations(self, tolerations: typing.List[client.V1Toleration]):
+        """
+        Prunes given tolerations from function spec
+        :param tolerations: tolerations to prune
+        """
+        if len(tolerations):
+            return
+
+        # Generate a list of tolerations without tolerations to prune
+        tolerations_without_tolerations_to_prune = list(
+            set(self.tolerations) - set(tolerations)
+        )
+
+        # Set tolerations without tolerations to prune
+        self.tolerations = tolerations_without_tolerations_to_prune
+
+    def prune_node_selector(self, node_selector: typing.Dict[str, str]):
+        """
+        Prunes given node_selector key from function spec if their key and value are matching
+        :param node_selector: node selectors to prune
+        """
+        if not node_selector:
+            return
+
+        for key, value in node_selector.items():
+            if value:
+                spec_value = self.node_selector.get(key)
+                if spec_value and spec_value == value:
+                    self.node_selector.pop(key)
 
 
 class AutoMountType(str, Enum):
@@ -632,6 +756,25 @@ class KubeResource(BaseRuntime):
             )
             raise mlrun.errors.MLRunInvalidArgumentError(message)
         self.spec.priority_class_name = name
+
+    def with_preemption_mode(self, mode: str):
+        """
+        Preemption modes enable users to run function pods on preemptible nodes, when filled,
+        tolerations, node labels and affinity would be populated correspondingly to the function spec on server side.
+
+        currently supports 3 modes:
+
+        allow - Allows function to be scheduled on preemptible nodes
+        constrains - Makes function to run only on preemptible nodes
+        prevent - Prevents function to be scheduled on preemptible nodes
+
+        :param mode: accepts allow | constraint | prevent defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
+        """
+        if not PreemptionModes.has_preemption_mode(mode):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"{mode} is not one of the supported preemption modes"
+            )
+        self.spec.preemption_mode = mode
 
     def list_valid_priority_class_names(self):
         return mlconf.get_valid_function_priority_class_names()

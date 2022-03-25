@@ -1,5 +1,6 @@
 import mlrun
 import tests.system.base
+import tempfile
 
 git_uri = "git://github.com/mlrun/test-git-load.git"
 
@@ -8,6 +9,19 @@ git_uri = "git://github.com/mlrun/test-git-load.git"
 class TestGitSource(tests.system.base.TestMLRunSystem):
 
     project_name = "git-tests"
+
+    def test_local_load(self):
+        fn = mlrun.new_function(
+            "lcl",
+            kind="local",
+        )
+        fn.with_source_archive(f"{git_uri}#main", "func.job_handler")
+        fn.spec.pythonpath = "subdir"
+        fn.spec.workdir = tempfile.mkdtemp()
+        print(f"clone target dir: {fn.spec.workdir}")
+        run = fn.run()
+        assert run.state() == "completed"
+        assert run.output("tag") == "main"
 
     def test_job_build(self):
         tag = "main"

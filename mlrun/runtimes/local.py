@@ -204,6 +204,8 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         execution._current_workdir = self.spec.workdir
         execution._old_workdir = None
 
+        print(self.to_yaml())
+
         if self.spec.build.source:
             execution._current_workdir = extract_source(
                 self.spec.build.source,
@@ -211,13 +213,14 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 secrets=execution._secrets_manager,
             )
 
+        print(f">>> spec={self.spec.workdir}, curr={execution._current_workdir}")
         if execution._current_workdir:
             execution._old_workdir = os.getcwd()
             workdir = os.path.realpath(execution._current_workdir)
             print(f">>> workdir={workdir}, old={execution._old_workdir}")
-            print(f">>> spec={self.spec.workdir}, curr={execution._current_workdir}")
             set_paths(workdir)
             os.chdir(workdir)
+            sys.path.insert(1, 'subdir')
             print(f">>> cwd={os.getcwd()}, ls={os.listdir()}")
             print(str(sys.path))
 

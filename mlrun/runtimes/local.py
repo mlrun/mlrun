@@ -218,9 +218,15 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             execution._old_workdir = os.getcwd()
             workdir = os.path.realpath(execution._current_workdir)
             print(f">>> workdir={workdir}, old={execution._old_workdir}")
+            paths = environ.get("PYTHONPATH", "").split(":")
             set_paths(workdir)
             os.chdir(workdir)
-            sys.path.insert(1, 'subdir')
+            for p in paths:
+                if p and p in sys.path:
+                    sys.path.remove(p)
+            for p in paths:
+                if p:
+                    sys.path.append(p)
             print(f">>> cwd={os.getcwd()}, ls={os.listdir()}")
             print(str(sys.path))
 

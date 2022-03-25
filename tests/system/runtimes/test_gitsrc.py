@@ -15,8 +15,8 @@ class TestGitSource(tests.system.base.TestMLRunSystem):
             "lcl",
             kind="local",
         )
-        fn.with_source_archive(f"{git_uri}#main", "func.job_handler")
-        fn.spec.pythonpath = "subdir"
+        fn.with_source_archive(f"{git_uri}#main", "subdir.func.job_handler")
+        #fn.spec.pythonpath = "subdir"
         fn.spec.workdir = tempfile.mkdtemp()
         print(f"clone target dir: {fn.spec.workdir}")
         run = fn.run()

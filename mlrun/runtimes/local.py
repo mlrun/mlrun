@@ -226,8 +226,8 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                     sys.path.remove(p)
             for p in paths:
                 if p:
-                    sys.path.append(p)
-            print(f">>> cwd={os.getcwd()}, ls={os.listdir()}")
+                    sys.path.insert(1, p)
+            print(f">>> cwd={os.getcwd()}, pp={paths}, ls={os.listdir()}")
             print(str(sys.path))
 
         if (
@@ -257,6 +257,10 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         if handler:
             print(f">> cwd={os.getcwd()}, pypath={pythonpath}")
             set_paths(pythonpath)
+            if "#" in handler:
+                pp = handler.split("#")
+                handler = pp[1]
+                set_paths(pp[0])
 
             context = MLClientCtx.from_dict(
                 runobj.to_dict(),

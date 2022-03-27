@@ -412,7 +412,9 @@ class Config:
         return config.hub_url
 
     @staticmethod
-    def decode_base64_config_and_load_to_object(attribute_path: str, expected_type):
+    def decode_base64_config_and_load_to_object(
+        attribute_path: str, expected_type=dict
+    ):
         attributes = attribute_path.split(".")
         raw_attribute_value = config
         for part in attributes:

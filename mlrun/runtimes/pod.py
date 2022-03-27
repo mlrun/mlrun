@@ -482,30 +482,114 @@ class KubeResourceSpec(FunctionSpec):
         if mode == PreemptionModes.allow:
             # purge any affinity / anti-affinity preemption related configuration
 
-            # # remove anti-affinity
-            # self.prune_affinity_node_selector_requirement(
-            #     compile_affinity_by_label_selector(
-            #         NodeSelectorOperator.node_selector_op_not_in
-            #     ),
-            #     mode="matchAll",
-            # )
-            # # remove affinity
-            # self.prune_affinity_node_selector_requirement(
-            #     compile_affinity_by_label_selector(
-            #         NodeSelectorOperator.node_selector_op_in
-            #     ),
-            #     mode="oneOf",
-            # )
+            # remove anti-affinity
+            self._prune_affinity_node_selector_requirement(
+                compile_affinity_by_label_selector(
+                    NodeSelectorOperator.node_selector_op_not_in
+                ),
+            )
+            # remove affinity
+            self._prune_affinity_node_selector_requirement(
+                compile_affinity_by_label_selector(
+                    NodeSelectorOperator.node_selector_op_in
+                ),
+            )
 
             # remove preemptible nodes constrain
-            self.prune_node_selector(mlconf.get_preemptible_node_selector())
+            self._prune_node_selector(mlconf.get_preemptible_node_selector())
 
             # enrich with tolerations
             self.enrich_with_tolerations(mlconf.get_preemptible_tolerations())
 
             # TODO add gpu tolerations enrichment
 
-    def prune_tolerations(self, tolerations: typing.List[client.V1Toleration]):
+    def _prune_affinity_node_selector_requirement(
+        self,
+        node_selector_requirements: typing.List[
+            kubernetes.client.V1NodeSelectorRequirement
+        ],
+    ):
+        """
+        Prunes given node selector requirements from affinity
+
+        :param node_selector_requirements:
+        :return:
+        """
+        if not self.affinity or not node_selector_requirements:
+            return
+        if self.affinity.node_affinity:
+            node_affinity: client.V1NodeAffinity = self.affinity.node_affinity
+
+            new_required_during_scheduling_ignored_during_execution = None
+            if node_affinity.required_during_scheduling_ignored_during_execution:
+                node_selector: client.V1NodeSelector = (
+                    node_affinity.required_during_scheduling_ignored_during_execution
+                )
+                new_node_selector_terms = (
+                    self._get_node_selector_terms_without_provided_node_selector_requirements(
+                        node_selector_terms=node_selector.node_selector_terms,
+                        node_selector_requirements_to_remove=node_selector_requirements,
+                    )
+                )
+
+                if len(new_node_selector_terms) > 0:
+                    new_required_during_scheduling_ignored_during_execution = (
+                        client.V1NodeSelector(
+                            node_selector_terms=new_node_selector_terms
+                        )
+                    )
+            if (
+                not node_affinity.preferred_during_scheduling_ignored_during_execution
+                and not new_required_during_scheduling_ignored_during_execution
+            ):
+                self.affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
+                    None
+                )
+                return
+
+            self.affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
+                new_required_during_scheduling_ignored_during_execution
+            )
+
+    @staticmethod
+    def _get_node_selector_terms_without_provided_node_selector_requirements(
+        node_selector_terms: typing.List[client.V1NodeSelectorTerm],
+        node_selector_requirements_to_remove: typing.List[client.V1NodeSelectorRequirement],
+    ) -> typing.List[client.V1NodeSelectorTerm]:
+        """
+        Goes over each expression in all the terms provided and removes the expressions if it matches
+        one of the requirements provided to remove
+
+        :return: New list of terms without the provided node selector requirements
+        """
+        new_node_selector_terms: typing.List[client.V1NodeSelectorTerm] = []
+        # for all term expressions on function spec
+        for term in node_selector_terms:
+            new_node_selector_requirements: typing.List[
+                client.V1NodeSelectorRequirement
+            ] = []
+            for expression in term.match_expressions:
+                new_node_selector_requirements.append(expression)
+                # go over each requirement and check if matches the current expression
+                for node_selector_requirement in node_selector_requirements_to_remove:
+                    if node_selector_requirement == expression:
+                        # remove from new node selector requirements list
+                        new_node_selector_requirements.pop(expression)
+                        # no need to keep going over the list provided for the current expression
+                        break
+
+            # check if there is something to add
+            if len(new_node_selector_requirements) > 0 or len(term.match_fields) > 0:
+                # Add new node selector terms without the matching expressions to prune
+                new_node_selector_terms.append(
+                    client.V1NodeSelectorTerm(
+                        match_expressions=new_node_selector_requirements,
+                        match_fields=term.match_fields,
+                    )
+                )
+        return new_node_selector_terms
+
+    def _prune_tolerations(self, tolerations: typing.List[client.V1Toleration]):
         """
         Prunes given tolerations from function spec
         :param tolerations: tolerations to prune
@@ -521,7 +605,7 @@ class KubeResourceSpec(FunctionSpec):
         # Set tolerations without tolerations to prune
         self.tolerations = tolerations_without_tolerations_to_prune
 
-    def prune_node_selector(self, node_selector: typing.Dict[str, str]):
+    def _prune_node_selector(self, node_selector: typing.Dict[str, str]):
         """
         Prunes given node_selector key from function spec if their key and value are matching
         :param node_selector: node selectors to prune

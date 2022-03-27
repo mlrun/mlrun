@@ -412,7 +412,7 @@ class Config:
         return config.hub_url
 
     @staticmethod
-    def decode_base64_config_and_load_to_dict(attribute_path: str) -> dict:
+    def decode_base64_config_and_load_to_object(attribute_path: str, expected_type):
         attributes = attribute_path.split(".")
         raw_attribute_value = config
         for part in attributes:
@@ -432,22 +432,26 @@ class Config:
                     f"Unable to decode {attribute_path}"
                 )
             parsed_attribute_value = json.loads(decoded_attribute_value)
+            if type(parsed_attribute_value) != expected_type:
+                raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                    f"Expected type {expected_type}, got {type(parsed_attribute_value)}"
+                )
             return parsed_attribute_value
-        return {}
+        return expected_type()
 
     def get_default_function_node_selector(self) -> dict:
-        return self.decode_base64_config_and_load_to_dict(
-            "default_function_node_selector"
+        return self.decode_base64_config_and_load_to_object(
+            "default_function_node_selector", dict
         )
 
     def get_preemptible_node_selector(self) -> dict:
-        return self.decode_base64_config_and_load_to_dict(
-            "preemptible_nodes.node_selector"
+        return self.decode_base64_config_and_load_to_object(
+            "preemptible_nodes.node_selector", dict
         )
 
-    def get_preemptible_tolerations(self) -> dict:
-        return self.decode_base64_config_and_load_to_dict(
-            "preemptible_nodes.tolerations"
+    def get_preemptible_tolerations(self) -> list:
+        return self.decode_base64_config_and_load_to_object(
+            "preemptible_nodes.tolerations", list
         )
 
     @staticmethod

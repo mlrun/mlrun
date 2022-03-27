@@ -69,13 +69,16 @@ class KubejobRuntime(KubeResource):
         :param workdir: working dir relative to the archive root or absolute (e.g. './subdir')
         :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
         """
-        self.spec.build.load_source_on_run = pull_at_runtime
         self.spec.build.source = source
         if handler:
             self.spec.default_handler = handler
         if workdir:
             self.spec.workdir = workdir
+        self._adjust_build_mode(pull_at_runtime)
 
+    def _adjust_build_mode(self, pull_at_runtime):
+        """make sure the flags and image are aligned with the build mode"""
+        self.spec.build.load_source_on_run = pull_at_runtime
         if (
             self.spec.build.base_image
             and not self.spec.build.commands
@@ -160,6 +163,9 @@ class KubejobRuntime(KubeResource):
 
         :return True if the function is ready (deployed)
         """
+
+        # make sure we disable load_on_run mode if the source code is in the image
+        self._adjust_build_mode(False)
 
         build = self.spec.build
         if with_mlrun is None:
@@ -319,7 +325,7 @@ class KubejobRuntime(KubeResource):
             if self.spec.build.source and self.spec.build.load_source_on_run:
                 # workdir will be set AFTER the clone
                 workdir = None
-            elif workdir.startswith("/"):
+            elif not workdir.startswith("/"):
                 # relative path mapped to real path in the job pod
                 workdir = os.path.join("/mlrun", workdir)
 

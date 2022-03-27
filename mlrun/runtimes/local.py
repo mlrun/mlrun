@@ -265,6 +265,8 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             print(f">>> spec={workdir}, target={target_dir}")
             if workdir and not workdir.startswith("/"):
                 execution._current_workdir = os.path.join(target_dir, workdir)
+            else:
+                execution._current_workdir = workdir or target_dir
 
         print(f">>> curr={execution._current_workdir}")
         if execution._current_workdir:

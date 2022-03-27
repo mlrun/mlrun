@@ -1,3 +1,4 @@
+import os
 import tempfile
 
 import mlrun
@@ -27,13 +28,19 @@ class TestGitSource(tests.system.base.TestMLRunSystem):
         assert run.output("tag") == "main"
 
     def test_job_build(self):
+        os.environ["MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES"] = "false"
         tag = "main"
         fn = mlrun.new_function(
             "job1",
             kind="job",
             image="yhaviv/mlrun:1.0.0-rc20",
         )
-        fn.with_source_archive(f"{git_uri}#{tag}", "func.job_handler", workdir="subdir")
+        fn.with_source_archive(
+            f"{git_uri}#{tag}",
+            "func.job_handler",
+            workdir="subdir",
+            pull_at_runtime=False,
+        )
         fn.spec.image_pull_policy = "Always"
         print(fn.to_yaml())
         fn.deploy()

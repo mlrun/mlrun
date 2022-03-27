@@ -62,7 +62,7 @@ def test_feature_set_entities():
             myset.add_entity(entity["name"], entity["vtype"], entity.get("desc", None))
             myset.save()
         except Exception as exc:
-            assert entity.get("result", False), (
+            assert entity.get("result", False) is False, (
                 f"got unexpected error "
                 f"for for entity '{entity.get('name', None)}'"
                 f"with type '{entity.get('vtype', None)}', "
@@ -118,7 +118,7 @@ def test_feature_set_features():
             )
             myset.save()
         except Exception as exc:
-            assert feature.get("result", False), (
+            assert feature.get("result", False) is False, (
                 f"got unexpected error "
                 f"for for entity '{feature.get('name', None)}'"
                 f"with type '{feature.get('vtype', None)}', "

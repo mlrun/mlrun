@@ -581,10 +581,10 @@ class BaseRuntime(ModelObj):
         def_name = self.metadata.name
         if runspec.spec.handler_name:
             short_name = runspec.spec.handler_name
-            if "::" in short_name:
-                short_name = short_name.split("::")[-1]  # drop class name
-            if "." in short_name:
-                short_name = short_name.split(".")[-1]  # drop module name
+            for sep in ["#", "::", "."]:
+                # drop paths, module or class name from short name
+                if sep in short_name:
+                    short_name = short_name.split(sep)[-1]
             def_name += "-" + short_name
         runspec.metadata.name = name or runspec.metadata.name or def_name
         verify_field_regex(
@@ -709,6 +709,9 @@ class BaseRuntime(ModelObj):
                 if code:
                     raise ValueError("cannot specify both code and source archive")
                 args += ["--source", self.spec.build.source]
+                if self.spec.workdir:
+                    # set the absolute/relative path to the cloned code
+                    args += ["--workdir", self.spec.workdir]
 
             if command:
                 args += [command]

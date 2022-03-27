@@ -1,6 +1,7 @@
+import tempfile
+
 import mlrun
 import tests.system.base
-import tempfile
 
 git_uri = "git://github.com/mlrun/test-git-load.git"
 
@@ -15,9 +16,11 @@ class TestGitSource(tests.system.base.TestMLRunSystem):
             "lcl",
             kind="local",
         )
-        fn.with_source_archive(f"{git_uri}#main", "subdir.func.job_handler")
-        #fn.spec.pythonpath = "subdir"
-        fn.spec.workdir = tempfile.mkdtemp()
+        fn.with_source_archive(
+            f"{git_uri}#main", "func.job_handler", target_dir=tempfile.mkdtemp()
+        )
+        # fn.spec.pythonpath =
+        fn.spec.workdir = "subdir"
         print(f"clone target dir: {fn.spec.workdir}")
         run = fn.run()
         assert run.state() == "completed"
@@ -30,8 +33,7 @@ class TestGitSource(tests.system.base.TestMLRunSystem):
             kind="job",
             image="yhaviv/mlrun:1.0.0-rc20",
         )
-        fn.with_source_archive(f"{git_uri}#{tag}", "func.job_handler")
-        fn.spec.pythonpath = "subdir"
+        fn.with_source_archive(f"{git_uri}#{tag}", "func.job_handler", workdir="subdir")
         fn.spec.image_pull_policy = "Always"
         print(fn.to_yaml())
         fn.deploy()

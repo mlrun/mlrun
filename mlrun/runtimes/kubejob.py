@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import time
 import typing
 
@@ -313,6 +314,14 @@ class KubejobRuntime(KubeResource):
         new_meta = self._get_meta(runobj)
 
         self._add_secrets_to_spec_before_running(runobj)
+        workdir = self.spec.workdir
+        if workdir:
+            if self.spec.build.source and self.spec.build.load_source_on_run:
+                # workdir will be set AFTER the clone
+                workdir = None
+            elif workdir.startswith("/"):
+                # relative path mapped to real path in the job pod
+                workdir = os.path.join("/mlrun", workdir)
 
         pod_spec = func_to_pod(
             self.full_image_path(
@@ -322,7 +331,7 @@ class KubejobRuntime(KubeResource):
             extra_env,
             command,
             args,
-            self.spec.workdir,
+            workdir,
         )
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:

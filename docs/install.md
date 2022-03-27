@@ -62,7 +62,7 @@ Create a namespace for the deployed components:
 kubectl create namespace mlrun
 ```
 
-Add the `v3io-stable` helm chart repo:
+Add the `v3io-stable` helm chart repo (helm installation [guidelines](https://helm.sh/docs/intro/install/) and [sources](https://github.com/helm/helm/releases/)):
 
 ```bash
 helm repo add v3io-stable https://v3io.github.io/helm-charts/stable

@@ -55,7 +55,8 @@ def test_feature_set_entities():
     for entity in entities:
         try:
             myset.add_entity(entity["name"], entity["vtype"], entity.get("desc", None))
-            myset.save()
+            # TODO: uncommented in case of clear feature set cleaning
+            # myset.save()
         except Exception as exc:
             assert entity.get("result", False) is False, (
                 f"got unexpected error "
@@ -111,7 +112,8 @@ def test_feature_set_features():
                     name=feature["name"],
                 )
             )
-            myset.save()
+            # TODO: uncommented in case of clear feature set cleaning
+            # myset.save()
         except Exception as exc:
             assert feature.get("result", False) is False, (
                 f"got unexpected error "

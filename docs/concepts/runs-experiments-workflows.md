@@ -41,8 +41,8 @@ tracking and security in an optimal way. Read more about data objects in [Data S
 
     run_results = fn.run(params={"label_column": "label"}, inputs={'data': data_url})
 
-MLRun also supports iterative jobs that can run and track multiple child jobs (for hyper-parameter tasks, AutoML, etc.). 
-See [Hyper-Param and Iterative jobs](../hyper-params.ipynb) for details and examples.
+MLRun also supports iterative jobs that can run and track multiple child jobs (for hyperparameter tasks, AutoML, etc.). 
+See [Hyperparam and Iterative jobs](../hyper-params.ipynb) for details and examples.
  
 The `run()` command returns a run object that you can use to track the job and its results. If you
 pass the parameter `watch=True` (default) the {py:meth}`~mlrun.runtimes.BaseRuntime.run` command blocks 
@@ -74,6 +74,16 @@ the code. This provides access to job metadata, parameters, inputs, secrets, and
 - If `context` is specified as the first parameter in the function signature, MLRun injects the current job context into it.
 - Alternatively, if it does not run inside a function handler (e.g. in Python main or Notebook) you can obtain the `context` 
 object from the environment using the {py:func}`~mlrun.run.get_or_create_ctx` function.
+
+Common context methods:
+
+- `get_secret(key: str)` &mdash; get the value of a secret
+- `logger.info("started experiment..")`  &mdash; textual logs
+- `log_result(key: str, value)` &mdash; log simple values
+- `set_label(key, value)` &mdash; set a label tag for that task
+- `log_artifact(key, body=None, local_path=None, ...)` &mdash; log an artifact (body or local file)
+- `log_dataset(key, df, ...)` &mdash; log a dataframe object 
+- `log_model(key, ...)` &mdash; log a model object 
 
 Example function and usage of the context object:
  

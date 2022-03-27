@@ -29,6 +29,8 @@ from ..api.schemas import NodeSelectorOperator, PreemptionModes
 from ..config import config as mlconf
 from ..k8s_utils import (
     compile_affinity_by_label_selector,
+    compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes,
+    compile_anti_affinity_by_label_selector_no_schedule_on_matching_nodes,
     verify_gpu_requests_and_limits,
 )
 from ..secrets import SecretsStore
@@ -236,10 +238,7 @@ class KubeResourceSpec(FunctionSpec):
         attribute_config = sanitized_attributes[attribute_name]
         # initialize empty attribute type
         if attribute is None:
-            if attribute_config["attribute_type"] is None:
-                return None
-            return attribute_config["attribute_type"]()
-
+            return None
         if isinstance(attribute, dict):
             if self._resolve_if_type_sanitized(attribute_name, attribute):
                 api = client.ApiClient()
@@ -478,9 +477,43 @@ class KubeResourceSpec(FunctionSpec):
         logger.debug(
             "Enriching function spec for given preemption mode", preemption_mode=mode
         )
+        # remove preemptible tolerations and remove preemption related configuration
+        # and enrich with anti-affinity if preemptible tolerations configuration haven't been provided
+        if mode == PreemptionModes.prevent:
+            # ensure no preemptible node tolerations
+            self._prune_tolerations(mlconf.get_preemptible_tolerations())
+            # if preemptible tolerations were given, purge affinity preemption related configuration
+            if mlconf.get_preemptible_tolerations():
+                self._prune_affinity_node_selector_requirement(
+                    (
+                        compile_affinity_by_label_selector(
+                            NodeSelectorOperator.node_selector_op_in
+                        )
+                    )
+                )
+            else:
+                self._initialize_affinity()
+                self._initialize_node_affinity()
+                # using a single term with potentially multiple expressions to ensure affinity
+                self.affinity.node_affinity.required_during_scheduling_ignored_during_execution = client.V1NodeSelector(
+                    node_selector_terms=compile_anti_affinity_by_label_selector_no_schedule_on_matching_nodes()
+                )
 
-        if mode == PreemptionModes.allow:
-            # purge any affinity / anti-affinity preemption related configuration
+        # enrich tolerations and override all node selector terms with preemptible node selector terms
+        elif mode == PreemptionModes.constrain:
+            # enrich with tolerations
+            self.enrich_with_tolerations(mlconf.get_preemptible_tolerations())
+            # TODO add gpu tolerations enrichment
+            self._initialize_affinity()
+            # setting required_during_scheduling_ignored_during_execution
+            # overriding other terms that have been set, and only setting terms for preemptible nodes
+            # when having multiple terms, pod scheduling is succeeded if at least one term is satisfied
+            self.affinity.node_affinity.required_during_scheduling_ignored_during_execution = client.V1NodeSelector(
+                node_selector_terms=compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes()
+            )
+
+        # purge any affinity / anti-affinity preemption related configuration and enrich with preemptible tolerations
+        elif mode == PreemptionModes.allow:
 
             # remove anti-affinity
             self._prune_affinity_node_selector_requirement(
@@ -503,6 +536,14 @@ class KubeResourceSpec(FunctionSpec):
 
             # TODO add gpu tolerations enrichment
 
+    def _initialize_affinity(self):
+        if not self.affinity:
+            self.affinity = client.V1Affinity()
+
+    def _initialize_node_affinity(self):
+        if not self.affinity.node_affinity:
+            self.affinity.node_affinity = client.V1NodeAffinity
+
     def _prune_affinity_node_selector_requirement(
         self,
         node_selector_requirements: typing.List[
@@ -515,29 +556,31 @@ class KubeResourceSpec(FunctionSpec):
         :param node_selector_requirements:
         :return:
         """
+        # both needs to exist to prune required affinity from spec affinity
         if not self.affinity or not node_selector_requirements:
             return
         if self.affinity.node_affinity:
             node_affinity: client.V1NodeAffinity = self.affinity.node_affinity
 
             new_required_during_scheduling_ignored_during_execution = None
+            # we are only looping over required_during_scheduling_ignored_during_execution
+            # because the scheduler can't schedule the Pod unless the rule is met
             if node_affinity.required_during_scheduling_ignored_during_execution:
                 node_selector: client.V1NodeSelector = (
                     node_affinity.required_during_scheduling_ignored_during_execution
                 )
-                new_node_selector_terms = (
-                    self._get_node_selector_terms_without_provided_node_selector_requirements(
-                        node_selector_terms=node_selector.node_selector_terms,
-                        node_selector_requirements_to_remove=node_selector_requirements,
-                    )
+                new_node_selector_terms = self._get_node_selector_terms_without_provided_node_selector_requirements(
+                    node_selector_terms=node_selector.node_selector_terms,
+                    node_selector_requirements_to_remove=node_selector_requirements,
                 )
-
+                # check whether there are node selector terms to add to the new list of required terms
                 if len(new_node_selector_terms) > 0:
                     new_required_during_scheduling_ignored_during_execution = (
                         client.V1NodeSelector(
                             node_selector_terms=new_node_selector_terms
                         )
                     )
+            # check if there is something to set into required_during_scheduling_ignored_during_execution
             if (
                 not node_affinity.preferred_during_scheduling_ignored_during_execution
                 and not new_required_during_scheduling_ignored_during_execution
@@ -547,6 +590,8 @@ class KubeResourceSpec(FunctionSpec):
                 )
                 return
 
+            self._initialize_affinity()
+            self._initialize_node_affinity()
             self.affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
                 new_required_during_scheduling_ignored_during_execution
             )
@@ -554,7 +599,9 @@ class KubeResourceSpec(FunctionSpec):
     @staticmethod
     def _get_node_selector_terms_without_provided_node_selector_requirements(
         node_selector_terms: typing.List[client.V1NodeSelectorTerm],
-        node_selector_requirements_to_remove: typing.List[client.V1NodeSelectorRequirement],
+        node_selector_requirements_to_remove: typing.List[
+            client.V1NodeSelectorRequirement
+        ],
     ) -> typing.List[client.V1NodeSelectorTerm]:
         """
         Goes over each expression in all the terms provided and removes the expressions if it matches
@@ -594,7 +641,8 @@ class KubeResourceSpec(FunctionSpec):
         Prunes given tolerations from function spec
         :param tolerations: tolerations to prune
         """
-        if len(tolerations):
+        # both needs to exist to prune required tolerations from spec tolerations
+        if len(tolerations) or not self.tolerations:
             return
 
         # Generate a list of tolerations without tolerations to prune
@@ -610,7 +658,8 @@ class KubeResourceSpec(FunctionSpec):
         Prunes given node_selector key from function spec if their key and value are matching
         :param node_selector: node selectors to prune
         """
-        if not node_selector:
+        # both needs to exists to prune required node_selector from the spec node selector
+        if not node_selector or not self.node_selector:
             return
 
         for key, value in node_selector.items():

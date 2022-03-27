@@ -277,6 +277,8 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             os.chdir(workdir)
             print(f">>> cwd={os.getcwd()}, ls={os.listdir()}")
             print(str(sys.path))
+        else:
+            set_paths(os.path.realpath("."))
 
         if (
             runobj.metadata.labels["kind"] == RemoteSparkRuntime.kind

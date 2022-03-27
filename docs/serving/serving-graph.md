@@ -9,7 +9,7 @@ in the graph. The final result can be written out to some destination (file, DB,
 
 The serving graphs can be composed of [pre-defined graph steps](./available-steps.md), block-type elements (model servers, routers, ensembles, 
 data readers and writers, data engineering tasks, validators, etc.), [custom steps](./writing-custom-steps.ipynb), or from native python 
-classes/functions. Graphs can auto-scale and span multiple function containers (connected through streaming protocols).
+classes/functions. A graph can have data processing steps, model ensembles, model servers, post-processing, etc. (see the [Advanced Model Serving Graph Notebook Example](./graph-example.ipynb)). Graphs can auto-scale and span multiple function containers (connected through streaming protocols).
 
 ![serving graph high level](../_static/images/serving-graph-high-level.png)
   

@@ -564,6 +564,7 @@ class RemoteRuntime(KubeResource):
                 seekTo=seek_to,
                 webapi=endpoint or "http://v3io-webapi:8081",
                 extra_attributes=extra_attributes,
+                readBatchSize=256,
                 **kwargs,
             ),
         )

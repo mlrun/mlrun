@@ -415,6 +415,12 @@ class Config:
     def decode_base64_config_and_load_to_object(
         attribute_path: str, expected_type=dict
     ):
+        """
+        decodes and loads the config attribute to expected type
+        :param attribute_path: the path in the default_config e.g preemptible_nodes.node_selector
+        :param expected_type: the object type valid values are : `dict`, `list` etc...
+        :return: the expected type instance
+        """
         attributes = attribute_path.split(".")
         raw_attribute_value = config
         for part in attributes:

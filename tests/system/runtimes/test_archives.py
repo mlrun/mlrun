@@ -7,7 +7,7 @@ import mlrun
 import tests.system.base
 
 git_uri = "git://github.com/mlrun/test-git-load.git"
-base_image = "yhaviv/mlrun:1.0.0-rc20"
+base_image = "mlrun/mlrun"
 tags = ["main", "refs/heads/tst"]
 codepaths = [(None, "rootfn"), ("subdir", "func")]
 
@@ -34,8 +34,8 @@ class TestGitSource(tests.system.base.TestMLRunSystem):
         )
         fn.with_source_archive(
             f"{git_uri}#main",
-            f"{module}.job_handler",
             workdir=workdir,
+            handler=f"{module}.job_handler",
             target_dir=tempfile.mkdtemp(),
         )
         run = fn.run()
@@ -55,8 +55,8 @@ class TestGitSource(tests.system.base.TestMLRunSystem):
         )
         fn.with_source_archive(
             f"{git_uri}#{tag}",
-            handler,
             workdir=workdir,
+            handler=handler,
             pull_at_runtime=load_mode == "run",
         )
         fn.spec.image_pull_policy = "Always"
@@ -76,7 +76,7 @@ class TestGitSource(tests.system.base.TestMLRunSystem):
             image=base_image,
         )
         fn.with_source_archive(
-            f"{git_uri}#{tag}", f"{module}:nuclio_handler", workdir=workdir
+            f"{git_uri}#{tag}", workdir=workdir, handler=f"{module}:nuclio_handler"
         )
         fn.deploy()
         resp = fn.invoke("")
@@ -89,7 +89,7 @@ class TestGitSource(tests.system.base.TestMLRunSystem):
             kind="serving",
             image=base_image,
         )
-        fn.with_source_archive(f"{git_uri}#{tag}", "srv")
+        fn.with_source_archive(f"{git_uri}#{tag}", handler="srv")
         graph = fn.set_topology("flow")
         graph.to(name="echo", handler="echo").respond()
         fn.deploy()

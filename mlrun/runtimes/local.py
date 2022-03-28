@@ -218,7 +218,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             obj.spec.image = image
         return obj
 
-    def with_source_archive(self, source, handler=None, workdir=None, target_dir=None):
+    def with_source_archive(self, source, workdir=None, handler=None, target_dir=None):
         """load the code from git/tar/zip archive at runtime or build
 
         :param source:     valid path to git, zip, or tar file, e.g.
@@ -297,10 +297,6 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
 
         if handler:
             set_paths(pythonpath)
-            if "#" in handler:
-                pp = handler.split("#")
-                handler = pp[1]
-                set_paths(pp[0])
 
             context = MLClientCtx.from_dict(
                 runobj.to_dict(),

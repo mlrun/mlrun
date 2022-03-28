@@ -15,6 +15,7 @@
 import asyncio
 import json
 import typing
+import warnings
 from datetime import datetime
 from time import sleep
 
@@ -259,6 +260,9 @@ class RemoteRuntime(KubeResource):
         self.spec.config[key] = value
         return self
 
+    def add_volume(self, local, remote, name="fs", access_key="", user=""):
+        raise Exception("deprecated, use .apply(mount_v3io())")
+
     def add_trigger(self, name, spec):
         """add a nuclio trigger object/dict
 
@@ -274,8 +278,8 @@ class RemoteRuntime(KubeResource):
     def with_source_archive(
         self,
         source,
-        handler=None,
         workdir=None,
+        handler=None,
         runtime="",
     ):
         """Load nuclio function from remote source
@@ -395,6 +399,19 @@ class RemoteRuntime(KubeResource):
         self.add_trigger(trigger_name or "http", trigger)
         return self
 
+    def add_model(self, name, model_path, **kw):
+        warnings.warn(
+            'This method is deprecated and will be removed in 0.10.0. Use the "serving" runtime instead',
+            # TODO: remove in 0.10.0
+            DeprecationWarning,
+        )
+        if model_path.startswith("v3io://"):
+            model = "/User/" + "/".join(model_path.split("/")[5:])
+        else:
+            model = model_path
+        self.set_env(f"SERVING_MODEL_{name}", model)
+        return self
+
     def from_image(self, image):
         config = nuclio.config.new_config()
         update_in(
@@ -405,6 +422,40 @@ class RemoteRuntime(KubeResource):
         update_in(config, "spec.image", image)
         update_in(config, "spec.build.codeEntryType", "image")
         self.spec.base_spec = config
+
+    def serving(
+        self,
+        models: dict = None,
+        model_class="",
+        protocol="",
+        image="",
+        endpoint="",
+        explainer=False,
+        workers=8,
+        canary=None,
+    ):
+        warnings.warn(
+            'This method is deprecated and will be removed in 0.10.0. Use the "serving" runtime instead',
+            # TODO: remove in 0.10.0
+            DeprecationWarning,
+        )
+
+        if models:
+            for k, v in models.items():
+                self.set_env(f"SERVING_MODEL_{k}", v)
+
+        if protocol:
+            self.set_env("TRANSPORT_PROTOCOL", protocol)
+        if model_class:
+            self.set_env("MODEL_CLASS", model_class)
+        self.set_env("ENABLE_EXPLAINER", str(explainer))
+        self.with_http(workers, host=endpoint, canary=canary)
+        self.spec.function_kind = "serving"
+
+        if image:
+            self.from_image(image)
+
+        return self
 
     def add_v3io_stream_trigger(
         self,

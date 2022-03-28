@@ -58,7 +58,7 @@ class KubejobRuntime(KubeResource):
         return False
 
     def with_source_archive(
-        self, source, handler=None, workdir=None, pull_at_runtime=True
+        self, source, workdir=None, handler=None, pull_at_runtime=True
     ):
         """load the code from git/tar/zip archive at runtime or build
 
@@ -74,10 +74,16 @@ class KubejobRuntime(KubeResource):
             self.spec.default_handler = handler
         if workdir:
             self.spec.workdir = workdir
-        self._adjust_build_mode(pull_at_runtime)
+        self.set_build_mode(pull_at_runtime)
 
-    def _adjust_build_mode(self, pull_at_runtime):
-        """make sure the flags and image are aligned with the build mode"""
+    def set_build_mode(self, pull_at_runtime):
+        """Set the source build/clone mode (in deploy or during runtime)
+
+        make sure the flags and image are aligned with the build mode
+
+        :param pull_at_runtime:  True - will clone the source code into the container at job runtime
+                                 False - will clone the code into the container image during build time
+        """
         self.spec.build.load_source_on_run = pull_at_runtime
         if (
             self.spec.build.base_image
@@ -165,7 +171,7 @@ class KubejobRuntime(KubeResource):
         """
 
         # make sure we disable load_on_run mode if the source code is in the image
-        self._adjust_build_mode(False)
+        self.set_build_mode(False)
 
         build = self.spec.build
         if with_mlrun is None:

@@ -125,7 +125,16 @@ class TestRuntimeBase:
             toleration_seconds=3600,
         )
 
-    def _generate_affinity(self):
+    def _generate_node_selector(self):
+        return {
+            "label-1": "val1",
+            "label-2": "val2",
+        }
+
+    def _generate_node_name(self):
+        return "node-name"
+
+    def _generate_affinity(self) -> k8s_client.V1Affinity:
         return k8s_client.V1Affinity(
             node_affinity=k8s_client.V1NodeAffinity(
                 preferred_during_scheduling_ignored_during_execution=[

@@ -569,6 +569,9 @@ class BaseStoreTarget(DataTargetBase):
         # options used in spark.read.load(**options)
         raise NotImplementedError()
 
+    def prepare_spark_df(self, df):
+        return df
+
     def get_dask_options(self):
         raise NotImplementedError()
 
@@ -996,12 +999,20 @@ class NoSqlTarget(BaseStoreTarget):
     def as_df(self, columns=None, df_module=None, **kwargs):
         raise NotImplementedError()
 
+    def prepare_spark_df(self, df):
+        for col_name, col_type in df.dtypes:
+            if col_type.startswith("decimal("):
+                # V3IO does not support this level of precision
+                df = df.withColumn(col_name, funcs.col(col_name).cast("double"))
+        return df
+
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
     ):
         if hasattr(df, "rdd"):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
+            df = self.prepare_spark_df(df)
             df.write.mode("overwrite").save(**options)
         else:
             access_key = self._secrets.get(

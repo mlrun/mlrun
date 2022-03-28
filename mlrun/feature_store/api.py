@@ -25,6 +25,7 @@ from ..data_types import InferOptions, get_infer_interface
 from ..datastore.sources import BaseSourceDriver, StreamSource
 from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
+    NoSqlTarget,
     get_default_prefix_for_source,
     get_default_targets,
     get_target_driver,
@@ -712,7 +713,7 @@ def deploy_ingestion_service(
 def _ingest_with_spark(
     spark=None,
     featureset: Union[FeatureSet, str] = None,
-    source: DataSource = None,
+    source: BaseSourceDriver = None,
     targets: List[DataTargetBase] = None,
     infer_options: InferOptions = InferOptions.default(),
     mlrun_context=None,
@@ -721,6 +722,7 @@ def _ingest_with_spark(
 ):
     try:
         import pyspark.sql
+        import pyspark.sql.functions as funcs
 
         if spark is None or spark is True:
             # create spark context
@@ -793,10 +795,11 @@ def _ingest_with_spark(
                     if partition not in df.columns and partition in time_unit_to_op:
                         op = time_unit_to_op[partition]
                         df = df.withColumn(partition, op(timestamp_col))
+            df_to_write = target.prepare_spark_df(df)
             if overwrite:
-                df.write.mode("overwrite").save(**spark_options)
+                df_to_write.write.mode("overwrite").save(**spark_options)
             else:
-                df.write.mode("append").save(**spark_options)
+                df_to_write.write.mode("append").save(**spark_options)
             target.set_resource(featureset)
             target.update_resource_status("ready")
 

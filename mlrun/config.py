@@ -330,7 +330,7 @@ default_config = {
     # preemptible node selector and tolerations to be added when running on spot nodes
     "preemptible_nodes": {
         "node_selector": "e30=",
-        "tolerations": "e30=",
+        "tolerations": "W10=",
     },
 }
 

@@ -447,9 +447,13 @@ class TestFeatureStore(TestMLRunSystem):
         )
         fs.ingest(fset, source, targets=[target])
 
-        list_files = os.listdir(path)
-        assert len(list_files) == 1 and not os.path.isdir(path + "/" + list_files[0])
-        os.remove(path + "/" + list_files[0])
+        path_with_runid = path + "/" + fset.status.targets[0].run_id
+
+        list_files = os.listdir(path_with_runid)
+        assert len(list_files) == 1 and not os.path.isdir(
+            path_with_runid + "/" + list_files[0]
+        )
+        os.remove(path_with_runid + "/" + list_files[0])
 
     def test_ingest_with_timestamp(self):
         key = "patient_id"
@@ -589,6 +593,7 @@ class TestFeatureStore(TestMLRunSystem):
             ],
             with_defaults=False,
         )
+
         resp1 = fs.ingest(measurements, source).to_dict()
 
         features = [
@@ -604,8 +609,13 @@ class TestFeatureStore(TestMLRunSystem):
 
         file_system = fsspec.filesystem("v3io")
         kind = TargetTypes.parquet
-        path = f"{get_default_prefix_for_target(kind)}/sets/{name}-latest"
-        path = path.format(name=name, kind=kind, project=self.project_name)
+        path = f"{get_default_prefix_for_target(kind)}/sets/{name}"
+        path = path.format(
+            name=name,
+            kind=kind,
+            project=self.project_name,
+            run_id=measurements.status.targets[0].run_id,
+        )
         dataset = pq.ParquetDataset(
             path,
             filesystem=file_system,
@@ -1041,7 +1051,7 @@ class TestFeatureStore(TestMLRunSystem):
 
     @pytest.mark.parametrize("partitioned", [True, False])
     def test_schedule_on_filtered_by_time(self, partitioned):
-        name = f"sched-time-{str(partitioned)}"
+        name = f"sched-time-{str(partitioned).lower()}"
 
         now = datetime.now() + timedelta(minutes=2)
         data = pd.DataFrame(
@@ -1055,11 +1065,14 @@ class TestFeatureStore(TestMLRunSystem):
             }
         )
         # writing down a remote source
-        target2 = ParquetTarget()
-        data_set = fs.FeatureSet("data", entities=[Entity("first_name")])
-        fs.ingest(data_set, data, targets=[target2])
+        data_target = ParquetTarget()
+        data_set = fs.FeatureSet("sched_data", entities=[Entity("first_name")])
+        fs.ingest(data_set, data, targets=[data_target])
 
-        path = data_set.status.targets[0].path
+        path = data_set.status.targets[0].path.format(
+            run_id=data_set.status.targets[0].run_id
+        )
+        assert path == data_set.get_target_path()
 
         # the job will be scheduled every minute
         cron_trigger = "*/1 * * * *"
@@ -1079,7 +1092,7 @@ class TestFeatureStore(TestMLRunSystem):
                 NoSqlTarget(),
                 ParquetTarget(
                     name="tar1",
-                    path="v3io:///bigdata/fs1/",
+                    path="v3io:///bigdata/sched-t/",
                     partitioned=True,
                     partition_cols=["time"],
                 ),
@@ -1087,7 +1100,7 @@ class TestFeatureStore(TestMLRunSystem):
         else:
             targets = [
                 ParquetTarget(
-                    name="tar2", path="v3io:///bigdata/fs2/", partitioned=False
+                    name="tar2", path="v3io:///bigdata/sched-f/", partitioned=False
                 ),
                 NoSqlTarget(),
             ]
@@ -1123,7 +1136,7 @@ class TestFeatureStore(TestMLRunSystem):
                 }
             )
             # writing down a remote source
-            fs.ingest(data_set, data, targets=[target2])
+            fs.ingest(data_set, data, targets=[data_target], overwrite=False)
 
             sleep(60)
             resp = svc.get(
@@ -1142,6 +1155,7 @@ class TestFeatureStore(TestMLRunSystem):
             assert resp[4] is None
         finally:
             svc.close()
+
         # check offline
         resp = fs.get_offline_features(vec)
         assert len(resp.to_dataframe() == 4)
@@ -1163,7 +1177,7 @@ class TestFeatureStore(TestMLRunSystem):
         data_set = fs.FeatureSet("data", entities=[Entity("first_name")])
         fs.ingest(data_set, data, targets=[target2])
 
-        path = data_set.status.targets[0].path
+        path = data_set.status.targets[0].get_path().get_absolute_path()
 
         # the job will be scheduled every minute
         cron_trigger = "*/1 * * * *"
@@ -1192,8 +1206,6 @@ class TestFeatureStore(TestMLRunSystem):
         # check offline
         resp = fs.get_offline_features(vec)
         assert len(resp.to_dataframe()) == 2
-
-        sleep(30)
 
     @pytest.mark.parametrize(
         "fixed_window_type",
@@ -1585,7 +1597,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         target = ParquetTarget()
         off1 = fs.get_offline_features(fvec, target=target)
-        dfout1 = pd.read_parquet(target._target_path)
+        dfout1 = pd.read_parquet(target.get_target_path())
 
         assert (
             df1.set_index(keys="name")
@@ -1597,7 +1609,7 @@ class TestFeatureStore(TestMLRunSystem):
         df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
         fs.ingest(fset, df2)
         off2 = fs.get_offline_features(fvec, target=target)
-        dfout2 = pd.read_parquet(target._target_path)
+        dfout2 = pd.read_parquet(target.get_target_path())
         assert (
             df2.set_index(keys="name")
             .sort_index()
@@ -1839,7 +1851,8 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_stream_source(self):
         # create feature set, ingest sample data and deploy nuclio function with stream source
-        myset = FeatureSet("fset2", entities=[Entity("ticker")])
+        fset_name = "a2-stream_test"
+        myset = FeatureSet(f"{fset_name}", entities=[Entity("ticker")])
         fs.ingest(myset, quotes)
         source = StreamSource(key_field="ticker", time_field="time")
         filename = str(
@@ -1861,7 +1874,7 @@ class TestFeatureStore(TestMLRunSystem):
             featureset=myset, source=source, run_config=run_config
         )
         # push records to stream
-        stream_path = f"v3io:///projects/{function.metadata.project}/FeatureStore/fset2/v3ioStream"
+        stream_path = f"v3io:///projects/{function.metadata.project}/FeatureStore/{fset_name}/v3ioStream"
         events_pusher = mlrun.datastore.get_stream_pusher(stream_path)
         client = mlrun.platforms.V3ioStreamClient(stream_path, seek_to="EARLIEST")
         events_pusher.push(
@@ -1876,10 +1889,12 @@ class TestFeatureStore(TestMLRunSystem):
         resp = client.get_records()
         assert len(resp) != 0
         # read from online service updated data
-        vector = fs.FeatureVector("my-vec", ["fset2.*"])
+
+        vector = fs.FeatureVector("my-vec", [f"{fset_name}.*"])
         with fs.get_online_feature_service(vector) as svc:
             sleep(5)
             resp = svc.get([{"ticker": "AAPL"}])
+
         assert resp[0]["bid"] == 300
 
     def test_get_offline_from_feature_set_with_no_schema(self):
@@ -1902,7 +1917,8 @@ class TestFeatureStore(TestMLRunSystem):
             name="test_join_with_table_fset", entities=[fs.Entity("name")]
         )
         fs.ingest(fset, df, targets=[NoSqlTarget(path=table_url)])
-
+        run_id = fset.status.targets[0].run_id
+        table_url = f"{table_url}/{run_id}"
         df = pd.DataFrame(
             {
                 "key": ["mykey1", "mykey2", "mykey3"],
@@ -2056,6 +2072,10 @@ class TestFeatureStore(TestMLRunSystem):
                 stream_path=stream_path,
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
             )
+        except RuntimeError as err:
+            assert err.__str__().__contains__(
+                "404"
+            ), "only acceptable error is with status 404"
         finally:
             v3io_client.stream.create(
                 container="projects", stream_path=stream_path, shard_count=1
@@ -2207,14 +2227,14 @@ class TestFeatureStore(TestMLRunSystem):
             name="test_map_with_state_with_table_fset", entities=[fs.Entity("name")]
         )
         fs.ingest(fset, df, targets=[NoSqlTarget(path=table_url)])
-
+        table_url_with_run_uid = fset.status.targets[0].get_path().get_absolute_path()
         df = pd.DataFrame({"key": ["a", "a", "b"], "x": [2, 3, 4]})
 
         fset = fs.FeatureSet("myfset", entities=[Entity("key")])
         fset.set_targets([], with_defaults=False)
         fset.graph.to(
             "storey.MapWithState",
-            initial_state=table_url,
+            initial_state=table_url_with_run_uid,
             group_by_key=True,
             _fn="map_with_state_test_function",
         )
@@ -2271,17 +2291,19 @@ def verify_purge(fset, targets):
     orig_status_targets = list(fset.status.targets.keys())
     target_names = [t.name for t in targets]
 
-    for target in targets:
-        driver = get_target_driver(target_spec=target, resource=fset)
-        filesystem = driver._get_store().get_filesystem(False)
-        assert filesystem.exists(driver._target_path)
+    for target in fset.status.targets:
+        if target.name in target_names:
+            driver = get_target_driver(target_spec=target, resource=fset)
+            filesystem = driver._get_store().get_filesystem(False)
+            assert filesystem.exists(driver.get_target_path())
 
     fset.purge_targets(target_names=target_names)
 
-    for target in targets:
-        driver = get_target_driver(target_spec=target, resource=fset)
-        filesystem = driver._get_store().get_filesystem(False)
-        assert not filesystem.exists(driver._target_path)
+    for target in fset.status.targets:
+        if target.name in target_names:
+            driver = get_target_driver(target_spec=target, resource=fset)
+            filesystem = driver._get_store().get_filesystem(False)
+            assert not filesystem.exists(driver.get_target_path())
 
     fset.reload(update_spec=False)
     assert set(fset.status.targets.keys()) == set(orig_status_targets) - set(

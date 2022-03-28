@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import copy
 from datetime import datetime
 from typing import List, Union
 from urllib.parse import urlparse
@@ -24,7 +25,7 @@ from ..data_types import InferOptions, get_infer_interface
 from ..datastore.sources import BaseSourceDriver, StreamSource
 from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
-    get_default_prefix_for_target,
+    get_default_prefix_for_source,
     get_default_targets,
     get_target_driver,
     kind_to_driver,
@@ -137,7 +138,7 @@ def get_offline_features(
         entity_timestamp_column must be passed when using time filtering.
     :param end_time:        datetime, high limit of time needed to be filtered. Optional.
         entity_timestamp_column must be passed when using time filtering.
-    :param with_indexes:    return vector with index columns (default False)
+    :param with_indexes:    return vector with index columns and timestamp_key from the feature sets (default False)
     :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
     :param engine:          processing engine kind ("local", "dask", or "spark")
     :param engine_args:     kwargs for the processing engine
@@ -358,7 +359,7 @@ def ingest(
             featureset, mlrun.api.schemas.AuthorizationAction.update
         )
         run_config = run_config.copy() if run_config else RunConfig()
-        source, run_config.parameters = set_task_params(
+        source, run_config.parameters = _set_task_params(
             featureset, source, targets, run_config.parameters, infer_options, overwrite
         )
         name = f"{featureset.metadata.name}_ingest"
@@ -417,7 +418,8 @@ def ingest(
 
     namespace = namespace or get_caller_globals()
 
-    purge_targets = targets or featureset.spec.targets or get_default_targets()
+    targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
+    targets_to_ingest = copy.deepcopy(targets_to_ingest)
 
     if overwrite is None:
         if isinstance(source, BaseSourceDriver) and source.schedule:
@@ -426,13 +428,23 @@ def ingest(
             overwrite = True
 
     if overwrite:
-        validate_target_list(targets=purge_targets)
+        validate_target_list(targets=targets_to_ingest)
         purge_target_names = [
-            t if isinstance(t, str) else t.name for t in purge_targets
+            t if isinstance(t, str) else t.name for t in targets_to_ingest
         ]
         featureset.purge_targets(target_names=purge_target_names, silent=True)
+
+        featureset.update_targets_for_ingest(
+            targets=targets_to_ingest,
+            overwrite=overwrite,
+        )
     else:
-        for target in purge_targets:
+        featureset.update_targets_for_ingest(
+            targets=targets_to_ingest,
+            overwrite=overwrite,
+        )
+
+        for target in targets_to_ingest:
             if not kind_to_driver[target.kind].support_append:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"{target.kind} target does not support overwrite=False ingestion"
@@ -487,12 +499,11 @@ def ingest(
     return_df = return_df or infer_stats != InferOptions.Null
     featureset.save()
 
-    targets = targets or featureset.spec.targets or get_default_targets()
     df = init_featureset_graph(
         source,
         featureset,
         namespace,
-        targets=targets,
+        targets=targets_to_ingest,
         return_df=return_df,
     )
     if not InferOptions.get_common_options(
@@ -500,7 +511,7 @@ def ingest(
     ) and InferOptions.get_common_options(infer_options, InferOptions.Index):
         infer_stats += InferOptions.Index
 
-    infer_from_static_df(df, featureset, options=infer_stats)
+    _infer_from_static_df(df, featureset, options=infer_stats)
 
     if isinstance(source, DataSource):
         for target in featureset.status.targets:
@@ -574,7 +585,7 @@ def preview(
             )
         # find/update entities schema
         if len(featureset.spec.entities) == 0:
-            infer_from_static_df(
+            _infer_from_static_df(
                 source,
                 featureset,
                 entity_columns,
@@ -593,7 +604,7 @@ def preview(
             rows_limit=rows_limit,
         )
 
-    df = infer_from_static_df(
+    df = _infer_from_static_df(
         source, featureset, entity_columns, options, sample_size=sample_size
     )
     featureset.save()
@@ -612,7 +623,7 @@ def _run_ingestion_job(
         featureset = get_feature_set_by_uri(featureset)
 
     run_config = run_config.copy() if run_config else RunConfig()
-    source, run_config.parameters = set_task_params(
+    source, run_config.parameters = _set_task_params(
         featureset, source, targets, run_config.parameters, infer_options
     )
 
@@ -660,12 +671,12 @@ def deploy_ingestion_service(
 
     run_config = run_config.copy() if run_config else RunConfig()
     if isinstance(source, StreamSource) and not source.path:
-        source.path = get_default_prefix_for_target(source.kind).format(
+        source.path = get_default_prefix_for_source(source.kind).format(
             project=featureset.metadata.project,
             kind=source.kind,
             name=featureset.metadata.name,
         )
-    source, run_config.parameters = set_task_params(
+    source, run_config.parameters = _set_task_params(
         featureset, source, targets, run_config.parameters
     )
 
@@ -732,7 +743,7 @@ def _ingest_with_spark(
             df = source.filter_df_start_end_time(df)
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
-        infer_from_static_df(df, featureset, options=infer_options)
+        _infer_from_static_df(df, featureset, options=infer_options)
 
         key_columns = list(featureset.spec.entities.keys())
         timestamp_key = featureset.spec.timestamp_key
@@ -812,7 +823,7 @@ def _post_ingestion(context, featureset, spark=None):
         context.log_result("featureset", featureset.uri)
 
 
-def infer_from_static_df(
+def _infer_from_static_df(
     df,
     featureset,
     entity_columns=None,
@@ -845,7 +856,7 @@ def infer_from_static_df(
     return df
 
 
-def set_task_params(
+def _set_task_params(
     featureset: FeatureSet,
     source: DataSource = None,
     targets: List[DataTargetBase] = None,

@@ -27,6 +27,9 @@ import mlrun
 from .config import config
 from .utils import dict_to_json, dict_to_yaml, get_artifact_target
 
+# Changing {run_id} will break and will not be backward compatible.
+RUN_ID_PLACE_HOLDER = "{run_id}"  # IMPORTANT: shouldn't be changed.
+
 
 class ModelObj:
     _dict_fields = []
@@ -259,7 +262,8 @@ class Credentials(ModelObj):
     generate_access_key = "$generate"
 
     def __init__(
-        self, access_key=None,
+        self,
+        access_key=None,
     ):
         self.access_key = access_key
 
@@ -925,8 +929,7 @@ def NewTask(
     secrets=None,
     base=None,
 ):
-    """Creates a new task - see new_task
-    """
+    """Creates a new task - see new_task"""
     warnings.warn(
         "NewTask will be deprecated in 0.7.0, and will be removed in 0.9.0, use new_task instead",
         # TODO: In 0.7.0 and replace NewTask to new_task in examples & demos
@@ -1018,6 +1021,28 @@ def new_task(
     return run
 
 
+class TargetPathObject:
+    def __init__(
+        self,
+        base_path=None,
+        run_id=None,
+        is_single_file=False,
+    ):
+        self.run_id = run_id
+        self.full_path_template = base_path
+        if not is_single_file:
+            if RUN_ID_PLACE_HOLDER not in self.full_path_template:
+                if self.full_path_template[-1] != "/":
+                    self.full_path_template = self.full_path_template + "/"
+                self.full_path_template = self.full_path_template + RUN_ID_PLACE_HOLDER
+
+    def get_templated_path(self):
+        return self.full_path_template
+
+    def get_absolute_path(self):
+        return self.full_path_template.format(run_id=self.run_id)
+
+
 class DataSource(ModelObj):
     """online or offline data source spec"""
 
@@ -1083,6 +1108,7 @@ class DataTargetBase(ModelObj):
         "max_events",
         "flush_after_seconds",
         "storage_options",
+        "run_id",
     ]
 
     # TODO - remove once "after_state" is fully deprecated
@@ -1091,6 +1117,13 @@ class DataTargetBase(ModelObj):
         return super().from_dict(
             struct, fields=fields, deprecated_fields={"after_state": "after_step"}
         )
+
+    def get_path(self):
+        if self.path:
+            is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
+            return TargetPathObject(self.path, self.run_id, is_single_file)
+        else:
+            return None
 
     def __init__(
         self,
@@ -1129,6 +1162,7 @@ class DataTargetBase(ModelObj):
         self.max_events = max_events
         self.flush_after_seconds = flush_after_seconds
         self.storage_options = storage_options
+        self.run_id = None
 
 
 class FeatureSetProducer(ModelObj):
@@ -1155,10 +1189,15 @@ class DataTarget(DataTargetBase):
         "updated",
         "size",
         "last_written",
+        "run_id",
     ]
 
     def __init__(
-        self, kind: str = None, name: str = "", path=None, online=None,
+        self,
+        kind: str = None,
+        name: str = "",
+        path=None,
+        online=None,
     ):
         super().__init__(kind, name, path)
         self.status = ""

@@ -14,7 +14,7 @@ MLRun graph capabilities include:
 - Easy to build and deploy distributed real-time computation graphs
 - Use the real-time serverless engine (Nuclio) for auto-scaling and optimized resource utilization
 - Built-in operators to handle data manipulation, IO, machine learning, deep-learning, NLP, etc.
-- Built-in monitoring for performance, resources, errors, data, model behaviour, and custom metrics
+- Built-in monitoring for performance, resources, errors, data, model behavior, and custom metrics
 - Debug in the IDE/Notebook, deploy to production using a single command
 
 The serving graphs are used by [MLRun's Feature Store](../feature-store/feature-store.md) to build real-time feature engineering pipelines, 

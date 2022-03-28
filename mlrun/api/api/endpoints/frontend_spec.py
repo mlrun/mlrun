@@ -1,6 +1,7 @@
 import typing
 
 import fastapi
+import semver
 
 import mlrun.api.api.deps
 import mlrun.api.schemas
@@ -15,7 +16,8 @@ router = fastapi.APIRouter()
 
 
 @router.get(
-    "/frontend-spec", response_model=mlrun.api.schemas.FrontendSpec,
+    "/frontend-spec",
+    response_model=mlrun.api.schemas.FrontendSpec,
 )
 def get_frontend_spec(
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
@@ -33,8 +35,14 @@ def get_frontend_spec(
     feature_flags = _resolve_feature_flags()
     registry, repository = mlrun.utils.helpers.get_parsed_docker_registry()
     repository = mlrun.utils.helpers.get_docker_repository_or_default(repository)
-    function_deployment_target_image_template = mlrun.runtimes.utils.fill_function_image_name_template(
-        f"{registry}/", repository, "{project}", "{name}", "{tag}",
+    function_deployment_target_image_template = (
+        mlrun.runtimes.utils.fill_function_image_name_template(
+            f"{registry}/",
+            repository,
+            "{project}",
+            "{name}",
+            "{tag}",
+        )
     )
     registries_to_enforce_prefix = (
         mlrun.runtimes.utils.resolve_function_target_image_registries_to_enforce_prefix()
@@ -79,6 +87,14 @@ def _resolve_feature_flags() -> mlrun.api.schemas.FeatureFlags:
     authentication = mlrun.api.schemas.AuthenticationFeatureFlag(
         mlrun.mlconf.httpdb.authentication.mode
     )
+    nuclio_streams = mlrun.api.schemas.NuclioStreamsFeatureFlag.disabled
+
+    if mlrun.mlconf.get_parsed_igz_version() and semver.VersionInfo.parse(
+        mlrun.runtimes.utils.resolve_nuclio_version()
+    ) >= semver.VersionInfo.parse("1.7.8"):
+        nuclio_streams = mlrun.api.schemas.NuclioStreamsFeatureFlag.enabled
     return mlrun.api.schemas.FeatureFlags(
-        project_membership=project_membership, authentication=authentication
+        project_membership=project_membership,
+        authentication=authentication,
+        nuclio_streams=nuclio_streams,
     )

@@ -112,7 +112,9 @@ class Projects(
             )
 
     def delete_project_resources(
-        self, session: sqlalchemy.orm.Session, name: str,
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
     ):
         # Delete schedules before runtime resources - otherwise they will keep getting created
         mlrun.api.utils.singletons.scheduler.get_scheduler().delete_schedules(
@@ -121,7 +123,9 @@ class Projects(
 
         # delete runtime resources
         mlrun.api.crud.RuntimeResources().delete_runtime_resources(
-            session, label_selector=f"mlrun/project={name}", force=True,
+            session,
+            label_selector=f"mlrun/project={name}",
+            force=True,
         )
 
         mlrun.api.crud.Logs().delete_logs(name)
@@ -270,7 +274,9 @@ class Projects(
             self._cache["project_resources_counters"]["ttl"] = ttl_time
         return self._cache["project_resources_counters"]["result"]
 
-    async def _calculate_pipelines_counters(self,) -> typing.Dict[str, int]:
+    async def _calculate_pipelines_counters(
+        self,
+    ) -> typing.Dict[str, int]:
         def _list_pipelines(session):
             return mlrun.api.crud.Pipelines().list_pipelines(
                 session, "*", format_=mlrun.api.schemas.PipelinesFormat.metadata_only
@@ -281,7 +287,8 @@ class Projects(
             return project_to_running_pipelines_count
 
         _, _, pipelines = await fastapi.concurrency.run_in_threadpool(
-            mlrun.api.db.session.run_function_with_new_db_session, _list_pipelines,
+            mlrun.api.db.session.run_function_with_new_db_session,
+            _list_pipelines,
         )
 
         for pipeline in pipelines:

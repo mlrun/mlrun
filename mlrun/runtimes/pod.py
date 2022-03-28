@@ -18,6 +18,7 @@ import uuid
 from enum import Enum
 
 import dotenv
+import kubernetes.client
 from kfp.dsl import ContainerOp, _container_op
 from kubernetes import client
 
@@ -25,16 +26,47 @@ import mlrun.errors
 import mlrun.utils.regex
 
 from ..config import config as mlconf
+from ..k8s_utils import verify_gpu_requests_and_limits
 from ..secrets import SecretsStore
-from ..utils import logger, normalize_name, update_in, verify_field_regex
+from ..utils import get_in, logger, normalize_name, update_in
 from .base import BaseRuntime, FunctionSpec, spec_fields
 from .utils import (
     apply_kfp,
-    generate_resources,
     get_item_name,
     get_resource_labels,
     set_named_item,
+    verify_limits,
+    verify_requests,
 )
+
+sanitized_types = {
+    "affinity": {
+        "attribute_type_name": "V1Affinity",
+        "attribute_type": kubernetes.client.V1Affinity,
+        "sub_attribute_type": None,
+        "contains_many": False,
+        "not_sanitized": "node_affinity",
+        "not_sanitized_class": dict,
+        "sanitized": "nodeAffinity",
+    },
+    "tolerations": {
+        "attribute_type_name": "List[V1.Toleration]",
+        "attribute_type": list,
+        "contains_many": True,
+        "sub_attribute_type": kubernetes.client.V1Toleration,
+        "not_sanitized": "toleration_seconds",
+        "not_sanitized_class": list,
+        "sanitized": "tolerationSeconds",
+    },
+}
+
+
+sanitized_attributes = {
+    "affinity": sanitized_types["affinity"],
+    "tolerations": sanitized_types["tolerations"],
+    "executor_tolerations": sanitized_types["tolerations"],
+    "driver_tolerations": sanitized_types["tolerations"],
+}
 
 
 class KubeResourceSpec(FunctionSpec):
@@ -51,6 +83,7 @@ class KubeResourceSpec(FunctionSpec):
         "node_selector",
         "affinity",
         "priority_class_name",
+        "tolerations",
     ]
 
     def __init__(
@@ -78,6 +111,7 @@ class KubeResourceSpec(FunctionSpec):
         affinity=None,
         disable_auto_mount=False,
         priority_class_name=None,
+        tolerations=None,
     ):
         super().__init__(
             command=command,
@@ -97,7 +131,10 @@ class KubeResourceSpec(FunctionSpec):
         self.volumes = volumes or []
         self.volume_mounts = volume_mounts or []
         self.env = env or []
-        self.resources = resources or {}
+        self._resources = self.enrich_resources_with_default_pod_resources(
+            "resources", resources
+        )
+
         self.replicas = replicas
         self.image_pull_policy = image_pull_policy
         self.service_account = service_account
@@ -110,6 +147,7 @@ class KubeResourceSpec(FunctionSpec):
         self.priority_class_name = (
             priority_class_name or mlrun.mlconf.default_function_priority_class_name
         )
+        self._tolerations = tolerations
 
     @property
     def volumes(self) -> list:
@@ -139,12 +177,35 @@ class KubeResourceSpec(FunctionSpec):
 
     @affinity.setter
     def affinity(self, affinity):
-        self._affinity = self._transform_affinity_to_k8s_class_instance(affinity)
+        self._affinity = self._transform_attribute_to_k8s_class_instance(
+            "affinity", affinity
+        )
+
+    @property
+    def tolerations(self) -> typing.List[client.V1Toleration]:
+        return self._tolerations
+
+    @tolerations.setter
+    def tolerations(self, tolerations):
+        self._tolerations = self._transform_attribute_to_k8s_class_instance(
+            "tolerations", tolerations
+        )
+
+    @property
+    def resources(self) -> dict:
+        return self._resources
+
+    @resources.setter
+    def resources(self, resources):
+        self._resources = self.enrich_resources_with_default_pod_resources(
+            "resources", resources
+        )
 
     def to_dict(self, fields=None, exclude=None):
-        struct = super().to_dict(fields, exclude=["affinity"])
+        struct = super().to_dict(fields, exclude=["affinity", "tolerations"])
         api = client.ApiClient()
         struct["affinity"] = api.sanitize_for_serialization(self.affinity)
+        struct["tolerations"] = api.sanitize_for_serialization(self.tolerations)
         return struct
 
     def update_vols_and_mounts(self, volumes, volume_mounts):
@@ -159,44 +220,196 @@ class KubeResourceSpec(FunctionSpec):
     def _get_affinity_as_k8s_class_instance(self):
         pass
 
-    def _transform_affinity_to_k8s_class_instance(self, affinity):
-        if not affinity:
+    def _transform_attribute_to_k8s_class_instance(
+        self, attribute_name, attribute, is_sub_attr: bool = False
+    ):
+        if attribute_name not in sanitized_attributes:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"{attribute_name} isn't in the available sanitized attributes"
+            )
+        if not attribute:
             return None
-        if isinstance(affinity, dict):
-            api = client.ApiClient()
-            # not ideal to use their private method, but looks like that's the only option
-            # Taken from https://github.com/kubernetes-client/python/issues/977
-            affinity = api._ApiClient__deserialize(affinity, "V1Affinity")
-        return affinity
+        attribute_config = sanitized_attributes[attribute_name]
+        if isinstance(attribute, dict):
+            if self._resolve_if_type_sanitized(attribute_name, attribute):
+                api = client.ApiClient()
+                # not ideal to use their private method, but looks like that's the only option
+                # Taken from https://github.com/kubernetes-client/python/issues/977
+                attribute_type = attribute_config["attribute_type"]
+                if attribute_config["contains_many"]:
+                    attribute_type = attribute_config["sub_attribute_type"]
+                attribute = api._ApiClient__deserialize(attribute, attribute_type)
 
-    def _get_sanitized_affinity(self):
+        elif isinstance(attribute, list):
+            attribute_instance = []
+            for sub_attr in attribute:
+                if not isinstance(sub_attr, dict):
+                    return attribute
+                attribute_instance.append(
+                    self._transform_attribute_to_k8s_class_instance(
+                        attribute_name, sub_attr, is_sub_attr=True
+                    )
+                )
+            attribute = attribute_instance
+        # if user have set one attribute but its part of an attribute that contains many then return inside a list
+        if (
+            not is_sub_attr
+            and attribute_config["contains_many"]
+            and isinstance(attribute, attribute_config["sub_attribute_type"])
+        ):
+            # initialize attribute instance and add attribute to it,
+            # mainly done when attribute is a list but user defines only sets the attribute not in the list
+            attribute_instance = attribute_config["attribute_type"]()
+            attribute_instance.append(attribute)
+            return attribute_instance
+        return attribute
+
+    def _get_sanitized_attribute(self, attribute_name: str):
         """
         When using methods like to_dict() on kubernetes class instances we're getting the attributes in snake_case
         Which is ok if we're using the kubernetes python package but not if for example we're creating CRDs that we
         apply directly. For that we need the sanitized (CamelCase) version.
         """
-        if not self.affinity:
-            return {}
-        if isinstance(self.affinity, dict):
-            # heuristic - if node_affinity is part of the dict it means to_dict on the kubernetes object performed,
-            # there's nothing we can do at that point to transform it to the sanitized version
-            if "node_affinity" in self.affinity:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Affinity must be instance of kubernetes' V1Affinity class"
+        attribute = getattr(self, attribute_name)
+        if attribute_name not in sanitized_attributes:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"{attribute_name} isn't in the available sanitized attributes"
+            )
+        attribute_config = sanitized_attributes[attribute_name]
+        if not attribute:
+            return attribute_config["not_sanitized_class"]()
+
+        # check if attribute of type dict, and then check if type is sanitized
+        if isinstance(attribute, dict):
+            if attribute_config["not_sanitized_class"] != dict:
+                raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                    f"expected to to be of type {attribute_config.get('not_sanitized_class')} but got dict"
                 )
-            elif "nodeAffinity" in self.affinity:
-                # then it's already the sanitized version
-                return self.affinity
+            if self._resolve_if_type_sanitized(attribute_name, attribute):
+                return attribute
+
+        elif isinstance(attribute, list) and not isinstance(
+            attribute[0], attribute_config["sub_attribute_type"]
+        ):
+            if attribute_config["not_sanitized_class"] != list:
+                raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                    f"expected to to be of type {attribute_config.get('not_sanitized_class')} but got list"
+                )
+            if self._resolve_if_type_sanitized(attribute_name, attribute[0]):
+                return attribute
+
         api = client.ApiClient()
-        return api.sanitize_for_serialization(self.affinity)
+        return api.sanitize_for_serialization(attribute)
+
+    @staticmethod
+    def _resolve_if_type_sanitized(attribute_name, attribute):
+        attribute_config = sanitized_attributes[attribute_name]
+        # heuristic - if one of the keys contains _ as part of the dict it means to_dict on the kubernetes
+        # object performed, there's nothing we can do at that point to transform it to the sanitized version
+        if get_in(attribute, attribute_config["not_sanitized"]):
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                f"{attribute_name} must be instance of kubernetes {attribute_config.get('attribute_type_name')} class"
+            )
+        # then it's already the sanitized version
+        elif get_in(attribute, attribute_config["sanitized"]):
+            return attribute
 
     def _set_volume_mount(self, volume_mount):
-        # calculate volume mount hash
-        volume_name = get_item_name(volume_mount, "name")
-        volume_sub_path = get_item_name(volume_mount, "subPath")
-        volume_mount_path = get_item_name(volume_mount, "mountPath")
-        volume_mount_key = hash(f"{volume_name}-{volume_sub_path}-{volume_mount_path}")
-        self._volume_mounts[volume_mount_key] = volume_mount
+        # using the mountPath as the key cause it must be unique (k8s limitation)
+        self._volume_mounts[get_item_name(volume_mount, "mountPath")] = volume_mount
+
+    def _verify_and_set_limits(
+        self,
+        resources_field_name,
+        mem=None,
+        cpu=None,
+        gpus=None,
+        gpu_type="nvidia.com/gpu",
+    ):
+        resources = verify_limits(
+            resources_field_name, mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type
+        )
+        update_in(
+            getattr(self, resources_field_name),
+            "limits",
+            resources,
+        )
+
+    def _verify_and_set_requests(
+        self,
+        resources_field_name,
+        mem=None,
+        cpu=None,
+    ):
+        resources = verify_requests(resources_field_name, mem=mem, cpu=cpu)
+        update_in(
+            getattr(self, resources_field_name),
+            "requests",
+            resources,
+        )
+
+    def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
+        """set pod cpu/memory/gpu limits"""
+        self._verify_and_set_limits("resources", mem, cpu, gpus, gpu_type)
+
+    def with_requests(self, mem=None, cpu=None):
+        """set requested (desired) pod cpu/memory resources"""
+        self._verify_and_set_requests("resources", mem, cpu)
+
+    def enrich_resources_with_default_pod_resources(
+        self, resources_field_name: str, resources: dict
+    ):
+        resources_types = ["cpu", "memory", "nvidia.com/gpu"]
+        resource_requirements = ["requests", "limits"]
+        gpu_type = "nvidia.com/gpu"
+        default_resources = mlconf.get_default_function_pod_resources()
+
+        if resources:
+            verify_gpu_requests_and_limits(
+                requests_gpu=resources.setdefault("requests", {}).setdefault(gpu_type),
+                limits_gpu=resources.setdefault("limits", {}).setdefault(gpu_type),
+            )
+            for resource_requirement in resource_requirements:
+                for resource_type in resources_types:
+                    if (
+                        resources.setdefault(resource_requirement, {}).setdefault(
+                            resource_type
+                        )
+                        is None
+                    ):
+                        if resource_type == gpu_type:
+                            if resource_requirement == "requests":
+                                continue
+                            else:
+                                resources[resource_requirement][
+                                    resource_type
+                                ] = default_resources[resource_requirement].get(
+                                    gpu_type
+                                )
+                        else:
+                            resources[resource_requirement][
+                                resource_type
+                            ] = default_resources[resource_requirement][resource_type]
+        # This enables the user to define that no defaults would be applied on the resources
+        elif resources == {}:
+            return resources
+        else:
+            resources = default_resources
+        resources["requests"] = verify_requests(
+            resources_field_name,
+            mem=resources["requests"]["memory"],
+            cpu=resources["requests"]["cpu"],
+        )
+        resources["limits"] = verify_limits(
+            resources_field_name,
+            mem=resources["limits"]["memory"],
+            cpu=resources["limits"]["cpu"],
+            gpus=resources["limits"][gpu_type],
+            gpu_type=gpu_type,
+        )
+        if not resources["requests"] and not resources["limits"]:
+            return {}
+        return resources
 
 
 class AutoMountType(str, Enum):
@@ -364,17 +577,18 @@ class KubeResource(BaseRuntime):
 
     def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
         """set pod cpu/memory/gpu limits"""
-        self._verify_and_set_limits("resources", mem, cpu, gpus, gpu_type)
+        self.spec.with_limits(mem, cpu, gpus, gpu_type)
 
     def with_requests(self, mem=None, cpu=None):
         """set requested (desired) pod cpu/memory resources"""
-        self._verify_and_set_requests("resources", mem, cpu)
+        self.spec.with_requests(mem, cpu)
 
     def with_node_selection(
         self,
         node_name: typing.Optional[str] = None,
         node_selector: typing.Optional[typing.Dict[str, str]] = None,
         affinity: typing.Optional[client.V1Affinity] = None,
+        tolerations: typing.Optional[typing.List[client.V1Toleration]] = None,
     ):
         """
         Enables to control on which k8s node the job will run
@@ -384,6 +598,11 @@ class KubeResource(BaseRuntime):
         :param affinity:        Expands the types of constraints you can express - see
                                 https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
                                 for details
+        :param tolerations:     Tolerations are applied to pods, and allow (but do not require) the pods to schedule
+                                onto nodes with matching taints - see
+                                https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration
+                                for details
+
         """
         if node_name:
             self.spec.node_name = node_name
@@ -391,6 +610,8 @@ class KubeResource(BaseRuntime):
             self.spec.node_selector = node_selector
         if affinity:
             self.spec.affinity = affinity
+        if tolerations is not None:
+            self.spec.tolerations = tolerations
 
     def with_priority_class(self, name: typing.Optional[str] = None):
         """
@@ -418,57 +639,6 @@ class KubeResource(BaseRuntime):
     def get_default_priority_class_name(self):
         return mlconf.default_function_priority_class_name
 
-    def _verify_and_set_limits(
-        self,
-        resources_field_name,
-        mem=None,
-        cpu=None,
-        gpus=None,
-        gpu_type="nvidia.com/gpu",
-    ):
-        if mem:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.limits.memory",
-                mem,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        if cpu:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.limits.cpu",
-                cpu,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        if gpus:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.limits.gpus",
-                gpus,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        update_in(
-            getattr(self.spec, resources_field_name),
-            "limits",
-            generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type),
-        )
-
-    def _verify_and_set_requests(self, resources_field_name, mem=None, cpu=None):
-        if mem:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.requests.memory",
-                mem,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        if cpu:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.requests.cpu",
-                cpu,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        update_in(
-            getattr(self.spec, resources_field_name),
-            "requests",
-            generate_resources(mem=mem, cpu=cpu),
-        )
-
     def _get_meta(self, runobj, unique=False):
         namespace = self._get_k8s().resolve_namespace()
 
@@ -484,6 +654,20 @@ class KubeResource(BaseRuntime):
         else:
             new_meta.generate_name = norm_name
         return new_meta
+
+    def _add_secrets_to_spec_before_running(self, runobj=None, project=None):
+        if self._secrets:
+            if self._secrets.has_vault_source():
+                self._add_vault_params_to_spec(runobj=runobj, project=project)
+            if self._secrets.has_azure_vault_source():
+                self._add_azure_vault_params_to_spec(
+                    self._secrets.get_azure_vault_k8s_secret()
+                )
+            self._add_project_k8s_secrets_to_spec(
+                self._secrets.get_k8s_secrets(), runobj=runobj, project=project
+            )
+        else:
+            self._add_project_k8s_secrets_to_spec(None, runobj=runobj, project=project)
 
     def _add_azure_vault_params_to_spec(self, k8s_secret_name=None):
         secret_name = (
@@ -510,9 +694,6 @@ class KubeResource(BaseRuntime):
     def _add_project_k8s_secrets_to_spec(
         self, secrets, runobj=None, project=None, encode_key_names=True
     ):
-        # Needs to happen here to avoid circular dependencies
-        from mlrun.api.crud.secrets import Secrets
-
         # the secrets param may be an empty dictionary (asking for all secrets of that project) -
         # it's a different case than None (not asking for project secrets at all).
         if (
@@ -527,12 +708,10 @@ class KubeResource(BaseRuntime):
             return
 
         secret_name = self._get_k8s().get_project_secret_name(project_name)
-        existing_secret_keys = (
-            Secrets()
-            .list_secret_keys(
-                project_name, mlrun.api.schemas.SecretProviderName.kubernetes
-            )
-            .secret_keys
+        # Not utilizing the same functionality from the Secrets crud object because this code also runs client-side
+        # in the nuclio remote-dashboard flow, which causes dependency problems.
+        existing_secret_keys = self._get_k8s().get_project_secret_keys(
+            project_name, filter_internal=True
         )
 
         # If no secrets were passed or auto-adding all secrets, we need all existing keys
@@ -559,8 +738,10 @@ class KubeResource(BaseRuntime):
             logger.warning("No project provided. Cannot add vault parameters")
             return
 
-        service_account_name = mlconf.secret_stores.vault.project_service_account_name.format(
-            project=project_name
+        service_account_name = (
+            mlconf.secret_stores.vault.project_service_account_name.format(
+                project=project_name
+            )
         )
 
         project_vault_secret_name = self._get_k8s().get_project_vault_secret_name(
@@ -657,6 +838,7 @@ def kube_resource_spec_to_pod_spec(
         priority_class_name=kube_resource_spec.priority_class_name
         if len(mlconf.get_valid_function_priority_class_names())
         else None,
+        tolerations=kube_resource_spec.tolerations,
     )
 
 

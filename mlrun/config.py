@@ -70,7 +70,7 @@ default_config = {
     "igz_version": "",  # the version of the iguazio system the API is running on
     "iguazio_api_url": "",  # the url to iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
-    "spark_app_image_tag": "",  # image tag to use for spark opeartor app runtime
+    "spark_app_image_tag": "",  # image tag to use for spark operator app runtime
     "spark_history_server_path": "",  # spark logs directory for spark history server
     "spark_operator_version": "spark-2",  # the version of the spark operator in use
     "builder_alpine_image": "alpine:3.13.1",  # builder alpine image (as kaniko's initContainer)
@@ -138,12 +138,14 @@ default_config = {
         "data_volume": "",
         "real_path": "",
         "db_type": "sqldb",
-        "max_workers": "",
+        "max_workers": 64,
         # See mlrun.api.schemas.APIStates for options
         "state": "online",
         "db": {
             "commit_retry_timeout": 30,
             "commit_retry_interval": 3,
+            "conflict_retry_timeout": 15,
+            "conflict_retry_interval": None,
             # Whether to perform data migrations on initialization. enabled or disabled
             "data_migrations_mode": "enabled",
             # Whether or not to perform database migration from sqlite to mysql on initialization
@@ -288,12 +290,12 @@ default_config = {
     },
     "feature_store": {
         "data_prefixes": {
-            "default": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
-            "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
+            "default": "v3io:///projects/{project}/FeatureStore/{name}/{run_id}/{kind}",
+            "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{run_id}/{kind}",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
-        "flush_interval": None,
+        "flush_interval": 300,
     },
     "ui": {
         "projects_prefix": "projects",  # The UI link prefix for projects
@@ -322,8 +324,13 @@ default_config = {
         "auto_mount_params": "",
     },
     "default_function_pod_resources": {
-        "requests": {"cpu": "", "memory": "", "gpu": ""},
-        "limits": {"cpu": "", "memory": "", "gpu": ""},
+        "requests": {"cpu": None, "memory": None, "gpu": None},
+        "limits": {"cpu": None, "memory": None, "gpu": None},
+    },
+    # preemptible node selector and tolerations to be added when running on spot nodes
+    "preemptible_nodes": {
+        "node_selector": "e30=",
+        "tolerations": "e30=",
     },
 }
 
@@ -405,17 +412,43 @@ class Config:
         return config.hub_url
 
     @staticmethod
-    def get_default_function_node_selector():
-        default_function_node_selector = {}
-        if config.default_function_node_selector:
-            default_function_node_selector_json_string = base64.b64decode(
-                config.default_function_node_selector
-            ).decode()
-            default_function_node_selector = json.loads(
-                default_function_node_selector_json_string
-            )
+    def decode_base64_config_and_load_to_dict(attribute_path: str) -> dict:
+        attributes = attribute_path.split(".")
+        raw_attribute_value = config
+        for part in attributes:
+            try:
+                raw_attribute_value = raw_attribute_value.__getattr__(part)
+            except AttributeError:
+                raise mlrun.errors.MLRunNotFoundError(
+                    "Attribute does not exist in config"
+                )
+        # There is a bug in the installer component in iguazio system that causes the configured value to be base64 of
+        # null (without conditioning it we will end up returning None instead of empty dict)
+        if raw_attribute_value and raw_attribute_value != "bnVsbA==":
+            try:
+                decoded_attribute_value = base64.b64decode(raw_attribute_value).decode()
+            except Exception:
+                raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                    f"Unable to decode {attribute_path}"
+                )
+            parsed_attribute_value = json.loads(decoded_attribute_value)
+            return parsed_attribute_value
+        return {}
 
-        return default_function_node_selector
+    def get_default_function_node_selector(self) -> dict:
+        return self.decode_base64_config_and_load_to_dict(
+            "default_function_node_selector"
+        )
+
+    def get_preemptible_node_selector(self) -> dict:
+        return self.decode_base64_config_and_load_to_dict(
+            "preemptible_nodes.node_selector"
+        )
+
+    def get_preemptible_tolerations(self) -> dict:
+        return self.decode_base64_config_and_load_to_dict(
+            "preemptible_nodes.tolerations"
+        )
 
     @staticmethod
     def get_valid_function_priority_class_names():
@@ -484,6 +517,17 @@ class Config:
             )
 
         return auto_mount_params
+
+    @staticmethod
+    def get_default_function_pod_resources():
+        resources: dict = copy.deepcopy(config.default_function_pod_resources.to_dict())
+        gpu_type = "nvidia.com/gpu"
+        gpu = "gpu"
+        resource_requirements = ["requests", "limits"]
+        for requirement in resource_requirements:
+            resources.setdefault(requirement, {}).setdefault(gpu)
+            resources[requirement][gpu_type] = resources.get(requirement).pop(gpu)
+        return resources
 
     def to_dict(self):
         return copy.copy(self._cfg)
@@ -635,6 +679,40 @@ def _do_populate(env=None):
     config._cfg["_iguazio_api_url"] = config._cfg["iguazio_api_url"]
     del config._cfg["iguazio_api_url"]
 
+    _validate_config(config)
+
+
+def _validate_config(config):
+    import mlrun.k8s_utils
+
+    try:
+        limits_gpu = config.default_function_pod_resources.limits.gpu
+        requests_gpu = config.default_function_pod_resources.requests.gpu
+        mlrun.k8s_utils.verify_gpu_requests_and_limits(
+            requests_gpu=requests_gpu,
+            limits_gpu=limits_gpu,
+        )
+    except AttributeError:
+        pass
+
+
+def _convert_resources_to_str(config: dict = None):
+    resources_types = ["cpu", "memory", "gpu"]
+    resource_requirements = ["requests", "limits"]
+    if not config.get("default_function_pod_resources"):
+        return
+    for requirement in resource_requirements:
+        resource_requirement = config.get("default_function_pod_resources").get(
+            requirement
+        )
+        if not resource_requirement:
+            continue
+        for resource_type in resources_types:
+            value = resource_requirement.setdefault(resource_type, "")
+            if value is None:
+                continue
+            resource_requirement[resource_type] = str(value)
+
 
 def _convert_str(value, typ):
     if typ in (str, _none_type):
@@ -725,7 +803,9 @@ def read_env(env=None, prefix=env_prefix):
         # logger created (because of imports mess) before the config is loaded (in tests), therefore we're changing its
         # level manually
         mlrun.utils.logger.set_logger_level(config["log_level"])
-
+    # The default function pod resource values are of type str; however, when reading from environment variable numbers,
+    # it converts them to type int if contains only number, so we want to convert them to str.
+    _convert_resources_to_str(config)
     return config
 
 

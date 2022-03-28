@@ -87,7 +87,9 @@ def list_schedules(
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-        project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
+        project,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
     )
     schedules = get_scheduler().list_schedules(
         db_session, project, name, kind, labels, include_last_run, include_credentials
@@ -95,7 +97,10 @@ def list_schedules(
     filtered_schedules = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.schedule,
         schedules.schedules,
-        lambda schedule: (schedule.project, schedule.name,),
+        lambda schedule: (
+            schedule.project,
+            schedule.name,
+        ),
         auth_info,
     )
     schedules.schedules = filtered_schedules
@@ -170,7 +175,10 @@ def delete_schedules(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    schedules = get_scheduler().list_schedules(db_session, project,)
+    schedules = get_scheduler().list_schedules(
+        db_session,
+        project,
+    )
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.schedule,
         schedules.schedules,

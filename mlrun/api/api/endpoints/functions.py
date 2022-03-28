@@ -26,7 +26,7 @@ import mlrun.api.utils.background_tasks
 import mlrun.api.utils.singletons.project_member
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
-from mlrun.api.crud.secrets import Secrets
+from mlrun.api.crud.secrets import Secrets, SecretsClientType
 from mlrun.api.schemas import SecretProviderName, SecretsData
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
@@ -143,7 +143,9 @@ def list_functions(
     if project is None:
         project = config.default_project
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-        project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
+        project,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
     )
     functions = mlrun.api.crud.Functions().list_functions(
         db_session, project, name, tag, labels
@@ -348,7 +350,12 @@ def build_status(
             # the DB with intermediate or unusable versions, only successfully deployed versions
             versioned = True
         mlrun.api.crud.Functions().store_function(
-            db_session, fn, name, project, tag, versioned=versioned,
+            db_session,
+            fn,
+            name,
+            project,
+            tag,
+            versioned=versioned,
         )
         return Response(
             content=text,
@@ -428,7 +435,12 @@ def build_status(
     if state == mlrun.api.schemas.FunctionState.ready:
         versioned = True
     mlrun.api.crud.Functions().store_function(
-        db_session, fn, name, project, tag, versioned=versioned,
+        db_session,
+        fn,
+        name,
+        project,
+        tag,
+        versioned=versioned,
     )
 
     return Response(
@@ -681,10 +693,15 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
 
     provider = SecretProviderName.kubernetes
     secret_value = Secrets().get_secret(
-        project_name, provider, secret_key, allow_secrets_from_k8s=True,
+        project_name,
+        provider,
+        secret_key,
+        allow_secrets_from_k8s=True,
     )
     user_provided_key = secret_value is not None
-    internal_key_name = Secrets().generate_model_monitoring_secret_key(secret_key)
+    internal_key_name = Secrets().generate_client_secret_key(
+        SecretsClientType.model_monitoring, secret_key
+    )
 
     if not user_provided_key:
         secret_value = Secrets().get_secret(

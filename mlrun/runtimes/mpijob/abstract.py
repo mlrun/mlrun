@@ -56,6 +56,7 @@ class MPIResourceSpec(KubeResourceSpec):
         priority_class_name=None,
         disable_auto_mount=False,
         pythonpath=None,
+        tolerations=None,
     ):
         super().__init__(
             command=command,
@@ -81,6 +82,7 @@ class MPIResourceSpec(KubeResourceSpec):
             priority_class_name=priority_class_name,
             disable_auto_mount=disable_auto_mount,
             pythonpath=pythonpath,
+            tolerations=tolerations,
         )
         self.mpi_args = mpi_args or [
             "-x",
@@ -107,7 +109,10 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
     @abc.abstractmethod
     def _generate_mpi_job(
-        self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta,
+        self,
+        runobj: RunObject,
+        execution: MLClientCtx,
+        meta: client.V1ObjectMeta,
     ) -> typing.Dict:
         pass
 
@@ -142,6 +147,8 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
         meta = self._get_meta(runobj, True)
 
+        self._add_secrets_to_spec_before_running(runobj)
+
         job = self._generate_mpi_job(runobj, execution, meta)
 
         resp = self._submit_mpijob(job, meta.namespace)
@@ -172,7 +179,8 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
                         execution.set_state("completed")
                     else:
                         execution.set_state(
-                            "error", f"MpiJob {meta.name} finished with state {status}",
+                            "error",
+                            f"MpiJob {meta.name} finished with state {status}",
                         )
                 else:
                     txt = f"MpiJob {meta.name} launcher pod {launcher} state {state}"

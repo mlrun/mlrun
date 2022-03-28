@@ -3,6 +3,8 @@ import typing
 
 import pydantic
 
+from .k8s import Resources
+
 
 class ProjectMembershipFeatureFlag(str, enum.Enum):
     enabled = "enabled"
@@ -16,20 +18,15 @@ class AuthenticationFeatureFlag(str, enum.Enum):
     iguazio = "iguazio"
 
 
+class NuclioStreamsFeatureFlag(str, enum.Enum):
+    enabled = "enabled"
+    disabled = "disabled"
+
+
 class FeatureFlags(pydantic.BaseModel):
     project_membership: ProjectMembershipFeatureFlag
     authentication: AuthenticationFeatureFlag
-
-
-class ResourceSpec(pydantic.BaseModel):
-    cpu: typing.Optional[str]
-    memory: typing.Optional[str]
-    gpu: typing.Optional[str]
-
-
-class Resources(pydantic.BaseModel):
-    requests: ResourceSpec = ResourceSpec()
-    limits: ResourceSpec = ResourceSpec()
+    nuclio_streams: NuclioStreamsFeatureFlag
 
 
 class FrontendSpec(pydantic.BaseModel):

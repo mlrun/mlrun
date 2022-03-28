@@ -40,6 +40,7 @@ def verify_api_state(request: Request):
         enabled_endpoints = [
             "healthz",
             "background-tasks",
+            "client-spec",
             "migrations",
         ]
         if not any(enabled_endpoint in path for enabled_endpoint in enabled_endpoints):

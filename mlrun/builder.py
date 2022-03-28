@@ -77,7 +77,14 @@ def make_kaniko_pod(
     name="",
     verbose=False,
     builder_env=None,
+    runtime_spec=None,
 ):
+    extra_runtime_spec = {}
+    # set kaniko's spec attributes from the runtime spec
+    for attribute in get_kaniko_spec_attributes_from_runtime():
+        attr_value = getattr(runtime_spec, attribute, None)
+        if attr_value:
+            extra_runtime_spec[attribute] = attr_value
 
     if not dockertext and not dockerfile:
         raise ValueError("docker file or text must be specified")
@@ -103,6 +110,7 @@ def make_kaniko_pod(
         args=args,
         kind="build",
         project=project,
+        default_pod_spec_attributes=extra_runtime_spec,
     )
     kpod.env = builder_env
 
@@ -190,6 +198,7 @@ def build_image(
     verbose=False,
     builder_env=None,
     client_version=None,
+    runtime_spec=None,
 ):
 
     if registry:
@@ -274,6 +283,7 @@ def build_image(
         name=name,
         verbose=verbose,
         builder_env=builder_env,
+        runtime_spec=runtime_spec,
     )
 
     if to_mount:
@@ -293,6 +303,17 @@ def build_image(
         pod, ns = k8s.create_pod(kpod)
         logger.info(f'started build, to watch build logs use "mlrun watch {pod} {ns}"')
         return f"build:{pod}"
+
+
+def get_kaniko_spec_attributes_from_runtime():
+    """get the names of Kaniko spec attributes that are defined for runtime but should also be applied to kaniko"""
+    return [
+        "node_name",
+        "node_selector",
+        "affinity",
+        "tolerations",
+        "priority_class_name",
+    ]
 
 
 def resolve_mlrun_install_command(mlrun_version_specifier=None, client_version=None):
@@ -351,9 +372,9 @@ def build_runtime(
             if build.base_image:
                 runtime.spec.image = build.base_image
             elif runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict():
-                runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[
-                    runtime.kind
-                ]
+                runtime.spec.image = (
+                    mlrun.mlconf.function_defaults.image_by_kind.to_dict()[runtime.kind]
+                )
         if not runtime.spec.image:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "The deployment was not successful because no image was specified or there are missing build parameters"
@@ -397,6 +418,7 @@ def build_runtime(
         verbose=runtime.verbose,
         builder_env=builder_env,
         client_version=client_version,
+        runtime_spec=runtime.spec,
     )
     runtime.status.build_pod = None
     if status == "skipped":

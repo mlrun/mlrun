@@ -19,7 +19,10 @@ class CalibrationCurvePlan(MLPlotPlan):
     _ARTIFACT_NAME = "calibration-curve"
 
     def __init__(
-        self, normalize: bool = False, n_bins: int = 5, strategy: str = "uniform",
+        self,
+        normalize: bool = False,
+        n_bins: int = 5,
+        strategy: str = "uniform",
     ):
         """
         Initialize a calibration curve plan with the given configuration.
@@ -120,7 +123,8 @@ class CalibrationCurvePlan(MLPlotPlan):
 
         # Creating the artifact:
         self._artifacts[self._ARTIFACT_NAME] = PlotlyArtifact(
-            key=self._ARTIFACT_NAME, figure=fig,
+            key=self._ARTIFACT_NAME,
+            figure=fig,
         )
 
         return self._artifacts

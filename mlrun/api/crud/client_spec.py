@@ -1,15 +1,12 @@
 import mlrun.api.schemas
 import mlrun.utils.singleton
-from mlrun.api.utils.clients import nuclio
-from mlrun.config import config, default_config
-from mlrun.runtimes.utils import resolve_mpijob_crd_version
-from mlrun.utils import logger
+from mlrun.config import Config, config, default_config
+from mlrun.runtimes.utils import resolve_mpijob_crd_version, resolve_nuclio_version
 
 
-class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
-    def __init__(self):
-        self._cached_nuclio_version = None
-
+class ClientSpec(
+    metaclass=mlrun.utils.singleton.Singleton,
+):
     def get_client_spec(self):
         mpijob_crd_version = resolve_mpijob_crd_version(api_context=True)
         return mlrun.api.schemas.ClientSpec(
@@ -26,7 +23,7 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             kfp_image=config.kfp_image,
             dask_kfp_image=config.dask_kfp_image,
             api_url=config.httpdb.api_url,
-            nuclio_version=self._resolve_nuclio_version(),
+            nuclio_version=resolve_nuclio_version(),
             # These don't have a default value, but we don't send them if they are not set to allow the client to know
             # when to use server value and when to use client value (server only if set). Since their default value is
             # empty and not set is also empty we can use the same _get_config_value_if_not_default
@@ -59,9 +56,13 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             default_tensorboard_logs_path=self._get_config_value_if_not_default(
                 "default_tensorboard_logs_path"
             ),
+            default_function_pod_resources=self._get_config_value_if_not_default(
+                "default_function_pod_resources"
+            ),
         )
 
-    def _get_config_value_if_not_default(self, config_key):
+    @staticmethod
+    def _get_config_value_if_not_default(config_key):
         config_key_parts = config_key.split(".")
         current_config_value = config
         current_default_config_value = default_config
@@ -70,27 +71,10 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             current_default_config_value = current_default_config_value.get(
                 config_key_part, ""
             )
+        # when accessing attribute in Config, if the object is of type Mapping it returns the object in type Config
+        if isinstance(current_config_value, Config):
+            current_config_value = current_config_value.to_dict()
         if current_config_value == current_default_config_value:
             return None
         else:
             return current_config_value
-
-    # if nuclio version specified on mlrun config set it likewise,
-    # if not specified, get it from nuclio api client
-    # since this is a heavy operation (sending requests to API), and it's unlikely that the version
-    # will change - cache it (this means if we upgrade nuclio, we need to restart mlrun to re-fetch the new version)
-    def _resolve_nuclio_version(self):
-        if not self._cached_nuclio_version:
-
-            # config override everything
-            nuclio_version = config.nuclio_version
-            if not nuclio_version and config.nuclio_dashboard_url:
-                try:
-                    nuclio_client = nuclio.Client()
-                    nuclio_version = nuclio_client.get_dashboard_version()
-                except Exception as exc:
-                    logger.warning("Failed to resolve nuclio version", exc=str(exc))
-
-            self._cached_nuclio_version = nuclio_version
-
-        return self._cached_nuclio_version

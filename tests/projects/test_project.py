@@ -70,24 +70,44 @@ def test_create_project_from_file_with_legacy_structure():
     assert project.spec.artifact_path == artifact_path
     # assert accessible from the project as well
     assert project.artifact_path == artifact_path
-    assert deepdiff.DeepDiff(params, project.spec.params, ignore_order=True,) == {}
+    assert (
+        deepdiff.DeepDiff(
+            params,
+            project.spec.params,
+            ignore_order=True,
+        )
+        == {}
+    )
     # assert accessible from the project as well
-    assert deepdiff.DeepDiff(params, project.params, ignore_order=True,) == {}
     assert (
         deepdiff.DeepDiff(
-            legacy_project.functions, project.functions, ignore_order=True,
+            params,
+            project.params,
+            ignore_order=True,
         )
         == {}
     )
     assert (
         deepdiff.DeepDiff(
-            legacy_project.workflows, project.workflows, ignore_order=True,
+            legacy_project.functions,
+            project.functions,
+            ignore_order=True,
         )
         == {}
     )
     assert (
         deepdiff.DeepDiff(
-            legacy_project.artifacts, project.artifacts, ignore_order=True,
+            legacy_project.workflows,
+            project.workflows,
+            ignore_order=True,
+        )
+        == {}
+    )
+    assert (
+        deepdiff.DeepDiff(
+            legacy_project.artifacts,
+            project.artifacts,
+            ignore_order=True,
         )
         == {}
     )
@@ -207,7 +227,10 @@ def test_function_run_cli():
     function_path = pathlib.Path(__file__).parent / "assets" / "handler.py"
     project = mlrun.new_project("run-cli", str(project_dir_path))
     project.set_function(
-        str(function_path), "my-func", image="mlrun/mlrun", handler="myhandler",
+        str(function_path),
+        "my-func",
+        image="mlrun/mlrun",
+        handler="myhandler",
     )
     project.export()
 
@@ -215,3 +238,11 @@ def test_function_run_cli():
     out = tests.conftest.exec_mlrun(args, str(project_dir_path))
     assert out.find("state: completed") != -1, out
     assert out.find("y: 6") != -1, out  # = x * 2
+
+
+def test_get_artifact_uri():
+    project = mlrun.new_project("arti")
+    uri = project.get_artifact_uri("x")
+    assert uri == "store://artifacts/arti/x"
+    uri = project.get_artifact_uri("y", category="model", tag="prod")
+    assert uri == "store://models/arti/y:prod"

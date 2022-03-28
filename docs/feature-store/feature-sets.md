@@ -54,7 +54,7 @@ The MLRun feature store supports three processing engines (storey, pandas, spark
 (e.g. Notebook) for interactive development or in elastic serverless functions for production and scale.
 
 The data pipeline is defined using MLRun graph (DAG) language. Graph steps can be pre-defined operators 
-(such as aggregate, filter, encode, map, join, impute, etc) or custom python classes/functions. 
+(such as aggregate, filter, encode, map, join, impute, etc.) or custom python classes/functions. 
 Read more about the graph in [**Serving and Data Pipelines**](../serving/serving-graph.md).
 
 The `pandas` and `spark` engines are good for simple batch transformations, while the `storey` stream processing engine (the default engine)
@@ -109,8 +109,8 @@ When targets are not specified, data is stored in the configured default targets
 Batch ingestion can be done locally (i.e. running as a python process in the Jupyter pod) or as an MLRun job.
 
 ```{admonition} Limitation
-Do not name columns starting with either `t_` or `aggr_`. They are reserved for internal use, and the data does not ingest correctly. See 
-also general limitations in [Attribute name restrictions](https://www.iguazio.com/docs/latest-release/data-layer/objects/attributes/#attribute-names).
+- Do not name columns starting with either `t_` or `aggr_`. They are reserved for internal use, and the data does not ingest correctly. See also general limitations in [Attribute name restrictions](https://www.iguazio.com/docs/latest-release/data-layer/objects/attributes/#attribute-names).
+- When using the pandas engine, do not use spaces (` `) or periods (`.`) in the column names. These cause errors in the ingestion.
 ```
 
 ### Ingest data (locally)

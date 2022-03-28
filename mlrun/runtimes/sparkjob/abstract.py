@@ -139,6 +139,7 @@ class AbstractSparkJobSpec(KubeResourceSpec):
         pythonpath=None,
         node_name=None,
         affinity=None,
+        tolerations=None,
     ):
 
         super().__init__(
@@ -165,6 +166,7 @@ class AbstractSparkJobSpec(KubeResourceSpec):
             pythonpath=pythonpath,
             node_name=node_name,
             affinity=affinity,
+            tolerations=tolerations,
         )
 
         self.driver_resources = driver_resources or {}
@@ -236,8 +238,20 @@ class AbstractSparkRuntime(KubejobRuntime):
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
+        show_on_failure: bool = False,
     ):
-        """deploy function, build container with dependencies"""
+        """deploy function, build container with dependencies
+
+        :param watch:      wait for the deploy to complete (and print build logs)
+        :param with_mlrun: add the current mlrun package to the container build
+        :param skip_deployed: skip the build if we already have an image for the function
+        :param mlrun_version_specifier:  which mlrun package version to include (if not current)
+        :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
+                              e.g. builder_env={"GIT_TOKEN": token}
+        :param show_on_failure:  show logs only in case of build failure
+
+        :return True if the function is ready (deployed)
+        """
         # connect will populate the config from the server config
         get_run_db()
         if not self.spec.build.base_image:
@@ -248,6 +262,7 @@ class AbstractSparkRuntime(KubejobRuntime):
             skip_deployed=skip_deployed,
             is_kfp=is_kfp,
             mlrun_version_specifier=mlrun_version_specifier,
+            show_on_failure=show_on_failure,
         )
 
     @staticmethod
@@ -343,7 +358,10 @@ class AbstractSparkRuntime(KubejobRuntime):
         update_in(job, "spec.driver.labels", pod_labels)
         update_in(job, "spec.executor.labels", pod_labels)
         verify_and_update_in(
-            job, "spec.executor.instances", self.spec.replicas or 1, int,
+            job,
+            "spec.executor.instances",
+            self.spec.replicas or 1,
+            int,
         )
         if self.spec.node_selector:
             update_in(job, "spec.nodeSelector", self.spec.node_selector)
@@ -365,6 +383,8 @@ class AbstractSparkRuntime(KubejobRuntime):
         )
 
         update_in(job, "spec.volumes", self.spec.volumes)
+
+        self._add_secrets_to_spec_before_running(runobj)
 
         command, args, extra_env = self._get_cmd_args(runobj)
         code = None
@@ -430,7 +450,10 @@ with ctx:
                 update_in(job, "spec.executor.gpu.name", gpu_type)
                 if gpu_quantity:
                     verify_and_update_in(
-                        job, "spec.executor.gpu.quantity", gpu_quantity, int,
+                        job,
+                        "spec.executor.gpu.quantity",
+                        gpu_quantity,
+                        int,
                     )
         if "limits" in self.spec.driver_resources:
             if "cpu" in self.spec.driver_resources["limits"]:
@@ -456,7 +479,10 @@ with ctx:
                 update_in(job, "spec.driver.gpu.name", gpu_type)
                 if gpu_quantity:
                     verify_and_update_in(
-                        job, "spec.driver.gpu.quantity", gpu_quantity, int,
+                        job,
+                        "spec.driver.gpu.quantity",
+                        gpu_quantity,
+                        int,
                     )
 
         self._enrich_job(job)
@@ -467,15 +493,18 @@ with ctx:
             update_in(job, "spec.mainApplicationFile", self.spec.command)
 
         verify_list_and_update_in(job, "spec.arguments", self.spec.args or [], str)
-        self._submit_job(job, meta, code)
+        self._submit_spark_job(job, meta, code)
 
         return None
 
     def _enrich_job(self, job):
         raise NotImplementedError()
 
-    def _submit_job(
-        self, job, meta, code=None,
+    def _submit_spark_job(
+        self,
+        job,
+        meta,
+        code=None,
     ):
         namespace = meta.namespace
         k8s = self._get_k8s()
@@ -583,16 +612,19 @@ with ctx:
         node_name: typing.Optional[str] = None,
         node_selector: typing.Optional[typing.Dict[str, str]] = None,
         affinity: typing.Optional[client.V1Affinity] = None,
+        tolerations: typing.Optional[typing.List[client.V1Toleration]] = None,
     ):
         if node_name:
             raise NotImplementedError(
                 "Setting node name is not supported for spark runtime"
             )
+        # TODO add affinity support
+        # https://github.com/GoogleCloudPlatform/spark-on-k8s-operator/blob/master/pkg/apis/sparkoperator.k8s.io/v1beta2/types.go#L491
         if affinity:
             raise NotImplementedError(
                 "Setting affinity is not supported for spark runtime"
             )
-        super().with_node_selection(node_name, node_selector, affinity)
+        super().with_node_selection(node_name, node_selector, affinity, tolerations)
 
     def with_executor_requests(
         self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"

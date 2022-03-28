@@ -42,5 +42,6 @@ class TestAPIBackwardCompatibility(TestMLRunSystem):
 
         with pytest.raises(mlrun.runtimes.utils.RunError):
             function.run(
-                name=f"test_{failure_handler}", handler=failure_handler,
+                name=f"test_{failure_handler}",
+                handler=failure_handler,
             )

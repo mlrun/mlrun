@@ -44,7 +44,9 @@ class AuthorizationResourceTypes(str, enum.Enum):
     marketplace_source = "marketplace-source"
 
     def to_resource_string(
-        self, project_name: str, resource_name: str,
+        self,
+        project_name: str,
+        resource_name: str,
     ):
         return {
             # project is the resource itself, so no need for both resource_name and project_name

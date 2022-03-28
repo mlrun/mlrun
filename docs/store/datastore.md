@@ -1,7 +1,7 @@
 (datastore)=
 # Data Stores & Data Items
 
-One of the biggest challenge in distributed systems is handling data given the 
+One of the biggest challenges in distributed systems is handling data given the 
 different access methods, APIs, and authentication mechanisms across types and providers.
 
 MLRun provides 3 main abstractions to access structured and unstructured data:

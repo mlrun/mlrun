@@ -141,6 +141,7 @@ class NuclioSpec(KubeResourceSpec):
         pythonpath=None,
         workdir=None,
         image_pull_secret=None,
+        tolerations=None,
     ):
 
         super().__init__(
@@ -167,6 +168,7 @@ class NuclioSpec(KubeResourceSpec):
             pythonpath=pythonpath,
             workdir=workdir,
             image_pull_secret=image_pull_secret,
+            tolerations=tolerations,
         )
 
         self.base_spec = base_spec or {}
@@ -197,8 +199,8 @@ class NuclioSpec(KubeResourceSpec):
                 {"volume": self._volumes[volume_name], "volumeMount": volume_mount}
             )
 
-        volumes_without_volume_mounts = volume_with_volume_mounts_names.symmetric_difference(
-            self._volumes.keys()
+        volumes_without_volume_mounts = (
+            volume_with_volume_mounts_names.symmetric_difference(self._volumes.keys())
         )
         if volumes_without_volume_mounts:
             raise ValueError(
@@ -272,7 +274,11 @@ class RemoteRuntime(KubeResource):
         return self
 
     def with_source_archive(
-        self, source, handler="", runtime="", secrets=None,
+        self,
+        source,
+        handler="",
+        runtime="",
+        secrets=None,
     ):
         """Load nuclio function from remote source
         :param source: a full path to the nuclio function source (code entry) to load the function from
@@ -475,7 +481,9 @@ class RemoteRuntime(KubeResource):
     def from_image(self, image):
         config = nuclio.config.new_config()
         update_in(
-            config, "spec.handler", self.spec.function_handler or "main:handler",
+            config,
+            "spec.handler",
+            self.spec.function_handler or "main:handler",
         )
         update_in(config, "spec.image", image)
         update_in(config, "spec.build.codeEntryType", "image")
@@ -556,6 +564,7 @@ class RemoteRuntime(KubeResource):
                 seekTo=seek_to,
                 webapi=endpoint or "http://v3io-webapi:8081",
                 extra_attributes=extra_attributes,
+                readBatchSize=256,
                 **kwargs,
             ),
         )
@@ -625,7 +634,10 @@ class RemoteRuntime(KubeResource):
             self.save(versioned=False)
             self._ensure_run_db()
             internal_invocation_urls, external_invocation_urls = deploy_nuclio_function(
-                self, dashboard=dashboard, watch=True, auth_info=auth_info,
+                self,
+                dashboard=dashboard,
+                watch=True,
+                auth_info=auth_info,
             )
             self.status.internal_invocation_urls = internal_invocation_urls
             self.status.external_invocation_urls = external_invocation_urls
@@ -679,9 +691,14 @@ class RemoteRuntime(KubeResource):
         node_name: typing.Optional[str] = None,
         node_selector: typing.Optional[typing.Dict[str, str]] = None,
         affinity: typing.Optional[client.V1Affinity] = None,
+        tolerations: typing.Optional[typing.List[client.V1Toleration]] = None,
     ):
         """k8s node selection attributes"""
-        super().with_node_selection(node_name, node_selector, affinity)
+        if tolerations and not validate_nuclio_version_compatibility("1.7.5"):
+            raise mlrun.errors.MLRunIncompatibleVersionError(
+                "tolerations are only supported from nuclio version 1.7.5"
+            )
+        super().with_node_selection(node_name, node_selector, affinity, tolerations)
 
     @min_nuclio_versions("1.6.18")
     def with_priority_class(self, name: typing.Optional[str] = None):
@@ -744,7 +761,7 @@ class RemoteRuntime(KubeResource):
 
         # no reference was passed
         if len(split_source) != 2:
-            return source
+            return source, ""
 
         reference = split_source[1]
         if reference.startswith("refs"):
@@ -1009,7 +1026,11 @@ class RemoteRuntime(KubeResource):
                 self.store_run(task)
                 task.spec.secret_sources = secrets or []
                 resp = submit(session, url, task, semaphore, headers=headers)
-                runs.append(asyncio.ensure_future(resp,))
+                runs.append(
+                    asyncio.ensure_future(
+                        resp,
+                    )
+                )
 
             for result in asyncio.as_completed(runs):
                 status, resp, logs, task = await result
@@ -1061,7 +1082,7 @@ class RemoteRuntime(KubeResource):
 
         # internal / external invocation urls is a nuclio >= 1.6.x feature
         # try to infer the invocation url from the internal and if not exists, use external.
-        # $$$$ we do not want to use the external invocation url (e.g.: ingress, nodePort, etc)
+        # $$$$ we do not want to use the external invocation url (e.g.: ingress, nodePort, etc.)
         if (
             not force_external_address
             and self.status.internal_invocation_urls
@@ -1179,9 +1200,11 @@ def compile_function_config(function: RemoteRuntime, client_version: str = None)
     for key, value in labels.items():
         function.set_config(f"metadata.labels.{key}", value)
 
-    # Add vault configurations to function's pod spec, if vault secret source was added.
+    # Add secret configurations to function's pod spec, if secret sources were added.
     # Needs to be here, since it adds env params, which are handled in the next lines.
-    function.add_secrets_config_to_spec()
+    # This only needs to run if we're running within k8s context. If running in Docker, for example, skip.
+    if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+        function.add_secrets_config_to_spec()
 
     env_dict, external_source_env_dict = function.get_nuclio_config_spec_env()
     spec = nuclio.ConfigSpec(
@@ -1213,7 +1236,18 @@ def compile_function_config(function: RemoteRuntime, client_version: str = None)
         if function.spec.node_name:
             spec.set_config("spec.nodeName", function.spec.node_name)
         if function.spec.affinity:
-            spec.set_config("spec.affinity", function.spec._get_sanitized_affinity())
+            spec.set_config(
+                "spec.affinity", function.spec._get_sanitized_attribute("affinity")
+            )
+
+    # don't send tolerations if nuclio is not compatible
+    if validate_nuclio_version_compatibility("1.7.5"):
+        if function.spec.tolerations:
+            spec.set_config(
+                "spec.tolerations",
+                function.spec._get_sanitized_attribute("tolerations"),
+            )
+
     # don't send default or any priority class name if nuclio is not compatible
     if (
         function.spec.priority_class_name

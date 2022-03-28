@@ -97,6 +97,25 @@ class TestProject(TestMLRunSystem):
         project2 = mlrun.load_project(str(self.assets_path), name=name)
         run = project2.run("main", watch=True, artifact_path=f"v3io:///projects/{name}")
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+
+        # test the list_runs/artifacts/functions methods
+        runs_list = project2.list_runs(name="test", labels={"workflow": run.run_id})
+        runs = runs_list.to_objects()
+        assert runs[0].status.state == "completed"
+        assert runs[0].metadata.name == "test"
+        runs_list.compare(filename=f"{projects_dir}/compare.html")
+        artifacts = project2.list_artifacts(tag=run.run_id).to_objects()
+        assert len(artifacts) == 4  # cleaned_data, test_set_preds, model, test_set
+        assert artifacts[0].producer["workflow"] == run.run_id
+
+        models = project2.list_models(tag=run.run_id)
+        assert len(models) == 1
+        assert models[0].producer["workflow"] == run.run_id
+
+        functions = project2.list_functions(tag="latest")
+        assert len(functions) == 3  # prep-data, train, test
+        assert functions[0].metadata.project == name
+
         self._delete_test_project(name)
 
     def test_run_artifact_path(self):
@@ -232,6 +251,12 @@ class TestProject(TestMLRunSystem):
         # get project should read from DB
         shutil.rmtree(project_dir, ignore_errors=True)
         project = mlrun.get_or_create_project(name, project_dir)
+        project.save()
+        assert project.spec.description == "mytest", "failed to get project"
+        self._delete_test_project(name)
+
+        # get project should read from context (project.yaml)
+        project = mlrun.get_or_create_project(name, project_dir)
         assert project.spec.description == "mytest", "failed to get project"
         self._delete_test_project(name)
 
@@ -268,7 +293,10 @@ class TestProject(TestMLRunSystem):
         name = "lclclipipe"
         project = self._create_project(name)
         project.set_function(
-            "gen_iris.py", "gen-iris", image="mlrun/mlrun", handler="iris_generator",
+            "gen_iris.py",
+            "gen-iris",
+            image="mlrun/mlrun",
+            handler="iris_generator",
         )
         project.save()
         print(project.to_yaml())

@@ -75,7 +75,9 @@ def auto_mount(pvc_name="", volume_mount_path="", volume_name=None):
             volume_name=volume_name or "shared-persistency",
         )
     if "MLRUN_PVC_MOUNT" in os.environ:
-        return mount_pvc(volume_name=volume_name or "shared-persistency",)
+        return mount_pvc(
+            volume_name=volume_name or "shared-persistency",
+        )
     # In the case of MLRun-kit when working remotely, no env variables will be defined but auto-mount
     # parameters may still be declared - use them in that case.
     if config.storage.auto_mount_type == "pvc":

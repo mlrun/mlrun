@@ -141,6 +141,8 @@ class Member(abc.ABC):
 
     @abc.abstractmethod
     def get_project_owner(
-        self, db_session: sqlalchemy.orm.Session, name: str,
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
     ) -> mlrun.api.schemas.ProjectOwner:
         pass

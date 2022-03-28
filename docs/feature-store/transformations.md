@@ -165,15 +165,15 @@ use Spark as the transformation engine in ingestion, follow these steps:
    {py:func}`~mlrun.feature_store.ingest` function, as the `spark_context` parameter. This session is used for
    data operations and transformations.
    
-3. To use a remote execution engine, pass a `RunConfig` object as the `run_config` parameter for the `ingest` API. The 
+3. To use a remote execution engine (remote spark or spark operator), pass a `RunConfig` object as the `run_config` parameter for the `ingest` API. The 
    actual remote function to execute depends on the object passed:
    
     1. A default `RunConfig`, in which case the ingestion code either generates a new MLRun function runtime
        of type `remote-spark`, or utilizes the function specified in `feature_set.spec.function` (in which case,
-       it has to be of runtime type `remote-spark`).
+       it has to be of runtime type `remote-spark` or `spark`).
       
     2. A `RunConfig` that has a function configured within it. As mentioned, the function runtime must be of 
-       type `remote-spark`.
+       type `remote-spark` or `spark`.
        
 For example, the following code executes data ingestion using a local Spark session.
 When using a local Spark session, the `ingest` API would wait for its completion.
@@ -241,6 +241,61 @@ config = fstore.RunConfig(local=False, function=my_func, handler="ingest_handler
 fstore.ingest(feature_set, source, run_config=config, spark_context=spark_service_name)
 ```
 
+### Spark operator ingestion example
+When running with spark operator, the MLRun execution details are returned, allowing tracking of the job's status and results.
+
+The following code should be executed only once to build the spark job image before running the first ingest.
+It may take a few minutes to prepare the image.
+```python
+from mlrun.runtimes import Spark3Runtime
+Spark3Runtime.deploy_default_image()
+```
+
+Spark operator ingestion:
+```python
+# mlrun: start-code
+
+from mlrun.feature_store.api import ingest
+
+def ingest_handler(context):
+    ingest(mlrun_context=context) # The handler function must call ingest with the mlrun_context
+
+# You can add your own PySpark code as a graph step:
+def my_spark_func(df, context=None):
+    return df.filter("bid>55") # PySpark code
+
+# mlrun: end-code
+```
+```python
+from mlrun.datastore.sources import CSVSource
+from mlrun import code_to_function
+import mlrun.feature_store as fstore
+
+feature_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")], engine="spark")
+
+source = CSVSource("mycsv", path="v3io:///projects/quotes.csv")
+
+feature_set.graph.to(name="s1", handler="my_spark_func")
+
+my_func = code_to_function("func", kind="spark")
+
+my_func.with_driver_requests(cpu="200m", mem="1g")
+my_func.with_executor_requests(cpu="200m", mem="1g")
+my_func.with_igz_spark()
+
+# Enables using the default image (can be replace with specifying a specific image with .spec.image)
+my_func.spec.use_default_image = True
+
+# Not a must - default: 1
+my_func.spec.replicas = 2
+
+# If needed, sparkConf can be modified like this:
+# my_func.spec.spark_conf['spark.specific.config.key'] = 'value'
+
+config = fstore.RunConfig(local=False, function=my_func, handler="ingest_handler")
+fstore.ingest(feature_set, source, run_config=config)
+```
+
 ### Spark execution engine over S3 - Full flow example
 
 For Spark to work with S3, it requires several properties to be set. The following example writes a
@@ -294,6 +349,7 @@ def ingest_handler(context):
 Ingestion invocation:
 ```python
 from mlrun.datastore.sources import CSVSource
+from mlrun.datastore.targets import ParquetTarget
 from mlrun import code_to_function
 import mlrun.feature_store as fstore
 
@@ -301,11 +357,11 @@ feature_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker"
 
 source = CSVSource("mycsv", path="v3io:///projects/quotes.csv")
 
-spark_service_name = "iguazio-spark-service" # As configured & shown in the Iguazio dashboard
+spark_service_name = "spark" # As configured & shown in the Iguazio dashboard
 
 fn = code_to_function(kind='remote-spark',  name='func')
 
-run_config=fs.RunConfig(local=False, function=fn, handler="ingest_handler")
+run_config = fstore.RunConfig(local=False, function=fn, handler="ingest_handler")
 run_config.with_secret('kubernetes', ['s3_access_key', 's3_secret_key'])
 run_config.parameters = {
     "s3_endpoint" : "s3.us-east-2.amazonaws.com",
@@ -317,6 +373,6 @@ target = ParquetTarget(
     partitioned = False,
 )
 
-fstore.ingest(feature_set, source, targets=[target], run_config=config, spark_context=spark_service_name)
+fstore.ingest(feature_set, source, targets=[target], run_config=run_config, spark_context=spark_service_name)
 ```
 

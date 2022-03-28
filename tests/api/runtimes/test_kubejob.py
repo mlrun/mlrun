@@ -5,10 +5,13 @@ import os
 import deepdiff
 import pytest
 from fastapi.testclient import TestClient
+from kubernetes import client as k8s_client
 from sqlalchemy.orm import Session
 
 import mlrun.errors
+from mlrun.api.schemas import NodeSelectorOperator, PreemptionModes
 from mlrun.config import config as mlconf
+from mlrun.k8s_utils import compile_affinity_by_label_selector
 from mlrun.platforms import auto_mount
 from mlrun.runtimes.kubejob import KubejobRuntime
 from mlrun.runtimes.utils import generate_resources
@@ -140,6 +143,153 @@ class TestKubejobRuntime(TestRuntimeBase):
             expected_node_selector=node_selector,
             expected_affinity=affinity,
         )
+
+    def test_run_with_allow_preemptible_mode(self, db: Session, client: TestClient):
+        api = k8s_client.ApiClient()
+
+        node_selector = self._generate_node_selector()
+        mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
+            json.dumps(node_selector).encode("utf-8")
+        )
+        # without default preemptible tolerations, expecting nothing to change
+        runtime = self._generate_runtime()
+        runtime.with_preemption_mode(PreemptionModes.allow)
+        self._execute_run(runtime)
+        self.assert_node_selection()
+
+        # set default preemptible tolerations
+        tolerations = self._generate_tolerations()
+        serialized_tolerations = api.sanitize_for_serialization(tolerations)
+        mlrun.mlconf.preemptible_nodes.tolerations = base64.b64encode(
+            json.dumps(serialized_tolerations).encode("utf-8")
+        )
+        # when allow, preemptible node selector isn't enough to edit the spec yaml, we also need preemptible tolerations
+        self.assert_node_selection()
+
+        runtime = self._generate_runtime()
+        runtime.with_preemption_mode(PreemptionModes.allow)
+        self._execute_run(runtime)
+        self.assert_node_selection(tolerations=tolerations)
+
+        # with affinity configured, expecting matching label selector to be removed
+        affinity = self._generate_affinity()
+        # set preemptible label selector in affinity
+        affinity.node_affinity.required_during_scheduling_ignored_during_execution.node_selector_terms = [
+            k8s_client.V1NodeSelectorTerm(
+                match_expressions=compile_affinity_by_label_selector(
+                    NodeSelectorOperator.node_selector_op_in
+                )
+            )
+        ]
+        expected_affinity = self._generate_affinity()
+        expected_affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
+            None
+        )
+        runtime = self._generate_runtime()
+        runtime.with_node_selection(affinity=affinity)
+        runtime.with_preemption_mode(PreemptionModes.allow)
+        self._execute_run(runtime)
+        self.assert_node_selection(tolerations=tolerations, affinity=expected_affinity)
+
+        # with affinity configured, contains both preemptible label selector and also unrelated label selector,
+        # expecting only the preemptible label selector to be removed
+        affinity = self._generate_affinity()
+        affinity.node_affinity.required_during_scheduling_ignored_during_execution.node_selector_terms.append(
+            k8s_client.V1NodeSelectorTerm(
+                match_expressions=compile_affinity_by_label_selector(
+                    NodeSelectorOperator.node_selector_op_in
+                )
+            )
+        )
+        expected_affinity = self._generate_affinity()
+        runtime = self._generate_runtime()
+        runtime.with_node_selection(affinity=affinity)
+        runtime.with_preemption_mode(PreemptionModes.allow)
+        self._execute_run(runtime)
+        self.assert_node_selection(tolerations=tolerations, affinity=expected_affinity)
+
+    def test_run_with_preemption_mode_without_preemptible_configuration(
+        self, db: Session, client: TestClient
+    ):
+        for test_case in [
+            {
+                "affinity": False,
+                "node_selector": False,
+                "node_name": False,
+                "tolerations": False,
+            },
+            {
+                "affinity": True,
+                "node_selector": True,
+                "node_name": False,
+                "tolerations": False,
+            },
+            {
+                "affinity": True,
+                "node_selector": True,
+                "node_name": True,
+                "tolerations": False,
+            },
+            {
+                "affinity": True,
+                "node_selector": True,
+                "node_name": True,
+                "tolerations": True,
+            },
+        ]:
+            affinity = (
+                self._generate_affinity() if test_case.get("affinity", False) else None
+            )
+            node_selector = (
+                self._generate_node_selector()
+                if test_case.get("node_selector", False)
+                else None
+            )
+            node_name = (
+                self._generate_node_name()
+                if test_case.get("node_name", False)
+                else None
+            )
+            tolerations = (
+                self._generate_tolerations()
+                if test_case.get("tolerations", False)
+                else None
+            )
+            for preemption_mode in PreemptionModes:
+                runtime = self._generate_runtime()
+                runtime.with_node_selection(
+                    node_name=node_name,
+                    node_selector=node_selector,
+                    affinity=affinity,
+                    tolerations=tolerations,
+                )
+                runtime.with_preemption_mode(mode=preemption_mode.value)
+                self._execute_run(runtime)
+                self.assert_node_selection(
+                    node_name, node_selector, affinity, tolerations
+                )
+
+    def assert_node_selection(
+        self, node_name=None, node_selector=None, affinity=None, tolerations=None
+    ):
+        pod = self._get_pod_creation_args()
+        # doesn't need a special case because the default it to be set with default node selector
+        assert pod.spec.node_selector == (node_selector or {})
+
+        if node_name:
+            assert pod.spec.node_name == node_name
+        else:
+            assert pod.spec.node_name is None
+
+        if affinity:
+            assert pod.spec.affinity == affinity
+        else:
+            assert pod.spec.affinity is None
+
+        if tolerations:
+            assert pod.spec.tolerations == tolerations
+        else:
+            assert pod.spec.tolerations is None
 
     def test_run_with_priority_class_name(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()

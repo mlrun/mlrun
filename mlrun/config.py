@@ -329,9 +329,13 @@ default_config = {
     },
     # preemptible node selector and tolerations to be added when running on spot nodes
     "preemptible_nodes": {
+        # encoded empty dict
         "node_selector": "e30=",
+        # encoded empty list
         "tolerations": "W10=",
     },
+    # see enrich function preemption spec for more info, and api.schemas.functionPreemptionModes for available options
+    "default_preemption_mode": "prevent",
 }
 
 

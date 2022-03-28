@@ -647,13 +647,19 @@ class KubeResourceSpec(FunctionSpec):
         :param tolerations: tolerations to prune
         """
         # both needs to exist to prune required tolerations from spec tolerations
-        if len(tolerations) or not self.tolerations:
+        if not tolerations or not self.tolerations:
             return
 
-        # Generate a list of tolerations without tolerations to prune
-        tolerations_without_tolerations_to_prune = list(
-            set(self.tolerations) - set(tolerations)
-        )
+        # generate a list of tolerations without tolerations to prune
+        tolerations_without_tolerations_to_prune = []
+        for toleration in self.tolerations:
+            tolerations_without_tolerations_to_prune.append(toleration)
+            for toleration_to_delete in tolerations:
+                if toleration == toleration_to_delete:
+                    # remove from new tolerations list
+                    tolerations_without_tolerations_to_prune.pop()
+                    # no need to keep going over the list provided for the current toleration
+                    break
 
         # Set tolerations without tolerations to prune
         self.tolerations = tolerations_without_tolerations_to_prune

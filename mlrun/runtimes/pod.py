@@ -155,7 +155,7 @@ class KubeResourceSpec(FunctionSpec):
             priority_class_name or mlrun.mlconf.default_function_priority_class_name
         )
         self._tolerations = tolerations
-        self.preemption_mode = preemption_mode
+        self.preemption_mode = preemption_mode or mlconf.default_preemption_mode
 
     @property
     def volumes(self) -> list:
@@ -312,6 +312,7 @@ class KubeResourceSpec(FunctionSpec):
 
     @staticmethod
     def _resolve_if_type_sanitized(attribute_name, attribute):
+        print(attribute)
         attribute_config = sanitized_attributes[attribute_name]
         # heuristic - if one of the keys contains _ as part of the dict it means to_dict on the kubernetes
         # object performed, there's nothing we can do at that point to transform it to the sanitized version
@@ -427,25 +428,27 @@ class KubeResourceSpec(FunctionSpec):
         # merge node selectors - precedence to existing node selector
         self.node_selector = {**node_selector, **self.node_selector}
 
-    def enrich_with_tolerations(self, tolerations: typing.List[client.V1Toleration]):
+    def _enrich_with_tolerations(self, tolerations: typing.List[client.V1Toleration]):
         if len(tolerations) == 0:
             return
 
         tolerations_to_add = []
+
+        # In case function has no toleration, take all from input
+        if not self.tolerations:
+            self.tolerations = tolerations
+            return
+
         # Only add non-matching tolerations to avoid duplications
         for function_toleration in self.tolerations:
             for toleration in tolerations:
                 if function_toleration != toleration:
                     tolerations_to_add.append(toleration)
 
-        # In case function has no toleration, take all from input
-        if len(self.tolerations) == 0:
-            tolerations_to_add = tolerations
-
         if len(tolerations_to_add) > 0:
             self.tolerations += tolerations_to_add
 
-    def enrich_function_preemption_spec(self, mode):
+    def enrich_function_preemption_spec(self):
         """
         Enriches function pod with the below described spec. if no platformConfiguration related
         configuration is given, do nothing.
@@ -462,24 +465,25 @@ class KubeResourceSpec(FunctionSpec):
         """
         # nothing to do here, configuration is not populated
         if (
-            mlconf.get_preemptible_tolerations()
-            or mlconf.get_preemptible_node_selector()
+            not mlconf.get_preemptible_tolerations()
+            and not mlconf.get_preemptible_node_selector()
         ):
-            return mode
+            return
 
-        if not mode:
-            mode = PreemptionModes.prevent
+        if not self.preemption_mode:
+            self.preemption_mode = mlconf.default_preemption_mode
             logger.debug(
-                "No preemption mode was given, using the default",
-                new_preemption_mode=mode,
+                "No preemption mode was given, using the default preemption mode",
+                new_preemption_mode=self.preemption_mode,
             )
 
         logger.debug(
-            "Enriching function spec for given preemption mode", preemption_mode=mode
+            "Enriching function spec for given preemption mode",
+            preemption_mode=self.preemption_mode,
         )
         # remove preemptible tolerations and remove preemption related configuration
         # and enrich with anti-affinity if preemptible tolerations configuration haven't been provided
-        if mode == PreemptionModes.prevent:
+        if self.preemption_mode == PreemptionModes.prevent:
             # ensure no preemptible node tolerations
             self._prune_tolerations(mlconf.get_preemptible_tolerations())
             # if preemptible tolerations were given, purge affinity preemption related configuration
@@ -500,9 +504,9 @@ class KubeResourceSpec(FunctionSpec):
                 )
 
         # enrich tolerations and override all node selector terms with preemptible node selector terms
-        elif mode == PreemptionModes.constrain:
+        elif self.preemption_mode == PreemptionModes.constrain:
             # enrich with tolerations
-            self.enrich_with_tolerations(mlconf.get_preemptible_tolerations())
+            self._enrich_with_tolerations(mlconf.get_preemptible_tolerations())
             # TODO add gpu tolerations enrichment
             self._initialize_affinity()
             # setting required_during_scheduling_ignored_during_execution
@@ -513,7 +517,7 @@ class KubeResourceSpec(FunctionSpec):
             )
 
         # purge any affinity / anti-affinity preemption related configuration and enrich with preemptible tolerations
-        elif mode == PreemptionModes.allow:
+        elif self.preemption_mode == PreemptionModes.allow:
 
             # remove anti-affinity
             self._prune_affinity_node_selector_requirement(
@@ -532,7 +536,7 @@ class KubeResourceSpec(FunctionSpec):
             self._prune_node_selector(mlconf.get_preemptible_node_selector())
 
             # enrich with tolerations
-            self.enrich_with_tolerations(mlconf.get_preemptible_tolerations())
+            self._enrich_with_tolerations(mlconf.get_preemptible_tolerations())
 
             # TODO add gpu tolerations enrichment
 
@@ -621,12 +625,12 @@ class KubeResourceSpec(FunctionSpec):
                 for node_selector_requirement in node_selector_requirements_to_remove:
                     if node_selector_requirement == expression:
                         # remove from new node selector requirements list
-                        new_node_selector_requirements.pop(expression)
+                        new_node_selector_requirements.pop()
                         # no need to keep going over the list provided for the current expression
                         break
 
             # check if there is something to add
-            if len(new_node_selector_requirements) > 0 or len(term.match_fields) > 0:
+            if len(new_node_selector_requirements) > 0 or term.match_fields:
                 # Add new node selector terms without the matching expressions to prune
                 new_node_selector_terms.append(
                     client.V1NodeSelectorTerm(

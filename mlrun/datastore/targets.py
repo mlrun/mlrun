@@ -1000,6 +1000,8 @@ class NoSqlTarget(BaseStoreTarget):
         raise NotImplementedError()
 
     def prepare_spark_df(self, df):
+        import pyspark.sql.functions as funcs
+
         for col_name, col_type in df.dtypes:
             if col_type.startswith("decimal("):
                 # V3IO does not support this level of precision

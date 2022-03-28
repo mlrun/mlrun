@@ -722,7 +722,6 @@ def _ingest_with_spark(
 ):
     try:
         import pyspark.sql
-        import pyspark.sql.functions as funcs
 
         if spark is None or spark is True:
             # create spark context

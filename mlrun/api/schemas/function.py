@@ -31,7 +31,7 @@ class FunctionState:
 class PreemptionModes(str, Enum):
     # makes function pods be able to run on preemptible nodes
     allow = "allow"
-    # makes the function pods run on preemtible nodes only
+    # makes the function pods run on preemptible nodes only
     constrain = "constrain"
     # prevents the function pods from running on preemptible nodes
     prevent = "prevent"

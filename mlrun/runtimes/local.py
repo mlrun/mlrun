@@ -245,8 +245,6 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         if not command and self.spec.build.functionSourceCode:
             # if the code is embedded in the function object extract or find it
             command, _ = mlrun.run.load_func_code(self)
-        print(f">>> cwd={os.getcwd()}, ls={os.listdir()}")
-        print(str(sys.path))
         return load_module(command, handler, context)
 
     def _pre_run(self, runobj: RunObject, execution: MLClientCtx):
@@ -254,29 +252,22 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         execution._current_workdir = workdir
         execution._old_workdir = None
 
-        print(self.to_yaml())
-
         if self.spec.build.source:
             target_dir = extract_source(
                 self.spec.build.source,
                 self.spec.clone_target_dir,
                 secrets=execution._secrets_manager,
             )
-            print(f">>> spec={workdir}, target={target_dir}")
             if workdir and not workdir.startswith("/"):
                 execution._current_workdir = os.path.join(target_dir, workdir)
             else:
                 execution._current_workdir = workdir or target_dir
 
-        print(f">>> curr={execution._current_workdir}")
         if execution._current_workdir:
             execution._old_workdir = os.getcwd()
             workdir = os.path.realpath(execution._current_workdir)
-            print(f">>> workdir={workdir}, old={execution._old_workdir}")
             set_paths(workdir)
             os.chdir(workdir)
-            print(f">>> cwd={os.getcwd()}, ls={os.listdir()}")
-            print(str(sys.path))
         else:
             set_paths(os.path.realpath("."))
 
@@ -305,7 +296,6 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         pythonpath = self.spec.pythonpath
 
         if handler:
-            print(f">> cwd={os.getcwd()}, pypath={pythonpath}")
             set_paths(pythonpath)
             if "#" in handler:
                 pp = handler.split("#")

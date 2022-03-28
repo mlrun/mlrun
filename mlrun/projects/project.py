@@ -1013,7 +1013,7 @@ class MlrunProject(ModelObj):
         )
         self.spec.artifacts = artifacts
 
-    def set_artifact(self, key, artifact=None, target_path=None):
+    def set_artifact(self, key, artifact=None, target_path=None, tag=None):
         """add/set an artifact in the project spec (will be registered on load)
 
         example::
@@ -1026,6 +1026,7 @@ class MlrunProject(ModelObj):
         :param key:  artifact key/name
         :param artifact:  mlrun Artifact object (or its subclasses)
         :param target_path: absolute target path url (point to the artifact content location)
+        :param tag:    artifact tag
         """
         if not artifact:
             artifact = Artifact()
@@ -1034,6 +1035,7 @@ class MlrunProject(ModelObj):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "absolute target_path url to a shared/object storage must be specified"
             )
+        artifact.tag = tag or artifact.tag
         self.spec.set_artifact(key, artifact)
 
     def register_artifacts(self):

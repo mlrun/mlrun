@@ -254,7 +254,7 @@ Examples:
     project.set_function(func_object)
 ```
 
-once functions are registered or saved in the project we can get their function object using `project.get_function(key)`.
+once functions are registered or saved in the project, we can get their function object using `project.get_function(key)`.
 
 example:
 

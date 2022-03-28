@@ -1081,7 +1081,7 @@ class RemoteRuntime(KubeResource):
 
         # internal / external invocation urls is a nuclio >= 1.6.x feature
         # try to infer the invocation url from the internal and if not exists, use external.
-        # $$$$ we do not want to use the external invocation url (e.g.: ingress, nodePort, etc)
+        # $$$$ we do not want to use the external invocation url (e.g.: ingress, nodePort, etc.)
         if (
             not force_external_address
             and self.status.internal_invocation_urls

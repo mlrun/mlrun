@@ -54,7 +54,7 @@ predefined “projects” data container — /v3io/projects/<project name>/artif
 (for example, /v3io/projects/myproject/artifacts for a “myproject” project).
 ```
 
-When you use use `{{run.uid}}`, the artifacts for each job are stored in a dedicated directory for the executed job.
+When you use `{{run.uid}}`, the artifacts for each job are stored in a dedicated directory for the executed job.
 Otherwise, the same artifacts directory is used in all runs, so the artifacts for newer runs override those from the previous runs.
 
 As previously explained, `set_environment` returns a tuple with the project name and artifacts path.
@@ -103,7 +103,7 @@ example artifact URLs:
 
 ## Datasets
 
-Storing datasets is important in order to have a record of the data that was used to train the model, as well as storing any processed data. MLRun comes with built-in support for DataFrame format, and can not just store the DataFrame, but also provide the user information regarding the data, such as statistics.
+Storing datasets is important in order to have a record of the data that was used to train the model, as well as storing any processed data. MLRun comes with built-in support for DataFrame format, and cannot just store the DataFrame, but also provide the user information regarding the data, such as statistics.
 
 The simplest way to store a dataset is with the following code:
 
@@ -111,7 +111,7 @@ The simplest way to store a dataset is with the following code:
 context.log_dataset(key='my_data', df=df)
 ```
 
-Where `key` is the the name of the artifact and `df` is the DataFrame. By default, MLRun will store a short preview of 20 lines. You can change the number of lines by using the `preview` parameter and setting it to a different value.
+Where `key` is the name of the artifact and `df` is the DataFrame. By default, MLRun will store a short preview of 20 lines. You can change the number of lines by using the `preview` parameter and setting it to a different value.
 
 MLRun will also calculate statistics on the DataFrame on all numeric fields. You can enable statistics regardless to the DataFrame size by setting the `stats` parameter to `True`.
 
@@ -138,7 +138,7 @@ def get_data(context: MLClientCtx, source_url: DataItem, format: str = 'csv'):
                         index=False, artifact_path=target_path)
 ```
 
-We can run this function locally or as a job. For example if we run it locally:
+We can run this function locally or as a job. For example, if we run it locally:
 
 ``` python
 from os import path

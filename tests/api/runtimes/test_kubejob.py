@@ -157,17 +157,37 @@ class TestKubejobRuntime(TestRuntimeBase):
         runtime.with_preemption_mode(PreemptionModes.prevent)
         self._execute_run(runtime)
         expected_affinity = k8s_client.V1Affinity(
-                node_affinity=k8s_client.V1NodeAffinity(
-                    required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
-                        node_selector_terms=compile_anti_affinity_by_label_selector_no_schedule_on_matching_nodes(),
-                    ),
+            node_affinity=k8s_client.V1NodeAffinity(
+                required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                    node_selector_terms=compile_anti_affinity_by_label_selector_no_schedule_on_matching_nodes(),
                 ),
-            )
+            ),
+        )
         self.assert_node_selection(affinity=expected_affinity)
 
-    def test_run_with_constrain_preemptible_mode(
-        self, db: Session, client: TestClient
-    ):
+        # tolerations are set, but expect to stay because those tolerations aren't configured as preemptible tolerations
+        runtime = self._generate_runtime()
+        runtime.with_node_selection(tolerations=self._generate_tolerations())
+        runtime.with_preemption_mode(PreemptionModes.prevent)
+        self._execute_run(runtime)
+        self.assert_node_selection(
+            affinity=expected_affinity, tolerations=self._generate_tolerations()
+        )
+
+        # set default preemptible tolerations
+        tolerations = self._generate_tolerations()
+        serialized_tolerations = self.k8s_api.sanitize_for_serialization(tolerations)
+        mlrun.mlconf.preemptible_nodes.tolerations = base64.b64encode(
+            json.dumps(serialized_tolerations).encode("utf-8")
+        )
+        # tolerations are set, expect preemptible tolerations to be removed and anti-affinity not to be set
+        runtime = self._generate_runtime()
+        runtime.with_node_selection(tolerations=self._generate_tolerations())
+        runtime.with_preemption_mode(PreemptionModes.prevent)
+        self._execute_run(runtime)
+        self.assert_node_selection(tolerations=tolerations)
+
+    def test_run_with_constrain_preemptible_mode(self, db: Session, client: TestClient):
         node_selector = self._generate_node_selector()
         mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
             json.dumps(node_selector).encode("utf-8")

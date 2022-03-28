@@ -509,6 +509,7 @@ class KubeResourceSpec(FunctionSpec):
             self._enrich_with_tolerations(mlconf.get_preemptible_tolerations())
             # TODO add gpu tolerations enrichment
             self._initialize_affinity()
+            self._initialize_node_affinity()
             # setting required_during_scheduling_ignored_during_execution
             # overriding other terms that have been set, and only setting terms for preemptible nodes
             # when having multiple terms, pod scheduling is succeeded if at least one term is satisfied
@@ -546,7 +547,7 @@ class KubeResourceSpec(FunctionSpec):
 
     def _initialize_node_affinity(self):
         if not self.affinity.node_affinity:
-            self.affinity.node_affinity = client.V1NodeAffinity
+            self.affinity.node_affinity = client.V1NodeAffinity()
 
     def _prune_affinity_node_selector_requirement(
         self,

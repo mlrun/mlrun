@@ -11,7 +11,11 @@ from sqlalchemy.orm import Session
 import mlrun.errors
 from mlrun.api.schemas import NodeSelectorOperator, PreemptionModes
 from mlrun.config import config as mlconf
-from mlrun.k8s_utils import compile_affinity_by_label_selector
+from mlrun.k8s_utils import (
+    compile_affinity_by_label_selector,
+    compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes,
+    compile_anti_affinity_by_label_selector_no_schedule_on_matching_nodes,
+)
 from mlrun.platforms import auto_mount
 from mlrun.runtimes.kubejob import KubejobRuntime
 from mlrun.runtimes.utils import generate_resources
@@ -144,10 +148,74 @@ class TestKubejobRuntime(TestRuntimeBase):
             expected_affinity=affinity,
         )
 
-    def test_run_with_constraint_preemptible_mode(
+    def test_run_with_prevent_preemptible_mode(self, db: Session, client: TestClient):
+        node_selector = self._generate_node_selector()
+        mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
+            json.dumps(node_selector).encode("utf-8")
+        )
+        runtime = self._generate_runtime()
+        runtime.with_preemption_mode(PreemptionModes.prevent)
+        self._execute_run(runtime)
+        expected_affinity = k8s_client.V1Affinity(
+                node_affinity=k8s_client.V1NodeAffinity(
+                    required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                        node_selector_terms=compile_anti_affinity_by_label_selector_no_schedule_on_matching_nodes(),
+                    ),
+                ),
+            )
+        self.assert_node_selection(affinity=expected_affinity)
+
+    def test_run_with_constrain_preemptible_mode(
         self, db: Session, client: TestClient
     ):
-        pass
+        node_selector = self._generate_node_selector()
+        mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
+            json.dumps(node_selector).encode("utf-8")
+        )
+        runtime = self._generate_runtime()
+        runtime.with_preemption_mode(PreemptionModes.constrain)
+        self._execute_run(runtime)
+        self.assert_node_selection(
+            affinity=k8s_client.V1Affinity(
+                node_affinity=k8s_client.V1NodeAffinity(
+                    required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                        node_selector_terms=compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes(),
+                    ),
+                ),
+            )
+        )
+        # set default preemptible tolerations
+        tolerations = self._generate_tolerations()
+        serialized_tolerations = self.k8s_api.sanitize_for_serialization(tolerations)
+        mlrun.mlconf.preemptible_nodes.tolerations = base64.b64encode(
+            json.dumps(serialized_tolerations).encode("utf-8")
+        )
+        runtime = self._generate_runtime()
+        runtime.with_preemption_mode(PreemptionModes.constrain)
+        self._execute_run(runtime)
+        self.assert_node_selection(
+            affinity=k8s_client.V1Affinity(
+                node_affinity=k8s_client.V1NodeAffinity(
+                    required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                        node_selector_terms=compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes(),
+                    ),
+                ),
+            ),
+            tolerations=tolerations,
+        )
+        # sets different affinity before, expects to override the required_during_scheduling_ignored_during_execution
+        runtime = self._generate_runtime()
+        runtime.with_node_selection(affinity=self._generate_affinity())
+        runtime.with_preemption_mode(PreemptionModes.constrain)
+        self._execute_run(runtime)
+        expected_affinity = self._generate_affinity()
+        expected_affinity.node_affinity.required_during_scheduling_ignored_during_execution = k8s_client.V1NodeSelector(
+            node_selector_terms=compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes(),
+        )
+        self.assert_node_selection(
+            affinity=expected_affinity,
+            tolerations=tolerations,
+        )
 
     def test_run_with_allow_preemptible_mode(self, db: Session, client: TestClient):
         node_selector = self._generate_node_selector()

@@ -671,10 +671,6 @@ def compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes() -> ty
     )
     for expression in affinity:
         node_selector_terms.append(
-            kubernetes.client.V1NodeSelectorTerm(
-                match_expressions=kubernetes.client.V1NodeSelectorRequirement(
-                    expression
-                )
-            )
+            kubernetes.client.V1NodeSelectorTerm(match_expressions=expression)
         )
     return node_selector_terms

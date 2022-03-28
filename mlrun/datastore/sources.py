@@ -478,7 +478,6 @@ class SnowflakeSource(BaseSourceDriver):
             "sfDatabase": self.database,
             "sfSchema": self.schema,
             "sfWarehouse": self.warehouse,
-            "application": f"Iguazio-{os.getenv('SNOWFLAKE_APPLICATION', 'application')}",
         }
 
 

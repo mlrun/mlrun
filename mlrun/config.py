@@ -70,7 +70,7 @@ default_config = {
     "igz_version": "",  # the version of the iguazio system the API is running on
     "iguazio_api_url": "",  # the url to iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
-    "spark_app_image_tag": "",  # image tag to use for spark opeartor app runtime
+    "spark_app_image_tag": "",  # image tag to use for spark operator app runtime
     "spark_history_server_path": "",  # spark logs directory for spark history server
     "spark_operator_version": "spark-2",  # the version of the spark operator in use
     "builder_alpine_image": "alpine:3.13.1",  # builder alpine image (as kaniko's initContainer)
@@ -422,7 +422,7 @@ class Config:
                 raise mlrun.errors.MLRunNotFoundError(
                     "Attribute does not exist in config"
                 )
-        # There is a bug in the installer component in iguazio system that causes the configrued value to be base64 of
+        # There is a bug in the installer component in iguazio system that causes the configured value to be base64 of
         # null (without conditioning it we will end up returning None instead of empty dict)
         if raw_attribute_value and raw_attribute_value != "bnVsbA==":
             try:

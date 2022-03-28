@@ -29,7 +29,7 @@ Read more in the [Feature Store Overview](../feature-store/feature-store.md), an
 
 Graphs are used for serving models with different transformations.
 
-To deploy a serving function you need to import or create the serving function, 
+To deploy a serving function, you need to import or create the serving function, 
 add models to it, and then deploy it.  
 
 ```python

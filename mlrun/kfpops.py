@@ -214,7 +214,7 @@ def mlrun_op(
     :param out_path: default output path/url (prefix) for artifacts
     :param rundb:    path for rundb (or use 'MLRUN_DBPATH' env instead)
     :param mode:     run mode, e.g. 'pass' for using the command without mlrun wrapper
-    :param handler   code entry-point/hanfler name
+    :param handler   code entry-point/handler name
     :param job_image name of the image user for the job
     :param verbose:  add verbose prints/logs
     :param scrape_metrics:  whether to add the `mlrun/scrape-metrics` label to this run's resources

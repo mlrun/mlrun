@@ -54,7 +54,7 @@ The MLRun feature store supports three processing engines (storey, pandas, spark
 (e.g. Notebook) for interactive development or in elastic serverless functions for production and scale.
 
 The data pipeline is defined using MLRun graph (DAG) language. Graph steps can be pre-defined operators 
-(such as aggregate, filter, encode, map, join, impute, etc) or custom python classes/functions. 
+(such as aggregate, filter, encode, map, join, impute, etc.) or custom python classes/functions. 
 Read more about the graph in [**Serving and Data Pipelines**](../serving/serving-graph.md).
 
 The `pandas` and `spark` engines are good for simple batch transformations, while the `storey` stream processing engine (the default engine)

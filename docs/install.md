@@ -18,7 +18,7 @@ See also important details about [MLRun client backward compatibility](#mlrun-cl
 on Windows or Mac, [Docker Desktop](https://www.docker.com/products/docker-desktop) is recommended. MLRun fully supports k8s releases up to, and including, 1.21.
 2. The Kubernetes command-line tool (kubectl) compatible with your Kubernetes cluster is installed. Refer to the [kubectl installation 
 instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more information.
-3. Helm CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
+3. Helm CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) and [sources](https://github.com/helm/helm/releases/) for more information.
 4. An accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret.
 
 > **Note:**

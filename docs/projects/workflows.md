@@ -138,7 +138,7 @@ Workflows are asynchronous by default, we can set the `watch` flag to True and t
 completion and print out the workflow progress, alternatively you can use `.wait_for_completion()` on the run object.
 
 The default workflow engine is `kfp`, we can override it by specifying the `engine` in the `run()` or `set_workflow()` methods,
-using the `local` engine will execute the workflow state machine loaclly (its functions will still run as cluster jobs).
+using the `local` engine will execute the workflow state machine locally (its functions will still run as cluster jobs).
 if we set the `local` flag to True the workflow will use the `local` engine AND the functions will will run as local process,
 this mode is used for local debugging of workflows.
 

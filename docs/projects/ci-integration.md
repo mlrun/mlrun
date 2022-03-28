@@ -11,7 +11,7 @@ local code (from the repository) with MLRun marketplace functions to build an au
 * deploy the model into a cluster
 * test the deployed model
 
-MLRun workflows can run inside the CI system, we will ususlly use the `mlrun project` CLI command to load the project 
+MLRun workflows can run inside the CI system, we will usually use the `mlrun project` CLI command to load the project 
 and run a workflow as part of a code update (e.g. pull request, etc.). The pipeline tasks will be executed on the Kubernetes cluster which is orchestrated by MLRun.
 
 See details:

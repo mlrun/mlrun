@@ -18,7 +18,7 @@ See also important details about [MLRun client backward compatibility](#mlrun-cl
 on Windows or Mac, [Docker Desktop](https://www.docker.com/products/docker-desktop) is recommended. MLRun fully supports k8s releases up to, and including, 1.21.
 2. The Kubernetes command-line tool (kubectl) compatible with your Kubernetes cluster is installed. Refer to the [kubectl installation 
 instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more information.
-3. Helm CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
+3. Helm CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) and [sources](https://github.com/helm/helm/releases/) for more information.
 4. An accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret.
 
 > **Note:**
@@ -201,16 +201,16 @@ Define your MLRun configuration. As a minimum requirement:
 
 2. To store the artifacts on the remote server, you need to set the `MLRUN_ARTIFACT_PATH` to the desired root folder of your 
 artifact. You can use template values in the artifact path. The supported values are:
-- `{{project}}` to include the project name in the path.
-- `{{run.uid}}` to include the specific run uid in the artifact path. 
+   - `{{project}}` to include the project name in the path.
+   - `{{run.uid}}` to include the specific run uid in the artifact path. 
 
-For example:
+   For example:
 
     ```ini
     MLRUN_ARTIFACT_PATH=/User/artifacts/{{project}}
     ```
     
-or:
+   or:
 
     ```ini
     MLRUN_ARTIFACT_PATH=/User/artifacts/{{project}}/{{run.uid}}
@@ -297,12 +297,12 @@ To use MLRun with your local Docker registry, run the MLRun API service, dashboa
 ```sh
 SHARED_DIR=~/mlrun-data
 
-docker pull mlrun/jupyter:0.10.0
-docker pull mlrun/mlrun-ui:0.10.0
+docker pull mlrun/jupyter:0.10.1
+docker pull mlrun/mlrun-ui:0.10.1
 
 docker network create mlrun-network
-docker run -it -p 8080:8080 -p 30040:8888 --rm -d --network mlrun-network --name jupyter -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.10.0
-docker run -it -p 30050:80 --rm -d --network mlrun-network --name mlrun-ui -e MLRUN_API_PROXY_URL=http://jupyter:8080 mlrun/mlrun-ui:0.10.0
+docker run -it -p 8080:8080 -p 30040:8888 --rm -d --network mlrun-network --name jupyter -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.10.1
+docker run -it -p 30050:80 --rm -d --network mlrun-network --name mlrun-ui -e MLRUN_API_PROXY_URL=http://jupyter:8080 mlrun/mlrun-ui:0.10.1
 ```
 
 When the execution completes:

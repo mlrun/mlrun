@@ -53,6 +53,8 @@ class TestRuntimeBase:
         self.azure_secret_value = "azure-secret-123!@"
         self.azure_vault_secret_name = "k8s-vault-secret"
 
+        self.k8s_api = k8s_client.ApiClient()
+
         self._logger.info(
             f"Setting up test {self.__class__.__name__}::{method.__name__}"
         )

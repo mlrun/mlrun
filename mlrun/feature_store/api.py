@@ -25,7 +25,7 @@ from ..data_types import InferOptions, get_infer_interface
 from ..datastore.sources import BaseSourceDriver, StreamSource
 from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
-    NoSqlTarget,
+    BaseStoreTarget,
     get_default_prefix_for_source,
     get_default_targets,
     get_target_driver,
@@ -714,7 +714,7 @@ def _ingest_with_spark(
     spark=None,
     featureset: Union[FeatureSet, str] = None,
     source: BaseSourceDriver = None,
-    targets: List[DataTargetBase] = None,
+    targets: List[BaseStoreTarget] = None,
     infer_options: InferOptions = InferOptions.default(),
     mlrun_context=None,
     namespace=None,

@@ -144,9 +144,12 @@ class TestKubejobRuntime(TestRuntimeBase):
             expected_affinity=affinity,
         )
 
-    def test_run_with_allow_preemptible_mode(self, db: Session, client: TestClient):
-        api = k8s_client.ApiClient()
+    def test_run_with_constraint_preemptible_mode(
+        self, db: Session, client: TestClient
+    ):
+        pass
 
+    def test_run_with_allow_preemptible_mode(self, db: Session, client: TestClient):
         node_selector = self._generate_node_selector()
         mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
             json.dumps(node_selector).encode("utf-8")
@@ -159,7 +162,7 @@ class TestKubejobRuntime(TestRuntimeBase):
 
         # set default preemptible tolerations
         tolerations = self._generate_tolerations()
-        serialized_tolerations = api.sanitize_for_serialization(tolerations)
+        serialized_tolerations = self.k8s_api.sanitize_for_serialization(tolerations)
         mlrun.mlconf.preemptible_nodes.tolerations = base64.b64encode(
             json.dumps(serialized_tolerations).encode("utf-8")
         )

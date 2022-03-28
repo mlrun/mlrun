@@ -617,7 +617,7 @@ def compile_affinity_by_label_selector(node_selector_operator: str):
     for (
         node_selector_key,
         node_selector_value,
-    ) in mlconfig.get_preemptible_node_selector():
+    ) in mlconfig.get_preemptible_node_selector().items():
         match_expressions.append(
             kubernetes.client.V1NodeSelectorRequirement(
                 key=node_selector_key,

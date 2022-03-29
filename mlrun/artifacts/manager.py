@@ -195,6 +195,7 @@ class ArtifactManager:
         link_iteration=0,
         link_key=None,
         link_tree=None,
+        db_key=None,
     ):
         if self.artifact_db:
             item = LinkArtifact(
@@ -206,7 +207,7 @@ class ArtifactManager:
             )
             item.tree = tree
             item.iter = iter
-            item.db_key = name + "_" + key
+            item.db_key = db_key or (name + "_" + key)
             self.artifact_db.store_artifact(
                 item.db_key,
                 item.to_dict(),

@@ -420,7 +420,7 @@ class KubeResourceSpec(FunctionSpec):
             return {}
         return resources
 
-    def enrich_with_node_selectors(self, node_selector: typing.Dict[str, str]):
+    def _enrich_with_node_selectors(self, node_selector: typing.Dict[str, str]):
         if not node_selector:
             return
 

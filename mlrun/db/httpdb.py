@@ -338,6 +338,18 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("default_tensorboard_logs_path")
                 or config.default_tensorboard_logs_path
             )
+            config.default_preemption_mode = (
+                server_cfg.get("default_preemption_mode")
+                or config.default_preemption_mode
+            )
+            config.preemptible_nodes.node_selector = (
+                server_cfg.get("preemptible_nodes_node_selector")
+                or config.preemptible_nodes.node_selector
+            )
+            config.preemptible_nodes.tolerations = (
+                server_cfg.get("preemptible_nodes_tolerations")
+                or config.preemptible_nodes.tolerations
+            )
 
         except Exception as exc:
             logger.warning(

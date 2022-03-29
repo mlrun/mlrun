@@ -9,10 +9,10 @@ from mlrun.features import Feature, Validator
 from tests.system.base import TestMLRunSystem
 
 
-# Without enterprise functions (without v3io mount and pipelines)
 @TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
 class TestFeatureValidator(TestMLRunSystem):
-    def validator_types(self):
+    def test_validator_types(self):
         for validator in self._validators_check_type.keys():
             for test_state, test_value in self._validators_check_type[validator]:
                 feature = Feature(validator)
@@ -22,9 +22,7 @@ class TestFeatureValidator(TestMLRunSystem):
                 ok, result = feature.validator.check(test_value)
                 assert ok == test_state, f"Check type error, result:{result}"
 
-    @TestMLRunSystem.skip_test_if_env_not_configured
-    @pytest.mark.enterprise
-    def feature_set_entities(self):
+    def test_feature_set_entities(self):
         # Test add entities with different syntax names, types and descriptions
         # (including featureset save)
         featureset_name = "testset_entities"
@@ -83,9 +81,7 @@ class TestFeatureValidator(TestMLRunSystem):
             )
         delete_feature_set(featureset_name)
 
-    @TestMLRunSystem.skip_test_if_env_not_configured
-    @pytest.mark.enterprise
-    def feature_set_features(self):
+    def test_feature_set_features(self):
         # Test add features with different syntax names, types and descriptions
         # (including featureset save)
         featureset_name = "testset_features"

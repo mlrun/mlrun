@@ -148,6 +148,47 @@ class TestKubejobRuntime(TestRuntimeBase):
             expected_affinity=affinity,
         )
 
+    def test_change_preemptible_modes_between_runs(
+        self, db: Session, client: TestClient
+    ):
+        node_selector = self._generate_node_selector()
+        mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
+            json.dumps(node_selector).encode("utf-8")
+        )
+        runtime = self._generate_runtime()
+        runtime.with_preemption_mode(PreemptionModes.prevent)
+        self._execute_run(runtime)
+        expected_anti_affinity = k8s_client.V1Affinity(
+            node_affinity=k8s_client.V1NodeAffinity(
+                required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                    node_selector_terms=compile_anti_affinity_by_label_selector_no_schedule_on_matching_nodes(),
+                ),
+            ),
+        )
+        self.assert_node_selection(affinity=expected_anti_affinity)
+        # set anti affinity (simulates runtime that had prevent mode)
+        runtime.with_node_selection(affinity=expected_anti_affinity)
+        runtime.with_preemption_mode(PreemptionModes.constrain)
+        expected_affinity = k8s_client.V1Affinity(
+            node_affinity=k8s_client.V1NodeAffinity(
+                required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                    node_selector_terms=compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes(),
+                ),
+            ),
+        )
+        self._execute_run(runtime)
+        self.assert_node_selection(affinity=expected_affinity)
+
+        runtime.with_preemption_mode(PreemptionModes.allow)
+        self._execute_run(runtime)
+        self.assert_node_selection(
+            affinity=k8s_client.V1Affinity(
+                node_affinity=k8s_client.V1NodeAffinity(
+                    required_during_scheduling_ignored_during_execution=None
+                ),
+            )
+        )
+
     def test_run_with_prevent_preemptible_mode(self, db: Session, client: TestClient):
         node_selector = self._generate_node_selector()
         mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(

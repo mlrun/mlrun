@@ -3,7 +3,7 @@ from pathlib import Path
 import mlrun
 import mlrun.feature_store as fs
 from mlrun import code_to_function, v3io_cred
-from mlrun.api.crud.secrets import Secrets
+from mlrun.api.crud.secrets import Secrets, SecretsClientType
 from mlrun.config import config
 from mlrun.model_monitoring.stream_processing_fs import EventStreamProcessor
 
@@ -46,7 +46,9 @@ def get_model_monitoring_stream_processing_function(
     function.set_env_from_secret(
         "MODEL_MONITORING_ACCESS_KEY",
         mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
-        Secrets().generate_model_monitoring_secret_key("MODEL_MONITORING_ACCESS_KEY"),
+        Secrets().generate_client_secret_key(
+            SecretsClientType.model_monitoring, "MODEL_MONITORING_ACCESS_KEY"
+        ),
     )
 
     run_config = fs.RunConfig(function=function, local=False)

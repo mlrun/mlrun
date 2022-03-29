@@ -147,5 +147,3 @@ quotes_set.graph.add_step("MyMap", "multi", after="filter", multiplier=3)
 
 This uses the `add_step` function of the graph to add a step called `multi` utilizing `MyMap` after the `filter` step 
 that was added previously. The class is initialized with a multiplier of 3.
-
-

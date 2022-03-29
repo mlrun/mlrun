@@ -101,6 +101,7 @@ class DaskSpec(KubeResourceSpec):
         disable_auto_mount=False,
         pythonpath=None,
         workdir=None,
+        tolerations=None,
     ):
 
         super().__init__(
@@ -127,6 +128,7 @@ class DaskSpec(KubeResourceSpec):
             disable_auto_mount=disable_auto_mount,
             pythonpath=pythonpath,
             workdir=workdir,
+            tolerations=tolerations,
         )
         self.args = args
 
@@ -292,13 +294,11 @@ class DaskCluster(KubejobRuntime):
 
         try:
             client = default_client()
+            # shutdown the cluster first, then close the client
+            client.shutdown()
             client.close()
         except ValueError:
             pass
-
-        # meta = self.metadata
-        # s = get_func_selector(meta.project, meta.name, meta.tag)
-        # clean_objects(s, running)
 
     def get_status(self):
         meta = self.metadata

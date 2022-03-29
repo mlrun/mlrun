@@ -155,6 +155,14 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
                         ]
                     },
                 },
+                "tolerations": [
+                    {
+                        "key": "key1",
+                        "operator": "value1",
+                        "effect": "NoSchedule",
+                        "tolerationSeconds": 3600,
+                    }
+                ],
             },
         },
     }
@@ -207,8 +215,16 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
     )
     assert (
         DeepDiff(
-            parsed_function_object.spec._get_sanitized_affinity(),
+            parsed_function_object.spec._get_sanitized_attribute("affinity"),
             submit_job_body["function"]["spec"]["affinity"],
+            ignore_order=True,
+        )
+        == {}
+    )
+    assert (
+        DeepDiff(
+            parsed_function_object.spec._get_sanitized_attribute("tolerations"),
+            submit_job_body["function"]["spec"]["tolerations"],
             ignore_order=True,
         )
         == {}

@@ -1,7 +1,7 @@
 (datastore)=
 # Data stores
 
-**IN this section**
+**In this section**
 - [Shared data stores](#shared-data-stores)
 - [Storage credentials and parameters](#storage-credentials-and-parameters)
    - [v3io](#v3io)
@@ -20,8 +20,7 @@ Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`)
 * **az** &mdash; Azure Blob storage, format: `az://<bucket>/path/to/file`
 * **gs, gcs** &mdash; Google Cloud Storage objects, format: `gs://<bucket>/path/to/file`
 * **store** &mdash; MLRun versioned artifacts [(see Artifacts)](./artifacts.md), format: `store://artifacts/<project>/<artifact-name>[:tag]`
-* **memory** &mdash; in memory data registry for passing data within the same process, format `memory://key`, 
-  use `mlrun.datastore.set_in_memory_item(key, value)` to register in memory data items (byte buffers or DataFrames).
+* **memory** &mdash; in memory data registry for passing data within the same process, format `memory://key`, use `mlrun.datastore.set_in_memory_item(key, value)` to register in memory data items (byte buffers or DataFrames).
 
 ## Storage credentials and parameters
 Data stores might require connection credentials. These can be provided through environment variables 

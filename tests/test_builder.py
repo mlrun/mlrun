@@ -254,6 +254,59 @@ def test_build_runtime_use_default_node_selector(monkeypatch):
     )
 
 
+def test_function_build_with_attributes_from_spec(monkeypatch):
+    get_k8s_helper_mock = unittest.mock.Mock()
+    monkeypatch.setattr(
+        mlrun.builder, "get_k8s_helper", lambda *args, **kwargs: get_k8s_helper_mock
+    )
+    mlrun.builder.get_k8s_helper().create_pod = unittest.mock.Mock(
+        side_effect=lambda pod: (pod, "some-namespace")
+    )
+    mlrun.mlconf.httpdb.builder.docker_registry = "registry.hub.docker.com/username"
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind="job",
+        requirements=["some-package"],
+    )
+    node_selector = {
+        "label-1": "val1",
+        "label-2": "val2",
+    }
+    node_name = "node_test"
+    priority_class_name = "test-priority"
+
+    function.spec.node_name = node_name
+    function.spec.node_selector = node_selector
+    function.spec.priority_class_name = priority_class_name
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    assert (
+        deepdiff.DeepDiff(
+            _create_pod_mock_pod_spec().node_name, node_name, ignore_order=True
+        )
+        == {}
+    )
+    assert (
+        deepdiff.DeepDiff(
+            _create_pod_mock_pod_spec().node_selector, node_selector, ignore_order=True
+        )
+        == {}
+    )
+    assert (
+        deepdiff.DeepDiff(
+            _create_pod_mock_pod_spec().priority_class_name,
+            priority_class_name,
+            ignore_order=True,
+        )
+        == {}
+    )
+
+
 def test_resolve_mlrun_install_command():
     pip_command = "python -m pip install"
     cases = [

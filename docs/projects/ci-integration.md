@@ -1,45 +1,33 @@
 
-## Github/Gitlab and CI/CD Integration
+# Github/Gitlab and CI/CD integration
 
-Users may want to run their ML Pipelines using CI frameworks like Github Actions, GitLab CI/CD, etc.
-MLRun support simple and native integration with the CI systems, users can implement workflows which we combine 
-local code (from the repository) with MLRun marketplace functions to build an automated ML pipeline which:
+MLRun workflows can run inside the CI system. The most common method is to use the CLI command  `mlrun project` to load the project 
+and run a workflow as part of a code update (e.g. pull request, etc.). The pipeline tasks are executed on the Kubernetes cluster, which is orchestrated by MLRun.
 
-* runs data preparation
-* train a model
-* test the trained model
-* deploy the model into a cluster
-* test the deployed model
+When MLRun is executed inside a [GitHub Action](https://docs.github.com/en/actions) or [GitLab CI/CD](https://docs.gitlab.com/ee/ci/) 
+pipeline it detects the environment attributes automatically 
+(e.g. repo, commit id, etc.). In addition, a few environment variables and credentials must be set:
 
-MLRun workflows can run inside the CI system, we will usually use the `mlrun project` CLI command to load the project 
-and run a workflow as part of a code update (e.g. pull request, etc.). The pipeline tasks will be executed on the Kubernetes cluster which is orchestrated by MLRun.
+* **MLRUN_DBPATH** &mdash; url of the MLRun cluster.
+* **V3IO_USERNAME** &mdash; username in the remote Iguazio cluster.
+* **V3IO_ACCESS_KEY** &mdash; access key to the remote Iguazio cluster.
+* **GIT_TOKEN** or **GITHUB_TOKEN** &mdash; Github/Gitlab API token (set automatically in Github Actions).
+* **SLACK_WEBHOOK** &mdash; optional. Slack API key when using slack notifications.
 
-See details:
-* [**Using GitHub Actions**](#using-github-actions)
-* [**Using GitLab CI/CD**](#using-gitlab-ci-cd)
-
-When MLRun is executed inside a [GitHub Actions](https://docs.github.com/en/actions) or [GitLab CI/CD](https://docs.gitlab.com/ee/ci/) pipeline it will detect the environment attributes automatically 
-(e.g. repo, commit id, etc..), in addition few environment variables and credentials must be set.
-
-* **MLRUN_DBPATH** - url of the mlrun cluster
-* **V3IO_USERNAME** - username in the remote iguazio cluster
-* **V3IO_ACCESS_KEY** - access key to the remote iguazio cluster
-* **GIT_TOKEN** or **GITHUB_TOKEN** - Github/Gitlab API Token (will be set automatically in Github Actions)
-* **SLACK_WEBHOOK** - optional, Slack API key when using slack notifications
-
-When the workflow runs inside the Git CI system it will report the pipeline progress and results back into the Git tracking system
-
-**The results will appear in the CI system in the following way:**
+When the workflow runs inside the Git CI system it reports the pipeline progress and results back into the Git tracking system, similar to:
 
 <img src="../_static/images/git-pipeline.png" alt="mlrun-architecture" width="800"/><br>
 
+**Contents**
+* [**Using GitHub Actions**](#using-github-actions)
+* [**Using GitLab CI/CD**](#using-gitlab-ci-cd)
 
-### Using GitHub Actions
+## Using GitHub Actions
 
-when running using [GitHub Actions](https://docs.github.com/en/actions) the user need to set the credentials/secrets 
-and add a script under the `.github/workflows/` directory which will be executed when code is commited/pushed.
+When running using [GitHub Actions](https://docs.github.com/en/actions) you need to set the credentials/secrets 
+and add a script under the `.github/workflows/` directory, which is executed when the code is commited/pushed.
 
-Example script, will be invoked when we add the comment "/run" to our pull request:
+Example script that is invoked when you add the comment "/run" to your pull request:
 
 ```yaml
 name: mlrun-project-workflow
@@ -75,12 +63,12 @@ jobs:
 See the full example in [**https://github.com/mlrun/project-demo**](https://github.com/mlrun/project-demo)
 
 
-### Using GitLab CI/CD
+## Using GitLab CI/CD
 
-when running using [GitLab CI/CD](https://docs.gitlab.com/ee/ci/) the user need to set the credentials/secrets 
-and update the script `.gitlab-ci.yml` directory which will be executed when code is commited/pushed.
+When running using [GitLab CI/CD](https://docs.gitlab.com/ee/ci/) you need to set the credentials/secrets 
+and update the script `.gitlab-ci.yml` directory, which is executed when code is commited/pushed.
 
-Example script, will be invoked when we create a pull request (merge requests):
+Example script that is invoked when you create a pull request (merge requests):
 
 ```yaml
 image: mlrun/mlrun

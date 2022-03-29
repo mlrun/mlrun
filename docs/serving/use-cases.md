@@ -2,7 +2,7 @@
 
 <!-- ## Data preparation, ## Model serving -->
 
-This section presents:
+**In this section**
 * [Data and feature engineering](#Data-and-feature-engineering-using-the-feature-store)
 * [Example of Simple model serving router](#example-of-a-simple-model-serving-router)
 * [Example of Advanced data processing and serving ensemble](#example-of-advanced-data-processing-and-serving-ensemble)

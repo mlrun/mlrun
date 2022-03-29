@@ -1,29 +1,30 @@
 # MLRun Functions Marketplace  <!-- omit in toc -->
 
+**In this section**
 - [Overview](#overview)
 - [Functions Marketplace](#functions-marketplace)
 - [Searching for functions](#searching-for-functions)
 - [Setting the project configuration](#setting-the-project-configuration)
-- [Loading function from the marketplace](#loading-function-from-the-marketplace)
+- [Loading functions from the marketplace](#loading-functions-from-the-marketplace)
 - [View the function params](#view-the-function-params)
 - [Running the function](#running-the-function)
 
 ## Overview
 
-In this tutorial we'll demonstrate how to import a function from the marketplace into your own project and provide some basic instructions of how to run the function and view their results.
+This tutorial demonstrates how to import a function from the marketplace into your project, and provides some basic instructions on how to run the function and view their results.
 
 ## Functions Marketplace
 
 MLRun marketplace has a wide range of functions that can be used for a variety of use cases.
-In the marketplace there are functions for ETL, data preparation, training (ML & Deep learning), serving, alerts and notifications and etc..
-Each function has a docstring that explains how to use it and in addition the functions are associated with categories to make it easier for the user to find the relevant one.
+There are functions for ETL, data preparation, training (ML & Deep learning), serving, alerts and notifications and more.
+Each function has a docstring that explains how to use it. In addition, the functions are associated with categories to make it easier for you to find the relevant one.
 
 Functions can be easily imported into your project and therefore help users to speed up their development cycle by reusing built-in code.
 
 ## Searching for functions
 
-The Marketplace is stored in this GitHub repo: <https://github.com/mlrun/functions> <br>
-In the README file you can view the list of functions in the marketplace and their categories.
+The Marketplace is stored in this GitHub repo: <https://github.com/mlrun/functions>. <br>
+See the README file for the list of functions in the marketplace and their categories.
 
 ## Setting the project configuration
 
@@ -55,28 +56,28 @@ mlconf.dbpath = mlconf.dbpath or 'http://mlrun-api:8080'
 print(f'Artifacts path: {artifact_path}\nMLRun DB path: {mlconf.dbpath}')
 ```
 
-## Loading function from the marketplace
+## Loading functions from the Marketplace
 
-Loading functions is done by running `project.set_function` <br>
-`set_function` updates or adds a function object to the project
+Run `project.set_function` to load a functions.<br>
+`set_function` updates or adds a function object to the project.
 
 `set_function(func, name='', kind='', image=None, with_repo=None)`
 
 Parameters:
 
-- **func** – function object or spec/code url
-- **name** – name of the function (under the project)
-- **kind** – runtime kind e.g. job, nuclio, spark, dask, mpijob default: job
-- **image** – docker image to be used, can also be specified in the function object/yaml
-- **with_repo** – add (clone) the current repo to the build source
+- **func** &mdash; function object or spec/code url.
+- **name** &mdash; name of the function (under the project).
+- **kind** &mdash; runtime kind e.g. job, nuclio, spark, dask, mpijob. Default: job.
+- **image** &mdash; docker image to be used, can also be specified in the function object/yaml.
+- **with_repo** &mdash; add (clone) the current repo to the build source.
 
 Returns: project object
 
 For more information see the [`set_function` API documentation](api/mlrun.projects.html#mlrun.projects.MlrunProject.set_function).
 
-### Load function Example  <!-- omit in toc -->
+### Load function example  <!-- omit in toc -->
 
-In this example we load the describe function. this function analyze a csv or parquet file for data analysis
+This example loads the describe function. This function analyzes a csv or parquet file for data analysis.
 
 ```python
 project.set_function('hub://describe', 'describe')
@@ -90,7 +91,7 @@ my_describe = project.func('describe')
 
 ## View the function params
 
-In order to view the parameters run the function with .doc()
+To view the parameters, run the function with .doc():
 
 ```python
 my_describe.doc()
@@ -117,10 +118,10 @@ Use the `run` method to to run the function.
 
 When working with functions pay attention to the following:
 
-- Input vs params - for sending data items to a function, users should send it via "inputs" and not as params.
-- Working with artifacts - Artifacts from each run are stored in the artifact_path which can be set globally through environment variable (MLRUN_ARTIFACT_PATH) or through the config, if its not already set we can create a directory and use it in our runs. Using {{run.uid}} in the path will allow us to create a unique directory per run, when we use pipelines we can use the {{workflow.uid}} template option.
+- Input vs. params &mdash; for sending data items to a function, send it via "inputs" and not as params.
+- Working with artifacts &mdash; Artifacts from each run are stored in the `artifact_path`, which can be set globally with the environment variable (MLRUN_ARTIFACT_PATH) or with the config. If it's not already set you can create a directory and use it in the runs. Using `{{run.uid}}` in the path creates a unique directory per run. When using pipelines you can use the `{{workflow.uid}}` template option.
 
-In this example we run the describe function. this function analyze a dataset (in our case it's a csv file) and generate html files (e.g. correlation, histogram) and save them under the artifact path
+This example runs the describe function. This function analyzes a dataset (in this case it's a csv file) and generates HTML files (e.g. correlation, histogram) and saves them under the artifact path.
 
 ```python
 DATA_URL = 'https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv'
@@ -143,5 +144,5 @@ my_describe.run(name='describe',
 
 There are few options to view the outputs of the jobs we ran:
 
-- In Jupyter - the result of the job is displayed in Jupyter notebook. Note that when you click on the artifacts it displays its content in Jupyter.
-- UI - going to the MLRun UI, under the project name, you can view the job that was running as well as the artifacts it was generating
+- In Jupyter the result of the job is displayed in the Jupyter notebook. When you click on the artifacts it displays its content in Jupyter.
+- In the MLRun UI, under the project name, you can view the job that was running as well as the artifacts it generated.

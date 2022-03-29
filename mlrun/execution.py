@@ -549,6 +549,7 @@ class MLClientCtx(object):
                     self.iteration,
                     a["target_path"],
                     link_iteration=best,
+                    db_key=a["db_key"],
                 )
 
         if summary is not None:

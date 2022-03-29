@@ -312,7 +312,6 @@ class KubeResourceSpec(FunctionSpec):
 
     @staticmethod
     def _resolve_if_type_sanitized(attribute_name, attribute):
-        print(attribute)
         attribute_config = sanitized_attributes[attribute_name]
         # heuristic - if one of the keys contains _ as part of the dict it means to_dict on the kubernetes
         # object performed, there's nothing we can do at that point to transform it to the sanitized version

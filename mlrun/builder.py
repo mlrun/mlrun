@@ -104,6 +104,9 @@ def make_kaniko_pod(
     if verbose:
         args += ["--verbosity", "debug"]
 
+    # While requests mainly affect scheduling, setting a limit may prevent Kaniko
+    # from finishing successfully (destructive), since we're not allowing to override the default
+    # specifically for the Kaniko pod, we're setting only the requests
     resources = {
         "requests": config.get_default_function_pod_requirement_resources("requests")
     }

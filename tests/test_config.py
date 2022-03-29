@@ -26,9 +26,15 @@ from mlrun import config as mlconf
 from mlrun.db.httpdb import HTTPRunDB
 
 ns_env_key = f"{mlconf.env_prefix}NAMESPACE"
-dfpr_env_key = f"{mlconf.env_prefix}DEFAULT_FUNCTION_POD_RESOURCES__"
-request_gpu_env_key = f"{dfpr_env_key}REQUESTS__GPU"
-limits_gpu_env_key = f"{dfpr_env_key}LIMITS__GPU"
+default_function_pod_resources_env_key = (
+    f"{mlconf.env_prefix}DEFAULT_FUNCTION_POD_RESOURCES__"
+)
+default_function_pod_resources_request_gpu_env_key = (
+    f"{default_function_pod_resources_env_key}REQUESTS__GPU"
+)
+default_function_pod_resources_limits_gpu_env_key = (
+    f"{default_function_pod_resources_env_key}LIMITS__GPU"
+)
 
 
 @pytest.fixture
@@ -148,7 +154,10 @@ def test_decode_base64_config_and_load_to_dict():
 def test_get_default_function_pod_resources(config):
     requests_gpu = "2"
     limits_gpu = "2"
-    env = {request_gpu_env_key: requests_gpu, limits_gpu_env_key: limits_gpu}
+    env = {
+        default_function_pod_resources_request_gpu_env_key: requests_gpu,
+        default_function_pod_resources_limits_gpu_env_key: limits_gpu,
+    }
     expected_resources = {
         "requests": {"cpu": None, "memory": None, "nvidia.com/gpu": requests_gpu},
         "limits": {"cpu": None, "memory": None, "nvidia.com/gpu": limits_gpu},
@@ -194,14 +203,17 @@ def test_gpu_validation(config):
     # when gpu requests and gpu limits are not equal
     requests_gpu = "3"
     limits_gpu = "2"
-    env = {request_gpu_env_key: requests_gpu, limits_gpu_env_key: limits_gpu}
+    env = {
+        default_function_pod_resources_request_gpu_env_key: requests_gpu,
+        default_function_pod_resources_limits_gpu_env_key: limits_gpu,
+    }
     with patch_env(env):
         with pytest.raises(mlrun.errors.MLRunConflictError):
             mlconf.config.reload()
 
     # when only gpu request is set
     requests_gpu = "3"
-    env = {request_gpu_env_key: requests_gpu}
+    env = {default_function_pod_resources_request_gpu_env_key: requests_gpu}
     with patch_env(env):
         with pytest.raises(mlrun.errors.MLRunConflictError):
             mlconf.config.reload()
@@ -209,7 +221,10 @@ def test_gpu_validation(config):
     # when gpu requests and gpu limits are equal
     requests_gpu = "2"
     limits_gpu = "2"
-    env = {request_gpu_env_key: requests_gpu, limits_gpu_env_key: limits_gpu}
+    env = {
+        default_function_pod_resources_request_gpu_env_key: requests_gpu,
+        default_function_pod_resources_limits_gpu_env_key: limits_gpu,
+    }
     with patch_env(env):
         mlconf.config.reload()
     assert config.default_function_pod_resources.requests.gpu == requests_gpu

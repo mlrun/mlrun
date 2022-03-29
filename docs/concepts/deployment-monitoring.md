@@ -1,5 +1,11 @@
 # Deployment and monitoring
 
+**In this section**
+- [Real-time pipelines](#real-time-pipelines)
+- [Model serving](#model-serving)
+- [Model monitoring](#model-monitoring)
+- [CI/CD and automation](#ci-cd-and-automation)
+
 ## Real-time pipelines
 
 MLRun graphs enable building and running DAGs (directed acyclic graphs). Graphs are composed of individual steps. The first graph element accepts an Event object, transforms/processes the event and passes the result to the next step in the graph. The final result can be written out to some destination (file, DB, stream, etc.) or returned back to the caller (one of the graph steps can be marked with `.respond()`).
@@ -14,7 +20,7 @@ MLRun graph capabilities include:
 
 The serving graphs are used by [MLRun’s Feature Store](../feature-store/feature-store) to build real-time feature engineering pipelines. 
 
-Read more about [Real-time serving pipelines (graphs)](../serving/serving-graph).
+See full details and examples in [Real-time serving pipelines (graphs)](../serving/serving-graph).
 
 ## Model serving
 
@@ -27,7 +33,7 @@ handle any type of structured or unstructured data, and run complex computation 
 
 Graphs are used to deploy and serve ML/DL models. Graphs can be deployed into a production serverless pipeline with a single command. 
 
-Read more about [model serving using the graphs](../serving/build-graph-model-serving).
+See full details and examples in [model serving using the graphs](../serving/build-graph-model-serving).
 
 
 ## Model monitoring
@@ -36,7 +42,7 @@ Model performance monitoring is a basic operational task that is implemented aft
 - Monitors your models in production, and identifies and mitigates drift on the fly.
 - Detects model drift based on feature drift via the integrated feature store, and auto-triggers retraining.
 
-See full details in [Model monitoring](../model_monitoring/index).
+See full details and examples in [Model monitoring](../model_monitoring/index).
 
 
 ## CI/CD and automation
@@ -51,4 +57,4 @@ with the CI systems.
 - Extensive function marketplace 
 
 
-See full details in [Github/Gitlab and CI/CD Integration](../projects/ci-integration)
+See full details and examples in [Github/Gitlab and CI/CD Integration](../projects/ci-integration).

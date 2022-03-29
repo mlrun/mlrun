@@ -11,9 +11,9 @@ parameters, secrets and artifacts by name.
 
 Projects can also be loaded and workflows/pipelines can be executed using the CLI (using `mlrun project` command).
 
-**Contents**
-- [**Updating and using project functions**](#updating-and-using-project-functions)
-- [**Run, Build, and Deploy functions**](#run-build-and-deploy-functions)
+**In this section**
+- [Updating and using project functions](#updating-and-using-project-functions)
+- [Run, Build, and Deploy functions](#run-build-and-deploy-functions)
 
 
 ## Updating and using project functions

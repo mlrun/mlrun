@@ -30,7 +30,7 @@ use-cases
 realtime-pipelines
 writing-custom-steps
 available-steps
-best-practice
+<!--- best-practice --->
 demos
 graph-ha-cfg
 ```

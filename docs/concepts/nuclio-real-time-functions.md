@@ -17,3 +17,15 @@ more about how Nuclio works, see the Nuclio architecture [documentation](https:/
 Nuclio is secure: Nuclio is integrated with Kaniko to allow a secure and production-ready way of building Docker images at run time.
 
 Read more in the [Nuclio documentation](https://nuclio.io/docs/latest/) and the open-source [MLRun library](https://github.com/mlrun/mlrun).
+
+## Why another "serverless" project?
+None of the existing cloud and open-source serverless solutions addressed all the desired capabilities of a serverless framework:
+
+- Real-time processing with minimal CPU/GPU and I/O overhead and maximum parallelism
+- Native integration with a large variety of data sources, triggers, processing models, and ML frameworks
+- Stateful functions with data-path acceleration
+- Simple debugging, regression testing, and multi-versioned CI/CD pipelines
+- Portability across low-power devices, laptops, edge and on-prem clusters, and public clouds
+- Open-source but designed for the enterprise (including logging, monitoring, security, and usability)
+
+Nuclio was created to fulfill these requirements. It was intentionally designed as an extendable open-source framework, using a modular and layered approach that supports constant addition of triggers and data sources, with the hope that many will join the effort of developing new modules, developer tools, and platforms for Nuclio.

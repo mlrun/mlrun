@@ -6,7 +6,7 @@ MLRun provides some facilities that allow handling secrets and passing those sec
 important to understand how these facilities work, as this has implications on the level of security they provide
 and how much exposure they create for your secrets.
 
-**Contents**
+**In this section**
 - [Overview](#overview)
 - [Secret providers](#secret-propviders)
    - [Inline](#inline)

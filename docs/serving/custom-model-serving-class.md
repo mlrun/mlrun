@@ -19,7 +19,7 @@ You can override additional methods : `preprocess`, `validate`, `postprocess`, `
 You can add a custom api endpoint by adding method `op_xx(event)`. Invoke it by
 calling the <model-url>/xx (operation = xx).
     
-This section presents:
+**In this section**
 * [Minimal sklearn serving function example](#minimal-sklearn-serving-function-example)
 * [load() method](#load-method)
 * [predict() method](#predict-method)

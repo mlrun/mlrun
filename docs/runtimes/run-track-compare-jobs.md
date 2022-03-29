@@ -3,13 +3,14 @@
 
 **In this section**
 ```{toctree}
-:maxdepth: 1
-
+:maxdepth: 2
 
 run-simple-jobs
-mlrun_jobs
 ../hyper-params
-run-context-logging-tracking
-track-results-artifacts
-compare-runs-artifacts
+mlrun_jobs
+<!-- track-results-artifacts
+compare-runs-artifacts --?
 ```
+
+See also:
+- [Automated Logging and MLOps with apply_mlrun()](../concepts/auto-logging-mlops)

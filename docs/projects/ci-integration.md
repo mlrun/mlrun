@@ -1,5 +1,5 @@
 
-## Github/Gitlab and CI/CD integration
+# Github/Gitlab and CI/CD integration
 
 MLRun workflows can run inside the CI system. The most common method is to use the CLI command  `mlrun project` to load the project 
 and run a workflow as part of a code update (e.g. pull request, etc.). The pipeline tasks are executed on the Kubernetes cluster, which is orchestrated by MLRun.
@@ -22,7 +22,7 @@ When the workflow runs inside the Git CI system it reports the pipeline progress
 * [**Using GitHub Actions**](#using-github-actions)
 * [**Using GitLab CI/CD**](#using-gitlab-ci-cd)
 
-### Using GitHub Actions
+## Using GitHub Actions
 
 When running using [GitHub Actions](https://docs.github.com/en/actions) you need to set the credentials/secrets 
 and add a script under the `.github/workflows/` directory, which is executed when the code is commited/pushed.
@@ -63,7 +63,7 @@ jobs:
 See the full example in [**https://github.com/mlrun/project-demo**](https://github.com/mlrun/project-demo)
 
 
-### Using GitLab CI/CD
+## Using GitLab CI/CD
 
 When running using [GitLab CI/CD](https://docs.gitlab.com/ee/ci/) you need to set the credentials/secrets 
 and update the script `.gitlab-ci.yml` directory, which is executed when code is commited/pushed.

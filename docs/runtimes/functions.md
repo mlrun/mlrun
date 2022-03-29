@@ -9,7 +9,7 @@
 using-functions
 mlrun_code_annotations
 code-archive
-resource-allocation-cfg
+<!--- resource-allocation-cfg --->
 function-storage
 load-from-marketplace
 images

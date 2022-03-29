@@ -1,12 +1,11 @@
 # CI/CD, rolling upgrades, git
 
 
-
 **In this section**
 ```{toctree}
-:maxdepth: 1
+:maxdepth: 2
 
-git-based-development-flow
+<!-- git-based-development-flow -->
 ../projects/ci-integration
-rolling-upgrades
+<!-- rolling-upgrades -->
 ``` 

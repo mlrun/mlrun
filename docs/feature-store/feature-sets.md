@@ -15,7 +15,7 @@ The feature set object contains the following information:
 - **Target stores**&mdash;The type (i.e. parquet/csv or key value), location and status for the feature set materialized data. 
 - **Function**&mdash;The type (storey, pandas, spark) and attributes of the data pipeline serverless functions.
 
-**Contents**
+**In this section**
 - [Create a Feature Set](#create-a-feature-set)
 - [Add transformations](#add-transformations)
 - [Simulate and debug the data pipeline with a small dataset](#simulate-the-data-pipeline-with-a-small-dataset)
@@ -114,7 +114,7 @@ print(quotes_set.get_stats_table())
 
 ## Ingest data into the Feature Store
 
-Define the source and material targets, and start the ingestion process (as [local process](#ingest-data-locally), [remote job](#ingest-data-using-an-mlrun-job), or [real-time ingestion](real-time-ingestion)).
+Define the source and material targets, and start the ingestion process (as [local process](#ingest-data-locally), [remote job](#ingest-data-using-an-mlrun-job), or [Real-time ingestion](#real-time-ingestion)).
 
 Data can be ingested as a batch process either by running the ingest command on demand or as a scheduled job. Batch ingestion 
 can be done locally (i.e. running as a python process in the Jupyter pod) or as an MLRun job.

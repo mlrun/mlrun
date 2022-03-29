@@ -35,6 +35,11 @@ UI, where the full graph can be seen and specific step properties can be observe
 For a full end-to-end example of feature-store and usage of the functionality described in this page, refer
 to the [feature store example](./basic-demo).
 
+**In this section**
+- [Aggregations](#aggregations)
+- [Built-in transformations](#built-in-transformations)
+- [Custom transformations](#custom-transformations)
+
 ## Aggregations
 
 Aggregations, being a common tool in data preparation and ML feature engineering, are available directly through

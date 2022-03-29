@@ -4,10 +4,10 @@ Learn how to retrieve and use data with the feature store.
 
 **In this section**
 ```{toctree}
-:maxdepth: 1
+:maxdepth: 2
 
 feature-vectors
 retrieve-offline-data
-online-access-serving
-feature-vectors-in-pipelines
+training-serving
+<!-- feature-vectors-in-pipelines -->
 ```

@@ -9,7 +9,7 @@ Artifacts metadata is stored in the projects database. The main types of artifac
 -  **Models** — all trained models.
 -  **Feature Store Objects** - Feature Sets and Feature Vectors
 
-**Contents**
+**IN this section**
 - [Artifacts and versioning](#artifacts-and-versioning)
   - [Artifact path](#artifact-path)
   - [Artifact URIs, metadata and versioning](#artifact-uris-metadata-and-versioning)

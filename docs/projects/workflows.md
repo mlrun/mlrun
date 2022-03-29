@@ -14,10 +14,10 @@ Workflows are executed using the {py:meth}`~mlrun.projects.MlrunProject.run` met
 
 Refer to the [**tutorials section**](../tutorial/index.md) for complete examples.
 
-**Contents**
-* [**Composing workflows**](#composing-workflows)
-* [**Saving workflows**](#saving-workflows)
-* [**Running workflows**](#running-workflows)
+**In this section**
+* [Composing workflows](#composing-workflows)
+* [Saving workflows](#saving-workflows)
+* [Running workflows](#running-workflows)
 
 ## Composing workflows
 

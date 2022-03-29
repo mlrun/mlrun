@@ -1,7 +1,5 @@
 # MLOps development flow <!-- omit in toc -->
 
-<img src="_static/images/pipeline.png" alt="pipeline" width="800"/>
-
 With MLrun, you can build an automated end to end ML pipeline comprising the following steps:
 
 1. [Data collection and preparation](#data-collection-and-preparation)

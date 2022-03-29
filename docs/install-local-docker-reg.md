@@ -1,4 +1,4 @@
-# Installing MLRun on a Local Docker Registry
+# Install MLRun on a local Docker registry
 
 To use MLRun with your local Docker registry, run the MLRun API service, dashboard, and example Jupyter server, by using the following script.
 

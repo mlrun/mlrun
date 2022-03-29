@@ -1,17 +1,18 @@
-# Setting a Remote Environment <!-- omit in toc -->
+# Setting a remote environment <!-- omit in toc -->
 
 MLRun allows you to use your code on a local machine while running your functions on a remote cluster. This tutorial explains how you can set this up.
 
+**In this section**
 - [Prerequisites](#prerequisites)
-- [Configure Remote Environment](#configure-remote-environment)
-  - [Set Environment Variables](#set-environment-variables)
-- [IDE Configuration](#ide-configuration)
-- [Remote Environment from PyCharm](#remote-environment-from-pycharm)
-- [Remote Environment from VSCode](#remote-environment-from-vscode)
-  - [Create Environment File](#create-environment-file)
-  - [Create Python Debug Configuration](#create-python-debug-configuration)
-  - [Set Environment File in Debug Configuration](#set-environment-file-in-debug-configuration)
-- [Set Environment Variables in a Terminal](#set-environment-variables-in-a-terminal)
+- [Configure remote environment](#configure-remote-environment)
+  - [Set environment variables](#set-environment-variables)
+- [IDE configuration](#ide-configuration)
+- [Remote environment from PyCharm](#remote-environment-from-pycharm)
+- [Remote environment from VSCode](#remote-environment-from-vscode)
+  - [Create environment file](#create-environment-file)
+  - [Create Python debug configuration](#create-python-debug-configuration)
+  - [Set environment file in debug configuration](#set-environment-file-in-debug-configuration)
+- [Set environment variables in a terminal](#set-environment-variables-in-a-terminal)
 
 <a id="prerequisites"></a>
 ## Prerequisites
@@ -34,9 +35,9 @@ Before you begin, ensure that the following prerequisites are met:
 
 2. Ensure that you have remote access to your MLRun service (i.e., to the service URL on the remote Kubernetes cluster).
 
-## Configure Remote Environment
+## Configure remote environment
 
-### Set Environment Variables
+### Set environment variables
 
 Set environment variables to define your MLRun configuration. As a minimum requirement:
 
@@ -62,9 +63,9 @@ Set environment variables to define your MLRun configuration. As a minimum requi
 
     You can get the platform access key from the platform dashboard: select the user-profile picture or icon from the top right corner of any page, and select **Access Keys** from the menu. In the **Access Keys** window, either copy an existing access key or create a new key and copy it. Alternatively, you can get the access key by checking the value of the `V3IO_ACCESS_KEY` environment variable in a web-shell or Jupyter Notebook service.
 
-## IDE Configuration
+## IDE configuration
 
-## Remote Environment from PyCharm
+## Remote environment from PyCharm
 
 You can use PyCharm with MLRun remote by changing the environment variables configuration.
 
@@ -80,9 +81,9 @@ You can use PyCharm with MLRun remote by changing the environment variables conf
 
     ![Environment variables](../_static/images/pycharm/remote-pycharm-environment_variables.png)
 
-## Remote Environment from VSCode
+## Remote environment from VSCode
 
-### Create Environment File
+### Create environment file
 
 Create an environment file called `mlrun.env` in your workspace folder. Copy-paste the configuration below; replace the `<...>` placeholders to identify your remote target:
 
@@ -101,7 +102,7 @@ V3IO_ACCESS_KEY=<platform access key>
 
 > **Note**: Make sure that you add `.env` to your `.gitignore` file. The environment file contains sensitive information that you should not store in your source control.
 
-### Create Python Debug Configuration
+### Create Python debug configuration
 
 Create a [debug configuration in VSCode](https://code.visualstudio.com/docs/python/debugging). Configurations are defined in a `launch.json` file that's stored in a `.vscode` folder in your workspace.
 
@@ -126,7 +127,7 @@ To generate a `launch.json` file with Python configurations, do the following st
 
    ![Configuration json](../_static/images/vscode/configuration-json.png)
 
-### Set Environment File in Debug Configuration
+### Set environment file in debug configuration
 
 Add an `envFile` setting to your configuration with the value of `${workspaceFolder}/mlrun.env`
 
@@ -151,7 +152,7 @@ If you created a new configuration in the previous step, your `launch.json` woul
 }
 ```
 
-## Set Environment Variables in a Terminal
+## Set environment variables in a terminal
 
 You can create a script that sets the desired environment variables before launching your IDE
 

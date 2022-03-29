@@ -7,8 +7,8 @@ MLRun Serving supports complex and distributed graphs (see the [Distributed (Mul
 ```{toctree}
 :maxdepth: 2
 model-serving-get-started
-advanced-routing
+<!--- advanced-routing --->
 custom-model-serving-class
 model-api
-model-best-practices
+<!--- model-best-practices --->
 ```

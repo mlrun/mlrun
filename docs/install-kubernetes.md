@@ -1,4 +1,14 @@
-# Install MLRun on a Kubernetes Cluster
+# Installing MLRun on a Kubernetes Cluster
+
+**In this section**
+- [Prerequisites](#prerequisites)
+- [Installing on Docker Desktop](#installing-on-docker-desktop)
+- [Installing the chart](#installing-the-chart)
+- [Installing Kubeflow](#install-kubeflow)
+- [Start working](#start-working)
+- [Configuring the remote environment](#configuring-the-remote-environment)
+- [Advanced chart configuration](#advanced-chart-configuration)
+- [Uninstalling the chart](#uninstalling-the-chart)
 
 ## Prerequisites
 
@@ -43,7 +53,7 @@ To learn about the various UI options and their usage, see:
 
 
 <a id="installing-the-chart"></a>
-## Installing the Chart
+## Installing the chart
 
 Create a namespace for the deployed components:
 
@@ -114,7 +124,7 @@ helm --namespace mlrun \
 ```
 Where `$(minikube ip)` shell command resolving the external node address of the k8s node VM.
 
-## Install Kubeflow
+## Installing Kubeflow
 
 You can run your functions while saving outputs and artifacts in a way that is visible to Kubeflow Pipelines.
 To use this capability you need to install Kubeflow on your cluster.
@@ -137,7 +147,7 @@ If that's not the case, the different components are available on the provided `
 - You can add and configure a k8s ingress-controller for better security and control over external access.
 ```
 
-## Start Working
+## Start working
 
 Open Jupyter Lab on [**jupyter-lab UI**](http://localhost:30040) and run the code in [**docs/quick-start.ipynb**](https://github.com/mlrun/mlrun/blob/master/docs/quick-start.ipynb) notebook.
 
@@ -145,7 +155,7 @@ Open Jupyter Lab on [**jupyter-lab UI**](http://localhost:30040) and run the cod
 Make sure to save your changes in the `data` folder within the Jupyter Lab. The root folder and any other folder do not retain the changes when you restart the Jupyter Lab.
 ```
 
-## Configuring Remote Environment
+## Configuring the remote environment
 
 You can use your code on a local machine while running your functions on a remote cluster.
 
@@ -157,7 +167,7 @@ Before you begin, ensure that the following prerequisites are met:
 either in your local installation or on the remote cluster so that they match.
 - You have remote access to your MLRun service (i.e. to the service URL on the remote Kubernetes cluster).
 
-### Set Environment Variables
+### Setting environment variables
 
 Define your MLRun configuration. 
 
@@ -197,11 +207,11 @@ artifact. You can use template values in the artifact path. The supported values
     key and copy it. Alternatively, you can get the access key by checking the value of the `V3IO_ACCESS_KEY` environment variable in a web-
     shell or Jupyter Notebook service.
 
-## Advanced Chart Configuration
+## Advanced chart configuration
 
 Configurable values are documented in the `values.yaml`, and the `values.yaml` of all sub charts. Override those [in the normal methods](https://helm.sh/docs/chart_template_guide/values_files/).
 
-## Uninstalling the Chart
+## Uninstalling the chart
 
 ```bash
 helm --namespace mlrun uninstall mlrun-kit

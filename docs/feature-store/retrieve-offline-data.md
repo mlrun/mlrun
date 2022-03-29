@@ -1,3 +1,4 @@
+(training)=
 # Retrieve offline data and use it for training
 
 **In this section**

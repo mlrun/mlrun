@@ -3,7 +3,12 @@ Node affinity can be applied to MLRun to determine on which nodes
 they can be placed. The rules are defined using custom labels on nodes and label selectors. 
 Node affinity allows towards Spot or On Demand groups of nodes.
 
-## On Demand vs Spot 
+**In this section**
+- [On demand vs spot](#On-demand-vs-spot)
+- [Stateless and stateful applications](#Stateless-and-stateful-applications)
+- [Node selector](#node-selector)
+
+## On demand vs spot 
 
 Amazon Elastic Compute Cloud (Amazon EC2) provides scalable computing capacity in the Amazon Web Services (AWS) Cloud. 
 Using Amazon EC2 eliminates your need to invest in hardware up front, so you can develop and deploy applications faster. 
@@ -14,13 +19,13 @@ reboot, or terminate it. With spot instances you request EC2 capacity from speci
 susceptible to spot capacity availability. This is a good choice if you can be flexible about when your applications run 
 and if your applications can be interrupted.
 
-## Stateless and Stateful Applications 
+## Stateless and stateful applications 
 When deploying your MLRun jobs to specific nodes, please take into consideration that on demand 
 nodes are best designed to run stateful applications while spot nodes are best designed to stateless applications. 
 MLRun jobs which are stateful, and are assigned to run on spot nodes, may be subject to interruption 
 and will to be designed so that the job/function state will be saved when scaling to zero.
 
-## Node Selector
+## Node selector
 Using the **Node Selector** you can assign MLRun jobs to specific nodes within the cluster. 
 **Node Selector** is available for all modes of deployment in the platform including the platform UI, 
 command line, and programmable interfaces.

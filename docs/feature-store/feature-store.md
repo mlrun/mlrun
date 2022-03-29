@@ -1,10 +1,10 @@
-# Feature Store 
+# Feature store 
 
 The feature store is a centralized and versioned catalog where everyone can engineer and store features along with their metadata and statistics, share them and reuse them, and analyze their impact on existing models. The feature store plugs seamlessly into the data ingestion, model training, model serving, and model monitoring components, eliminating significant development and operations overhead, and delivering exceptional performance. Users can simply collect a bunch of independent features into vectors, and use those from their jobs or real-time services. Iguazio’s high performance engines take care of automatically joining and accurately computing the features.
 
-**Contents**
+**In this section**
 - [Overview](#overview)
-- [How the Feature Store works](#how-the-feature-store-works)
+- [How the feature store works](#how-the-feature-store-works)
 - [Training and serving using the feature store](#training-and-serving-using-the-feature-store)
 - [Further reading](#further-reading)
 
@@ -42,7 +42,7 @@ data sources and targets, and can also contain steps that transform and enrich t
 - **Feature vector** &mdash; A set of features, taken from one or more feature sets. The feature vector is defined prior to model training 
 and serves as the input to the model training process. During model serving, the feature values in the vector are obtained from an online service.
 
-## How the Feature Store works
+## How the feature store works
 
 ![How feature store works](../_static/images/feature-store-flow.png)
 

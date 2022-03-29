@@ -1,4 +1,4 @@
-# Using graphs for model serving
+# Model serving pipelines
 
 MLRun serving can produce managed real-time serverless pipelines from various tasks, including MLRun models or standard model files. MLRun serving supports complex and distributed graphs (see the [Distributed (Multi-function) Pipeline Example](./distributed-graph.ipynb)), which can involve streaming, data/document/image processing, NLP, and model monitoring, etc. The pipelines use the [Nuclio](https://nuclio.io/) real-time serverless engine, which can be deployed anywhere. 
 

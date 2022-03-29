@@ -34,6 +34,7 @@ def _get_runtime():
             "affinity": None,
             "disable_auto_mount": False,
             "priority_class_name": "",
+            "tolerations": None,
         },
         "verbose": False,
     }

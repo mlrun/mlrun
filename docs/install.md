@@ -11,7 +11,7 @@ Starting from MLRun 0.10.0, the MLRun client and images are compatible with mino
 ```{admonition} Important
 - Images from 0.9.0 are not compatible with 0.10.0. Backward compatibility starts from 0.10.0. 
 - When you upgrade the MLRun major version, for example 0.10.x to 1.0.x, there is no backward compatibility. 
-- The Feature store is not backward compatible. 
+- The feature store is not backward compatible. 
 - When you upgrade the platform, for example from 3.2 to 3.3, the clients should be upgraded. There is no guaranteed compatibility with an older MLRun client after a platform upgrade. 
 ```
 

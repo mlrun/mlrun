@@ -125,7 +125,7 @@ To specify the topology, router class and class args use `.set_topology()` with 
 
 ## Creating a model serving function (service)
 
-To provision a serving function you need to create an MLRun function of type `serving`.
+To provision a serving function, you need to create an MLRun function of type `serving`.
 This can be done by using the `code_to_function()` call from a notebook. You can also import 
 an existing serving function/template from the marketplace.
 
@@ -151,7 +151,7 @@ model that is served by another function (can be used for ensembles).
 The function object(fn) accepts many options. You can specify replicas range (auto-scaling), cpu/gpu/mem resources, add shared 
 volume mounts, secrets, and any other Kubernetes resource through the `fn.spec` object or fn methods.
 
-For example, `fn.gpu(1)` means each replica uses one GPU.
+For example, `fn.gpu(1)` means each replica uses one GPU. 
 
 To deploy a model, simply call:
 

@@ -151,7 +151,6 @@ def get_data(context: MLClientCtx, source_url: DataItem, format: str = 'csv'):
 ```
 
 You can run this function locally or as a job. For example, to run it locally:
-
 ``` python
 from os import path
 from mlrun import new_project, run_local, mlconf

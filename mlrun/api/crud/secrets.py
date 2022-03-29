@@ -1,3 +1,4 @@
+import enum
 import json
 import typing
 import uuid
@@ -11,6 +12,13 @@ import mlrun.utils.singleton
 import mlrun.utils.vault
 
 
+class SecretsClientType(str, enum.Enum):
+    schedules = "schedules"
+    model_monitoring = "model-monitoring"
+    service_accounts = "service-accounts"
+    marketplace = "marketplace"
+
+
 class Secrets(
     metaclass=mlrun.utils.singleton.Singleton,
 ):
@@ -18,23 +26,16 @@ class Secrets(
     # make it a subset of internal since key map are by definition internal
     key_map_secrets_key_prefix = f"{internal_secrets_key_prefix}map."
 
-    def generate_schedule_username_secret_key(self, schedule_name: str):
-        return f"{self._generate_schedule_secret_key(schedule_name)}.username"
+    def generate_client_secret_key(
+        self, client_type: SecretsClientType, name: str, subtype=None
+    ):
+        key_name = f"{self.internal_secrets_key_prefix}{client_type.value}.{name}"
+        if subtype:
+            key_name = f"{key_name}.{subtype}"
+        return key_name
 
-    def generate_schedule_access_key_secret_key(self, schedule_name: str):
-        return f"{self._generate_schedule_secret_key(schedule_name)}.access_key"
-
-    def _generate_schedule_secret_key(self, schedule_name: str):
-        return f"{self.internal_secrets_key_prefix}schedules.{schedule_name}"
-
-    def generate_schedule_key_map_secret_key(self):
-        return f"{self.key_map_secrets_key_prefix}schedules"
-
-    def generate_model_monitoring_secret_key(self, key):
-        return f"{self.internal_secrets_key_prefix}model-monitoring.{key}"
-
-    def generate_service_account_secret_key(self, key):
-        return f"{self.internal_secrets_key_prefix}service-accounts.{key}"
+    def generate_client_key_map_secret_key(self, client_type: SecretsClientType):
+        return f"{self.key_map_secrets_key_prefix}{client_type.value}"
 
     @staticmethod
     def validate_secret_key_regex(key: str, raise_on_failure: bool = True) -> bool:

@@ -43,6 +43,7 @@ class Artifact(ModelObj):
         "size",
         "db_key",
         "extra_data",
+        "tag",
     ]
     kind = ""
     _store_prefix = StorePrefix.Artifact
@@ -82,7 +83,9 @@ class Artifact(ModelObj):
         self.tag = None  # temp store of the tag
 
     def before_log(self):
-        pass
+        for key, item in self.extra_data.items():
+            if hasattr(item, "target_path"):
+                self.extra_data[key] = item.target_path
 
     @property
     def is_dir(self):

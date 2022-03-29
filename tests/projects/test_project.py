@@ -238,3 +238,11 @@ def test_function_run_cli():
     out = tests.conftest.exec_mlrun(args, str(project_dir_path))
     assert out.find("state: completed") != -1, out
     assert out.find("y: 6") != -1, out  # = x * 2
+
+
+def test_get_artifact_uri():
+    project = mlrun.new_project("arti")
+    uri = project.get_artifact_uri("x")
+    assert uri == "store://artifacts/arti/x"
+    uri = project.get_artifact_uri("y", category="model", tag="prod")
+    assert uri == "store://models/arti/y:prod"

@@ -58,6 +58,7 @@ class MPIV1ResourceSpec(MPIResourceSpec):
         priority_class_name=None,
         disable_auto_mount=False,
         pythonpath=None,
+        tolerations=None,
     ):
         super().__init__(
             command=command,
@@ -84,6 +85,7 @@ class MPIV1ResourceSpec(MPIResourceSpec):
             priority_class_name=priority_class_name,
             disable_auto_mount=disable_auto_mount,
             pythonpath=pythonpath,
+            tolerations=tolerations,
         )
         self.clean_pod_policy = clean_pod_policy or MPIJobV1CleanPodPolicies.default()
 
@@ -120,6 +122,9 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
         self._spec = self._verify_dict(spec, "spec", MPIV1ResourceSpec)
 
     def _generate_mpi_job_template(self, launcher_pod_template, worker_pod_template):
+        # https://github.com/kubeflow/mpi-operator/blob/master/pkg/apis/kubeflow/v1/types.go#L25
+        # MPI job consists of Launcher and Worker which both are of type ReplicaSet
+        # https://github.com/kubeflow/common/blob/master/pkg/apis/common/v1/types.go#L74
         return {
             "apiVersion": "kubeflow.org/v1",
             "kind": "MPIJob",
@@ -210,7 +215,14 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
             update_in(pod_template, "spec.nodeName", self.spec.node_name)
             update_in(pod_template, "spec.nodeSelector", self.spec.node_selector)
             update_in(
-                pod_template, "spec.affinity", self.spec._get_sanitized_affinity()
+                pod_template,
+                "spec.affinity",
+                self.spec._get_sanitized_attribute("affinity"),
+            )
+            update_in(
+                pod_template,
+                "spec.tolerations",
+                self.spec._get_sanitized_attribute("tolerations"),
             )
             if self.spec.priority_class_name and len(
                 mlconf.get_valid_function_priority_class_names()

@@ -11,12 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import warnings
 from copy import copy
 from typing import List
 
 import pandas as pd
 
 import mlrun
+import mlrun.frameworks
 
 from .artifacts import Artifact, dict_to_artifact
 from .config import config
@@ -116,6 +118,45 @@ class RunList(list):
         if not display:
             return html
 
+    def to_objects(self) -> List["mlrun.RunObject"]:
+        """Return a list of Run Objects"""
+        return [mlrun.RunObject.from_dict(run) for run in self]
+
+    def compare(
+        self,
+        hide_identical: bool = True,
+        exclude: list = None,
+        show: bool = None,
+        extend_iterations=True,
+        filename=None,
+        colorscale: str = None,
+    ):
+        """return/show parallel coordinates plot + table to compare between the list of runs
+
+        example:
+
+            # return a list of runs in the project, and compare them (show charts)
+            runs = project.list_runs(name='download', labels='owner=admin')
+            runs.compare()
+
+        :param hide_identical: hide columns with identical values
+        :param exclude:        User-provided list of parameters to be excluded from the plot
+        :param show:           Allows the user to display the plot within the notebook
+        :param extend_iterations: include the iteration (hyper-param) results
+        :param filename:       Output filename to save the plot html file
+        :param colorscale:     colors used for the lines in the parallel coordinate plot
+        :return:  plot html
+        """
+        return mlrun.frameworks.parallel_coordinates.compare_run_objects(
+            self.to_objects(),
+            hide_identical=hide_identical,
+            exclude=exclude,
+            show=show,
+            extend_iterations=extend_iterations,
+            filename=filename,
+            colorscale=colorscale,
+        )
+
 
 class ArtifactList(list):
     def __init__(self, *args):
@@ -166,8 +207,16 @@ class ArtifactList(list):
         if not display:
             return html
 
+    def to_objects(self) -> List[Artifact]:
+        """return as a list of artifact objects"""
+        return [dict_to_artifact(artifact) for artifact in self]
+
     def objects(self) -> List[Artifact]:
         """return as a list of artifact objects"""
+        warnings.warn(
+            "This is replaced with .to_objects(), and will be deprecated in 1.1.x",
+            PendingDeprecationWarning,
+        )
         return [dict_to_artifact(artifact) for artifact in self]
 
     def dataitems(self) -> List["mlrun.DataItem"]:

@@ -54,6 +54,7 @@ from .frontend_spec import (
     AuthenticationFeatureFlag,
     FeatureFlags,
     FrontendSpec,
+    NuclioStreamsFeatureFlag,
     ProjectMembershipFeatureFlag,
 )
 from .function import FunctionState

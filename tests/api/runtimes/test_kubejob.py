@@ -188,6 +188,29 @@ class TestKubejobRuntime(TestRuntimeBase):
                 ),
             )
         )
+        runtime.with_preemption_mode(PreemptionModes.constrain)
+        self._execute_run(runtime)
+        self.assert_node_selection(affinity=expected_affinity)
+
+        runtime.with_preemption_mode(PreemptionModes.prevent)
+        self._execute_run(runtime)
+        self.assert_node_selection(affinity=expected_anti_affinity)
+
+        # set default preemptible tolerations
+        tolerations = self._generate_tolerations()
+        serialized_tolerations = self.k8s_api.sanitize_for_serialization(tolerations)
+        mlrun.mlconf.preemptible_nodes.tolerations = base64.b64encode(
+            json.dumps(serialized_tolerations).encode("utf-8")
+        )
+        runtime.with_preemption_mode(PreemptionModes.constrain)
+        self._execute_run(runtime)
+        self.assert_node_selection(affinity=expected_affinity, tolerations=tolerations)
+
+        runtime.with_preemption_mode(PreemptionModes.prevent)
+        self._execute_run(runtime)
+        self.assert_node_selection(
+            affinity=expected_anti_affinity, tolerations=tolerations
+        )
 
     def test_run_with_prevent_preemptible_mode(self, db: Session, client: TestClient):
         node_selector = self._generate_node_selector()

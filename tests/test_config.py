@@ -25,7 +25,7 @@ import mlrun.errors
 from mlrun import config as mlconf
 from mlrun.db.httpdb import HTTPRunDB
 
-ns_env_key = f"{mlconf.env_prefix}NAMESPACE"
+namespace_env_key = f"{mlconf.env_prefix}NAMESPACE"
 default_function_pod_resources_env_key = (
     f"{mlconf.env_prefix}DEFAULT_FUNCTION_POD_RESOURCES__"
 )
@@ -92,7 +92,7 @@ def test_file(config):
 
 def test_env(config):
     ns = "orange"
-    with patch_env({ns_env_key: ns}):
+    with patch_env({namespace_env_key: ns}):
         mlconf.config.reload()
 
     assert config.namespace == ns, "not populated from env"
@@ -105,7 +105,7 @@ def test_env_override(config):
     config_path = create_yaml_config(namespace=config_ns)
     env = {
         mlconf.env_file_key: config_path,
-        ns_env_key: env_ns,
+        namespace_env_key: env_ns,
     }
 
     with patch_env(env):

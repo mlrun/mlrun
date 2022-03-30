@@ -18,9 +18,8 @@ import uuid
 from enum import Enum
 
 import dotenv
-import kubernetes.client
-from kfp.dsl import ContainerOp, _container_op
-from kubernetes import client
+import kfp.dsl
+import kubernetes.client as k8s_client
 
 import mlrun.errors
 import mlrun.utils.regex
@@ -49,7 +48,7 @@ from .utils import (
 sanitized_types = {
     "affinity": {
         "attribute_type_name": "V1Affinity",
-        "attribute_type": kubernetes.client.V1Affinity,
+        "attribute_type": k8s_client.V1Affinity,
         "sub_attribute_type": None,
         "contains_many": False,
         "not_sanitized": "node_affinity",
@@ -60,7 +59,7 @@ sanitized_types = {
         "attribute_type_name": "List[V1.Toleration]",
         "attribute_type": list,
         "contains_many": True,
-        "sub_attribute_type": kubernetes.client.V1Toleration,
+        "sub_attribute_type": k8s_client.V1Toleration,
         "not_sanitized": "toleration_seconds",
         "not_sanitized_class": list,
         "sanitized": "tolerationSeconds",
@@ -183,7 +182,7 @@ class KubeResourceSpec(FunctionSpec):
                 self._set_volume_mount(volume_mount)
 
     @property
-    def affinity(self) -> client.V1Affinity:
+    def affinity(self) -> k8s_client.V1Affinity:
         return self._affinity
 
     @affinity.setter
@@ -193,7 +192,7 @@ class KubeResourceSpec(FunctionSpec):
         )
 
     @property
-    def tolerations(self) -> typing.List[client.V1Toleration]:
+    def tolerations(self) -> typing.List[k8s_client.V1Toleration]:
         return self._tolerations
 
     @tolerations.setter
@@ -219,11 +218,11 @@ class KubeResourceSpec(FunctionSpec):
     @preemption_mode.setter
     def preemption_mode(self, mode):
         self._preemption_mode = mode or mlconf.function_defaults.preemption_mode
-        # self.enrich_function_preemption_spec()
+        self.enrich_function_preemption_spec()
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(fields, exclude=["affinity", "tolerations"])
-        api = client.ApiClient()
+        api = k8s_client.ApiClient()
         struct["affinity"] = api.sanitize_for_serialization(self.affinity)
         struct["tolerations"] = api.sanitize_for_serialization(self.tolerations)
         return struct
@@ -253,7 +252,7 @@ class KubeResourceSpec(FunctionSpec):
             return None
         if isinstance(attribute, dict):
             if self._resolve_if_type_sanitized(attribute_name, attribute):
-                api = client.ApiClient()
+                api = k8s_client.ApiClient()
                 # not ideal to use their private method, but looks like that's the only option
                 # Taken from https://github.com/kubernetes-client/python/issues/977
                 attribute_type = attribute_config["attribute_type"]
@@ -319,7 +318,7 @@ class KubeResourceSpec(FunctionSpec):
             if self._resolve_if_type_sanitized(attribute_name, attribute[0]):
                 return attribute
 
-        api = client.ApiClient()
+        api = k8s_client.ApiClient()
         return api.sanitize_for_serialization(attribute)
 
     @staticmethod
@@ -439,7 +438,7 @@ class KubeResourceSpec(FunctionSpec):
         # merge node selectors - precedence to existing node selector
         self.node_selector = {**node_selector, **self.node_selector}
 
-    def _merge_tolerations(self, tolerations: typing.List[client.V1Toleration]):
+    def _merge_tolerations(self, tolerations: typing.List[k8s_client.V1Toleration]):
         if len(tolerations) == 0:
             return
 
@@ -526,7 +525,7 @@ class KubeResourceSpec(FunctionSpec):
             # setting required_during_scheduling_ignored_during_execution
             # overriding other terms that have been set, and only setting terms for preemptible nodes
             # when having multiple terms, pod scheduling is succeeded if at least one term is satisfied
-            self.affinity.node_affinity.required_during_scheduling_ignored_during_execution = client.V1NodeSelector(
+            self.affinity.node_affinity.required_during_scheduling_ignored_during_execution = k8s_client.V1NodeSelector(
                 node_selector_terms=generate_preemptible_nodes_affinity_terms()
             )
 
@@ -558,6 +557,7 @@ class KubeResourceSpec(FunctionSpec):
     def _clear_affinity_if_initialized_but_empty(self):
         if not self.affinity:
             self.affinity = None
+            return
         if (
             not self.affinity.node_affinity
             and not self.affinity.pod_affinity
@@ -570,7 +570,7 @@ class KubeResourceSpec(FunctionSpec):
             self.tolerations = None
 
     def _merge_node_selector_term_to_node_affinity(
-        self, node_selector_terms: typing.List[client.V1NodeSelectorTerm]
+        self, node_selector_terms: typing.List[k8s_client.V1NodeSelectorTerm]
     ):
         if not node_selector_terms:
             return
@@ -581,7 +581,7 @@ class KubeResourceSpec(FunctionSpec):
         if (
             not self.affinity.node_affinity.required_during_scheduling_ignored_during_execution
         ):
-            self.affinity.node_affinity.required_during_scheduling_ignored_during_execution = client.V1NodeSelector(
+            self.affinity.node_affinity.required_during_scheduling_ignored_during_execution = k8s_client.V1NodeSelector(
                 node_selector_terms=node_selector_terms
             )
             return
@@ -605,17 +605,15 @@ class KubeResourceSpec(FunctionSpec):
 
     def _initialize_affinity(self):
         if not self.affinity:
-            self.affinity = client.V1Affinity()
+            self.affinity = k8s_client.V1Affinity()
 
     def _initialize_node_affinity(self):
         if not self.affinity.node_affinity:
-            self.affinity.node_affinity = client.V1NodeAffinity()
+            self.affinity.node_affinity = k8s_client.V1NodeAffinity()
 
     def _prune_affinity_node_selector_requirement(
         self,
-        node_selector_requirements: typing.List[
-            kubernetes.client.V1NodeSelectorRequirement
-        ],
+        node_selector_requirements: typing.List[k8s_client.V1NodeSelectorRequirement],
     ):
         """
         Prunes given node selector requirements from affinity.
@@ -628,11 +626,11 @@ class KubeResourceSpec(FunctionSpec):
         if not self.affinity or not node_selector_requirements:
             return
         if self.affinity.node_affinity:
-            node_affinity: client.V1NodeAffinity = self.affinity.node_affinity
+            node_affinity: k8s_client.V1NodeAffinity = self.affinity.node_affinity
 
             new_required_during_scheduling_ignored_during_execution = None
             if node_affinity.required_during_scheduling_ignored_during_execution:
-                node_selector: client.V1NodeSelector = (
+                node_selector: k8s_client.V1NodeSelector = (
                     node_affinity.required_during_scheduling_ignored_during_execution
                 )
                 new_node_selector_terms = (
@@ -644,7 +642,7 @@ class KubeResourceSpec(FunctionSpec):
                 # check whether there are node selector terms to add to the new list of required terms
                 if len(new_node_selector_terms) > 0:
                     new_required_during_scheduling_ignored_during_execution = (
-                        client.V1NodeSelector(
+                        k8s_client.V1NodeSelector(
                             node_selector_terms=new_node_selector_terms
                         )
                     )
@@ -664,21 +662,21 @@ class KubeResourceSpec(FunctionSpec):
 
     @staticmethod
     def _prune_node_selector_requirements_from_node_selector_terms(
-        node_selector_terms: typing.List[client.V1NodeSelectorTerm],
+        node_selector_terms: typing.List[k8s_client.V1NodeSelectorTerm],
         node_selector_requirements_to_prune: typing.List[
-            client.V1NodeSelectorRequirement
+            k8s_client.V1NodeSelectorRequirement
         ],
-    ) -> typing.List[client.V1NodeSelectorTerm]:
+    ) -> typing.List[k8s_client.V1NodeSelectorTerm]:
         """
         Goes over each expression in all the terms provided and removes the expressions if it matches
         one of the requirements provided to remove
 
         :return: New list of terms without the provided node selector requirements
         """
-        new_node_selector_terms: typing.List[client.V1NodeSelectorTerm] = []
+        new_node_selector_terms: typing.List[k8s_client.V1NodeSelectorTerm] = []
         for term in node_selector_terms:
             new_node_selector_requirements: typing.List[
-                client.V1NodeSelectorRequirement
+                k8s_client.V1NodeSelectorRequirement
             ] = []
             for node_selector_requirement in term.match_expressions:
                 to_prune = False
@@ -697,14 +695,14 @@ class KubeResourceSpec(FunctionSpec):
             if len(new_node_selector_requirements) > 0 or term.match_fields:
                 # Add new node selector terms without the matching expressions to prune
                 new_node_selector_terms.append(
-                    client.V1NodeSelectorTerm(
+                    k8s_client.V1NodeSelectorTerm(
                         match_expressions=new_node_selector_requirements,
                         match_fields=term.match_fields,
                     )
                 )
         return new_node_selector_terms
 
-    def _prune_tolerations(self, tolerations: typing.List[client.V1Toleration]):
+    def _prune_tolerations(self, tolerations: typing.List[k8s_client.V1Toleration]):
         """
         Prunes given tolerations from function spec
         :param tolerations: tolerations to prune
@@ -825,7 +823,7 @@ class KubeResource(BaseRuntime):
 
     def to_dict(self, fields=None, exclude=None, strip=False):
         struct = super().to_dict(fields, exclude, strip=strip)
-        api = client.ApiClient()
+        api = k8s_client.ApiClient()
         struct = api.sanitize_for_serialization(struct)
         if strip:
             spec = struct["spec"]
@@ -844,18 +842,18 @@ class KubeResource(BaseRuntime):
 
         # Kubeflow pipeline have a hook to add the component to the DAG on ContainerOp init
         # we remove the hook to suppress kubeflow op registration and return it after the apply()
-        old_op_handler = _container_op._register_op_handler
-        _container_op._register_op_handler = lambda x: self.metadata.name
-        cop = ContainerOp("name", "image")
-        _container_op._register_op_handler = old_op_handler
+        old_op_handler = kfp.dsl._container_op._register_op_handler
+        kfp.dsl._container_op._register_op_handler = lambda x: self.metadata.name
+        cop = kfp.dsl.ContainerOp("name", "image")
+        kfp.dsl._container_op._register_op_handler = old_op_handler
 
         return apply_kfp(modify, cop, self)
 
     def set_env_from_secret(self, name, secret=None, secret_key=None):
         """set pod environment var from secret"""
         secret_key = secret_key or name
-        value_from = client.V1EnvVarSource(
-            secret_key_ref=client.V1SecretKeySelector(name=secret, key=secret_key)
+        value_from = k8s_client.V1EnvVarSource(
+            secret_key_ref=k8s_client.V1SecretKeySelector(name=secret, key=secret_key)
         )
         return self._set_env(name, value_from=value_from)
 
@@ -873,7 +871,7 @@ class KubeResource(BaseRuntime):
         return False
 
     def _set_env(self, name, value=None, value_from=None):
-        new_var = client.V1EnvVar(name=name, value=value, value_from=value_from)
+        new_var = k8s_client.V1EnvVar(name=name, value=value, value_from=value_from)
         i = 0
         for v in self.spec.env:
             if get_item_name(v) == name:
@@ -919,8 +917,8 @@ class KubeResource(BaseRuntime):
         self,
         node_name: typing.Optional[str] = None,
         node_selector: typing.Optional[typing.Dict[str, str]] = None,
-        affinity: typing.Optional[client.V1Affinity] = None,
-        tolerations: typing.Optional[typing.List[client.V1Toleration]] = None,
+        affinity: typing.Optional[k8s_client.V1Affinity] = None,
+        tolerations: typing.Optional[typing.List[k8s_client.V1Toleration]] = None,
     ):
         """
         Enables to control on which k8s node the job will run
@@ -991,7 +989,7 @@ class KubeResource(BaseRuntime):
         namespace = self._get_k8s().resolve_namespace()
 
         labels = get_resource_labels(self, runobj, runobj.spec.scrape_metrics)
-        new_meta = client.V1ObjectMeta(namespace=namespace, labels=labels)
+        new_meta = k8s_client.V1ObjectMeta(namespace=namespace, labels=labels)
 
         name = runobj.metadata.name or "mlrun"
         norm_name = f"{normalize_name(name)}-"
@@ -1173,9 +1171,9 @@ class KubeResource(BaseRuntime):
 
 
 def kube_resource_spec_to_pod_spec(
-    kube_resource_spec: KubeResourceSpec, container: client.V1Container
+    kube_resource_spec: KubeResourceSpec, container: k8s_client.V1Container
 ):
-    return client.V1PodSpec(
+    return k8s_client.V1PodSpec(
         containers=[container],
         restart_policy="Never",
         volumes=kube_resource_spec.volumes,

@@ -541,8 +541,6 @@ class KubeResourceSpec(FunctionSpec):
             # enrich with tolerations
             self._merge_tolerations(mlconf.get_preemptible_tolerations())
 
-            # TODO add gpu tolerations enrichment
-
     def _initialize_affinity(self):
         if not self.affinity:
             self.affinity = client.V1Affinity()

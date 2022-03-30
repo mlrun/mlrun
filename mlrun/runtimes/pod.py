@@ -903,24 +903,21 @@ class KubeResource(BaseRuntime):
             raise mlrun.errors.MLRunInvalidArgumentError(message)
         self.spec.priority_class_name = name
 
-    def with_preemption_mode(self, mode: str):
+    def with_preemption_mode(self, mode: typing.Union[PreemptionModes, str]):
         """
-        Preemption modes enable users to run function pods on preemptible nodes, when filled,
-        tolerations, node labels and affinity would be populated correspondingly to the function spec on server side.
+        Preemption modes enable users to control whether or not function pods will be scheduled on preemptible nodes.
+        Tolerations, node selector and affinity would be populated correspondingly to the function spec.
 
-        currently supports 3 modes:
+        currently 3 modes are supported:
 
-        allow - Allows function to be scheduled on preemptible nodes
-        constrains - Makes function to run only on preemptible nodes
-        prevent - Prevents function to be scheduled on preemptible nodes
+        * **allow** - Allow the function to be scheduled on preemptible nodes
+        * **constrain** - Constrain the function to run only on preemptible nodes
+        * **prevent** - Prevent the function from being scheduled on preemptible nodes
 
-        :param mode: accepts allow | constraint | prevent defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
+        :param mode: accepts allow | constrain | prevent defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
         """
-        if not PreemptionModes.has_preemption_mode(mode):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"{mode} is not one of the supported preemption modes"
-            )
-        self.spec.preemption_mode = mode
+        preemptible_mode = PreemptionModes(mode)
+        self.spec.preemption_mode = preemptible_mode.value
 
     def list_valid_priority_class_names(self):
         return mlconf.get_valid_function_priority_class_names()

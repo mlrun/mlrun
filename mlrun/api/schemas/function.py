@@ -35,7 +35,3 @@ class PreemptionModes(str, Enum):
     constrain = "constrain"
     # prevents the function pods from running on preemptible nodes
     prevent = "prevent"
-
-    @classmethod
-    def has_preemption_mode(cls, value):
-        return value in cls._value2member_map_

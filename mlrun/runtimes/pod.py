@@ -556,8 +556,9 @@ class KubeResourceSpec(FunctionSpec):
         ],
     ):
         """
-        Prunes given node selector requirements from affinity
-
+        Prunes given node selector requirements from affinity.
+        We are only editing required_during_scheduling_ignored_during_execution because the scheduler can't schedule
+        the pod unless the rule is met.
         :param node_selector_requirements:
         :return:
         """
@@ -568,8 +569,6 @@ class KubeResourceSpec(FunctionSpec):
             node_affinity: client.V1NodeAffinity = self.affinity.node_affinity
 
             new_required_during_scheduling_ignored_during_execution = None
-            # we are only looping over required_during_scheduling_ignored_during_execution
-            # because the scheduler can't schedule the Pod unless the rule is met
             if node_affinity.required_during_scheduling_ignored_during_execution:
                 node_selector: client.V1NodeSelector = (
                     node_affinity.required_during_scheduling_ignored_during_execution

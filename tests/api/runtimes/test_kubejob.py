@@ -3,9 +3,9 @@ import json
 import os
 
 import deepdiff
+import kubernetes.client as k8s_client
 import pytest
 from fastapi.testclient import TestClient
-from kubernetes import client as k8s_client
 from sqlalchemy.orm import Session
 
 import mlrun.errors
@@ -166,8 +166,6 @@ class TestKubejobRuntime(TestRuntimeBase):
             ),
         )
         self.assert_node_selection(affinity=expected_anti_affinity)
-        # set anti affinity (simulates runtime that had prevent mode)
-        runtime.with_node_selection(affinity=expected_anti_affinity)
         runtime.with_preemption_mode(PreemptionModes.constrain)
         expected_affinity = k8s_client.V1Affinity(
             node_affinity=k8s_client.V1NodeAffinity(
@@ -181,13 +179,7 @@ class TestKubejobRuntime(TestRuntimeBase):
 
         runtime.with_preemption_mode(PreemptionModes.allow)
         self._execute_run(runtime)
-        self.assert_node_selection(
-            affinity=k8s_client.V1Affinity(
-                node_affinity=k8s_client.V1NodeAffinity(
-                    required_during_scheduling_ignored_during_execution=None
-                ),
-            )
-        )
+        self.assert_node_selection(affinity=k8s_client.V1Affinity(node_affinity=None))
         runtime.with_preemption_mode(PreemptionModes.constrain)
         self._execute_run(runtime)
         self.assert_node_selection(affinity=expected_affinity)
@@ -248,8 +240,18 @@ class TestKubejobRuntime(TestRuntimeBase):
         runtime = self._generate_runtime()
         runtime.with_node_selection(tolerations=self._generate_tolerations())
         runtime.with_preemption_mode(PreemptionModes.prevent)
+
+        expected_anti_affinity = k8s_client.V1Affinity(
+            node_affinity=k8s_client.V1NodeAffinity(
+                required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                    node_selector_terms=generate_preemptible_nodes_anti_affinity_terms(),
+                ),
+            ),
+        )
         self._execute_run(runtime)
-        self.assert_node_selection(tolerations=tolerations)
+        self.assert_node_selection(
+            tolerations=tolerations, affinity=expected_anti_affinity
+        )
 
     def test_run_with_constrain_preemptible_mode(self, db: Session, client: TestClient):
         node_selector = self._generate_node_selector()

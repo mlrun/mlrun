@@ -155,7 +155,9 @@ class KubeResourceSpec(FunctionSpec):
             priority_class_name or mlrun.mlconf.default_function_priority_class_name
         )
         self._tolerations = tolerations
-        self.preemption_mode = preemption_mode or mlconf.function_defaults.preemption_mode
+        self.preemption_mode = (
+            preemption_mode or mlconf.function_defaults.preemption_mode
+        )
 
     @property
     def volumes(self) -> list:

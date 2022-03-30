@@ -223,7 +223,6 @@ class BaseRuntime(ModelObj):
         return False
 
     def _enrich_on_client_side(self):
-        # Perform auto-mount if necessary - make sure it only runs on client side (when using remote API)
         self.try_auto_mount_based_on_config()
         self.fill_credentials()
 

@@ -606,9 +606,9 @@ def verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = N
 
 def generate_preemptible_node_selector_requirements(node_selector_operator: str):
     """
-    Compiles affinity spec based on pre-configured node selector.
-    operator represents a key's relationship to a set of values.
-    Valid operators are listed in :py:class:`~mlrun.api.schemas.NodeSelectorOperator`.
+    Generate node selector requirements based on the pre-configured node selector of the preemptible nodes
+    operator represents a key's relationship to a set of values
+    Valid operators are listed in :py:class:`~mlrun.api.schemas.NodeSelectorOperator`
     :param node_selector_operator: The operator of V1NodeSelectorRequirement
     :return: List[V1NodeSelectorRequirement]
     """

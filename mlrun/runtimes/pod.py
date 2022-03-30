@@ -422,14 +422,14 @@ class KubeResourceSpec(FunctionSpec):
             return {}
         return resources
 
-    def _enrich_with_node_selectors(self, node_selector: typing.Dict[str, str]):
+    def _merge_node_selector(self, node_selector: typing.Dict[str, str]):
         if not node_selector:
             return
 
         # merge node selectors - precedence to existing node selector
         self.node_selector = {**node_selector, **self.node_selector}
 
-    def _enrich_with_tolerations(self, tolerations: typing.List[client.V1Toleration]):
+    def _merge_tolerations(self, tolerations: typing.List[client.V1Toleration]):
         if len(tolerations) == 0:
             return
 
@@ -507,7 +507,7 @@ class KubeResourceSpec(FunctionSpec):
         # enrich tolerations and override all node selector terms with preemptible node selector terms
         elif self.preemption_mode == PreemptionModes.constrain:
             # enrich with tolerations
-            self._enrich_with_tolerations(mlconf.get_preemptible_tolerations())
+            self._merge_tolerations(mlconf.get_preemptible_tolerations())
             # TODO add gpu tolerations enrichment
             self._initialize_affinity()
             self._initialize_node_affinity()
@@ -538,7 +538,7 @@ class KubeResourceSpec(FunctionSpec):
             self._prune_node_selector(mlconf.get_preemptible_node_selector())
 
             # enrich with tolerations
-            self._enrich_with_tolerations(mlconf.get_preemptible_tolerations())
+            self._merge_tolerations(mlconf.get_preemptible_tolerations())
 
             # TODO add gpu tolerations enrichment
 

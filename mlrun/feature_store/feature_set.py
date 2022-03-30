@@ -585,7 +585,10 @@ class FeatureSet(ModelObj):
 
             myset.add_aggregation("ask", ["sum", "max"], "1h", "10m", name="asks")
 
-        :param column:     name of column/field aggregate
+        :param column:     name of column/field aggregate. Do not name columns starting with either `t_` or `aggr_`.
+                           They are reserved for internal use, and the data does not ingest correctly.
+                           When using the pandas engine, do not use spaces (` `) or periods (`.`) in the column names;
+                           they cause errors in the ingestion.
         :param operations: aggregation operations, e.g. ['sum', 'std']
         :param windows:    time windows, can be a single window, e.g. '1h', '1d',
                             or a list of same unit windows e.g ['1h', '6h']

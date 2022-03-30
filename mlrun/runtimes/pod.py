@@ -28,8 +28,8 @@ import mlrun.utils.regex
 from ..api.schemas import NodeSelectorOperator, PreemptionModes
 from ..config import config as mlconf
 from ..k8s_utils import (
-    generate_preemptible_node_selector_requirements,
     compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes,
+    generate_preemptible_node_selector_requirements,
     generate_preemptible_nodes_anti_affinity_terms,
     verify_gpu_requests_and_limits,
 )

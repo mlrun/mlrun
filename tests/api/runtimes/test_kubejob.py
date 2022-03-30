@@ -12,8 +12,8 @@ import mlrun.errors
 from mlrun.api.schemas import NodeSelectorOperator, PreemptionModes
 from mlrun.config import config as mlconf
 from mlrun.k8s_utils import (
-    generate_preemptible_node_selector_requirements,
     compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes,
+    generate_preemptible_node_selector_requirements,
     generate_preemptible_nodes_anti_affinity_terms,
 )
 from mlrun.platforms import auto_mount

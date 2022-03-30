@@ -230,7 +230,7 @@ class BaseRuntime(ModelObj):
     def _enrich_on_server_side(self):
         pass
 
-    def _enrich_on_both_sides(self):
+    def _enrich_on_server_and_client_sides(self):
         """
         enrich function also in client side and also on server side
         """
@@ -244,7 +244,7 @@ class BaseRuntime(ModelObj):
             self._enrich_on_client_side()
         else:
             self._enrich_on_server_side()
-        self._enrich_on_both_sides()
+        self._enrich_on_server_and_client_sides()
 
     def _function_uri(self, tag=None, hash_key=None):
         return generate_object_uri(

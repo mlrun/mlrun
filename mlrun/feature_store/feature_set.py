@@ -16,6 +16,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Union
 
 import pandas as pd
+from storey import EmitEveryEvent, EmitPolicy
 
 import mlrun
 import mlrun.api.schemas
@@ -43,7 +44,7 @@ from ..model import (
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import BaseStep, RootFlowStep, previous_step
 from ..serving.utils import StepToDict
-from ..utils import StorePrefix
+from ..utils import StorePrefix, logger
 from .common import verify_feature_set_permissions
 
 aggregates_step = "Aggregates"
@@ -224,6 +225,18 @@ class FeatureSetStatus(ModelObj):
                 or actual_target_path.rstrip("/") == target_path
             ):
                 target.last_written = last_written
+
+
+def emit_policy_to_dict(policy: EmitPolicy):
+    # Storey expects the policy to be converted to a dictionary with specific params and won't allow extra params
+    # (see Storey's _dict_to_emit_policy function). This takes care of creating a dict conforming to it.
+    # TODO - fix Storey's handling of emit policy and parsing of dict in _dict_to_emit_policy.
+    struct = {"mode": policy.name()}
+    if hasattr(policy, "delay_in_seconds"):
+        struct["delay"] = getattr(policy, "delay_in_seconds")
+    if hasattr(policy, "max_events"):
+        struct["maxEvents"] = getattr(policy, "max_events")
+    return struct
 
 
 class FeatureSet(ModelObj):
@@ -564,6 +577,7 @@ class FeatureSet(ModelObj):
         after=None,
         before=None,
         state_name=None,
+        emit_policy: EmitPolicy = None,
     ):
         """add feature aggregation rule
 
@@ -598,6 +612,11 @@ class FeatureSet(ModelObj):
         :param state_name: *Deprecated* - use step_name instead
         :param after:      optional, after which graph step it runs
         :param before:     optional, comes before graph step
+        :param emit_policy: optional, which emit policy to use when performing the aggregations. Use the derived
+                            classes of ``storey.EmitPolicy``. The default is to emit every period for Spark engine
+                            and emit every event for storey. Currently the only other supported option is to use
+                            ``emit_policy=storey.EmitEveryEvent()`` when using the Spark engine to emit every event
+
         """
         if isinstance(operations, str):
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -636,6 +655,17 @@ class FeatureSet(ModelObj):
             step = graph.steps[step_name]
             self._add_aggregation_to_existing(aggregation)
             step.class_args["aggregates"] = list(self._aggregations.values())
+            if emit_policy and self.spec.engine == "spark":
+                # Using simple override here - we might want to consider exploding if different emit policies
+                # were used for multiple aggregations.
+                emit_policy_dict = emit_policy_to_dict(emit_policy)
+                if "emit_policy" in step.class_args:
+                    curr_emit_policy = step.class_args["emit_policy"]["mode"]
+                    if curr_emit_policy != emit_policy_dict["mode"]:
+                        logger.warning(
+                            f"Current emit policy will be overridden: {curr_emit_policy} => {emit_policy_dict['mode']}"
+                        )
+                step.class_args["emit_policy"] = emit_policy_dict
         else:
             class_args = {}
             self._aggregations[aggregation["name"]] = aggregation
@@ -651,6 +681,8 @@ class FeatureSet(ModelObj):
                 )
             elif self.spec.engine == "spark":
                 key_columns = []
+                if emit_policy:
+                    class_args["emit_policy"] = emit_policy_to_dict(emit_policy)
                 for entity in self.spec.entities:
                     key_columns.append(entity.name)
                 step = graph.add_step(
@@ -770,11 +802,20 @@ class FeatureSet(ModelObj):
 
 class SparkAggregateByKey(StepToDict):
     def __init__(
-        self, key_columns: List[str], time_column: str, aggregates: List[Dict]
+        self,
+        key_columns: List[str],
+        time_column: str,
+        aggregates: List[Dict],
+        emit_policy: Union[EmitPolicy, Dict] = None,
     ):
         self.key_columns = key_columns
         self.time_column = time_column
         self.aggregates = aggregates
+        self.emit_policy_mode = None
+        if emit_policy:
+            if isinstance(emit_policy, EmitPolicy):
+                emit_policy = emit_policy_to_dict(emit_policy)
+            self.emit_policy_mode = emit_policy["mode"]
 
     @staticmethod
     def _duration_to_spark_format(duration):
@@ -792,46 +833,139 @@ class SparkAggregateByKey(StepToDict):
             raise ValueError(f"Invalid duration '{duration}'")
         return f"{num} {unit}"
 
+    def _extract_fields_from_aggregate_dict(self, aggregate):
+        name = aggregate["name"]
+        column = aggregate["column"]
+        operations = aggregate["operations"]
+        windows = aggregate["windows"]
+        spark_period = (
+            self._duration_to_spark_format(aggregate["period"])
+            if "period" in aggregate
+            else None
+        )
+        return name, column, operations, windows, spark_period
+
     def do(self, event):
         import pyspark.sql.functions as funcs
+        from pyspark.sql import Window
 
         time_column = self.time_column or "time"
-
         input_df = event
 
-        last_value_aggs = [
-            funcs.last(column).alias(column)
-            for column in input_df.columns
-            if column not in self.key_columns and column != time_column
-        ]
+        if not self.emit_policy_mode or self.emit_policy_mode != EmitEveryEvent.name():
+            last_value_aggs = [
+                funcs.last(column).alias(column)
+                for column in input_df.columns
+                if column not in self.key_columns and column != time_column
+            ]
 
-        dfs = []
-        for aggregate in self.aggregates:
-            name = aggregate["name"]
-            column = aggregate["column"]
-            operations = aggregate["operations"]
-            windows = aggregate["windows"]
-            period = aggregate["period"]
+            dfs = []
+            for aggregate in self.aggregates:
+                (
+                    name,
+                    column,
+                    operations,
+                    windows,
+                    spark_period,
+                ) = self._extract_fields_from_aggregate_dict(aggregate)
 
-            spark_period = self._duration_to_spark_format(period)
+                for window in windows:
+                    spark_window = self._duration_to_spark_format(window)
+                    aggs = last_value_aggs
+                    for operation in operations:
+                        func = getattr(funcs, operation)
+                        agg_name = f"{name if name else column}_{operation}_{window}"
+                        agg = func(column).alias(agg_name)
+                        aggs.append(agg)
+                    window_column = funcs.window(
+                        time_column, spark_window, spark_period
+                    )
+                    df = input_df.groupBy(
+                        *self.key_columns,
+                        window_column.end.alias(time_column),
+                    ).agg(*aggs)
+                    df = df.withColumn(f"{time_column}_window", funcs.lit(window))
+                    dfs.append(df)
 
-            for window in windows:
-                spark_window = self._duration_to_spark_format(window)
-                aggs = last_value_aggs
-                for operation in operations:
-                    func = getattr(funcs, operation)
-                    agg_name = f"{name if name else column}_{operation}_{window}"
-                    agg = func(column).alias(agg_name)
-                    aggs.append(agg)
-                window_column = funcs.window(time_column, spark_window, spark_period)
-                df = input_df.groupBy(
-                    *self.key_columns,
-                    window_column.end.alias(time_column),
-                ).agg(*aggs)
-                df = df.withColumn(f"{time_column}_window", funcs.lit(window))
-                dfs.append(df)
+            union_df = dfs[0]
+            for df in dfs[1:]:
+                union_df = union_df.unionByName(df, allowMissingColumns=True)
 
-        union_df = dfs[0]
-        for df in dfs[1:]:
-            union_df = union_df.unionByName(df, allowMissingColumns=True)
-        return union_df
+            return union_df
+
+        else:
+            window_counter = 0
+            # We'll use this column to identify our original row and group-by across the various windows
+            # (either sliding windows or multiple windows provided). See below comment for more details.
+            rowid_col = "__mlrun_rowid"
+            df = input_df.withColumn(rowid_col, funcs.monotonically_increasing_id())
+
+            drop_columns = [rowid_col]
+            window_rank_cols = []
+            union_df = None
+            for aggregate in self.aggregates:
+                (
+                    name,
+                    column,
+                    operations,
+                    windows,
+                    spark_period,
+                ) = self._extract_fields_from_aggregate_dict(aggregate)
+
+                for window in windows:
+                    spark_window = self._duration_to_spark_format(window)
+                    window_col = f"__mlrun_window_{window_counter}"
+                    win_df = df.withColumn(
+                        window_col,
+                        funcs.window(time_column, spark_window, spark_period).end,
+                    )
+                    function_window = Window.partitionBy(*self.key_columns, window_col)
+
+                    window_rank_col = f"__mlrun_win_rank_{window_counter}"
+                    rank_window = Window.partitionBy(rowid_col).orderBy(window_col)
+                    win_df = win_df.withColumn(
+                        window_rank_col, funcs.row_number().over(rank_window)
+                    )
+                    window_rank_cols.append(window_rank_col)
+                    drop_columns.extend([window_col, window_rank_col])
+
+                    window_counter += 1
+
+                    for operation in operations:
+                        func = getattr(funcs, operation)
+                        agg_name = f"{name if name else column}_{operation}_{window}"
+                        win_df = win_df.withColumn(
+                            agg_name, func(column).over(function_window)
+                        )
+
+                    union_df = (
+                        union_df.unionByName(win_df, allowMissingColumns=True)
+                        if union_df
+                        else win_df
+                    )
+
+            # We need to collapse the multiple window rows that were generated during the query processing. For that
+            # purpose we'll pick just the 1st row for each window, and then group-by with ignorenulls. Basically since
+            # the result is a union of multiple windows, we'll get something like this for each input row:
+            # row   window_1    rank_window_1   window_2    rank_window_2   ...calculations and fields...
+            # 1     10:00       1               null        null            ...
+            # 2     10:10       2               null        null            ...
+            # 3     null        null            10:00       1               ...
+            # 4     null        null            10:10       2               ...
+            # And we want to take rows 1 and 3 in this case. Then the group-by will merge them to a single line since
+            # it ignores nulls, so it will take the values for window_1 from row 1 and for window_2 from row 3.
+            window_filter = " or ".join(
+                [f"{window_rank_col} == 1" for window_rank_col in window_rank_cols]
+            )
+            first_value_aggs = [
+                funcs.first(column, ignorenulls=True).alias(column)
+                for column in union_df.columns
+                if column not in drop_columns
+            ]
+
+            return (
+                union_df.filter(window_filter)
+                .groupBy(rowid_col)
+                .agg(*first_value_aggs)
+                .drop(rowid_col)
+            )

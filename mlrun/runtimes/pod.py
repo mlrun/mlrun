@@ -476,7 +476,7 @@ class KubeResourceSpec(FunctionSpec):
             self.preemption_mode = mlconf.function_defaults.preemption_mode
             logger.debug(
                 "No preemption mode was given, using the default preemption mode",
-                new_preemption_mode=self.preemption_mode,
+                default_preemption_mode=self.preemption_mode,
             )
 
         logger.debug(

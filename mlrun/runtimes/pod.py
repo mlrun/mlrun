@@ -489,21 +489,17 @@ class KubeResourceSpec(FunctionSpec):
             # ensure no preemptible node tolerations
             self._prune_tolerations(mlconf.get_preemptible_tolerations())
             # if preemptible tolerations were given, purge affinity preemption related configuration
-            if mlconf.get_preemptible_tolerations():
-                self._prune_affinity_node_selector_requirement(
-                    (
-                        generate_preemptible_node_selector_requirements(
-                            NodeSelectorOperator.node_selector_op_in
-                        )
+            self._prune_affinity_node_selector_requirement(
+                (
+                    generate_preemptible_node_selector_requirements(
+                        NodeSelectorOperator.node_selector_op_in
                     )
                 )
-            else:
-                self._initialize_affinity()
-                self._initialize_node_affinity()
-                # using a single term with potentially multiple expressions to ensure affinity
-                self.affinity.node_affinity.required_during_scheduling_ignored_during_execution = client.V1NodeSelector(
-                    node_selector_terms=generate_preemptible_nodes_anti_affinity_terms()
-                )
+            )
+            # using a single term with potentially multiple expressions to ensure affinity
+            self._merge_node_selector_term_to_node_affinity(
+                node_selector_terms=generate_preemptible_nodes_anti_affinity_terms()
+            )
 
         # enrich tolerations and override all node selector terms with preemptible node selector terms
         elif self.preemption_mode == PreemptionModes.constrain:
@@ -540,6 +536,40 @@ class KubeResourceSpec(FunctionSpec):
 
             # enrich with tolerations
             self._merge_tolerations(mlconf.get_preemptible_tolerations())
+
+    def _merge_node_selector_term_to_node_affinity(
+        self, node_selector_terms: typing.List[client.V1NodeSelectorTerm]
+    ):
+        if not node_selector_terms:
+            return
+
+        self._initialize_affinity()
+        self._initialize_node_affinity()
+
+        if (
+            not self.affinity.node_affinity.required_during_scheduling_ignored_during_execution
+        ):
+            self.affinity.node_affinity.required_during_scheduling_ignored_during_execution = client.V1NodeSelector(
+                node_selector_terms=node_selector_terms
+            )
+            return
+
+        node_selector = (
+            self.affinity.node_affinity.required_during_scheduling_ignored_during_execution
+        )
+        new_node_selector_terms = []
+
+        for node_selector_term_to_add in node_selector_terms:
+            to_add = True
+            for node_selector_term in node_selector.node_selector_terms:
+                if node_selector_term == node_selector_term_to_add:
+                    to_add = False
+                    break
+            if to_add:
+                new_node_selector_terms.append(node_selector_term_to_add)
+
+        if new_node_selector_terms:
+            node_selector.node_selector_terms += new_node_selector_terms
 
     def _initialize_affinity(self):
         if not self.affinity:

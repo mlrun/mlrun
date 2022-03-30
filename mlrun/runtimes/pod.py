@@ -28,7 +28,7 @@ import mlrun.utils.regex
 from ..api.schemas import NodeSelectorOperator, PreemptionModes
 from ..config import config as mlconf
 from ..k8s_utils import (
-    compile_affinity_by_label_selector,
+    generate_preemptible_node_selector_requirements,
     compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes,
     compile_anti_affinity_by_label_selector_no_schedule_on_matching_nodes,
     verify_gpu_requests_and_limits,
@@ -491,7 +491,7 @@ class KubeResourceSpec(FunctionSpec):
             if mlconf.get_preemptible_tolerations():
                 self._prune_affinity_node_selector_requirement(
                     (
-                        compile_affinity_by_label_selector(
+                        generate_preemptible_node_selector_requirements(
                             NodeSelectorOperator.node_selector_op_in
                         )
                     )
@@ -523,13 +523,13 @@ class KubeResourceSpec(FunctionSpec):
 
             # remove anti-affinity
             self._prune_affinity_node_selector_requirement(
-                compile_affinity_by_label_selector(
+                generate_preemptible_node_selector_requirements(
                     NodeSelectorOperator.node_selector_op_not_in
                 ),
             )
             # remove affinity
             self._prune_affinity_node_selector_requirement(
-                compile_affinity_by_label_selector(
+                generate_preemptible_node_selector_requirements(
                     NodeSelectorOperator.node_selector_op_in
                 ),
             )

@@ -604,12 +604,11 @@ def verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = N
         )
 
 
-def compile_affinity_by_label_selector(node_selector_operator: str):
+def generate_preemptible_node_selector_requirements(node_selector_operator: str):
     """
     Compiles affinity spec based on pre-configured node selector.
     operator represents a key's relationship to a set of values.
-    Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt
-
+    Valid operators are listed in :py:class:`~mlrun.api.schemas.NodeSelectorOperator`.
     :param node_selector_operator: The operator of V1NodeSelectorRequirement
     :return: List[V1NodeSelectorRequirement]
     """
@@ -641,7 +640,7 @@ def compile_anti_affinity_by_label_selector_no_schedule_on_matching_nodes() -> t
     from mlrun.api.schemas import NodeSelectorOperator
 
     # compile affinities with operator NotIn to make sure pods are not running on preemptible nodes.
-    anti_affinity = compile_affinity_by_label_selector(
+    anti_affinity = generate_preemptible_node_selector_requirements(
         NodeSelectorOperator.node_selector_op_not_in
     )
     return [
@@ -666,7 +665,7 @@ def compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes() -> ty
     node_selector_terms = []
 
     # compile affinities with operator In so pods could schedule on at least one of the preemptible nodes.
-    affinity = compile_affinity_by_label_selector(
+    affinity = generate_preemptible_node_selector_requirements(
         NodeSelectorOperator.node_selector_op_in
     )
     for expression in affinity:

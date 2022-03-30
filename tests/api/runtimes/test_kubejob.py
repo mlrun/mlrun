@@ -12,7 +12,7 @@ import mlrun.errors
 from mlrun.api.schemas import NodeSelectorOperator, PreemptionModes
 from mlrun.config import config as mlconf
 from mlrun.k8s_utils import (
-    compile_affinity_by_label_selector,
+    generate_preemptible_node_selector_requirements,
     compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes,
     compile_anti_affinity_by_label_selector_no_schedule_on_matching_nodes,
 )
@@ -331,7 +331,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         # set preemptible label selector in affinity
         affinity.node_affinity.required_during_scheduling_ignored_during_execution.node_selector_terms = [
             k8s_client.V1NodeSelectorTerm(
-                match_expressions=compile_affinity_by_label_selector(
+                match_expressions=generate_preemptible_node_selector_requirements(
                     NodeSelectorOperator.node_selector_op_in
                 )
             )
@@ -351,7 +351,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         affinity = self._generate_affinity()
         affinity.node_affinity.required_during_scheduling_ignored_during_execution.node_selector_terms.append(
             k8s_client.V1NodeSelectorTerm(
-                match_expressions=compile_affinity_by_label_selector(
+                match_expressions=generate_preemptible_node_selector_requirements(
                     NodeSelectorOperator.node_selector_op_in
                 )
             )

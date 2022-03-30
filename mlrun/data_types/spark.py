@@ -46,11 +46,8 @@ def get_df_preview_spark(df, preview_lines=20):
     """capture preview data from spark df"""
     df = df.limit(preview_lines)
 
-    values = [df.select(funcs.collect_list(val)).first()[0] for val in df.columns]
-    preview = [df.columns]
-    for row in list(zip(*values)):
-        preview.append(list(row))
-    return preview
+    result_dict = df.toPandas().to_dict(orient="split")
+    return [result_dict["columns"], *result_dict["data"]]
 
 
 def _create_hist_data(df, column, minim, maxim, bins=10):

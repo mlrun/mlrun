@@ -30,7 +30,7 @@ from ..config import config as mlconf
 from ..k8s_utils import (
     generate_preemptible_node_selector_requirements,
     compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes,
-    compile_anti_affinity_by_label_selector_no_schedule_on_matching_nodes,
+    generate_preemptible_nodes_anti_affinity_terms,
     verify_gpu_requests_and_limits,
 )
 from ..secrets import SecretsStore
@@ -501,7 +501,7 @@ class KubeResourceSpec(FunctionSpec):
                 self._initialize_node_affinity()
                 # using a single term with potentially multiple expressions to ensure affinity
                 self.affinity.node_affinity.required_during_scheduling_ignored_during_execution = client.V1NodeSelector(
-                    node_selector_terms=compile_anti_affinity_by_label_selector_no_schedule_on_matching_nodes()
+                    node_selector_terms=generate_preemptible_nodes_anti_affinity_terms()
                 )
 
         # enrich tolerations and override all node selector terms with preemptible node selector terms

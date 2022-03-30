@@ -606,8 +606,8 @@ def verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = N
 
 def generate_preemptible_node_selector_requirements(node_selector_operator: str):
     """
-    Generate node selector requirements based on the pre-configured node selector of the preemptible nodes
-    operator represents a key's relationship to a set of values
+    Generate node selector requirements based on the pre-configured node selector of the preemptible nodes.
+    node selector operator represents a key's relationship to a set of values.
     Valid operators are listed in :py:class:`~mlrun.api.schemas.NodeSelectorOperator`
     :param node_selector_operator: The operator of V1NodeSelectorRequirement
     :return: List[V1NodeSelectorRequirement]
@@ -627,10 +627,12 @@ def generate_preemptible_node_selector_requirements(node_selector_operator: str)
     return match_expressions
 
 
-def compile_anti_affinity_by_label_selector_no_schedule_on_matching_nodes() -> typing.List[
+def generate_preemptible_nodes_anti_affinity_terms() -> typing.List[
     kubernetes.client.V1NodeSelectorTerm
 ]:
     """
+    Generate node selector term containing anti-affinity expressions based on the
+    pre-configured node selector of the preemptible nodes.
     Use for purpose of scheduling on node only if all match_expressions are satisfied.
     This function uses a single term with potentially multiple expressions to ensure anti affinity.
     https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity

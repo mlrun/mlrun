@@ -14,7 +14,7 @@ from mlrun.config import config as mlconf
 from mlrun.k8s_utils import (
     generate_preemptible_node_selector_requirements,
     compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes,
-    compile_anti_affinity_by_label_selector_no_schedule_on_matching_nodes,
+    generate_preemptible_nodes_anti_affinity_terms,
 )
 from mlrun.platforms import auto_mount
 from mlrun.runtimes.kubejob import KubejobRuntime
@@ -161,7 +161,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         expected_anti_affinity = k8s_client.V1Affinity(
             node_affinity=k8s_client.V1NodeAffinity(
                 required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
-                    node_selector_terms=compile_anti_affinity_by_label_selector_no_schedule_on_matching_nodes(),
+                    node_selector_terms=generate_preemptible_nodes_anti_affinity_terms(),
                 ),
             ),
         )
@@ -223,7 +223,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         expected_affinity = k8s_client.V1Affinity(
             node_affinity=k8s_client.V1NodeAffinity(
                 required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
-                    node_selector_terms=compile_anti_affinity_by_label_selector_no_schedule_on_matching_nodes(),
+                    node_selector_terms=generate_preemptible_nodes_anti_affinity_terms(),
                 ),
             ),
         )

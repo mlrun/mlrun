@@ -1,5 +1,5 @@
+import enum
 import typing
-from enum import Enum
 
 import pydantic
 
@@ -15,7 +15,7 @@ class Resources(pydantic.BaseModel):
     limits: ResourceSpec = ResourceSpec()
 
 
-class NodeSelectorOperator(str, Enum):
+class NodeSelectorOperator(str, enum.Enum):
     """
     A node selector operator is the set of operators that can be used in a node selector requirement
     https://github.com/kubernetes/api/blob/b754a94214be15ffc8d648f9fe6481857f1fc2fe/core/v1/types.go#L2765

@@ -3,7 +3,6 @@ import copy
 from deepdiff import DeepDiff
 
 import mlrun
-from mlrun.config import config
 
 
 def _get_runtime():
@@ -48,7 +47,7 @@ def test_new_function_from_runtime():
     expected_runtime = runtime
     expected_runtime["spec"][
         "preemption_mode"
-    ] = config.function_defaults.preemption_mode
+    ] = mlrun.mlconf.function_defaults.preemption_mode
     assert (
         DeepDiff(
             function.to_dict(),
@@ -66,7 +65,7 @@ def test_new_function_args_without_command():
     expected_runtime = runtime
     expected_runtime["spec"][
         "preemption_mode"
-    ] = config.function_defaults.preemption_mode
+    ] = mlrun.mlconf.function_defaults.preemption_mode
     assert (
         DeepDiff(
             function.to_dict(),
@@ -121,7 +120,7 @@ def test_new_function_with_resources():
         expected_runtime["spec"]["resources"] = test_case.get("expected_resources")
         expected_runtime["spec"][
             "preemption_mode"
-        ] = config.function_defaults.preemption_mode
+        ] = mlrun.mlconf.function_defaults.preemption_mode
         runtime["spec"]["resources"] = test_case.get("resources", None)
         mlrun.mlconf.default_function_pod_resources = test_case.get("default_resources")
         function = mlrun.new_function(runtime=runtime)

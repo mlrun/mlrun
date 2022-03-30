@@ -1,6 +1,7 @@
 import json
 import pathlib
 import sys
+import typing
 import unittest.mock
 from base64 import b64encode
 from copy import deepcopy
@@ -16,6 +17,11 @@ from kubernetes.client import V1EnvVar
 
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config as mlconf
+from mlrun.k8s_utils import (
+    generate_preemptible_nodes_affinity_terms,
+    generate_preemptible_nodes_anti_affinity_terms,
+    generate_preemptible_tolerations,
+)
 from mlrun.model import new_task
 from mlrun.runtimes.constants import PodPhases
 from mlrun.utils import create_logger
@@ -116,6 +122,9 @@ class TestRuntimeBase:
             name=self.name, project=self.project, artifact_path=self.artifact_path
         )
 
+    def _generate_preemptible_tolerations(self) -> typing.List[k8s_client.V1Toleration]:
+        return generate_preemptible_tolerations()
+
     def _generate_tolerations(self):
         return [self._generate_toleration()]
 
@@ -135,6 +144,24 @@ class TestRuntimeBase:
 
     def _generate_node_name(self):
         return "node-name"
+
+    def _generate_preemptible_anti_affinity(self):
+        return k8s_client.V1Affinity(
+            node_affinity=k8s_client.V1NodeAffinity(
+                required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                    node_selector_terms=generate_preemptible_nodes_anti_affinity_terms(),
+                ),
+            ),
+        )
+
+    def _generate_preemptible_affinity(self):
+        return k8s_client.V1Affinity(
+            node_affinity=k8s_client.V1NodeAffinity(
+                required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                    node_selector_terms=generate_preemptible_nodes_affinity_terms(),
+                ),
+            ),
+        )
 
     def _generate_affinity(self) -> k8s_client.V1Affinity:
         return k8s_client.V1Affinity(

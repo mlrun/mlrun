@@ -12,9 +12,8 @@ import mlrun.errors
 from mlrun.api.schemas import NodeSelectorOperator, PreemptionModes
 from mlrun.config import config as mlconf
 from mlrun.k8s_utils import (
-    compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes,
     generate_preemptible_node_selector_requirements,
-    generate_preemptible_nodes_anti_affinity_terms,
+    generate_preemptible_nodes_affinity_terms,
 )
 from mlrun.platforms import auto_mount
 from mlrun.runtimes.kubejob import KubejobRuntime
@@ -158,35 +157,23 @@ class TestKubejobRuntime(TestRuntimeBase):
         runtime = self._generate_runtime()
         runtime.with_preemption_mode(PreemptionModes.prevent)
         self._execute_run(runtime)
-        expected_anti_affinity = k8s_client.V1Affinity(
-            node_affinity=k8s_client.V1NodeAffinity(
-                required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
-                    node_selector_terms=generate_preemptible_nodes_anti_affinity_terms(),
-                ),
-            ),
-        )
-        self.assert_node_selection(affinity=expected_anti_affinity)
+        self.assert_node_selection(affinity=self._generate_preemptible_anti_affinity())
+
         runtime.with_preemption_mode(PreemptionModes.constrain)
-        expected_affinity = k8s_client.V1Affinity(
-            node_affinity=k8s_client.V1NodeAffinity(
-                required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
-                    node_selector_terms=compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes(),
-                ),
-            ),
-        )
         self._execute_run(runtime)
-        self.assert_node_selection(affinity=expected_affinity)
+        self.assert_node_selection(affinity=self._generate_preemptible_affinity())
 
         runtime.with_preemption_mode(PreemptionModes.allow)
         self._execute_run(runtime)
-        self.assert_node_selection(affinity=k8s_client.V1Affinity(node_affinity=None))
+        self.assert_node_selection()
+
         runtime.with_preemption_mode(PreemptionModes.constrain)
         self._execute_run(runtime)
-        self.assert_node_selection(affinity=expected_affinity)
+        self.assert_node_selection(affinity=self._generate_preemptible_affinity())
 
         runtime.with_preemption_mode(PreemptionModes.prevent)
         self._execute_run(runtime)
-        self.assert_node_selection(affinity=expected_anti_affinity)
+        self.assert_node_selection(affinity=self._generate_preemptible_anti_affinity())
 
         # set default preemptible tolerations
         tolerations = self._generate_tolerations()
@@ -196,12 +183,14 @@ class TestKubejobRuntime(TestRuntimeBase):
         )
         runtime.with_preemption_mode(PreemptionModes.constrain)
         self._execute_run(runtime)
-        self.assert_node_selection(affinity=expected_affinity, tolerations=tolerations)
+        self.assert_node_selection(
+            affinity=self._generate_preemptible_affinity(), tolerations=tolerations
+        )
 
         runtime.with_preemption_mode(PreemptionModes.prevent)
         self._execute_run(runtime)
         self.assert_node_selection(
-            affinity=expected_anti_affinity, tolerations=tolerations
+            affinity=self._generate_preemptible_anti_affinity(),
         )
 
     def test_run_with_prevent_preemptible_mode(self, db: Session, client: TestClient):
@@ -212,14 +201,8 @@ class TestKubejobRuntime(TestRuntimeBase):
         runtime = self._generate_runtime()
         runtime.with_preemption_mode(PreemptionModes.prevent)
         self._execute_run(runtime)
-        expected_affinity = k8s_client.V1Affinity(
-            node_affinity=k8s_client.V1NodeAffinity(
-                required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
-                    node_selector_terms=generate_preemptible_nodes_anti_affinity_terms(),
-                ),
-            ),
-        )
-        self.assert_node_selection(affinity=expected_affinity)
+
+        self.assert_node_selection(affinity=self._generate_preemptible_anti_affinity())
 
         # tolerations are set, but expect to stay because those tolerations aren't configured as preemptible tolerations
         runtime = self._generate_runtime()
@@ -227,7 +210,8 @@ class TestKubejobRuntime(TestRuntimeBase):
         runtime.with_preemption_mode(PreemptionModes.prevent)
         self._execute_run(runtime)
         self.assert_node_selection(
-            affinity=expected_affinity, tolerations=self._generate_tolerations()
+            affinity=self._generate_preemptible_anti_affinity(),
+            tolerations=self._generate_tolerations(),
         )
 
         # set default preemptible tolerations
@@ -238,20 +222,12 @@ class TestKubejobRuntime(TestRuntimeBase):
         )
         # tolerations are set, expect preemptible tolerations to be removed and anti-affinity not to be set
         runtime = self._generate_runtime()
-        runtime.with_node_selection(tolerations=self._generate_tolerations())
+        runtime.with_node_selection(
+            tolerations=self._generate_preemptible_tolerations()
+        )
         runtime.with_preemption_mode(PreemptionModes.prevent)
-
-        expected_anti_affinity = k8s_client.V1Affinity(
-            node_affinity=k8s_client.V1NodeAffinity(
-                required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
-                    node_selector_terms=generate_preemptible_nodes_anti_affinity_terms(),
-                ),
-            ),
-        )
         self._execute_run(runtime)
-        self.assert_node_selection(
-            tolerations=tolerations, affinity=expected_anti_affinity
-        )
+        self.assert_node_selection(affinity=self._generate_preemptible_anti_affinity())
 
     def test_run_with_constrain_preemptible_mode(self, db: Session, client: TestClient):
         node_selector = self._generate_node_selector()
@@ -261,15 +237,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         runtime = self._generate_runtime()
         runtime.with_preemption_mode(PreemptionModes.constrain)
         self._execute_run(runtime)
-        self.assert_node_selection(
-            affinity=k8s_client.V1Affinity(
-                node_affinity=k8s_client.V1NodeAffinity(
-                    required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
-                        node_selector_terms=compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes(),
-                    ),
-                ),
-            )
-        )
+        self.assert_node_selection(affinity=self._generate_preemptible_affinity())
         # set default preemptible tolerations
         tolerations = self._generate_tolerations()
         serialized_tolerations = self.k8s_api.sanitize_for_serialization(tolerations)
@@ -280,14 +248,8 @@ class TestKubejobRuntime(TestRuntimeBase):
         runtime.with_preemption_mode(PreemptionModes.constrain)
         self._execute_run(runtime)
         self.assert_node_selection(
-            affinity=k8s_client.V1Affinity(
-                node_affinity=k8s_client.V1NodeAffinity(
-                    required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
-                        node_selector_terms=compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes(),
-                    ),
-                ),
-            ),
-            tolerations=tolerations,
+            affinity=self._generate_preemptible_affinity(),
+            tolerations=self._generate_preemptible_tolerations(),
         )
         # sets different affinity before, expects to override the required_during_scheduling_ignored_during_execution
         runtime = self._generate_runtime()
@@ -296,11 +258,11 @@ class TestKubejobRuntime(TestRuntimeBase):
         self._execute_run(runtime)
         expected_affinity = self._generate_affinity()
         expected_affinity.node_affinity.required_during_scheduling_ignored_during_execution = k8s_client.V1NodeSelector(
-            node_selector_terms=compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes(),
+            node_selector_terms=generate_preemptible_nodes_affinity_terms(),
         )
         self.assert_node_selection(
             affinity=expected_affinity,
-            tolerations=tolerations,
+            tolerations=self._generate_preemptible_tolerations(),
         )
 
     def test_run_with_allow_preemptible_mode(self, db: Session, client: TestClient):
@@ -308,7 +270,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
             json.dumps(node_selector).encode("utf-8")
         )
-        # without default preemptible tolerations, expecting nothing to change
+        # without default preemptible tolerations, expecting default to apply
         runtime = self._generate_runtime()
         runtime.with_preemption_mode(PreemptionModes.allow)
         self._execute_run(runtime)
@@ -326,7 +288,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         runtime = self._generate_runtime()
         runtime.with_preemption_mode(PreemptionModes.allow)
         self._execute_run(runtime)
-        self.assert_node_selection(tolerations=tolerations)
+        self.assert_node_selection(tolerations=self._generate_preemptible_tolerations())
 
         # with affinity configured, expecting matching label selector to be removed
         affinity = self._generate_affinity()
@@ -346,7 +308,10 @@ class TestKubejobRuntime(TestRuntimeBase):
         runtime.with_node_selection(affinity=affinity)
         runtime.with_preemption_mode(PreemptionModes.allow)
         self._execute_run(runtime)
-        self.assert_node_selection(tolerations=tolerations, affinity=expected_affinity)
+        self.assert_node_selection(
+            tolerations=self._generate_preemptible_tolerations(),
+            affinity=expected_affinity,
+        )
 
         # with affinity configured, contains both preemptible label selector and also unrelated label selector,
         # expecting only the preemptible label selector to be removed
@@ -363,7 +328,10 @@ class TestKubejobRuntime(TestRuntimeBase):
         runtime.with_node_selection(affinity=affinity)
         runtime.with_preemption_mode(PreemptionModes.allow)
         self._execute_run(runtime)
-        self.assert_node_selection(tolerations=tolerations, affinity=expected_affinity)
+        self.assert_node_selection(
+            tolerations=self._generate_preemptible_tolerations(),
+            affinity=expected_affinity,
+        )
 
     def test_run_with_preemption_mode_without_preemptible_configuration(
         self, db: Session, client: TestClient

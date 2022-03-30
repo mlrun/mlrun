@@ -604,7 +604,9 @@ def verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = N
         )
 
 
-def generate_preemptible_node_selector_requirements(node_selector_operator: str):
+def generate_preemptible_node_selector_requirements(
+    node_selector_operator: str,
+) -> typing.List[kubernetes.client.V1NodeSelectorRequirement]:
     """
     Generate node selector requirements based on the pre-configured node selector of the preemptible nodes.
     node selector operator represents a key's relationship to a set of values.
@@ -652,7 +654,7 @@ def generate_preemptible_nodes_anti_affinity_terms() -> typing.List[
     ]
 
 
-def compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes() -> typing.List[
+def generate_preemptible_nodes_affinity_terms() -> typing.List[
     kubernetes.client.V1NodeSelectorTerm
 ]:
     """
@@ -675,3 +677,21 @@ def compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes() -> ty
             kubernetes.client.V1NodeSelectorTerm(match_expressions=[expression])
         )
     return node_selector_terms
+
+
+def generate_preemptible_tolerations() -> typing.List[kubernetes.client.V1Toleration]:
+    tolerations = mlconfig.get_preemptible_tolerations()
+
+    list_of_toleration_objects = []
+    for toleration in tolerations:
+        list_of_toleration_objects.append(
+            kubernetes.client.V1Toleration(
+                effect=toleration.get("effect", None),
+                key=toleration.get("key", None),
+                value=toleration.get("value", None),
+                operator=toleration.get("operator", None),
+                toleration_seconds=toleration.get("toleration_seconds", None)
+                or toleration.get("tolerationSeconds", None),
+            )
+        )
+    return list_of_toleration_objects

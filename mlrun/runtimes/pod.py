@@ -28,9 +28,10 @@ import mlrun.utils.regex
 from ..api.schemas import NodeSelectorOperator, PreemptionModes
 from ..config import config as mlconf
 from ..k8s_utils import (
-    compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes,
     generate_preemptible_node_selector_requirements,
+    generate_preemptible_nodes_affinity_terms,
     generate_preemptible_nodes_anti_affinity_terms,
+    generate_preemptible_tolerations,
     verify_gpu_requests_and_limits,
 )
 from ..secrets import SecretsStore
@@ -155,9 +156,9 @@ class KubeResourceSpec(FunctionSpec):
             priority_class_name or mlrun.mlconf.default_function_priority_class_name
         )
         self._tolerations = tolerations
-        self.preemption_mode = (
-            preemption_mode or mlconf.function_defaults.preemption_mode
-        )
+        self._preemption_mode = mlconf.function_defaults.preemption_mode
+        self.preemption_mode = preemption_mode
+        self.enrich_function_preemption_spec()
 
     @property
     def volumes(self) -> list:
@@ -210,6 +211,15 @@ class KubeResourceSpec(FunctionSpec):
         self._resources = self.enrich_resources_with_default_pod_resources(
             "resources", resources
         )
+
+    @property
+    def preemption_mode(self) -> str:
+        return self._preemption_mode
+
+    @preemption_mode.setter
+    def preemption_mode(self, mode):
+        self._preemption_mode = mode or mlconf.function_defaults.preemption_mode
+        # self.enrich_function_preemption_spec()
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(fields, exclude=["affinity", "tolerations"])
@@ -473,7 +483,9 @@ class KubeResourceSpec(FunctionSpec):
             return
 
         if not self.preemption_mode:
-            self.preemption_mode = mlconf.function_defaults.preemption_mode
+            # We're not supposed to get here, but if we do, we'll set the private attribute to
+            # avoid triggering circular enrichment.
+            self._preemption_mode = mlconf.function_defaults.preemption_mode
             logger.debug(
                 "No preemption mode was given, using the default preemption mode",
                 default_preemption_mode=self.preemption_mode,
@@ -487,7 +499,9 @@ class KubeResourceSpec(FunctionSpec):
         # and enrich with anti-affinity if preemptible tolerations configuration haven't been provided
         if self.preemption_mode == PreemptionModes.prevent:
             # ensure no preemptible node tolerations
-            self._prune_tolerations(mlconf.get_preemptible_tolerations())
+            self._prune_tolerations(generate_preemptible_tolerations())
+            self._clear_tolerations_if_initialized_but_empty()
+
             # if preemptible tolerations were given, purge affinity preemption related configuration
             self._prune_affinity_node_selector_requirement(
                 (
@@ -504,7 +518,8 @@ class KubeResourceSpec(FunctionSpec):
         # enrich tolerations and override all node selector terms with preemptible node selector terms
         elif self.preemption_mode == PreemptionModes.constrain:
             # enrich with tolerations
-            self._merge_tolerations(mlconf.get_preemptible_tolerations())
+            self._merge_tolerations(generate_preemptible_tolerations())
+            self._clear_tolerations_if_initialized_but_empty()
 
             self._initialize_affinity()
             self._initialize_node_affinity()
@@ -512,7 +527,7 @@ class KubeResourceSpec(FunctionSpec):
             # overriding other terms that have been set, and only setting terms for preemptible nodes
             # when having multiple terms, pod scheduling is succeeded if at least one term is satisfied
             self.affinity.node_affinity.required_during_scheduling_ignored_during_execution = client.V1NodeSelector(
-                node_selector_terms=compile_affinity_by_label_selector_schedule_on_one_of_matching_nodes()
+                node_selector_terms=generate_preemptible_nodes_affinity_terms()
             )
 
         # purge any affinity / anti-affinity preemption related configuration and enrich with preemptible tolerations
@@ -531,11 +546,28 @@ class KubeResourceSpec(FunctionSpec):
                 ),
             )
 
+            self._clear_affinity_if_initialized_but_empty()
+
             # remove preemptible nodes constrain
             self._prune_node_selector(mlconf.get_preemptible_node_selector())
 
             # enrich with tolerations
-            self._merge_tolerations(mlconf.get_preemptible_tolerations())
+            self._merge_tolerations(generate_preemptible_tolerations())
+            self._clear_tolerations_if_initialized_but_empty()
+
+    def _clear_affinity_if_initialized_but_empty(self):
+        if not self.affinity:
+            self.affinity = None
+        if (
+            not self.affinity.node_affinity
+            and not self.affinity.pod_affinity
+            and not self.affinity.pod_anti_affinity
+        ):
+            self.affinity = None
+
+    def _clear_tolerations_if_initialized_but_empty(self):
+        if not self.tolerations:
+            self.tolerations = None
 
     def _merge_node_selector_term_to_node_affinity(
         self, node_selector_terms: typing.List[client.V1NodeSelectorTerm]

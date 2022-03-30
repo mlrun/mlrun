@@ -451,18 +451,19 @@ class KubeResourceSpec(FunctionSpec):
 
     def enrich_function_preemption_spec(self):
         """
-        Enriches function pod with the below described spec. if no platformConfiguration related
-        configuration is given, do nothing.
-            `Allow` 	- Adds Tolerations if taints were given.
-                        otherwise, assume pods can be scheduled on preemptible nodes.
+        Enriches function pod with the below described spec.
+        If no preemptible node configuration is provided, do nothing.
+            `Allow` 	- Adds Tolerations if configured.
+                          otherwise, assume pods can be scheduled on preemptible nodes.
                         > Purges any `affinity` / `anti-affinity` preemption related configuration
-            `Constrain` - Uses node-affinity to make sure pods are assigned using OR on the given node label selectors.
+            `Constrain` - Uses node-affinity to make sure pods are assigned using OR on the configured
+                          node label selectors.
                         > Uses `Allow` configuration as well.
                         > Purges any `anti-affinity` preemption related configuration
-            `Prevent`	- Prevention is done either using taints (if Tolerations were given) or anti-affinity.
-                        > Purges any `tolerations` / `gpuTolerations` preemption related configuration
+            `Prevent`	- Prevention is done either using taints (if Tolerations were configured) or anti-affinity.
+                        > Purges any `tolerations` preemption related configuration
                         > Purges any `affinity` preemption related configuration
-                        > Adds anti-affinity IF no tolerations were given
+                        > Adds anti-affinity IF no tolerations were configured
         """
         # nothing to do here, configuration is not populated
         if (

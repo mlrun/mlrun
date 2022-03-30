@@ -573,9 +573,11 @@ class KubeResourceSpec(FunctionSpec):
                 node_selector: client.V1NodeSelector = (
                     node_affinity.required_during_scheduling_ignored_during_execution
                 )
-                new_node_selector_terms = self._prune_node_selector_requirements_from_node_selector_terms(
-                    node_selector_terms=node_selector.node_selector_terms,
-                    node_selector_requirements_to_remove=node_selector_requirements,
+                new_node_selector_terms = (
+                    self._prune_node_selector_requirements_from_node_selector_terms(
+                        node_selector_terms=node_selector.node_selector_terms,
+                        node_selector_requirements_to_prune=node_selector_requirements,
+                    )
                 )
                 # check whether there are node selector terms to add to the new list of required terms
                 if len(new_node_selector_terms) > 0:
@@ -601,7 +603,7 @@ class KubeResourceSpec(FunctionSpec):
     @staticmethod
     def _prune_node_selector_requirements_from_node_selector_terms(
         node_selector_terms: typing.List[client.V1NodeSelectorTerm],
-        node_selector_requirements_to_remove: typing.List[
+        node_selector_requirements_to_prune: typing.List[
             client.V1NodeSelectorRequirement
         ],
     ) -> typing.List[client.V1NodeSelectorTerm]:
@@ -616,15 +618,18 @@ class KubeResourceSpec(FunctionSpec):
             new_node_selector_requirements: typing.List[
                 client.V1NodeSelectorRequirement
             ] = []
-            for expression in term.match_expressions:
-                new_node_selector_requirements.append(expression)
+            for node_selector_requirement in term.match_expressions:
+                to_prune = False
                 # go over each requirement and check if matches the current expression
-                for node_selector_requirement in node_selector_requirements_to_remove:
-                    if node_selector_requirement == expression:
-                        # remove from new node selector requirements list
-                        new_node_selector_requirements.pop()
+                for (
+                    node_selector_requirement_to_prune
+                ) in node_selector_requirements_to_prune:
+                    if node_selector_requirement == node_selector_requirement_to_prune:
+                        to_prune = True
                         # no need to keep going over the list provided for the current expression
                         break
+                if not to_prune:
+                    new_node_selector_requirements.append(node_selector_requirement)
 
             # check if there is something to add
             if len(new_node_selector_requirements) > 0 or term.match_fields:
@@ -647,18 +652,19 @@ class KubeResourceSpec(FunctionSpec):
             return
 
         # generate a list of tolerations without tolerations to prune
-        tolerations_without_tolerations_to_prune = []
+        new_tolerations = []
         for toleration in self.tolerations:
-            tolerations_without_tolerations_to_prune.append(toleration)
+            to_prune = False
             for toleration_to_delete in tolerations:
                 if toleration == toleration_to_delete:
-                    # remove from new tolerations list
-                    tolerations_without_tolerations_to_prune.pop()
+                    to_prune = True
                     # no need to keep going over the list provided for the current toleration
                     break
+            if not to_prune:
+                new_tolerations.append(toleration)
 
         # Set tolerations without tolerations to prune
-        self.tolerations = tolerations_without_tolerations_to_prune
+        self.tolerations = new_tolerations
 
     def _prune_node_selector(self, node_selector: typing.Dict[str, str]):
         """

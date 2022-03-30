@@ -584,14 +584,12 @@ class KubeResourceSpec(FunctionSpec):
                             node_selector_terms=new_node_selector_terms
                         )
                     )
-            # check if there is something to set into required_during_scheduling_ignored_during_execution
+            # if both preferred and new required are empty, clean node_affinity
             if (
                 not node_affinity.preferred_during_scheduling_ignored_during_execution
                 and not new_required_during_scheduling_ignored_during_execution
             ):
-                self.affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
-                    None
-                )
+                self.affinity.node_affinity = None
                 return
 
             self._initialize_affinity()

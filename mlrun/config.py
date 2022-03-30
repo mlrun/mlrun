@@ -124,7 +124,8 @@ default_config = {
             "dask": "mlrun/ml-base",
             "mpijob": "mlrun/ml-models",
         },
-        # see enrich function preemption spec for more info, and schemas.functionPreemptionModes for available options
+        # see enrich_function_preemption_spec for more info,
+        # and mlrun.api.schemas.functionPreemptionModes for available options
         "preemption_mode": "prevent",
     },
     "httpdb": {

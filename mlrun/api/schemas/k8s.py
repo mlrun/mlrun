@@ -16,7 +16,10 @@ class Resources(pydantic.BaseModel):
 
 
 class NodeSelectorOperator(str, Enum):
-    """A node selector operator is the set of operators that can be used in a node selector requirement"""
+    """
+    A node selector operator is the set of operators that can be used in a node selector requirement
+    https://github.com/kubernetes/api/blob/b754a94214be15ffc8d648f9fe6481857f1fc2fe/core/v1/types.go#L2765
+    """
 
     node_selector_op_in = "In"
     node_selector_op_not_in = "NotIn"

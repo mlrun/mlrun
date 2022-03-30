@@ -22,7 +22,7 @@ def test_client_spec(
     mlrun.mlconf.ui.projects_prefix = overridden_ui_projects_prefix
     nuclio_version = "x.x.x"
     mlrun.mlconf.nuclio_version = nuclio_version
-    mlrun.mlconf.default_preemption_mode = "constrain"
+    mlrun.mlconf.function_defaults.preemption_mode = "constrain"
     node_selector = {"label-1": "val1"}
     mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
         json.dumps(node_selector).encode("utf-8")
@@ -72,7 +72,8 @@ def test_client_spec(
     )
 
     assert (
-        response_body["default_preemption_mode"] == mlrun.mlconf.default_preemption_mode
+        response_body["default_preemption_mode"]
+        == mlrun.mlconf.function_defaults.preemption_mode
     )
     assert response_body[
         "preemptible_nodes_node_selector"

@@ -123,7 +123,9 @@ default_config = {
             "remote": "mlrun/mlrun",
             "dask": "mlrun/ml-base",
             "mpijob": "mlrun/ml-models",
-        }
+        },
+        # see enrich function preemption spec for more info, and schemas.functionPreemptionModes for available options
+        "preemption_mode": "prevent",
     },
     "httpdb": {
         "port": 8080,
@@ -334,8 +336,6 @@ default_config = {
         # encoded empty list
         "tolerations": "W10=",
     },
-    # see enrich function preemption spec for more info, and api.schemas.functionPreemptionModes for available options
-    "default_preemption_mode": "prevent",
 }
 
 

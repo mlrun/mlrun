@@ -338,9 +338,9 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("default_tensorboard_logs_path")
                 or config.default_tensorboard_logs_path
             )
-            config.default_preemption_mode = (
+            config.function_defaults.preemption_mode = (
                 server_cfg.get("default_preemption_mode")
-                or config.default_preemption_mode
+                or config.function_defaults.preemption_mode
             )
             config.preemptible_nodes.node_selector = (
                 server_cfg.get("preemptible_nodes_node_selector")

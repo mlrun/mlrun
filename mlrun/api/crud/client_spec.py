@@ -66,7 +66,7 @@ class ClientSpec(
                 "preemptible_nodes.tolerations"
             ),
             default_preemption_mode=self._get_config_value_if_not_default(
-                "default_preemption_mode"
+                "function_defaults.preemption_mode"
             ),
         )
 

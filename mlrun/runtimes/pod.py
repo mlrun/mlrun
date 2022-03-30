@@ -573,7 +573,7 @@ class KubeResourceSpec(FunctionSpec):
                 node_selector: client.V1NodeSelector = (
                     node_affinity.required_during_scheduling_ignored_during_execution
                 )
-                new_node_selector_terms = self._get_node_selector_terms_without_provided_node_selector_requirements(
+                new_node_selector_terms = self._prune_node_selector_requirements_from_node_selector_terms(
                     node_selector_terms=node_selector.node_selector_terms,
                     node_selector_requirements_to_remove=node_selector_requirements,
                 )
@@ -599,7 +599,7 @@ class KubeResourceSpec(FunctionSpec):
             )
 
     @staticmethod
-    def _get_node_selector_terms_without_provided_node_selector_requirements(
+    def _prune_node_selector_requirements_from_node_selector_terms(
         node_selector_terms: typing.List[client.V1NodeSelectorTerm],
         node_selector_requirements_to_remove: typing.List[
             client.V1NodeSelectorRequirement
@@ -612,7 +612,6 @@ class KubeResourceSpec(FunctionSpec):
         :return: New list of terms without the provided node selector requirements
         """
         new_node_selector_terms: typing.List[client.V1NodeSelectorTerm] = []
-        # for all term expressions on function spec
         for term in node_selector_terms:
             new_node_selector_requirements: typing.List[
                 client.V1NodeSelectorRequirement

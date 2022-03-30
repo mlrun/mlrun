@@ -509,7 +509,7 @@ class KubeResourceSpec(FunctionSpec):
         elif self.preemption_mode == PreemptionModes.constrain:
             # enrich with tolerations
             self._merge_tolerations(mlconf.get_preemptible_tolerations())
-            # TODO add gpu tolerations enrichment
+
             self._initialize_affinity()
             self._initialize_node_affinity()
             # setting required_during_scheduling_ignored_during_execution

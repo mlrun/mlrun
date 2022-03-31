@@ -56,6 +56,9 @@ def _create_hist_data(df, calculation_cols, results_dict, bins=20):
     bins_values = {}
 
     for orig_col in calculation_cols:
+        print(
+            f"{orig_col}: {results_dict[orig_col]['min']} ==> {results_dict[orig_col]['max']}"
+        )
         bins_start = np.linspace(
             results_dict[orig_col]["min"],
             results_dict[orig_col]["max"],

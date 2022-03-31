@@ -159,6 +159,28 @@ class TestRuntimeBase:
             ),
         )
 
+    def _generate_not_preemptible_affinity(self):
+        return k8s_client.V1Affinity(
+            node_affinity=k8s_client.V1NodeAffinity(
+                required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                    node_selector_terms=[
+                        k8s_client.V1NodeSelectorTerm(
+                            match_expressions=[
+                                k8s_client.V1NodeSelectorRequirement(
+                                    key="not_preemptible_node",
+                                    operator="In",
+                                    values=[
+                                        "not_preemptible_required-label-value-1",
+                                        "not_preemptible_required-label-value-2",
+                                    ],
+                                )
+                            ]
+                        ),
+                    ]
+                )
+            )
+        )
+
     def _generate_affinity(self) -> k8s_client.V1Affinity:
         return k8s_client.V1Affinity(
             node_affinity=k8s_client.V1NodeAffinity(

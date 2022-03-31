@@ -233,7 +233,7 @@ class BaseRuntime(ModelObj):
         """
         enrich function also in client side and also on server side
         """
-        self.spec.enrich_function_preemption_spec()
+        pass
 
     def _enrich_function(self):
         """

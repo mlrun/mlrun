@@ -644,12 +644,12 @@ def generate_preemptible_nodes_anti_affinity_terms() -> typing.List[
     from mlrun.api.schemas import NodeSelectorOperator
 
     # compile affinities with operator NotIn to make sure pods are not running on preemptible nodes.
-    anti_affinity = generate_preemptible_node_selector_requirements(
+    node_selector_requirements = generate_preemptible_node_selector_requirements(
         NodeSelectorOperator.node_selector_op_not_in
     )
     return [
         kubernetes.client.V1NodeSelectorTerm(
-            match_expressions=anti_affinity,
+            match_expressions=node_selector_requirements,
         )
     ]
 
@@ -660,7 +660,7 @@ def generate_preemptible_nodes_affinity_terms() -> typing.List[
     """
     Use for purpose of scheduling on node having at least one of the node selectors.
     When specifying multiple nodeSelectorTerms associated with nodeAffinity types,
-    then the pod can be scheduled onto a node if only one of the nodeSelectorTerms can be satisfied.
+    then the pod can be scheduled onto a node if at least one of the nodeSelectorTerms can be satisfied.
     :return: List of nodeSelectorTerms associated with the preemptible nodes.
     """
     # import here to avoid circular imports
@@ -669,10 +669,10 @@ def generate_preemptible_nodes_affinity_terms() -> typing.List[
     node_selector_terms = []
 
     # compile affinities with operator In so pods could schedule on at least one of the preemptible nodes.
-    affinity = generate_preemptible_node_selector_requirements(
+    node_selector_requirements = generate_preemptible_node_selector_requirements(
         NodeSelectorOperator.node_selector_op_in
     )
-    for expression in affinity:
+    for expression in node_selector_requirements:
         node_selector_terms.append(
             kubernetes.client.V1NodeSelectorTerm(match_expressions=[expression])
         )
@@ -682,9 +682,9 @@ def generate_preemptible_nodes_affinity_terms() -> typing.List[
 def generate_preemptible_tolerations() -> typing.List[kubernetes.client.V1Toleration]:
     tolerations = mlconfig.get_preemptible_tolerations()
 
-    list_of_toleration_objects = []
+    toleration_objects = []
     for toleration in tolerations:
-        list_of_toleration_objects.append(
+        toleration_objects.append(
             kubernetes.client.V1Toleration(
                 effect=toleration.get("effect", None),
                 key=toleration.get("key", None),
@@ -694,4 +694,4 @@ def generate_preemptible_tolerations() -> typing.List[kubernetes.client.V1Tolera
                 or toleration.get("tolerationSeconds", None),
             )
         )
-    return list_of_toleration_objects
+    return toleration_objects

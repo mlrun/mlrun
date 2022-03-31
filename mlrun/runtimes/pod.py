@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import functools
 import inspect
 import os
 import typing
@@ -438,26 +439,56 @@ class KubeResourceSpec(FunctionSpec):
         # merge node selectors - precedence to existing node selector
         self.node_selector = {**node_selector, **self.node_selector}
 
+    def _clear_tolerations_if_initialized_but_empty(func):
+        @functools.wraps(func)
+        def wrapper(self, *args, **kwargs):
+            resp = func(self, *args, **kwargs)
+            if not self.tolerations:
+                self.tolerations = None
+            return resp
+
+        return wrapper
+
+    def _clear_affinity_if_initialized_but_empty(func):
+        @functools.wraps(func)
+        def wrapper(self, *args, **kwargs):
+            resp = func(self, *args, **kwargs)
+            if not self.affinity:
+                self.affinity = None
+            elif (
+                not self.affinity.node_affinity
+                and not self.affinity.pod_affinity
+                and not self.affinity.pod_anti_affinity
+            ):
+                self.affinity = None
+            return resp
+
+        return wrapper
+
     def _merge_tolerations(self, tolerations: typing.List[k8s_client.V1Toleration]):
-        if len(tolerations) == 0:
+        if not tolerations:
             return
-
-        tolerations_to_add = []
-
         # In case function has no toleration, take all from input
         if not self.tolerations:
             self.tolerations = tolerations
             return
+        tolerations_to_add = []
 
         # Only add non-matching tolerations to avoid duplications
-        for function_toleration in self.tolerations:
-            for toleration in tolerations:
-                if function_toleration != toleration:
-                    tolerations_to_add.append(toleration)
+        for toleration in tolerations:
+            to_add = True
+            for function_toleration in self.tolerations:
+                if function_toleration == toleration:
+                    to_add = False
+                    break
+            if to_add:
+                tolerations_to_add.append(toleration)
 
         if len(tolerations_to_add) > 0:
-            self.tolerations += tolerations_to_add
+            self.tolerations.extend(tolerations_to_add)
 
+    @_clear_tolerations_if_initialized_but_empty
+    @_clear_affinity_if_initialized_but_empty
     def enrich_function_preemption_spec(self):
         """
         Enriches function pod with the below described spec.
@@ -490,18 +521,13 @@ class KubeResourceSpec(FunctionSpec):
                 default_preemption_mode=self.preemption_mode,
             )
 
-        logger.debug(
-            "Enriching function spec for given preemption mode",
-            preemption_mode=self.preemption_mode,
-        )
         # remove preemptible tolerations and remove preemption related configuration
         # and enrich with anti-affinity if preemptible tolerations configuration haven't been provided
         if self.preemption_mode == PreemptionModes.prevent:
             # ensure no preemptible node tolerations
             self._prune_tolerations(generate_preemptible_tolerations())
-            self._clear_tolerations_if_initialized_but_empty()
 
-            # if preemptible tolerations were given, purge affinity preemption related configuration
+            # purge affinity preemption related configuration
             self._prune_affinity_node_selector_requirement(
                 (
                     generate_preemptible_node_selector_requirements(
@@ -509,16 +535,20 @@ class KubeResourceSpec(FunctionSpec):
                     )
                 )
             )
-            # using a single term with potentially multiple expressions to ensure affinity
-            self._merge_node_selector_term_to_node_affinity(
-                node_selector_terms=generate_preemptible_nodes_anti_affinity_terms()
-            )
+            # if tolerations are configured, simply pruning tolerations is sufficient because functions
+            # cannot be scheduled without tolerations on tainted nodes.
+            # however, if preemptible tolerations are not configured, we must use anti-affinity on preemptible nodes
+            # to ensure that the function is not scheduled on the nodes.
+            if not generate_preemptible_tolerations():
+                # using a single term with potentially multiple expressions to ensure affinity
+                self._merge_node_selector_term_to_node_affinity(
+                    node_selector_terms=generate_preemptible_nodes_anti_affinity_terms()
+                )
 
         # enrich tolerations and override all node selector terms with preemptible node selector terms
         elif self.preemption_mode == PreemptionModes.constrain:
             # enrich with tolerations
             self._merge_tolerations(generate_preemptible_tolerations())
-            self._clear_tolerations_if_initialized_but_empty()
 
             self._initialize_affinity()
             self._initialize_node_affinity()
@@ -545,29 +575,11 @@ class KubeResourceSpec(FunctionSpec):
                 ),
             )
 
-            self._clear_affinity_if_initialized_but_empty()
-
             # remove preemptible nodes constrain
             self._prune_node_selector(mlconf.get_preemptible_node_selector())
 
             # enrich with tolerations
             self._merge_tolerations(generate_preemptible_tolerations())
-            self._clear_tolerations_if_initialized_but_empty()
-
-    def _clear_affinity_if_initialized_but_empty(self):
-        if not self.affinity:
-            self.affinity = None
-            return
-        if (
-            not self.affinity.node_affinity
-            and not self.affinity.pod_affinity
-            and not self.affinity.pod_anti_affinity
-        ):
-            self.affinity = None
-
-    def _clear_tolerations_if_initialized_but_empty(self):
-        if not self.tolerations:
-            self.tolerations = None
 
     def _merge_node_selector_term_to_node_affinity(
         self, node_selector_terms: typing.List[k8s_client.V1NodeSelectorTerm]

@@ -100,9 +100,9 @@ def get_dtype(df, colname):
 # Histogram calculation in Spark relies on adding a column to the DF per histogram bin. Spark supports many
 # columns, but not infinitely (and there's no hard-limit on number of columns). This value will determine
 # how many histograms will be calculated in a single query. By default we're using 20 bins per histogram, so
-# using 1000 will calculate histograms over 50 columns in a single query. If there are more, more queries will
+# using 500 will calculate histograms over 25 columns in a single query. If there are more, more queries will
 # be executed.
-MAX_HISTOGRAM_COLUMNS_IN_QUERY = 1000
+MAX_HISTOGRAM_COLUMNS_IN_QUERY = 500
 
 
 def get_df_stats_spark(df, options, num_bins=20, sample_size=None):

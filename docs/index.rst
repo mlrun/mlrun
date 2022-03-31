@@ -8,34 +8,29 @@ MLRun Package Documentation
 
 *The Open-Source MLOps Orchestration Framework*
 
-Introduction
-************
-
 MLRun is an open-source MLOps framework that offers an integrative approach to managing your machine-learning pipelines from early development through model development to full pipeline deployment in production.
 MLRun offers a convenient abstraction layer to a wide variety of technology stacks while empowering data engineers and data scientists to define the feature and models.
 
 The MLRun Architecture
-----------------------
+************************
 
 .. image:: _static/images/mlrun-architecture.png
     :alt: MLRun architecture
 
 MLRun is composed of the following layers:
 
-- **Feature and Artifact Store** – 
-    handles the ingestion, processing, metadata, and storage of data and features across multiple repositories and technologies.
-- **Elastic Serverless Runtimes** –
-    converts simple code to scalable and managed microservices with workload-specific runtime engines (such as Kubernetes jobs, Nuclio, Dask, Spark, and Horovod).
-- **ML Pipeline Automation** –
-    automates data preparation, model training and testing, deployment of real-time production pipelines, and end-to-end monitoring.
-- **Central Management** –
-    provides a unified portal for managing the entire MLOps workflow.
+- **Feature and Artifact Store**  
+    Handles the ingestion, processing, metadata, and storage of data and features across multiple repositories and technologies.
+- **Elastic Serverless Runtimes**
+    Converts simple code to scalable and managed microservices with workload-specific runtime engines (such as Kubernetes jobs, Nuclio, Dask, Spark, and Horovod).
+- **ML Pipeline Automation**
+    Automates data preparation, model training and testing, deployment of real-time production pipelines, and end-to-end monitoring.
+- **Central Management**
+    Provides a unified portal for managing the entire MLOps workflow.
     The portal includes a UI, a CLI, and an SDK, which are accessible from anywhere.
 
-Review the relevant documentation sections to learn about each component.
-
 Key Benefits
-------------
+************************
 
 MLRun provides the following key benefits:
 
@@ -49,50 +44,67 @@ Table Of Contents
 
 .. toctree::
    :maxdepth: 1
-   :caption: MLRun Basics:
+   :caption: MLRun basics
 
+   architecture
+   mlops-dev-flow
    quick-start
    tutorial/index
-   architecture
-   install
+      Add MLRun to existing code
+      Work from IDE
+      Additional demos / katacoda
    howto/index
-
+   install
+   
 .. toctree::
    :maxdepth: 1
-   :caption: Functions and ML Pipelines:
-
-   runtimes/functions
-   runtimes/distributed
-   projects/overview
-   serving/serving-graph
-   model_monitoring/index
-   secrets
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Feature Store:
-
-   feature-store/feature-store
-   feature-store/feature-sets
-   feature-store/transformations
-   feature-store/feature-vectors
-   feature-store/training-serving
-   feature-store/basic-demo
-   feature-store/end-to-end-demo/index
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Artifact Management:
-
-   store/datastore
+   :caption: Concepts
+   
+   projects/project
+   concepts/functions-concepts
+   concepts/data-feature-store
+   concepts/runs-experiments-workflows
    store/artifacts
-   store/models
+   concepts/deployment-monitoring
 
 .. toctree::
    :maxdepth: 1
-   :caption: References:
+   :caption: Working with data
 
-   examples
-   cli
+   <!--- feature-store/data-access-versioning --->
+   <!--- feature-store/prepare-analyze-data --->
+   feature-store/feature-store-data-ingestion
+   feature-store/feature-store-data-retrieval
+   feature-store/feature-store-tutorials
+  
+.. toctree::
+   :maxdepth: 1
+   :caption: Develop functions and models
+   
+   runtimes/functions
+   runtimes/run-track-compare-jobs
+   <!-- runtimes/develop-ml-models -->
+   <!-- runtimes/develop-dl-nlp-models -->
+   <!-- runtimes/run-multistage-workflows -->
+   <!-- runtimes/manage-monitor-resources -->
+      
+.. toctree::
+   :maxdepth: 1
+   :caption: Deploy ML applications
+   
+   <!-- model_monitoring/model-registry-mgmt -->
+   serving/serving-graph
+   serving/build-graph-model-serving
+   model_monitoring/index
+   model_monitoring/ci-cd-rolling-upgrades-git
+
+.. toctree::
+   :maxdepth: 1
+   :caption: References
+
    genindex
    api/index
+   <!-- web-apps -->
+   cli
+   examples
+   Glossary

@@ -17,6 +17,7 @@ import typing
 from datetime import datetime
 from sys import stdout
 
+import kubernetes.client
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
@@ -436,6 +437,7 @@ class BasePod:
         kind="job",
         project=None,
         default_pod_spec_attributes=None,
+        resources=None,
     ):
         self.namespace = namespace
         self.name = ""
@@ -457,6 +459,7 @@ class BasePod:
         self._init_container = None
         # will be applied on the pod spec only when calling .pod(), allows to override spec attributes
         self.default_pod_spec_attributes = default_pod_spec_attributes
+        self.resources = resources
 
     @property
     def pod(self):
@@ -552,6 +555,7 @@ class BasePod:
             command=self.command,
             args=self.args,
             volume_mounts=self._mounts,
+            resources=self.resources,
         )
 
         pod_spec = client.V1PodSpec(
@@ -601,3 +605,96 @@ def verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = N
             f"When specifying both GPU requests and limits these two values must be equal, "
             f"requests_gpu={requests_gpu}, limits_gpu={limits_gpu}"
         )
+
+
+def generate_preemptible_node_selector_requirements(
+    node_selector_operator: str,
+) -> typing.List[kubernetes.client.V1NodeSelectorRequirement]:
+    """
+    Generate node selector requirements based on the pre-configured node selector of the preemptible nodes.
+    node selector operator represents a key's relationship to a set of values.
+    Valid operators are listed in :py:class:`~mlrun.api.schemas.NodeSelectorOperator`
+    :param node_selector_operator: The operator of V1NodeSelectorRequirement
+    :return: List[V1NodeSelectorRequirement]
+    """
+    match_expressions = []
+    for (
+        node_selector_key,
+        node_selector_value,
+    ) in mlconfig.get_preemptible_node_selector().items():
+        match_expressions.append(
+            kubernetes.client.V1NodeSelectorRequirement(
+                key=node_selector_key,
+                operator=node_selector_operator,
+                values=node_selector_value,
+            )
+        )
+    return match_expressions
+
+
+def generate_preemptible_nodes_anti_affinity_terms() -> typing.List[
+    kubernetes.client.V1NodeSelectorTerm
+]:
+    """
+    Generate node selector term containing anti-affinity expressions based on the
+    pre-configured node selector of the preemptible nodes.
+    Use for purpose of scheduling on node only if all match_expressions are satisfied.
+    This function uses a single term with potentially multiple expressions to ensure anti affinity.
+    https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
+    :return: List contains one nodeSelectorTerm with multiple expressions.
+    """
+    # import here to avoid circular imports
+    from mlrun.api.schemas import NodeSelectorOperator
+
+    # compile affinities with operator NotIn to make sure pods are not running on preemptible nodes.
+    node_selector_requirements = generate_preemptible_node_selector_requirements(
+        NodeSelectorOperator.node_selector_op_not_in
+    )
+    return [
+        kubernetes.client.V1NodeSelectorTerm(
+            match_expressions=node_selector_requirements,
+        )
+    ]
+
+
+def generate_preemptible_nodes_affinity_terms() -> typing.List[
+    kubernetes.client.V1NodeSelectorTerm
+]:
+    """
+    Use for purpose of scheduling on node having at least one of the node selectors.
+    When specifying multiple nodeSelectorTerms associated with nodeAffinity types,
+    then the pod can be scheduled onto a node if at least one of the nodeSelectorTerms can be satisfied.
+    :return: List of nodeSelectorTerms associated with the preemptible nodes.
+    """
+    # import here to avoid circular imports
+    from mlrun.api.schemas import NodeSelectorOperator
+
+    node_selector_terms = []
+
+    # compile affinities with operator In so pods could schedule on at least one of the preemptible nodes.
+    node_selector_requirements = generate_preemptible_node_selector_requirements(
+        NodeSelectorOperator.node_selector_op_in
+    )
+    for expression in node_selector_requirements:
+        node_selector_terms.append(
+            kubernetes.client.V1NodeSelectorTerm(match_expressions=[expression])
+        )
+    return node_selector_terms
+
+
+def generate_preemptible_tolerations() -> typing.List[kubernetes.client.V1Toleration]:
+    tolerations = mlconfig.get_preemptible_tolerations()
+
+    toleration_objects = []
+    for toleration in tolerations:
+        toleration_objects.append(
+            kubernetes.client.V1Toleration(
+                effect=toleration.get("effect", None),
+                key=toleration.get("key", None),
+                value=toleration.get("value", None),
+                operator=toleration.get("operator", None),
+                toleration_seconds=toleration.get("toleration_seconds", None)
+                or toleration.get("tolerationSeconds", None),
+            )
+        )
+    return toleration_objects

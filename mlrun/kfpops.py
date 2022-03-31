@@ -414,7 +414,7 @@ def mlrun_op(
         },
     )
     cop = add_default_function_resources_requests(cop)
-    cop = add_function_node_selection_attributes(cop=cop, function=function)
+    cop = add_function_node_selection_attributes(container_op=cop, function=function)
 
     add_annotations(cop, PipelineRunType.run, function, func_url, project)
     if code_env:
@@ -485,7 +485,7 @@ def deploy_op(
         file_outputs={"endpoint": "/tmp/output", "name": "/tmp/name"},
     )
     cop = add_default_function_resources_requests(cop)
-    cop = add_function_node_selection_attributes(cop=cop, function=function)
+    cop = add_function_node_selection_attributes(container_op=cop, function=function)
 
     add_annotations(cop, PipelineRunType.deploy, function, func_url)
     add_default_env(k8s_client, cop)
@@ -554,7 +554,7 @@ def build_op(
         file_outputs={"state": "/tmp/state", "image": "/tmp/image"},
     )
     cop = add_default_function_resources_requests(cop)
-    cop = add_function_node_selection_attributes(cop=cop, function=function)
+    cop = add_function_node_selection_attributes(container_op=cop, function=function)
 
     add_annotations(cop, PipelineRunType.build, function, func_url)
     if config.httpdb.builder.docker_registry:

@@ -436,6 +436,7 @@ class BasePod:
         kind="job",
         project=None,
         default_pod_spec_attributes=None,
+        resources=None,
     ):
         self.namespace = namespace
         self.name = ""
@@ -457,6 +458,7 @@ class BasePod:
         self._init_container = None
         # will be applied on the pod spec only when calling .pod(), allows to override spec attributes
         self.default_pod_spec_attributes = default_pod_spec_attributes
+        self.resources = resources
 
     @property
     def pod(self):
@@ -552,6 +554,7 @@ class BasePod:
             command=self.command,
             args=self.args,
             volume_mounts=self._mounts,
+            resources=self.resources,
         )
 
         pod_spec = client.V1PodSpec(

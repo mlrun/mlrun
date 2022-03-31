@@ -1,7 +1,7 @@
 <a id="top"></a>
 # Examples
 
-MLRun has many code examples and tutorial Jupyter notebooks with embedded documentation, ranging from examples of basic tasks to full end-to-end use-case applications, including the following; note that some of the examples are found in other mlrun GitHub repositories:
+MLRun has many code examples and tutorial Jupyter notebooks with embedded documentation, ranging from examples of basic tasks to full end-to-end use-case applications, including the following. Some of the examples are found in other mlrun GitHub repositories.
 
 - Learn MLRun basics &mdash; [**mlrun_basics.ipynb**](https://github.com/mlrun/mlrun/tree/master/examples/mlrun_basics.ipynb)
 - Convert local runs to Kubernetes jobs and create automated pipelines in a single notebook &mdash; [**mlrun_jobs.ipynb**](https://github.com/mlrun/mlrun/tree/master/examples/mlrun_jobs.ipynb)

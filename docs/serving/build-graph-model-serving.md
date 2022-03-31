@@ -1,14 +1,16 @@
-# Using graphs for model serving
+# Model serving pipelines
 
-With MLRun Serving you compose a graph of steps (composed of pre-defined graph blocks or native python classes/functions). A graph can have data processing steps, model ensembles, model servers, post-processing, etc. (see the [Advanced Model Serving Graph Notebook Example](./graph-example.ipynb)). MLRun Serving supports complex and distributed graphs (see the [Distributed (Multi-function) Pipeline Example](./distributed-graph.ipynb)), which may involve streaming, data/document/image processing, NLP, and model monitoring, etc.
+MLRun serving can produce managed real-time serverless pipelines from various tasks, including MLRun models or standard model files. MLRun serving supports complex and distributed graphs (see the [Distributed (Multi-function) Pipeline Example](./distributed-graph.ipynb)), which can involve streaming, data/document/image processing, NLP, and model monitoring, etc. The pipelines use the [Nuclio](https://nuclio.io/) real-time serverless engine, which can be deployed anywhere. 
 
-**This section describes:**
+Simple model serving classes can be written in Python or be taken from a set of pre-developed ML/DL classes. The code can handle complex data, feature preparation, and binary data (such as images and video files). The Nuclio serving engine supports the full model-serving life cycle, including auto-generation of microservices, APIs, load balancing, model logging and monitoring, and configuration management.
+
+**In this section**
 
 ```{toctree}
-:maxdepth: 1
+:maxdepth: 2
 model-serving-get-started
-<!-- advanced-routing -->
+<!--- advanced-routing --->
 custom-model-serving-class
 model-api
-<!-- model-best-practices -->
+<!--- model-best-practices --->
 ```

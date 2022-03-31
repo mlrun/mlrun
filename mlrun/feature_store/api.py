@@ -720,6 +720,7 @@ def _ingest_with_spark(
     namespace=None,
     overwrite=None,
 ):
+    created_spark_context = False
     try:
         import pyspark.sql
 
@@ -734,6 +735,7 @@ def _ingest_with_spark(
                 )
 
             spark = pyspark.sql.SparkSession.builder.appName(session_name).getOrCreate()
+            created_spark_context = True
 
         if isinstance(source, pd.DataFrame):
             df = spark.createDataFrame(source)
@@ -812,8 +814,10 @@ def _ingest_with_spark(
 
         _post_ingestion(mlrun_context, featureset, spark)
     finally:
-        if spark:
+        if created_spark_context:
             spark.stop()
+            # We shouldn't return a dataframe that depends on a stopped context
+            return
     return df
 
 

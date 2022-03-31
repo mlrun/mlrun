@@ -55,10 +55,6 @@ def xcp_op(
         command=["xcp"],
         arguments=args,
     )
-    # import here to avoid circular imports
-    import mlrun.kfpops
-
-    container_op = mlrun.kfpops.add_default_function_node_selector(container_op)
     return container_op
 
 

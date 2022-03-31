@@ -114,41 +114,63 @@ def test_env_override(config):
     assert config.namespace == env_ns, "env did not override"
 
 
-def test_decode_base64_config_and_load_to_dict():
-    encoded_attribute = "eyJlbmNvZGVkIjogImF0dHJpYnV0ZSJ9"
-    expected_decoded_output = {"encoded": "attribute"}
+def test_decode_base64_config_and_load_to_object():
+    encoded_dict_attribute = "eyJlbmNvZGVkIjogImF0dHJpYnV0ZSJ9"
+    expected_decoded_dict_output = {"encoded": "attribute"}
 
-    # Non-hierarchical attribute loading
-    mlconf.config.encoded_attribute = encoded_attribute
-    decoded_output = mlconf.config.decode_base64_config_and_load_to_dict(
-        "encoded_attribute"
+    encoded_list = "W3sidGVzdCI6IHsidGVzdF9kaWN0IjogMX19LCAxLCAyXQ=="
+    expected_decoded_list_output = [{"test": {"test_dict": 1}}, 1, 2]
+
+    # Non-hierarchical attribute loading with passing of expected type
+    mlconf.config.encoded_attribute = encoded_dict_attribute
+    decoded_output = mlconf.config.decode_base64_config_and_load_to_object(
+        "encoded_attribute", dict
     )
-    assert decoded_output == expected_decoded_output
+    assert type(decoded_output) == dict
+    assert decoded_output == expected_decoded_dict_output
 
-    # Hierarchical attribute loading
-    mlconf.config.for_test = {"encoded_attribute": encoded_attribute}
-    decoded_output = mlconf.config.decode_base64_config_and_load_to_dict(
+    # Hierarchical attribute loading without passing of expected type
+    mlconf.config.for_test = {"encoded_attribute": encoded_dict_attribute}
+    decoded_output = mlconf.config.decode_base64_config_and_load_to_object(
         "for_test.encoded_attribute"
     )
-    assert decoded_output == expected_decoded_output
+    assert type(decoded_output) == dict
+    assert decoded_output == expected_decoded_dict_output
 
-    # Not defined attribute
+    # Not defined attribute without passing of expected type
     mlconf.config.for_test = {"encoded_attribute": None}
-    decoded_output = mlconf.config.decode_base64_config_and_load_to_dict(
+    decoded_output = mlconf.config.decode_base64_config_and_load_to_object(
         "for_test.encoded_attribute"
     )
+    assert type(decoded_output) == dict
     assert decoded_output == {}
+
+    # Not defined attribute with passing of expected type
+    mlconf.config.for_test = {"encoded_attribute": None}
+    decoded_output = mlconf.config.decode_base64_config_and_load_to_object(
+        "for_test.encoded_attribute", list
+    )
+    assert type(decoded_output) == list
+    assert decoded_output == []
 
     # Non existing attribute loading
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        mlconf.config.decode_base64_config_and_load_to_dict("non_existing_attribute")
+        mlconf.config.decode_base64_config_and_load_to_object("non_existing_attribute")
 
     # Attribute defined but not encoded
     mlconf.config.for_test = {"encoded_attribute": "notencoded"}
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError):
-        mlconf.config.decode_base64_config_and_load_to_dict(
+        mlconf.config.decode_base64_config_and_load_to_object(
             "for_test.encoded_attribute"
         )
+
+    # list attribute loading
+    mlconf.config.for_test = {"encoded_attribute": encoded_list}
+    decoded_list_output = mlconf.config.decode_base64_config_and_load_to_object(
+        "for_test.encoded_attribute", list
+    )
+    assert type(decoded_list_output) == list
+    assert decoded_list_output == expected_decoded_list_output
 
 
 def test_get_default_function_pod_resources(config):

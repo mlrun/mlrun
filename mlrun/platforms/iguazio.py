@@ -31,33 +31,6 @@ from mlrun.utils import dict_to_json
 _cached_control_session = None
 
 
-def xcp_op(
-    src, dst, f="", recursive=False, mtime="", log_level="info", minsize=0, maxsize=0
-):
-    """Parallel cloud copy."""
-    from kfp import dsl
-
-    args = [
-        # '-f', f,
-        # '-t', mtime,
-        # '-m', maxsize,
-        # '-n', minsize,
-        # '-v', log_level,
-        src,
-        dst,
-    ]
-    if recursive:
-        args = ["-r"] + args
-
-    container_op = dsl.ContainerOp(
-        name="xcp",
-        image="yhaviv/invoke",
-        command=["xcp"],
-        arguments=args,
-    )
-    return container_op
-
-
 VolumeMount = namedtuple("Mount", ["path", "sub_path"])
 
 

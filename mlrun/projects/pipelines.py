@@ -347,7 +347,7 @@ def _create_and_write_workflow(
     for pod in workflow["spec"]["templates"]:
         if pod.get("container"):
             for function_name, function_obj in pipeline_context.functions.items().items():
-                if pod.get("container") and pod.get("container").get("name").startswith(function_name):
+                if pod.get("container") and pod.get("name").startswith(function_name):
                     pod[
                         "PriorityClassName"
                     ] = getattr(function_obj.spec, "priority_class_name", "")

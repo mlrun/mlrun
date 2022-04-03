@@ -356,10 +356,12 @@ def _create_and_write_workflow(
         pipeline_func, pipeline_name, pipeline_description, params_list, pipeline_conf
     )
     import mlrun.config
-
+    print(mlrun.config.config.default_function_priority_class_name)
+    print(1)
     workflow["spec"][
-        "PriorityClassName"
+        "PodPriorityClassName"
     ] = mlrun.config.config.default_function_priority_class_name
+    workflow["spec"]["PodPriority"] = 1
     self._write_workflow(workflow, package_path)
     _validate_workflow(workflow)
 

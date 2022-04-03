@@ -55,6 +55,7 @@ def _create_and_write_workflow(
         "PodPriorityClassName"
     ] = mlrun.config.config.default_function_priority_class_name
     workflow["spec"]["PodPriority"] = 1
+    print(workflow)
     self._write_workflow(workflow, package_path)
     kfp.compiler.compiler._validate_workflow(workflow)
 

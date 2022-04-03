@@ -123,7 +123,10 @@ default_config = {
             "remote": "mlrun/mlrun",
             "dask": "mlrun/ml-base",
             "mpijob": "mlrun/ml-models",
-        }
+        },
+        # see enrich_function_preemption_spec for more info,
+        # and mlrun.api.schemas.functionPreemptionModes for available options
+        "preemption_mode": "prevent",
     },
     "httpdb": {
         "port": 8080,
@@ -329,8 +332,10 @@ default_config = {
     },
     # preemptible node selector and tolerations to be added when running on spot nodes
     "preemptible_nodes": {
+        # encoded empty dict
         "node_selector": "e30=",
-        "tolerations": "e30=",
+        # encoded empty list
+        "tolerations": "W10=",
     },
 }
 
@@ -412,7 +417,15 @@ class Config:
         return config.hub_url
 
     @staticmethod
-    def decode_base64_config_and_load_to_dict(attribute_path: str) -> dict:
+    def decode_base64_config_and_load_to_object(
+        attribute_path: str, expected_type=dict
+    ):
+        """
+        decodes and loads the config attribute to expected type
+        :param attribute_path: the path in the default_config e.g preemptible_nodes.node_selector
+        :param expected_type: the object type valid values are : `dict`, `list` etc...
+        :return: the expected type instance
+        """
         attributes = attribute_path.split(".")
         raw_attribute_value = config
         for part in attributes:
@@ -432,22 +445,26 @@ class Config:
                     f"Unable to decode {attribute_path}"
                 )
             parsed_attribute_value = json.loads(decoded_attribute_value)
+            if type(parsed_attribute_value) != expected_type:
+                raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                    f"Expected type {expected_type}, got {type(parsed_attribute_value)}"
+                )
             return parsed_attribute_value
-        return {}
+        return expected_type()
 
     def get_default_function_node_selector(self) -> dict:
-        return self.decode_base64_config_and_load_to_dict(
-            "default_function_node_selector"
+        return self.decode_base64_config_and_load_to_object(
+            "default_function_node_selector", dict
         )
 
     def get_preemptible_node_selector(self) -> dict:
-        return self.decode_base64_config_and_load_to_dict(
-            "preemptible_nodes.node_selector"
+        return self.decode_base64_config_and_load_to_object(
+            "preemptible_nodes.node_selector", dict
         )
 
-    def get_preemptible_tolerations(self) -> dict:
-        return self.decode_base64_config_and_load_to_dict(
-            "preemptible_nodes.tolerations"
+    def get_preemptible_tolerations(self) -> list:
+        return self.decode_base64_config_and_load_to_object(
+            "preemptible_nodes.tolerations", list
         )
 
     @staticmethod
@@ -518,16 +535,35 @@ class Config:
 
         return auto_mount_params
 
+    def get_default_function_pod_resources(self):
+        resources = {}
+        resource_requirements = ["requests", "limits"]
+        for requirement in resource_requirements:
+            resources[
+                requirement
+            ] = self.get_default_function_pod_requirement_resources(requirement)
+        return resources
+
     @staticmethod
-    def get_default_function_pod_resources():
+    def get_default_function_pod_requirement_resources(
+        requirement: str, with_gpu: bool = True
+    ):
+        """
+        :param requirement: kubernetes requirement resource one of the following : requests, limits
+        :param with_gpu: whether to return requirement resources with nvidia.com/gpu field (e.g you cannot specify GPU
+         requests without specifying GPU limits) https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
+        :return: a dict containing the defaults resources (cpu, memory, nvidia.com/gpu)
+        """
         resources: dict = copy.deepcopy(config.default_function_pod_resources.to_dict())
         gpu_type = "nvidia.com/gpu"
         gpu = "gpu"
-        resource_requirements = ["requests", "limits"]
-        for requirement in resource_requirements:
-            resources.setdefault(requirement, {}).setdefault(gpu)
-            resources[requirement][gpu_type] = resources.get(requirement).pop(gpu)
-        return resources
+        resource_requirement = resources.get(requirement, {})
+        resource_requirement.setdefault(gpu)
+        if with_gpu:
+            resource_requirement[gpu_type] = resource_requirement.pop(gpu)
+        else:
+            resource_requirement.pop(gpu)
+        return resource_requirement
 
     def to_dict(self):
         return copy.copy(self._cfg)
@@ -708,7 +744,7 @@ def _convert_resources_to_str(config: dict = None):
         if not resource_requirement:
             continue
         for resource_type in resources_types:
-            value = resource_requirement.setdefault(resource_type, "")
+            value = resource_requirement.setdefault(resource_type, None)
             if value is None:
                 continue
             resource_requirement[resource_type] = str(value)

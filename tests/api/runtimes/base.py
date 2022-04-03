@@ -1,6 +1,7 @@
 import json
 import pathlib
 import sys
+import typing
 import unittest.mock
 from base64 import b64encode
 from copy import deepcopy
@@ -14,6 +15,7 @@ from kubernetes import client
 from kubernetes import client as k8s_client
 from kubernetes.client import V1EnvVar
 
+import mlrun.k8s_utils
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config as mlconf
 from mlrun.model import new_task
@@ -52,6 +54,8 @@ class TestRuntimeBase:
         self.azure_vault_secrets = ["azure_secret1", "azure_secret2"]
         self.azure_secret_value = "azure-secret-123!@"
         self.azure_vault_secret_name = "k8s-vault-secret"
+
+        self.k8s_api = k8s_client.ApiClient()
 
         self._logger.info(
             f"Setting up test {self.__class__.__name__}::{method.__name__}"
@@ -114,6 +118,9 @@ class TestRuntimeBase:
             name=self.name, project=self.project, artifact_path=self.artifact_path
         )
 
+    def _generate_preemptible_tolerations(self) -> typing.List[k8s_client.V1Toleration]:
+        return mlrun.k8s_utils.generate_preemptible_tolerations()
+
     def _generate_tolerations(self):
         return [self._generate_toleration()]
 
@@ -125,7 +132,56 @@ class TestRuntimeBase:
             toleration_seconds=3600,
         )
 
-    def _generate_affinity(self):
+    def _generate_node_selector(self):
+        return {
+            "label-1": "val1",
+            "label-2": "val2",
+        }
+
+    def _generate_node_name(self):
+        return "node-name"
+
+    def _generate_preemptible_anti_affinity(self):
+        return k8s_client.V1Affinity(
+            node_affinity=k8s_client.V1NodeAffinity(
+                required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                    node_selector_terms=mlrun.k8s_utils.generate_preemptible_nodes_anti_affinity_terms(),
+                ),
+            ),
+        )
+
+    def _generate_preemptible_affinity(self):
+        return k8s_client.V1Affinity(
+            node_affinity=k8s_client.V1NodeAffinity(
+                required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                    node_selector_terms=mlrun.k8s_utils.generate_preemptible_nodes_affinity_terms(),
+                ),
+            ),
+        )
+
+    def _generate_not_preemptible_affinity(self):
+        return k8s_client.V1Affinity(
+            node_affinity=k8s_client.V1NodeAffinity(
+                required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                    node_selector_terms=[
+                        k8s_client.V1NodeSelectorTerm(
+                            match_expressions=[
+                                k8s_client.V1NodeSelectorRequirement(
+                                    key="not_preemptible_node",
+                                    operator="In",
+                                    values=[
+                                        "not_preemptible_required-label-value-1",
+                                        "not_preemptible_required-label-value-2",
+                                    ],
+                                )
+                            ]
+                        ),
+                    ]
+                )
+            )
+        )
+
+    def _generate_affinity(self) -> k8s_client.V1Affinity:
         return k8s_client.V1Affinity(
             node_affinity=k8s_client.V1NodeAffinity(
                 preferred_during_scheduling_ignored_during_execution=[

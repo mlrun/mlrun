@@ -44,11 +44,14 @@ def _get_runtime():
 def test_new_function_from_runtime():
     runtime = _get_runtime()
     function = mlrun.new_function(runtime=runtime)
-    expected_resources = runtime
+    expected_runtime = runtime
+    expected_runtime["spec"][
+        "preemption_mode"
+    ] = mlrun.mlconf.function_defaults.preemption_mode
     assert (
         DeepDiff(
             function.to_dict(),
-            expected_resources,
+            expected_runtime,
             ignore_order=True,
         )
         == {}
@@ -59,10 +62,14 @@ def test_new_function_args_without_command():
     runtime = _get_runtime()
     runtime["spec"]["command"] = ""
     function = mlrun.new_function(runtime=runtime)
+    expected_runtime = runtime
+    expected_runtime["spec"][
+        "preemption_mode"
+    ] = mlrun.mlconf.function_defaults.preemption_mode
     assert (
         DeepDiff(
             function.to_dict(),
-            runtime,
+            expected_runtime,
             ignore_order=True,
         )
         == {}
@@ -111,6 +118,9 @@ def test_new_function_with_resources():
     ]:
         expected_runtime = copy.deepcopy(runtime)
         expected_runtime["spec"]["resources"] = test_case.get("expected_resources")
+        expected_runtime["spec"][
+            "preemption_mode"
+        ] = mlrun.mlconf.function_defaults.preemption_mode
         runtime["spec"]["resources"] = test_case.get("resources", None)
         mlrun.mlconf.default_function_pod_resources = test_case.get("default_resources")
         function = mlrun.new_function(runtime=runtime)

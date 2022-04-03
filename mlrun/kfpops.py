@@ -328,7 +328,12 @@ def mlrun_op(
             raise ValueError("name or function object must be specified")
         name = function_name
         if handler:
-            name += "-" + handler
+            short_name = handler
+            for separator in ["#", "::", "."]:
+                # drop paths, module or class name from short name
+                if separator in short_name:
+                    short_name = short_name.split(separator)[-1]
+            name += "-" + short_name
 
     if hyperparams or param_file:
         outputs.append("iteration_results")

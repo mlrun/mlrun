@@ -18,6 +18,7 @@ import os
 import tempfile
 import traceback
 import types
+import typing
 import uuid
 
 from kfp.compiler import compiler
@@ -340,22 +341,28 @@ class _PipelineRunner(abc.ABC):
         return workflow_handler
 
 
-def _create_and_write_workflow(self,
-                               pipeline_func: Callable,
-                               pipeline_name: Text = None,
-                               pipeline_description: Text = None,
-                               params_list: List[dsl.PipelineParam] = None,
-                               pipeline_conf: dsl.PipelineConf = None,
-                               package_path: Text = None) -> None:
+def _create_and_write_workflow(
+    self,
+    pipeline_func,
+    pipeline_name=None,
+    pipeline_description=None,
+    params_list=None,
+    pipeline_conf=None,
+    package_path=None,
+) -> None:
     """Compile the given pipeline function and dump it to specified file
     format."""
-    workflow = self._create_workflow(pipeline_func, pipeline_name,
-                                     pipeline_description, params_list,
-                                     pipeline_conf)
+    workflow = self._create_workflow(
+        pipeline_func, pipeline_name, pipeline_description, params_list, pipeline_conf
+    )
     import mlrun.config
-    workflow["spec"]["PriorityClassName"] = mlrun.config.config.default_function_priority_class_name
+
+    workflow["spec"][
+        "PriorityClassName"
+    ] = mlrun.config.config.default_function_priority_class_name
     self._write_workflow(workflow, package_path)
     _validate_workflow(workflow)
+
 
 class _KFPRunner(_PipelineRunner):
     """Kubeflow pipelines runner"""
@@ -375,7 +382,9 @@ class _KFPRunner(_PipelineRunner):
         artifact_path = artifact_path or project.spec.artifact_path
 
         conf = new_pipe_meta(artifact_path, ttl=workflow_spec.ttl)
-        compiler.Compiler._create_and_write_workflow = types.MethodType(_create_and_write_workflow, compiler.Compiler)
+        compiler.Compiler._create_and_write_workflow = types.MethodType(
+            _create_and_write_workflow, compiler.Compiler
+        )
         compiler.Compiler().compile(pipeline, target, pipeline_conf=conf)
         workflow_spec.clear_tmp()
 

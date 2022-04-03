@@ -17,10 +17,12 @@ import importlib.util as imputil
 import os
 import tempfile
 import traceback
+import typing
 import uuid
 
 import kfp
 import kfp.compiler
+from kfp import dsl
 from kfp.compiler import compiler
 
 import mlrun
@@ -229,17 +231,15 @@ def _set_priority_class_name_on_kfp_pod(kfp_pod_template, function):
 # When we patch the _create_and_write_workflow, we can eventually obtain the dictionary right before we write it
 # to a file and enrich it with argo compatible fields, make sure you looking for the same argo version we use
 # https://github.com/argoproj/argo-workflows/blob/release-2.7/pkg/apis/workflow/v1alpha1/workflow_types.go
-def _create_and_write_workflow(
+def _create_workflow(
     self,
-    pipeline_func,
-    pipeline_name=None,
-    pipeline_description=None,
-    params_list=None,
-    pipeline_conf=None,
-    package_path=None,
-) -> None:
-    """Compile the given pipeline function and dump it to specified file
-    format."""
+    pipeline_func: typing.Callable,
+    pipeline_name: typing.Optional[typing.Text] = None,
+    pipeline_description: typing.Optional[typing.Text] = None,
+    params_list: typing.Optional[typing.List[dsl.PipelineParam]] = None,
+    pipeline_conf: typing.Optional[dsl.PipelineConf] = None,
+):
+    """Call internal implementation of create_workflow and enrich with mlrun functions attributes"""
     workflow = self._create_workflow(
         pipeline_func, pipeline_name, pipeline_description, params_list, pipeline_conf
     )
@@ -253,13 +253,11 @@ def _create_and_write_workflow(
                 ) in pipeline_context.functions.items().items():
                     _set_priority_class_name_on_kfp_pod(kfp_pod_template, function_obj)
                     break
-
-    self._write_workflow(workflow, package_path)
-    kfp.compiler.compiler._validate_workflow(workflow)
+    return workflow
 
 
 # patching function as class method
-kfp.compiler.Compiler._create_and_write_workflow = _create_and_write_workflow
+kfp.compiler.Compiler._create_and_write_workflow = _create_workflow
 
 
 def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:

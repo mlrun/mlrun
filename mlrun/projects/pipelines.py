@@ -213,7 +213,7 @@ pipeline_context = _PipelineContext()
 
 def _set_priority_class_name_on_kfp_pod(kfp_pod_template, function):
     if kfp_pod_template.get("container") and kfp_pod_template.get("name").startswith(
-        function.metadata.get("name")
+        function.metadata.name
     ):
         kfp_pod_template["PriorityClassName"] = getattr(
             function.spec, "priority_class_name", ""

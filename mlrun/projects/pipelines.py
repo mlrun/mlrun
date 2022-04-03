@@ -346,7 +346,7 @@ def _create_and_write_workflow(
     # print(pipeline_context)
     for pod in workflow["spec"]["templates"]:
         if pod.get("container"):
-            for function_name, function_obj in pipeline_context.functions.items():
+            for function_name, function_obj in pipeline_context.functions.items().items():
                 if pod.get("container").get("name").startswith(function_name):
                     pod[
                         "PriorityClassName"

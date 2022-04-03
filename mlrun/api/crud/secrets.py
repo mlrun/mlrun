@@ -39,9 +39,7 @@ class Secrets(
     ):
         return f"{self.key_map_secrets_key_prefix}{client_type.value}"
 
-    def generate_auth_secret_ref(
-        self, secret: mlrun.api.schemas.AuthSecretData
-    ) -> str:
+    def generate_auth_secret_ref(self, secret: mlrun.api.schemas.AuthSecretData) -> str:
         if secret.provider != mlrun.api.schemas.SecretProviderName.kubernetes:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Storing auth secret is not implemented for provider {secret.provider}"
@@ -50,7 +48,9 @@ class Secrets(
             raise mlrun.errors.MLRunInternalServerError(
                 "K8s provider cannot be initialized"
             )
-        return mlrun.api.utils.singletons.k8s.get_k8s().get_auth_secret_name(secret.username, secret.access_key)
+        return mlrun.api.utils.singletons.k8s.get_k8s().get_auth_secret_name(
+            secret.username, secret.access_key
+        )
 
     @staticmethod
     def validate_project_secret_key_regex(
@@ -142,9 +142,7 @@ class Secrets(
             raise mlrun.errors.MLRunInternalServerError(
                 "K8s provider cannot be initialized"
             )
-        mlrun.api.utils.singletons.k8s.get_k8s().delete_auth_secret(
-            secret_ref
-        )
+        mlrun.api.utils.singletons.k8s.get_k8s().delete_auth_secret(secret_ref)
 
     def delete_project_secrets(
         self,

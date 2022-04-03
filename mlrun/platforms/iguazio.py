@@ -636,4 +636,3 @@ def sanitize_username(username: str):
     So simply replace it with dash
     """
     return username.replace("_", "-")
-

@@ -1,5 +1,4 @@
 import typing
-import unittest.mock
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Generator
 
@@ -111,7 +110,9 @@ class K8sSecretsMock:
 
     def store_auth_secret(self, username: str, access_key: str, namespace="") -> str:
         secret_ref = self.get_auth_secret_name(username, access_key)
-        self.auth_secrets_map.setdefault(secret_ref, {}).update(self._generate_auth_secret_data(username, access_key))
+        self.auth_secrets_map.setdefault(secret_ref, {}).update(
+            self._generate_auth_secret_data(username, access_key)
+        )
         return secret_ref
 
     @staticmethod
@@ -180,14 +181,14 @@ class K8sSecretsMock:
             == {}
         )
 
-    def assert_auth_secret(self, secret_ref:str, username: str, access_key: str):
+    def assert_auth_secret(self, secret_ref: str, username: str, access_key: str):
         assert (
-                deepdiff.DeepDiff(
-                    self.auth_secrets_map[secret_ref],
-                    self._generate_auth_secret_data(username, access_key),
-                    ignore_order=True,
-                )
-                == {}
+            deepdiff.DeepDiff(
+                self.auth_secrets_map[secret_ref],
+                self._generate_auth_secret_data(username, access_key),
+                ignore_order=True,
+            )
+            == {}
         )
 
     def set_service_account_keys(
@@ -226,8 +227,10 @@ def k8s_secrets_mock(monkeypatch, client: TestClient) -> K8sSecretsMock:
     ]
 
     for mocked_function_name in mocked_function_names:
-        monkeypatch.setattr(mlrun.api.utils.singletons.k8s.get_k8s(),
-                            mocked_function_name,
-                            getattr(k8s_secrets_mock, mocked_function_name))
+        monkeypatch.setattr(
+            mlrun.api.utils.singletons.k8s.get_k8s(),
+            mocked_function_name,
+            getattr(k8s_secrets_mock, mocked_function_name),
+        )
 
     yield k8s_secrets_mock

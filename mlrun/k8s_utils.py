@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import base64
-import time
 import hashlib
+import time
 import typing
 from datetime import datetime
 from sys import stdout
@@ -25,7 +25,7 @@ from kubernetes.client.rest import ApiException
 import mlrun.errors
 
 from .config import config as mlconfig
-from .platforms.iguazio import v3io_to_vol, sanitize_username
+from .platforms.iguazio import sanitize_username, v3io_to_vol
 from .utils import logger
 
 _k8s = None
@@ -336,8 +336,8 @@ class K8sHelper:
         )
 
     def get_auth_secret_name(self, username: str, access_key: str) -> str:
-        sanitized_username=sanitize_username(username)
-        hashed_access_key=self._hash_access_key(access_key)
+        sanitized_username = sanitize_username(username)
+        hashed_access_key = self._hash_access_key(access_key)
         return mlconfig.secret_stores.kubernetes.auth_secret_name.format(
             sanitized_username=sanitized_username, hashed_access_key=hashed_access_key
         )
@@ -352,10 +352,7 @@ class K8sHelper:
 
     def store_auth_secret(self, username: str, access_key: str, namespace="") -> str:
         secret_name = self.get_auth_secret_name(username, access_key)
-        secret_data = {
-            "username": username,
-            "accessKey": access_key
-        }
+        secret_data = {"username": username, "accessKey": access_key}
         self.store_secrets(secret_name, secret_data, namespace)
         return secret_name
 

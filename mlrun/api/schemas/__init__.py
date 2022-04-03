@@ -120,9 +120,9 @@ from .schedule import (
     ScheduleUpdate,
 )
 from .secret import (
+    AuthSecretData,
     SecretKeysData,
     SecretProviderName,
     SecretsData,
-    AuthSecretData,
     UserSecretCreationRequest,
 )

@@ -647,7 +647,7 @@ def test_secrets_crud_internal_project_secrets(
 
 
 def test_store_auth_secret_verifications(
-        db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ):
     # not allowed with provider other than k8s
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
@@ -661,9 +661,9 @@ def test_store_auth_secret_verifications(
 
 
 def test_store_auth_secret(
-        db: sqlalchemy.orm.Session,
-        client: fastapi.testclient.TestClient,
-        k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
     username = "some-username"
     access_key = "some-access-key"

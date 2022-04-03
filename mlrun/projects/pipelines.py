@@ -222,10 +222,16 @@ def _set_priority_class_name_on_kfp_pod(kfp_pod_template, function):
             function.spec, "priority_class_name", ""
         )
 import types
-def copy_func(f, name=None):
-    return types.FunctionType(f.func_code, f.func_globals, name or f.func_name,
-        f.func_defaults, f.func_closure)
+import functools
 
+def copy_func(f):
+    """Based on http://stackoverflow.com/a/6528148/190597 (Glenn Maynard)"""
+    g = types.FunctionType(f.__code__, f.__globals__, name=f.__name__,
+                           argdefs=f.__defaults__,
+                           closure=f.__closure__)
+    g = functools.update_wrapper(g, f)
+    g.__kwdefaults__ = f.__kwdefaults__
+    return g
 
 # When we run pipelines, the kfp.compile.Compile.compile() method takes the decorated function with @dsl.pipeline and
 # converts it to a k8s object. As part of the flow in the Compile.compile() method,

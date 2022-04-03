@@ -173,6 +173,61 @@ def test_decode_base64_config_and_load_to_object():
     assert decoded_list_output == expected_decoded_list_output
 
 
+def test_get_default_function_pod_requirement_resources(config):
+    requests_gpu = "2"
+    limits_gpu = "2"
+    env = {
+        default_function_pod_resources_request_gpu_env_key: requests_gpu,
+        default_function_pod_resources_limits_gpu_env_key: limits_gpu,
+    }
+    expected_resources_without_gpu = {
+        "requests": {"cpu": None, "memory": None},
+        "limits": {"cpu": None, "memory": None},
+    }
+    expected_resources_with_gpu = {
+        "requests": {"cpu": None, "memory": None, "nvidia.com/gpu": requests_gpu},
+        "limits": {"cpu": None, "memory": None, "nvidia.com/gpu": limits_gpu},
+    }
+    with patch_env(env):
+        mlconf.config.reload()
+        requests = config.get_default_function_pod_requirement_resources("requests", with_gpu=True)
+        assert (
+            deepdiff.DeepDiff(
+                requests,
+                expected_resources_with_gpu["requests"],
+                ignore_order=True,
+            )
+            == {}
+        )
+        limits = config.get_default_function_pod_requirement_resources("limits", with_gpu=True)
+        assert (
+            deepdiff.DeepDiff(
+                limits,
+                expected_resources_with_gpu["limits"],
+                ignore_order=True,
+            )
+            == {}
+        )
+        requests = config.get_default_function_pod_requirement_resources("requests", with_gpu=False)
+        assert (
+            deepdiff.DeepDiff(
+                requests,
+                expected_resources_without_gpu["requests"],
+                ignore_order=True,
+            )
+            == {}
+        )
+        limits = config.get_default_function_pod_requirement_resources("limits", with_gpu=False)
+        assert (
+            deepdiff.DeepDiff(
+                limits,
+                expected_resources_without_gpu["limits"],
+                ignore_order=True,
+            )
+            == {}
+        )
+
+
 def test_get_default_function_pod_resources(config):
     requests_gpu = "2"
     limits_gpu = "2"

@@ -107,9 +107,13 @@ def make_kaniko_pod(
     # While requests mainly affect scheduling, setting a limit may prevent Kaniko
     # from finishing successfully (destructive), since we're not allowing to override the default
     # specifically for the Kaniko pod, we're setting only the requests
+    # we cannot specify gpu requests without specifying gpu limits, so we set requests without gpu field
     resources = {
-        "requests": config.get_default_function_pod_requirement_resources("requests")
+        "requests": config.get_default_function_pod_requirement_resources(
+            "requests", with_gpu=False
+        )
     }
+    logger.info("resources", resources=resources)
     kpod = BasePod(
         name or "mlrun-build",
         config.httpdb.builder.kaniko_image,

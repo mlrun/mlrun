@@ -251,9 +251,9 @@ def _create_enriched_mlrun_workflow(
     pipeline_conf: typing.Optional[dsl.PipelineConf] = None,
 ):
     """Call internal implementation of create_workflow and enrich with mlrun functions attributes"""
-    _original_create_workflow = copy_func(kfp.compiler.Compiler._create_workflow)
-    workflow = _original_create_workflow(
-        self, pipeline_func, pipeline_name, pipeline_description, params_list, pipeline_conf
+    # _original_create_workflow = copy_func(kfp.compiler.Compiler._create_workflow)
+    workflow = self._original_create_workflow(
+        pipeline_func, pipeline_name, pipeline_description, params_list, pipeline_conf
     )
     # enrich each pipeline step with your desire k8s attribute
     for kfp_pod_template in workflow["spec"]["templates"]:
@@ -268,7 +268,7 @@ def _create_enriched_mlrun_workflow(
     return workflow
 
 # patching function as class method
-# kfp.compiler.Compiler._original_create_workflow = copy.deepcopy(kfp.compiler.Compiler._create_workflow)
+kfp.compiler.Compiler._original_create_workflow = copy_func(kfp.compiler.Compiler._create_workflow)
 kfp.compiler.Compiler._create_workflow = _create_enriched_mlrun_workflow
 
 

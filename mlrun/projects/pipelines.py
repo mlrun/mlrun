@@ -221,6 +221,10 @@ def _set_priority_class_name_on_kfp_pod(kfp_pod_template, function):
         kfp_pod_template["PriorityClassName"] = getattr(
             function.spec, "priority_class_name", ""
         )
+import types
+def copy_func(f, name=None):
+    return types.FunctionType(f.func_code, f.func_globals, name or f.func_name,
+        f.func_defaults, f.func_closure)
 
 
 # When we run pipelines, the kfp.compile.Compile.compile() method takes the decorated function with @dsl.pipeline and
@@ -241,7 +245,7 @@ def _create_enriched_mlrun_workflow(
     pipeline_conf: typing.Optional[dsl.PipelineConf] = None,
 ):
     """Call internal implementation of create_workflow and enrich with mlrun functions attributes"""
-    _original_create_workflow = copy.deepcopy(kfp.compiler.Compiler._create_workflow)
+    _original_create_workflow = copy_func(kfp.compiler.Compiler._create_workflow, "_original_create_workflow")
     workflow = _original_create_workflow(
         self, pipeline_func, pipeline_name, pipeline_description, params_list, pipeline_conf
     )

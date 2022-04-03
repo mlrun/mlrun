@@ -50,7 +50,6 @@ def _create_and_write_workflow(
 
     for pod in workflow["spec"]["templates"]:
         if pod.get("container"):
-            pod["Priority"] = 1
             pod["PriorityClassName"] = mlrun.config.config.default_function_priority_class_name
 
     print(mlrun.config.config.default_function_priority_class_name)

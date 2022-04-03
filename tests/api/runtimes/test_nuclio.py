@@ -22,7 +22,7 @@ from mlrun.runtimes.function import (
     enrich_function_with_ingress,
     min_nuclio_versions,
     resolve_function_ingresses,
-    set_source_archive,
+    _compile_nuclio_archive_config,
     validate_nuclio_version_compatibility,
 )
 from mlrun.runtimes.pod import KubeResourceSpec
@@ -856,6 +856,6 @@ class TestNuclioMLRunRuntime(TestNuclioRuntime):
 def get_archive_spec(function, secrets):
     spec = nuclio.ConfigSpec()
     config = {}
-    set_source_archive(spec, function, lambda x: secrets)
+    _compile_nuclio_archive_config(spec, function, secrets)
     spec.merge(config)
     return config

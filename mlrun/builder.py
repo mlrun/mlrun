@@ -113,7 +113,6 @@ def make_kaniko_pod(
             "requests", with_gpu=False
         )
     }
-    logger.info("resources", resources=resources)
     kpod = BasePod(
         name or "mlrun-build",
         config.httpdb.builder.kaniko_image,

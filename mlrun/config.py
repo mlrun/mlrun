@@ -327,7 +327,7 @@ default_config = {
         "auto_mount_params": "",
     },
     "default_function_pod_resources": {
-        "requests": {"cpu": "25m", "memory": "1Mi", "gpu": None},
+        "requests": {"cpu": None, "memory": None, "gpu": None},
         "limits": {"cpu": None, "memory": None, "gpu": None},
     },
     # preemptible node selector and tolerations to be added when running on spot nodes

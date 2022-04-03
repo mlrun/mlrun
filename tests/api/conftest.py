@@ -95,6 +95,8 @@ class K8sSecretsMock:
     def __init__(self):
         # project -> secret_key -> secret_value
         self.project_secrets_map = {}
+        # ref -> secret_key -> secret_value
+        self.auth_secrets_map = {}
         self._is_running_in_k8s = True
 
     # cannot use a property since it's used as a side-effect in the fixture's mock.
@@ -103,6 +105,24 @@ class K8sSecretsMock:
 
     def set_is_running_in_k8s_cluster(self, value: bool):
         self._is_running_in_k8s = value
+
+    def get_auth_secret_name(self, username: str, access_key: str) -> str:
+        return f"secret-ref-{username}-{access_key}"
+
+    def store_auth_secret(self, username: str, access_key: str, namespace="") -> str:
+        secret_ref = self.get_auth_secret_name(username, access_key)
+        self.auth_secrets_map.setdefault(secret_ref, {}).update(self._generate_auth_secret_data(username, access_key))
+        return secret_ref
+
+    @staticmethod
+    def _generate_auth_secret_data(username: str, access_key: str):
+        return {
+            "username": username,
+            "accessKey": access_key,
+        }
+
+    def delete_auth_secret(self, secret_ref: str, namespace=""):
+        del self.auth_secrets_map[secret_ref]
 
     def store_project_secrets(self, project, secrets, namespace=""):
         self.project_secrets_map.setdefault(project, {}).update(secrets)
@@ -160,6 +180,16 @@ class K8sSecretsMock:
             == {}
         )
 
+    def assert_auth_secret(self, secret_ref:str, username: str, access_key: str):
+        assert (
+                deepdiff.DeepDiff(
+                    self.auth_secrets_map[secret_ref],
+                    self._generate_auth_secret_data(username, access_key),
+                    ignore_order=True,
+                )
+                == {}
+        )
+
     def set_service_account_keys(
         self, project, default_service_account, allowed_service_accounts
     ):
@@ -190,6 +220,9 @@ def k8s_secrets_mock(client: TestClient) -> K8sSecretsMock:
         "get_project_secret_data",
         "store_project_secrets",
         "delete_project_secrets",
+        "get_auth_secret_name",
+        "store_auth_secret",
+        "delete_auth_secret",
     ]
 
     original_functions = {
@@ -211,6 +244,15 @@ def k8s_secrets_mock(client: TestClient) -> K8sSecretsMock:
     )
     mlrun.api.utils.singletons.k8s.get_k8s().delete_project_secrets = (
         unittest.mock.Mock(side_effect=k8s_secrets_mock.delete_project_secrets)
+    )
+    mlrun.api.utils.singletons.k8s.get_k8s().get_auth_secret_name = (
+        unittest.mock.Mock(side_effect=k8s_secrets_mock.get_auth_secret_name)
+    )
+    mlrun.api.utils.singletons.k8s.get_k8s().store_auth_secret = (
+        unittest.mock.Mock(side_effect=k8s_secrets_mock.store_auth_secret)
+    )
+    mlrun.api.utils.singletons.k8s.get_k8s().delete_auth_secret = (
+        unittest.mock.Mock(side_effect=k8s_secrets_mock.delete_auth_secret)
     )
 
     yield k8s_secrets_mock

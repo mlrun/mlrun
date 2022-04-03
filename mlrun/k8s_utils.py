@@ -626,7 +626,7 @@ def generate_preemptible_node_selector_requirements(
             kubernetes.client.V1NodeSelectorRequirement(
                 key=node_selector_key,
                 operator=node_selector_operator,
-                values=node_selector_value,
+                values=[node_selector_value],
             )
         )
     return match_expressions

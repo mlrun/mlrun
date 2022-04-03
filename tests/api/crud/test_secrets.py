@@ -42,8 +42,10 @@ def test_store_project_secrets_with_key_map_verifications(
 ):
     project = "project-name"
     provider = mlrun.api.schemas.SecretProviderName.kubernetes
-    key_map_secret_key = mlrun.api.crud.Secrets().generate_client_key_map_project_secret_key(
-        mlrun.api.crud.SecretsClientType.schedules
+    key_map_secret_key = (
+        mlrun.api.crud.Secrets().generate_client_key_map_project_secret_key(
+            mlrun.api.crud.SecretsClientType.schedules
+        )
     )
     # not allowed to edit key map
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
@@ -103,14 +105,18 @@ def test_get_project_secret_verifications(
 ):
     project = "project-name"
     provider = mlrun.api.schemas.SecretProviderName.kubernetes
-    key_map_secret_key = mlrun.api.crud.Secrets().generate_client_key_map_project_secret_key(
-        mlrun.api.crud.SecretsClientType.schedules
+    key_map_secret_key = (
+        mlrun.api.crud.Secrets().generate_client_key_map_project_secret_key(
+            mlrun.api.crud.SecretsClientType.schedules
+        )
     )
 
     # verifications check
     # not allowed from k8s
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
-        mlrun.api.crud.Secrets().get_project_secret(project, provider, "does-not-exist-key")
+        mlrun.api.crud.Secrets().get_project_secret(
+            project, provider, "does-not-exist-key"
+        )
 
     # key map with provider other than k8s
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
@@ -130,8 +136,10 @@ def test_get_project_secret(
     _mock_secrets_crud_uuid_generation()
     project = "project-name"
     provider = mlrun.api.schemas.SecretProviderName.kubernetes
-    key_map_secret_key = mlrun.api.crud.Secrets().generate_client_key_map_project_secret_key(
-        mlrun.api.crud.SecretsClientType.schedules
+    key_map_secret_key = (
+        mlrun.api.crud.Secrets().generate_client_key_map_project_secret_key(
+            mlrun.api.crud.SecretsClientType.schedules
+        )
     )
     invalid_secret_key = "invalid/key"
     invalid_secret_value = "some-value"
@@ -210,8 +218,10 @@ def test_delete_project_secret_verifications(
 ):
     project = "project-name"
     provider = mlrun.api.schemas.SecretProviderName.kubernetes
-    key_map_secret_key = mlrun.api.crud.Secrets().generate_client_key_map_project_secret_key(
-        mlrun.api.crud.SecretsClientType.schedules
+    key_map_secret_key = (
+        mlrun.api.crud.Secrets().generate_client_key_map_project_secret_key(
+            mlrun.api.crud.SecretsClientType.schedules
+        )
     )
     internal_key = mlrun.api.crud.Secrets().generate_client_project_secret_key(
         mlrun.api.crud.SecretsClientType.schedules, "some-name", "access_key"
@@ -252,8 +262,10 @@ def test_delete_project_secret(
     _mock_secrets_crud_uuid_generation()
     project = "project-name"
     provider = mlrun.api.schemas.SecretProviderName.kubernetes
-    key_map_secret_key = mlrun.api.crud.Secrets().generate_client_key_map_project_secret_key(
-        mlrun.api.crud.SecretsClientType.schedules
+    key_map_secret_key = (
+        mlrun.api.crud.Secrets().generate_client_key_map_project_secret_key(
+            mlrun.api.crud.SecretsClientType.schedules
+        )
     )
     invalid_secret_key = "invalid/key"
     invalid_secret_value = "some-value"
@@ -345,8 +357,10 @@ def test_store_project_secrets_with_key_map_success(
     _mock_secrets_crud_uuid_generation()
     project = "project-name"
     provider = mlrun.api.schemas.SecretProviderName.kubernetes
-    key_map_secret_key = mlrun.api.crud.Secrets().generate_client_key_map_project_secret_key(
-        mlrun.api.crud.SecretsClientType.schedules
+    key_map_secret_key = (
+        mlrun.api.crud.Secrets().generate_client_key_map_project_secret_key(
+            mlrun.api.crud.SecretsClientType.schedules
+        )
     )
     invalid_secret_key = "invalid/key"
     invalid_secret_value = "some-value"
@@ -509,7 +523,9 @@ def test_secrets_crud_internal_project_secrets(
     )
 
     # list keys without allow - regular only
-    secret_keys_data = mlrun.api.crud.Secrets().list_project_secret_keys(project, provider)
+    secret_keys_data = mlrun.api.crud.Secrets().list_project_secret_keys(
+        project, provider
+    )
     assert secret_keys_data.secret_keys == [regular_secret_key]
 
     # list keys with allow - regular and internal

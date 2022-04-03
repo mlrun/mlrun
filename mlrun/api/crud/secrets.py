@@ -34,11 +34,15 @@ class Secrets(
             key_name = f"{key_name}.{subtype}"
         return key_name
 
-    def generate_client_key_map_project_secret_key(self, client_type: SecretsClientType):
+    def generate_client_key_map_project_secret_key(
+        self, client_type: SecretsClientType
+    ):
         return f"{self.key_map_secrets_key_prefix}{client_type.value}"
 
     @staticmethod
-    def validate_project_secret_key_regex(key: str, raise_on_failure: bool = True) -> bool:
+    def validate_project_secret_key_regex(
+        key: str, raise_on_failure: bool = True
+    ) -> bool:
         return mlrun.utils.helpers.verify_field_regex(
             "secret.key", key, mlrun.utils.regex.secret_key, raise_on_failure
         )
@@ -63,8 +67,9 @@ class Secrets(
         """
         When secret keys are coming from other object identifiers, which may not be valid secret keys, use
         key_map_secret_key.
-        Note that when it's used you'll need to get and delete secrets using the get_project_secret and delete_project_secret
-        list_project_secrets won't do any operation on the data and delete_project_secrets won't handle cleaning the key map
+        Note that when it's used you'll need to get and delete secrets using the get_project_secret and
+        delete_project_secret list_project_secrets won't do any operation on the data and delete_project_secrets won't
+        handle cleaning the key map
         """
         secrets_to_store = self._validate_and_enrich_project_secrets_to_store(
             project,
@@ -177,7 +182,10 @@ class Secrets(
             )
         if not allow_internal_secrets:
             secret_keys = list(
-                filter(lambda key: not self._is_internal_project_secret_key(key), secret_keys)
+                filter(
+                    lambda key: not self._is_internal_project_secret_key(key),
+                    secret_keys,
+                )
             )
 
         return mlrun.api.schemas.SecretKeysData(
@@ -371,7 +379,8 @@ class Secrets(
                 ]
                 if secrets_to_store_in_key_map:
                     key_map = (
-                            self._get_project_secret_key_map(project, key_map_secret_key) or {}
+                        self._get_project_secret_key_map(project, key_map_secret_key)
+                        or {}
                     )
                     key_map.update(
                         {

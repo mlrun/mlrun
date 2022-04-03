@@ -113,7 +113,9 @@ def list_project_secrets(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    return mlrun.api.crud.Secrets().list_project_secrets(project, provider, secrets, token)
+    return mlrun.api.crud.Secrets().list_project_secrets(
+        project, provider, secrets, token
+    )
 
 
 @router.post("/user-secrets", status_code=HTTPStatus.CREATED.value)

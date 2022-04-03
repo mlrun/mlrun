@@ -1100,8 +1100,10 @@ def _assert_schedule_secrets(
         schedule_name,
         scheduler._secret_username_subtype,
     )
-    key_map_secret_key = mlrun.api.crud.Secrets().generate_client_key_map_project_secret_key(
-        mlrun.api.crud.SecretsClientType.schedules
+    key_map_secret_key = (
+        mlrun.api.crud.Secrets().generate_client_key_map_project_secret_key(
+            mlrun.api.crud.SecretsClientType.schedules
+        )
     )
     secret_value = mlrun.api.crud.Secrets().get_project_secret(
         project,

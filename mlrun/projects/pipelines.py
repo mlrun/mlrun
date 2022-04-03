@@ -220,8 +220,8 @@ def _set_priority_class_name_on_kfp_pod(kfp_pod_template, function):
         )
 
 
-# When we run pipelines, the kfp.compile method takes the decorated function with @dsl.pipeline and
-# converts it to a k8s object. As part of the flow in the Compile.compile() function,
+# When we run pipelines, the kfp.compile.Compile.compile() method takes the decorated function with @dsl.pipeline and
+# converts it to a k8s object. As part of the flow in the Compile.compile() method,
 # we call _create_and_write_workflow, which builds a dictionary from the workflow and then writes it to a file.
 # Unfortunately, the kfp sdk does not provide an API for configuring priority_class_name and other attributes.
 # I ran across the following problem when seeking for a method to set the priority_class_name:

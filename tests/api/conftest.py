@@ -99,8 +99,8 @@ class K8sSecretsMock:
         self.auth_secrets_map = {}
         self._is_running_in_k8s = True
 
-    # cannot use a property since it's used as a side-effect in the fixture's mock.
-    def is_running_in_k8s_cluster(self) -> bool:
+    # cannot use a property since it's used as a method on the actual class
+    def is_running_inside_kubernetes_cluster(self) -> bool:
         return self._is_running_in_k8s
 
     def set_is_running_in_k8s_cluster(self, value: bool):
@@ -210,7 +210,7 @@ class K8sSecretsMock:
 
 
 @pytest.fixture()
-def k8s_secrets_mock(client: TestClient) -> K8sSecretsMock:
+def k8s_secrets_mock(monkeypatch, client: TestClient) -> K8sSecretsMock:
     logger.info("Creating k8s secrets mock")
     k8s_secrets_mock = K8sSecretsMock()
 
@@ -225,40 +225,9 @@ def k8s_secrets_mock(client: TestClient) -> K8sSecretsMock:
         "delete_auth_secret",
     ]
 
-    original_functions = {
-        name: getattr(mlrun.api.utils.singletons.k8s.get_k8s(), name)
-        for name in mocked_function_names
-    }
-
-    mlrun.api.utils.singletons.k8s.get_k8s().is_running_inside_kubernetes_cluster = (
-        unittest.mock.Mock(side_effect=k8s_secrets_mock.is_running_in_k8s_cluster)
-    )
-    mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_keys = (
-        unittest.mock.Mock(side_effect=k8s_secrets_mock.get_project_secret_keys)
-    )
-    mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_data = (
-        unittest.mock.Mock(side_effect=k8s_secrets_mock.get_project_secret_data)
-    )
-    mlrun.api.utils.singletons.k8s.get_k8s().store_project_secrets = unittest.mock.Mock(
-        side_effect=k8s_secrets_mock.store_project_secrets
-    )
-    mlrun.api.utils.singletons.k8s.get_k8s().delete_project_secrets = (
-        unittest.mock.Mock(side_effect=k8s_secrets_mock.delete_project_secrets)
-    )
-    mlrun.api.utils.singletons.k8s.get_k8s().get_auth_secret_name = (
-        unittest.mock.Mock(side_effect=k8s_secrets_mock.get_auth_secret_name)
-    )
-    mlrun.api.utils.singletons.k8s.get_k8s().store_auth_secret = (
-        unittest.mock.Mock(side_effect=k8s_secrets_mock.store_auth_secret)
-    )
-    mlrun.api.utils.singletons.k8s.get_k8s().delete_auth_secret = (
-        unittest.mock.Mock(side_effect=k8s_secrets_mock.delete_auth_secret)
-    )
+    for mocked_function_name in mocked_function_names:
+        monkeypatch.setattr(mlrun.api.utils.singletons.k8s.get_k8s(),
+                            mocked_function_name,
+                            getattr(k8s_secrets_mock, mocked_function_name))
 
     yield k8s_secrets_mock
-
-    # Revert mocked functions
-    for func in mocked_function_names:
-        setattr(
-            mlrun.api.utils.singletons.k8s.get_k8s(), func, original_functions[func]
-        )

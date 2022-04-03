@@ -251,7 +251,7 @@ def _create_enriched_mlrun_workflow(
     pipeline_conf: typing.Optional[dsl.PipelineConf] = None,
 ):
     """Call internal implementation of create_workflow and enrich with mlrun functions attributes"""
-    _original_create_workflow = copy_func(kfp.compiler.Compiler._create_workflow, "_original_create_workflow")
+    _original_create_workflow = copy_func(kfp.compiler.Compiler._create_workflow)
     workflow = _original_create_workflow(
         self, pipeline_func, pipeline_name, pipeline_description, params_list, pipeline_conf
     )

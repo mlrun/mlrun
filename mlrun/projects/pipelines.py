@@ -21,9 +21,10 @@ import types
 import typing
 import uuid
 
+import kfp
 import kfp.compiler
 from kfp.compiler import compiler
-import kfp
+
 import mlrun
 from mlrun.utils import logger, new_pipe_meta, parse_versioned_object_uri
 
@@ -210,6 +211,117 @@ class _PipelineContext:
 
 
 pipeline_context = _PipelineContext()
+{
+    "kind": "project",
+    "metadata": {"name": "sk-project-dask"},
+    "spec": {
+        "functions": [
+            {
+                "name": "my-trainer",
+                "spec": {
+                    "kind": "job",
+                    "metadata": {
+                        "name": "my-trainer",
+                        "tag": "",
+                        "project": "sk-project-dask",
+                    },
+                    "spec": {
+                        "command": "",
+                        "args": [],
+                        "image": "",
+                        "build": {
+                            "functionSourceCode": "IyBHZW5lcmF0ZWQgYnkgbnVjbGlvLmV4cG9ydC5OdWNsaW9FeHBvcnRlcgoKaW1wb3J0IG1scnVuIAoKaW1wb3J0IHRpbWUKaW1wb3J0IHBhbmRhcyBhcyBwZApmcm9tIG1scnVuLmFydGlmYWN0cyBpbXBvcnQgZ2V0X21vZGVsLCB1cGRhdGVfbW9kZWwKCmRlZiB0cmFpbmluZygKICAgIGNvbnRleHQsCiAgICBwMTogaW50ID0gMSwKICAgIHAyOiBpbnQgPSAyCikgLT4gTm9uZToKICAgICIiIlRyYWluIGEgbW9kZWwuCgogICAgOnBhcmFtIGNvbnRleHQ6IFRoZSBydW50aW1lIGNvbnRleHQgb2JqZWN0LgogICAgOnBhcmFtIHAxOiBBIG1vZGVsIHBhcmFtZXRlci4KICAgIDpwYXJhbSBwMjogQW5vdGhlciBtb2RlbCBwYXJhbWV0ZXIuCiAgICAiIiIKICAgICMgYWNjZXNzIGlucHV0IG1ldGFkYXRhLCB2YWx1ZXMsIGFuZCBpbnB1dHMKICAgIHByaW50KGYnUnVuOiB7Y29udGV4dC5uYW1lfSAodWlkPXtjb250ZXh0LnVpZH0pJykKICAgIHByaW50KGYnUGFyYW1zOiBwMT17cDF9LCBwMj17cDJ9JykKICAgIGNvbnRleHQubG9nZ2VyLmluZm8oJ3N0YXJ0ZWQgdHJhaW5pbmcnKQogICAgCiAgICAjIDxpbnNlcnQgdHJhaW5pbmcgY29kZSBoZXJlPgogICAgCiAgICAjIGxvZyB0aGUgcnVuIHJlc3VsdHMgKHNjYWxhciB2YWx1ZXMpCiAgICBjb250ZXh0LmxvZ19yZXN1bHQoJ2FjY3VyYWN5JywgcDEgKiAyKQogICAgY29udGV4dC5sb2dfcmVzdWx0KCdsb3NzJywgcDEgKiAzKQogICAgCiAgICAjIGFkZCBhIGxhYmVsL3RhZyB0byB0aGlzIHJ1biAKICAgIGNvbnRleHQuc2V0X2xhYmVsKCdjYXRlZ29yeScsICd0ZXN0cycpCiAgICAKICAgICMgbG9nIGEgc2ltcGxlIGFydGlmYWN0ICsgbGFiZWwgdGhlIGFydGlmYWN0IAogICAgIyBJZiB5b3Ugd2FudCB0byB1cGxvYWQgYSBsb2NhbCBmaWxlIHRvIHRoZSBhcnRpZmFjdCByZXBvIGFkZCBzcmNfcGF0aD08bG9jYWwtcGF0aD4KICAgIGNvbnRleHQubG9nX2FydGlmYWN0KCdzb21lZmlsZScsIAogICAgICAgICAgICAgICAgICAgICAgICAgIGJvZHk9YidhYmMgaXMgMTIzJywgCiAgICAgICAgICAgICAgICAgICAgICAgICAgbG9jYWxfcGF0aD0nbXlmaWxlLnR4dCcpCiAgICAKICAgICMgY3JlYXRlIGEgZGF0YWZyYW1lIGFydGlmYWN0IAogICAgZGYgPSBwZC5EYXRhRnJhbWUoW3snQSc6MTAsICdCJzoxMDB9LCB7J0EnOjExLCdCJzoxMTB9LCB7J0EnOjEyLCdCJzoxMjB9XSkKICAgIGNvbnRleHQubG9nX2RhdGFzZXQoJ215ZGYnLCBkZj1kZikKICAgIAogICAgIyBMb2cgYW4gTUwgTW9kZWwgYXJ0aWZhY3QsIGFkZCBtZXRyaWNzLCBwYXJhbXMsIGFuZCBsYWJlbHMgdG8gaXQKICAgICMgYW5kIHBsYWNlIGl0IGluIGEgc3ViZGlyICgnbW9kZWxzJykgdW5kZXIgYXJ0aWZhY3RzIHBhdGggCiAgICBjb250ZXh0LmxvZ19tb2RlbCgnbXltb2RlbCcsIGJvZHk9YidhYmMgaXMgMTIzJywgCiAgICAgICAgICAgICAgICAgICAgICBtb2RlbF9maWxlPSdtb2RlbC50eHQnLCAKICAgICAgICAgICAgICAgICAgICAgIG1ldHJpY3M9eydhY2N1cmFjeSc6MC44NX0sIHBhcmFtZXRlcnM9eyd4eCc6J2FiYyd9LAogICAgICAgICAgICAgICAgICAgICAgbGFiZWxzPXsnZnJhbWV3b3JrJzogJ3hnYm9vc3QnfSwKICAgICAgICAgICAgICAgICAgICAgIGFydGlmYWN0X3BhdGg9Y29udGV4dC5hcnRpZmFjdF9zdWJwYXRoKCdtb2RlbHMnKSkKCmRlZiB2YWxpZGF0aW9uKAogICAgY29udGV4dCwKICAgIG1vZGVsOiBtbHJ1bi5EYXRhSXRlbQopIC0+IE5vbmU6CiAgICAiIiJNb2RlbCB2YWxpZGF0aW9uLgogICAgCiAgICBEdW1teSB2YWxpZGF0aW9uIGZ1bmN0aW9uLgogICAgCiAgICA6cGFyYW0gY29udGV4dDogVGhlIHJ1bnRpbWUgY29udGV4dCBvYmplY3QuCiAgICA6cGFyYW0gbW9kZWw6IFRoZSBleHRpbWF0ZWQgbW9kZWwgb2JqZWN0LgogICAgIiIiCiAgICAjIGFjY2VzcyBpbnB1dCBtZXRhZGF0YSwgdmFsdWVzLCBmaWxlcywgYW5kIHNlY3JldHMgKHBhc3N3b3JkcykKICAgIHByaW50KGYnUnVuOiB7Y29udGV4dC5uYW1lfSAodWlkPXtjb250ZXh0LnVpZH0pJykKICAgIGNvbnRleHQubG9nZ2VyLmluZm8oJ3N0YXJ0ZWQgdmFsaWRhdGlvbicpCiAgICAKICAgICMgZ2V0IHRoZSBtb2RlbCBmaWxlLCBjbGFzcyAobWV0YWRhdGEpLCBhbmQgZXh0cmFfZGF0YSAoZGljdCBvZiBrZXk6IERhdGFJdGVtKQogICAgbW9kZWxfZmlsZSwgbW9kZWxfb2JqLCBfID0gZ2V0X21vZGVsKG1vZGVsKQoKICAgICMgdXBkYXRlIG1vZGVsIG9iamVjdCBlbGVtZW50cyBhbmQgZGF0YQogICAgdXBkYXRlX21vZGVsKG1vZGVsX29iaiwgcGFyYW1ldGVycz17J29uZV9tb3JlJzogNX0pCgogICAgcHJpbnQoZidwYXRoIHRvIGxvY2FsIGNvcHkgb2YgbW9kZWwgZmlsZSAtIHttb2RlbF9maWxlfScpCiAgICBwcmludCgncGFyYW1ldGVyczonLCBtb2RlbF9vYmoucGFyYW1ldGVycykKICAgIHByaW50KCdtZXRyaWNzOicsIG1vZGVsX29iai5tZXRyaWNzKQogICAgY29udGV4dC5sb2dfYXJ0aWZhY3QoJ3ZhbGlkYXRpb24nLCAKICAgICAgICAgICAgICAgICAgICAgICAgIGJvZHk9Yic8Yj4gdmFsaWRhdGVkIDwvYj4nLCAKICAgICAgICAgICAgICAgICAgICAgICAgIGZvcm1hdD0naHRtbCcpCgo=",
+                            "base_image": "mlrun/mlrun",
+                            "commands": ["python -m pip install pandas"],
+                            "origin_filename": "my-trainer.ipynb",
+                        },
+                        "entry_points": {
+                            "training": {
+                                "name": "training",
+                                "doc": "Train a model.",
+                                "parameters": [
+                                    {
+                                        "name": "context",
+                                        "doc": "The runtime context object.",
+                                        "default": "",
+                                    },
+                                    {
+                                        "name": "p1",
+                                        "type": "int",
+                                        "doc": "A model parameter.",
+                                        "default": 1,
+                                    },
+                                    {
+                                        "name": "p2",
+                                        "type": "int",
+                                        "doc": "Another model parameter.",
+                                        "default": 2,
+                                    },
+                                ],
+                                "outputs": [{"default": ""}],
+                                "lineno": 9,
+                            },
+                            "validation": {
+                                "name": "validation",
+                                "doc": "Model validation.\n\nDummy validation function.",
+                                "parameters": [
+                                    {
+                                        "name": "context",
+                                        "doc": "The runtime context object.",
+                                        "default": "",
+                                    },
+                                    {
+                                        "name": "model",
+                                        "type": "DataItem",
+                                        "doc": "The extimated model object.",
+                                        "default": "",
+                                    },
+                                ],
+                                "outputs": [{"default": ""}],
+                                "lineno": 52,
+                            },
+                        },
+                        "description": "",
+                        "default_handler": "",
+                        "disable_auto_mount": False,
+                        "env": [
+                            {"name": "V3IO_API", "value": ""},
+                            {"name": "V3IO_USERNAME", "value": ""},
+                            {"name": "V3IO_ACCESS_KEY", "value": ""},
+                            {"name": "V3IO_FRAMESD", "value": ""},
+                        ],
+                        "node_selector": {"tainted": "yes"},
+                        "priority_class_name": "igz-workload-medium",
+                        "affinity": None,
+                        "tolerations": [
+                            {
+                                "effect": "NoSchedule",
+                                "key": "key1",
+                                "operator": "Exists",
+                            }
+                        ],
+                    },
+                    "verbose": False,
+                },
+            }
+        ],
+        "workflows": [
+            {
+                "name": "bbl",
+                "path": "workflow.py",
+                "handler": "job_pipeline",
+                "engine": None,
+            }
+        ],
+        "artifacts": [],
+        "source": "",
+        "subpath": "",
+        "origin_url": "",
+        "desired_state": "online",
+        "disable_auto_mount": False,
+    },
+}
+
 
 def _create_and_write_workflow(
     self,
@@ -226,12 +338,16 @@ def _create_and_write_workflow(
         pipeline_func, pipeline_name, pipeline_description, params_list, pipeline_conf
     )
     import mlrun.config
-    print(pipeline_context.functions)
+
+    print(pipeline_context.functions.items())
+    print(pipeline_context.functions.get("my-trainer"))
     print(pipeline_context.project)
     print(pipeline_context)
     for pod in workflow["spec"]["templates"]:
         if pod.get("container"):
-            pod["PriorityClassName"] = mlrun.config.config.default_function_priority_class_name
+            pod[
+                "PriorityClassName"
+            ] = mlrun.config.config.default_function_priority_class_name
 
     print(mlrun.config.config.default_function_priority_class_name)
     logger.info("im hereee")
@@ -244,11 +360,7 @@ def _create_and_write_workflow(
     kfp.compiler.compiler._validate_workflow(workflow)
 
 
-
-
 kfp.compiler.Compiler._create_and_write_workflow = _create_and_write_workflow
-
-
 
 
 def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:

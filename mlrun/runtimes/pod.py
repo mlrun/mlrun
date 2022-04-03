@@ -531,7 +531,7 @@ class KubeResourceSpec(FunctionSpec):
             self._prune_affinity_node_selector_requirement(
                 (
                     generate_preemptible_node_selector_requirements(
-                        NodeSelectorOperator.node_selector_op_in
+                        NodeSelectorOperator.node_selector_op_in.value
                     )
                 )
             )
@@ -565,13 +565,13 @@ class KubeResourceSpec(FunctionSpec):
             # remove anti-affinity
             self._prune_affinity_node_selector_requirement(
                 generate_preemptible_node_selector_requirements(
-                    NodeSelectorOperator.node_selector_op_not_in
+                    NodeSelectorOperator.node_selector_op_not_in.value
                 ),
             )
             # remove affinity
             self._prune_affinity_node_selector_requirement(
                 generate_preemptible_node_selector_requirements(
-                    NodeSelectorOperator.node_selector_op_in
+                    NodeSelectorOperator.node_selector_op_in.value
                 ),
             )
 

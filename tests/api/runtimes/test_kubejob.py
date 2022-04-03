@@ -336,7 +336,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         affinity.node_affinity.required_during_scheduling_ignored_during_execution.node_selector_terms = [
             k8s_client.V1NodeSelectorTerm(
                 match_expressions=mlrun.k8s_utils.generate_preemptible_node_selector_requirements(
-                    mlrun.api.schemas.NodeSelectorOperator.node_selector_op_in
+                    mlrun.api.schemas.NodeSelectorOperator.node_selector_op_in.value
                 )
             )
         ]
@@ -359,7 +359,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         affinity.node_affinity.required_during_scheduling_ignored_during_execution.node_selector_terms.append(
             k8s_client.V1NodeSelectorTerm(
                 match_expressions=mlrun.k8s_utils.generate_preemptible_node_selector_requirements(
-                    mlrun.api.schemas.NodeSelectorOperator.node_selector_op_in
+                    mlrun.api.schemas.NodeSelectorOperator.node_selector_op_in.value
                 )
             )
         )

@@ -106,7 +106,7 @@ class NuclioSpec(KubeResourceSpec):
         "function_kind",
         "readiness_timeout",
         "function_handler",
-        "function_runtime",
+        "nuclio_runtime",
     ]
 
     def __init__(
@@ -177,7 +177,7 @@ class NuclioSpec(KubeResourceSpec):
         self.source = source or ""
         self.config = config or {}
         self.function_handler = None
-        self.function_runtime = None
+        self.nuclio_runtime = None
         self.no_cache = no_cache
         self.readiness_timeout = readiness_timeout
 
@@ -301,7 +301,7 @@ class RemoteRuntime(KubeResource):
                           handler="main:handler",
                           workdir="path/inside/repo")
                     s3:
-                        fn.spec.function_runtime = "golang"
+                        fn.spec.nuclio_runtime = "golang"
                         fn.with_source_archive("s3://my-bucket/path/in/bucket/my-functions-archive",
                           handler="my_func:Handler",
                           workdir="path/inside/functions/archive",
@@ -314,7 +314,7 @@ class RemoteRuntime(KubeResource):
         if workdir:
             self.spec.workdir = workdir
         if runtime:
-            self.spec.function_runtime = runtime
+            self.spec.nuclio_runtime = runtime
 
         return self
 
@@ -1100,66 +1100,57 @@ def compile_function_config(
     # Add secret configurations to function's pod spec, if secret sources were added.
     # Needs to be here, since it adds env params, which are handled in the next lines.
     # This only needs to run if we're running within k8s context. If running in Docker, for example, skip.
-    inside_k8s = False
     if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
         function.add_secrets_config_to_spec()
-        inside_k8s = True
 
     env_dict, external_source_env_dict = function._get_nuclio_config_spec_env()
-    spec = nuclio.ConfigSpec(
+    nuclio_spec = nuclio.ConfigSpec(
         env=env_dict,
         external_source_env=external_source_env_dict,
         config=function.spec.config,
     )
-    spec.cmd = function.spec.build.commands or []
+    nuclio_spec.cmd = function.spec.build.commands or []
     project = function.metadata.project or "default"
     tag = function.metadata.tag
     handler = function.spec.function_handler
 
-    def get_secrets(keys):
-        secrets = {}
-        if inside_k8s:
-            secrets = function._get_k8s().get_project_secret_data(project, keys)
-        for key in keys:
-            if key in builder_env:
-                secrets[key] = builder_env.get(key)
-        return secrets
-
     if function.spec.build.source:
-        set_source_archive(spec, function, get_secrets)
+        _compile_nuclio_archive_config(nuclio_spec, function, builder_env, project)
 
-    runtime = (
-        function.spec.function_runtime or mlrun.config.config.default_nuclio_runtime
-    )
-    spec.set_config("spec.runtime", runtime)
+    runtime = function.spec.nuclio_runtime or mlrun.config.config.default_nuclio_runtime
+    nuclio_spec.set_config("spec.runtime", runtime)
 
     # In Nuclio >= 1.6.x default serviceType has changed to "ClusterIP".
-    spec.set_config("spec.serviceType", mlconf.httpdb.nuclio.default_service_type)
+    nuclio_spec.set_config(
+        "spec.serviceType", mlconf.httpdb.nuclio.default_service_type
+    )
     if function.spec.readiness_timeout:
-        spec.set_config("spec.readinessTimeoutSeconds", function.spec.readiness_timeout)
+        nuclio_spec.set_config(
+            "spec.readinessTimeoutSeconds", function.spec.readiness_timeout
+        )
     if function.spec.resources:
-        spec.set_config("spec.resources", function.spec.resources)
+        nuclio_spec.set_config("spec.resources", function.spec.resources)
     if function.spec.no_cache:
-        spec.set_config("spec.build.noCache", True)
+        nuclio_spec.set_config("spec.build.noCache", True)
     if function.spec.build.functionSourceCode:
-        spec.set_config(
+        nuclio_spec.set_config(
             "spec.build.functionSourceCode", function.spec.build.functionSourceCode
         )
     # don't send node selections if nuclio is not compatible
     if validate_nuclio_version_compatibility("1.5.20", "1.6.10"):
         if function.spec.node_selector:
-            spec.set_config("spec.nodeSelector", function.spec.node_selector)
+            nuclio_spec.set_config("spec.nodeSelector", function.spec.node_selector)
         if function.spec.node_name:
-            spec.set_config("spec.nodeName", function.spec.node_name)
+            nuclio_spec.set_config("spec.nodeName", function.spec.node_name)
         if function.spec.affinity:
-            spec.set_config(
+            nuclio_spec.set_config(
                 "spec.affinity", function.spec._get_sanitized_attribute("affinity")
             )
 
     # don't send tolerations if nuclio is not compatible
     if validate_nuclio_version_compatibility("1.7.5"):
         if function.spec.tolerations:
-            spec.set_config(
+            nuclio_spec.set_config(
                 "spec.tolerations",
                 function.spec._get_sanitized_attribute("tolerations"),
             )
@@ -1170,17 +1161,19 @@ def compile_function_config(
         and validate_nuclio_version_compatibility("1.6.18")
         and len(mlconf.get_valid_function_priority_class_names())
     ):
-        spec.set_config("spec.priorityClassName", function.spec.priority_class_name)
+        nuclio_spec.set_config(
+            "spec.priorityClassName", function.spec.priority_class_name
+        )
 
     if function.spec.replicas:
-        spec.set_config("spec.minReplicas", function.spec.replicas)
-        spec.set_config("spec.maxReplicas", function.spec.replicas)
+        nuclio_spec.set_config("spec.minReplicas", function.spec.replicas)
+        nuclio_spec.set_config("spec.maxReplicas", function.spec.replicas)
     else:
-        spec.set_config("spec.minReplicas", function.spec.min_replicas)
-        spec.set_config("spec.maxReplicas", function.spec.max_replicas)
+        nuclio_spec.set_config("spec.minReplicas", function.spec.min_replicas)
+        nuclio_spec.set_config("spec.maxReplicas", function.spec.max_replicas)
 
     if function.spec.service_account:
-        spec.set_config("spec.serviceAccount", function.spec.service_account)
+        nuclio_spec.set_config("spec.serviceAccount", function.spec.service_account)
 
     if (
         function.spec.base_spec
@@ -1195,7 +1188,7 @@ def compile_function_config(
             update_in(config, "spec.handler", handler or "main:handler")
 
         config = nuclio.config.extend_config(
-            config, spec, tag, function.spec.build.code_origin
+            config, nuclio_spec, tag, function.spec.build.code_origin
         )
         update_in(config, "metadata.name", function.metadata.name)
         update_in(config, "spec.volumes", function.spec.generate_nuclio_volumes())
@@ -1225,7 +1218,7 @@ def compile_function_config(
             project=project,
             handler=handler,
             tag=tag,
-            spec=spec,
+            spec=nuclio_spec,
             kind=function.spec.function_kind,
             verbose=function.verbose,
         )
@@ -1320,11 +1313,21 @@ def get_nuclio_deploy_status(
     return state, address, name, last_log_timestamp, text, function_status
 
 
-def set_source_archive(
-    spec,
+def _compile_nuclio_archive_config(
+    nuclio_spec,
     function: RemoteRuntime,
-    get_secrets,
+    builder_env,
+    project,
 ):
+    def get_secrets(keys):
+        secrets = {}
+        if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+            secrets = function._get_k8s().get_project_secret_data(project, keys)
+        for key in keys:
+            if key in builder_env:
+                secrets[key] = builder_env.get(key)
+        return secrets
+
     source = function.spec.build.source
     code_entry_type = ""
     if source.startswith("s3://"):
@@ -1394,15 +1397,19 @@ def set_source_archive(
         if branch:
             code_entry_attributes["branch"] = branch
 
-        secrets = get_secrets(["GIT_USERNAME", "GIT_PASSWORD"])
-        code_entry_attributes["username"] = secrets.get("GIT_USERNAME", "")
-        code_entry_attributes["password"] = secrets.get("GIT_PASSWORD", "")
+        secrets = get_secrets(["GIT_USERNAME", "GIT_PASSWORD", "GITHUB_TOKEN"])
+        password = secrets.get("GIT_PASSWORD", "")
+        token = secrets.get("GITHUB_TOKEN", "")
+        if token:
+            password = "x-oauth-basic"
+        code_entry_attributes["username"] = token or secrets.get("GIT_USERNAME", "")
+        code_entry_attributes["password"] = password
 
     # populate spec with relevant fields
-    spec.set_config("spec.handler", handler)
-    spec.set_config("spec.build.path", source)
-    spec.set_config("spec.build.codeEntryType", code_entry_type)
-    spec.set_config("spec.build.codeEntryAttributes", code_entry_attributes)
+    nuclio_spec.set_config("spec.handler", handler)
+    nuclio_spec.set_config("spec.build.path", source)
+    nuclio_spec.set_config("spec.build.codeEntryType", code_entry_type)
+    nuclio_spec.set_config("spec.build.codeEntryAttributes", code_entry_attributes)
 
 
 def _resolve_git_reference_from_source(source):

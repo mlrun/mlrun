@@ -74,16 +74,6 @@ class KubejobRuntime(KubeResource):
             self.spec.default_handler = handler
         if workdir:
             self.spec.workdir = workdir
-        self.set_build_mode(pull_at_runtime)
-
-    def set_build_mode(self, pull_at_runtime):
-        """Set the source build/clone mode (in deploy or during runtime)
-
-        make sure the flags and image are aligned with the build mode
-
-        :param pull_at_runtime:  True - will clone the source code into the container at job runtime
-                                 False - will clone the code into the container image during build time
-        """
         self.spec.build.load_source_on_run = pull_at_runtime
         if (
             self.spec.build.base_image
@@ -93,10 +83,10 @@ class KubejobRuntime(KubeResource):
         ):
             # if we load source from repo and dont need a full build use the base_image as the image
             self.spec.image = self.spec.build.base_image
-        elif self.spec.build.base_image and not pull_at_runtime:
+        elif not pull_at_runtime:
             # clear the image so build will not be skipped
+            self.spec.build.base_image = self.spec.build.base_image or self.spec.image
             self.spec.image = ""
-        self.verify_base_image()
 
     def build_config(
         self,
@@ -170,10 +160,11 @@ class KubejobRuntime(KubeResource):
         :return True if the function is ready (deployed)
         """
 
-        # make sure we disable load_on_run mode if the source code is in the image
-        self.set_build_mode(False)
-
         build = self.spec.build
+
+        # make sure we disable load_on_run mode if the source code is in the image
+        build.load_source_on_run = False
+
         if with_mlrun is None:
             if build.with_mlrun is not None:
                 with_mlrun = build.with_mlrun
@@ -189,6 +180,10 @@ class KubejobRuntime(KubeResource):
                 "with_mlrun=False to skip if its already in the image"
             )
         self.status.state = ""
+        if build.base_image:
+            # clear the image so build will not be skipped
+            self.spec.image = ""
+
         # When we're in pipelines context we must watch otherwise the pipelines pod will exit before the operation
         # is actually done. (when a pipelines pod exits, the pipeline step marked as done)
         if is_kfp:

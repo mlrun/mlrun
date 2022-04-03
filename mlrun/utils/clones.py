@@ -55,8 +55,13 @@ def get_repo_url(repo):
 
 
 def clone_git(url, context, secrets=None, clone=True):
-    url_obj = urlparse(url)
+
     secrets = secrets or {}
+
+    def get_secret(key):
+        return os.environ.get(key, secrets.get(key))
+
+    url_obj = urlparse(url)
     if not context:
         raise ValueError("please specify a target (context) directory for clone")
 
@@ -74,10 +79,17 @@ def clone_git(url, context, secrets=None, clone=True):
     if url_obj.port:
         host += f":{url_obj.port}"
 
-    token = url_obj.username or secrets.get("GITHUB_TOKEN") or secrets.get("git_user")
-    password = url_obj.password or secrets.get("git_password") or "x-oauth-basic"
+    username = url_obj.username or get_secret("GIT_USERNAME") or get_secret("git_user")
+    password = (
+        url_obj.password or get_secret("GIT_PASSWORD") or get_secret("git_password", "")
+    )
+    token = get_secret("GITHUB_TOKEN")
     if token:
-        clone_path = f"https://{token}:{password}@{host}{url_obj.path}"
+        username = token
+        password = "x-oauth-basic"
+
+    if username:
+        clone_path = f"https://{username}:{password}@{host}{url_obj.path}"
     else:
         clone_path = f"https://{host}{url_obj.path}"
 

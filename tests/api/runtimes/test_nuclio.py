@@ -802,7 +802,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             "AWS_SECRET_ACCESS_KEY": "some-secret",
         }
 
-        assert fn.spec.function_runtime == "golang"
+        assert fn.spec.nuclio_runtime == "golang"
         assert get_archive_spec(fn, secrets) == {
             "spec": {
                 "handler": "main:Handler",

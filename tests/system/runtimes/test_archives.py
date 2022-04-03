@@ -11,7 +11,7 @@ base_image = "mlrun/mlrun"
 tags = ["main", "refs/heads/tst"]
 codepaths = [(None, "rootfn"), ("subdir", "func")]
 
-cases = {
+job_cases = {
     # name: (command, workdir, handler, tag)
     "root-hndlr": ("", None, "rootfn.job_handler", tags[0]),
     "subdir-hndlr": ("", "subdir", "func.job_handler", tags[0]),
@@ -19,40 +19,63 @@ cases = {
     "root-cmd": ("rootfn.py", None, "job_handler", tags[1]),
 }
 
+# for private repo tests set the PRIVATE_TEST_REPO, PRIVATE_GIT_TOKEN env vars
+private_repo = os.environ.get(
+    "PRIVATE_TEST_REPO", "git://github.com/mlrun/private_git_tests.git#main"
+)
+has_private_source = "PRIVATE_GIT_TOKEN" in os.environ and private_repo
+need_private_git = pytest.mark.skipif(
+    not has_private_source, reason="env vars for private git repo not set"
+)
+
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestGitSource(tests.system.base.TestMLRunSystem):
 
     project_name = "git-tests"
 
-    @pytest.mark.parametrize("codepath", codepaths)
-    def test_local_git(self, codepath):
-        workdir, module = codepath
-        fn = mlrun.new_function(
-            "lcl",
-            kind="local",
+    def custom_setup(self):
+        # os.environ["MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES"] = "false"
+        if has_private_source:
+            self.project.set_secrets(
+                {
+                    "GITHUB_TOKEN": os.environ["PRIVATE_GIT_TOKEN"],
+                }
+            )
+
+    def _new_function(self, kind, name="run", command=""):
+        return mlrun.new_function(
+            f"{kind}-{name}",
+            kind=kind,
+            image=base_image if kind != "local" else None,
+            command=command,
         )
+
+    @pytest.mark.parametrize("source", ["git", "tar"])
+    @pytest.mark.parametrize("codepath", codepaths)
+    def test_local_archive(self, source, codepath):
+        workdir, module = codepath
+        source = (
+            f"{git_uri}#main"
+            if source == "git"
+            else str(self.assets_path / "source_archive.tar.gz")
+        )
+        fn = self._new_function("local")
         fn.with_source_archive(
-            f"{git_uri}#main",
+            source,
             workdir=workdir,
             handler=f"{module}.job_handler",
             target_dir=tempfile.mkdtemp(),
         )
         run = fn.run()
         assert run.state() == "completed"
-        assert run.output("tag") == "main"
+        assert run.output("tag")
 
     @pytest.mark.parametrize("load_mode", ["run", "build"])
-    @pytest.mark.parametrize("case", cases.keys())
+    @pytest.mark.parametrize("case", job_cases.keys())
     def test_job_git(self, load_mode, case):
-        os.environ["MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES"] = "false"
-        command, workdir, handler, tag = cases[case]
-        fn = mlrun.new_function(
-            f"job-{load_mode}",
-            kind="job",
-            image=base_image,
-            command=command,
-        )
+        command, workdir, handler, tag = job_cases[case]
+        fn = self._new_function("job", load_mode, command)
         fn.with_source_archive(
             f"{git_uri}#{tag}",
             workdir=workdir,
@@ -70,11 +93,7 @@ class TestGitSource(tests.system.base.TestMLRunSystem):
     @pytest.mark.parametrize("tag", tags)
     def test_nuclio_deploy(self, codepath, tag):
         workdir, module = codepath
-        fn = mlrun.new_function(
-            "nuclio",
-            kind="nuclio",
-            image=base_image,
-        )
+        fn = self._new_function("nuclio")
         fn.with_source_archive(
             f"{git_uri}#{tag}", workdir=workdir, handler=f"{module}:nuclio_handler"
         )
@@ -84,14 +103,64 @@ class TestGitSource(tests.system.base.TestMLRunSystem):
 
     def test_serving_deploy(self):
         tag = "main"
-        fn = mlrun.new_function(
-            "serving",
-            kind="serving",
-            image=base_image,
-        )
+        fn = self._new_function("serving")
         fn.with_source_archive(f"{git_uri}#{tag}", handler="srv")
         graph = fn.set_topology("flow")
         graph.to(name="echo", handler="echo").respond()
+        fn.deploy()
+        resp = fn.invoke("")
+        assert resp.decode() == f"tag={tag}"
+
+    @need_private_git
+    def test_private_repo_local(self):
+        fn = self._new_function("local", "priv")
+        fn.with_source_archive(
+            private_repo,
+            handler="rootfn.job_handler",
+            target_dir=tempfile.mkdtemp(),
+        )
+        task = mlrun.new_task().with_secrets(
+            "inline",
+            {
+                "GITHUB_TOKEN": os.environ.get("PRIVATE_GIT_TOKEN", ""),
+            },
+        )
+        run = fn.run(task)
+        assert run.state() == "completed"
+        assert run.output("tag")
+
+    @need_private_git
+    @pytest.mark.parametrize("load_mode", ["run", "build"])
+    def test_private_repo_job(self, load_mode):
+        fn = self._new_function("job", f"{load_mode}-priv")
+        fn.with_source_archive(
+            private_repo,
+            handler="rootfn.job_handler",
+            pull_at_runtime=load_mode == "run",
+        )
+        fn.spec.image_pull_policy = "Always"
+        if load_mode == "build":
+            builder_env = {
+                "GITHUB_TOKEN": os.environ.get("PRIVATE_GIT_TOKEN", ""),
+            }
+            fn.deploy(builder_env=builder_env)
+        run = fn.run()
+        assert run.state() == "completed"
+        assert run.output("tag")
+
+    @need_private_git
+    def test_private_repo_nuclio(self):
+        fn = self._new_function("nuclio", "priv")
+        fn.with_source_archive(
+            private_repo,
+            handler="rootfn:nuclio_handler",
+        )
+        task = mlrun.new_task().with_secrets(
+            "inline",
+            {
+                "GITHUB_TOKEN": os.environ.get("PRIVATE_GIT_TOKEN", ""),
+            },
+        )
         fn.deploy()
         resp = fn.invoke("")
         assert resp.decode() == f"tag={tag}"

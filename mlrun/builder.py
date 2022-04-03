@@ -249,6 +249,12 @@ def build_image(
         context = "/empty"
     elif source and "://" in source and not v3io:
         if source.startswith("git://"):
+            # set proper env vars for Github tokens
+            if "GITHUB_TOKEN" in builder_env:
+                builder_env["GIT_USERNAME"] = builder_env["GITHUB_TOKEN"]
+                builder_env["GIT_PASSWORD"] = "x-oauth-basic"
+                del builder_env["GITHUB_TOKEN"]
+
             # if the user provided branch (w/o refs/..) we add the "refs/.."
             fragment = parsed_url.fragment or ""
             if not fragment.startswith("refs/"):

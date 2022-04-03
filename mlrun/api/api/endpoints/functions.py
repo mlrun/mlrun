@@ -692,19 +692,19 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
     )
 
     provider = SecretProviderName.kubernetes
-    secret_value = Secrets().get_secret(
+    secret_value = Secrets().get_project_secret(
         project_name,
         provider,
         secret_key,
         allow_secrets_from_k8s=True,
     )
     user_provided_key = secret_value is not None
-    internal_key_name = Secrets().generate_client_secret_key(
+    internal_key_name = Secrets().generate_client_project_secret_key(
         SecretsClientType.model_monitoring, secret_key
     )
 
     if not user_provided_key:
-        secret_value = Secrets().get_secret(
+        secret_value = Secrets().get_project_secret(
             project_name,
             provider,
             internal_key_name,
@@ -731,11 +731,11 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
             )
 
     secrets = SecretsData(provider=provider, secrets={internal_key_name: secret_value})
-    Secrets().store_secrets(project_name, secrets, allow_internal_secrets=True)
+    Secrets().store_project_secrets(project_name, secrets, allow_internal_secrets=True)
     if user_provided_key:
         logger.info(
             "Deleting user-provided access-key - replaced with an internal secret"
         )
-        Secrets().delete_secret(project_name, provider, secret_key)
+        Secrets().delete_project_secret(project_name, provider, secret_key)
 
     return secret_value

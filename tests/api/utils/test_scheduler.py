@@ -710,12 +710,12 @@ async def test_rescheduling_secrets_storing(
     k8s_secrets_mock.assert_project_secrets(
         project,
         {
-            mlrun.api.crud.Secrets().generate_client_secret_key(
+            mlrun.api.crud.Secrets().generate_client_project_secret_key(
                 mlrun.api.crud.SecretsClientType.schedules,
                 name,
                 scheduler._secret_access_key_subtype,
             ): access_key,
-            mlrun.api.crud.Secrets().generate_client_secret_key(
+            mlrun.api.crud.Secrets().generate_client_project_secret_key(
                 mlrun.api.crud.SecretsClientType.schedules,
                 name,
                 scheduler._secret_username_subtype,
@@ -1090,20 +1090,20 @@ def _assert_schedule_secrets(
     expected_username: str,
     expected_access_key: str,
 ):
-    access_key_secret_key = mlrun.api.crud.Secrets().generate_client_secret_key(
+    access_key_secret_key = mlrun.api.crud.Secrets().generate_client_project_secret_key(
         mlrun.api.crud.SecretsClientType.schedules,
         schedule_name,
         scheduler._secret_access_key_subtype,
     )
-    username_secret_key = mlrun.api.crud.Secrets().generate_client_secret_key(
+    username_secret_key = mlrun.api.crud.Secrets().generate_client_project_secret_key(
         mlrun.api.crud.SecretsClientType.schedules,
         schedule_name,
         scheduler._secret_username_subtype,
     )
-    key_map_secret_key = mlrun.api.crud.Secrets().generate_client_key_map_secret_key(
+    key_map_secret_key = mlrun.api.crud.Secrets().generate_client_key_map_project_secret_key(
         mlrun.api.crud.SecretsClientType.schedules
     )
-    secret_value = mlrun.api.crud.Secrets().get_secret(
+    secret_value = mlrun.api.crud.Secrets().get_project_secret(
         project,
         scheduler._secrets_provider,
         access_key_secret_key,
@@ -1112,7 +1112,7 @@ def _assert_schedule_secrets(
         key_map_secret_key=key_map_secret_key,
     )
     assert secret_value == expected_access_key
-    secret_value = mlrun.api.crud.Secrets().get_secret(
+    secret_value = mlrun.api.crud.Secrets().get_project_secret(
         project,
         scheduler._secrets_provider,
         username_secret_key,

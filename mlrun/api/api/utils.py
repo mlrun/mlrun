@@ -197,10 +197,10 @@ def process_function_service_account(function):
     if not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
         return
 
-    allowed_service_accounts = mlrun.api.crud.secrets.Secrets().get_secret(
+    allowed_service_accounts = mlrun.api.crud.secrets.Secrets().get_project_secret(
         function.metadata.project,
         SecretProviderName.kubernetes,
-        mlrun.api.crud.secrets.Secrets().generate_client_secret_key(
+        mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
             mlrun.api.crud.secrets.SecretsClientType.service_accounts, "allowed"
         ),
         allow_secrets_from_k8s=True,
@@ -212,10 +212,10 @@ def process_function_service_account(function):
             for service_account in allowed_service_accounts.split(",")
         ]
 
-    default_service_account = mlrun.api.crud.secrets.Secrets().get_secret(
+    default_service_account = mlrun.api.crud.secrets.Secrets().get_project_secret(
         function.metadata.project,
         SecretProviderName.kubernetes,
-        mlrun.api.crud.secrets.Secrets().generate_client_secret_key(
+        mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
             mlrun.api.crud.secrets.SecretsClientType.service_accounts, "default"
         ),
         allow_secrets_from_k8s=True,

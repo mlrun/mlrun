@@ -38,7 +38,7 @@ def store_project_secrets(
         mlrun.api.schemas.AuthorizationAction.create,
         auth_info,
     )
-    mlrun.api.crud.Secrets().store_secrets(project, secrets)
+    mlrun.api.crud.Secrets().store_project_secrets(project, secrets)
 
     return fastapi.Response(status_code=HTTPStatus.CREATED.value)
 
@@ -64,13 +64,13 @@ def delete_project_secrets(
         mlrun.api.schemas.AuthorizationAction.delete,
         auth_info,
     )
-    mlrun.api.crud.Secrets().delete_secrets(project, provider, secrets)
+    mlrun.api.crud.Secrets().delete_project_secrets(project, provider, secrets)
 
     return fastapi.Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
 @router.get("/projects/{project}/secret-keys", response_model=schemas.SecretKeysData)
-def list_secret_keys(
+def list_project_secret_keys(
     project: str,
     provider: schemas.SecretProviderName = schemas.SecretProviderName.kubernetes,
     token: str = fastapi.Header(None, alias=schemas.HeaderNames.secret_store_token),
@@ -89,11 +89,11 @@ def list_secret_keys(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    return mlrun.api.crud.Secrets().list_secret_keys(project, provider, token)
+    return mlrun.api.crud.Secrets().list_project_secret_keys(project, provider, token)
 
 
 @router.get("/projects/{project}/secrets", response_model=schemas.SecretsData)
-def list_secrets(
+def list_project_secrets(
     project: str,
     secrets: List[str] = fastapi.Query(None, alias="secret"),
     provider: schemas.SecretProviderName = schemas.SecretProviderName.kubernetes,
@@ -113,7 +113,7 @@ def list_secrets(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    return mlrun.api.crud.Secrets().list_secrets(project, provider, secrets, token)
+    return mlrun.api.crud.Secrets().list_project_secrets(project, provider, secrets, token)
 
 
 @router.post("/user-secrets", status_code=HTTPStatus.CREATED.value)

@@ -257,7 +257,7 @@ def _create_enriched_mlrun_workflow(
     return workflow
 
 # patching function as class method
-kfp.compiler.Compiler._original_create_workflow = copy.deepcopy(kfp.compiler.Compiler._create_workflow)
+kfp.compiler.Compiler._original_create_workflow = copy._deepcopy_method(kfp.compiler.Compiler._create_workflow)
 kfp.compiler.Compiler._create_workflow = _create_enriched_mlrun_workflow
 
 

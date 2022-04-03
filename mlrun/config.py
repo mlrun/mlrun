@@ -558,8 +558,8 @@ class Config:
         gpu_type = "nvidia.com/gpu"
         gpu = "gpu"
         resource_requirement = resources.get(requirement, {})
+        resource_requirement.setdefault(gpu)
         if with_gpu:
-            resource_requirement.setdefault(gpu)
             resource_requirement[gpu_type] = resource_requirement.pop(gpu)
         else:
             resource_requirement.pop(gpu)

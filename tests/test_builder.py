@@ -328,8 +328,54 @@ def test_function_build_with_default_requests(monkeypatch):
         mlrun.api.schemas.AuthInfo(),
         function,
     )
-    expected_resources = {"requests": {"cpu": None, "memory": None}}
+    expected_resources = {"requests": {}}
     # assert that both limits requirements and gpu requests are not defined
+    assert (
+        deepdiff.DeepDiff(
+            _create_pod_mock_pod_spec().containers[0].resources,
+            expected_resources,
+            ignore_order=True,
+        )
+        == {}
+    )
+    mlrun.mlconf.default_function_pod_resources.requests = {
+        "cpu": "25m",
+        "memory": "1m",
+        "gpu": None,
+    }
+    expected_resources = {"requests": {"cpu": "25m", "memory": "1m"}}
+
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    assert (
+        deepdiff.DeepDiff(
+            _create_pod_mock_pod_spec().containers[0].resources,
+            expected_resources,
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    mlrun.mlconf.default_function_pod_resources = {
+        "requests": {
+            "cpu": "25m",
+            "memory": "1m",
+            "gpu": 2,
+        },
+        "limits": {
+            "cpu": "1",
+            "memory": "1G",
+            "gpu": 2,
+        },
+    }
+    expected_resources = {"requests": {"cpu": "25m", "memory": "1m"}}
+
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
     assert (
         deepdiff.DeepDiff(
             _create_pod_mock_pod_spec().containers[0].resources,

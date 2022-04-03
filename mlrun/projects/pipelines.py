@@ -358,6 +358,7 @@ def _create_and_write_workflow(
     import mlrun.config
     print(mlrun.config.config.default_function_priority_class_name)
     print(1)
+    logger.info("im hereee")
     workflow["spec"][
         "PodPriorityClassName"
     ] = mlrun.config.config.default_function_priority_class_name

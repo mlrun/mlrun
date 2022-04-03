@@ -48,13 +48,18 @@ def _create_and_write_workflow(
     )
     import mlrun.config
 
+    for pod in workflow["spec"]["templates"]:
+        if pod.get("container"):
+            pod["Priority"] = 1
+            pod["PriorityClassName"] = mlrun.config.config.default_function_priority_class_name
+
     print(mlrun.config.config.default_function_priority_class_name)
     print(1)
     logger.info("im hereee")
-    workflow["spec"][
-        "PodPriorityClassName"
-    ] = mlrun.config.config.default_function_priority_class_name
-    workflow["spec"]["PodPriority"] = 1
+    # workflow["spec"][
+    #     "PodPriorityClassName"
+    # ] = mlrun.config.config.default_function_priority_class_name
+    # workflow["spec"]["PodPriority"] = 1
     print(workflow)
     self._write_workflow(workflow, package_path)
     kfp.compiler.compiler._validate_workflow(workflow)

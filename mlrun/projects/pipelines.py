@@ -339,17 +339,19 @@ def _create_and_write_workflow(
     )
     import mlrun.config
 
-    print(pipeline_context.functions.items())
-    print(pipeline_context.functions.get("my-trainer"))
-    print(getattr(pipeline_context.functions.get("my-trainer").spec,"priority_class_name"))
-    print(pipeline_context.project)
-    print(pipeline_context)
+    # print(pipeline_context.functions.items())
+    # print(pipeline_context.functions.get("my-trainer"))
+    # print(getattr(pipeline_context.functions.get("my-trainer").spec, "priority_class_name"))
+    # print(pipeline_context.project)
+    # print(pipeline_context)
     for pod in workflow["spec"]["templates"]:
         if pod.get("container"):
-            pod[
-                "PriorityClassName"
-            ] = mlrun.config.config.default_function_priority_class_name
-
+            for function_name, function_obj in pipeline_context.functions.items():
+                if pod.get("container").get("name").startswith(function_name):
+                    pod[
+                        "PriorityClassName"
+                    ] = getattr(function_obj.spec, "priority_class_name", "")
+                    break
     print(mlrun.config.config.default_function_priority_class_name)
     logger.info("im hereee")
     # workflow["spec"][

@@ -341,6 +341,7 @@ def _create_and_write_workflow(
 
     print(pipeline_context.functions.items())
     print(pipeline_context.functions.get("my-trainer"))
+    print(getattr(pipeline_context.functions.get("my-trainer").spec,"priority_class_name"))
     print(pipeline_context.project)
     print(pipeline_context)
     for pod in workflow["spec"]["templates"]:

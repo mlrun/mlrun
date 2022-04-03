@@ -13,6 +13,7 @@
 # limitations under the License.
 import base64
 import time
+import hashlib
 import typing
 from datetime import datetime
 from sys import stdout
@@ -24,7 +25,7 @@ from kubernetes.client.rest import ApiException
 import mlrun.errors
 
 from .config import config as mlconfig
-from .platforms.iguazio import v3io_to_vol
+from .platforms.iguazio import v3io_to_vol, sanitize_username
 from .utils import logger
 
 _k8s = None
@@ -329,13 +330,36 @@ class K8sHelper:
 
         return service_account.secrets[0].name
 
-    def get_project_secret_name(self, project):
+    def get_project_secret_name(self, project) -> str:
         return mlconfig.secret_stores.kubernetes.project_secret_name.format(
             project=project
         )
 
+    def get_auth_secret_name(self, username: str, access_key: str) -> str:
+        sanitized_username=sanitize_username(username)
+        hashed_access_key=self._hash_access_key(access_key)
+        return mlconfig.secret_stores.kubernetes.auth_secret_name.format(
+            sanitized_username=sanitized_username, hashed_access_key=hashed_access_key
+        )
+
+    @staticmethod
+    def _hash_access_key(access_key: str):
+        return hashlib.sha256(access_key.encode()).hexdigest()
+
     def store_project_secrets(self, project, secrets, namespace=""):
         secret_name = self.get_project_secret_name(project)
+        self.store_secrets(secret_name, secrets, namespace)
+
+    def store_auth_secret(self, username: str, access_key: str, namespace="") -> str:
+        secret_name = self.get_auth_secret_name(username, access_key)
+        secret_data = {
+            "username": username,
+            "accessKey": access_key
+        }
+        self.store_secrets(secret_name, secret_data, namespace)
+        return secret_name
+
+    def store_secrets(self, secret_name, secrets, namespace=""):
         namespace = self.resolve_namespace(namespace)
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
@@ -361,6 +385,12 @@ class K8sHelper:
 
     def delete_project_secrets(self, project, secrets, namespace=""):
         secret_name = self.get_project_secret_name(project)
+        self.delete_secrets(secret_name, secrets, namespace)
+
+    def delete_auth_secret(self, secret_ref: str, namespace=""):
+        self.delete_secrets(secret_ref, {}, namespace)
+
+    def delete_secrets(self, secret_name, secrets, namespace=""):
         namespace = self.resolve_namespace(namespace)
 
         try:

@@ -16,6 +16,12 @@ class SecretsData(BaseModel):
     secrets: Optional[dict]
 
 
+class AuthSecretData(BaseModel):
+    provider: SecretProviderName = Field(SecretProviderName.kubernetes)
+    username: str
+    access_key: str
+
+
 class SecretKeysData(BaseModel):
     provider: SecretProviderName = Field(SecretProviderName.vault)
     secret_keys: Optional[list]

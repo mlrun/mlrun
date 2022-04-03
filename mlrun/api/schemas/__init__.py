@@ -123,5 +123,6 @@ from .secret import (
     SecretKeysData,
     SecretProviderName,
     SecretsData,
+    AuthSecretData,
     UserSecretCreationRequest,
 )

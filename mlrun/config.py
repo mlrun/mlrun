@@ -327,7 +327,7 @@ default_config = {
         "auto_mount_params": "",
     },
     "default_function_pod_resources": {
-        "requests": {"cpu": None, "memory": None, "gpu": None},
+        "requests": {"cpu": "25m", "memory": "1Mi", "gpu": None},
         "limits": {"cpu": None, "memory": None, "gpu": None},
     },
     # preemptible node selector and tolerations to be added when running on spot nodes
@@ -545,18 +545,24 @@ class Config:
         return resources
 
     @staticmethod
-    def get_default_function_pod_requirement_resources(requirement: str):
+    def get_default_function_pod_requirement_resources(
+        requirement: str, with_gpu: bool = True
+    ):
         """
-
         :param requirement: kubernetes requirement resource one of the following : requests, limits
+        :param with_gpu: whether to return requirement resources with nvidia.com/gpu field (e.g you cannot specify GPU
+         requests without specifying GPU limits) https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
         :return: a dict containing the defaults resources (cpu, memory, nvidia.com/gpu)
         """
         resources: dict = copy.deepcopy(config.default_function_pod_resources.to_dict())
         gpu_type = "nvidia.com/gpu"
         gpu = "gpu"
         resource_requirement = resources.get(requirement, {})
-        resource_requirement.setdefault(gpu)
-        resource_requirement[gpu_type] = resource_requirement.pop(gpu)
+        if with_gpu:
+            resource_requirement.setdefault(gpu)
+            resource_requirement[gpu_type] = resource_requirement.pop(gpu)
+        else:
+            resource_requirement.pop(gpu)
         return resource_requirement
 
     def to_dict(self):

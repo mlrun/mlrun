@@ -23,48 +23,13 @@ import uuid
 
 import kfp.compiler
 from kfp.compiler import compiler
-
+import kfp
 import mlrun
 from mlrun.utils import logger, new_pipe_meta, parse_versioned_object_uri
 
 from ..config import config
 from ..run import run_pipeline, wait_for_pipeline_completion
 from ..runtimes.pod import AutoMountType
-
-
-def _create_and_write_workflow(
-    self,
-    pipeline_func,
-    pipeline_name=None,
-    pipeline_description=None,
-    params_list=None,
-    pipeline_conf=None,
-    package_path=None,
-) -> None:
-    """Compile the given pipeline function and dump it to specified file
-    format."""
-    workflow = self._create_workflow(
-        pipeline_func, pipeline_name, pipeline_description, params_list, pipeline_conf
-    )
-    import mlrun.config
-
-    for pod in workflow["spec"]["templates"]:
-        if pod.get("container"):
-            pod["PriorityClassName"] = mlrun.config.config.default_function_priority_class_name
-
-    print(mlrun.config.config.default_function_priority_class_name)
-    print(1)
-    logger.info("im hereee")
-    # workflow["spec"][
-    #     "PodPriorityClassName"
-    # ] = mlrun.config.config.default_function_priority_class_name
-    # workflow["spec"]["PodPriority"] = 1
-    print(workflow)
-    self._write_workflow(workflow, package_path)
-    kfp.compiler.compiler._validate_workflow(workflow)
-
-
-kfp.compiler.Compiler._create_and_write_workflow = _create_and_write_workflow
 
 
 def get_workflow_engine(engine_kind, local=False):
@@ -245,6 +210,45 @@ class _PipelineContext:
 
 
 pipeline_context = _PipelineContext()
+
+def _create_and_write_workflow(
+    self,
+    pipeline_func,
+    pipeline_name=None,
+    pipeline_description=None,
+    params_list=None,
+    pipeline_conf=None,
+    package_path=None,
+) -> None:
+    """Compile the given pipeline function and dump it to specified file
+    format."""
+    workflow = self._create_workflow(
+        pipeline_func, pipeline_name, pipeline_description, params_list, pipeline_conf
+    )
+    import mlrun.config
+    print(pipeline_context.functions)
+    print(pipeline_context.project)
+    print(pipeline_context)
+    for pod in workflow["spec"]["templates"]:
+        if pod.get("container"):
+            pod["PriorityClassName"] = mlrun.config.config.default_function_priority_class_name
+
+    print(mlrun.config.config.default_function_priority_class_name)
+    logger.info("im hereee")
+    # workflow["spec"][
+    #     "PodPriorityClassName"
+    # ] = mlrun.config.config.default_function_priority_class_name
+    # workflow["spec"]["PodPriority"] = 1
+    print(workflow)
+    self._write_workflow(workflow, package_path)
+    kfp.compiler.compiler._validate_workflow(workflow)
+
+
+
+
+kfp.compiler.Compiler._create_and_write_workflow = _create_and_write_workflow
+
+
 
 
 def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:

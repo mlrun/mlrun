@@ -190,7 +190,9 @@ def test_get_default_function_pod_requirement_resources(config):
     }
     with patch_env(env):
         mlconf.config.reload()
-        requests = config.get_default_function_pod_requirement_resources("requests", with_gpu=True)
+        requests = config.get_default_function_pod_requirement_resources(
+            "requests", with_gpu=True
+        )
         assert (
             deepdiff.DeepDiff(
                 requests,
@@ -199,7 +201,9 @@ def test_get_default_function_pod_requirement_resources(config):
             )
             == {}
         )
-        limits = config.get_default_function_pod_requirement_resources("limits", with_gpu=True)
+        limits = config.get_default_function_pod_requirement_resources(
+            "limits", with_gpu=True
+        )
         assert (
             deepdiff.DeepDiff(
                 limits,
@@ -208,7 +212,9 @@ def test_get_default_function_pod_requirement_resources(config):
             )
             == {}
         )
-        requests = config.get_default_function_pod_requirement_resources("requests", with_gpu=False)
+        requests = config.get_default_function_pod_requirement_resources(
+            "requests", with_gpu=False
+        )
         assert (
             deepdiff.DeepDiff(
                 requests,
@@ -217,7 +223,9 @@ def test_get_default_function_pod_requirement_resources(config):
             )
             == {}
         )
-        limits = config.get_default_function_pod_requirement_resources("limits", with_gpu=False)
+        limits = config.get_default_function_pod_requirement_resources(
+            "limits", with_gpu=False
+        )
         assert (
             deepdiff.DeepDiff(
                 limits,

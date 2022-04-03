@@ -231,7 +231,7 @@ def _set_priority_class_name_on_kfp_pod(kfp_pod_template, function):
 # When we patch the _create_and_write_workflow, we can eventually obtain the dictionary right before we write it
 # to a file and enrich it with argo compatible fields, make sure you looking for the same argo version we use
 # https://github.com/argoproj/argo-workflows/blob/release-2.7/pkg/apis/workflow/v1alpha1/workflow_types.go
-def _create_workflow(
+def _create_enriched_mlrun_workflow(
     self,
     pipeline_func: typing.Callable,
     pipeline_name: typing.Optional[typing.Text] = None,
@@ -240,7 +240,7 @@ def _create_workflow(
     pipeline_conf: typing.Optional[dsl.PipelineConf] = None,
 ):
     """Call internal implementation of create_workflow and enrich with mlrun functions attributes"""
-    workflow = self._create_workflow(
+    workflow = self._original_create_workflow(
         pipeline_func, pipeline_name, pipeline_description, params_list, pipeline_conf
     )
     # enrich each pipeline step with your desire k8s attribute
@@ -257,7 +257,8 @@ def _create_workflow(
 
 
 # patching function as class method
-kfp.compiler.Compiler._create_and_write_workflow = _create_workflow
+kfp.compiler.Compiler._original_create_workflow = kfp.compiler.Compiler._create_workflow
+kfp.compiler.Compiler._create_workflow = _create_enriched_mlrun_workflow
 
 
 def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:

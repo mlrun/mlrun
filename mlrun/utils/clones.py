@@ -86,7 +86,7 @@ def clone_git(url, context, secrets=None, clone=True):
         or get_secret("git_password")
         or ""
     )
-    token = get_secret("GITHUB_TOKEN")
+    token = get_secret("GIT_TOKEN")
     if token:
         username = token
         password = "x-oauth-basic"

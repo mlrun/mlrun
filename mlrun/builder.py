@@ -468,19 +468,6 @@ def _generate_builder_env(project, builder_env):
     secret_name = k8s.get_project_secret_name(project)
     existing_secret_keys = k8s.get_project_secret_keys(project, filter_internal=True)
 
-    # calculate kaniko github env from token
-    secrets = k8s.get_project_secret_data(project, ["GITHUB_TOKEN"])
-    github_token = None
-    if "GITHUB_TOKEN" in builder_env:
-        github_token = builder_env["GITHUB_TOKEN"]
-        del builder_env["GITHUB_TOKEN"]
-    elif "GITHUB_TOKEN" in existing_secret_keys:
-        github_token = secrets["GITHUB_TOKEN"]
-        existing_secret_keys.remove("GITHUB_TOKEN")
-    if github_token:
-        builder_env["GIT_USERNAME"] = github_token
-        builder_env["GIT_PASSWORD"] = "x-oauth-basic"
-
     # generate env list from builder env and project secrets
     env = []
     for key in existing_secret_keys:

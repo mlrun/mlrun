@@ -41,7 +41,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         if has_private_source:
             self.project.set_secrets(
                 {
-                    "GITHUB_TOKEN": os.environ["PRIVATE_GIT_TOKEN"],
+                    "GIT_TOKEN": os.environ["PRIVATE_GIT_TOKEN"],
                 }
             )
 
@@ -131,7 +131,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         task = mlrun.new_task().with_secrets(
             "inline",
             {
-                "GITHUB_TOKEN": os.environ.get("PRIVATE_GIT_TOKEN", ""),
+                "GIT_TOKEN": os.environ.get("PRIVATE_GIT_TOKEN", ""),
             },
         )
         run = mlrun.run_function(fn, base_task=task)

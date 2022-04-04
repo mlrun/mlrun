@@ -1410,9 +1410,9 @@ def _compile_nuclio_archive_config(
         if branch:
             code_entry_attributes["branch"] = branch
 
-        secrets = get_secrets(["GIT_USERNAME", "GIT_PASSWORD", "GITHUB_TOKEN"])
+        secrets = get_secrets(["GIT_USERNAME", "GIT_PASSWORD", "GIT_TOKEN"])
         password = secrets.get("GIT_PASSWORD", "")
-        token = secrets.get("GITHUB_TOKEN", "")
+        token = secrets.get("GIT_TOKEN", "")
         if token:
             password = "x-oauth-basic"
         code_entry_attributes["username"] = token or secrets.get("GIT_USERNAME", "")

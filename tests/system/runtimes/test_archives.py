@@ -7,7 +7,7 @@ import mlrun
 import tests.system.base
 
 git_uri = "git://github.com/mlrun/test-git-load.git"
-base_image = "yhaviv/mlrun:1.0.0-rc20"
+base_image = "mlrun/mlrun"
 tags = ["main", "refs/heads/tst"]
 codepaths = [(None, "rootfn"), ("subdir", "func")]
 

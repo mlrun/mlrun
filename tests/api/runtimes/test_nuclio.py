@@ -838,7 +838,7 @@ class TestNuclioRuntime(TestRuntimeBase):
                     "codeEntryType": "archive",
                     "codeEntryAttributes": {
                         "workDir": "path/inside/functions/archive",
-                        "headers": {"headers": {"X-V3io-Session-Key": "ma-access-key"}},
+                        "headers": {"X-V3io-Session-Key": "ma-access-key"},
                     },
                 },
             },

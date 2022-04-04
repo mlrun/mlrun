@@ -35,13 +35,23 @@ class TestGitSource(tests.system.base.TestMLRunSystem):
     project_name = "git-tests"
 
     def custom_setup(self):
-        # os.environ["MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES"] = "false"
+        os.environ["MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES"] = "false"
+        self.remote_code_dir = f"v3io:///projects/{self.project_name}/code/"
+        self.uploaded_code = False
+        # upload test files to cluster
         if has_private_source:
             self.project.set_secrets(
                 {
                     "GITHUB_TOKEN": os.environ["PRIVATE_GIT_TOKEN"],
                 }
             )
+
+    def _upload_code_to_cluster(self):
+        if not self.uploaded_code:
+            for file in ["source_archive.tar.gz", "handler.py"]:
+                source_path = str(self.assets_path / file)
+                mlrun.get_dataitem(self.remote_code_dir + file).upload(source_path)
+        self.uploaded_code = True
 
     def _new_function(self, kind, name="run", command=""):
         return mlrun.new_function(
@@ -138,12 +148,9 @@ class TestGitSource(tests.system.base.TestMLRunSystem):
             handler="rootfn.job_handler",
             pull_at_runtime=load_mode == "run",
         )
-        fn.spec.image_pull_policy = "Always"
+        # fn.spec.image_pull_policy = "Always"
         if load_mode == "build":
-            builder_env = {
-                "GITHUB_TOKEN": os.environ.get("PRIVATE_GIT_TOKEN", ""),
-            }
-            fn.deploy(builder_env=builder_env)
+            fn.deploy()
         run = fn.run()
         assert run.state() == "completed"
         assert run.output("tag")
@@ -155,6 +162,34 @@ class TestGitSource(tests.system.base.TestMLRunSystem):
             private_repo,
             handler="rootfn:nuclio_handler",
         )
+        fn.deploy()
+        resp = fn.invoke("")
+        assert "tag=" in resp.decode()
+
+    @pytest.mark.parametrize("load_mode", ["run", "build"])
+    def test_job_tar(self, load_mode):
+        self._upload_code_to_cluster()
+        fn = self._new_function("job", f"{load_mode}-tar")
+        fn.with_source_archive(
+            self.remote_code_dir + "source_archive.tar.gz",
+            handler="rootfn.job_handler",
+            pull_at_runtime=load_mode == "run",
+        )
+        if load_mode == "build":
+            fn.deploy()
+        run = fn.run()
+        assert run.state() == "completed"
+        assert run.output("tag")
+
+    @need_private_git
+    def test_nuclio_tar(self):
+        self._upload_code_to_cluster()
+        fn = self._new_function("nuclio", "tar")
+        fn.with_source_archive(
+            self.remote_code_dir + "source_archive.tar.gz",
+            handler="rootfn:nuclio_handler",
+        )
+        fn.verbose = True
         fn.deploy()
         resp = fn.invoke("")
         assert "tag=" in resp.decode()

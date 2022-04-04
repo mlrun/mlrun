@@ -17,12 +17,12 @@ from mlrun.api.api.endpoints.functions import _build_function
 from mlrun.platforms.iguazio import split_path
 from mlrun.runtimes.constants import NuclioIngressAddTemplatedIngressModes
 from mlrun.runtimes.function import (
+    _compile_nuclio_archive_config,
     compile_function_config,
     deploy_nuclio_function,
     enrich_function_with_ingress,
     min_nuclio_versions,
     resolve_function_ingresses,
-    _compile_nuclio_archive_config,
     validate_nuclio_version_compatibility,
 )
 from mlrun.runtimes.pod import KubeResourceSpec

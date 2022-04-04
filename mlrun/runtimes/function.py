@@ -18,6 +18,7 @@ import typing
 import warnings
 from datetime import datetime
 from time import sleep
+from urllib.parse import urlparse
 
 import nuclio
 import requests
@@ -1045,7 +1046,7 @@ def deploy_nuclio_function(
 ):
     dashboard = dashboard or mlconf.nuclio_dashboard_url
     function_name, project_name, function_config = compile_function_config(
-        function, client_version, builder_env or {}
+        function, client_version, builder_env or {}, auth_info=auth_info
     )
 
     # if mode allows it, enrich function http trigger with an ingress
@@ -1090,7 +1091,10 @@ def resolve_function_http_trigger(function_spec):
 
 
 def compile_function_config(
-    function: RemoteRuntime, client_version: str = None, builder_env=None
+    function: RemoteRuntime,
+    client_version: str = None,
+    builder_env=None,
+    auth_info=None,
 ):
     labels = function.metadata.labels or {}
     labels.update({"mlrun/class": function.kind})
@@ -1115,7 +1119,9 @@ def compile_function_config(
     handler = function.spec.function_handler
 
     if function.spec.build.source:
-        _compile_nuclio_archive_config(nuclio_spec, function, builder_env, project)
+        _compile_nuclio_archive_config(
+            nuclio_spec, function, builder_env, project, auth_info=auth_info
+        )
 
     runtime = function.spec.nuclio_runtime or mlrun.config.config.default_nuclio_runtime
     nuclio_spec.set_config("spec.runtime", runtime)
@@ -1318,6 +1324,7 @@ def _compile_nuclio_archive_config(
     function: RemoteRuntime,
     builder_env,
     project,
+    auth_info=None,
 ):
     def get_secrets(keys):
         secrets = {}
@@ -1329,6 +1336,7 @@ def _compile_nuclio_archive_config(
         return secrets
 
     source = function.spec.build.source
+    parsed_url = urlparse(source)
     code_entry_type = ""
     if source.startswith("s3://"):
         code_entry_type = "s3"
@@ -1353,15 +1361,17 @@ def _compile_nuclio_archive_config(
 
     # archive
     if code_entry_type == "archive":
+        v3io_access_key = builder_env.get("V3IO_ACCESS_KEY", "")
         if source.startswith("v3io"):
-            source = f"http{source[len('v3io'):]}"
+            if not parsed_url.netloc:
+                source = mlrun.mlconf.v3io_api + parsed_url.path
+            else:
+                source = f"http{source[len('v3io'):]}"
+            if auth_info and not v3io_access_key:
+                v3io_access_key = auth_info.data_session or auth_info.access_key
 
-        secrets = get_secrets(["V3IO_ACCESS_KEY"])
-        v3io_access_key = secrets.get("V3IO_ACCESS_KEY", "")
         if v3io_access_key:
-            code_entry_attributes["headers"] = {
-                "headers": {"X-V3io-Session-Key": v3io_access_key}
-            }
+            code_entry_attributes["headers"] = {"X-V3io-Session-Key": v3io_access_key}
 
     # s3
     if code_entry_type == "s3":

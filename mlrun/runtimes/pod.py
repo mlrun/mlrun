@@ -523,7 +523,7 @@ class KubeResourceSpec(FunctionSpec):
 
         # remove preemptible tolerations and remove preemption related configuration
         # and enrich with anti-affinity if preemptible tolerations configuration haven't been provided
-        if self.preemption_mode == PreemptionModes.prevent:
+        if self.preemption_mode == PreemptionModes.prevent.value:
             # ensure no preemptible node tolerations
             self._prune_tolerations(generate_preemptible_tolerations())
 
@@ -531,7 +531,7 @@ class KubeResourceSpec(FunctionSpec):
             self._prune_affinity_node_selector_requirement(
                 (
                     generate_preemptible_node_selector_requirements(
-                        NodeSelectorOperator.node_selector_op_in
+                        NodeSelectorOperator.node_selector_op_in.value
                     )
                 )
             )
@@ -546,7 +546,7 @@ class KubeResourceSpec(FunctionSpec):
                 )
 
         # enrich tolerations and override all node selector terms with preemptible node selector terms
-        elif self.preemption_mode == PreemptionModes.constrain:
+        elif self.preemption_mode == PreemptionModes.constrain.value:
             # enrich with tolerations
             self._merge_tolerations(generate_preemptible_tolerations())
 
@@ -560,18 +560,18 @@ class KubeResourceSpec(FunctionSpec):
             )
 
         # purge any affinity / anti-affinity preemption related configuration and enrich with preemptible tolerations
-        elif self.preemption_mode == PreemptionModes.allow:
+        elif self.preemption_mode == PreemptionModes.allow.value:
 
             # remove anti-affinity
             self._prune_affinity_node_selector_requirement(
                 generate_preemptible_node_selector_requirements(
-                    NodeSelectorOperator.node_selector_op_not_in
+                    NodeSelectorOperator.node_selector_op_not_in.value
                 ),
             )
             # remove affinity
             self._prune_affinity_node_selector_requirement(
                 generate_preemptible_node_selector_requirements(
-                    NodeSelectorOperator.node_selector_op_in
+                    NodeSelectorOperator.node_selector_op_in.value
                 ),
             )
 

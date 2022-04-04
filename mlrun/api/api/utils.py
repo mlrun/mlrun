@@ -194,7 +194,12 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
         access_key_secret_key = mlrun.api.schemas.AuthSecretData.get_field_secret_key(
             "access_key"
         )
-        auth_env_vars = {"MLRUN_AUTH_SESSION": (secret_ref, access_key_secret_key)}
+        auth_env_vars = {
+            mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session: (
+                secret_ref,
+                access_key_secret_key,
+            )
+        }
         for env_key, (secret_name, secret_key) in auth_env_vars.items():
             function.set_env_from_secret(env_key, secret_name, secret_key)
 

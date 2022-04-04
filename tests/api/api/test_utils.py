@@ -358,7 +358,7 @@ def test_ensure_function_has_auth_set(
     k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
     assert function.set_env_from_secret.call_count == 1
     assert function.set_env_from_secret.call_args[0] == (
-        "MLRUN_AUTH_SESSION",
+        mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session,
         secret_name,
         mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
     )
@@ -405,7 +405,7 @@ def test_ensure_function_has_auth_set(
     )
     assert function.set_env_from_secret.call_count == 1
     assert function.set_env_from_secret.call_args[0] == (
-        "MLRUN_AUTH_SESSION",
+        mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session,
         secret_name,
         mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
     )
@@ -440,7 +440,7 @@ def test_ensure_function_has_auth_set(
     )
     assert function.set_env_from_secret.call_count == 1
     assert function.set_env_from_secret.call_args[0] == (
-        "MLRUN_AUTH_SESSION",
+        mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session,
         secret_name,
         mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
     )

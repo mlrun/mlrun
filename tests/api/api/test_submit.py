@@ -144,7 +144,7 @@ def test_submit_job_ensure_function_has_auth_set(
     assert resp
 
     expected_env_vars = {
-        "MLRUN_AUTH_SESSION": access_key,
+        mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session: access_key,
     }
     _assert_pod_env_vars(pod_create_mock, expected_env_vars)
 

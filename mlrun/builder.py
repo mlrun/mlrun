@@ -200,7 +200,6 @@ def build_image(
     client_version=None,
     runtime_spec=None,
 ):
-    builder_env = builder_env or {}
     if registry:
         dest = "/".join([registry, dest])
     elif dest.startswith(IMAGE_NAME_ENRICH_REGISTRY_PREFIX):
@@ -250,7 +249,7 @@ def build_image(
     elif source and "://" in source and not v3io:
         if source.startswith("git://"):
             # set proper env vars for Github tokens
-            if "GITHUB_TOKEN" in builder_env:
+            if builder_env and "GITHUB_TOKEN" in builder_env:
                 builder_env["GIT_USERNAME"] = builder_env["GITHUB_TOKEN"]
                 builder_env["GIT_PASSWORD"] = "x-oauth-basic"
                 del builder_env["GITHUB_TOKEN"]
@@ -293,10 +292,11 @@ def build_image(
     )
 
     if to_mount:
-        access_key = builder_env.get(
-            "V3IO_ACCESS_KEY", auth_info.data_session or auth_info.access_key
-        )
-        username = builder_env.get("V3IO_USERNAME", auth_info.username)
+        access_key = auth_info.data_session or auth_info.access_key
+        username = auth_info.username
+        if builder_env:
+            access_key = builder_env.get("V3IO_ACCESS_KEY", access_key)
+            username = builder_env.get("V3IO_USERNAME", username)
         kpod.mount_v3io(
             remote=source,
             mount_path="/context",

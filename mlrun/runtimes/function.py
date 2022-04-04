@@ -1323,12 +1323,15 @@ def _compile_nuclio_archive_config(
     nuclio_spec,
     function: RemoteRuntime,
     builder_env,
-    project,
+    project=None,
     auth_info=None,
 ):
     def get_secrets(keys):
         secrets = {}
-        if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+        if (
+            project
+            and get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
+        ):
             secrets = function._get_k8s().get_project_secret_data(project, keys)
         for key in keys:
             if key in builder_env:

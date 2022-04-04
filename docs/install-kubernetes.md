@@ -117,6 +117,7 @@ command as follows:
 helm --namespace mlrun \
     install my-mlrun \
     --wait \
+    --timeout 960 \
     --set global.registry.url=<registry URL e.g. index.docker.io/iguazio > \
     --set global.registry.secretName=registry-credentials \
     --set global.externalHostAddress=$(minikube ip) \

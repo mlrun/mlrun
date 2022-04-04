@@ -54,13 +54,7 @@ def test_build_config_with_multiple_commands():
 
 
 def test_build_runtime_insecure_registries(monkeypatch):
-    get_k8s_helper_mock = unittest.mock.Mock()
-    monkeypatch.setattr(
-        mlrun.builder, "get_k8s_helper", lambda *args, **kwargs: get_k8s_helper_mock
-    )
-    mlrun.builder.get_k8s_helper().create_pod = unittest.mock.Mock(
-        side_effect=lambda pod: (pod, "some-namespace")
-    )
+    _patch_k8s_helper(monkeypatch)
     mlrun.mlconf.httpdb.builder.docker_registry = "registry.hub.docker.com/username"
     function = mlrun.new_function(
         "some-function",
@@ -131,13 +125,7 @@ def test_build_runtime_insecure_registries(monkeypatch):
 
 
 def test_build_runtime_target_image(monkeypatch):
-    get_k8s_helper_mock = unittest.mock.Mock()
-    monkeypatch.setattr(
-        mlrun.builder, "get_k8s_helper", lambda *args, **kwargs: get_k8s_helper_mock
-    )
-    mlrun.builder.get_k8s_helper().create_pod = unittest.mock.Mock(
-        side_effect=lambda pod: (pod, "some-namespace")
-    )
+    _patch_k8s_helper(monkeypatch)
     registry = "registry.hub.docker.com/username"
     mlrun.mlconf.httpdb.builder.docker_registry = registry
     mlrun.mlconf.httpdb.builder.function_target_image_name_prefix_template = (
@@ -219,13 +207,7 @@ def test_build_runtime_target_image(monkeypatch):
 
 
 def test_build_runtime_use_default_node_selector(monkeypatch):
-    get_k8s_helper_mock = unittest.mock.Mock()
-    monkeypatch.setattr(
-        mlrun.builder, "get_k8s_helper", lambda *args, **kwargs: get_k8s_helper_mock
-    )
-    mlrun.builder.get_k8s_helper().create_pod = unittest.mock.Mock(
-        side_effect=lambda pod: (pod, "some-namespace")
-    )
+    _patch_k8s_helper(monkeypatch)
     mlrun.mlconf.httpdb.builder.docker_registry = "registry.hub.docker.com/username"
     node_selector = {
         "label-1": "val1",
@@ -255,13 +237,7 @@ def test_build_runtime_use_default_node_selector(monkeypatch):
 
 
 def test_function_build_with_attributes_from_spec(monkeypatch):
-    get_k8s_helper_mock = unittest.mock.Mock()
-    monkeypatch.setattr(
-        mlrun.builder, "get_k8s_helper", lambda *args, **kwargs: get_k8s_helper_mock
-    )
-    mlrun.builder.get_k8s_helper().create_pod = unittest.mock.Mock(
-        side_effect=lambda pod: (pod, "some-namespace")
-    )
+    _patch_k8s_helper(monkeypatch)
     mlrun.mlconf.httpdb.builder.docker_registry = "registry.hub.docker.com/username"
     function = mlrun.new_function(
         "some-function",
@@ -394,3 +370,22 @@ def _get_target_image_from_create_pod_mock():
 
 def _create_pod_mock_pod_spec():
     return mlrun.builder.get_k8s_helper().create_pod.call_args[0][0].pod.spec
+
+
+def _patch_k8s_helper(monkeypatch):
+    get_k8s_helper_mock = unittest.mock.Mock()
+    monkeypatch.setattr(
+        mlrun.builder, "get_k8s_helper", lambda *args, **kwargs: get_k8s_helper_mock
+    )
+    mlrun.builder.get_k8s_helper().create_pod = unittest.mock.Mock(
+        side_effect=lambda pod: (pod, "some-namespace")
+    )
+    mlrun.builder.get_k8s_helper().get_project_secret_name = unittest.mock.Mock(
+        side_effect=lambda name: "name"
+    )
+    mlrun.builder.get_k8s_helper().get_project_secret_keys = unittest.mock.Mock(
+        side_effect=lambda project, filter_internal: ["KEY"]
+    )
+    mlrun.builder.get_k8s_helper().get_project_secret_data = unittest.mock.Mock(
+        side_effect=lambda project, keys: {"KEY": "val"}
+    )

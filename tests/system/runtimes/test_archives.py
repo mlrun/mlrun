@@ -30,12 +30,11 @@ need_private_git = pytest.mark.skipif(
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
-class TestGitSource(tests.system.base.TestMLRunSystem):
+class TestArchiveSources(tests.system.base.TestMLRunSystem):
 
     project_name = "git-tests"
 
     def custom_setup(self):
-        os.environ["MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES"] = "false"
         self.remote_code_dir = f"v3io:///projects/{self.project_name}/code/"
         self.uploaded_code = False
         # upload test files to cluster
@@ -135,7 +134,7 @@ class TestGitSource(tests.system.base.TestMLRunSystem):
                 "GITHUB_TOKEN": os.environ.get("PRIVATE_GIT_TOKEN", ""),
             },
         )
-        run = mlrun.run_function(fn, task)
+        run = mlrun.run_function(fn, base_task=task)
         assert run.state() == "completed"
         assert run.output("tag")
 

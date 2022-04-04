@@ -22,6 +22,7 @@ import kubernetes.client
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
+import mlrun.api.schemas
 import mlrun.errors
 
 from .config import config as mlconfig
@@ -352,7 +353,12 @@ class K8sHelper:
 
     def store_auth_secret(self, username: str, access_key: str, namespace="") -> str:
         secret_name = self.get_auth_secret_name(username, access_key)
-        secret_data = {"username": username, "accessKey": access_key}
+        secret_data = {
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username"): username,
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key(
+                "access_key"
+            ): access_key,
+        }
         self.store_secrets(secret_name, secret_data, namespace)
         return secret_name
 

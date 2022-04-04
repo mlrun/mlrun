@@ -169,11 +169,34 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Function access key must be set (function.metadata.credentials.access_key)"
             )
-        auth_env_vars = {
-            "MLRUN_AUTH_SESSION": function.metadata.credentials.access_key,
-        }
-        for key, value in auth_env_vars.items():
-            function.set_env(key, value)
+        if not function.metadata.credentials.access_key.startswith(
+            mlrun.model.Credentials.secret_reference_prefix
+        ):
+            if not auth_info.username:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Username is missing from auth info"
+                )
+            secret_ref = mlrun.api.crud.Secrets().store_auth_secret(
+                mlrun.api.schemas.AuthSecretData(
+                    provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+                    username=auth_info.username,
+                    access_key=function.metadata.credentials.access_key,
+                )
+            )
+            function.metadata.credentials.access_key = (
+                f"{mlrun.model.Credentials.secret_reference_prefix}{secret_ref}"
+            )
+        else:
+            secret_ref = function.metadata.credentials.access_key.lstrip(
+                mlrun.model.Credentials.secret_reference_prefix
+            )
+
+        access_key_secret_key = mlrun.api.schemas.AuthSecretData.get_field_secret_key(
+            "access_key"
+        )
+        auth_env_vars = {"MLRUN_AUTH_SESSION": (secret_ref, access_key_secret_key)}
+        for env_key, (secret_name, secret_key) in auth_env_vars.items():
+            function.set_env_from_secret(env_key, secret_name, secret_key)
 
 
 def try_perform_auto_mount(function, auth_info: mlrun.api.schemas.AuthInfo):

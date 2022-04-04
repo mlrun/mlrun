@@ -21,6 +21,13 @@ class AuthSecretData(BaseModel):
     username: str
     access_key: str
 
+    @staticmethod
+    def get_field_secret_key(field: str):
+        return {
+            "username": "username",
+            "access_key": "accessKey",
+        }[field]
+
 
 class SecretKeysData(BaseModel):
     provider: SecretProviderName = Field(SecretProviderName.vault)

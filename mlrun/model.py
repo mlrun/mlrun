@@ -260,6 +260,7 @@ class ObjectList:
 
 class Credentials(ModelObj):
     generate_access_key = "$generate"
+    secret_reference_prefix = "$ref:"
 
     def __init__(
         self,

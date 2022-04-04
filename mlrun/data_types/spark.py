@@ -1,3 +1,5 @@
+from os import environ
+
 import numpy as np
 
 from .data_types import InferOptions, spark_to_value_type
@@ -102,7 +104,7 @@ def get_dtype(df, colname):
 # how many histograms will be calculated in a single query. By default we're using 20 bins per histogram, so
 # using 500 will calculate histograms over 25 columns in a single query. If there are more, more queries will
 # be executed.
-MAX_HISTOGRAM_COLUMNS_IN_QUERY = 500
+MAX_HISTOGRAM_COLUMNS_IN_QUERY = int(environ.get("MAX_HISTOGRAM_COLUMNS_IN_QUERY", 500))
 
 
 def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
@@ -136,8 +138,8 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
         ) and get_dtype(df, col) in ["double", "int"]:
             hist_columns.append(col)
 
-    # We may need multiple queries here. See above comment for reasoning.
-    max_columns_per_query = int(MAX_HISTOGRAM_COLUMNS_IN_QUERY // num_bins)
+    # We may need multiple queries here. See comment before this function for reasoning.
+    max_columns_per_query = int(MAX_HISTOGRAM_COLUMNS_IN_QUERY // num_bins) or 1
     while len(hist_columns) > 0:
         calculation_cols = hist_columns[:max_columns_per_query]
         _create_hist_data(df, calculation_cols, results_dict, num_bins)

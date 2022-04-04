@@ -7,6 +7,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+import mlrun.api.schemas
 import mlrun.api.utils.singletons.k8s
 from mlrun import mlconf
 from mlrun.api.db.sqldb.session import _init_engine, create_session
@@ -118,8 +119,10 @@ class K8sSecretsMock:
     @staticmethod
     def _generate_auth_secret_data(username: str, access_key: str):
         return {
-            "username": username,
-            "accessKey": access_key,
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username"): username,
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key(
+                "access_key"
+            ): access_key,
         }
 
     def delete_auth_secret(self, secret_ref: str, namespace=""):

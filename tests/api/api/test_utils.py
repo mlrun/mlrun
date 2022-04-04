@@ -1,3 +1,4 @@
+import unittest.mock
 from http import HTTPStatus
 
 import pytest
@@ -6,11 +7,17 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun
+import mlrun.api.crud
 import mlrun.api.schemas
-from mlrun.api.api.utils import _generate_function_and_task_from_submit_run_body
+import mlrun.api.utils.auth.verifier
+import tests.api.conftest
+from mlrun.api.api.utils import (
+    _generate_function_and_task_from_submit_run_body,
+    ensure_function_has_auth_set,
+)
 
 # Want to use k8s_secrets_mock for all tests in this module. It is needed since
-# _generate_function_and_task_from_submit_run_body looks for project secrets for secret-accoutn validation.
+# _generate_function_and_task_from_submit_run_body looks for project secrets for secret-account validation.
 pytestmark = pytest.mark.usefixtures("k8s_secrets_mock")
 
 
@@ -295,6 +302,150 @@ def test_generate_function_and_task_from_submit_run_body_keep_credentials(
     assert parsed_function_object.metadata.credentials.access_key == access_key
 
 
+def test_ensure_function_has_auth_set(
+    db: Session, client: TestClient, k8s_secrets_mock: tests.api.conftest.K8sSecretsMock
+):
+    mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+        unittest.mock.Mock(return_value=True)
+    )
+
+    # local function so nothing should be changed
+    _, _, _, original_function_dict = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.local
+    )
+    original_function = mlrun.new_function(runtime=original_function_dict)
+    function = mlrun.new_function(runtime=original_function_dict)
+    ensure_function_has_auth_set(function, mlrun.api.schemas.AuthInfo())
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    # generate access key - secret should be created, env should reference it
+    username = "username"
+    access_key = "generated-access-key"
+    _, _, _, original_function_dict = _generate_original_function(
+        access_key=mlrun.model.Credentials.generate_access_key,
+        kind=mlrun.runtimes.RuntimeKinds.job,
+    )
+    original_function = mlrun.new_function(runtime=original_function_dict)
+    function = mlrun.new_function(runtime=original_function_dict)
+    function.set_env_from_secret = unittest.mock.Mock()
+    mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = (
+        unittest.mock.Mock(return_value=access_key)
+    )
+    ensure_function_has_auth_set(
+        function, mlrun.api.schemas.AuthInfo(username=username)
+    )
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+            exclude_paths=["root['metadata']['credentials']['access_key']"],
+        )
+        == {}
+    )
+    secret_name = k8s_secrets_mock.get_auth_secret_name(username, access_key)
+    assert (
+        function.metadata.credentials.access_key
+        == f"{mlrun.model.Credentials.secret_reference_prefix}{secret_name}"
+    )
+    k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
+    assert function.set_env_from_secret.call_count == 1
+    assert function.set_env_from_secret.call_args[0] == (
+        "MLRUN_AUTH_SESSION",
+        secret_name,
+        mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
+    )
+
+    # no access key - explode
+    _, _, _, original_function_dict = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    function = mlrun.new_function(runtime=original_function_dict)
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match=r"(.*)Function access key must be set(.*)",
+    ):
+        ensure_function_has_auth_set(function, mlrun.api.schemas.AuthInfo())
+
+    # access key without username - explode
+    _, _, _, original_function_dict = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.job, access_key="some-access-key"
+    )
+    function = mlrun.new_function(runtime=original_function_dict)
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match=r"(.*)Username is missing(.*)"
+    ):
+        ensure_function_has_auth_set(function, mlrun.api.schemas.AuthInfo())
+
+    # access key ref provided - env should be set
+    secret_name = "some-access-key-secret-name"
+    access_key = f"{mlrun.model.Credentials.secret_reference_prefix}{secret_name}"
+    _, _, _, original_function_dict = _generate_original_function(
+        access_key=access_key,
+        kind=mlrun.runtimes.RuntimeKinds.job,
+    )
+    original_function = mlrun.new_function(runtime=original_function_dict)
+    function = mlrun.new_function(runtime=original_function_dict)
+    function.set_env_from_secret = unittest.mock.Mock()
+    ensure_function_has_auth_set(function, mlrun.api.schemas.AuthInfo())
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
+    assert function.set_env_from_secret.call_count == 1
+    assert function.set_env_from_secret.call_args[0] == (
+        "MLRUN_AUTH_SESSION",
+        secret_name,
+        mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
+    )
+
+    # raw access key provided - secret should be created env should be set (to reference it)
+    access_key = "some-access-key"
+    username = "some-username"
+    _, _, _, original_function_dict = _generate_original_function(
+        access_key=access_key,
+        kind=mlrun.runtimes.RuntimeKinds.job,
+    )
+    original_function = mlrun.new_function(runtime=original_function_dict)
+    function = mlrun.new_function(runtime=original_function_dict)
+    function.set_env_from_secret = unittest.mock.Mock()
+    ensure_function_has_auth_set(
+        function, mlrun.api.schemas.AuthInfo(username=username)
+    )
+    secret_name = k8s_secrets_mock.get_auth_secret_name(username, access_key)
+    k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+            exclude_paths=["root['metadata']['credentials']['access_key']"],
+        )
+        == {}
+    )
+    assert (
+        function.metadata.credentials.access_key
+        == f"{mlrun.model.Credentials.secret_reference_prefix}{secret_name}"
+    )
+    assert function.set_env_from_secret.call_count == 1
+    assert function.set_env_from_secret.call_args[0] == (
+        "MLRUN_AUTH_SESSION",
+        secret_name,
+        mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
+    )
+
+
 def test_generate_function_and_task_from_submit_run_body_imported_function_project_assignment(
     db: Session, client: TestClient, monkeypatch
 ):
@@ -399,13 +550,15 @@ def _mock_import_function(monkeypatch):
     )
 
 
-def _mock_original_function(client, access_key=None):
+def _mock_original_function(
+    client, access_key=None, kind=mlrun.runtimes.RuntimeKinds.job
+):
     (
         project,
         function_name,
         function_tag,
         original_function,
-    ) = _generate_original_function(access_key=access_key)
+    ) = _generate_original_function(access_key=access_key, kind=kind)
     resp = client.post(
         f"func/{project}/{function_name}",
         json=original_function,
@@ -415,12 +568,12 @@ def _mock_original_function(client, access_key=None):
     return project, function_name, function_tag, original_function
 
 
-def _generate_original_function(access_key=None):
+def _generate_original_function(access_key=None, kind=mlrun.runtimes.RuntimeKinds.job):
     function_name = "function_name"
     project = "some-project"
     function_tag = "function_tag"
     original_function = {
-        "kind": "job",
+        "kind": kind,
         "metadata": {"name": function_name, "tag": function_tag, "project": project},
         "spec": {
             "volumes": [

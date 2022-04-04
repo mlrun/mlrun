@@ -102,7 +102,7 @@ helm --namespace mlrun \
     v3io-stable/mlrun-kit
 ```
 
-Where `<registry-url` is the registry URL which can be authenticated by the `registry-credentials` secret (e.g., `index.docker.io/<your-username>` for Docker Hub>).
+Where `<registry-url>` is the registry URL which can be authenticated by the `registry-credentials` secret (e.g., `index.docker.io/<your-username>` for Docker Hub).
 
 
 ```{admonition} Installing on Minikube/VM**
@@ -137,10 +137,13 @@ Your applications are now available in your local browser:
 - Jupyter-notebook - http://localhost:30040
 - Nuclio - http://localhost:30050
 - MLRun UI - http://localhost:30060
-- MLRun API (external) - http://localhost:30070
+- MLRun API (external) - http://localhost:30070 (or health check via http://localhost:30070/api/healthz)
 
 
 ```{admonition} Note
+You can check current state of installation via command `kubectl get pod -n mlrun`, where the main information
+is in columns `Ready` and `State`. Typically it may take a minute for all services to start. 
+
 The above links assume your Kubernetes cluster is exposed on localhost.
 If that's not the case, the different components are available on the provided `externalHostAddress`
 - You can change the ports by providing values to the helm install command.

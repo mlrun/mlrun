@@ -137,6 +137,9 @@ class FunctionSpec(ModelObj):
     def build(self, build):
         self._build = self._verify_dict(build, "build", ImageBuilder)
 
+    def enrich_function_preemption_spec(self):
+        pass
+
 
 class BaseRuntime(ModelObj):
     kind = "base"
@@ -218,6 +221,29 @@ class BaseRuntime(ModelObj):
         ):
             return True
         return False
+
+    def _enrich_on_client_side(self):
+        self.try_auto_mount_based_on_config()
+        self.fill_credentials()
+
+    def _enrich_on_server_side(self):
+        pass
+
+    def _enrich_on_server_and_client_sides(self):
+        """
+        enrich function also in client side and also on server side
+        """
+        pass
+
+    def _enrich_function(self):
+        """
+        enriches the function based on the flow state we run in (sdk or server)
+        """
+        if self._use_remote_api():
+            self._enrich_on_client_side()
+        else:
+            self._enrich_on_server_side()
+        self._enrich_on_server_and_client_sides()
 
     def _function_uri(self, tag=None, hash_key=None):
         return generate_object_uri(
@@ -309,10 +335,7 @@ class BaseRuntime(ModelObj):
         if self.spec.mode and self.spec.mode not in run_modes:
             raise ValueError(f'run mode can only be {",".join(run_modes)}')
 
-        # Perform auto-mount if necessary - make sure it only runs on client side (when using remote API)
-        if self._use_remote_api():
-            self.try_auto_mount_based_on_config()
-            self.fill_credentials()
+        self._enrich_function()
 
         if local:
             return self._run_local(

@@ -81,6 +81,7 @@ extras_require = {
         "boto3~=1.9, <1.17.107",
         "botocore>=1.20.106,<1.20.107",
         "aiobotocore~=1.4.0",
+        "aioitertools<0.9",
         "s3fs~=2021.8.1",
     ],
     "azure-blob-storage": ["azure-storage-blob~=12.0", "adlfs~=2021.8.1"],

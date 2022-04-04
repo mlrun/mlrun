@@ -360,7 +360,7 @@ def ingest(
             featureset, mlrun.api.schemas.AuthorizationAction.update
         )
         run_config = run_config.copy() if run_config else RunConfig()
-        source, run_config.parameters = _set_task_params(
+        source, run_config.parameters = set_task_params(
             featureset, source, targets, run_config.parameters, infer_options, overwrite
         )
         name = f"{featureset.metadata.name}_ingest"
@@ -624,7 +624,7 @@ def _run_ingestion_job(
         featureset = get_feature_set_by_uri(featureset)
 
     run_config = run_config.copy() if run_config else RunConfig()
-    source, run_config.parameters = _set_task_params(
+    source, run_config.parameters = set_task_params(
         featureset, source, targets, run_config.parameters, infer_options
     )
 
@@ -677,7 +677,7 @@ def deploy_ingestion_service(
             kind=source.kind,
             name=featureset.metadata.name,
         )
-    source, run_config.parameters = _set_task_params(
+    source, run_config.parameters = set_task_params(
         featureset, source, targets, run_config.parameters
     )
 
@@ -720,6 +720,7 @@ def _ingest_with_spark(
     namespace=None,
     overwrite=None,
 ):
+    created_spark_context = False
     try:
         import pyspark.sql
 
@@ -734,6 +735,7 @@ def _ingest_with_spark(
                 )
 
             spark = pyspark.sql.SparkSession.builder.appName(session_name).getOrCreate()
+            created_spark_context = True
 
         if isinstance(source, pd.DataFrame):
             df = spark.createDataFrame(source)
@@ -812,8 +814,10 @@ def _ingest_with_spark(
 
         _post_ingestion(mlrun_context, featureset, spark)
     finally:
-        if spark:
+        if created_spark_context:
             spark.stop()
+            # We shouldn't return a dataframe that depends on a stopped context
+            return
     return df
 
 
@@ -858,7 +862,7 @@ def _infer_from_static_df(
     return df
 
 
-def _set_task_params(
+def set_task_params(
     featureset: FeatureSet,
     source: DataSource = None,
     targets: List[DataTargetBase] = None,

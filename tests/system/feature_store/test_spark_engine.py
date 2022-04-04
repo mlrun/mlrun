@@ -7,6 +7,7 @@ import fsspec
 import pandas as pd
 import pytest
 import v3iofs
+from storey import EmitEveryEvent
 
 import mlrun
 import mlrun.feature_store as fs
@@ -313,3 +314,88 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             },
             "time_window": {("moshe", "cohen"): "1h", ("yosi", "levi"): "1h"},
         }
+
+    def test_aggregations_emit_every_event(self):
+        name = f"measurements_{uuid.uuid4()}"
+        test_base_time = datetime.fromisoformat("2020-07-21T21:40:00")
+
+        df = pd.DataFrame(
+            {
+                "time": [
+                    test_base_time,
+                    test_base_time + pd.Timedelta(minutes=20),
+                    test_base_time + pd.Timedelta(minutes=60),
+                    test_base_time + pd.Timedelta(minutes=79),
+                    test_base_time + pd.Timedelta(minutes=81),
+                ],
+                "first_name": ["Moshe", "Yossi", "Moshe", "Yossi", "Yossi"],
+                "last_name": ["Cohen", "Levi", "Cohen", "Levi", "Levi"],
+                "bid": [2000, 10, 12, 16, 8],
+            }
+        )
+
+        path = "v3io:///bigdata/test_aggregations.parquet"
+        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        df.to_parquet(path=path, filesystem=fsys)
+
+        source = ParquetSource("myparquet", path=path, time_field="time")
+        name_spark = f"{name}_spark"
+
+        data_set = fs.FeatureSet(
+            name_spark,
+            entities=[Entity("first_name"), Entity("last_name")],
+            engine="spark",
+        )
+
+        data_set.add_aggregation(
+            column="bid",
+            operations=["sum", "max", "count"],
+            windows=["1h", "2h"],
+            period="10m",
+            emit_policy=EmitEveryEvent(),
+        )
+
+        fs.ingest(
+            data_set,
+            source,
+            spark_context=self.spark_service,
+            run_config=fs.RunConfig(local=False),
+        )
+
+        print(f"Results:\n{data_set.to_dataframe().sort_values('time').to_string()}\n")
+        result_dict = data_set.to_dataframe().sort_values("time").to_dict(orient="list")
+
+        expected_results = df.to_dict(orient="list")
+        expected_results.update(
+            {
+                "bid_sum_1h": [2000, 10, 12, 26, 24],
+                "bid_max_1h": [2000, 10, 12, 16, 16],
+                "bid_count_1h": [1, 1, 1, 2, 2],
+                "bid_sum_2h": [2000, 10, 2012, 26, 34],
+                "bid_max_2h": [2000, 10, 2000, 16, 16],
+                "bid_count_2h": [1, 1, 2, 2, 3],
+            }
+        )
+        assert result_dict == expected_results
+
+        # Compare Spark-generated results with Storey results (which are always per-event)
+        name_storey = f"{name}_storey"
+
+        storey_data_set = fs.FeatureSet(
+            name_storey,
+            entities=[Entity("first_name"), Entity("last_name")],
+        )
+
+        storey_data_set.add_aggregation(
+            column="bid",
+            operations=["sum", "max", "count"],
+            windows=["1h", "2h"],
+            period="10m",
+        )
+        fs.ingest(storey_data_set, source)
+
+        storey_df = storey_data_set.to_dataframe().reset_index().sort_values("time")
+        print(f"Storey results:\n{storey_df.to_string()}\n")
+        storey_result_dict = storey_df.to_dict(orient="list")
+
+        assert storey_result_dict == result_dict

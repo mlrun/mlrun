@@ -114,7 +114,6 @@ def run_function(
     """
     engine, function = _get_engine_and_function(function, project_object)
     task = mlrun.new_task(
-        name,
         handler=handler,
         params=params,
         hyper_params=hyperparams,
@@ -127,7 +126,7 @@ def run_function(
 
     if engine == "kfp":
         return function.as_step(
-            runspec=task, workdir=workdir, outputs=outputs, labels=labels
+            name=name, runspec=task, workdir=workdir, outputs=outputs, labels=labels
         )
     else:
         if pipeline_context.workflow:
@@ -139,6 +138,7 @@ def run_function(
             command, function = mlrun.run.load_func_code(function)
             function.spec.command = command
         run_result = function.run(
+            name=name,
             runspec=task,
             workdir=workdir,
             verbose=verbose,

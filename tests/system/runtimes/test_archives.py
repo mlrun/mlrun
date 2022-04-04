@@ -77,7 +77,7 @@ class TestGitSource(tests.system.base.TestMLRunSystem):
             handler=f"{module}.job_handler",
             target_dir=tempfile.mkdtemp(),
         )
-        run = fn.run()
+        run = mlrun.run_function(fn)
         assert run.state() == "completed"
         assert run.output("tag")
 
@@ -94,8 +94,8 @@ class TestGitSource(tests.system.base.TestMLRunSystem):
         )
         fn.spec.image_pull_policy = "Always"
         if load_mode == "build":
-            fn.deploy()
-        run = fn.run()
+            mlrun.build_function(fn)
+        run = mlrun.run_function(fn)
         assert run.state() == "completed"
         assert run.output("tag") == tag
 
@@ -107,7 +107,7 @@ class TestGitSource(tests.system.base.TestMLRunSystem):
         fn.with_source_archive(
             f"{git_uri}#{tag}", workdir=workdir, handler=f"{module}:nuclio_handler"
         )
-        fn.deploy()
+        mlrun.deploy_function(fn)
         resp = fn.invoke("")
         assert resp.decode() == f"tag={tag}"
 
@@ -117,7 +117,7 @@ class TestGitSource(tests.system.base.TestMLRunSystem):
         fn.with_source_archive(f"{git_uri}#{tag}", handler="srv")
         graph = fn.set_topology("flow")
         graph.to(name="echo", handler="echo").respond()
-        fn.deploy()
+        mlrun.deploy_function(fn)
         resp = fn.invoke("")
         assert resp.decode() == f"tag={tag}"
 
@@ -135,7 +135,7 @@ class TestGitSource(tests.system.base.TestMLRunSystem):
                 "GITHUB_TOKEN": os.environ.get("PRIVATE_GIT_TOKEN", ""),
             },
         )
-        run = fn.run(task)
+        run = mlrun.run_function(fn, task)
         assert run.state() == "completed"
         assert run.output("tag")
 
@@ -150,8 +150,8 @@ class TestGitSource(tests.system.base.TestMLRunSystem):
         )
         # fn.spec.image_pull_policy = "Always"
         if load_mode == "build":
-            fn.deploy()
-        run = fn.run()
+            mlrun.build_function(fn)
+        run = mlrun.run_function(fn)
         assert run.state() == "completed"
         assert run.output("tag")
 
@@ -162,7 +162,7 @@ class TestGitSource(tests.system.base.TestMLRunSystem):
             private_repo,
             handler="rootfn:nuclio_handler",
         )
-        fn.deploy()
+        mlrun.deploy_function(fn)
         resp = fn.invoke("")
         assert "tag=" in resp.decode()
 
@@ -176,8 +176,8 @@ class TestGitSource(tests.system.base.TestMLRunSystem):
             pull_at_runtime=load_mode == "run",
         )
         if load_mode == "build":
-            fn.deploy()
-        run = fn.run()
+            mlrun.build_function(fn)
+        run = mlrun.run_function(fn)
         assert run.state() == "completed"
         assert run.output("tag")
 
@@ -190,6 +190,6 @@ class TestGitSource(tests.system.base.TestMLRunSystem):
             handler="rootfn:nuclio_handler",
         )
         fn.verbose = True
-        fn.deploy()
+        mlrun.deploy_function(fn)
         resp = fn.invoke("")
         assert "tag=" in resp.decode()

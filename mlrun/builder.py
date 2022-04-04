@@ -19,6 +19,8 @@ from base64 import b64decode, b64encode
 from os import path
 from urllib.parse import urlparse
 
+from kubernetes import client
+
 import mlrun.api.schemas
 import mlrun.errors
 import mlrun.runtimes.utils
@@ -200,6 +202,7 @@ def build_image(
     client_version=None,
     runtime_spec=None,
 ):
+    builder_env = builder_env or {}
     if registry:
         dest = "/".join([registry, dest])
     elif dest.startswith(IMAGE_NAME_ENRICH_REGISTRY_PREFIX):
@@ -242,18 +245,18 @@ def build_image(
         if source
         else None
     )
+    access_key = builder_env.get(
+        "V3IO_ACCESS_KEY", auth_info.data_session or auth_info.access_key
+    )
+    username = builder_env.get("V3IO_USERNAME", auth_info.username)
+
+    builder_env = _generate_builder_env(project, builder_env)
 
     parsed_url = urlparse(source)
     if inline_code:
         context = "/empty"
     elif source and "://" in source and not v3io:
         if source.startswith("git://"):
-            # set proper env vars for Github tokens
-            if builder_env and "GITHUB_TOKEN" in builder_env:
-                builder_env["GIT_USERNAME"] = builder_env["GITHUB_TOKEN"]
-                builder_env["GIT_PASSWORD"] = "x-oauth-basic"
-                del builder_env["GITHUB_TOKEN"]
-
             # if the user provided branch (w/o refs/..) we add the "refs/.."
             fragment = parsed_url.fragment or ""
             if not fragment.startswith("refs/"):
@@ -292,11 +295,6 @@ def build_image(
     )
 
     if to_mount:
-        access_key = auth_info.data_session or auth_info.access_key
-        username = auth_info.username
-        if builder_env:
-            access_key = builder_env.get("V3IO_ACCESS_KEY", access_key)
-            username = builder_env.get("V3IO_USERNAME", username)
         kpod.mount_v3io(
             remote=source,
             mount_path="/context",
@@ -450,3 +448,34 @@ def build_runtime(
     runtime.spec.image = local + build.image
     runtime.status.state = mlrun.api.schemas.FunctionState.ready
     return True
+
+
+def _generate_builder_env(project, builder_env):
+    k8s = get_k8s_helper()
+    secret_name = k8s.get_project_secret_name(project)
+    existing_secret_keys = k8s.get_project_secret_keys(project, filter_internal=True)
+
+    # calculate kaniko github env from token
+    secrets = k8s.get_project_secret_data(project, ["GITHUB_TOKEN"])
+    github_token = None
+    if "GITHUB_TOKEN" in builder_env:
+        github_token = builder_env["GITHUB_TOKEN"]
+        del builder_env["GITHUB_TOKEN"]
+    elif "GITHUB_TOKEN" in existing_secret_keys:
+        github_token = secrets["GITHUB_TOKEN"]
+        existing_secret_keys.remove("GITHUB_TOKEN")
+    if github_token:
+        builder_env["GIT_USERNAME"] = github_token
+        builder_env["GIT_PASSWORD"] = "x-oauth-basic"
+
+    # generate env list from builder env and project secrets
+    env = []
+    for key in existing_secret_keys:
+        if key not in builder_env:
+            value_from = client.V1EnvVarSource(
+                secret_key_ref=client.V1SecretKeySelector(name=secret_name, key=key)
+            )
+            env.append(client.V1EnvVar(name=key, value_from=value_from))
+    for key, value in builder_env.items():
+        env.append(client.V1EnvVar(name=key, value=value))
+    return env

@@ -284,13 +284,7 @@ def test_function_build_with_attributes_from_spec(monkeypatch):
 
 
 def test_function_build_with_default_requests(monkeypatch):
-    get_k8s_helper_mock = unittest.mock.Mock()
-    monkeypatch.setattr(
-        mlrun.builder, "get_k8s_helper", lambda *args, **kwargs: get_k8s_helper_mock
-    )
-    mlrun.builder.get_k8s_helper().create_pod = unittest.mock.Mock(
-        side_effect=lambda pod: (pod, "some-namespace")
-    )
+    _patch_k8s_helper(monkeypatch)
     mlrun.mlconf.httpdb.builder.docker_registry = "registry.hub.docker.com/username"
     function = mlrun.new_function(
         "some-function",

@@ -659,7 +659,7 @@ def generate_preemptible_node_selector_requirements(
             kubernetes.client.V1NodeSelectorRequirement(
                 key=node_selector_key,
                 operator=node_selector_operator,
-                values=node_selector_value,
+                values=[node_selector_value],
             )
         )
     return match_expressions
@@ -681,7 +681,7 @@ def generate_preemptible_nodes_anti_affinity_terms() -> typing.List[
 
     # compile affinities with operator NotIn to make sure pods are not running on preemptible nodes.
     node_selector_requirements = generate_preemptible_node_selector_requirements(
-        NodeSelectorOperator.node_selector_op_not_in
+        NodeSelectorOperator.node_selector_op_not_in.value
     )
     return [
         kubernetes.client.V1NodeSelectorTerm(
@@ -706,7 +706,7 @@ def generate_preemptible_nodes_affinity_terms() -> typing.List[
 
     # compile affinities with operator In so pods could schedule on at least one of the preemptible nodes.
     node_selector_requirements = generate_preemptible_node_selector_requirements(
-        NodeSelectorOperator.node_selector_op_in
+        NodeSelectorOperator.node_selector_op_in.value
     )
     for expression in node_selector_requirements:
         node_selector_terms.append(

@@ -221,17 +221,7 @@ def _set_priority_class_name_on_kfp_pod(kfp_pod_template, function):
         kfp_pod_template["PriorityClassName"] = getattr(
             function.spec, "priority_class_name", ""
         )
-import types
-import functools
 
-def copy_func(f):
-    """Based on http://stackoverflow.com/a/6528148/190597 (Glenn Maynard)"""
-    g = types.FunctionType(f.__code__, f.__globals__, name=f.__name__,
-                           argdefs=f.__defaults__,
-                           closure=f.__closure__)
-    g = functools.update_wrapper(g, f)
-    g.__kwdefaults__ = f.__kwdefaults__
-    return g
 
 # When we run pipelines, the kfp.compile.Compile.compile() method takes the decorated function with @dsl.pipeline and
 # converts it to a k8s object. As part of the flow in the Compile.compile() method,
@@ -251,24 +241,36 @@ def _create_enriched_mlrun_workflow(
     pipeline_conf: typing.Optional[dsl.PipelineConf] = None,
 ):
     """Call internal implementation of create_workflow and enrich with mlrun functions attributes"""
-    # _original_create_workflow = copy_func(kfp.compiler.Compiler._create_workflow)
     workflow = self._original_create_workflow(
         pipeline_func, pipeline_name, pipeline_description, params_list, pipeline_conf
     )
+    functions = []
+    if pipeline_context.functions:
+        try:
+            functions = pipeline_context.functions.values()
+        except Exception as e:
+            logger.debug("Unable to retrieve project functions, not enriching workflow with mlrun", error=str(e))
+            return workflow
+
     # enrich each pipeline step with your desire k8s attribute
     for kfp_pod_template in workflow["spec"]["templates"]:
         if kfp_pod_template.get("container"):
-            if pipeline_context.functions:
-                for (
-                    function_name,
-                    function_obj,
-                ) in pipeline_context.functions.items().items():
+            for function_obj in functions:
+                # we condition within each function since the comparison between the function and
+                # the kfp pod may change depending on the attribute type.
+                try:
                     _set_priority_class_name_on_kfp_pod(kfp_pod_template, function_obj)
-                    break
+                except Exception as e:
+                    kfp_pod_name = kfp_pod_template.get("name")
+                    logger.warning(
+                        f"Unable to enrich kfp pod {kfp_pod_name}", error=str(e)
+                    )
     return workflow
 
 # patching function as class method
-kfp.compiler.Compiler._original_create_workflow = copy_func(kfp.compiler.Compiler._create_workflow)
+kfp.compiler.Compiler._original_create_workflow = mlrun.utils.copy_func(
+    kfp.compiler.Compiler._create_workflow
+)
 kfp.compiler.Compiler._create_workflow = _create_enriched_mlrun_workflow
 
 
@@ -290,7 +292,6 @@ def enrich_function_object(
     setattr(f, "_enriched", True)
     src = f.spec.build.source
     if src and src in [".", "./"]:
-
         if not project.spec.source:
             raise ValueError(
                 "project source must be specified when cloning context to a function"

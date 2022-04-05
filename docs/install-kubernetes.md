@@ -97,6 +97,7 @@ Note the reference to the pre-created `registry-credentials` secret in `global.r
 helm --namespace mlrun \
     install mlrun-kit \
     --wait \
+    --timeout 960 \
     --set global.registry.url=<registry-url> \
     --set global.registry.secretName=registry-credentials \
     v3io-stable/mlrun-kit
@@ -104,6 +105,10 @@ helm --namespace mlrun \
 
 Where `<registry-url>` is the registry URL which can be authenticated by the `registry-credentials` secret (e.g., `index.docker.io/<your-username>` for Docker Hub).
 
+```{admonition} Note
+First-time MLRun users will experience a relatively longer installation time because all required images 
+are being pulled locally for the first time(it will take an average of 10-15 minutes mostly depends on 
+your internet speed).```
 
 ```{admonition} Installing on Minikube/VM**
 The Open source MLRun kit uses node ports for simplicity. If your Kubernetes cluster is running inside a VM, 
@@ -142,8 +147,9 @@ Your applications are now available in your local browser:
 
 
 ```{admonition} Note
-You can check current state of installation via command `kubectl get pods -n mlrun`, where the main information
-is in columns `Ready` and `State`. Typically it may take a minute for all services to start. 
+You can check current state of installation via command `kubectl -n mlrun get pods`, where the main information
+is in columns `Ready` and `State`. If all images have already been pulled locally, typically it will take 
+a minute for all services to start.
 
 The above links assume your Kubernetes cluster is exposed on localhost.
 If that's not the case, the different components are available on the provided `externalHostAddress`

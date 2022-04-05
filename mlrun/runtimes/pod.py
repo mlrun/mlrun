@@ -188,9 +188,7 @@ class KubeResourceSpec(FunctionSpec):
 
     @affinity.setter
     def affinity(self, affinity):
-        self._affinity = self._transform_attribute_to_k8s_class_instance(
-            "affinity", affinity
-        )
+        self._affinity = transform_attribute_to_k8s_class_instance("affinity", affinity)
 
     @property
     def tolerations(self) -> typing.List[k8s_client.V1Toleration]:
@@ -198,7 +196,7 @@ class KubeResourceSpec(FunctionSpec):
 
     @tolerations.setter
     def tolerations(self, tolerations):
-        self._tolerations = self._transform_attribute_to_k8s_class_instance(
+        self._tolerations = transform_attribute_to_k8s_class_instance(
             "tolerations", tolerations
         )
 
@@ -306,7 +304,7 @@ class KubeResourceSpec(FunctionSpec):
                 raise mlrun.errors.MLRunInvalidArgumentTypeError(
                     f"expected to to be of type {attribute_config.get('not_sanitized_class')} but got dict"
                 )
-            if self._resolve_if_type_sanitized(attribute_name, attribute):
+            if _resolve_if_type_sanitized(attribute_name, attribute):
                 return attribute
 
         elif isinstance(attribute, list) and not isinstance(
@@ -316,24 +314,11 @@ class KubeResourceSpec(FunctionSpec):
                 raise mlrun.errors.MLRunInvalidArgumentTypeError(
                     f"expected to to be of type {attribute_config.get('not_sanitized_class')} but got list"
                 )
-            if self._resolve_if_type_sanitized(attribute_name, attribute[0]):
+            if _resolve_if_type_sanitized(attribute_name, attribute[0]):
                 return attribute
 
         api = k8s_client.ApiClient()
         return api.sanitize_for_serialization(attribute)
-
-    @staticmethod
-    def _resolve_if_type_sanitized(attribute_name, attribute):
-        attribute_config = sanitized_attributes[attribute_name]
-        # heuristic - if one of the keys contains _ as part of the dict it means to_dict on the kubernetes
-        # object performed, there's nothing we can do at that point to transform it to the sanitized version
-        if get_in(attribute, attribute_config["not_sanitized"]):
-            raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"{attribute_name} must be instance of kubernetes {attribute_config.get('attribute_type_name')} class"
-            )
-        # then it's already the sanitized version
-        elif get_in(attribute, attribute_config["sanitized"]):
-            return attribute
 
     def _set_volume_mount(self, volume_mount):
         # using the mountPath as the key cause it must be unique (k8s limitation)
@@ -1198,6 +1183,103 @@ def kube_resource_spec_to_pod_spec(
         else None,
         tolerations=kube_resource_spec.tolerations,
     )
+
+
+def _resolve_if_type_sanitized(attribute_name, attribute):
+    attribute_config = sanitized_attributes[attribute_name]
+    # heuristic - if one of the keys contains _ as part of the dict it means to_dict on the kubernetes
+    # object performed, there's nothing we can do at that point to transform it to the sanitized version
+    if get_in(attribute, attribute_config["not_sanitized"]):
+        raise mlrun.errors.MLRunInvalidArgumentTypeError(
+            f"{attribute_name} must be instance of kubernetes {attribute_config.get('attribute_type_name')} class"
+        )
+    # then it's already the sanitized version
+    elif get_in(attribute, attribute_config["sanitized"]):
+        return attribute
+
+
+def transform_attribute_to_k8s_class_instance(
+    attribute_name, attribute, is_sub_attr: bool = False
+):
+    if attribute_name not in sanitized_attributes:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"{attribute_name} isn't in the available sanitized attributes"
+        )
+    attribute_config = sanitized_attributes[attribute_name]
+    # initialize empty attribute type
+    if attribute is None:
+        return None
+    if isinstance(attribute, dict):
+        if _resolve_if_type_sanitized(attribute_name, attribute):
+            api = k8s_client.ApiClient()
+            # not ideal to use their private method, but looks like that's the only option
+            # Taken from https://github.com/kubernetes-client/python/issues/977
+            attribute_type = attribute_config["attribute_type"]
+            if attribute_config["contains_many"]:
+                attribute_type = attribute_config["sub_attribute_type"]
+            attribute = api._ApiClient__deserialize(attribute, attribute_type)
+
+    elif isinstance(attribute, list):
+        attribute_instance = []
+        for sub_attr in attribute:
+            if not isinstance(sub_attr, dict):
+                return attribute
+            attribute_instance.append(
+                transform_attribute_to_k8s_class_instance(
+                    attribute_name, sub_attr, is_sub_attr=True
+                )
+            )
+        attribute = attribute_instance
+    # if user have set one attribute but its part of an attribute that contains many then return inside a list
+    if (
+        not is_sub_attr
+        and attribute_config["contains_many"]
+        and isinstance(attribute, attribute_config["sub_attribute_type"])
+    ):
+        # initialize attribute instance and add attribute to it,
+        # mainly done when attribute is a list but user defines only sets the attribute not in the list
+        attribute_instance = attribute_config["attribute_type"]()
+        attribute_instance.append(attribute)
+        return attribute_instance
+    return attribute
+
+
+def get_sanitized_attribute(spec, attribute_name: str):
+    """
+    When using methods like to_dict() on kubernetes class instances we're getting the attributes in snake_case
+    Which is ok if we're using the kubernetes python package but not if for example we're creating CRDs that we
+    apply directly. For that we need the sanitized (CamelCase) version.
+    """
+    attribute = getattr(spec, attribute_name)
+    if attribute_name not in sanitized_attributes:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"{attribute_name} isn't in the available sanitized attributes"
+        )
+    attribute_config = sanitized_attributes[attribute_name]
+    if not attribute:
+        return attribute_config["not_sanitized_class"]()
+
+    # check if attribute of type dict, and then check if type is sanitized
+    if isinstance(attribute, dict):
+        if attribute_config["not_sanitized_class"] != dict:
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                f"expected to to be of type {attribute_config.get('not_sanitized_class')} but got dict"
+            )
+        if _resolve_if_type_sanitized(attribute_name, attribute):
+            return attribute
+
+    elif isinstance(attribute, list) and not isinstance(
+        attribute[0], attribute_config["sub_attribute_type"]
+    ):
+        if attribute_config["not_sanitized_class"] != list:
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                f"expected to to be of type {attribute_config.get('not_sanitized_class')} but got list"
+            )
+        if _resolve_if_type_sanitized(attribute_name, attribute[0]):
+            return attribute
+
+    api = k8s_client.ApiClient()
+    return api.sanitize_for_serialization(attribute)
 
 
 def _filter_modifier_params(modifier, params):

@@ -142,7 +142,7 @@ Your applications are now available in your local browser:
 
 
 ```{admonition} Note
-You can check current state of installation via command `kubectl get pod -n mlrun`, where the main information
+You can check current state of installation via command `kubectl get pods -n mlrun`, where the main information
 is in columns `Ready` and `State`. Typically it may take a minute for all services to start. 
 
 The above links assume your Kubernetes cluster is exposed on localhost.

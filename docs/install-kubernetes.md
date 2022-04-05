@@ -90,6 +90,12 @@ Where:
 - `<your-password>` is your Docker password.
 - `<your-email>` is your Docker email.
 
+```{admonition} Note
+First-time MLRun users will experience a relatively longer installation time because all required images 
+are being pulled locally for the first time(it will take an average of 10-15 minutes mostly depends on 
+your internet speed).
+```
+
 To install the chart with the release name `mlrun-kit` use the following command.
 Note the reference to the pre-created `registry-credentials` secret in `global.registry.secretName`:
 
@@ -104,11 +110,6 @@ helm --namespace mlrun \
 ```
 
 Where `<registry-url>` is the registry URL which can be authenticated by the `registry-credentials` secret (e.g., `index.docker.io/<your-username>` for Docker Hub).
-
-```{admonition} Note
-First-time MLRun users will experience a relatively longer installation time because all required images 
-are being pulled locally for the first time(it will take an average of 10-15 minutes mostly depends on 
-your internet speed).```
 
 ```{admonition} Installing on Minikube/VM**
 The Open source MLRun kit uses node ports for simplicity. If your Kubernetes cluster is running inside a VM, 
@@ -143,14 +144,15 @@ Your applications are now available in your local browser:
 - Jupyter-notebook - http://localhost:30040
 - Nuclio - http://localhost:30050
 - MLRun UI - http://localhost:30060
-- MLRun API (external) - http://localhost:30070 (or health check via http://localhost:30070/api/healthz)
+- MLRun API (external) - http://localhost:30070 (health check via http://localhost:30070/api/healthz)
 
-
-```{admonition} Note
+```{admonition} Check state
 You can check current state of installation via command `kubectl -n mlrun get pods`, where the main information
 is in columns `Ready` and `State`. If all images have already been pulled locally, typically it will take 
 a minute for all services to start.
+```
 
+```{admonition} Note
 The above links assume your Kubernetes cluster is exposed on localhost.
 If that's not the case, the different components are available on the provided `externalHostAddress`
 - You can change the ports by providing values to the helm install command.

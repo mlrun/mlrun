@@ -19,11 +19,14 @@ job_cases = {
     "root-cmd": ("rootfn.py", None, "job_handler", tags[1]),
 }
 
-# for private repo tests set the PRIVATE_TEST_REPO, PRIVATE_GIT_TOKEN env vars
+# for private repo tests set the MLRUN_SYSTEM_TESTS_PRIVATE_REPO, MLRUN_SYSTEM_TESTS_PRIVATE_GIT_TOKEN env vars
 private_repo = os.environ.get(
-    "PRIVATE_TEST_REPO", "git://github.com/mlrun/private_git_tests.git#main"
+    "MLRUN_SYSTEM_TESTS_PRIVATE_REPO",
+    "git://github.com/mlrun/private_git_tests.git#main",
 )
-has_private_source = "PRIVATE_GIT_TOKEN" in os.environ and private_repo
+has_private_source = (
+    "MLRUN_SYSTEM_TESTS_PRIVATE_GIT_TOKEN" in os.environ and private_repo
+)
 need_private_git = pytest.mark.skipif(
     not has_private_source, reason="env vars for private git repo not set"
 )
@@ -41,7 +44,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         if has_private_source:
             self.project.set_secrets(
                 {
-                    "GIT_TOKEN": os.environ["PRIVATE_GIT_TOKEN"],
+                    "GIT_TOKEN": os.environ["MLRUN_SYSTEM_TESTS_PRIVATE_GIT_TOKEN"],
                 }
             )
 

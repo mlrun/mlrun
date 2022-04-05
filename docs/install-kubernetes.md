@@ -92,7 +92,7 @@ Where:
 
 ```{admonition} Note
 First-time MLRun users will experience a relatively longer installation time because all required images 
-are being pulled locally for the first time(it will take an average of 10-15 minutes mostly depends on 
+are being pulled locally for the first time (it will take an average of 10-15 minutes mostly depends on 
 your internet speed).
 ```
 

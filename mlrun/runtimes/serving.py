@@ -541,6 +541,14 @@ class ServingRuntime(RemoteRuntime):
             # initialize or create required streams/queues
             self.spec.graph.check_and_process_graph()
             self.spec.graph.init_queues()
+            functions_in_steps = self.spec.graph.list_child_functions()
+            child_functions = list(self._spec.function_refs.keys())
+            for function in functions_in_steps:
+                if function not in child_functions:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"function {function} is used in steps and is not defined, "
+                        "use the .add_child_function() to specify child function attributes"
+                    )
 
         # Handle secret processing before handling child functions, since secrets are transferred to them
         if self.spec.secret_sources:

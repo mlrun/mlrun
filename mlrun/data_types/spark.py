@@ -104,7 +104,9 @@ def get_dtype(df, colname):
 # how many histograms will be calculated in a single query. By default we're using 20 bins per histogram, so
 # using 500 will calculate histograms over 25 columns in a single query. If there are more, more queries will
 # be executed.
-MAX_HISTOGRAM_COLUMNS_IN_QUERY = int(environ.get("MLRUN_MAX_HISTOGRAM_COLUMNS_IN_QUERY", 500))
+MAX_HISTOGRAM_COLUMNS_IN_QUERY = int(
+    environ.get("MLRUN_MAX_HISTOGRAM_COLUMNS_IN_QUERY", 500)
+)
 
 
 def get_df_stats_spark(df, options, num_bins=20, sample_size=None):

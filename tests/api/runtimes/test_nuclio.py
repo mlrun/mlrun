@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import typing
 import unittest.mock
 
 import deepdiff
@@ -11,6 +12,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun.api.schemas
 import mlrun.errors
 from mlrun import code_to_function, mlconf
 from mlrun.api.api.endpoints.functions import _build_function
@@ -24,7 +26,6 @@ from mlrun.runtimes.function import (
     resolve_function_ingresses,
     validate_nuclio_version_compatibility,
 )
-from mlrun.runtimes.pod import KubeResourceSpec
 from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
 
@@ -102,7 +103,9 @@ class TestNuclioRuntime(TestRuntimeBase):
             },
         }
 
-    def _generate_runtime(self, kind="nuclio", labels=None):
+    def _generate_runtime(
+        self, kind="nuclio", labels=None
+    ) -> typing.Union[mlrun.runtimes.RemoteRuntime, mlrun.runtimes.ServingRuntime]:
 
         runtime = code_to_function(
             name=self.name,
@@ -253,53 +256,47 @@ class TestNuclioRuntime(TestRuntimeBase):
             == {}
         )
 
-    def _assert_node_selections(
+    def assert_node_selection(
         self,
-        kube_resource_spec: KubeResourceSpec,
-        expected_node_name=None,
-        expected_node_selector=None,
-        expected_affinity=None,
-        expected_tolerations=None,
+        node_name=None,
+        node_selector=None,
+        affinity=None,
+        tolerations=None,
     ):
         args, _ = nuclio.deploy.deploy_config.call_args
         deploy_spec = args[0]["spec"]
 
-        if expected_node_name:
-            assert deploy_spec["nodeName"] == expected_node_name
+        if node_selector:
+            assert deploy_spec.get("nodeSelector") == node_selector
+        else:
+            assert deploy_spec.get("nodeSelector") is None
 
-        if expected_node_selector:
-            assert (
-                deepdiff.DeepDiff(
-                    deploy_spec["nodeSelector"],
-                    expected_node_selector,
-                    ignore_order=True,
-                )
-                == {}
-            )
-        if expected_affinity:
+        if node_name:
+            assert deploy_spec.get("nodeName") == node_name
+        else:
+            assert deploy_spec.get("nodeName") is None
+
+        if affinity:
             # deploy_spec returns affinity in CamelCase, V1Affinity is in snake_case
             assert (
-                deepdiff.DeepDiff(
-                    kube_resource_spec._transform_attribute_to_k8s_class_instance(
-                        "affinity", deploy_spec["affinity"]
-                    ),
-                    expected_affinity,
-                    ignore_order=True,
+                mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
+                    "affinity", deploy_spec.get("affinity")
                 )
-                == {}
+                == affinity
             )
-        if expected_tolerations:
+        else:
+            assert deploy_spec.get("affinity") is None
+
+        if tolerations:
             # deploy_spec returns tolerations in CamelCase, [V1Toleration] is in snake_case
             assert (
-                deepdiff.DeepDiff(
-                    kube_resource_spec._transform_attribute_to_k8s_class_instance(
-                        "tolerations", deploy_spec["tolerations"]
-                    ),
-                    expected_tolerations,
-                    ignore_order=True,
+                mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
+                    "tolerations", deploy_spec.get("tolerations")
                 )
-                == {}
+                == tolerations
             )
+        else:
+            assert deploy_spec.get("tolerations") is None
 
     def test_enrich_with_ingress_no_overriding(self, db: Session, client: TestClient):
         """
@@ -540,25 +537,23 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         self._serialize_and_deploy_nuclio_function(function)
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
-        self._assert_node_selections(function.spec, expected_node_name=node_name)
+        self.assert_node_selection(node_name=node_name)
 
         function = self._generate_runtime(self.runtime_kind)
 
-        node_selector = {
+        config_node_selector = {
             "label-1": "val1",
             "label-2": "val2",
         }
         mlconf.default_function_node_selector = base64.b64encode(
-            json.dumps(node_selector).encode("utf-8")
+            json.dumps(config_node_selector).encode("utf-8")
         )
-        function.with_node_selection(node_selector=node_selector)
+        function.with_node_selection(node_selector=config_node_selector)
         self._serialize_and_deploy_nuclio_function(function)
         self._assert_deploy_called_basic_config(
             call_count=2, expected_class=self.class_name
         )
-        self._assert_node_selections(
-            function.spec, expected_node_selector=node_selector
-        )
+        self.assert_node_selection(node_selector=config_node_selector)
 
         function = self._generate_runtime(self.runtime_kind)
 
@@ -571,9 +566,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._assert_deploy_called_basic_config(
             call_count=3, expected_class=self.class_name
         )
-        self._assert_node_selections(
-            function.spec, expected_node_selector=node_selector
-        )
+        self.assert_node_selection(node_selector=node_selector)
 
         function = self._generate_runtime(self.runtime_kind)
         affinity = self._generate_affinity()
@@ -583,7 +576,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._assert_deploy_called_basic_config(
             call_count=4, expected_class=self.class_name
         )
-        self._assert_node_selections(function.spec, expected_affinity=affinity)
+        self.assert_node_selection(
+            node_selector=config_node_selector, affinity=affinity
+        )
 
         function = self._generate_runtime(self.runtime_kind)
         function.with_node_selection(node_name, node_selector, affinity)
@@ -591,11 +586,10 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._assert_deploy_called_basic_config(
             call_count=5, expected_class=self.class_name
         )
-        self._assert_node_selections(
-            function.spec,
-            expected_node_name=node_name,
-            expected_node_selector=node_selector,
-            expected_affinity=affinity,
+        self.assert_node_selection(
+            node_name=node_name,
+            node_selector=node_selector,
+            affinity=affinity,
         )
 
         tolerations = self._generate_tolerations()
@@ -610,9 +604,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._assert_deploy_called_basic_config(
             call_count=6, expected_class=self.class_name
         )
-        self._assert_node_selections(
-            function.spec,
-            expected_tolerations=tolerations,
+        self.assert_node_selection(
+            node_selector=config_node_selector,
+            tolerations=tolerations,
         )
 
     def test_deploy_with_priority_class_name(self, db: Session, client: TestClient):
@@ -838,6 +832,42 @@ class TestNuclioRuntime(TestRuntimeBase):
                 },
             },
         }
+
+    def test_nuclio_with_preemption_mode(self):
+        fn = self._generate_runtime(self.runtime_kind)
+        assert fn.spec.preemption_mode == "prevent"
+        fn.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        assert fn.spec.preemption_mode == "allow"
+        fn.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        assert fn.spec.preemption_mode == "constrain"
+
+        fn.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        assert fn.spec.preemption_mode == "allow"
+
+        mlconf.nuclio_version = "1.7.5"
+        with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
+            fn.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+
+        mlconf.nuclio_version = "1.8.1"
+        fn.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        assert fn.spec.preemption_mode == "allow"
+
+    def test_preemptible_modes_transitions(self, db: Session, client: TestClient):
+        self.assert_preemptible_modes_transitions()
+
+    def test_run_with_prevent_preemptible_mode(self, db: Session, client: TestClient):
+        self.assert_run_with_prevent_preemptible_mode()
+
+    def test_run_with_constrain_preemptible_mode(self, db: Session, client: TestClient):
+        self.assert_run_with_constrain_preemptible_mode()
+
+    def test_run_with_allow_preemptible_mode(self, db: Session, client: TestClient):
+        self.assert_run_with_allow_preemptible_mode()
+
+    def test_run_with_preemption_mode_without_preemptible_configuration(
+        self, db: Session, client: TestClient
+    ):
+        self.assert_run_with_preemption_mode_without_preemptible_configuration()
 
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well

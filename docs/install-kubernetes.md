@@ -153,7 +153,7 @@ If that's not the case, the different components are available on the provided `
 
 ## Start working
 
-Open Jupyter Lab on [**jupyter-lab UI**](http://localhost:30040) and run the code in [**docs/quick-start.ipynb**](https://github.com/mlrun/mlrun/blob/master/docs/quick-start.ipynb) notebook.
+Open Jupyter Lab on [**jupyter-lab UI**](http://localhost:30040) and run the code in [**quick-start.ipynb**](https://github.com/mlrun/mlrun/blob/master/docs/quick-start.ipynb) notebook.
 
 ```{admonition} Important
 Make sure to save your changes in the `data` folder within the Jupyter Lab. The root folder and any other folder do not retain the changes when you restart the Jupyter Lab.

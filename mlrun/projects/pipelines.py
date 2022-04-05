@@ -13,7 +13,6 @@
 # limitations under the License.
 import abc
 import builtins
-import copy
 import importlib.util as imputil
 import os
 import tempfile
@@ -21,7 +20,6 @@ import traceback
 import typing
 import uuid
 
-import kfp
 import kfp.compiler
 from kfp import dsl
 from kfp.compiler import compiler
@@ -268,9 +266,7 @@ def _create_enriched_mlrun_workflow(
     return workflow
 
 # patching function as class method
-kfp.compiler.Compiler._original_create_workflow = mlrun.utils.copy_func(
-    kfp.compiler.Compiler._create_workflow
-)
+kfp.compiler.Compiler._original_create_workflow = kfp.compiler.Compiler._create_workflow
 kfp.compiler.Compiler._create_workflow = _create_enriched_mlrun_workflow
 
 

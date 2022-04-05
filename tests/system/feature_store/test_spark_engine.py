@@ -13,7 +13,7 @@ import mlrun
 import mlrun.feature_store as fs
 from mlrun import store_manager
 from mlrun.datastore.sources import ParquetSource
-from mlrun.datastore.targets import NoSqlTarget, ParquetTarget
+from mlrun.datastore.targets import NoSqlTarget, ParquetTarget, CSVTarget
 from mlrun.features import Entity
 from tests.system.base import TestMLRunSystem
 
@@ -28,7 +28,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     spark_image_deployed = (
         False  # Set to True if you want to avoid the image building phase
     )
-    test_branch = ""  # For testing specific branche. e.g.: "https://github.com/mlrun/mlrun.git@development"
+    test_branch = "https://github.com/gtopper/mlrun.git@ML-1919"
 
     @classmethod
     def _init_env_from_file(cls):
@@ -114,6 +114,28 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 spark_context=self.spark_service,
                 run_config=fs.RunConfig(local=False),
             )
+
+    def test_ingest_to_csv(self):
+        key = "patient_id"
+        measurements = fs.FeatureSet(
+            "measurements",
+            entities=[fs.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        csv_path = "v3io:///bigdata/test_ingest_to_csv_spark.csv"
+        targets = [CSVTarget(path=csv_path)]
+        fs.ingest(
+            measurements,
+            source,
+            targets,
+            spark_context=self.spark_service,
+            run_config=fs.RunConfig(local=False),
+        )
+
+        print(pd.read_csv(csv_path))
+
 
     @pytest.mark.parametrize("partitioned", [True, False])
     def test_schedule_on_filtered_by_time(self, partitioned):

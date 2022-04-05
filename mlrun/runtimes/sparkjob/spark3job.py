@@ -17,6 +17,7 @@ import typing
 from kubernetes import client
 
 import mlrun.errors
+import mlrun.runtimes.pod
 
 from ...utils import update_in, verify_and_update_in
 from .abstract import AbstractSparkJobSpec, AbstractSparkRuntime
@@ -129,8 +130,10 @@ class Spark3JobSpec(AbstractSparkJobSpec):
 
     @executor_tolerations.setter
     def executor_tolerations(self, executor_tolerations):
-        self._executor_tolerations = self._transform_attribute_to_k8s_class_instance(
-            "executor_tolerations", executor_tolerations
+        self._executor_tolerations = (
+            mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
+                "executor_tolerations", executor_tolerations
+            )
         )
 
     @property
@@ -139,8 +142,10 @@ class Spark3JobSpec(AbstractSparkJobSpec):
 
     @driver_tolerations.setter
     def driver_tolerations(self, driver_tolerations):
-        self._driver_tolerations = self._transform_attribute_to_k8s_class_instance(
-            "driver_tolerations", driver_tolerations
+        self._driver_tolerations = (
+            mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
+                "driver_tolerations", driver_tolerations
+            )
         )
 
 

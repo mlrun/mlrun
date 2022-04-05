@@ -447,6 +447,7 @@ class ServingRuntime(RemoteRuntime):
             function_object.metadata.labels[
                 "mlrun/parent-function"
             ] = self.metadata.name
+            function_object._is_child_function = True
             if not function_object.spec.graph:
                 # copy the current graph only if the child doesnt have a graph of his own
                 function_object.set_env("SERVING_CURRENT_FUNCTION", function_ref.name)
@@ -537,7 +538,9 @@ class ServingRuntime(RemoteRuntime):
         if not self.spec.graph:
             raise ValueError("nothing to deploy, .spec.graph is none, use .add_model()")
 
-        if self.spec.graph.kind != StepKinds.router:
+        if self.spec.graph.kind != StepKinds.router and not getattr(
+            self, "_is_child_function", None
+        ):
             # initialize or create required streams/queues
             self.spec.graph.check_and_process_graph()
             self.spec.graph.init_queues()

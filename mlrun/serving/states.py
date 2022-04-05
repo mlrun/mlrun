@@ -1077,7 +1077,7 @@ class FlowStep(BaseStep):
                 step.init_object(self.context, None)
 
     def list_child_functions(self):
-        """init/create the streams used in this flow"""
+        """return a list of child function names referred to in the steps"""
         functions = []
         for step in self.get_children():
             if step.function and step.function not in functions:

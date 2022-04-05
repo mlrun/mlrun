@@ -700,6 +700,22 @@ class RemoteRuntime(KubeResource):
             )
         super().with_node_selection(node_name, node_selector, affinity, tolerations)
 
+    @min_nuclio_versions("1.8.1")
+    def with_preemption_mode(self, mode):
+        """
+        Preemption modes enable users to control whether or not function pods will be scheduled on preemptible nodes.
+        Tolerations, node selector and affinity would be populated correspondingly to the function spec.
+
+        currently 3 modes are supported:
+
+        * **allow** - Allow the function to be scheduled on preemptible nodes
+        * **constrain** - Constrain the function to run only on preemptible nodes
+        * **prevent** - Prevent the function from being scheduled on preemptible nodes
+
+        :param mode: accepts allow | constrain | prevent defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
+        """
+        super().with_preemption_mode(mode=mode)
+
     @min_nuclio_versions("1.6.18")
     def with_priority_class(self, name: typing.Optional[str] = None):
         """k8s priority class"""
@@ -1237,7 +1253,8 @@ def compile_function_config(function: RemoteRuntime, client_version: str = None)
             spec.set_config("spec.nodeName", function.spec.node_name)
         if function.spec.affinity:
             spec.set_config(
-                "spec.affinity", function.spec._get_sanitized_attribute("affinity")
+                "spec.affinity",
+                mlrun.runtimes.pod.get_sanitized_attribute(function.spec, "affinity"),
             )
 
     # don't send tolerations if nuclio is not compatible
@@ -1245,7 +1262,16 @@ def compile_function_config(function: RemoteRuntime, client_version: str = None)
         if function.spec.tolerations:
             spec.set_config(
                 "spec.tolerations",
-                function.spec._get_sanitized_attribute("tolerations"),
+                mlrun.runtimes.pod.get_sanitized_attribute(
+                    function.spec, "tolerations"
+                ),
+            )
+    # don't send preemption_mode if nuclio is not compatible
+    if validate_nuclio_version_compatibility("1.8.1"):
+        if function.spec.preemption_mode:
+            spec.set_config(
+                "spec.PreemptionMode",
+                function.spec.preemption_mode,
             )
 
     # don't send default or any priority class name if nuclio is not compatible

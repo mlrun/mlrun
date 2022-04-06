@@ -158,7 +158,6 @@ class KubeResourceSpec(FunctionSpec):
         self._tolerations = tolerations
         self._preemption_mode = mlconf.function_defaults.preemption_mode
         self.preemption_mode = preemption_mode
-        self.enrich_function_preemption_spec()
 
     @property
     def volumes(self) -> list:
@@ -520,6 +519,9 @@ class KubeResourceSpec(FunctionSpec):
                     )
                 )
             )
+            # remove preemptible nodes constrain
+            self._prune_node_selector(mlconf.get_preemptible_node_selector())
+
             # if tolerations are configured, simply pruning tolerations is sufficient because functions
             # cannot be scheduled without tolerations on tainted nodes.
             # however, if preemptible tolerations are not configured, we must use anti-affinity on preemptible nodes

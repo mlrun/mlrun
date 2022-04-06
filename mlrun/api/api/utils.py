@@ -6,6 +6,7 @@ from http import HTTPStatus
 from os import environ
 from pathlib import Path
 
+import kubernetes.client
 from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
@@ -13,6 +14,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
 import mlrun.errors
+import mlrun.runtimes.pod
 from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.schemas import SecretProviderName
@@ -140,6 +142,8 @@ def _generate_function_and_task_from_submit_run_body(
 
     # Validate function's service-account, based on allowed SAs for the project, if existing in a project-secret.
     process_function_service_account(function)
+
+    obfuscate_sensitive_data(function, auth_info)
     return function, task
 
 
@@ -148,6 +152,37 @@ async def submit_run(db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
         _submit_run, db_session, auth_info, data
     )
     return response
+
+
+def obfuscate_sensitive_data(function, auth_info: mlrun.api.schemas.AuthInfo):
+    if (
+        function.kind
+        and function.kind not in mlrun.runtimes.RuntimeKinds.local_runtimes()
+    ):
+        function: mlrun.runtimes.pod.KubeResource
+        # obfuscate v3io access key env var
+        v3io_access_key = function.get_env("V3IO_ACCESS_KEY")
+        # if it's already a V1EnvVarSource instance, it's already been obfuscated
+        if v3io_access_key and not isinstance(
+            v3io_access_key, kubernetes.client.V1EnvVarSource
+        ):
+            if not auth_info.username:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Username is missing from auth info"
+                )
+            secret_name = mlrun.api.crud.Secrets().store_auth_secret(
+                mlrun.api.schemas.AuthSecretData(
+                    provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+                    username=auth_info.username,
+                    access_key=v3io_access_key,
+                )
+            )
+            access_key_secret_key = (
+                mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key")
+            )
+            function.set_env_from_secret(
+                "V3IO_ACCESS_KEY", secret_name, access_key_secret_key
+            )
 
 
 def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo):

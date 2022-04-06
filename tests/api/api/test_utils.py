@@ -10,10 +10,12 @@ import mlrun
 import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
+import mlrun.runtimes.pod
 import tests.api.conftest
 from mlrun.api.api.utils import (
     _generate_function_and_task_from_submit_run_body,
     ensure_function_has_auth_set,
+    obfuscate_sensitive_data,
 )
 
 # Want to use k8s_secrets_mock for all tests in this module. It is needed since
@@ -454,6 +456,95 @@ def test_ensure_function_has_auth_set(
     )
 
 
+def test_obfuscate_sensitive_data(
+    db: Session, client: TestClient, k8s_secrets_mock: tests.api.conftest.K8sSecretsMock
+):
+    # local function so nothing should be changed
+    v3io_access_key = "some-v3io-access-key"
+    _, _, _, original_function_dict = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.local, v3io_access_key=v3io_access_key
+    )
+    original_function = mlrun.new_function(runtime=original_function_dict)
+    function = mlrun.new_function(runtime=original_function_dict)
+    obfuscate_sensitive_data(function, mlrun.api.schemas.AuthInfo())
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    # no access key - nothing should be changed
+    _, _, _, original_function_dict = _generate_original_function()
+    original_function = mlrun.new_function(runtime=original_function_dict)
+    function = mlrun.new_function(runtime=original_function_dict)
+    obfuscate_sensitive_data(function, mlrun.api.schemas.AuthInfo())
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    # access key without username - explode
+    _, _, _, original_function_dict = _generate_original_function(
+        v3io_access_key=v3io_access_key
+    )
+    function = mlrun.new_function(runtime=original_function_dict)
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match=r"(.*)Username is missing(.*)",
+    ):
+        obfuscate_sensitive_data(function, mlrun.api.schemas.AuthInfo())
+
+    # access key with username - secret should be created, env should reference it
+    username = "some-username"
+    _, _, _, original_function_dict = _generate_original_function(
+        v3io_access_key=v3io_access_key
+    )
+    original_function = mlrun.new_function(runtime=original_function_dict)
+    function: mlrun.runtimes.pod.KubeResource = mlrun.new_function(
+        runtime=original_function_dict
+    )
+    obfuscate_sensitive_data(function, mlrun.api.schemas.AuthInfo(username=username))
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            # ignore order with exclude path of specific list index ends up with errors
+            ignore_order_func=lambda level: "env" not in level.path(),
+            exclude_paths=[f"root['spec']['env'][{len(function.spec.env)-1}]"],
+        )
+        == {}
+    )
+    secret_name = k8s_secrets_mock.get_auth_secret_name(username, v3io_access_key)
+    k8s_secrets_mock.assert_auth_secret(secret_name, username, v3io_access_key)
+    _assert_env_var_from_secret(
+        function,
+        "V3IO_ACCESS_KEY",
+        secret_name,
+        mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
+    )
+
+    # access key is already a reference (obfuscating the same function again) - nothing should change
+    original_function = mlrun.new_function(runtime=function)
+    obfuscate_sensitive_data(function, mlrun.api.schemas.AuthInfo(username=username))
+    mlrun.api.crud.Secrets().store_auth_secret = unittest.mock.Mock()
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+        )
+        == {}
+    )
+    # assert we're not trying to store unneeded-ly
+    assert mlrun.api.crud.Secrets().store_auth_secret.call_count == 0
+
+
 def test_generate_function_and_task_from_submit_run_body_imported_function_project_assignment(
     db: Session, client: TestClient, monkeypatch
 ):
@@ -576,7 +667,9 @@ def _mock_original_function(
     return project, function_name, function_tag, original_function
 
 
-def _generate_original_function(access_key=None, kind=mlrun.runtimes.RuntimeKinds.job):
+def _generate_original_function(
+    access_key=None, kind=mlrun.runtimes.RuntimeKinds.job, v3io_access_key=None
+):
     function_name = "function_name"
     project = "some-project"
     function_tag = "function_tag"
@@ -634,6 +727,13 @@ def _generate_original_function(access_key=None, kind=mlrun.runtimes.RuntimeKind
         original_function["metadata"]["credentials"] = {
             "access_key": access_key,
         }
+    if v3io_access_key:
+        original_function["spec"]["env"].append(
+            {
+                "name": "V3IO_ACCESS_KEY",
+                "value": v3io_access_key,
+            }
+        )
     return project, function_name, function_tag, original_function
 
 

@@ -875,6 +875,17 @@ class KubeResource(BaseRuntime):
             return self._set_env(name, value=str(value))
         return self._set_env(name, value_from=value_from)
 
+    def get_env(self, name, default=None):
+        """Get the pod environment variable for the given name, if not found return the default
+        If it's a scalar value, will return it, if the value is from source, return the k8s struct (V1EnvVarSource)"""
+        for env_var in self.spec.env:
+            if get_item_name(env_var) == name:
+                value = get_item_name(env_var, "value")
+                if value is not None:
+                    return value
+                return get_item_name(env_var, "value_from")
+        return default
+
     def is_env_exists(self, name):
         """Check whether there is an environment variable define for the given key"""
         for env_var in self.spec.env:

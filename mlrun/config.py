@@ -545,10 +545,13 @@ class Config:
         return resources
 
     @staticmethod
-    def get_default_function_pod_requirement_resources(requirement: str):
+    def get_default_function_pod_requirement_resources(
+        requirement: str, with_gpu: bool = True
+    ):
         """
-
         :param requirement: kubernetes requirement resource one of the following : requests, limits
+        :param with_gpu: whether to return requirement resources with nvidia.com/gpu field (e.g you cannot specify GPU
+         requests without specifying GPU limits) https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
         :return: a dict containing the defaults resources (cpu, memory, nvidia.com/gpu)
         """
         resources: dict = copy.deepcopy(config.default_function_pod_resources.to_dict())
@@ -556,7 +559,10 @@ class Config:
         gpu = "gpu"
         resource_requirement = resources.get(requirement, {})
         resource_requirement.setdefault(gpu)
-        resource_requirement[gpu_type] = resource_requirement.pop(gpu)
+        if with_gpu:
+            resource_requirement[gpu_type] = resource_requirement.pop(gpu)
+        else:
+            resource_requirement.pop(gpu)
         return resource_requirement
 
     def to_dict(self):

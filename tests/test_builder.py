@@ -307,6 +307,85 @@ def test_function_build_with_attributes_from_spec(monkeypatch):
     )
 
 
+def test_function_build_with_default_requests(monkeypatch):
+    get_k8s_helper_mock = unittest.mock.Mock()
+    monkeypatch.setattr(
+        mlrun.builder, "get_k8s_helper", lambda *args, **kwargs: get_k8s_helper_mock
+    )
+    mlrun.builder.get_k8s_helper().create_pod = unittest.mock.Mock(
+        side_effect=lambda pod: (pod, "some-namespace")
+    )
+    mlrun.mlconf.httpdb.builder.docker_registry = "registry.hub.docker.com/username"
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind="job",
+        requirements=["some-package"],
+    )
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    expected_resources = {"requests": {}}
+    # assert that both limits requirements and gpu requests are not defined
+    assert (
+        deepdiff.DeepDiff(
+            _create_pod_mock_pod_spec().containers[0].resources,
+            expected_resources,
+            ignore_order=True,
+        )
+        == {}
+    )
+    mlrun.mlconf.default_function_pod_resources.requests = {
+        "cpu": "25m",
+        "memory": "1m",
+        "gpu": None,
+    }
+    expected_resources = {"requests": {"cpu": "25m", "memory": "1m"}}
+
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    assert (
+        deepdiff.DeepDiff(
+            _create_pod_mock_pod_spec().containers[0].resources,
+            expected_resources,
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    mlrun.mlconf.default_function_pod_resources = {
+        "requests": {
+            "cpu": "25m",
+            "memory": "1m",
+            "gpu": 2,
+        },
+        "limits": {
+            "cpu": "1",
+            "memory": "1G",
+            "gpu": 2,
+        },
+    }
+    expected_resources = {"requests": {"cpu": "25m", "memory": "1m"}}
+
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    assert (
+        deepdiff.DeepDiff(
+            _create_pod_mock_pod_spec().containers[0].resources,
+            expected_resources,
+            ignore_order=True,
+        )
+        == {}
+    )
+
+
 def test_resolve_mlrun_install_command():
     pip_command = "python -m pip install"
     cases = [

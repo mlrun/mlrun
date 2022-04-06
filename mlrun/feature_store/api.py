@@ -360,7 +360,7 @@ def ingest(
             featureset, mlrun.api.schemas.AuthorizationAction.update
         )
         run_config = run_config.copy() if run_config else RunConfig()
-        source, run_config.parameters = _set_task_params(
+        source, run_config.parameters = set_task_params(
             featureset, source, targets, run_config.parameters, infer_options, overwrite
         )
         name = f"{featureset.metadata.name}_ingest"
@@ -624,7 +624,7 @@ def _run_ingestion_job(
         featureset = get_feature_set_by_uri(featureset)
 
     run_config = run_config.copy() if run_config else RunConfig()
-    source, run_config.parameters = _set_task_params(
+    source, run_config.parameters = set_task_params(
         featureset, source, targets, run_config.parameters, infer_options
     )
 
@@ -677,7 +677,7 @@ def deploy_ingestion_service(
             kind=source.kind,
             name=featureset.metadata.name,
         )
-    source, run_config.parameters = _set_task_params(
+    source, run_config.parameters = set_task_params(
         featureset, source, targets, run_config.parameters
     )
 
@@ -862,7 +862,7 @@ def _infer_from_static_df(
     return df
 
 
-def _set_task_params(
+def set_task_params(
     featureset: FeatureSet,
     source: DataSource = None,
     targets: List[DataTargetBase] = None,

@@ -156,7 +156,6 @@ class KubeResourceSpec(FunctionSpec):
             priority_class_name or mlrun.mlconf.default_function_priority_class_name
         )
         self._tolerations = tolerations
-        self._preemption_mode = mlconf.function_defaults.preemption_mode
         self.preemption_mode = preemption_mode
 
     @property

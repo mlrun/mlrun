@@ -25,6 +25,7 @@ class Secrets(
     internal_secrets_key_prefix = "mlrun."
     # make it a subset of internal since key map are by definition internal
     key_map_secrets_key_prefix = f"{internal_secrets_key_prefix}map."
+    secret_reference_prefix = "$ref:"
 
     def generate_client_project_secret_key(
         self, client_type: SecretsClientType, name: str, subtype=None
@@ -39,18 +40,9 @@ class Secrets(
     ):
         return f"{self.key_map_secrets_key_prefix}{client_type.value}"
 
-    def generate_auth_secret_ref(self, secret: mlrun.api.schemas.AuthSecretData) -> str:
-        if secret.provider != mlrun.api.schemas.SecretProviderName.kubernetes:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Storing auth secret is not implemented for provider {secret.provider}"
-            )
-        if not mlrun.api.utils.singletons.k8s.get_k8s():
-            raise mlrun.errors.MLRunInternalServerError(
-                "K8s provider cannot be initialized"
-            )
-        return mlrun.api.utils.singletons.k8s.get_k8s().get_auth_secret_name(
-            secret.username, secret.access_key
-        )
+    def generate_secret_ref(self,
+                            secret_name: str) -> str:
+        return f"{self.secret_reference_prefix}{secret_name}"
 
     @staticmethod
     def validate_project_secret_key_regex(
@@ -132,7 +124,7 @@ class Secrets(
     def delete_auth_secret(
         self,
         provider: mlrun.api.schemas.SecretProviderName,
-        secret_ref: str,
+        secret_name: str,
     ):
         if provider != mlrun.api.schemas.SecretProviderName.kubernetes:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -142,7 +134,7 @@ class Secrets(
             raise mlrun.errors.MLRunInternalServerError(
                 "K8s provider cannot be initialized"
             )
-        mlrun.api.utils.singletons.k8s.get_k8s().delete_auth_secret(secret_ref)
+        mlrun.api.utils.singletons.k8s.get_k8s().delete_auth_secret(secret_name)
 
     def delete_project_secrets(
         self,

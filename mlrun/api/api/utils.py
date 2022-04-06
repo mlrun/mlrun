@@ -156,6 +156,7 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
         and function.kind not in mlrun.runtimes.RuntimeKinds.local_runtimes()
         and mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
     ):
+        function: mlrun.runtimes.pod.KubeResource
         if (
             function.metadata.credentials.access_key
             == mlrun.model.Credentials.generate_access_key
@@ -176,7 +177,7 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Username is missing from auth info"
                 )
-            secret_ref = mlrun.api.crud.Secrets().store_auth_secret(
+            secret_name = mlrun.api.crud.Secrets().store_auth_secret(
                 mlrun.api.schemas.AuthSecretData(
                     provider=mlrun.api.schemas.SecretProviderName.kubernetes,
                     username=auth_info.username,
@@ -184,10 +185,10 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
                 )
             )
             function.metadata.credentials.access_key = (
-                f"{mlrun.model.Credentials.secret_reference_prefix}{secret_ref}"
+                f"{mlrun.model.Credentials.secret_reference_prefix}{secret_name}"
             )
         else:
-            secret_ref = function.metadata.credentials.access_key.lstrip(
+            secret_name = function.metadata.credentials.access_key.lstrip(
                 mlrun.model.Credentials.secret_reference_prefix
             )
 
@@ -196,7 +197,7 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
         )
         auth_env_vars = {
             mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session: (
-                secret_ref,
+                secret_name,
                 access_key_secret_key,
             )
         }

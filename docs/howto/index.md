@@ -1,9 +1,10 @@
-# How-To Guides and Demos
+# Tutorials
 
 ```{toctree}
 :maxdepth: 2
 
-remote
+../tutorial/index
 convert-to-mlrun
-sklearn-project
+Work from IDE
+Additional demos / katacoda
 ```

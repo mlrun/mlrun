@@ -334,7 +334,6 @@ def test_ensure_function_has_auth_set(
     )
     original_function = mlrun.new_function(runtime=original_function_dict)
     function = mlrun.new_function(runtime=original_function_dict)
-    function.set_env_from_secret = unittest.mock.Mock()
     mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = (
         unittest.mock.Mock(return_value=access_key)
     )
@@ -345,8 +344,12 @@ def test_ensure_function_has_auth_set(
         DeepDiff(
             original_function.to_dict(),
             function.to_dict(),
-            ignore_order=True,
-            exclude_paths=["root['metadata']['credentials']['access_key']"],
+            # ignore order with exclude path of specific list index ends up with errors
+            ignore_order_func=lambda level: "env" not in level.path(),
+            exclude_paths=[
+                "root['metadata']['credentials']['access_key']",
+                f"root['spec']['env'][{len(function.spec.env)-1}]",
+            ],
         )
         == {}
     )
@@ -356,8 +359,8 @@ def test_ensure_function_has_auth_set(
         == f"{mlrun.model.Credentials.secret_reference_prefix}{secret_name}"
     )
     k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
-    assert function.set_env_from_secret.call_count == 1
-    assert function.set_env_from_secret.call_args[0] == (
+    _assert_env_var_from_secret(
+        function,
         mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session,
         secret_name,
         mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
@@ -393,18 +396,19 @@ def test_ensure_function_has_auth_set(
     )
     original_function = mlrun.new_function(runtime=original_function_dict)
     function = mlrun.new_function(runtime=original_function_dict)
-    function.set_env_from_secret = unittest.mock.Mock()
     ensure_function_has_auth_set(function, mlrun.api.schemas.AuthInfo())
     assert (
         DeepDiff(
             original_function.to_dict(),
             function.to_dict(),
-            ignore_order=True,
+            # ignore order with exclude path of specific list index ends up with errors
+            ignore_order_func=lambda level: "env" not in level.path(),
+            exclude_paths=[f"root['spec']['env'][{len(function.spec.env)-1}]"],
         )
         == {}
     )
-    assert function.set_env_from_secret.call_count == 1
-    assert function.set_env_from_secret.call_args[0] == (
+    _assert_env_var_from_secret(
+        function,
         mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session,
         secret_name,
         mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
@@ -419,7 +423,6 @@ def test_ensure_function_has_auth_set(
     )
     original_function = mlrun.new_function(runtime=original_function_dict)
     function = mlrun.new_function(runtime=original_function_dict)
-    function.set_env_from_secret = unittest.mock.Mock()
     ensure_function_has_auth_set(
         function, mlrun.api.schemas.AuthInfo(username=username)
     )
@@ -430,7 +433,12 @@ def test_ensure_function_has_auth_set(
             original_function.to_dict(),
             function.to_dict(),
             ignore_order=True,
-            exclude_paths=["root['metadata']['credentials']['access_key']"],
+            # ignore order with exclude path of specific list index ends up with errors
+            ignore_order_func=lambda level: "env" not in level.path(),
+            exclude_paths=[
+                "root['metadata']['credentials']['access_key']",
+                f"root['spec']['env'][{len(function.spec.env)-1}]",
+            ],
         )
         == {}
     )
@@ -438,8 +446,8 @@ def test_ensure_function_has_auth_set(
         function.metadata.credentials.access_key
         == f"{mlrun.model.Credentials.secret_reference_prefix}{secret_name}"
     )
-    assert function.set_env_from_secret.call_count == 1
-    assert function.set_env_from_secret.call_args[0] == (
+    _assert_env_var_from_secret(
+        function,
         mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session,
         secret_name,
         mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
@@ -763,3 +771,20 @@ def _assert_env_vars(parsed_function_object, submit_job_body, original_function)
         submit_job_body["function"]["spec"]["env"][2]["valueFrom"]
         == parsed_function_object.spec.env[3].value_from
     )
+
+
+def _assert_env_var_from_secret(
+    function: mlrun.runtimes.pod.KubeResource,
+    name: str,
+    secret_name: str,
+    secret_key: str,
+):
+    env_var_value = function.get_env(name)
+    if env_var_value is None:
+        pytest.fail(f"Env var {name} not found")
+    if isinstance(env_var_value, str):
+        pytest.fail(
+            f"Env var {name} value is string. expected to be reference to secret. value={env_var_value}"
+        )
+    assert env_var_value.secret_key_ref.name == secret_name
+    assert env_var_value.secret_key_ref.key == secret_key

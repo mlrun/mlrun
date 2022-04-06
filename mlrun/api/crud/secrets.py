@@ -40,8 +40,7 @@ class Secrets(
     ):
         return f"{self.key_map_secrets_key_prefix}{client_type.value}"
 
-    def generate_secret_ref(self,
-                            secret_name: str) -> str:
+    def generate_secret_ref(self, secret_name: str) -> str:
         return f"{self.secret_reference_prefix}{secret_name}"
 
     @staticmethod

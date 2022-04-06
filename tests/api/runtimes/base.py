@@ -342,6 +342,8 @@ class TestRuntimeBase:
         get_k8s().v1api.create_namespaced_pod.reset_mock()
         get_k8s().v1api.list_namespaced_pod.reset_mock()
 
+        # simulating sending to API - serialization through dict
+        runtime = runtime.from_dict(runtime.to_dict())
         runtime.run(
             name=self.name,
             project=self.project,
@@ -954,6 +956,152 @@ class TestRuntimeBase:
         self.assert_node_selection(
             tolerations=self._generate_preemptible_tolerations(),
             affinity=expected_affinity,
+        )
+
+    def assert_run_with_preemption_mode_with_preemptible_node_selector_without_preemptible_tolerations(
+        self,
+    ):
+        # no preemptible nodes tolerations configured, test modes based on affinity/anti-affinity
+        preemptible_node_selector = self._generate_node_selector()
+        mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
+            json.dumps(preemptible_node_selector).encode("utf-8")
+        )
+        mlrun.mlconf.function_defaults.preemption_mode = (
+            mlrun.api.schemas.PreemptionModes.prevent.value
+        )
+        # default prevent, without setting any node selection expecting preemptible anti-affinity to be set
+        runtime = self._generate_runtime()
+        self.execute_function(runtime)
+        self.assert_node_selection(affinity=self._generate_preemptible_anti_affinity())
+
+        # prevent -> constrain, expecting preemptible affinity
+        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        self.execute_function(runtime)
+        self.assert_node_selection(affinity=self._generate_preemptible_affinity())
+
+        # constrain -> allow, expecting no node selection to be set
+        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        self.execute_function(runtime)
+        self.assert_node_selection()
+
+        # allow -> constrain, expecting preemptible affinity
+        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        self.execute_function(runtime)
+        self.assert_node_selection(affinity=self._generate_preemptible_affinity())
+
+        # constrain -> prevent, expecting preemptible anti-affinity
+        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.prevent.value)
+        self.execute_function(runtime)
+        self.assert_node_selection(affinity=self._generate_preemptible_anti_affinity())
+
+        # prevent -> allow, expecting no node selection to be set
+        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        self.execute_function(runtime)
+        self.assert_node_selection()
+
+        # allow -> prevent, expecting preemptible anti-affinity
+        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.prevent.value)
+        self.execute_function(runtime)
+        self.assert_node_selection(affinity=self._generate_preemptible_anti_affinity())
+
+        # prevent context, expecting preemptible node selector to be removed and only contain anti affinity
+        runtime.with_node_selection(node_selector=preemptible_node_selector)
+        self.execute_function(runtime)
+        self.assert_node_selection(affinity=self._generate_preemptible_anti_affinity())
+
+        # prevent -> constrain with preemptible node selector, expecting preemptible node selector to stay
+        # and preemptible anti-affinity to be removed and preemptible affinity to be added
+        runtime.with_node_selection(node_selector=preemptible_node_selector)
+        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        self.execute_function(runtime)
+        self.assert_node_selection(
+            node_selector=preemptible_node_selector,
+            affinity=self._generate_preemptible_affinity(),
+        )
+        # constrain -> allow with preemptible node selector and affinity, expecting both to be removed
+        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        self.execute_function(runtime)
+        self.assert_node_selection()
+
+        # allow context, with not preemptible node selector, expecting to stay
+        not_preemptible_node_selector = {"not-preemptible": "true"}
+        runtime.with_node_selection(node_selector=not_preemptible_node_selector)
+        self.execute_function(runtime)
+        self.assert_node_selection(node_selector=not_preemptible_node_selector)
+
+        # allow -> prevent, with not preemptible node selector, expecting to stay and preemptible anti-affinity
+        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.prevent.value)
+        self.execute_function(runtime)
+        self.assert_node_selection(
+            node_selector=not_preemptible_node_selector,
+            affinity=self._generate_preemptible_anti_affinity(),
+        )
+
+        # prevent -> constrain, with not preemptible node selector, expecting to stay and preemptible affinity
+        # to be add and anti affinity to be remove
+        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        self.execute_function(runtime)
+        self.assert_node_selection(
+            node_selector=not_preemptible_node_selector,
+            affinity=self._generate_preemptible_affinity(),
+        )
+
+        ##########################################################################################################
+
+        # prevent, with not preemptible affinity, expecting preemptible anti-affinity to be merged
+        runtime = self._generate_runtime()
+        runtime.with_node_selection(affinity=self._generate_not_preemptible_affinity())
+        merged_not_preemptible_affinity_with_preemptible_anti_affinity = (
+            self._generate_not_preemptible_affinity()
+        )
+        merged_not_preemptible_affinity_with_preemptible_anti_affinity.node_affinity.\
+            required_during_scheduling_ignored_during_execution.node_selector_terms.extend(
+            mlrun.k8s_utils.generate_preemptible_nodes_anti_affinity_terms()
+        )
+        self.execute_function(runtime)
+        self.assert_node_selection(
+            affinity=merged_not_preemptible_affinity_with_preemptible_anti_affinity
+        )
+
+        # prevent -> constrain, with merged preemptible anti-affinity and not preemptible affinity,
+        # expecting to override affinity with preemptible affinity
+        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        self.execute_function(runtime)
+        self.assert_node_selection(affinity=self._generate_preemptible_affinity())
+
+        # constrain > constrain, expecting to stay the same
+        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        self.execute_function(runtime)
+        self.assert_node_selection(
+            affinity=self._generate_preemptible_affinity()
+        )
+
+        ##########################################################################################################
+
+        # prevent -> allow, with not preemptible affinity expecting to stay
+        runtime = self._generate_runtime()
+        runtime.with_node_selection(affinity=self._generate_not_preemptible_affinity())
+        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        self.execute_function(runtime)
+        self.assert_node_selection(affinity=self._generate_not_preemptible_affinity())
+
+        # allow -> allow, expecting to stay the same
+        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        self.execute_function(runtime)
+        self.assert_node_selection(affinity=self._generate_not_preemptible_affinity())
+
+        # allow -> prevent, with not preemptible affinity expecting to be merged with anti-affinity
+        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.prevent.value)
+        self.execute_function(runtime)
+        self.assert_node_selection(
+            affinity=merged_not_preemptible_affinity_with_preemptible_anti_affinity
+        )
+
+        # prevent -> prevent, with merged not preemptible affinity and anti-affinity, expecting to stay the same
+        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.prevent.value)
+        self.execute_function(runtime)
+        self.assert_node_selection(
+            affinity=merged_not_preemptible_affinity_with_preemptible_anti_affinity
         )
 
     def assert_run_with_preemption_mode_without_preemptible_configuration(self):

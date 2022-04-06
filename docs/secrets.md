@@ -6,14 +6,23 @@ MLRun provides some facilities that allow handling secrets and passing those sec
 important to understand how these facilities work, as this has implications on the level of security they provide
 and how much exposure they create for your secrets.
 
+**In this section**
+- [Overview](#overview)
+- [Secret providers](#secret-propviders)
+   - [Inline](#inline)
+   - [Environment](#environment)
+   - [File](#file)
+   - [Kubernetes](#kubernetes)
+   - [Azure Vault](#azure-vault)
+
+
 ## Overview
 MLRun uses the concept of Tasks to encapsulate runtime parameters. Tasks are used to specify execution context
 such as hyper-parameters. They can also be used to pass details about secrets that are going to be used in the 
 runtime.
 
 To pass secret parameters, use the Task's {py:func}`~mlrun.model.RunTemplate.with_secrets()` function. For example, the following command 
-passes secrets provided by a kubernetes secret to the execution context (see next sections for a discussion of secret
-providers):
+passes secrets provided by a kubernetes secret to the execution context:
 
 ```{code-block} python
 :emphasize-lines: 8-8
@@ -59,7 +68,7 @@ As mentioned, MLRun provides the user with several secret providers. Each of tho
 has different traits with respect to what secrets can be passed and how they're handled. It's important to understand 
 these parameters to make sure secrets are not compromised and that their secrecy is maintained.
 
-Generally speaking, the [Inline](#inline), [Env](#environment) and [File](#file) providers do not guarantee 
+Generally speaking, the [Inline](#inline), [environment](#environment) and [file](#file) providers do not guarantee 
 confidentiality of the secret values handled by them, and should only be used for development and demo purposes. 
 The [Kubernetes](#kubernetes) and [Azure Vault](#azure-vault) providers are secure and should be used for any 
 other use-case.
@@ -165,8 +174,8 @@ spec cannot see the secret values.
 
 Users, however, can view the secrets using the following methods:
 
-1. Run `kubectl` to view the actual contents of the k8s secret.
-2. Perform `kubectl exec` into the running pod, and examine the environment variables.
+-  Run `kubectl` to view the actual contents of the k8s secret.
+-  Perform `kubectl exec` into the running pod, and examine the environment variables.
 
 To maintain the confidentiality of secret values, these operations must be strictly limited across the system by using 
 k8s RBAC and ensuring that elevated permissions are granted to a very limited number of users (very few users have and 
@@ -189,19 +198,19 @@ To enable this functionality, a secret must first be created in the k8s cluster 
 credentials. This secret should include credentials providing access to your specific Azure key Vault. 
 To configure this, the following steps are needed:
 
-1. Set up a key vault in your Azure subscription
+1. Set up a key vault in your Azure subscription.
 2. Create a service principal in Azure that will be granted access to the key vault. For creating a service principal 
    through the Azure portal follow the steps listed in [this page]( 
-   https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal)
+   https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal).
 3. Assign a key vault access policy to the service principal, as described in 
-   [this page](https://docs.microsoft.com/en-us/azure/key-vault/general/assign-access-policy-portal)
+   [this page](https://docs.microsoft.com/en-us/azure/key-vault/general/assign-access-policy-portal).
 4. Create a secret access key for the service principal, following the steps listed in [this page]( 
    https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal#get-tenant-and-app-id-values-for-signing-in). 
     Make sure you have access to the following three identifiers:
    
-    1. Directory (tenant) id
-    2. Application (client) id
-    3. Secret key
+    - Directory (tenant) id
+    - Application (client) id
+    - Secret key
 
 5. Generate a k8s secret with those details. Use the following command:
 

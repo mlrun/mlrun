@@ -186,7 +186,7 @@ def test_run_class_code():
     ]
     fn = mlrun.code_to_function("mytst", filename=function_path, kind="local")
     for params, results in cases:
-        run = fn.run(handler="mycls::mtd", params=params)
+        run = mlrun.run_function(fn, handler="mycls::mtd", params=params)
         assert run.status.results == results
 
 

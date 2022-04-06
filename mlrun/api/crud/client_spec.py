@@ -59,6 +59,15 @@ class ClientSpec(
             default_function_pod_resources=self._get_config_value_if_not_default(
                 "default_function_pod_resources"
             ),
+            preemptible_nodes_node_selector=self._get_config_value_if_not_default(
+                "preemptible_nodes.node_selector"
+            ),
+            preemptible_nodes_tolerations=self._get_config_value_if_not_default(
+                "preemptible_nodes.tolerations"
+            ),
+            default_preemption_mode=self._get_config_value_if_not_default(
+                "function_defaults.preemption_mode"
+            ),
         )
 
     @staticmethod

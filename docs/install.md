@@ -1,4 +1,4 @@
-# Installation Guide <!-- omit in toc -->
+# Installation and setup guide <!-- omit in toc -->
 
 This guide outlines the steps for installing and running MLRun. 
 Once MLRun is installed you can access it remotely from your IDE (PyCharm or VSCode), read [**how to setup your IDE environment**](./howto/remote.md). 

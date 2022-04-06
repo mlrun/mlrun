@@ -810,7 +810,7 @@ def _ingest_with_spark(
                 # if max_time is None(no data), next scheduled run should be with same start_time
                 max_time = source.start_time
             for target in featureset.status.targets:
-                featureset.status.update_last_written_for_target(target.path, max_time)
+                featureset.status.update_last_written_for_target(target.get_path().get_absolute_path(), max_time)
 
         _post_ingestion(mlrun_context, featureset, spark)
     finally:

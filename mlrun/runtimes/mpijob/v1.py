@@ -60,6 +60,7 @@ class MPIV1ResourceSpec(MPIResourceSpec):
         disable_auto_mount=False,
         pythonpath=None,
         tolerations=None,
+        preemption_mode=None,
     ):
         super().__init__(
             command=command,
@@ -87,6 +88,7 @@ class MPIV1ResourceSpec(MPIResourceSpec):
             disable_auto_mount=disable_auto_mount,
             pythonpath=pythonpath,
             tolerations=tolerations,
+            preemption_mode=preemption_mode,
         )
         self.clean_pod_policy = clean_pod_policy or MPIJobV1CleanPodPolicies.default()
 

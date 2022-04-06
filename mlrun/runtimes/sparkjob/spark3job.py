@@ -77,6 +77,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         tolerations=None,
         driver_tolerations=None,
         executor_tolerations=None,
+        preemption_mode=None,
     ):
 
         super().__init__(
@@ -104,6 +105,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
             node_name=node_name,
             affinity=affinity,
             tolerations=tolerations,
+            preemption_mode=preemption_mode,
         )
 
         self.driver_resources = driver_resources or {}

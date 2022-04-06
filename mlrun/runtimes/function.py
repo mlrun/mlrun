@@ -142,6 +142,7 @@ class NuclioSpec(KubeResourceSpec):
         workdir=None,
         image_pull_secret=None,
         tolerations=None,
+        preemption_mode=None,
     ):
 
         super().__init__(
@@ -169,6 +170,7 @@ class NuclioSpec(KubeResourceSpec):
             workdir=workdir,
             image_pull_secret=image_pull_secret,
             tolerations=tolerations,
+            preemption_mode=preemption_mode,
         )
 
         self.base_spec = base_spec or {}

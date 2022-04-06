@@ -13,7 +13,7 @@ import mlrun
 import mlrun.feature_store as fs
 from mlrun import store_manager
 from mlrun.datastore.sources import ParquetSource
-from mlrun.datastore.targets import NoSqlTarget, ParquetTarget, CSVTarget
+from mlrun.datastore.targets import CSVTarget, NoSqlTarget, ParquetTarget
 from mlrun.features import Entity
 from tests.system.base import TestMLRunSystem
 
@@ -117,15 +117,17 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     def test_ingest_to_csv(self):
         key = "patient_id"
+        csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
+        csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey"
+
         measurements = fs.FeatureSet(
-            "measurements",
+            "measurements_spark",
             entities=[fs.Entity(key)],
             timestamp_key="timestamp",
             engine="spark",
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
-        csv_path = "v3io:///bigdata/test_ingest_to_csv_spark.csv"
-        targets = [CSVTarget(path=csv_path)]
+        targets = [CSVTarget(path=csv_path_spark)]
         fs.ingest(
             measurements,
             source,
@@ -134,8 +136,28 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=fs.RunConfig(local=False),
         )
 
-        print(pd.read_csv(csv_path))
+        measurements = fs.FeatureSet(
+            "measurements_storey",
+            entities=[fs.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(path=csv_path_storey)]
+        fs.ingest(
+            measurements,
+            source,
+            targets,
+        )
 
+        file_system = fsspec.filesystem("v3io")
+        spark_output_files = file_system.ls(csv_path_spark)
+        assert len(spark_output_files) == 2
+        assert "_SUCCESS" in spark_output_files
+        csv_filename = [
+            filename for filename in spark_output_files if filename != "_SUCCESS"
+        ][0]
+        pd.read_csv(f"{csv_path_spark}/{csv_filename}")
 
     @pytest.mark.parametrize("partitioned", [True, False])
     def test_schedule_on_filtered_by_time(self, partitioned):

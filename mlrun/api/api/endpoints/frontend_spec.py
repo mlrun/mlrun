@@ -94,8 +94,14 @@ def _resolve_feature_flags() -> mlrun.api.schemas.FeatureFlags:
         mlrun.runtimes.utils.resolve_nuclio_version()
     ) >= semver.VersionInfo.parse("1.7.8"):
         nuclio_streams = mlrun.api.schemas.NuclioStreamsFeatureFlag.enabled
+
+    preemption_nodes = mlrun.api.schemas.PreemptionNodesFeatureFlag.disabled
+    if mlrun.mlconf.is_preemption_nodes_configured():
+        preemption_nodes = mlrun.api.schemas.PreemptionNodesFeatureFlag.enabled
+
     return mlrun.api.schemas.FeatureFlags(
         project_membership=project_membership,
         authentication=authentication,
         nuclio_streams=nuclio_streams,
+        preemption_nodes=preemption_nodes,
     )

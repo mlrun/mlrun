@@ -550,6 +550,23 @@ def test_obfuscate_v3io_access_key_env_var(
     # assert we're not trying to store unneeded-ly
     assert mlrun.api.crud.Secrets().store_auth_secret.call_count == 0
 
+    # access key is already a reference, but this time a dict - nothing should change
+    function.spec.env.append(function.spec.env.pop().to_dict())
+    original_function = mlrun.new_function(runtime=function)
+    _obfuscate_v3io_access_key_env_var(
+        function, mlrun.api.schemas.AuthInfo(username=username)
+    )
+    mlrun.api.crud.Secrets().store_auth_secret = unittest.mock.Mock()
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+        )
+        == {}
+    )
+    # assert we're not trying to store unneeded-ly
+    assert mlrun.api.crud.Secrets().store_auth_secret.call_count == 0
+
 
 @pytest.mark.parametrize("use_structs", [True, False])
 def test_obfuscate_v3io_volume_credentials(

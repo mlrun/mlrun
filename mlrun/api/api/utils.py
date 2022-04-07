@@ -287,9 +287,11 @@ def _obfuscate_v3io_access_key_env_var(function, auth_info: mlrun.api.schemas.Au
     ):
         function: mlrun.runtimes.pod.KubeResource
         v3io_access_key = function.get_env("V3IO_ACCESS_KEY")
-        # if it's already a V1EnvVarSource instance, it's already been obfuscated
-        if v3io_access_key and not isinstance(
-            v3io_access_key, kubernetes.client.V1EnvVarSource
+        # if it's already a V1EnvVarSource or dict instance, it's already been obfuscated
+        if (
+            v3io_access_key
+            and not isinstance(v3io_access_key, kubernetes.client.V1EnvVarSource)
+            and not isinstance(v3io_access_key, dict)
         ):
             if not auth_info.username:
                 raise mlrun.errors.MLRunInvalidArgumentError(

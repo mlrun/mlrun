@@ -145,22 +145,15 @@ class TestKubejobRuntime(TestRuntimeBase):
             expected_affinity=affinity,
         )
 
+    def test_preemption_mode_with_preemptible_node_selector_and_tolerations(
+        self, db: Session, client: TestClient
+    ):
+        self.assert_run_with_preemption_mode_with_preemptible_node_selector_and_tolerations()
+
     def test_preemption_mode_with_preemptible_node_selector_without_preemptible_tolerations(
         self, db: Session, client: TestClient
     ):
         self.assert_run_with_preemption_mode_with_preemptible_node_selector_without_preemptible_tolerations()
-
-    def test_preemptible_modes_transitions(self, db: Session, client: TestClient):
-        self.assert_preemptible_modes_transitions()
-
-    def test_run_with_prevent_preemptible_mode(self, db: Session, client: TestClient):
-        self.assert_run_with_prevent_preemptible_mode()
-
-    def test_run_with_constrain_preemptible_mode(self, db: Session, client: TestClient):
-        self.assert_run_with_constrain_preemptible_mode()
-
-    def test_run_with_allow_preemptible_mode(self, db: Session, client: TestClient):
-        self.assert_run_with_allow_preemptible_mode()
 
     def test_run_with_preemption_mode_without_preemptible_configuration(
         self, db: Session, client: TestClient

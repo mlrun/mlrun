@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.schemas
 import mlrun.errors
+import mlrun.runtimes.pod
 from mlrun import code_to_function, mlconf
 from mlrun.api.api.endpoints.functions import _build_function
 from mlrun.platforms.iguazio import split_path
@@ -26,7 +27,6 @@ from mlrun.runtimes.function import (
     resolve_function_ingresses,
     validate_nuclio_version_compatibility,
 )
-import mlrun.runtimes.pod
 from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
 
@@ -101,6 +101,7 @@ class TestNuclioRuntime(TestRuntimeBase):
                 "seekTo": parameters["seek_to"],
             },
         }
+
     def _execute_run(self, runtime, **kwargs):
         deploy_nuclio_function(runtime)
 
@@ -285,23 +286,30 @@ class TestNuclioRuntime(TestRuntimeBase):
             #     )
             #     == affinity
             # )
-            assert deepdiff.DeepDiff(
-                mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
-                    "affinity", deploy_spec["affinity"]
-                ),
-                affinity,
-                ignore_order=True
-            ) == {}
+            assert (
+                deepdiff.DeepDiff(
+                    mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
+                        "affinity", deploy_spec["affinity"]
+                    ),
+                    affinity,
+                    # ignore_order=True,
+                )
+                == {}
+            )
         else:
             assert deploy_spec.get("affinity") is None
 
         if tolerations:
             # deploy_spec returns tolerations in CamelCase, [V1Toleration] is in snake_case
             assert (
-                mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
-                    "tolerations", deploy_spec.get("tolerations")
+                deepdiff.DeepDiff(
+                    mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
+                        "tolerations", deploy_spec.get("tolerations")
+                    ),
+                    tolerations,
+                    ignore_order=True,
                 )
-                == tolerations
+                == {}
             )
         else:
             assert deploy_spec.get("tolerations") is None
@@ -860,18 +868,6 @@ class TestNuclioRuntime(TestRuntimeBase):
         fn.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
         assert fn.spec.preemption_mode == "allow"
 
-    def test_preemptible_modes_transitions(self, db: Session, client: TestClient):
-        self.assert_preemptible_modes_transitions()
-
-    def test_run_with_prevent_preemptible_mode(self, db: Session, client: TestClient):
-        self.assert_run_with_prevent_preemptible_mode()
-
-    def test_run_with_constrain_preemptible_mode(self, db: Session, client: TestClient):
-        self.assert_run_with_constrain_preemptible_mode()
-
-    def test_run_with_allow_preemptible_mode(self, db: Session, client: TestClient):
-        self.assert_run_with_allow_preemptible_mode()
-
     def test_run_with_preemption_mode_without_preemptible_configuration(
         self, db: Session, client: TestClient
     ):
@@ -881,6 +877,11 @@ class TestNuclioRuntime(TestRuntimeBase):
         self,
     ):
         self.assert_run_with_preemption_mode_with_preemptible_node_selector_without_preemptible_tolerations()
+
+    def test_preemption_mode_with_preemptible_node_selector_and_tolerations(
+        self, db: Session, client: TestClient
+    ):
+        self.assert_run_with_preemption_mode_with_preemptible_node_selector_and_tolerations()
 
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well

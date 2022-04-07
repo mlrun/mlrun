@@ -94,7 +94,7 @@ def _create_submit_job_body(function, project):
 
 
 def test_submit_job_auto_mount(
-    db: Session, client: TestClient, pod_create_mock
+    db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock
 ) -> None:
     mlconf.storage.auto_mount_type = "v3io_credentials"
     api_url = "https://api/url"
@@ -117,16 +117,20 @@ def test_submit_job_auto_mount(
 
     resp = client.post("submit_job", json=submit_job_body)
     assert resp
+    secret_name = k8s_secrets_mock.get_auth_secret_name(username, access_key)
     expected_env_vars = {
         "V3IO_API": api_url,
         "V3IO_USERNAME": username,
-        "V3IO_ACCESS_KEY": access_key,
+        "V3IO_ACCESS_KEY": (
+            secret_name,
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
+        ),
     }
     _assert_pod_env_vars(pod_create_mock, expected_env_vars)
 
 
 def test_submit_job_ensure_function_has_auth_set(
-    db: Session, client: TestClient, pod_create_mock
+    db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock
 ) -> None:
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
     project = "my-proj1"
@@ -143,8 +147,12 @@ def test_submit_job_ensure_function_has_auth_set(
     resp = client.post("submit_job", json=submit_job_body)
     assert resp
 
+    secret_name = k8s_secrets_mock.get_auth_secret_name(username, access_key)
     expected_env_vars = {
-        mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session: access_key,
+        mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session: (
+            secret_name,
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
+        ),
     }
     _assert_pod_env_vars(pod_create_mock, expected_env_vars)
 
@@ -202,12 +210,18 @@ def _assert_pod_env_vars(pod_create_mock, expected_env_vars):
     pod_create_mock.assert_called_once()
     args, _ = pod_create_mock.call_args
     pod_env = args[0].spec.containers[0].env
-    pod_env_dict = {
-        mlrun.runtimes.utils.get_item_name(
-            env_item
-        ): mlrun.runtimes.utils.get_item_name(env_item, "value")
-        for env_item in pod_env
-    }
+    pod_env_dict = {}
+    for env_item in pod_env:
+        name = mlrun.runtimes.utils.get_item_name(env_item)
+        value = mlrun.runtimes.utils.get_item_name(env_item, "value")
+        value_from = mlrun.runtimes.utils.get_item_name(env_item, "value_from")
+        if value:
+            pod_env_dict[name] = value
+        else:
+            pod_env_dict[name] = (
+                value_from.secret_key_ref.name,
+                value_from.secret_key_ref.key,
+            )
     for key, value in expected_env_vars.items():
         assert pod_env_dict[key] == value
 

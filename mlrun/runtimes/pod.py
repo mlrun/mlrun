@@ -491,7 +491,7 @@ class KubeResourceSpec(FunctionSpec):
                         > Purges preemptible node selector
             `constrain` - Uses node-affinity to make sure pods are assigned using OR on the configured
                           node label selectors.
-                        > Uses `Allow` configuration as well.
+                        > Merges tolerations with preemptible tolerations.
                         > Purges any `anti-affinity` preemption related configuration
             `prevent`	- Prevention is done either using taints (if Tolerations were configured) or anti-affinity.
                         > Purges any `tolerations` preemption related configuration

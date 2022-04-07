@@ -877,9 +877,10 @@ class TestNuclioRuntime(TestRuntimeBase):
         self.assert_run_preemption_mode_with_preemptible_node_selector_and_tolerations_with_extra_settings()
 
     def test_preemption_mode_with_preemptible_node_selector_without_tolerations_with_extra_settings(
-            self, db: Session, client: TestClient
+        self, db: Session, client: TestClient
     ):
         self.assert_run_preemption_mode_with_preemptible_node_selector_without_tolerations_with_extra_settings()
+
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well
 class TestNuclioMLRunRuntime(TestNuclioRuntime):

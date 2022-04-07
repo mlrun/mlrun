@@ -1053,7 +1053,6 @@ class TestRuntimeBase:
             mlrun.api.schemas.PreemptionModes.prevent.value
         )
 
-
         logger.info(
             "prevent context, expecting preemptible node selector to be removed and only contain anti affinity"
         )
@@ -1213,7 +1212,6 @@ class TestRuntimeBase:
         self.assert_node_selection(
             tolerations=self._generate_not_preemptible_tolerations(),
         )
-
 
     def assert_run_with_preemption_mode_without_preemptible_configuration(self):
         for test_case in [

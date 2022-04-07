@@ -30,6 +30,9 @@ has_private_source = (
 need_private_git = pytest.mark.skipif(
     not has_private_source, reason="env vars for private git repo not set"
 )
+need_v3io = pytest.mark.skipif(
+    not os.environ.get("V3IO_ACCESS_KEY"), reason="No V3IO access"
+)
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
@@ -168,6 +171,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         resp = fn.invoke("")
         assert "tag=" in resp.decode()
 
+    @need_v3io
     @pytest.mark.parametrize("load_mode", ["run", "build"])
     def test_job_tar(self, load_mode):
         self._upload_code_to_cluster()
@@ -183,7 +187,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         assert run.state() == "completed"
         assert run.output("tag")
 
-    @need_private_git
+    @need_v3io
     def test_nuclio_tar(self):
         self._upload_code_to_cluster()
         fn = self._new_function("nuclio", "tar")

@@ -1328,7 +1328,7 @@ def _compile_nuclio_archive_config(
 ):
     secrets = {}
     if project and get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
-        secrets = get_k8s_helper.get_project_secret_data(project)
+        secrets = get_k8s_helper().get_project_secret_data(project)
 
     def get_secret(key):
         return builder_env.get(key) or secrets.get(key, "")

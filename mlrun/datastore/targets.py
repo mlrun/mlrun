@@ -503,9 +503,13 @@ class BaseStoreTarget(DataTargetBase):
     def _target_path_object(self):
         """return the actual/computed target path"""
         is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
-        return self.get_path() or (TargetPathObject(
-            _get_target_path(self, self._resource), self.run_id, is_single_file
-        ) if self._resource else None)
+        return self.get_path() or (
+            TargetPathObject(
+                _get_target_path(self, self._resource), self.run_id, is_single_file
+            )
+            if self._resource
+            else None
+        )
 
     def update_resource_status(self, status="", producer=None, size=None):
         """update the data target status"""

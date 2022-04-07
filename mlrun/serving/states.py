@@ -1080,7 +1080,11 @@ class FlowStep(BaseStep):
         """return a list of child function names referred to in the steps"""
         functions = []
         for step in self.get_children():
-            if step.function and step.function not in functions:
+            if (
+                hasattr(step, "function")
+                and step.function
+                and step.function not in functions
+            ):
                 functions.append(step.function)
         return functions
 

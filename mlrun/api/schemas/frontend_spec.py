@@ -11,6 +11,11 @@ class ProjectMembershipFeatureFlag(str, enum.Enum):
     disabled = "disabled"
 
 
+class PreemptionNodesFeatureFlag(str, enum.Enum):
+    enabled = "enabled"
+    disabled = "disabled"
+
+
 class AuthenticationFeatureFlag(str, enum.Enum):
     none = "none"
     basic = "basic"
@@ -27,6 +32,7 @@ class FeatureFlags(pydantic.BaseModel):
     project_membership: ProjectMembershipFeatureFlag
     authentication: AuthenticationFeatureFlag
     nuclio_streams: NuclioStreamsFeatureFlag
+    preemption_nodes: PreemptionNodesFeatureFlag
 
 
 class FrontendSpec(pydantic.BaseModel):

@@ -336,14 +336,17 @@ class TestFeatureStore(TestMLRunSystem):
         assert df_with_index.index.name == "ticker"
         assert "time" in df_with_index.columns, "'time' column should be present"
 
-    @pytest.mark.parametrize("target_path", [
-        None,   # default
-        f"v3io:///bigdata/{project_name}/gof_wt.parquet",   # single file
-        f"v3io:///bigdata/{project_name}/" + "{run_id}/gof_wt.parquet",  # single file with run_id
-        f"v3io:///bigdata/{project_name}/gof_wt/",  # directory
-        f"v3io:///bigdata/{project_name}/gof_wt/" + "{run_id}",  # directory with run_id
-        f"v3io:///bigdata/{project_name}/gof_wt/" + "{run_id}/gof_wt",  # directory with run_id in middle of path
-    ])
+    @pytest.mark.parametrize(
+        "target_path",
+        [
+            None,  # default
+            f"v3io:///bigdata/{project_name}/gof_wt.parquet",  # single file
+            f"v3io:///bigdata/{project_name}/{{run_id}}/gof_wt.parquet",  # single file with run_id
+            f"v3io:///bigdata/{project_name}/gof_wt/",  # directory
+            f"v3io:///bigdata/{project_name}/gof_wt/{{run_id}}",  # directory with run_id
+            f"v3io:///bigdata/{project_name}/gof_wt/{{run_id}}/gof_wt",  # directory with run_id in middle of path
+        ],
+    )
     def test_different_target_paths_for_get_offline_features(self, target_path):
         stocks = pd.DataFrame(
             {
@@ -359,7 +362,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         vector = fs.FeatureVector("SjqevLXR", ["stocks_test.*"])
         target = ParquetTarget(name="parquet", path=target_path)
-        fs.get_offline_features(vector, target=target)
+        fs.get_offline_features(vector, with_indexes=True, target=target)
         df = pd.read_parquet(target.get_target_path())
         assert df is not None
         assert target.run_id == "offline-features"

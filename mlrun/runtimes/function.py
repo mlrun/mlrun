@@ -1326,17 +1326,12 @@ def _compile_nuclio_archive_config(
     project=None,
     auth_info=None,
 ):
-    def get_secrets(keys):
-        secrets = {}
-        if (
-            project
-            and get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
-        ):
-            secrets = function._get_k8s().get_project_secret_data(project, keys)
-        for key in keys:
-            if key in builder_env:
-                secrets[key] = builder_env.get(key)
-        return secrets
+    secrets = {}
+    if project and get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+        secrets = get_k8s_helper.get_project_secret_data(project)
+
+    def get_secret(key):
+        return builder_env.get(key) or secrets.get(key, "")
 
     source = function.spec.build.source
     parsed_url = urlparse(source)
@@ -1383,14 +1378,9 @@ def _compile_nuclio_archive_config(
         code_entry_attributes["s3Bucket"] = bucket
         code_entry_attributes["s3ItemKey"] = item_key
 
-        secrets = get_secrets(
-            ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"]
-        )
-        code_entry_attributes["s3AccessKeyId"] = secrets.get("AWS_ACCESS_KEY_ID", "")
-        code_entry_attributes["s3SecretAccessKey"] = secrets.get(
-            "AWS_SECRET_ACCESS_KEY", ""
-        )
-        code_entry_attributes["s3SessionToken"] = secrets.get("AWS_SESSION_TOKEN", "")
+        code_entry_attributes["s3AccessKeyId"] = get_secret("AWS_ACCESS_KEY_ID")
+        code_entry_attributes["s3SecretAccessKey"] = get_secret("AWS_SECRET_ACCESS_KEY")
+        code_entry_attributes["s3SessionToken"] = get_secret("AWS_SESSION_TOKEN")
 
     # git
     if code_entry_type == "git":
@@ -1410,12 +1400,11 @@ def _compile_nuclio_archive_config(
         if branch:
             code_entry_attributes["branch"] = branch
 
-        secrets = get_secrets(["GIT_USERNAME", "GIT_PASSWORD", "GIT_TOKEN"])
-        password = secrets.get("GIT_PASSWORD", "")
-        token = secrets.get("GIT_TOKEN", "")
+        password = get_secret("GIT_PASSWORD")
+        token = get_secret("GIT_TOKEN")
         if token:
             password = "x-oauth-basic"
-        code_entry_attributes["username"] = token or secrets.get("GIT_USERNAME", "")
+        code_entry_attributes["username"] = token or get_secret("GIT_USERNAME")
         code_entry_attributes["password"] = password
 
     # populate spec with relevant fields

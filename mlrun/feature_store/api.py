@@ -154,6 +154,11 @@ def get_offline_features(
     entity_timestamp_column = (
         entity_timestamp_column or feature_vector.spec.timestamp_field
     )
+
+    if target:
+        if not target.run_id:
+            target.run_id = "offline-features"
+
     if run_config:
         return run_merge_job(
             feature_vector,

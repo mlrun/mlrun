@@ -33,13 +33,13 @@ class TestKubejobRuntime(TestRuntimeBase):
 
     def test_run_without_runspec(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
-        self._execute_run(runtime)
+        self.execute_function(runtime)
         self._assert_pod_creation_config()
 
         params = {"p1": "v1", "p2": 20}
         inputs = {"input1": f"{self.artifact_path}/input1.txt"}
 
-        self._execute_run(runtime, params=params, inputs=inputs)
+        self.execute_function(runtime, params=params, inputs=inputs)
         self._assert_pod_creation_config(expected_params=params, expected_inputs=inputs)
 
     def test_run_with_runspec(self, db: Session, client: TestClient):
@@ -61,7 +61,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         task.with_secrets(secret_source["kind"], secret_source["source"])
 
         runtime = self._generate_runtime()
-        self._execute_run(runtime, runspec=task)
+        self.execute_function(runtime, runspec=task)
         self._assert_pod_creation_config(
             expected_params=params,
             expected_inputs=inputs,
@@ -90,7 +90,7 @@ class TestKubejobRuntime(TestRuntimeBase):
             mem=expected_requests["memory"], cpu=expected_requests["cpu"]
         )
 
-        self._execute_run(runtime)
+        self.execute_function(runtime)
         self._assert_pod_creation_config(
             expected_limits=expected_limits, expected_requests=expected_requests
         )
@@ -103,7 +103,7 @@ class TestKubejobRuntime(TestRuntimeBase):
 
         node_name = "some-node-name"
         runtime.with_node_selection(node_name)
-        self._execute_run(runtime)
+        self.execute_function(runtime)
         self._assert_pod_creation_config(expected_node_name=node_name)
 
         runtime = self._generate_runtime()
@@ -116,7 +116,7 @@ class TestKubejobRuntime(TestRuntimeBase):
             json.dumps(node_selector).encode("utf-8")
         )
         runtime.with_node_selection(node_selector=node_selector)
-        self._execute_run(runtime)
+        self.execute_function(runtime)
         self._assert_pod_creation_config(expected_node_selector=node_selector)
 
         runtime = self._generate_runtime()
@@ -126,18 +126,18 @@ class TestKubejobRuntime(TestRuntimeBase):
             "label-4": "val4",
         }
         runtime.with_node_selection(node_selector=node_selector)
-        self._execute_run(runtime)
+        self.execute_function(runtime)
         self._assert_pod_creation_config(expected_node_selector=node_selector)
 
         runtime = self._generate_runtime()
         affinity = self._generate_affinity()
         runtime.with_node_selection(affinity=affinity)
-        self._execute_run(runtime)
+        self.execute_function(runtime)
         self._assert_pod_creation_config(expected_affinity=affinity)
 
         runtime = self._generate_runtime()
         runtime.with_node_selection(node_name, node_selector, affinity)
-        self._execute_run(runtime)
+        self.execute_function(runtime)
         self._assert_pod_creation_config(
             expected_node_name=node_name,
             expected_node_selector=node_selector,
@@ -187,7 +187,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         medium_priority_class_name = "medium-priority"
         mlrun.mlconf.valid_function_priority_class_names = medium_priority_class_name
         runtime.with_priority_class(medium_priority_class_name)
-        self._execute_run(runtime)
+        self.execute_function(runtime)
         self._assert_pod_creation_config(
             expected_priority_class_name=medium_priority_class_name
         )
@@ -199,7 +199,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         )
         runtime = self._generate_runtime()
 
-        self._execute_run(runtime)
+        self.execute_function(runtime)
         self._assert_pod_creation_config(
             expected_priority_class_name=default_priority_class_name
         )
@@ -220,7 +220,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         os.environ["V3IO_USERNAME"] = v3io_user
         runtime.apply(auto_mount())
 
-        self._execute_run(runtime)
+        self.execute_function(runtime)
         self._assert_pod_creation_config()
         self._assert_v3io_mount_or_creds_configured(v3io_user, v3io_access_key)
 
@@ -231,7 +231,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         volume_name = "test-volume-name"
         runtime.apply(auto_mount(pvc_name, pvc_mount_path, volume_name))
 
-        self._execute_run(runtime)
+        self.execute_function(runtime)
         self._assert_pod_creation_config()
         self._assert_pvc_mount_configured(pvc_name, pvc_mount_path, volume_name)
 
@@ -251,7 +251,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         }
         task.with_secrets(secret_source["kind"], secret_keys)
 
-        self._execute_run(runtime, runspec=task)
+        self.execute_function(runtime, runspec=task)
 
         # We don't expect the internal secret to be visible - the user cannot mount it to the function
         # even if specifically asking for it in with_secrets()
@@ -271,7 +271,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         task = self._generate_task()
         task.metadata.project = self.project
 
-        self._execute_run(runtime, runspec=task)
+        self.execute_function(runtime, runspec=task)
         self._assert_pod_creation_config(
             expected_env_from_secrets=expected_env_from_secrets,
         )
@@ -292,7 +292,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         mlconf.secret_stores.vault.remote_url = vault_url
         mlconf.secret_stores.vault.token_path = vault_url
 
-        self._execute_run(runtime, runspec=task)
+        self.execute_function(runtime, runspec=task)
 
         self._assert_pod_creation_config(
             expected_secrets=secret_source,
@@ -315,7 +315,7 @@ def my_func(context):
         """
         runtime.with_code(body=expected_code)
 
-        self._execute_run(runtime)
+        self.execute_function(runtime)
         self._assert_pod_creation_config(expected_code=expected_code)
 
     def test_set_env(self, db: Session, client: TestClient):
@@ -323,13 +323,13 @@ def my_func(context):
         env = {"MLRUN_LOG_LEVEL": "DEBUG", "IMAGE_HEIGHT": "128"}
         for env_variable in env:
             runtime.set_env(env_variable, env[env_variable])
-        self._execute_run(runtime)
+        self.execute_function(runtime)
         self._assert_pod_creation_config(expected_env=env)
 
         # set the same env key for a different value and check that the updated one is used
         env2 = {"MLRUN_LOG_LEVEL": "ERROR", "IMAGE_HEIGHT": "128"}
         runtime.set_env("MLRUN_LOG_LEVEL", "ERROR")
-        self._execute_run(runtime)
+        self.execute_function(runtime)
         self._assert_pod_creation_config(expected_env=env2)
 
     def test_run_with_code_with_file(self, db: Session, client: TestClient):
@@ -337,7 +337,7 @@ def my_func(context):
 
         runtime.with_code(from_file=self.code_filename)
 
-        self._execute_run(runtime)
+        self.execute_function(runtime)
         self._assert_pod_creation_config(expected_code=open(self.code_filename).read())
 
     def test_run_with_code_and_file(self, db: Session, client: TestClient):
@@ -367,7 +367,7 @@ def my_func(context):
         labels = {"category": "test"}
 
         runtime = self._generate_runtime()
-        self._execute_run(runtime, runspec=task)
+        self.execute_function(runtime, runspec=task)
         self._assert_pod_creation_config(expected_labels=labels)
 
     def test_with_requirements(self, db: Session, client: TestClient):

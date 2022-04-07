@@ -30,8 +30,9 @@ has_private_source = (
 need_private_git = pytest.mark.skipif(
     not has_private_source, reason="env vars for private git repo not set"
 )
-need_v3io = pytest.mark.skipif(
-    not os.environ.get("V3IO_ACCESS_KEY"), reason="No V3IO access"
+need_enterprise = pytest.mark.skipif(
+    not tests.system.base.TestMLRunSystem.is_enterprise_environment(),
+    reason="Not in enterprise environment",
 )
 
 
@@ -90,7 +91,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
     @pytest.mark.parametrize("case", job_cases.keys())
     def test_job_git(self, load_mode, case):
         command, workdir, handler, tag = job_cases[case]
-        fn = self._new_function("job", load_mode, command)
+        fn = self._new_function("job", f"{load_mode}-{case}", command)
         fn.with_source_archive(
             f"{git_uri}#{tag}",
             workdir=workdir,
@@ -171,7 +172,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         resp = fn.invoke("")
         assert "tag=" in resp.decode()
 
-    @need_v3io
+    @need_enterprise
     @pytest.mark.parametrize("load_mode", ["run", "build"])
     def test_job_tar(self, load_mode):
         self._upload_code_to_cluster()
@@ -187,7 +188,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         assert run.state() == "completed"
         assert run.output("tag")
 
-    @need_v3io
+    @need_enterprise
     def test_nuclio_tar(self):
         self._upload_code_to_cluster()
         fn = self._new_function("nuclio", "tar")

@@ -361,8 +361,6 @@ class TestFeatureStore(TestMLRunSystem):
         target = ParquetTarget(name="parquet", path=target_path)
         fs.get_offline_features(vector, target=target)
         df = pd.read_parquet(target.get_target_path())
-        print("BBBBBBBB " + target.get_target_path())
-        print("BFBFBFBF " + df.to_string())
         assert df is not None
         assert target.run_id == "offline-features"
 

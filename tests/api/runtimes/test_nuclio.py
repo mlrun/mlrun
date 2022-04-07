@@ -280,21 +280,11 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         if affinity:
             # deploy_spec returns affinity in CamelCase, V1Affinity is in snake_case
-            # assert (
-            #     mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
-            #         "affinity", deploy_spec.get("affinity")
-            #     )
-            #     == affinity
-            # )
             assert (
-                deepdiff.DeepDiff(
-                    mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
-                        "affinity", deploy_spec["affinity"]
-                    ),
-                    affinity,
-                    # ignore_order=True,
+                mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
+                    "affinity", deploy_spec.get("affinity")
                 )
-                == {}
+                == affinity
             )
         else:
             assert deploy_spec.get("affinity") is None
@@ -302,14 +292,10 @@ class TestNuclioRuntime(TestRuntimeBase):
         if tolerations:
             # deploy_spec returns tolerations in CamelCase, [V1Toleration] is in snake_case
             assert (
-                deepdiff.DeepDiff(
-                    mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
-                        "tolerations", deploy_spec.get("tolerations")
-                    ),
-                    tolerations,
-                    ignore_order=True,
+                mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
+                    "tolerations", deploy_spec.get("tolerations")
                 )
-                == {}
+                == tolerations
             )
         else:
             assert deploy_spec.get("tolerations") is None

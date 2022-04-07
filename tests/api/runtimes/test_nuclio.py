@@ -53,9 +53,6 @@ class TestNuclioRuntime(TestRuntimeBase):
         os.environ["V3IO_ACCESS_KEY"] = self.v3io_access_key = "1111-2222-3333-4444"
         os.environ["V3IO_USERNAME"] = self.v3io_user = "test-user"
 
-    def _serialize_and_deploy_nuclio_function(self, function):
-        deploy_nuclio_function(function)
-
     @staticmethod
     def _mock_nuclio_deploy_config():
         nuclio.deploy.deploy_config = unittest.mock.Mock(return_value="some-server")
@@ -405,7 +402,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         k8s_secrets_mock.store_project_secrets(self.project, secrets)
 
         function = self._generate_runtime(self.runtime_kind)
-        self._serialize_and_deploy_nuclio_function(function)
+        self.execute_function(function)
 
         # This test runs in serving, nuclio:mlrun as well, with different secret names encoding
         expected_secrets = k8s_secrets_mock.get_expected_env_variables_from_secrets(
@@ -442,7 +439,7 @@ class TestNuclioRuntime(TestRuntimeBase):
     def test_deploy_basic_function(self, db: Session, client: TestClient):
         function = self._generate_runtime(self.runtime_kind)
 
-        self._serialize_and_deploy_nuclio_function(function)
+        self.execute_function(function)
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
 
     def test_deploy_build_base_image(
@@ -454,7 +451,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         function = self._generate_runtime(self.runtime_kind)
         function.spec.build.base_image = expected_build_base_image
 
-        self._serialize_and_deploy_nuclio_function(function)
+        self.execute_function(function)
         self._assert_deploy_called_basic_config(
             expected_class=self.class_name,
             expected_build_base_image=expected_build_base_image,
@@ -469,7 +466,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         function = self._generate_runtime(self.runtime_kind)
         function.spec.build.base_image = "mlrun/base_mlrun:latest"
 
-        self._serialize_and_deploy_nuclio_function(function)
+        self.execute_function(function)
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
 
     def test_deploy_without_image_and_build_base_image(
@@ -478,7 +475,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self.image_name = None
 
         function = self._generate_runtime(self.runtime_kind)
-        self._serialize_and_deploy_nuclio_function(function)
+        self.execute_function(function)
 
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
 
@@ -489,7 +486,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         }
         function = self._generate_runtime(self.runtime_kind, labels)
 
-        self._serialize_and_deploy_nuclio_function(function)
+        self.execute_function(function)
         self._assert_deploy_called_basic_config(
             expected_labels=labels, expected_class=self.class_name
         )
@@ -517,7 +514,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         function.with_http(**http_trigger)
         function.add_v3io_stream_trigger(**v3io_trigger)
 
-        self._serialize_and_deploy_nuclio_function(function)
+        self.execute_function(function)
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
         self._assert_triggers(http_trigger, v3io_trigger)
 
@@ -527,7 +524,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         remote_path = "/container/and/path"
         function.with_v3io(local_path, remote_path)
 
-        self._serialize_and_deploy_nuclio_function(function)
+        self.execute_function(function)
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
         self._assert_nuclio_v3io_mount(local_path, remote_path)
 
@@ -538,7 +535,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         node_name = "some-node-name"
         function.with_node_selection(node_name=node_name)
 
-        self._serialize_and_deploy_nuclio_function(function)
+        self.execute_function(function)
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
         self.assert_node_selection(node_name=node_name)
 
@@ -552,7 +549,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             json.dumps(config_node_selector).encode("utf-8")
         )
         function.with_node_selection(node_selector=config_node_selector)
-        self._serialize_and_deploy_nuclio_function(function)
+        self.execute_function(function)
         self._assert_deploy_called_basic_config(
             call_count=2, expected_class=self.class_name
         )
@@ -565,7 +562,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             "label-4": "val4",
         }
         function.with_node_selection(node_selector=node_selector)
-        self._serialize_and_deploy_nuclio_function(function)
+        self.execute_function(function)
         self._assert_deploy_called_basic_config(
             call_count=3, expected_class=self.class_name
         )
@@ -575,7 +572,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         affinity = self._generate_affinity()
 
         function.with_node_selection(affinity=affinity)
-        self._serialize_and_deploy_nuclio_function(function)
+        self.execute_function(function)
         self._assert_deploy_called_basic_config(
             call_count=4, expected_class=self.class_name
         )
@@ -585,7 +582,7 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         function = self._generate_runtime(self.runtime_kind)
         function.with_node_selection(node_name, node_selector, affinity)
-        self._serialize_and_deploy_nuclio_function(function)
+        self.execute_function(function)
         self._assert_deploy_called_basic_config(
             call_count=5, expected_class=self.class_name
         )
@@ -603,7 +600,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         mlconf.nuclio_version = "1.7.6"
         function = self._generate_runtime(self.runtime_kind)
         function.with_node_selection(tolerations=tolerations)
-        self._serialize_and_deploy_nuclio_function(function)
+        self.execute_function(function)
         self._assert_deploy_called_basic_config(
             call_count=6, expected_class=self.class_name
         )
@@ -620,7 +617,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         mlrun.mlconf.valid_function_priority_class_names = default_priority_class_name
         function = self._generate_runtime(self.runtime_kind)
 
-        self._serialize_and_deploy_nuclio_function(function)
+        self.execute_function(function)
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
         args, _ = nuclio.deploy.deploy_config.call_args
         deploy_spec = args[0]["spec"]
@@ -631,7 +628,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         mlrun.mlconf.valid_function_priority_class_names = ""
         function = self._generate_runtime(self.runtime_kind)
 
-        self._serialize_and_deploy_nuclio_function(function)
+        self.execute_function(function)
         self._assert_deploy_called_basic_config(
             call_count=2, expected_class=self.class_name
         )
@@ -643,7 +640,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         mlrun.mlconf.valid_function_priority_class_names = default_priority_class_name
         function = self._generate_runtime(self.runtime_kind)
 
-        self._serialize_and_deploy_nuclio_function(function)
+        self.execute_function(function)
         self._assert_deploy_called_basic_config(
             call_count=3, expected_class=self.class_name
         )
@@ -666,7 +663,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         mlconf.nuclio_version = "1.6.18"
         function.with_priority_class(medium_priority_class_name)
 
-        self._serialize_and_deploy_nuclio_function(function)
+        self.execute_function(function)
         self._assert_deploy_called_basic_config(
             call_count=4, expected_class=self.class_name
         )

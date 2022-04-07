@@ -746,7 +746,7 @@ class TestRuntimeBase:
             json.dumps(serialized_tolerations).encode("utf-8")
         )
         logger.info(
-            "prevent, without any node selection, expecting nothing to be added"
+            "prevent -> prevent, without any node selection, expecting nothing to be added"
         )
         runtime = self._generate_runtime()
         self.execute_function(runtime)
@@ -816,7 +816,7 @@ class TestRuntimeBase:
         preemptible_tolerations = self._generate_preemptible_tolerations()
         runtime = self._generate_runtime()
         logger.info(
-            "prevent context, expecting preemptible node selector to be removed"
+            "prevent -> prevent, expecting preemptible node selector to be removed"
         )
         runtime.with_node_selection(node_selector=self._generate_node_selector())
         self.execute_function(runtime)
@@ -843,7 +843,7 @@ class TestRuntimeBase:
         self.assert_node_selection(tolerations=preemptible_tolerations)
 
         logger.info(
-            "allow context, with not preemptible node selector and preemptible tolerations, expecting to stay"
+            "allow -> allow, with not preemptible node selector and preemptible tolerations, expecting to stay"
         )
         not_preemptible_node_selector = {"not-preemptible": "true"}
         runtime.with_node_selection(node_selector=not_preemptible_node_selector)
@@ -955,7 +955,7 @@ class TestRuntimeBase:
 
         ##########################################################################################################
 
-        logger.info("prevent, set not preemptible tolerations, expecting to stay")
+        logger.info("prevent -> prevent, set not preemptible tolerations, expecting to stay")
         runtime = self._generate_runtime()
         runtime.with_node_selection(
             tolerations=self._generate_not_preemptible_tolerations()
@@ -1005,7 +1005,7 @@ class TestRuntimeBase:
             mlrun.api.schemas.PreemptionModes.prevent.value
         )
         logger.info(
-            "default prevent, without setting any node selection expecting preemptible anti-affinity to be set"
+            "prevent, without setting any node selection expecting preemptible anti-affinity to be set"
         )
         runtime = self._generate_runtime()
         self.execute_function(runtime)
@@ -1054,7 +1054,7 @@ class TestRuntimeBase:
         )
 
         logger.info(
-            "prevent context, expecting preemptible node selector to be removed and only contain anti affinity"
+            "prevent, expecting preemptible node selector to be removed and only contain anti affinity"
         )
         runtime = self._generate_runtime()
         runtime.with_node_selection(node_selector=preemptible_node_selector)
@@ -1080,7 +1080,7 @@ class TestRuntimeBase:
         self.assert_node_selection()
 
         logger.info(
-            "allow context, with not preemptible node selector, expecting to stay"
+            "allow -> allow, with not preemptible node selector, expecting to stay"
         )
         not_preemptible_node_selector = {"not-preemptible": "true"}
         runtime.with_node_selection(node_selector=not_preemptible_node_selector)
@@ -1110,7 +1110,7 @@ class TestRuntimeBase:
 
         ##########################################################################################################
         logger.info(
-            "prevent, with not preemptible affinity, expecting preemptible anti-affinity"
+            "prevent -> prevent, with not preemptible affinity, expecting preemptible anti-affinity"
         )
         runtime = self._generate_runtime()
         runtime.with_node_selection(affinity=self._generate_not_preemptible_affinity())
@@ -1178,7 +1178,7 @@ class TestRuntimeBase:
         ##########################################################################################################
 
         logger.info(
-            "prevent, set not preemptible tolerations, expecting to stay and anti-affinity to be added"
+            "prevent -> prevent, set not preemptible tolerations, expecting to stay and anti-affinity to be added"
         )
         runtime = self._generate_runtime()
         runtime.with_node_selection(

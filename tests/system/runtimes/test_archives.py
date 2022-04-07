@@ -7,7 +7,7 @@ import mlrun
 import tests.system.base
 
 git_uri = "git://github.com/mlrun/test-git-load.git"
-base_image = "mlrun/mlrun"
+base_image = "mlrun/mlrun:1.0.0-rc15"
 tags = ["main", "refs/heads/tst"]
 codepaths = [(None, "rootfn"), ("subdir", "func")]
 
@@ -30,10 +30,6 @@ has_private_source = (
 need_private_git = pytest.mark.skipif(
     not has_private_source, reason="env vars for private git repo not set"
 )
-need_enterprise = pytest.mark.skipif(
-    not tests.system.base.TestMLRunSystem.is_enterprise_environment(),
-    reason="Not in enterprise environment",
-)
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
@@ -42,6 +38,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
     project_name = "git-tests"
 
     def custom_setup(self):
+        os.environ["MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES"] = "false"
         self.remote_code_dir = f"v3io:///projects/{self.project_name}/code/"
         self.uploaded_code = False
         # upload test files to cluster
@@ -172,7 +169,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         resp = fn.invoke("")
         assert "tag=" in resp.decode()
 
-    @need_enterprise
+    @pytest.mark.enterprise
     @pytest.mark.parametrize("load_mode", ["run", "build"])
     def test_job_tar(self, load_mode):
         self._upload_code_to_cluster()
@@ -188,7 +185,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         assert run.state() == "completed"
         assert run.output("tag")
 
-    @need_enterprise
+    @pytest.mark.enterprise
     def test_nuclio_tar(self):
         self._upload_code_to_cluster()
         fn = self._new_function("nuclio", "tar")

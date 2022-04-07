@@ -1,6 +1,7 @@
 import unittest.mock
 from http import HTTPStatus
 
+import kubernetes.client
 import pytest
 from deepdiff import DeepDiff
 from fastapi.testclient import TestClient
@@ -14,8 +15,9 @@ import mlrun.runtimes.pod
 import tests.api.conftest
 from mlrun.api.api.utils import (
     _generate_function_and_task_from_submit_run_body,
+    _obfuscate_v3io_access_key_env_var,
+    _obfuscate_v3io_volume_credentials,
     ensure_function_has_auth_set,
-    obfuscate_sensitive_data,
 )
 
 # Want to use k8s_secrets_mock for all tests in this module. It is needed since
@@ -456,7 +458,7 @@ def test_ensure_function_has_auth_set(
     )
 
 
-def test_obfuscate_sensitive_data(
+def test_obfuscate_v3io_access_key_env_var(
     db: Session, client: TestClient, k8s_secrets_mock: tests.api.conftest.K8sSecretsMock
 ):
     # local function so nothing should be changed
@@ -466,7 +468,7 @@ def test_obfuscate_sensitive_data(
     )
     original_function = mlrun.new_function(runtime=original_function_dict)
     function = mlrun.new_function(runtime=original_function_dict)
-    obfuscate_sensitive_data(function, mlrun.api.schemas.AuthInfo())
+    _obfuscate_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
     assert (
         DeepDiff(
             original_function.to_dict(),
@@ -480,7 +482,7 @@ def test_obfuscate_sensitive_data(
     _, _, _, original_function_dict = _generate_original_function()
     original_function = mlrun.new_function(runtime=original_function_dict)
     function = mlrun.new_function(runtime=original_function_dict)
-    obfuscate_sensitive_data(function, mlrun.api.schemas.AuthInfo())
+    _obfuscate_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
     assert (
         DeepDiff(
             original_function.to_dict(),
@@ -499,7 +501,7 @@ def test_obfuscate_sensitive_data(
         mlrun.errors.MLRunInvalidArgumentError,
         match=r"(.*)Username is missing(.*)",
     ):
-        obfuscate_sensitive_data(function, mlrun.api.schemas.AuthInfo())
+        _obfuscate_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
 
     # access key with username - secret should be created, env should reference it
     username = "some-username"
@@ -510,7 +512,9 @@ def test_obfuscate_sensitive_data(
     function: mlrun.runtimes.pod.KubeResource = mlrun.new_function(
         runtime=original_function_dict
     )
-    obfuscate_sensitive_data(function, mlrun.api.schemas.AuthInfo(username=username))
+    _obfuscate_v3io_access_key_env_var(
+        function, mlrun.api.schemas.AuthInfo(username=username)
+    )
     assert (
         DeepDiff(
             original_function.to_dict(),
@@ -532,7 +536,9 @@ def test_obfuscate_sensitive_data(
 
     # access key is already a reference (obfuscating the same function again) - nothing should change
     original_function = mlrun.new_function(runtime=function)
-    obfuscate_sensitive_data(function, mlrun.api.schemas.AuthInfo(username=username))
+    _obfuscate_v3io_access_key_env_var(
+        function, mlrun.api.schemas.AuthInfo(username=username)
+    )
     mlrun.api.crud.Secrets().store_auth_secret = unittest.mock.Mock()
     assert (
         DeepDiff(
@@ -543,6 +549,146 @@ def test_obfuscate_sensitive_data(
     )
     # assert we're not trying to store unneeded-ly
     assert mlrun.api.crud.Secrets().store_auth_secret.call_count == 0
+
+
+@pytest.mark.parametrize("use_structs", [True, False])
+def test_obfuscate_v3io_volume_credentials(
+    db: Session,
+    client: TestClient,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+    use_structs: bool,
+):
+    username = "volume-username"
+    access_key = "volume-access-key"
+    v3io_volume = mlrun.platforms.iguazio.v3io_to_vol(
+        "some-v3io-volume-name", "", access_key
+    )
+    v3io_volume_mount = kubernetes.client.V1VolumeMount(
+        mount_path="some-v3io-mount-path",
+        sub_path=f"users/{username}",
+        name=v3io_volume["name"],
+    )
+    conflicting_v3io_volume_mount = kubernetes.client.V1VolumeMount(
+        mount_path="some-other-mount-path",
+        sub_path="users/another-username",
+        name=v3io_volume["name"],
+    )
+    no_matching_mount_v3io_volume = mlrun.platforms.iguazio.v3io_to_vol(
+        "no-matching-mount-v3io-volume-name", "", access_key
+    )
+    regular_volume = kubernetes.client.V1Volume(
+        name="regular-volume-name", empty_dir=kubernetes.client.V1EmptyDirVolumeSource()
+    )
+    regular_volume_mount = kubernetes.client.V1VolumeMount(
+        mount_path="regular-mount-path", name=regular_volume.name
+    )
+    no_name_volume_mount = kubernetes.client.V1VolumeMount(
+        name="",
+        mount_path="some-mount-path",
+    )
+    no_access_key_v3io_volume = mlrun.platforms.iguazio.v3io_to_vol(
+        "no-access-key-v3io-volume-name", "", ""
+    )
+    no_name_v3io_volume = mlrun.platforms.iguazio.v3io_to_vol("", "", access_key)
+    if not use_structs:
+        v3io_volume["flexVolume"] = v3io_volume["flexVolume"].to_dict()
+        no_access_key_v3io_volume["flexVolume"] = no_access_key_v3io_volume[
+            "flexVolume"
+        ].to_dict()
+        no_name_v3io_volume["flexVolume"] = no_name_v3io_volume["flexVolume"].to_dict()
+        no_matching_mount_v3io_volume["flexVolume"] = no_matching_mount_v3io_volume[
+            "flexVolume"
+        ].to_dict()
+        v3io_volume_mount = v3io_volume_mount.to_dict()
+        conflicting_v3io_volume_mount = conflicting_v3io_volume_mount.to_dict()
+        regular_volume = regular_volume.to_dict()
+        regular_volume_mount = regular_volume_mount.to_dict()
+        no_name_volume_mount = no_name_volume_mount.to_dict()
+
+    # local function so nothing should be changed
+    _, _, _, original_function_dict = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.local,
+        volumes=[v3io_volume],
+        volume_mounts=[v3io_volume_mount],
+    )
+    original_function = mlrun.new_function(runtime=original_function_dict)
+    function = mlrun.new_function(runtime=original_function_dict)
+    _obfuscate_v3io_volume_credentials(function)
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    # no v3io volume so nothing should be changed
+    _, _, _, original_function_dict = _generate_original_function(
+        volumes=[regular_volume], volume_mounts=[regular_volume_mount]
+    )
+    original_function = mlrun.new_function(runtime=original_function_dict)
+    function = mlrun.new_function(runtime=original_function_dict)
+    _obfuscate_v3io_volume_credentials(function)
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    # several edge cases - nothing should be changed
+    _, _, _, original_function_dict = _generate_original_function(
+        volumes=[
+            no_access_key_v3io_volume,
+            no_name_v3io_volume,
+            v3io_volume,
+            no_matching_mount_v3io_volume,
+        ],
+        volume_mounts=[
+            no_name_volume_mount,
+            v3io_volume_mount,
+            conflicting_v3io_volume_mount,
+        ],
+    )
+    original_function = mlrun.new_function(runtime=original_function_dict)
+    function = mlrun.new_function(runtime=original_function_dict)
+    _obfuscate_v3io_volume_credentials(function)
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    # happy flow - secret should be created, volume should reference it
+    _, _, _, original_function_dict = _generate_original_function(
+        volumes=[v3io_volume], volume_mounts=[v3io_volume_mount]
+    )
+    original_function = mlrun.new_function(runtime=original_function_dict)
+    function = mlrun.new_function(runtime=original_function_dict)
+    _obfuscate_v3io_volume_credentials(function)
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+            exclude_paths=["root['spec']['volumes'][0]['flexVolume']"],
+        )
+        == {}
+    )
+    secret_name = k8s_secrets_mock.get_auth_secret_name(username, access_key)
+    k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
+    if use_structs:
+        assert function.spec.volumes[0]["flexVolume"].options["accessKey"] is None
+        assert function.spec.volumes[0]["flexVolume"].secretRef == secret_name
+    else:
+        assert function.spec.volumes[0]["flexVolume"]["options"]["accessKey"] is None
+        assert function.spec.volumes[0]["flexVolume"]["secretRef"] == secret_name
 
 
 def test_generate_function_and_task_from_submit_run_body_imported_function_project_assignment(
@@ -668,7 +814,11 @@ def _mock_original_function(
 
 
 def _generate_original_function(
-    access_key=None, kind=mlrun.runtimes.RuntimeKinds.job, v3io_access_key=None
+    access_key=None,
+    kind=mlrun.runtimes.RuntimeKinds.job,
+    v3io_access_key=None,
+    volumes=None,
+    volume_mounts=None,
 ):
     function_name = "function_name"
     project = "some-project"
@@ -734,6 +884,10 @@ def _generate_original_function(
                 "value": v3io_access_key,
             }
         )
+    if volumes:
+        original_function["spec"]["volumes"] = volumes
+    if volume_mounts:
+        original_function["spec"]["volume_mounts"] = volume_mounts
     return project, function_name, function_tag, original_function
 
 

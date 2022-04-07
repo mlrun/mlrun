@@ -180,7 +180,7 @@ jobs:
 
   run-enterprise-system-tests:
     needs: prepare-enterprise-system
-    timeout-minutes: 240
+    timeout-minutes: 360
     name: Run Enterprise System Tests
     runs-on: ubuntu-latest
     strategy:

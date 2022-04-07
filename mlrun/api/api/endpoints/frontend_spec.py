@@ -65,7 +65,7 @@ def get_frontend_spec(
         auto_mount_params=config.get_storage_auto_mount_params(),
         default_artifact_path=config.artifact_path,
         default_function_pod_resources=mlrun.mlconf.default_function_pod_resources.to_dict(),
-        default_preemption_mode=mlrun.mlconf.function_defaults.preemption_mode,
+        default_function_preemption_mode=mlrun.mlconf.function_defaults.preemption_mode,
     )
 
 

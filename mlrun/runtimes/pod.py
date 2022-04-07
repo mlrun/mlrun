@@ -496,8 +496,6 @@ class KubeResourceSpec(FunctionSpec):
                         > Purges any `tolerations` preemption related configuration
                         > Purges any `affinity` preemption related configuration
                         > Sets anti-affinity and overrides any affinity if no tolerations were configured
-            `nop`      - In case in which the user doesn't need the automatic enrichment provided by mlrun,
-                          by setting 'nop', no enrichment/override will be applied on the node selection attributes
         """
         # nothing to do here, configuration is not populated
         if (
@@ -514,9 +512,6 @@ class KubeResourceSpec(FunctionSpec):
                 "No preemption mode was given, using the default preemption mode",
                 default_preemption_mode=self.preemption_mode,
             )
-        # no enrichment will be applied
-        if self.preemption_mode == PreemptionModes.nop.value:
-            return
         # remove preemptible tolerations and remove preemption related configuration
         # and enrich with anti-affinity if preemptible tolerations configuration haven't been provided
         if self.preemption_mode == PreemptionModes.prevent.value:

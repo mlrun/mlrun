@@ -1076,6 +1076,14 @@ class FlowStep(BaseStep):
             if step.kind == StepKinds.queue:
                 step.init_object(self.context, None)
 
+    def list_child_functions(self):
+        """return a list of child function names referred to in the steps"""
+        functions = []
+        for step in self.get_children():
+            if step.function and step.function not in functions:
+                functions.append(step.function)
+        return functions
+
     def is_empty(self):
         """is the graph empty (no child steps)"""
         return len(self.steps) == 0

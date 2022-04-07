@@ -447,6 +447,7 @@ class ServingRuntime(RemoteRuntime):
             function_object.metadata.labels[
                 "mlrun/parent-function"
             ] = self.metadata.name
+            function_object._is_child_function = True
             if not function_object.spec.graph:
                 # copy the current graph only if the child doesnt have a graph of his own
                 function_object.set_env("SERVING_CURRENT_FUNCTION", function_ref.name)
@@ -537,10 +538,20 @@ class ServingRuntime(RemoteRuntime):
         if not self.spec.graph:
             raise ValueError("nothing to deploy, .spec.graph is none, use .add_model()")
 
-        if self.spec.graph.kind != StepKinds.router:
+        if self.spec.graph.kind != StepKinds.router and not getattr(
+            self, "_is_child_function", None
+        ):
             # initialize or create required streams/queues
             self.spec.graph.check_and_process_graph()
             self.spec.graph.init_queues()
+            functions_in_steps = self.spec.graph.list_child_functions()
+            child_functions = list(self._spec.function_refs.keys())
+            for function in functions_in_steps:
+                if function not in child_functions:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"function {function} is used in steps and is not defined, "
+                        "use the .add_child_function() to specify child function attributes"
+                    )
 
         # Handle secret processing before handling child functions, since secrets are transferred to them
         if self.spec.secret_sources:

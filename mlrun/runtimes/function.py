@@ -643,14 +643,14 @@ class RemoteRuntime(KubeResource):
     @min_nuclio_versions("1.8.1")
     def with_preemption_mode(self, mode):
         """
-        Preemption modes enable users to control whether or not function pods will be scheduled on preemptible nodes.
-        Tolerations, node selector and affinity would be populated correspondingly to the function spec.
+        Preemption mode controls whether pods can be scheduled on preemptible nodes.
+        Tolerations, node selector, and affinity are populated on preemptible nodes corresponding to the function spec.
 
-        currently 3 modes are supported:
+        Three modes are supported:
 
-        * **allow** - Allow the function to be scheduled on preemptible nodes
-        * **constrain** - Constrain the function to run only on preemptible nodes
-        * **prevent** - Prevent the function from being scheduled on preemptible nodes
+        * **allow** - The function can be scheduled on preemptible nodes
+        * **constrain** - The function can only run on preemptible nodes
+        * **prevent** - The function cannot be scheduled on preemptible nodes
 
         :param mode: accepts allow | constrain | prevent defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
         """

@@ -26,7 +26,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     spark_service = ""
     pq_source = "testdata.parquet"
     spark_image_deployed = (
-        False  # Set to True if you want to avoid the image building phase
+        True  # Set to True if you want to avoid the image building phase
     )
     test_branch = "https://github.com/gtopper/mlrun.git@ML-1919"
 
@@ -152,12 +152,17 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         file_system = fsspec.filesystem("v3io")
         spark_output_files = file_system.ls(csv_path_spark)
-        assert len(spark_output_files) == 2
-        assert "_SUCCESS" in spark_output_files
-        csv_filename = [
-            filename for filename in spark_output_files if filename != "_SUCCESS"
-        ][0]
-        pd.read_csv(f"{csv_path_spark}/{csv_filename}")
+        for filename in  spark_output_files:
+            if filename != "_SUCCESS":
+                read_back_df_spark = pd.read_csv(f"{csv_path_spark}/{filename}")
+                break
+
+        spark_output_files = file_system.ls(csv_path_storey)
+        for filename in  spark_output_files:
+            read_back_df_storey = pd.read_csv(f"{csv_path_spark}/{filename}")
+            break
+
+        assert read_back_df_spark.equals(read_back_df_storey)
 
     @pytest.mark.parametrize("partitioned", [True, False])
     def test_schedule_on_filtered_by_time(self, partitioned):

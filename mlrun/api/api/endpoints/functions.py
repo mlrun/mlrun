@@ -509,7 +509,10 @@ def _build_function(
                     )
 
             deploy_nuclio_function(
-                fn, auth_info=auth_info, client_version=client_version
+                fn,
+                auth_info=auth_info,
+                client_version=client_version,
+                builder_env=builder_env,
             )
             # deploy only start the process, the get status API is used to check readiness
             ready = False

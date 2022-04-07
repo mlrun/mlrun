@@ -468,6 +468,14 @@ class Config:
             "preemptible_nodes.tolerations", list
         )
 
+    def is_preemption_nodes_configured(self):
+        if (
+            not self.get_preemptible_tolerations()
+            and not self.get_preemptible_node_selector()
+        ):
+            return False
+        return True
+
     @staticmethod
     def get_valid_function_priority_class_names():
         valid_function_priority_class_names = []

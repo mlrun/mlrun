@@ -492,17 +492,23 @@ class BaseStoreTarget(DataTargetBase):
         return None
 
     def get_target_path(self):
-        return self._target_path_object.get_absolute_path()
+        path_object = self._target_path_object
+        return path_object.get_absolute_path() if path_object else None
 
     def get_target_templated_path(self):
-        return self._target_path_object.get_templated_path()
+        path_object = self._target_path_object
+        return path_object.get_templated_path() if path_object else None
 
     @property
     def _target_path_object(self):
         """return the actual/computed target path"""
         is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
-        return self.get_path() or TargetPathObject(
-            _get_target_path(self, self._resource), self.run_id, is_single_file
+        return self.get_path() or (
+            TargetPathObject(
+                _get_target_path(self, self._resource), self.run_id, is_single_file
+            )
+            if self._resource
+            else None
         )
 
     def update_resource_status(self, status="", producer=None, size=None):

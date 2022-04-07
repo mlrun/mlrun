@@ -55,6 +55,7 @@ from .frontend_spec import (
     FeatureFlags,
     FrontendSpec,
     NuclioStreamsFeatureFlag,
+    PreemptionNodesFeatureFlag,
     ProjectMembershipFeatureFlag,
 )
 from .function import FunctionState, PreemptionModes

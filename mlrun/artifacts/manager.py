@@ -117,7 +117,11 @@ class ArtifactManager:
             )
 
         if target_path:
-            if not (target_path.startswith("/") or "://" in target_path):
+            if not (
+                target_path.startswith("/")
+                or ":\\" in target_path
+                or "://" in target_path
+            ):
                 raise ValueError(
                     f"target_path ({target_path}) param cannot be relative"
                 )

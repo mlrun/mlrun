@@ -214,7 +214,7 @@ def mlrun_op(
     :param out_path: default output path/url (prefix) for artifacts
     :param rundb:    path for rundb (or use 'MLRUN_DBPATH' env instead)
     :param mode:     run mode, e.g. 'pass' for using the command without mlrun wrapper
-    :param handler   code entry-point/hanfler name
+    :param handler   code entry-point/handler name
     :param job_image name of the image user for the job
     :param verbose:  add verbose prints/logs
     :param scrape_metrics:  whether to add the `mlrun/scrape-metrics` label to this run's resources
@@ -328,7 +328,12 @@ def mlrun_op(
             raise ValueError("name or function object must be specified")
         name = function_name
         if handler:
-            name += "-" + handler
+            short_name = handler
+            for separator in ["#", "::", "."]:
+                # drop paths, module or class name from short name
+                if separator in short_name:
+                    short_name = short_name.split(separator)[-1]
+            name += "-" + short_name
 
     if hyperparams or param_file:
         outputs.append("iteration_results")

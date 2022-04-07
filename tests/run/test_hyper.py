@@ -1,5 +1,7 @@
 import pathlib
 
+import pandas as pd
+
 import mlrun
 from mlrun import new_function, new_task
 from tests.conftest import out_path, tag_test, tests_root_directory, verify_state
@@ -159,3 +161,30 @@ def test_hyper_custom():
     results = [line[3] for line in run.status.iterations[1:]]
     print(results)
     assert run.output("best_iteration") == 3, "wrong best iteration"
+
+
+def hyper_func2(context, p1=1):
+    context.log_result("accuracy", p1 * 2)
+    raw_data = {
+        "first_name": ["Jason", "Molly", "Tina", "Jake", "Amy"],
+        "last_name": ["Miller", "Jacobson", "Ali", "Milner", "Cooze"],
+        "age": [42, 52, 36, 24, 73],
+        "postTestScore": [25, 94, 57, 62, 70],
+    }
+    df = pd.DataFrame(
+        raw_data, columns=["first_name", "last_name", "age", "postTestScore"]
+    )
+    context.log_dataset("df1", df=df, db_key="dbdf")
+    context.log_dataset("df2", df=df)
+
+
+def test_hyper_get_artifact():
+    fn = mlrun.new_function("test_hyper_get_artifact")
+    run = mlrun.run_function(
+        fn,
+        handler=hyper_func2,
+        hyperparams={"p1": [1, 2, 3]},
+        selector="max.accuracy",
+    )
+    assert run.artifact("df1").meta, "df1 (with db_key) not returned"
+    assert run.artifact("df2").meta, "df2 (without db_key) not returned"

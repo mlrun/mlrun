@@ -470,23 +470,34 @@ class KubeResourceSpec(FunctionSpec):
         if len(tolerations_to_add) > 0:
             self.tolerations.extend(tolerations_to_add)
 
+    def _override_required_during_scheduling_ignored_during_execution(
+        self, node_selector: k8s_client.V1NodeSelector
+    ):
+        self._initialize_affinity()
+        self._initialize_node_affinity()
+        self.affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
+            node_selector
+        )
+
     @_clear_tolerations_if_initialized_but_empty
     @_clear_affinity_if_initialized_but_empty
     def enrich_function_preemption_spec(self):
         """
         Enriches function pod with the below described spec.
         If no preemptible node configuration is provided, do nothing.
-            `Allow` 	- Adds Tolerations if configured.
+            `allow` 	- Adds Tolerations if configured.
                           otherwise, assume pods can be scheduled on preemptible nodes.
                         > Purges any `affinity` / `anti-affinity` preemption related configuration
-            `Constrain` - Uses node-affinity to make sure pods are assigned using OR on the configured
+            `constrain` - Uses node-affinity to make sure pods are assigned using OR on the configured
                           node label selectors.
                         > Uses `Allow` configuration as well.
                         > Purges any `anti-affinity` preemption related configuration
-            `Prevent`	- Prevention is done either using taints (if Tolerations were configured) or anti-affinity.
+            `prevent`	- Prevention is done either using taints (if Tolerations were configured) or anti-affinity.
                         > Purges any `tolerations` preemption related configuration
                         > Purges any `affinity` preemption related configuration
-                        > Adds anti-affinity IF no tolerations were configured
+                        > Sets anti-affinity and overrides any affinity if no tolerations were configured
+            `nop`      - In case in which the user doesn't need the automatic enrichment provided by mlrun,
+                          by setting 'nop', no enrichment/override will be applied on the node selection attributes
         """
         # nothing to do here, configuration is not populated
         if (
@@ -503,6 +514,9 @@ class KubeResourceSpec(FunctionSpec):
                 "No preemption mode was given, using the default preemption mode",
                 default_preemption_mode=self.preemption_mode,
             )
+        # no enrichment will be applied
+        if self.preemption_mode == PreemptionModes.nop.value:
+            return
         # remove preemptible tolerations and remove preemption related configuration
         # and enrich with anti-affinity if preemptible tolerations configuration haven't been provided
         if self.preemption_mode == PreemptionModes.prevent.value:
@@ -525,25 +539,25 @@ class KubeResourceSpec(FunctionSpec):
             # however, if preemptible tolerations are not configured, we must use anti-affinity on preemptible nodes
             # to ensure that the function is not scheduled on the nodes.
             if not generate_preemptible_tolerations():
-                # using a single term with potentially multiple expressions to ensure affinity
-                self._merge_node_selector_term_to_node_affinity(
-                    node_selector_terms=generate_preemptible_nodes_anti_affinity_terms()
+                # using a single term with potentially multiple expressions to ensure anti-affinity
+                self._override_required_during_scheduling_ignored_during_execution(
+                    k8s_client.V1NodeSelector(
+                        node_selector_terms=generate_preemptible_nodes_anti_affinity_terms()
+                    )
                 )
-
         # enrich tolerations and override all node selector terms with preemptible node selector terms
         elif self.preemption_mode == PreemptionModes.constrain.value:
             # enrich with tolerations
             self._merge_tolerations(generate_preemptible_tolerations())
 
-            self._initialize_affinity()
-            self._initialize_node_affinity()
             # setting required_during_scheduling_ignored_during_execution
             # overriding other terms that have been set, and only setting terms for preemptible nodes
             # when having multiple terms, pod scheduling is succeeded if at least one term is satisfied
-            self.affinity.node_affinity.required_during_scheduling_ignored_during_execution = k8s_client.V1NodeSelector(
-                node_selector_terms=generate_preemptible_nodes_affinity_terms()
+            self._override_required_during_scheduling_ignored_during_execution(
+                k8s_client.V1NodeSelector(
+                    node_selector_terms=generate_preemptible_nodes_affinity_terms()
+                )
             )
-
         # purge any affinity / anti-affinity preemption related configuration and enrich with preemptible tolerations
         elif self.preemption_mode == PreemptionModes.allow.value:
 

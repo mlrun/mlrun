@@ -955,7 +955,9 @@ class TestRuntimeBase:
 
         ##########################################################################################################
 
-        logger.info("prevent -> prevent, set not preemptible tolerations, expecting to stay")
+        logger.info(
+            "prevent -> prevent, set not preemptible tolerations, expecting to stay"
+        )
         runtime = self._generate_runtime()
         runtime.with_node_selection(
             tolerations=self._generate_not_preemptible_tolerations()

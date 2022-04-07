@@ -7,7 +7,7 @@ import mlrun
 import tests.system.base
 
 git_uri = "git://github.com/mlrun/test-git-load.git"
-base_image = "mlrun/mlrun:1.0.0-rc15"
+base_image = "mlrun/mlrun"
 tags = ["main", "refs/heads/tst"]
 codepaths = [(None, "rootfn"), ("subdir", "func")]
 
@@ -38,7 +38,6 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
     project_name = "git-tests"
 
     def custom_setup(self):
-        os.environ["MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES"] = "false"
         self.remote_code_dir = f"v3io:///projects/{self.project_name}/code/"
         self.uploaded_code = False
         # upload test files to cluster

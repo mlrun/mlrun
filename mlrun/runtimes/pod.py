@@ -503,7 +503,9 @@ class KubeResourceSpec(FunctionSpec):
                 "No preemption mode was given, using the default preemption mode",
                 default_preemption_mode=self.preemption_mode,
             )
-
+        if not self.preemption_mode:
+            logger.info("Default preemption mode isn't configured, skipping preemption enrichment")
+            return
         # remove preemptible tolerations and remove preemption related configuration
         # and enrich with anti-affinity if preemptible tolerations configuration haven't been provided
         if self.preemption_mode == PreemptionModes.prevent.value:

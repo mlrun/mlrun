@@ -339,3 +339,15 @@ def test_module_load():
         "new_function",
         mlrun.new_function("test2", command=function_path, kind="serving"),
     )
+
+
+def test_missing_functions():
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    graph.to(name="s1", class_name="Echo").to(
+        name="s2", class_name="Echo", function="child_func"
+    )
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match=r"function child_func*"
+    ):
+        function.deploy()

@@ -85,7 +85,7 @@ class ModelObj:
                 # we want to set the field only if the field exists in struct
                 if field in struct:
                     field_val = struct.get(field, None)
-                    if field_val is not None and field not in deprecated_fields:
+                    if field not in deprecated_fields:
                         setattr(new_obj, field, field_val)
 
             for deprecated_field, new_field in deprecated_fields.items():

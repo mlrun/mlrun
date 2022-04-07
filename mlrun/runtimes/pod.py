@@ -337,7 +337,10 @@ class KubeResourceSpec(FunctionSpec):
 
     def _set_volume_mount(self, volume_mount):
         # using the mountPath as the key cause it must be unique (k8s limitation)
-        self._volume_mounts[get_item_name(volume_mount, "mountPath") or get_item_name(volume_mount, "mount_path")] = volume_mount
+        self._volume_mounts[
+            get_item_name(volume_mount, "mountPath")
+            or get_item_name(volume_mount, "mount_path")
+        ] = volume_mount
 
     def _verify_and_set_limits(
         self,

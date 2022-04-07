@@ -350,7 +350,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         data_set.add_aggregation(
             column="bid",
             operations=["sum", "max", "count"],
-            windows=["1h", "2h"],
+            windows=["2h"],
             period="10m",
             emit_policy=EmitEveryEvent(),
         )
@@ -368,9 +368,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         expected_results = df.to_dict(orient="list")
         expected_results.update(
             {
-                "bid_sum_1h": [2000, 10, 12, 26, 24],
-                "bid_max_1h": [2000, 10, 12, 16, 16],
-                "bid_count_1h": [1, 1, 1, 2, 2],
                 "bid_sum_2h": [2000, 10, 2012, 26, 34],
                 "bid_max_2h": [2000, 10, 2000, 16, 16],
                 "bid_count_2h": [1, 1, 2, 2, 3],
@@ -389,7 +386,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         storey_data_set.add_aggregation(
             column="bid",
             operations=["sum", "max", "count"],
-            windows=["1h", "2h"],
+            windows=["2h"],
             period="10m",
         )
         fs.ingest(storey_data_set, source)

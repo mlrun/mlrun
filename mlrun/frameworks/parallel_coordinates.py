@@ -1,4 +1,5 @@
 import datetime
+import os
 import warnings
 from typing import List, Union
 
@@ -192,6 +193,9 @@ def _show_and_export_html(html: str, show=None, filename=None, runs_list=None):
         html_table = runs_list.show(False, short=True)
 
     if filename:
+        dir = os.path.dirname(filename)
+        if dir:
+            os.makedirs(dir, exist_ok=True)
         with open(filename, "w") as fp:
             if runs_list:
                 # add runs table after the plot

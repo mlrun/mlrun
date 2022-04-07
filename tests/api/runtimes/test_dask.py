@@ -132,6 +132,12 @@ class TestDaskRuntime(TestRuntimeBase):
         runtime: mlrun.runtimes.DaskCluster = self._generate_runtime()
 
         expected_requests = generate_resources(mem="2G", cpu=3)
+        runtime.with_scheduler_requests(
+            mem=expected_requests["memory"], cpu=expected_requests["cpu"]
+        )
+        runtime.with_worker_requests(
+            mem=expected_requests["memory"], cpu=expected_requests["cpu"]
+        )
         runtime.with_requests(
             mem=expected_requests["memory"], cpu=expected_requests["cpu"]
         )
@@ -170,6 +176,65 @@ class TestDaskRuntime(TestRuntimeBase):
             expected_requests,
             expected_scheduler_limits,
         )
+
+    def test_dask_runtime_without_specifying_resources(
+        self, db: Session, client: TestClient
+    ):
+        for test_case in [
+            {
+                # when are not defaults defined
+                "default_function_pod_resources": {
+                    "requests": {"cpu": None, "memory": None, "gpu": None},
+                    "limits": {"cpu": None, "memory": None, "gpu": None},
+                },
+                "expected_scheduler_resources": {
+                    "requests": {},
+                    "limits": {},
+                },
+                "expected_worker_resources": {
+                    "requests": {},
+                    "limits": {},
+                },
+            },
+            {
+                "default_function_pod_resources": {  # with defaults
+                    "requests": {"cpu": "25m", "memory": "1M"},
+                    "limits": {"cpu": "2", "memory": "1G"},
+                },
+                "expected_scheduler_resources": {
+                    "requests": {"cpu": "25m", "memory": "1M"},
+                    "limits": {"cpu": "2", "memory": "1G"},
+                },
+                "expected_worker_resources": {
+                    "requests": {"cpu": "25m", "memory": "1M"},
+                    "limits": {"cpu": "2", "memory": "1G"},
+                },
+            },
+        ]:
+            mlrun.mlconf.default_function_pod_resources = test_case.get(
+                "default_function_pod_resources"
+            )
+
+            runtime: mlrun.runtimes.DaskCluster = self._generate_runtime()
+            expected_worker_resources = test_case.setdefault(
+                "expected_worker_resources", {}
+            )
+            expected_scheduler_resources = test_case.setdefault(
+                "expected_scheduler_resources", {}
+            )
+
+            expected_worker_requests = expected_worker_resources.get("requests")
+            expected_worker_limits = expected_worker_resources.get("limits")
+            expected_scheduler_requests = expected_scheduler_resources.get("requests")
+            expected_scheduler_limits = expected_scheduler_resources.get("limits")
+
+            _ = runtime.client
+            self._assert_pods_resources(
+                expected_worker_requests,
+                expected_worker_limits,
+                expected_scheduler_requests,
+                expected_scheduler_limits,
+            )
 
     def test_dask_with_node_selection(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()

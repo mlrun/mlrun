@@ -52,6 +52,7 @@ class RemoteSparkSpec(KubeResourceSpec):
         priority_class_name=None,
         disable_auto_mount=False,
         pythonpath=None,
+        tolerations=None,
     ):
         super().__init__(
             command=command,
@@ -77,6 +78,7 @@ class RemoteSparkSpec(KubeResourceSpec):
             priority_class_name=priority_class_name,
             disable_auto_mount=disable_auto_mount,
             pythonpath=pythonpath,
+            tolerations=tolerations,
         )
         self.provider = provider
 
@@ -157,8 +159,20 @@ class RemoteSparkRuntime(KubejobRuntime):
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
+        show_on_failure: bool = False,
     ):
-        """deploy function, build container with dependencies"""
+        """deploy function, build container with dependencies
+
+        :param watch:      wait for the deploy to complete (and print build logs)
+        :param with_mlrun: add the current mlrun package to the container build
+        :param skip_deployed: skip the build if we already have an image for the function
+        :param mlrun_version_specifier:  which mlrun package version to include (if not current)
+        :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
+                              e.g. builder_env={"GIT_TOKEN": token}
+        :param show_on_failure:  show logs only in case of build failure
+
+        :return True if the function is ready (deployed)
+        """
         # connect will populate the config from the server config
         if not self.spec.build.base_image:
             self.spec.build.base_image = self._resolve_default_base_image
@@ -168,6 +182,7 @@ class RemoteSparkRuntime(KubejobRuntime):
             skip_deployed=skip_deployed,
             is_kfp=is_kfp,
             mlrun_version_specifier=mlrun_version_specifier,
+            show_on_failure=show_on_failure,
         )
 
 

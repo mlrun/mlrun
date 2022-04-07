@@ -17,6 +17,7 @@ from mlrun.api.api.endpoints.functions import _build_function
 from mlrun.platforms.iguazio import split_path
 from mlrun.runtimes.constants import NuclioIngressAddTemplatedIngressModes
 from mlrun.runtimes.function import (
+    _compile_nuclio_archive_config,
     compile_function_config,
     deploy_nuclio_function,
     enrich_function_with_ingress,
@@ -259,6 +260,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         expected_node_name=None,
         expected_node_selector=None,
         expected_affinity=None,
+        expected_tolerations=None,
     ):
         args, _ = nuclio.deploy.deploy_config.call_args
         deploy_spec = args[0]["spec"]
@@ -279,10 +281,22 @@ class TestNuclioRuntime(TestRuntimeBase):
             # deploy_spec returns affinity in CamelCase, V1Affinity is in snake_case
             assert (
                 deepdiff.DeepDiff(
-                    kube_resource_spec._transform_affinity_to_k8s_class_instance(
-                        deploy_spec["affinity"]
+                    kube_resource_spec._transform_attribute_to_k8s_class_instance(
+                        "affinity", deploy_spec["affinity"]
                     ),
                     expected_affinity,
+                    ignore_order=True,
+                )
+                == {}
+            )
+        if expected_tolerations:
+            # deploy_spec returns tolerations in CamelCase, [V1Toleration] is in snake_case
+            assert (
+                deepdiff.DeepDiff(
+                    kube_resource_spec._transform_attribute_to_k8s_class_instance(
+                        "tolerations", deploy_spec["tolerations"]
+                    ),
+                    expected_tolerations,
                     ignore_order=True,
                 )
                 == {}
@@ -585,6 +599,23 @@ class TestNuclioRuntime(TestRuntimeBase):
             expected_affinity=affinity,
         )
 
+        tolerations = self._generate_tolerations()
+        function = self._generate_runtime(self.runtime_kind)
+        with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
+            function.with_node_selection(tolerations=tolerations)
+
+        mlconf.nuclio_version = "1.7.6"
+        function = self._generate_runtime(self.runtime_kind)
+        function.with_node_selection(tolerations=tolerations)
+        self._serialize_and_deploy_nuclio_function(function)
+        self._assert_deploy_called_basic_config(
+            call_count=6, expected_class=self.class_name
+        )
+        self._assert_node_selections(
+            function.spec,
+            expected_tolerations=tolerations,
+        )
+
     def test_deploy_with_priority_class_name(self, db: Session, client: TestClient):
 
         mlconf.nuclio_version = "1.5.20"
@@ -708,22 +739,39 @@ class TestNuclioRuntime(TestRuntimeBase):
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
             "git://github.com/org/repo#my-branch",
-            handler="path/inside/repo#main:handler",
-            secrets={"GIT_PASSWORD": "my-access-token"},
+            handler="main:handler",
+            workdir="path/inside/repo",
+        )
+        secrets = {"GIT_PASSWORD": "my-access-token"}
+
+        get_archive_spec(fn, secrets)
+        assert get_archive_spec(fn, secrets) == {
+            "spec": {
+                "handler": "main:handler",
+                "build": {
+                    "path": "https://github.com/org/repo",
+                    "codeEntryType": "git",
+                    "codeEntryAttributes": {
+                        "workDir": "path/inside/repo",
+                        "branch": "my-branch",
+                        "username": "",
+                        "password": "my-access-token",
+                    },
+                },
+            },
+        }
+
+        fn = self._generate_runtime(self.runtime_kind)
+        fn.with_source_archive(
+            "git://github.com/org/repo#refs/heads/my-branch",
+            handler="main:handler",
+            workdir="path/inside/repo",
         )
 
-        assert fn.spec.base_spec == {
-            "apiVersion": "nuclio.io/v1",
-            "kind": "Function",
-            "metadata": {"name": "notebook", "labels": {}, "annotations": {}},
+        assert get_archive_spec(fn, secrets) == {
             "spec": {
-                "runtime": "python:3.7",
                 "handler": "main:handler",
-                "env": [],
-                "volumes": [],
                 "build": {
-                    "commands": [],
-                    "noBaseImagesPull": True,
                     "path": "https://github.com/org/repo",
                     "codeEntryType": "git",
                     "codeEntryAttributes": {
@@ -736,30 +784,29 @@ class TestNuclioRuntime(TestRuntimeBase):
             },
         }
 
+    def test_nuclio_run_without_specifying_resources(
+        self, db: Session, client: TestClient
+    ):
+        self.assert_run_without_specifying_resources()
+
     def test_load_function_with_source_archive_s3(self):
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
             "s3://my-bucket/path/in/bucket/my-functions-archive",
-            handler="path/inside/functions/archive#main:Handler",
+            handler="main:Handler",
+            workdir="path/inside/functions/archive",
             runtime="golang",
-            secrets={
-                "AWS_ACCESS_KEY_ID": "some-id",
-                "AWS_SECRET_ACCESS_KEY": "some-secret",
-            },
         )
+        secrets = {
+            "AWS_ACCESS_KEY_ID": "some-id",
+            "AWS_SECRET_ACCESS_KEY": "some-secret",
+        }
 
-        assert fn.spec.base_spec == {
-            "apiVersion": "nuclio.io/v1",
-            "kind": "Function",
-            "metadata": {"name": "notebook", "labels": {}, "annotations": {}},
+        assert fn.spec.nuclio_runtime == "golang"
+        assert get_archive_spec(fn, secrets) == {
             "spec": {
-                "runtime": "golang",
                 "handler": "main:Handler",
-                "env": [],
-                "volumes": [],
                 "build": {
-                    "commands": [],
-                    "noBaseImagesPull": True,
                     "path": "s3://my-bucket/path/in/bucket/my-functions-archive",
                     "codeEntryType": "s3",
                     "codeEntryAttributes": {
@@ -778,27 +825,20 @@ class TestNuclioRuntime(TestRuntimeBase):
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
             "v3ios://host.com/container/my-functions-archive.zip",
-            handler="path/inside/functions/archive#main:handler",
-            secrets={"V3IO_ACCESS_KEY": "ma-access-key"},
+            handler="main:handler",
+            workdir="path/inside/functions/archive",
         )
+        secrets = {"V3IO_ACCESS_KEY": "ma-access-key"}
 
-        assert fn.spec.base_spec == {
-            "apiVersion": "nuclio.io/v1",
-            "kind": "Function",
-            "metadata": {"name": "notebook", "labels": {}, "annotations": {}},
+        assert get_archive_spec(fn, secrets) == {
             "spec": {
-                "runtime": "python:3.7",
                 "handler": "main:handler",
-                "env": [],
-                "volumes": [],
                 "build": {
-                    "commands": [],
-                    "noBaseImagesPull": True,
                     "path": "https://host.com/container/my-functions-archive.zip",
                     "codeEntryType": "archive",
                     "codeEntryAttributes": {
                         "workDir": "path/inside/functions/archive",
-                        "headers": {"headers": {"X-V3io-Session-Key": "ma-access-key"}},
+                        "headers": {"X-V3io-Session-Key": "ma-access-key"},
                     },
                 },
             },
@@ -811,3 +851,11 @@ class TestNuclioMLRunRuntime(TestNuclioRuntime):
     def runtime_kind(self):
         # enables extending classes to run the same tests with different runtime
         return "nuclio:mlrun"
+
+
+def get_archive_spec(function, secrets):
+    spec = nuclio.ConfigSpec()
+    config = {}
+    _compile_nuclio_archive_config(spec, function, secrets)
+    spec.merge(config)
+    return config

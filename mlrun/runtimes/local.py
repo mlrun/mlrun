@@ -36,9 +36,9 @@ from mlrun.lists import RunList
 
 from ..execution import MLClientCtx
 from ..model import RunObject
-from ..utils import get_handler_extended, logger
+from ..utils import get_handler_extended, get_in, logger
 from ..utils.clones import extract_source
-from .base import BaseRuntime
+from .base import BaseRuntime, FunctionSpec, spec_fields
 from .kubejob import KubejobRuntime
 from .remotesparkjob import RemoteSparkRuntime
 from .utils import RunError, global_context, log_std
@@ -57,6 +57,12 @@ class ParallelRunner:
     def _parallel_run_many(
         self, generator, execution: MLClientCtx, runobj: RunObject
     ) -> RunList:
+        if self.spec.build.source and generator.options.dask_cluster_uri:
+            # the attached dask cluster will not have the source code when we clone the git on run
+            raise mlrun.errors.MLRunRuntimeError(
+                "Cannot load source code into remote Dask at runtime use, "
+                "function.deploy() to add the code into the image instead"
+            )
         results = RunList()
         tasks = generator.generate(runobj)
         handler = runobj.spec.handler
@@ -93,6 +99,13 @@ class ParallelRunner:
 
         completed_iter = as_completed([])
         for task in tasks:
+            task_struct = task.to_dict()
+            project = get_in(task_struct, "metadata.project")
+            uid = get_in(task_struct, "metadata.uid")
+            iter = get_in(task_struct, "metadata.iteration", 0)
+            mlrun.get_run_db().store_run(
+                task_struct, uid=uid, project=project, iter=iter
+            )
             resp = client.submit(
                 remote_handler_wrapper, task.to_json(), handler, self.spec.workdir
             )
@@ -156,9 +169,47 @@ class HandlerRuntime(BaseRuntime, ParallelRunner):
         return context.to_dict()
 
 
+class LocalFunctionSpec(FunctionSpec):
+    _dict_fields = spec_fields + ["clone_target_dir"]
+
+    def __init__(
+        self,
+        command=None,
+        args=None,
+        mode=None,
+        default_handler=None,
+        pythonpath=None,
+        entry_points=None,
+        description=None,
+        workdir=None,
+        build=None,
+        clone_target_dir=None,
+    ):
+        super().__init__(
+            command=command,
+            args=args,
+            mode=mode,
+            build=build,
+            entry_points=entry_points,
+            description=description,
+            workdir=workdir,
+            default_handler=default_handler,
+            pythonpath=pythonpath,
+        )
+        self.clone_target_dir = clone_target_dir
+
+
 class LocalRuntime(BaseRuntime, ParallelRunner):
     kind = "local"
     _is_remote = False
+
+    @property
+    def spec(self) -> LocalFunctionSpec:
+        return self._spec
+
+    @spec.setter
+    def spec(self, spec):
+        self._spec = self._verify_dict(spec, "spec", LocalFunctionSpec)
 
     def to_job(self, image=""):
         struct = self.to_dict()
@@ -167,18 +218,24 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             obj.spec.image = image
         return obj
 
-    def with_source_archive(self, source, pythonpath=None):
+    def with_source_archive(self, source, workdir=None, handler=None, target_dir=None):
         """load the code from git/tar/zip archive at runtime or build
 
         :param source:     valid path to git, zip, or tar file, e.g.
                            git://github.com/mlrun/something.git
                            http://some/url/file.zip
-        :param pythonpath: python search path relative to the archive root or absolute (e.g. './subdir')
+        :param handler: default function handler
+        :param workdir: working dir relative to the archive root or absolute (e.g. './subdir')
+        :param target_dir: local target dir for repo clone (by default its <current-dir>/code)
         """
         self.spec.build.source = source
         self.spec.build.load_source_on_run = True
-        if pythonpath:
-            self.spec.pythonpath = pythonpath
+        if handler:
+            self.spec.default_handler = handler
+        if workdir:
+            self.spec.workdir = workdir
+        if target_dir:
+            self.spec.clone_target_dir = target_dir
 
     def is_deployed(self):
         return True
@@ -191,22 +248,28 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         return load_module(command, handler, context)
 
     def _pre_run(self, runobj: RunObject, execution: MLClientCtx):
-        execution._current_workdir = self.spec.workdir
+        workdir = self.spec.workdir
+        execution._current_workdir = workdir
         execution._old_workdir = None
 
-        if self.spec.build.load_source_on_run:
-            execution._current_workdir = extract_source(
+        if self.spec.build.source:
+            target_dir = extract_source(
                 self.spec.build.source,
-                self.spec.workdir,
+                self.spec.clone_target_dir,
                 secrets=execution._secrets_manager,
             )
-            sys.path.append(".")
-            # if not self.spec.pythonpath:
-            #     self.spec.pythonpath = workdir or "./"
+            if workdir and not workdir.startswith("/"):
+                execution._current_workdir = os.path.join(target_dir, workdir)
+            else:
+                execution._current_workdir = workdir or target_dir
 
         if execution._current_workdir:
             execution._old_workdir = os.getcwd()
-            os.chdir(execution._current_workdir)
+            workdir = os.path.realpath(execution._current_workdir)
+            set_paths(workdir)
+            os.chdir(workdir)
+        else:
+            set_paths(os.path.realpath("."))
 
         if (
             runobj.metadata.labels["kind"] == RemoteSparkRuntime.kind

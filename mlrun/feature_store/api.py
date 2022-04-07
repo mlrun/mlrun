@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import copy
 from datetime import datetime
 from typing import List, Union
 from urllib.parse import urlparse
@@ -24,7 +25,8 @@ from ..data_types import InferOptions, get_infer_interface
 from ..datastore.sources import BaseSourceDriver, StreamSource
 from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
-    get_default_prefix_for_target,
+    BaseStoreTarget,
+    get_default_prefix_for_source,
     get_default_targets,
     get_target_driver,
     kind_to_driver,
@@ -137,7 +139,7 @@ def get_offline_features(
         entity_timestamp_column must be passed when using time filtering.
     :param end_time:        datetime, high limit of time needed to be filtered. Optional.
         entity_timestamp_column must be passed when using time filtering.
-    :param with_indexes:    return vector with index columns (default False)
+    :param with_indexes:    return vector with index columns and timestamp_key from the feature sets (default False)
     :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
     :param engine:          processing engine kind ("local", "dask", or "spark")
     :param engine_args:     kwargs for the processing engine
@@ -152,6 +154,11 @@ def get_offline_features(
     entity_timestamp_column = (
         entity_timestamp_column or feature_vector.spec.timestamp_field
     )
+
+    if target:
+        if not target.run_id:
+            target.run_id = "offline-features"
+
     if run_config:
         return run_merge_job(
             feature_vector,
@@ -260,6 +267,10 @@ def get_online_feature_service(
     service.initialize()
 
     # todo: support remote service (using remote nuclio/mlrun function if run_config)
+
+    for old_name in service.vector.get_feature_aliases().keys():
+        if old_name in service.vector.status.features.keys():
+            del service.vector.status.features[old_name]
     return service
 
 
@@ -413,7 +424,8 @@ def ingest(
 
     namespace = namespace or get_caller_globals()
 
-    purge_targets = targets or featureset.spec.targets or get_default_targets()
+    targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
+    targets_to_ingest = copy.deepcopy(targets_to_ingest)
 
     if overwrite is None:
         if isinstance(source, BaseSourceDriver) and source.schedule:
@@ -422,13 +434,23 @@ def ingest(
             overwrite = True
 
     if overwrite:
-        validate_target_list(targets=purge_targets)
+        validate_target_list(targets=targets_to_ingest)
         purge_target_names = [
-            t if isinstance(t, str) else t.name for t in purge_targets
+            t if isinstance(t, str) else t.name for t in targets_to_ingest
         ]
         featureset.purge_targets(target_names=purge_target_names, silent=True)
+
+        featureset.update_targets_for_ingest(
+            targets=targets_to_ingest,
+            overwrite=overwrite,
+        )
     else:
-        for target in purge_targets:
+        featureset.update_targets_for_ingest(
+            targets=targets_to_ingest,
+            overwrite=overwrite,
+        )
+
+        for target in targets_to_ingest:
             if not kind_to_driver[target.kind].support_append:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"{target.kind} target does not support overwrite=False ingestion"
@@ -443,9 +465,14 @@ def ingest(
             "featureset.spec.engine must be set to 'spark' to ingest with spark"
         )
     if featureset.spec.engine == "spark":
-        if isinstance(source, pd.DataFrame) and run_config is not None:
+        import pyspark.sql
+
+        if (
+            isinstance(source, (pd.DataFrame, pyspark.sql.DataFrame))
+            and run_config is not None
+        ):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "DataFrame source is illegal when ingesting with spark"
+                "DataFrame source is illegal when ingesting with remote spark or spark operator"
             )
         # use local spark session to ingest
         return _ingest_with_spark(
@@ -478,12 +505,11 @@ def ingest(
     return_df = return_df or infer_stats != InferOptions.Null
     featureset.save()
 
-    targets = targets or featureset.spec.targets or get_default_targets()
     df = init_featureset_graph(
         source,
         featureset,
         namespace,
-        targets=targets,
+        targets=targets_to_ingest,
         return_df=return_df,
     )
     if not InferOptions.get_common_options(
@@ -491,7 +517,7 @@ def ingest(
     ) and InferOptions.get_common_options(infer_options, InferOptions.Index):
         infer_stats += InferOptions.Index
 
-    infer_from_static_df(df, featureset, options=infer_stats)
+    _infer_from_static_df(df, featureset, options=infer_stats)
 
     if isinstance(source, DataSource):
         for target in featureset.status.targets:
@@ -565,7 +591,7 @@ def preview(
             )
         # find/update entities schema
         if len(featureset.spec.entities) == 0:
-            infer_from_static_df(
+            _infer_from_static_df(
                 source,
                 featureset,
                 entity_columns,
@@ -584,7 +610,7 @@ def preview(
             rows_limit=rows_limit,
         )
 
-    df = infer_from_static_df(
+    df = _infer_from_static_df(
         source, featureset, entity_columns, options, sample_size=sample_size
     )
     featureset.save()
@@ -651,7 +677,7 @@ def deploy_ingestion_service(
 
     run_config = run_config.copy() if run_config else RunConfig()
     if isinstance(source, StreamSource) and not source.path:
-        source.path = get_default_prefix_for_target(source.kind).format(
+        source.path = get_default_prefix_for_source(source.kind).format(
             project=featureset.metadata.project,
             kind=source.kind,
             name=featureset.metadata.name,
@@ -692,17 +718,19 @@ def deploy_ingestion_service(
 def _ingest_with_spark(
     spark=None,
     featureset: Union[FeatureSet, str] = None,
-    source: DataSource = None,
-    targets: List[DataTargetBase] = None,
+    source: BaseSourceDriver = None,
+    targets: List[BaseStoreTarget] = None,
     infer_options: InferOptions = InferOptions.default(),
     mlrun_context=None,
     namespace=None,
     overwrite=None,
 ):
+    created_spark_context = False
     try:
+        import pyspark.sql
+
         if spark is None or spark is True:
             # create spark context
-            from pyspark.sql import SparkSession
 
             if mlrun_context:
                 session_name = f"{mlrun_context.name}-{mlrun_context.uid}"
@@ -711,16 +739,19 @@ def _ingest_with_spark(
                     f"{featureset.metadata.project}-{featureset.metadata.name}"
                 )
 
-            spark = SparkSession.builder.appName(session_name).getOrCreate()
+            spark = pyspark.sql.SparkSession.builder.appName(session_name).getOrCreate()
+            created_spark_context = True
 
         if isinstance(source, pd.DataFrame):
             df = spark.createDataFrame(source)
+        elif isinstance(source, pyspark.sql.DataFrame):
+            df = source
         else:
             df = source.to_spark_df(spark)
             df = source.filter_df_start_end_time(df)
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
-        infer_from_static_df(df, featureset, options=infer_options)
+        _infer_from_static_df(df, featureset, options=infer_options)
 
         key_columns = list(featureset.spec.entities.keys())
         timestamp_key = featureset.spec.timestamp_key
@@ -730,7 +761,10 @@ def _ingest_with_spark(
             targets = featureset.spec.targets
             targets = [get_target_driver(target, featureset) for target in targets]
 
-        for target in targets or []:
+        targets_to_ingest = copy.deepcopy(targets)
+        featureset.update_targets_for_ingest(targets_to_ingest, overwrite=overwrite)
+
+        for target in targets_to_ingest or []:
             if target.path and urlparse(target.path).scheme == "":
                 if mlrun_context:
                     mlrun_context.logger.error(
@@ -770,10 +804,11 @@ def _ingest_with_spark(
                     if partition not in df.columns and partition in time_unit_to_op:
                         op = time_unit_to_op[partition]
                         df = df.withColumn(partition, op(timestamp_col))
+            df_to_write = target.prepare_spark_df(df)
             if overwrite:
-                df.write.mode("overwrite").save(**spark_options)
+                df_to_write.write.mode("overwrite").save(**spark_options)
             else:
-                df.write.mode("append").save(**spark_options)
+                df_to_write.write.mode("append").save(**spark_options)
             target.set_resource(featureset)
             target.update_resource_status("ready")
 
@@ -783,12 +818,16 @@ def _ingest_with_spark(
                 # if max_time is None(no data), next scheduled run should be with same start_time
                 max_time = source.start_time
             for target in featureset.status.targets:
-                featureset.status.update_last_written_for_target(target.path, max_time)
+                featureset.status.update_last_written_for_target(
+                    target.get_path().get_absolute_path(), max_time
+                )
 
         _post_ingestion(mlrun_context, featureset, spark)
     finally:
-        if spark:
+        if created_spark_context:
             spark.stop()
+            # We shouldn't return a dataframe that depends on a stopped context
+            return
     return df
 
 
@@ -800,7 +839,7 @@ def _post_ingestion(context, featureset, spark=None):
         context.log_result("featureset", featureset.uri)
 
 
-def infer_from_static_df(
+def _infer_from_static_df(
     df,
     featureset,
     entity_columns=None,

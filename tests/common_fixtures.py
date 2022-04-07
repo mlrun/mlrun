@@ -67,6 +67,7 @@ def config_test_base():
     mlrun.k8s_utils._k8s = None
     mlrun.runtimes.runtime_handler_instances_cache = {}
     mlrun.runtimes.utils.cached_mpijob_crd_version = None
+    mlrun.runtimes.utils.cached_nuclio_version = None
 
 
 @pytest.fixture
@@ -162,7 +163,12 @@ class RunDBMock:
         return {"status": {"status_text": "just a status"}}
 
     def remote_builder(
-        self, func, with_mlrun, mlrun_version_specifier=None, skip_deployed=False
+        self,
+        func,
+        with_mlrun,
+        mlrun_version_specifier=None,
+        skip_deployed=False,
+        builder_env=None,
     ):
         self._function = func.to_dict()
         status = NuclioStatus(

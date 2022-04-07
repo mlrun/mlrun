@@ -24,8 +24,10 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import mlrun
 
-from .config import config
 from .utils import dict_to_json, dict_to_yaml, get_artifact_target
+
+# Changing {run_id} will break and will not be backward compatible.
+RUN_ID_PLACE_HOLDER = "{run_id}"  # IMPORTANT: shouldn't be changed.
 
 
 class ModelObj:
@@ -283,7 +285,7 @@ class BaseMetadata(ModelObj):
         self.tag = tag
         self.hash = hash
         self.namespace = namespace
-        self.project = project or config.default_project
+        self.project = project or ""
         self.labels = labels or {}
         self.categories = categories or []
         self.annotations = annotations or {}
@@ -1018,6 +1020,28 @@ def new_task(
     return run
 
 
+class TargetPathObject:
+    def __init__(
+        self,
+        base_path=None,
+        run_id=None,
+        is_single_file=False,
+    ):
+        self.run_id = run_id
+        self.full_path_template = base_path
+        if not is_single_file:
+            if RUN_ID_PLACE_HOLDER not in self.full_path_template:
+                if self.full_path_template[-1] != "/":
+                    self.full_path_template = self.full_path_template + "/"
+                self.full_path_template = self.full_path_template + RUN_ID_PLACE_HOLDER
+
+    def get_templated_path(self):
+        return self.full_path_template
+
+    def get_absolute_path(self):
+        return self.full_path_template.format(run_id=self.run_id)
+
+
 class DataSource(ModelObj):
     """online or offline data source spec"""
 
@@ -1083,6 +1107,7 @@ class DataTargetBase(ModelObj):
         "max_events",
         "flush_after_seconds",
         "storage_options",
+        "run_id",
     ]
 
     # TODO - remove once "after_state" is fully deprecated
@@ -1091,6 +1116,17 @@ class DataTargetBase(ModelObj):
         return super().from_dict(
             struct, fields=fields, deprecated_fields={"after_state": "after_step"}
         )
+
+    def get_path(self):
+        if self.path:
+            is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
+            return TargetPathObject(self.path, self.run_id, is_single_file)
+        else:
+            return None
+
+    def get_target_path(self):
+        path_object = self.get_path()
+        return path_object.get_absolute_path() if path_object else None
 
     def __init__(
         self,
@@ -1129,6 +1165,7 @@ class DataTargetBase(ModelObj):
         self.max_events = max_events
         self.flush_after_seconds = flush_after_seconds
         self.storage_options = storage_options
+        self.run_id = None
 
 
 class FeatureSetProducer(ModelObj):
@@ -1155,6 +1192,7 @@ class DataTarget(DataTargetBase):
         "updated",
         "size",
         "last_written",
+        "run_id",
     ]
 
     def __init__(

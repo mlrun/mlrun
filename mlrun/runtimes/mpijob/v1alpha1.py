@@ -85,7 +85,14 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
         update_in(job, "spec.template.spec.nodeName", self.spec.node_name)
         update_in(job, "spec.template.spec.nodeSelector", self.spec.node_selector)
         update_in(
-            job, "spec.template.spec.affinity", self.spec._get_sanitized_affinity()
+            job,
+            "spec.template.spec.affinity",
+            self.spec._get_sanitized_attribute("affinity"),
+        )
+        update_in(
+            job,
+            "spec.template.spec.tolerations",
+            self.spec._get_sanitized_attribute("tolerations"),
         )
         if self.spec.priority_class_name and len(
             mlconf.get_valid_function_priority_class_names()

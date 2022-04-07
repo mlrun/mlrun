@@ -710,11 +710,15 @@ async def test_rescheduling_secrets_storing(
     k8s_secrets_mock.assert_project_secrets(
         project,
         {
-            mlrun.api.crud.Secrets().generate_schedule_access_key_secret_key(
-                name
+            mlrun.api.crud.Secrets().generate_client_secret_key(
+                mlrun.api.crud.SecretsClientType.schedules,
+                name,
+                scheduler._secret_access_key_subtype,
             ): access_key,
-            mlrun.api.crud.Secrets().generate_schedule_username_secret_key(
-                name
+            mlrun.api.crud.Secrets().generate_client_secret_key(
+                mlrun.api.crud.SecretsClientType.schedules,
+                name,
+                scheduler._secret_username_subtype,
             ): username,
         },
     )
@@ -1086,13 +1090,19 @@ def _assert_schedule_secrets(
     expected_username: str,
     expected_access_key: str,
 ):
-    access_key_secret_key = (
-        mlrun.api.crud.Secrets().generate_schedule_access_key_secret_key(schedule_name)
+    access_key_secret_key = mlrun.api.crud.Secrets().generate_client_secret_key(
+        mlrun.api.crud.SecretsClientType.schedules,
+        schedule_name,
+        scheduler._secret_access_key_subtype,
     )
-    username_secret_key = (
-        mlrun.api.crud.Secrets().generate_schedule_username_secret_key(schedule_name)
+    username_secret_key = mlrun.api.crud.Secrets().generate_client_secret_key(
+        mlrun.api.crud.SecretsClientType.schedules,
+        schedule_name,
+        scheduler._secret_username_subtype,
     )
-    key_map_secret_key = mlrun.api.crud.Secrets().generate_schedule_key_map_secret_key()
+    key_map_secret_key = mlrun.api.crud.Secrets().generate_client_key_map_secret_key(
+        mlrun.api.crud.SecretsClientType.schedules
+    )
     secret_value = mlrun.api.crud.Secrets().get_secret(
         project,
         scheduler._secrets_provider,

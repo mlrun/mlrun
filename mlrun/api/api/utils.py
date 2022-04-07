@@ -21,6 +21,7 @@ from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.config import config
 from mlrun.db.sqldb import SQLDB as SQLRunDB
+from mlrun.k8s_utils import get_k8s_helper
 from mlrun.run import import_function, new_function
 from mlrun.runtimes.utils import enrich_function_from_dict
 from mlrun.utils import get_in, logger, parse_versioned_object_uri
@@ -192,10 +193,16 @@ def try_perform_auto_mount(function, auth_info: mlrun.api.schemas.AuthInfo):
 
 
 def process_function_service_account(function):
+    # If we're not running inside k8s, skip this check as it's not relevant.
+    if not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+        return
+
     allowed_service_accounts = mlrun.api.crud.secrets.Secrets().get_secret(
         function.metadata.project,
         SecretProviderName.kubernetes,
-        mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key("allowed"),
+        mlrun.api.crud.secrets.Secrets().generate_client_secret_key(
+            mlrun.api.crud.secrets.SecretsClientType.service_accounts, "allowed"
+        ),
         allow_secrets_from_k8s=True,
         allow_internal_secrets=True,
     )
@@ -208,7 +215,9 @@ def process_function_service_account(function):
     default_service_account = mlrun.api.crud.secrets.Secrets().get_secret(
         function.metadata.project,
         SecretProviderName.kubernetes,
-        mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key("default"),
+        mlrun.api.crud.secrets.Secrets().generate_client_secret_key(
+            mlrun.api.crud.secrets.SecretsClientType.service_accounts, "default"
+        ),
         allow_secrets_from_k8s=True,
         allow_internal_secrets=True,
     )

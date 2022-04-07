@@ -1,3 +1,5 @@
+from os import environ
+
 import numpy as np
 
 from .data_types import InferOptions, spark_to_value_type
@@ -46,81 +48,65 @@ def get_df_preview_spark(df, preview_lines=20):
     """capture preview data from spark df"""
     df = df.limit(preview_lines)
 
-    values = [df.select(funcs.collect_list(val)).first()[0] for val in df.columns]
-    preview = [df.columns]
-    for row in list(zip(*values)):
-        preview.append(list(row))
-    return preview
+    result_dict = df.toPandas().to_dict(orient="split")
+    return [result_dict["columns"], *result_dict["data"]]
 
 
-def _create_hist_data(df, column, minim, maxim, bins=10):
-    def create_all_conditions(current_col, column, left_edges, count=1):
-        """
-        Recursive function that exploits the
-        ability to call the Spark SQL Column method
-        .when() in a recursive way.
-        """
-        left_edges = left_edges[:]
-        if len(left_edges) == 0:
-            return current_col
-        if len(left_edges) == 1:
-            next_col = current_col.when(
-                funcs.col(column) >= float(left_edges[0]), count
-            )
-            left_edges.pop(0)
-            return create_all_conditions(next_col, column, left_edges[:], count + 1)
-        next_col = current_col.when(
-            (float(left_edges[0]) <= funcs.col(column))
-            & (funcs.col(column) < float(left_edges[1])),
-            count,
-        )
-        left_edges.pop(0)
-        return create_all_conditions(next_col, column, left_edges[:], count + 1)
+def _create_hist_data(df, calculation_cols, results_dict, bins=20):
+    hist_df = df
+    col_names = []
+    bins_values = {}
 
-    num_range = maxim - minim
-    bin_width = num_range / float(bins)
-    left_edges = [minim]
+    for orig_col in calculation_cols:
+        bins_start = np.linspace(
+            float(results_dict[orig_col]["min"]),
+            float(results_dict[orig_col]["max"]),
+            bins,
+            endpoint=False,
+        ).tolist()
+        bins_values[orig_col] = bins_start
 
-    for _bin in range(bins):
-        left_edges = left_edges + [left_edges[-1] + bin_width]
-    left_edges.pop()
-    expression_col = funcs.when(
-        (float(left_edges[0]) <= funcs.col(column))
-        & (funcs.col(column) < float(left_edges[1])),
-        0,
-    )
-    left_edges_copy = left_edges[:]
-    left_edges_copy.pop(0)
-    bin_data = (
-        df.select(funcs.col(column))
-        .na.drop()
-        .select(
-            funcs.col(column),
-            create_all_conditions(expression_col, column, left_edges_copy).alias(
-                "bin_id"
-            ),
-        )
-        .groupBy("bin_id")
-        .count()
-    ).toPandas()
+        for i in range(bins):
+            col_name = f"{orig_col}_hist_bin_{i}"
+            if i < (bins - 1):
+                hist_df = hist_df.withColumn(
+                    col_name,
+                    funcs.when(
+                        (funcs.col(orig_col) >= bins_start[i])
+                        & (funcs.col(orig_col) < bins_start[i + 1]),
+                        1,
+                    ).otherwise(0),
+                )
+            else:
+                hist_df = hist_df.withColumn(
+                    col_name,
+                    funcs.when(funcs.col(orig_col) >= bins_start[i], 1).otherwise(0),
+                )
+            col_names.append(col_name)
 
-    bin_data.index = bin_data["bin_id"]
-    new_index = list(range(bins))
-    bin_data = bin_data.reindex(new_index)
-    bin_data["bin_id"] = bin_data.index
-    bin_data = bin_data.fillna(0)
-    bin_data["left_edge"] = left_edges
-    bin_data["width"] = bin_width
-    bin_data = [
-        bin_data["count"].tolist(),
-        [round(x, 2) for x in bin_data["left_edge"].tolist()],
-    ]
+    agg_funcs = [funcs.sum(hist_df[col]).alias(col) for col in col_names]
+    hist_values = hist_df.groupBy().agg(*agg_funcs).toPandas()
 
-    return bin_data
+    for orig_col in calculation_cols:
+        bin_data = [
+            [hist_values.loc[0][f"{orig_col}_hist_bin_{i}"] for i in range(bins)],
+            [round(x, 2) for x in bins_values[orig_col]],
+        ]
+        results_dict[orig_col]["hist"] = bin_data
 
 
 def get_dtype(df, colname):
     return [dtype for name, dtype in df.dtypes if name == colname][0]
+
+
+# Histogram calculation in Spark relies on adding a column to the DF per histogram bin. Spark supports many
+# columns, but not infinitely (and there's no hard-limit on number of columns). This value will determine
+# how many histograms will be calculated in a single query. By default we're using 20 bins per histogram, so
+# using 500 will calculate histograms over 25 columns in a single query. If there are more, more queries will
+# be executed.
+MAX_HISTOGRAM_COLUMNS_IN_QUERY = int(
+    environ.get("MLRUN_MAX_HISTOGRAM_COLUMNS_IN_QUERY", 500)
+)
 
 
 def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
@@ -132,6 +118,7 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
     summary_df = df.summary().toPandas()
     summary_df.set_index(["summary"], drop=True, inplace=True)
     results_dict = {}
+    hist_columns = []
     for col, values in summary_df.items():
         stats_dict = {}
         for stat, val in values.dropna().items():
@@ -151,16 +138,14 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
         if InferOptions.get_common_options(
             options, InferOptions.Histogram
         ) and get_dtype(df, col) in ["double", "int"]:
-            try:
-                results_dict[col]["hist"] = _create_hist_data(
-                    df,
-                    col,
-                    float(results_dict[col]["min"]),
-                    float(results_dict[col]["max"]),
-                    bins=num_bins,
-                )
-            except Exception:
-                pass
+            hist_columns.append(col)
+
+    # We may need multiple queries here. See comment before this function for reasoning.
+    max_columns_per_query = int(MAX_HISTOGRAM_COLUMNS_IN_QUERY // num_bins) or 1
+    while len(hist_columns) > 0:
+        calculation_cols = hist_columns[:max_columns_per_query]
+        _create_hist_data(df, calculation_cols, results_dict, num_bins)
+        hist_columns = hist_columns[max_columns_per_query:]
 
     return results_dict
 

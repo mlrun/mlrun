@@ -26,7 +26,7 @@ import mlrun.api.utils.background_tasks
 import mlrun.api.utils.singletons.project_member
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
-from mlrun.api.crud.secrets import Secrets
+from mlrun.api.crud.secrets import Secrets, SecretsClientType
 from mlrun.api.schemas import SecretProviderName, SecretsData
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
@@ -508,7 +508,10 @@ def _build_function(
                     )
 
             deploy_nuclio_function(
-                fn, auth_info=auth_info, client_version=client_version
+                fn,
+                auth_info=auth_info,
+                client_version=client_version,
+                builder_env=builder_env,
             )
             # deploy only start the process, the get status API is used to check readiness
             ready = False
@@ -699,7 +702,9 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
         allow_secrets_from_k8s=True,
     )
     user_provided_key = secret_value is not None
-    internal_key_name = Secrets().generate_model_monitoring_secret_key(secret_key)
+    internal_key_name = Secrets().generate_client_secret_key(
+        SecretsClientType.model_monitoring, secret_key
+    )
 
     if not user_provided_key:
         secret_value = Secrets().get_secret(

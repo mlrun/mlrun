@@ -54,11 +54,12 @@ from .frontend_spec import (
     AuthenticationFeatureFlag,
     FeatureFlags,
     FrontendSpec,
+    NuclioStreamsFeatureFlag,
+    PreemptionNodesFeatureFlag,
     ProjectMembershipFeatureFlag,
-    Resources,
-    ResourceSpec,
 )
-from .function import FunctionState
+from .function import FunctionState, PreemptionModes
+from .k8s import NodeSelectorOperator, Resources, ResourceSpec
 from .marketplace import (
     IndexedMarketplaceSource,
     MarketplaceCatalog,

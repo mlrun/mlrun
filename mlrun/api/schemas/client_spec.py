@@ -2,6 +2,8 @@ import typing
 
 import pydantic
 
+from .k8s import Resources
+
 
 class ClientSpec(pydantic.BaseModel):
     version: typing.Optional[str]
@@ -29,3 +31,7 @@ class ClientSpec(pydantic.BaseModel):
     default_function_priority_class_name: typing.Optional[str]
     valid_function_priority_class_names: typing.Optional[str]
     default_tensorboard_logs_path: typing.Optional[str]
+    default_function_pod_resources: typing.Optional[Resources]
+    preemptible_nodes_node_selector: typing.Optional[str]
+    preemptible_nodes_tolerations: typing.Optional[str]
+    default_preemption_mode: typing.Optional[str]

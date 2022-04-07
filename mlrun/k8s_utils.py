@@ -13,9 +13,11 @@
 # limitations under the License.
 import base64
 import time
+import typing
 from datetime import datetime
 from sys import stdout
 
+import kubernetes.client
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
@@ -395,12 +397,17 @@ class K8sHelper:
 
         return k8s_secret.data
 
-    def get_project_secret_keys(self, project, namespace=""):
+    def get_project_secret_keys(self, project, namespace="", filter_internal=False):
         secrets_data = self._get_project_secrets_raw_data(project, namespace)
         if not secrets_data:
-            return None
+            return []
 
-        return list(secrets_data.keys())
+        secret_keys = list(secrets_data.keys())
+        if filter_internal:
+            secret_keys = list(
+                filter(lambda key: not key.startswith("mlrun."), secret_keys)
+            )
+        return secret_keys
 
     def get_project_secret_data(self, project, secret_keys=None, namespace=""):
         results = {}
@@ -429,6 +436,8 @@ class BasePod:
         namespace="",
         kind="job",
         project=None,
+        default_pod_spec_attributes=None,
+        resources=None,
     ):
         self.namespace = namespace
         self.name = ""
@@ -439,6 +448,7 @@ class BasePod:
         self._volumes = []
         self._mounts = []
         self.env = None
+        self.node_selector = None
         self.project = project or mlrun.mlconf.default_project
         self._labels = {
             "mlrun/task-name": task_name,
@@ -447,6 +457,9 @@ class BasePod:
         }
         self._annotations = {}
         self._init_container = None
+        # will be applied on the pod spec only when calling .pod(), allows to override spec attributes
+        self.default_pod_spec_attributes = default_pod_spec_attributes
+        self.resources = resources
 
     @property
     def pod(self):
@@ -524,6 +537,9 @@ class BasePod:
             sub_path=sub_path,
         )
 
+    def set_node_selector(self, node_selector: typing.Optional[typing.Dict[str, str]]):
+        self.node_selector = node_selector
+
     def _get_spec(self, template=False):
 
         pod_obj = client.V1PodTemplate if template else client.V1Pod
@@ -539,11 +555,20 @@ class BasePod:
             command=self.command,
             args=self.args,
             volume_mounts=self._mounts,
+            resources=self.resources,
         )
 
         pod_spec = client.V1PodSpec(
-            containers=[container], restart_policy="Never", volumes=self._volumes
+            containers=[container],
+            restart_policy="Never",
+            volumes=self._volumes,
+            node_selector=self.node_selector,
         )
+
+        # if attribute isn't defined use default pod spec attributes
+        for key, val in self.default_pod_spec_attributes.items():
+            if not getattr(pod_spec, key, None):
+                setattr(pod_spec, key, val)
 
         if self._init_container:
             self._init_container.volume_mounts = self._mounts
@@ -567,3 +592,109 @@ def format_labels(labels):
         return ",".join([f"{k}={v}" for k, v in labels.items()])
     else:
         return ""
+
+
+def verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = None):
+    # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
+    if requests_gpu and not limits_gpu:
+        raise mlrun.errors.MLRunConflictError(
+            "You cannot specify GPU requests without specifying limits"
+        )
+    if requests_gpu and limits_gpu and requests_gpu != limits_gpu:
+        raise mlrun.errors.MLRunConflictError(
+            f"When specifying both GPU requests and limits these two values must be equal, "
+            f"requests_gpu={requests_gpu}, limits_gpu={limits_gpu}"
+        )
+
+
+def generate_preemptible_node_selector_requirements(
+    node_selector_operator: str,
+) -> typing.List[kubernetes.client.V1NodeSelectorRequirement]:
+    """
+    Generate node selector requirements based on the pre-configured node selector of the preemptible nodes.
+    node selector operator represents a key's relationship to a set of values.
+    Valid operators are listed in :py:class:`~mlrun.api.schemas.NodeSelectorOperator`
+    :param node_selector_operator: The operator of V1NodeSelectorRequirement
+    :return: List[V1NodeSelectorRequirement]
+    """
+    match_expressions = []
+    for (
+        node_selector_key,
+        node_selector_value,
+    ) in mlconfig.get_preemptible_node_selector().items():
+        match_expressions.append(
+            kubernetes.client.V1NodeSelectorRequirement(
+                key=node_selector_key,
+                operator=node_selector_operator,
+                values=[node_selector_value],
+            )
+        )
+    return match_expressions
+
+
+def generate_preemptible_nodes_anti_affinity_terms() -> typing.List[
+    kubernetes.client.V1NodeSelectorTerm
+]:
+    """
+    Generate node selector term containing anti-affinity expressions based on the
+    pre-configured node selector of the preemptible nodes.
+    Use for purpose of scheduling on node only if all match_expressions are satisfied.
+    This function uses a single term with potentially multiple expressions to ensure anti affinity.
+    https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
+    :return: List contains one nodeSelectorTerm with multiple expressions.
+    """
+    # import here to avoid circular imports
+    from mlrun.api.schemas import NodeSelectorOperator
+
+    # compile affinities with operator NotIn to make sure pods are not running on preemptible nodes.
+    node_selector_requirements = generate_preemptible_node_selector_requirements(
+        NodeSelectorOperator.node_selector_op_not_in.value
+    )
+    return [
+        kubernetes.client.V1NodeSelectorTerm(
+            match_expressions=node_selector_requirements,
+        )
+    ]
+
+
+def generate_preemptible_nodes_affinity_terms() -> typing.List[
+    kubernetes.client.V1NodeSelectorTerm
+]:
+    """
+    Use for purpose of scheduling on node having at least one of the node selectors.
+    When specifying multiple nodeSelectorTerms associated with nodeAffinity types,
+    then the pod can be scheduled onto a node if at least one of the nodeSelectorTerms can be satisfied.
+    :return: List of nodeSelectorTerms associated with the preemptible nodes.
+    """
+    # import here to avoid circular imports
+    from mlrun.api.schemas import NodeSelectorOperator
+
+    node_selector_terms = []
+
+    # compile affinities with operator In so pods could schedule on at least one of the preemptible nodes.
+    node_selector_requirements = generate_preemptible_node_selector_requirements(
+        NodeSelectorOperator.node_selector_op_in.value
+    )
+    for expression in node_selector_requirements:
+        node_selector_terms.append(
+            kubernetes.client.V1NodeSelectorTerm(match_expressions=[expression])
+        )
+    return node_selector_terms
+
+
+def generate_preemptible_tolerations() -> typing.List[kubernetes.client.V1Toleration]:
+    tolerations = mlconfig.get_preemptible_tolerations()
+
+    toleration_objects = []
+    for toleration in tolerations:
+        toleration_objects.append(
+            kubernetes.client.V1Toleration(
+                effect=toleration.get("effect", None),
+                key=toleration.get("key", None),
+                value=toleration.get("value", None),
+                operator=toleration.get("operator", None),
+                toleration_seconds=toleration.get("toleration_seconds", None)
+                or toleration.get("tolerationSeconds", None),
+            )
+        )
+    return toleration_objects

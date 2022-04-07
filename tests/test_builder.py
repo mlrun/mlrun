@@ -1,5 +1,8 @@
+import base64
+import json
 import unittest.mock
 
+import deepdiff
 import pytest
 
 import mlrun
@@ -38,14 +41,20 @@ def test_build_runtime_use_image_when_no_build():
     assert fn.spec.image == image
 
 
+def test_build_config_with_multiple_commands():
+    image = "mlrun/ml-models"
+    fn = mlrun.new_function(
+        "some-function", "some-project", "some-tag", image=image, kind="job"
+    )
+    fn.build_config(commands=["pip install pandas", "pip install numpy"])
+    assert len(fn.spec.build.commands) == 2
+
+    fn.build_config(commands=["pip install pandas"])
+    assert len(fn.spec.build.commands) == 2
+
+
 def test_build_runtime_insecure_registries(monkeypatch):
-    get_k8s_helper_mock = unittest.mock.Mock()
-    monkeypatch.setattr(
-        mlrun.builder, "get_k8s_helper", lambda *args, **kwargs: get_k8s_helper_mock
-    )
-    mlrun.builder.get_k8s_helper().create_pod = unittest.mock.Mock(
-        side_effect=lambda pod: (pod, "some-namespace")
-    )
+    _patch_k8s_helper(monkeypatch)
     mlrun.mlconf.httpdb.builder.docker_registry = "registry.hub.docker.com/username"
     function = mlrun.new_function(
         "some-function",
@@ -116,13 +125,7 @@ def test_build_runtime_insecure_registries(monkeypatch):
 
 
 def test_build_runtime_target_image(monkeypatch):
-    get_k8s_helper_mock = unittest.mock.Mock()
-    monkeypatch.setattr(
-        mlrun.builder, "get_k8s_helper", lambda *args, **kwargs: get_k8s_helper_mock
-    )
-    mlrun.builder.get_k8s_helper().create_pod = unittest.mock.Mock(
-        side_effect=lambda pod: (pod, "some-namespace")
-    )
+    _patch_k8s_helper(monkeypatch)
     registry = "registry.hub.docker.com/username"
     mlrun.mlconf.httpdb.builder.docker_registry = registry
     mlrun.mlconf.httpdb.builder.function_target_image_name_prefix_template = (
@@ -201,6 +204,156 @@ def test_build_runtime_target_image(monkeypatch):
     )
     target_image = _get_target_image_from_create_pod_mock()
     assert target_image == function.spec.build.image
+
+
+def test_build_runtime_use_default_node_selector(monkeypatch):
+    _patch_k8s_helper(monkeypatch)
+    mlrun.mlconf.httpdb.builder.docker_registry = "registry.hub.docker.com/username"
+    node_selector = {
+        "label-1": "val1",
+        "label-2": "val2",
+    }
+    mlrun.mlconf.default_function_node_selector = base64.b64encode(
+        json.dumps(node_selector).encode("utf-8")
+    )
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind="job",
+        requirements=["some-package"],
+    )
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    assert (
+        deepdiff.DeepDiff(
+            _create_pod_mock_pod_spec().node_selector, node_selector, ignore_order=True
+        )
+        == {}
+    )
+
+
+def test_function_build_with_attributes_from_spec(monkeypatch):
+    _patch_k8s_helper(monkeypatch)
+    mlrun.mlconf.httpdb.builder.docker_registry = "registry.hub.docker.com/username"
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind="job",
+        requirements=["some-package"],
+    )
+    node_selector = {
+        "label-1": "val1",
+        "label-2": "val2",
+    }
+    node_name = "node_test"
+    priority_class_name = "test-priority"
+
+    function.spec.node_name = node_name
+    function.spec.node_selector = node_selector
+    function.spec.priority_class_name = priority_class_name
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    assert (
+        deepdiff.DeepDiff(
+            _create_pod_mock_pod_spec().node_name, node_name, ignore_order=True
+        )
+        == {}
+    )
+    assert (
+        deepdiff.DeepDiff(
+            _create_pod_mock_pod_spec().node_selector, node_selector, ignore_order=True
+        )
+        == {}
+    )
+    assert (
+        deepdiff.DeepDiff(
+            _create_pod_mock_pod_spec().priority_class_name,
+            priority_class_name,
+            ignore_order=True,
+        )
+        == {}
+    )
+
+
+def test_function_build_with_default_requests(monkeypatch):
+    _patch_k8s_helper(monkeypatch)
+    mlrun.mlconf.httpdb.builder.docker_registry = "registry.hub.docker.com/username"
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind="job",
+        requirements=["some-package"],
+    )
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    expected_resources = {"requests": {}}
+    # assert that both limits requirements and gpu requests are not defined
+    assert (
+        deepdiff.DeepDiff(
+            _create_pod_mock_pod_spec().containers[0].resources,
+            expected_resources,
+            ignore_order=True,
+        )
+        == {}
+    )
+    mlrun.mlconf.default_function_pod_resources.requests = {
+        "cpu": "25m",
+        "memory": "1m",
+        "gpu": None,
+    }
+    expected_resources = {"requests": {"cpu": "25m", "memory": "1m"}}
+
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    assert (
+        deepdiff.DeepDiff(
+            _create_pod_mock_pod_spec().containers[0].resources,
+            expected_resources,
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    mlrun.mlconf.default_function_pod_resources = {
+        "requests": {
+            "cpu": "25m",
+            "memory": "1m",
+            "gpu": 2,
+        },
+        "limits": {
+            "cpu": "1",
+            "memory": "1G",
+            "gpu": 2,
+        },
+    }
+    expected_resources = {"requests": {"cpu": "25m", "memory": "1m"}}
+
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    assert (
+        deepdiff.DeepDiff(
+            _create_pod_mock_pod_spec().containers[0].resources,
+            expected_resources,
+            ignore_order=True,
+        )
+        == {}
+    )
 
 
 def test_resolve_mlrun_install_command():
@@ -285,9 +438,27 @@ def test_resolve_mlrun_install_command():
 
 
 def _get_target_image_from_create_pod_mock():
-    return (
-        mlrun.builder.get_k8s_helper()
-        .create_pod.call_args[0][0]
-        .pod.spec.containers[0]
-        .args[5]
+    return _create_pod_mock_pod_spec().containers[0].args[5]
+
+
+def _create_pod_mock_pod_spec():
+    return mlrun.builder.get_k8s_helper().create_pod.call_args[0][0].pod.spec
+
+
+def _patch_k8s_helper(monkeypatch):
+    get_k8s_helper_mock = unittest.mock.Mock()
+    monkeypatch.setattr(
+        mlrun.builder, "get_k8s_helper", lambda *args, **kwargs: get_k8s_helper_mock
+    )
+    mlrun.builder.get_k8s_helper().create_pod = unittest.mock.Mock(
+        side_effect=lambda pod: (pod, "some-namespace")
+    )
+    mlrun.builder.get_k8s_helper().get_project_secret_name = unittest.mock.Mock(
+        side_effect=lambda name: "name"
+    )
+    mlrun.builder.get_k8s_helper().get_project_secret_keys = unittest.mock.Mock(
+        side_effect=lambda project, filter_internal: ["KEY"]
+    )
+    mlrun.builder.get_k8s_helper().get_project_secret_data = unittest.mock.Mock(
+        side_effect=lambda project, keys: {"KEY": "val"}
     )

@@ -328,13 +328,9 @@ class TestRuntimeBase:
         )
 
     def execute_function(self, runtime, **kwargs):
-        if type(runtime) in [
-            mlrun.runtimes.ServingRuntime,
-            mlrun.runtimes.RemoteRuntime,
-        ]:
-            self._serialize_and_deploy_nuclio_function(runtime)
-        if type(runtime) == mlrun.runtimes.KubejobRuntime:
-            self._execute_run(runtime, **kwargs)
+        # simulating sending to API - serialization through dict
+        runtime = runtime.from_dict(runtime.to_dict())
+        self._execute_run(runtime, **kwargs)
 
     def _execute_run(self, runtime, **kwargs):
         # Reset the mock, so that when checking is create_pod was called, no leftovers are there (in case running
@@ -350,11 +346,6 @@ class TestRuntimeBase:
             artifact_path=self.artifact_path,
             **kwargs,
         )
-
-    def _serialize_and_deploy_nuclio_function(self, function):
-        # simulating sending to API - serialization through dict
-        function = function.from_dict(function.to_dict())
-        mlrun.runtimes.function.deploy_nuclio_function(function)
 
     def _assert_labels(self, labels: dict, expected_class_name):
         expected_labels = {

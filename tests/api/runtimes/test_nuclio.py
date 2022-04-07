@@ -26,6 +26,7 @@ from mlrun.runtimes.function import (
     resolve_function_ingresses,
     validate_nuclio_version_compatibility,
 )
+import mlrun.runtimes.pod
 from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
 
@@ -52,8 +53,6 @@ class TestNuclioRuntime(TestRuntimeBase):
         os.environ["V3IO_USERNAME"] = self.v3io_user = "test-user"
 
     def _serialize_and_deploy_nuclio_function(self, function):
-        # simulating sending to API - serialization through dict
-        function = function.from_dict(function.to_dict())
         deploy_nuclio_function(function)
 
     @staticmethod
@@ -102,6 +101,8 @@ class TestNuclioRuntime(TestRuntimeBase):
                 "seekTo": parameters["seek_to"],
             },
         }
+    def _execute_run(self, runtime, **kwargs):
+        deploy_nuclio_function(runtime)
 
     def _generate_runtime(
         self, kind="nuclio", labels=None
@@ -278,12 +279,19 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         if affinity:
             # deploy_spec returns affinity in CamelCase, V1Affinity is in snake_case
-            assert (
+            # assert (
+            #     mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
+            #         "affinity", deploy_spec.get("affinity")
+            #     )
+            #     == affinity
+            # )
+            assert deepdiff.DeepDiff(
                 mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
-                    "affinity", deploy_spec.get("affinity")
-                )
-                == affinity
-            )
+                    "affinity", deploy_spec["affinity"]
+                ),
+                affinity,
+                ignore_order=True
+            ) == {}
         else:
             assert deploy_spec.get("affinity") is None
 

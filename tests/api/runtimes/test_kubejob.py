@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.schemas
 import mlrun.errors
 import mlrun.k8s_utils
+from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config as mlconf
 from mlrun.platforms import auto_mount
 from mlrun.runtimes.utils import generate_resources

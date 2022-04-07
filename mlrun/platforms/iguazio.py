@@ -565,7 +565,6 @@ def add_or_refresh_credentials(
 
     username = username or os.environ.get("V3IO_USERNAME")
     password = password or os.environ.get("V3IO_PASSWORD")
-
     # V3IO_ACCESS_KEY` is used by other packages like v3io, MLRun also uses it as the access key used to
     # communicate with the API from the client. `MLRUN_AUTH_SESSION` is for when we want
     # different access keys for the 2 usages

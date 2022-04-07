@@ -1,6 +1,3 @@
-import mlrun.config
-
-
 class PodPhases:
     """
     https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
@@ -207,4 +204,5 @@ class NuclioIngressAddTemplatedIngressModes:
 
 
 class FunctionEnvironmentVariables:
-    auth_session = f"{mlrun.config.env_prefix}AUTH_SESSION"
+    _env_prefix = "MLRUN_"
+    auth_session = f"{_env_prefix}AUTH_SESSION"

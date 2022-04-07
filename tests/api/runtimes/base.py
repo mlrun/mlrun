@@ -338,8 +338,6 @@ class TestRuntimeBase:
         get_k8s().v1api.create_namespaced_pod.reset_mock()
         get_k8s().v1api.list_namespaced_pod.reset_mock()
 
-        # simulating sending to API - serialization through dict
-        runtime = runtime.from_dict(runtime.to_dict())
         runtime.run(
             name=self.name,
             project=self.project,

@@ -75,7 +75,7 @@ def test_get_frontend_spec(
     )
 
     assert (
-        frontend_spec.default_preemption_mode
+        frontend_spec.default_function_preemption_mode
         == mlrun.api.schemas.PreemptionModes.prevent.value
     )
 

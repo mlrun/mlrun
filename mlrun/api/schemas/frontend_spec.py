@@ -50,4 +50,4 @@ class FrontendSpec(pydantic.BaseModel):
     auto_mount_params: typing.Dict[str, str] = {}
     default_artifact_path: str
     default_function_pod_resources: Resources = Resources()
-    default_preemption_mode: str
+    default_function_preemption_mode: str

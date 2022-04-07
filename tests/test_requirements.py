@@ -99,6 +99,7 @@ def test_requirement_specifiers_convention():
         "gcsfs": {"~=2021.8.1"},
         "distributed": {"~=2021.11.2"},
         "dask": {"~=2021.11.2"},
+        "click": {"~=8.0.0"},
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that
         # TODO: make test smart enough to understand that
         "urllib3": {">=1.25.4, <1.27"},

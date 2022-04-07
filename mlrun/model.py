@@ -24,7 +24,6 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import mlrun
 
-from .config import config
 from .utils import dict_to_json, dict_to_yaml, get_artifact_target
 
 # Changing {run_id} will break and will not be backward compatible.
@@ -292,7 +291,7 @@ class BaseMetadata(ModelObj):
         self.tag = tag
         self.hash = hash
         self.namespace = namespace
-        self.project = project or config.default_project
+        self.project = project or ""
         self.labels = labels or {}
         self.categories = categories or []
         self.annotations = annotations or {}
@@ -1130,6 +1129,10 @@ class DataTargetBase(ModelObj):
             return TargetPathObject(self.path, self.run_id, is_single_file)
         else:
             return None
+
+    def get_target_path(self):
+        path_object = self.get_path()
+        return path_object.get_absolute_path() if path_object else None
 
     def __init__(
         self,

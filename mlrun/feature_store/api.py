@@ -756,7 +756,10 @@ def _ingest_with_spark(
             targets = featureset.spec.targets
             targets = [get_target_driver(target, featureset) for target in targets]
 
-        for target in targets or []:
+        targets_to_ingest = copy.deepcopy(targets)
+        featureset.update_targets_for_ingest(targets_to_ingest, overwrite=overwrite)
+
+        for target in targets_to_ingest or []:
             if target.path and urlparse(target.path).scheme == "":
                 if mlrun_context:
                     mlrun_context.logger.error(
@@ -810,7 +813,9 @@ def _ingest_with_spark(
                 # if max_time is None(no data), next scheduled run should be with same start_time
                 max_time = source.start_time
             for target in featureset.status.targets:
-                featureset.status.update_last_written_for_target(target.path, max_time)
+                featureset.status.update_last_written_for_target(
+                    target.get_path().get_absolute_path(), max_time
+                )
 
         _post_ingestion(mlrun_context, featureset, spark)
     finally:

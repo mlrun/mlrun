@@ -498,10 +498,7 @@ class KubeResourceSpec(FunctionSpec):
                         > Sets anti-affinity and overrides any affinity if no tolerations were configured
         """
         # nothing to do here, configuration is not populated
-        if (
-            not mlconf.get_preemptible_tolerations()
-            and not mlconf.get_preemptible_node_selector()
-        ):
+        if not mlconf.is_preemption_nodes_configured():
             return
 
         if not self.preemption_mode:

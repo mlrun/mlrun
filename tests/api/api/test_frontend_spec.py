@@ -46,6 +46,10 @@ def test_get_frontend_spec(
         frontend_spec.feature_flags.nuclio_streams
         == mlrun.api.schemas.NuclioStreamsFeatureFlag.disabled
     )
+    assert (
+        frontend_spec.feature_flags.preemption_nodes
+        == mlrun.api.schemas.PreemptionNodesFeatureFlag.disabled
+    )
     assert frontend_spec.default_function_image_by_kind is not None
     assert frontend_spec.function_deployment_mlrun_command is not None
     assert frontend_spec.default_artifact_path is not None
@@ -68,6 +72,11 @@ def test_get_frontend_spec(
     assert (
         frontend_spec.function_deployment_target_image_registries_to_enforce_prefix
         == mlrun.runtimes.utils.resolve_function_target_image_registries_to_enforce_prefix()
+    )
+
+    assert (
+        frontend_spec.default_preemption_mode
+        == mlrun.api.schemas.PreemptionModes.prevent.value
     )
 
 

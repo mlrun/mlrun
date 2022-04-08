@@ -276,7 +276,7 @@ def _obfuscate_v3io_volume_credentials(function):
                 mlrun.runtimes.utils.set_item_attribute(
                     get_item_attribute(volume, flex_volume_attribute_name),
                     secret_ref_attribute_name,
-                    secret_name,
+                    {"name": secret_name},
                 )
 
 

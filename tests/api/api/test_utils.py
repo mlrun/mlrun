@@ -702,10 +702,12 @@ def test_obfuscate_v3io_volume_credentials(
     k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
     if use_structs:
         assert function.spec.volumes[0]["flexVolume"].options["accessKey"] is None
-        assert function.spec.volumes[0]["flexVolume"].secretRef == secret_name
+        assert function.spec.volumes[0]["flexVolume"].secretRef["name"] == secret_name
     else:
         assert function.spec.volumes[0]["flexVolume"]["options"]["accessKey"] is None
-        assert function.spec.volumes[0]["flexVolume"]["secretRef"] == secret_name
+        assert (
+            function.spec.volumes[0]["flexVolume"]["secretRef"]["name"] == secret_name
+        )
 
 
 def test_generate_function_and_task_from_submit_run_body_imported_function_project_assignment(

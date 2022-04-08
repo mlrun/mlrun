@@ -359,10 +359,10 @@ class K8sHelper:
                 "access_key"
             ): access_key,
         }
-        self.store_secrets(secret_name, secret_data, namespace)
+        self.store_secrets(secret_name, secret_data, namespace, type_="v3io/fuse")
         return secret_name
 
-    def store_secrets(self, secret_name, secrets, namespace=""):
+    def store_secrets(self, secret_name, secrets, namespace="", type_="Opaque"):
         namespace = self.resolve_namespace(namespace)
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
@@ -371,7 +371,7 @@ class K8sHelper:
             if exc.status != 404:
                 logger.error(f"failed to retrieve k8s secret: {exc}")
                 raise exc
-            k8s_secret = client.V1Secret(type="Opaque")
+            k8s_secret = client.V1Secret(type=type_)
             k8s_secret.metadata = client.V1ObjectMeta(
                 name=secret_name, namespace=namespace
             )

@@ -5,7 +5,8 @@ import sys
 import time
 
 import click
-import paramiko
+import fabric
+import invoke.runners
 import requests
 import semver
 import yaml
@@ -81,12 +82,10 @@ class SystemTestPreparer:
 
         self._logger.info("Connecting to data-cluster", data_cluster_ip=data_cluster_ip)
         if not self._debug:
-            self._ssh_client = paramiko.SSHClient()
-            self._ssh_client.set_missing_host_key_policy(paramiko.WarningPolicy)
-            self._ssh_client.connect(
+            self._ssh_connection = fabric.Connection(
                 data_cluster_ip,
-                username=self.Constants.ssh_username,
-                password=data_cluster_ssh_password,
+                user=self.Constants.ssh_username,
+                connect_kwargs={"password": data_cluster_ssh_password},
             )
 
     def run(self):
@@ -110,7 +109,7 @@ class SystemTestPreparer:
         )
 
         if close_ssh_client and not self._debug:
-            self._ssh_client.close()
+            self._ssh_connection.close()
 
     def _run_command(
         self,
@@ -147,7 +146,7 @@ class SystemTestPreparer:
                 )
             if exit_status != 0 and not suppress_errors:
                 raise RuntimeError(f"Command failed with exit status: {exit_status}")
-        except (paramiko.SSHException, RuntimeError) as exc:
+        except Exception as exc:
             self._logger.error(
                 f"Failed running command {log_command_location}",
                 command=command,
@@ -176,34 +175,15 @@ class SystemTestPreparer:
         live: bool = True,
     ) -> (str, str, int):
         workdir = workdir or self.Constants.workdir
-        stdout, stderr, exit_status = "", "", 0
         command = f"cd {workdir}; " + command
         if args:
             command += " " + " ".join(args)
 
-        stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
-            command
+        result: invoke.runners.Result = self._ssh_connection.run(
+            command, hide=not live, in_stream=stdin, warn=True
         )
 
-        if stdin:
-            stdin_stream.write(stdin)
-            stdin_stream.close()
-
-        if live:
-            while True:
-                line = stdout_stream.readline()
-                stdout += line
-                if not line:
-                    break
-                print(line, end="")
-        else:
-            stdout = stdout_stream.read()
-
-        stderr = stderr_stream.read()
-
-        exit_status = stdout_stream.channel.recv_exit_status()
-
-        return stdout, stderr, exit_status
+        return result.stdout, None, result.return_code
 
     @staticmethod
     def _run_command_locally(

@@ -1,3 +1,4 @@
+import io
 import json
 import pathlib
 import subprocess
@@ -157,12 +158,15 @@ class SystemTestPreparer:
             )
             raise
         else:
+            kwargs = {
+                "command": command,
+                "stderr": stderr,
+                "exit_status": exit_status,
+            }
+            if not live:
+                kwargs["stdout"] = stdout
             self._logger.debug(
-                f"Successfully ran command {log_command_location}",
-                command=command,
-                stdout=stdout,
-                stderr=stderr,
-                exit_status=exit_status,
+                f"Successfully ran command {log_command_location}", **kwargs
             )
             return stdout
 
@@ -180,7 +184,7 @@ class SystemTestPreparer:
             command += " " + " ".join(args)
 
         result: invoke.runners.Result = self._ssh_connection.run(
-            command, hide=not live, in_stream=stdin, warn=True
+            command, hide=not live, in_stream=io.StringIO(stdin), warn=True
         )
 
         return result.stdout, None, result.return_code

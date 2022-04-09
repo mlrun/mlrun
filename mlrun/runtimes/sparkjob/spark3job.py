@@ -139,6 +139,29 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         self.executor_preemption_mode = executor_preemption_mode
         self.driver_preemption_mode = driver_preemption_mode
 
+    def to_dict(self, fields=None, exclude=None):
+        struct = super().to_dict(
+            fields,
+            exclude=[
+                "executor_affinity",
+                "executor_tolerations",
+                "driver_affinity",
+                "driver_tolerations",
+            ],
+        )
+        api = client.ApiClient()
+        struct["executor_affinity"] = api.sanitize_for_serialization(
+            self.executor_affinity
+        )
+        struct["driver_affinity"] = api.sanitize_for_serialization(self.driver_affinity)
+        struct["executor_tolerations"] = api.sanitize_for_serialization(
+            self.executor_tolerations
+        )
+        struct["driver_tolerations"] = api.sanitize_for_serialization(
+            self.driver_tolerations
+        )
+        return struct
+
     @property
     def executor_tolerations(self) -> typing.List[client.V1Toleration]:
         return self._executor_tolerations

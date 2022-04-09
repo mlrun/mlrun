@@ -1043,7 +1043,7 @@ class TestRuntimeBase:
         self.execute_function(runtime)
         self.assert_node_selection(affinity=self._generate_preemptible_anti_affinity())
 
-    def assert_run_preemption_mode_with_preemptible_node_selector_without_tolerations_with_extra_settings(
+    def assert_run_preemption_mode_with_preemptible_node_selector_without_preemptible_tolerations_with_extra_settings(
         self,
     ):
         # no preemptible nodes tolerations configured, test modes based on affinity/anti-affinity

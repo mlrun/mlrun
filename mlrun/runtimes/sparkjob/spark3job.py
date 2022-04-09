@@ -461,7 +461,7 @@ class Spark3Runtime(AbstractSparkRuntime):
         :param mode: accepts allow | constrain | prevent defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
         """
         preemption_mode = mlrun.api.schemas.function.PreemptionModes(mode)
-        self.spec.driver_preemption_mode = preemption_mode
+        self.spec.driver_preemption_mode = preemption_mode.value
 
     def with_executor_preemption_mode(
         self, mode: typing.Union[mlrun.api.schemas.function.PreemptionModes, str]
@@ -479,7 +479,7 @@ class Spark3Runtime(AbstractSparkRuntime):
         :param mode: accepts allow | constrain | prevent defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
         """
         preemption_mode = mlrun.api.schemas.function.PreemptionModes(mode)
-        self.spec.executor_preemption_mode = preemption_mode
+        self.spec.executor_preemption_mode = preemption_mode.value
 
     def with_dynamic_allocation(
         self, min_executors=None, max_executors=None, initial_executors=None

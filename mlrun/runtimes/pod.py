@@ -215,12 +215,7 @@ class KubeResourceSpec(FunctionSpec):
     @preemption_mode.setter
     def preemption_mode(self, mode):
         self._preemption_mode = mode or mlconf.function_defaults.preemption_mode
-        self.enrich_function_preemption_spec(
-            preemption_mode_field_name="preemption_mode",
-            tolerations_field_name="tolerations",
-            affinity_field_name="affinity",
-            node_selector_field_name="node_selector",
-        )
+        self.enrich_function_preemption_spec()
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(fields, exclude=["affinity", "tolerations"])
@@ -427,35 +422,6 @@ class KubeResourceSpec(FunctionSpec):
         # merge node selectors - precedence to existing node selector
         self.node_selector = {**node_selector, **self.node_selector}
 
-    def _clear_tolerations_if_initialized_but_empty(func):
-        @functools.wraps(func)
-        def wrapper(self, *args, **kwargs):
-            resp = func(self, *args, **kwargs)
-            tolerations_field_name = kwargs.get("tolerations_field_name", "tolerations")
-            if not getattr(self, tolerations_field_name):
-                setattr(self, tolerations_field_name, None)
-            return resp
-
-        return wrapper
-
-    def _clear_affinity_if_initialized_but_empty(func):
-        @functools.wraps(func)
-        def wrapper(self, *args, **kwargs):
-            resp = func(self, *args, **kwargs)
-            affinity_field_name = kwargs.get("affinity_field_name", "affinity")
-            self_affinity = getattr(self, affinity_field_name)
-            if not getattr(self, affinity_field_name):
-                setattr(self, affinity_field_name, None)
-            elif (
-                not self_affinity.node_affinity
-                and not self_affinity.pod_affinity
-                and not self_affinity.pod_anti_affinity
-            ):
-                setattr(self, affinity_field_name, None)
-            return resp
-
-        return wrapper
-
     def _merge_tolerations(
         self,
         tolerations: typing.List[k8s_client.V1Toleration],
@@ -496,8 +462,6 @@ class KubeResourceSpec(FunctionSpec):
             node_selector
         )
 
-    @_clear_tolerations_if_initialized_but_empty
-    @_clear_affinity_if_initialized_but_empty
     def enrich_function_preemption_spec(
         self,
         preemption_mode_field_name: str = "preemption_mode",
@@ -619,6 +583,28 @@ class KubeResourceSpec(FunctionSpec):
                 generate_preemptible_tolerations(),
                 tolerations_field_name=tolerations_field_name,
             )
+
+        self._clear_affinity_if_initialized_but_empty(
+            affinity_field_name=affinity_field_name
+        )
+        self._clear_tolerations_if_initialized_but_empty(
+            tolerations_field_name=tolerations_field_name
+        )
+
+    def _clear_affinity_if_initialized_but_empty(self, affinity_field_name: str):
+        self_affinity = getattr(self, affinity_field_name)
+        if not getattr(self, affinity_field_name):
+            setattr(self, affinity_field_name, None)
+        elif (
+            not self_affinity.node_affinity
+            and not self_affinity.pod_affinity
+            and not self_affinity.pod_anti_affinity
+        ):
+            setattr(self, affinity_field_name, None)
+
+    def _clear_tolerations_if_initialized_but_empty(self, tolerations_field_name: str):
+        if not getattr(self, tolerations_field_name):
+            setattr(self, tolerations_field_name, None)
 
     def _merge_node_selector_term_to_node_affinity(
         self,

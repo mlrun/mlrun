@@ -205,7 +205,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
 
     @property
     def executor_preemption_mode(self) -> str:
-        return self._driver_preemption_mode
+        return self._executor_preemption_mode
 
     @executor_preemption_mode.setter
     def executor_preemption_mode(self, mode):

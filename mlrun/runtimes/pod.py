@@ -156,9 +156,7 @@ class KubeResourceSpec(FunctionSpec):
             priority_class_name or mlrun.mlconf.default_function_priority_class_name
         )
         self._tolerations = tolerations
-        self._preemption_mode = mlconf.function_defaults.preemption_mode
         self.preemption_mode = preemption_mode
-        self.enrich_function_preemption_spec()
 
     @property
     def volumes(self) -> list:
@@ -188,9 +186,7 @@ class KubeResourceSpec(FunctionSpec):
 
     @affinity.setter
     def affinity(self, affinity):
-        self._affinity = self._transform_attribute_to_k8s_class_instance(
-            "affinity", affinity
-        )
+        self._affinity = transform_attribute_to_k8s_class_instance("affinity", affinity)
 
     @property
     def tolerations(self) -> typing.List[k8s_client.V1Toleration]:
@@ -198,7 +194,7 @@ class KubeResourceSpec(FunctionSpec):
 
     @tolerations.setter
     def tolerations(self, tolerations):
-        self._tolerations = self._transform_attribute_to_k8s_class_instance(
+        self._tolerations = transform_attribute_to_k8s_class_instance(
             "tolerations", tolerations
         )
 
@@ -306,7 +302,7 @@ class KubeResourceSpec(FunctionSpec):
                 raise mlrun.errors.MLRunInvalidArgumentTypeError(
                     f"expected to to be of type {attribute_config.get('not_sanitized_class')} but got dict"
                 )
-            if self._resolve_if_type_sanitized(attribute_name, attribute):
+            if _resolve_if_type_sanitized(attribute_name, attribute):
                 return attribute
 
         elif isinstance(attribute, list) and not isinstance(
@@ -316,24 +312,11 @@ class KubeResourceSpec(FunctionSpec):
                 raise mlrun.errors.MLRunInvalidArgumentTypeError(
                     f"expected to to be of type {attribute_config.get('not_sanitized_class')} but got list"
                 )
-            if self._resolve_if_type_sanitized(attribute_name, attribute[0]):
+            if _resolve_if_type_sanitized(attribute_name, attribute[0]):
                 return attribute
 
         api = k8s_client.ApiClient()
         return api.sanitize_for_serialization(attribute)
-
-    @staticmethod
-    def _resolve_if_type_sanitized(attribute_name, attribute):
-        attribute_config = sanitized_attributes[attribute_name]
-        # heuristic - if one of the keys contains _ as part of the dict it means to_dict on the kubernetes
-        # object performed, there's nothing we can do at that point to transform it to the sanitized version
-        if get_in(attribute, attribute_config["not_sanitized"]):
-            raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"{attribute_name} must be instance of kubernetes {attribute_config.get('attribute_type_name')} class"
-            )
-        # then it's already the sanitized version
-        elif get_in(attribute, attribute_config["sanitized"]):
-            return attribute
 
     def _set_volume_mount(self, volume_mount):
         # using the mountPath as the key cause it must be unique (k8s limitation)
@@ -487,23 +470,34 @@ class KubeResourceSpec(FunctionSpec):
         if len(tolerations_to_add) > 0:
             self.tolerations.extend(tolerations_to_add)
 
+    def _override_required_during_scheduling_ignored_during_execution(
+        self, node_selector: k8s_client.V1NodeSelector
+    ):
+        self._initialize_affinity()
+        self._initialize_node_affinity()
+        self.affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
+            node_selector
+        )
+
     @_clear_tolerations_if_initialized_but_empty
     @_clear_affinity_if_initialized_but_empty
     def enrich_function_preemption_spec(self):
         """
         Enriches function pod with the below described spec.
         If no preemptible node configuration is provided, do nothing.
-            `Allow` 	- Adds Tolerations if configured.
+            `allow` 	- Adds Tolerations if configured.
                           otherwise, assume pods can be scheduled on preemptible nodes.
                         > Purges any `affinity` / `anti-affinity` preemption related configuration
-            `Constrain` - Uses node-affinity to make sure pods are assigned using OR on the configured
+                        > Purges preemptible node selector
+            `constrain` - Uses node-affinity to make sure pods are assigned using OR on the configured
                           node label selectors.
-                        > Uses `Allow` configuration as well.
+                        > Merges tolerations with preemptible tolerations.
                         > Purges any `anti-affinity` preemption related configuration
-            `Prevent`	- Prevention is done either using taints (if Tolerations were configured) or anti-affinity.
+            `prevent`	- Prevention is done either using taints (if Tolerations were configured) or anti-affinity.
                         > Purges any `tolerations` preemption related configuration
                         > Purges any `affinity` preemption related configuration
-                        > Adds anti-affinity IF no tolerations were configured
+                        > Purges preemptible node selector
+                        > Sets anti-affinity and overrides any affinity if no tolerations were configured
         """
         # nothing to do here, configuration is not populated
         if not mlconf.is_preemption_nodes_configured():
@@ -517,7 +511,6 @@ class KubeResourceSpec(FunctionSpec):
                 "No preemption mode was given, using the default preemption mode",
                 default_preemption_mode=self.preemption_mode,
             )
-
         # remove preemptible tolerations and remove preemption related configuration
         # and enrich with anti-affinity if preemptible tolerations configuration haven't been provided
         if self.preemption_mode == PreemptionModes.prevent.value:
@@ -532,30 +525,33 @@ class KubeResourceSpec(FunctionSpec):
                     )
                 )
             )
+            # remove preemptible nodes constrain
+            self._prune_node_selector(mlconf.get_preemptible_node_selector())
+
             # if tolerations are configured, simply pruning tolerations is sufficient because functions
             # cannot be scheduled without tolerations on tainted nodes.
             # however, if preemptible tolerations are not configured, we must use anti-affinity on preemptible nodes
             # to ensure that the function is not scheduled on the nodes.
             if not generate_preemptible_tolerations():
-                # using a single term with potentially multiple expressions to ensure affinity
-                self._merge_node_selector_term_to_node_affinity(
-                    node_selector_terms=generate_preemptible_nodes_anti_affinity_terms()
+                # using a single term with potentially multiple expressions to ensure anti-affinity
+                self._override_required_during_scheduling_ignored_during_execution(
+                    k8s_client.V1NodeSelector(
+                        node_selector_terms=generate_preemptible_nodes_anti_affinity_terms()
+                    )
                 )
-
         # enrich tolerations and override all node selector terms with preemptible node selector terms
         elif self.preemption_mode == PreemptionModes.constrain.value:
             # enrich with tolerations
             self._merge_tolerations(generate_preemptible_tolerations())
 
-            self._initialize_affinity()
-            self._initialize_node_affinity()
             # setting required_during_scheduling_ignored_during_execution
             # overriding other terms that have been set, and only setting terms for preemptible nodes
             # when having multiple terms, pod scheduling is succeeded if at least one term is satisfied
-            self.affinity.node_affinity.required_during_scheduling_ignored_during_execution = k8s_client.V1NodeSelector(
-                node_selector_terms=generate_preemptible_nodes_affinity_terms()
+            self._override_required_during_scheduling_ignored_during_execution(
+                k8s_client.V1NodeSelector(
+                    node_selector_terms=generate_preemptible_nodes_affinity_terms()
+                )
             )
-
         # purge any affinity / anti-affinity preemption related configuration and enrich with preemptible tolerations
         elif self.preemption_mode == PreemptionModes.allow.value:
 
@@ -974,14 +970,14 @@ class KubeResource(BaseRuntime):
 
     def with_preemption_mode(self, mode: typing.Union[PreemptionModes, str]):
         """
-        Preemption modes enable users to control whether or not function pods will be scheduled on preemptible nodes.
-        Tolerations, node selector and affinity would be populated correspondingly to the function spec.
+        Preemption mode controls whether pods can be scheduled on preemptible nodes.
+        Tolerations, node selector, and affinity are populated on preemptible nodes corresponding to the function spec.
 
-        currently 3 modes are supported:
+        Three modes are supported:
 
-        * **allow** - Allow the function to be scheduled on preemptible nodes
-        * **constrain** - Constrain the function to run only on preemptible nodes
-        * **prevent** - Prevent the function from being scheduled on preemptible nodes
+        * **allow** - The function can be scheduled on preemptible nodes
+        * **constrain** - The function can only run on preemptible nodes
+        * **prevent** - The function cannot be scheduled on preemptible nodes
 
         :param mode: accepts allow | constrain | prevent defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
         """
@@ -1195,6 +1191,103 @@ def kube_resource_spec_to_pod_spec(
         else None,
         tolerations=kube_resource_spec.tolerations,
     )
+
+
+def _resolve_if_type_sanitized(attribute_name, attribute):
+    attribute_config = sanitized_attributes[attribute_name]
+    # heuristic - if one of the keys contains _ as part of the dict it means to_dict on the kubernetes
+    # object performed, there's nothing we can do at that point to transform it to the sanitized version
+    if get_in(attribute, attribute_config["not_sanitized"]):
+        raise mlrun.errors.MLRunInvalidArgumentTypeError(
+            f"{attribute_name} must be instance of kubernetes {attribute_config.get('attribute_type_name')} class"
+        )
+    # then it's already the sanitized version
+    elif get_in(attribute, attribute_config["sanitized"]):
+        return attribute
+
+
+def transform_attribute_to_k8s_class_instance(
+    attribute_name, attribute, is_sub_attr: bool = False
+):
+    if attribute_name not in sanitized_attributes:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"{attribute_name} isn't in the available sanitized attributes"
+        )
+    attribute_config = sanitized_attributes[attribute_name]
+    # initialize empty attribute type
+    if attribute is None:
+        return None
+    if isinstance(attribute, dict):
+        if _resolve_if_type_sanitized(attribute_name, attribute):
+            api = k8s_client.ApiClient()
+            # not ideal to use their private method, but looks like that's the only option
+            # Taken from https://github.com/kubernetes-client/python/issues/977
+            attribute_type = attribute_config["attribute_type"]
+            if attribute_config["contains_many"]:
+                attribute_type = attribute_config["sub_attribute_type"]
+            attribute = api._ApiClient__deserialize(attribute, attribute_type)
+
+    elif isinstance(attribute, list):
+        attribute_instance = []
+        for sub_attr in attribute:
+            if not isinstance(sub_attr, dict):
+                return attribute
+            attribute_instance.append(
+                transform_attribute_to_k8s_class_instance(
+                    attribute_name, sub_attr, is_sub_attr=True
+                )
+            )
+        attribute = attribute_instance
+    # if user have set one attribute but its part of an attribute that contains many then return inside a list
+    if (
+        not is_sub_attr
+        and attribute_config["contains_many"]
+        and isinstance(attribute, attribute_config["sub_attribute_type"])
+    ):
+        # initialize attribute instance and add attribute to it,
+        # mainly done when attribute is a list but user defines only sets the attribute not in the list
+        attribute_instance = attribute_config["attribute_type"]()
+        attribute_instance.append(attribute)
+        return attribute_instance
+    return attribute
+
+
+def get_sanitized_attribute(spec, attribute_name: str):
+    """
+    When using methods like to_dict() on kubernetes class instances we're getting the attributes in snake_case
+    Which is ok if we're using the kubernetes python package but not if for example we're creating CRDs that we
+    apply directly. For that we need the sanitized (CamelCase) version.
+    """
+    attribute = getattr(spec, attribute_name)
+    if attribute_name not in sanitized_attributes:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"{attribute_name} isn't in the available sanitized attributes"
+        )
+    attribute_config = sanitized_attributes[attribute_name]
+    if not attribute:
+        return attribute_config["not_sanitized_class"]()
+
+    # check if attribute of type dict, and then check if type is sanitized
+    if isinstance(attribute, dict):
+        if attribute_config["not_sanitized_class"] != dict:
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                f"expected to to be of type {attribute_config.get('not_sanitized_class')} but got dict"
+            )
+        if _resolve_if_type_sanitized(attribute_name, attribute):
+            return attribute
+
+    elif isinstance(attribute, list) and not isinstance(
+        attribute[0], attribute_config["sub_attribute_type"]
+    ):
+        if attribute_config["not_sanitized_class"] != list:
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                f"expected to to be of type {attribute_config.get('not_sanitized_class')} but got list"
+            )
+        if _resolve_if_type_sanitized(attribute_name, attribute[0]):
+            return attribute
+
+    api = k8s_client.ApiClient()
+    return api.sanitize_for_serialization(attribute)
 
 
 def _filter_modifier_params(modifier, params):

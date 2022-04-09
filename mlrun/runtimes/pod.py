@@ -215,7 +215,10 @@ class KubeResourceSpec(FunctionSpec):
     @preemption_mode.setter
     def preemption_mode(self, mode):
         self._preemption_mode = mode or mlconf.function_defaults.preemption_mode
-        self.enrich_function_preemption_spec()
+        self.enrich_function_preemption_spec(preemption_mode_field_name="preemption_mode",
+                                             tolerations_field_name="tolerations",
+                                             affinity_field_name="affinity",
+                                             node_selector_field_name="node_selector")
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(fields, exclude=["affinity", "tolerations"])
@@ -426,8 +429,9 @@ class KubeResourceSpec(FunctionSpec):
         @functools.wraps(func)
         def wrapper(self, *args, **kwargs):
             resp = func(self, *args, **kwargs)
-            if not self.tolerations:
-                self.tolerations = None
+            tolerations_field_name = kwargs.get("tolerations_field_name", "tolerations")
+            if not getattr(self, tolerations_field_name):
+                setattr(self, tolerations_field_name, None)
             return resp
 
         return wrapper
@@ -436,31 +440,38 @@ class KubeResourceSpec(FunctionSpec):
         @functools.wraps(func)
         def wrapper(self, *args, **kwargs):
             resp = func(self, *args, **kwargs)
-            if not self.affinity:
-                self.affinity = None
+            affinity_field_name = kwargs.get("affinity_field_name", "affinity")
+            self_affinity = getattr(self, affinity_field_name)
+            if not getattr(self, affinity_field_name):
+                setattr(self, affinity_field_name, None)
             elif (
-                not self.affinity.node_affinity
-                and not self.affinity.pod_affinity
-                and not self.affinity.pod_anti_affinity
+                not self_affinity.node_affinity
+                and not self_affinity.pod_affinity
+                and not self_affinity.pod_anti_affinity
             ):
-                self.affinity = None
+                setattr(self, affinity_field_name, None)
             return resp
 
         return wrapper
 
-    def _merge_tolerations(self, tolerations: typing.List[k8s_client.V1Toleration]):
+    def _merge_tolerations(
+        self,
+        tolerations: typing.List[k8s_client.V1Toleration],
+        tolerations_field_name: str,
+    ):
         if not tolerations:
             return
         # In case function has no toleration, take all from input
-        if not self.tolerations:
-            self.tolerations = tolerations
+        self_tolerations = getattr(self, tolerations_field_name)
+        if not self_tolerations:
+            setattr(self, tolerations_field_name, tolerations)
             return
         tolerations_to_add = []
 
         # Only add non-matching tolerations to avoid duplications
         for toleration in tolerations:
             to_add = True
-            for function_toleration in self.tolerations:
+            for function_toleration in self_tolerations:
                 if function_toleration == toleration:
                     to_add = False
                     break
@@ -468,20 +479,30 @@ class KubeResourceSpec(FunctionSpec):
                 tolerations_to_add.append(toleration)
 
         if len(tolerations_to_add) > 0:
-            self.tolerations.extend(tolerations_to_add)
+            self_tolerations.extend(tolerations_to_add)
 
     def _override_required_during_scheduling_ignored_during_execution(
-        self, node_selector: k8s_client.V1NodeSelector
+        self,
+        node_selector: k8s_client.V1NodeSelector,
+        affinity_field_name: str,
     ):
-        self._initialize_affinity()
-        self._initialize_node_affinity()
-        self.affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
+        self._initialize_affinity(affinity_field_name)
+        self._initialize_node_affinity(affinity_field_name)
+
+        self_affinity = getattr(self, affinity_field_name)
+        self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
             node_selector
         )
 
     @_clear_tolerations_if_initialized_but_empty
     @_clear_affinity_if_initialized_but_empty
-    def enrich_function_preemption_spec(self):
+    def enrich_function_preemption_spec(
+        self,
+        preemption_mode_field_name: str = "preemption_mode",
+        tolerations_field_name: str = "tolerations",
+        affinity_field_name: str = "affinity",
+        node_selector_field_name: str = "node_selector",
+    ):
         """
         Enriches function pod with the below described spec.
         If no preemptible node configuration is provided, do nothing.
@@ -503,30 +524,40 @@ class KubeResourceSpec(FunctionSpec):
         if not mlconf.is_preemption_nodes_configured():
             return
 
-        if not self.preemption_mode:
+        if not getattr(self, preemption_mode_field_name):
             # We're not supposed to get here, but if we do, we'll set the private attribute to
             # avoid triggering circular enrichment.
-            self._preemption_mode = mlconf.function_defaults.preemption_mode
+            setattr(
+                self,
+                f"_{preemption_mode_field_name}",
+                mlconf.function_defaults.preemption_mode,
+            )
             logger.debug(
                 "No preemption mode was given, using the default preemption mode",
-                default_preemption_mode=self.preemption_mode,
+                default_preemption_mode=getattr(self, preemption_mode_field_name),
             )
+        self_preemption_mode = getattr(self, preemption_mode_field_name)
         # remove preemptible tolerations and remove preemption related configuration
         # and enrich with anti-affinity if preemptible tolerations configuration haven't been provided
-        if self.preemption_mode == PreemptionModes.prevent.value:
+        if self_preemption_mode == PreemptionModes.prevent.value:
             # ensure no preemptible node tolerations
-            self._prune_tolerations(generate_preemptible_tolerations())
+            self._prune_tolerations(
+                generate_preemptible_tolerations(),
+                tolerations_field_name=tolerations_field_name,
+            )
 
             # purge affinity preemption related configuration
             self._prune_affinity_node_selector_requirement(
-                (
-                    generate_preemptible_node_selector_requirements(
-                        NodeSelectorOperator.node_selector_op_in.value
-                    )
-                )
+                generate_preemptible_node_selector_requirements(
+                    NodeSelectorOperator.node_selector_op_in.value
+                ),
+                affinity_field_name=affinity_field_name,
             )
             # remove preemptible nodes constrain
-            self._prune_node_selector(mlconf.get_preemptible_node_selector())
+            self._prune_node_selector(
+                mlconf.get_preemptible_node_selector(),
+                node_selector_field_name=node_selector_field_name,
+            )
 
             # if tolerations are configured, simply pruning tolerations is sufficient because functions
             # cannot be scheduled without tolerations on tainted nodes.
@@ -537,12 +568,16 @@ class KubeResourceSpec(FunctionSpec):
                 self._override_required_during_scheduling_ignored_during_execution(
                     k8s_client.V1NodeSelector(
                         node_selector_terms=generate_preemptible_nodes_anti_affinity_terms()
-                    )
+                    ),
+                    affinity_field_name=affinity_field_name,
                 )
         # enrich tolerations and override all node selector terms with preemptible node selector terms
-        elif self.preemption_mode == PreemptionModes.constrain.value:
+        elif self_preemption_mode == PreemptionModes.constrain.value:
             # enrich with tolerations
-            self._merge_tolerations(generate_preemptible_tolerations())
+            self._merge_tolerations(
+                generate_preemptible_tolerations(),
+                tolerations_field_name=tolerations_field_name,
+            )
 
             # setting required_during_scheduling_ignored_during_execution
             # overriding other terms that have been set, and only setting terms for preemptible nodes
@@ -550,49 +585,61 @@ class KubeResourceSpec(FunctionSpec):
             self._override_required_during_scheduling_ignored_during_execution(
                 k8s_client.V1NodeSelector(
                     node_selector_terms=generate_preemptible_nodes_affinity_terms()
-                )
+                ),
+                affinity_field_name=affinity_field_name,
             )
         # purge any affinity / anti-affinity preemption related configuration and enrich with preemptible tolerations
-        elif self.preemption_mode == PreemptionModes.allow.value:
+        elif self_preemption_mode == PreemptionModes.allow.value:
 
-            # remove anti-affinity
+            # remove preemptible anti-affinity
             self._prune_affinity_node_selector_requirement(
                 generate_preemptible_node_selector_requirements(
                     NodeSelectorOperator.node_selector_op_not_in.value
                 ),
+                affinity_field_name=affinity_field_name,
             )
-            # remove affinity
+            # remove preemptible affinity
             self._prune_affinity_node_selector_requirement(
                 generate_preemptible_node_selector_requirements(
                     NodeSelectorOperator.node_selector_op_in.value
                 ),
+                affinity_field_name=affinity_field_name,
             )
 
             # remove preemptible nodes constrain
-            self._prune_node_selector(mlconf.get_preemptible_node_selector())
+            self._prune_node_selector(
+                mlconf.get_preemptible_node_selector(),
+                node_selector_field_name=node_selector_field_name,
+            )
 
             # enrich with tolerations
-            self._merge_tolerations(generate_preemptible_tolerations())
+            self._merge_tolerations(
+                generate_preemptible_tolerations(),
+                tolerations_field_name=tolerations_field_name,
+            )
 
     def _merge_node_selector_term_to_node_affinity(
-        self, node_selector_terms: typing.List[k8s_client.V1NodeSelectorTerm]
+        self,
+        node_selector_terms: typing.List[k8s_client.V1NodeSelectorTerm],
+        affinity_field_name: str,
     ):
         if not node_selector_terms:
             return
 
-        self._initialize_affinity()
-        self._initialize_node_affinity()
+        self._initialize_affinity(affinity_field_name)
+        self._initialize_node_affinity(affinity_field_name)
 
+        self_affinity = getattr(self, affinity_field_name)
         if (
-            not self.affinity.node_affinity.required_during_scheduling_ignored_during_execution
+            not self_affinity.node_affinity.required_during_scheduling_ignored_during_execution
         ):
-            self.affinity.node_affinity.required_during_scheduling_ignored_during_execution = k8s_client.V1NodeSelector(
+            self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = k8s_client.V1NodeSelector(
                 node_selector_terms=node_selector_terms
             )
             return
 
         node_selector = (
-            self.affinity.node_affinity.required_during_scheduling_ignored_during_execution
+            self_affinity.node_affinity.required_during_scheduling_ignored_during_execution
         )
         new_node_selector_terms = []
 
@@ -608,17 +655,22 @@ class KubeResourceSpec(FunctionSpec):
         if new_node_selector_terms:
             node_selector.node_selector_terms += new_node_selector_terms
 
-    def _initialize_affinity(self):
-        if not self.affinity:
-            self.affinity = k8s_client.V1Affinity()
+    def _initialize_affinity(self, affinity_field_name: str):
+        if not getattr(self, affinity_field_name):
+            setattr(self, affinity_field_name, k8s_client.V1Affinity())
 
-    def _initialize_node_affinity(self):
-        if not self.affinity.node_affinity:
-            self.affinity.node_affinity = k8s_client.V1NodeAffinity()
+    def _initialize_node_affinity(self, affinity_field_name: str):
+        if not getattr(getattr(self, affinity_field_name), "node_affinity"):
+            # self.affinity.node_affinity:
+            getattr(
+                self, affinity_field_name
+            ).node_affinity = k8s_client.V1NodeAffinity()
+            # self.affinity.node_affinity = k8s_client.V1NodeAffinity()
 
     def _prune_affinity_node_selector_requirement(
         self,
         node_selector_requirements: typing.List[k8s_client.V1NodeSelectorRequirement],
+        affinity_field_name: str = "affinity",
     ):
         """
         Prunes given node selector requirements from affinity.
@@ -628,10 +680,11 @@ class KubeResourceSpec(FunctionSpec):
         :return:
         """
         # both needs to exist to prune required affinity from spec affinity
-        if not self.affinity or not node_selector_requirements:
+        self_affinity = getattr(self, affinity_field_name)
+        if not self_affinity or not node_selector_requirements:
             return
-        if self.affinity.node_affinity:
-            node_affinity: k8s_client.V1NodeAffinity = self.affinity.node_affinity
+        if self_affinity.node_affinity:
+            node_affinity: k8s_client.V1NodeAffinity = self_affinity.node_affinity
 
             new_required_during_scheduling_ignored_during_execution = None
             if node_affinity.required_during_scheduling_ignored_during_execution:
@@ -656,12 +709,14 @@ class KubeResourceSpec(FunctionSpec):
                 not node_affinity.preferred_during_scheduling_ignored_during_execution
                 and not new_required_during_scheduling_ignored_during_execution
             ):
-                self.affinity.node_affinity = None
+                setattr(self_affinity, "node_affinity", None)
+                # self.affinity.node_affinity = None
                 return
 
-            self._initialize_affinity()
-            self._initialize_node_affinity()
-            self.affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
+            self._initialize_affinity(affinity_field_name)
+            self._initialize_node_affinity(affinity_field_name)
+
+            self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
                 new_required_during_scheduling_ignored_during_execution
             )
 
@@ -707,18 +762,23 @@ class KubeResourceSpec(FunctionSpec):
                 )
         return new_node_selector_terms
 
-    def _prune_tolerations(self, tolerations: typing.List[k8s_client.V1Toleration]):
+    def _prune_tolerations(
+        self,
+        tolerations: typing.List[k8s_client.V1Toleration],
+        tolerations_field_name: str = "tolerations",
+    ):
         """
         Prunes given tolerations from function spec
         :param tolerations: tolerations to prune
         """
+        self_tolerations = getattr(self, tolerations_field_name)
         # both needs to exist to prune required tolerations from spec tolerations
-        if not tolerations or not self.tolerations:
+        if not tolerations or not self_tolerations:
             return
 
         # generate a list of tolerations without tolerations to prune
         new_tolerations = []
-        for toleration in self.tolerations:
+        for toleration in self_tolerations:
             to_prune = False
             for toleration_to_delete in tolerations:
                 if toleration == toleration_to_delete:
@@ -729,22 +789,27 @@ class KubeResourceSpec(FunctionSpec):
                 new_tolerations.append(toleration)
 
         # Set tolerations without tolerations to prune
-        self.tolerations = new_tolerations
+        setattr(self, tolerations_field_name, new_tolerations)
 
-    def _prune_node_selector(self, node_selector: typing.Dict[str, str]):
+    def _prune_node_selector(
+        self,
+        node_selector: typing.Dict[str, str],
+        node_selector_field_name: str,
+    ):
         """
         Prunes given node_selector key from function spec if their key and value are matching
         :param node_selector: node selectors to prune
         """
+        self_node_selector = getattr(self, node_selector_field_name)
         # both needs to exists to prune required node_selector from the spec node selector
-        if not node_selector or not self.node_selector:
+        if not node_selector or not self_node_selector:
             return
 
         for key, value in node_selector.items():
             if value:
-                spec_value = self.node_selector.get(key)
+                spec_value = self_node_selector.get(key)
                 if spec_value and spec_value == value:
-                    self.node_selector.pop(key)
+                    self_node_selector.pop(key)
 
 
 class AutoMountType(str, Enum):

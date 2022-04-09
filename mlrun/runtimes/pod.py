@@ -23,6 +23,7 @@ import kubernetes.client as k8s_client
 
 import mlrun.errors
 import mlrun.utils.regex
+
 from ..api.schemas import NodeSelectorOperator, PreemptionModes
 from ..config import config as mlconf
 from ..k8s_utils import (

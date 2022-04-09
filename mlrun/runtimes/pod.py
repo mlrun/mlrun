@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import functools
 import inspect
 import os
 import typing
@@ -24,7 +23,6 @@ import kubernetes.client as k8s_client
 
 import mlrun.errors
 import mlrun.utils.regex
-
 from ..api.schemas import NodeSelectorOperator, PreemptionModes
 from ..config import config as mlconf
 from ..k8s_utils import (

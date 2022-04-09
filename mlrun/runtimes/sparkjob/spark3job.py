@@ -16,6 +16,7 @@ import typing
 
 from kubernetes import client
 
+import mlrun.api.schemas.function
 import mlrun.errors
 import mlrun.runtimes.pod
 
@@ -32,6 +33,10 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         "dynamic_allocation",
         "driver_tolerations",
         "executor_tolerations",
+        "driver_affinity",
+        "executor_affinity",
+        "driver_preemption_mode",
+        "executor_preemption_mode",
     ]
 
     def __init__(
@@ -77,7 +82,11 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         tolerations=None,
         driver_tolerations=None,
         executor_tolerations=None,
+        executor_affinity=None,
+        driver_affinity=None,
         preemption_mode=None,
+        executor_preemption_mode=None,
+        driver_preemption_mode=None,
     ):
 
         super().__init__(
@@ -123,8 +132,12 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         self.driver_node_selector = driver_node_selector
         self.executor_node_selector = executor_node_selector
         self.monitoring = monitoring or {}
-        self._driver_tolerations = driver_tolerations
-        self._executor_tolerations = executor_tolerations
+        self.driver_tolerations = driver_tolerations
+        self.executor_tolerations = executor_tolerations
+        self.executor_affinity = executor_affinity
+        self.driver_affinity = driver_affinity
+        self.executor_preemption_mode = executor_preemption_mode
+        self.driver_preemption_mode = driver_preemption_mode
 
     @property
     def executor_tolerations(self) -> typing.List[client.V1Toleration]:
@@ -148,6 +161,62 @@ class Spark3JobSpec(AbstractSparkJobSpec):
             mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
                 "driver_tolerations", driver_tolerations
             )
+        )
+
+    @property
+    def executor_affinity(self) -> client.V1Affinity:
+        return self._executor_affinity
+
+    @executor_affinity.setter
+    def executor_affinity(self, affinity):
+        self._executor_affinity = (
+            mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
+                "executor_affinity", affinity
+            )
+        )
+
+    @property
+    def driver_affinity(self) -> client.V1Affinity:
+        return self._driver_affinity
+
+    @driver_affinity.setter
+    def driver_affinity(self, affinity):
+        self._driver_affinity = (
+            mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
+                "executor_affinity", affinity
+            )
+        )
+
+    @property
+    def driver_preemption_mode(self) -> str:
+        return self._driver_preemption_mode
+
+    @driver_preemption_mode.setter
+    def driver_preemption_mode(self, mode):
+        self._driver_preemption_mode = (
+            mode or mlrun.mlconf.function_defaults.preemption_mode
+        )
+        self.enrich_function_preemption_spec(
+            preemption_mode_field_name="driver_preemption_mode",
+            tolerations_field_name="driver_tolerations",
+            affinity_field_name="driver_affinity",
+            node_selector_field_name="driver_node_selector",
+        )
+
+    @property
+    def executor_preemption_mode(self) -> str:
+        return self._driver_preemption_mode
+
+    @executor_preemption_mode.setter
+    def executor_preemption_mode(self, mode):
+        self._executor_preemption_mode = (
+            mode or mlrun.mlconf.function_defaults.preemption_mode
+        )
+        self.enrich_function_preemption_spec(
+            preemption_mode_field_name="executor_preemption_mode",
+            tolerations_field_name="executor_tolerations",
+            affinity_field_name="executor_affinity",
+            node_selector_field_name="executor_node_selector",
         )
 
 
@@ -217,6 +286,11 @@ class Spark3Runtime(AbstractSparkRuntime):
             update_in(job, "spec.driver.tolerations", self.spec.driver_tolerations)
         if self.spec.executor_tolerations:
             update_in(job, "spec.executor.tolerations", self.spec.executor_tolerations)
+
+        if self.spec.driver_affinity:
+            update_in(job, "spec.driver.affinity", self.spec.driver_affinity)
+        if self.spec.executor_affinity:
+            update_in(job, "spec.executor.affinity", self.spec.executor_affinity)
 
         if self.spec.monitoring:
             if "enabled" in self.spec.monitoring and self.spec.monitoring["enabled"]:
@@ -300,10 +374,7 @@ class Spark3Runtime(AbstractSparkRuntime):
                 "Setting node name is not supported for spark runtime"
             )
         if affinity:
-            raise NotImplementedError(
-                "Setting affinity is not supported for spark runtime"
-            )
-
+            self.spec.driver_affinity = affinity
         if node_selector:
             self.spec.driver_node_selector = node_selector
         if tolerations:
@@ -334,13 +405,67 @@ class Spark3Runtime(AbstractSparkRuntime):
                 "Setting node name is not supported for spark runtime"
             )
         if affinity:
-            raise NotImplementedError(
-                "Setting affinity is not supported for spark runtime"
-            )
+            self.spec.executor_affinity = affinity
         if node_selector:
             self.spec.executor_node_selector = node_selector
         if tolerations:
             self.spec.executor_tolerations = tolerations
+
+    def with_preemption_mode(
+        self, mode: typing.Union[mlrun.api.schemas.function.PreemptionModes, str]
+    ):
+        """
+        Preemption mode controls whether pods can be scheduled on preemptible nodes.
+        Tolerations, node selector, and affinity are populated on preemptible nodes corresponding to the function spec.
+
+        Three modes are supported:
+
+        * **allow** - The function can be scheduled on preemptible nodes
+        * **constrain** - The function can only run on preemptible nodes
+        * **prevent** - The function cannot be scheduled on preemptible nodes
+
+        :param mode: accepts allow | constrain | prevent defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
+        """
+        raise mlrun.errors.MLRunInvalidArgumentTypeError(
+            "Preemption mode can be set in spark runtime but not in with_preemption_mode"
+            "Instead, use with_driver_preemption_mode and with_executor_preemption_mode to set preemption mode"
+        )
+
+    def with_driver_preemption_mode(
+        self, mode: typing.Union[mlrun.api.schemas.function.PreemptionModes, str]
+    ):
+        """
+        Preemption mode controls whether the spark driver can be scheduled on preemptible nodes.
+        Tolerations, node selector, and affinity are populated on preemptible nodes corresponding to the function spec.
+
+        Three modes are supported:
+
+        * **allow** - The function can be scheduled on preemptible nodes
+        * **constrain** - The function can only run on preemptible nodes
+        * **prevent** - The function cannot be scheduled on preemptible nodes
+
+        :param mode: accepts allow | constrain | prevent defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
+        """
+        preemption_mode = mlrun.api.schemas.function.PreemptionModes(mode)
+        self.spec.driver_preemption_mode = preemption_mode
+
+    def with_executor_preemption_mode(
+        self, mode: typing.Union[mlrun.api.schemas.function.PreemptionModes, str]
+    ):
+        """
+        Preemption mode controls whether the spark executor can be scheduled on preemptible nodes.
+        Tolerations, node selector, and affinity are populated on preemptible nodes corresponding to the function spec.
+
+        Three modes are supported:
+
+        * **allow** - The function can be scheduled on preemptible nodes
+        * **constrain** - The function can only run on preemptible nodes
+        * **prevent** - The function cannot be scheduled on preemptible nodes
+
+        :param mode: accepts allow | constrain | prevent defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
+        """
+        preemption_mode = mlrun.api.schemas.function.PreemptionModes(mode)
+        self.spec.executor_preemption_mode = preemption_mode
 
     def with_dynamic_allocation(
         self, min_executors=None, max_executors=None, initial_executors=None

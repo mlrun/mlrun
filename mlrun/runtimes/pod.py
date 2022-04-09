@@ -215,10 +215,12 @@ class KubeResourceSpec(FunctionSpec):
     @preemption_mode.setter
     def preemption_mode(self, mode):
         self._preemption_mode = mode or mlconf.function_defaults.preemption_mode
-        self.enrich_function_preemption_spec(preemption_mode_field_name="preemption_mode",
-                                             tolerations_field_name="tolerations",
-                                             affinity_field_name="affinity",
-                                             node_selector_field_name="node_selector")
+        self.enrich_function_preemption_spec(
+            preemption_mode_field_name="preemption_mode",
+            tolerations_field_name="tolerations",
+            affinity_field_name="affinity",
+            node_selector_field_name="node_selector",
+        )
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(fields, exclude=["affinity", "tolerations"])

@@ -71,6 +71,8 @@ sanitized_attributes = {
     "tolerations": sanitized_types["tolerations"],
     "executor_tolerations": sanitized_types["tolerations"],
     "driver_tolerations": sanitized_types["tolerations"],
+    "executor_affinity": sanitized_types["affinity"],
+    "driver_affinity": sanitized_types["affinity"]
 }
 
 

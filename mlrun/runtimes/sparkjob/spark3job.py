@@ -415,20 +415,11 @@ class Spark3Runtime(AbstractSparkRuntime):
         self, mode: typing.Union[mlrun.api.schemas.function.PreemptionModes, str]
     ):
         """
-        Preemption mode controls whether pods can be scheduled on preemptible nodes.
-        Tolerations, node selector, and affinity are populated on preemptible nodes corresponding to the function spec.
-
-        Three modes are supported:
-
-        * **allow** - The function can be scheduled on preemptible nodes
-        * **constrain** - The function can only run on preemptible nodes
-        * **prevent** - The function cannot be scheduled on preemptible nodes
-
-        :param mode: accepts allow | constrain | prevent defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
+        Use with_driver_preemption_mode / with_executor_preemption_mode to setup preemption_mode for spark operator
         """
         raise mlrun.errors.MLRunInvalidArgumentTypeError(
-            "Preemption mode can be set in spark runtime but not in with_preemption_mode"
-            "Instead, use with_driver_preemption_mode and with_executor_preemption_mode to set preemption mode"
+            "with_preemption_mode is not supported use with_driver_preemption_mode / with_executor_preemption_mode"
+            " to set preemption mode for spark operator"
         )
 
     def with_driver_preemption_mode(

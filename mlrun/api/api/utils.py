@@ -400,7 +400,7 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
 
 def try_perform_auto_mount(function, auth_info: mlrun.api.schemas.AuthInfo):
     if (
-        not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
+        mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
         or function.spec.disable_auto_mount
     ):
         return
@@ -477,7 +477,7 @@ def _submit_run(
             db_session, auth_info, data
         )
         if (
-            not mlrun.runtimes.RuntimeKinds.is_local_runtime(fn.kind)
+            mlrun.runtimes.RuntimeKinds.is_local_runtime(fn.kind)
             and not mlrun.mlconf.httpdb.jobs.allow_local_run
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(

@@ -239,6 +239,8 @@ def _obfuscate_v3io_volume_credentials(function: mlrun.runtimes.pod.KubeResource
             username = None
             found_more_than_one_username = False
             for volume_mount in volume_name_to_volume_mounts[volume_name]:
+                # volume_mount may be an V1VolumeMount instance (object access, snake case) or sanitized dict (dict
+                # access, camel case)
                 sub_path = get_item_attribute(
                     volume_mount, "subPath"
                 ) or get_item_attribute(volume_mount, "sub_path")

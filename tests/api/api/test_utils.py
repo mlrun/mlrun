@@ -496,9 +496,12 @@ def test_obfuscate_v3io_access_key_env_var(
         == {}
     )
 
-    # access key without username - explode
+    # access key without username when iguazio auth on - explode
     _, _, _, original_function_dict = _generate_original_function(
         v3io_access_key=v3io_access_key
+    )
+    mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+        unittest.mock.Mock(return_value=True)
     )
     function = mlrun.new_function(runtime=original_function_dict)
     with pytest.raises(
@@ -507,18 +510,35 @@ def test_obfuscate_v3io_access_key_env_var(
     ):
         _obfuscate_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
 
-    # access key with username - secret should be created, env should reference it
-    username = "some-username"
+    # access key without username when iguazio auth off - skip
     _, _, _, original_function_dict = _generate_original_function(
         v3io_access_key=v3io_access_key
+    )
+    mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+        unittest.mock.Mock(return_value=False)
+    )
+    original_function = mlrun.new_function(runtime=original_function_dict)
+    function = mlrun.new_function(runtime=original_function_dict)
+    _obfuscate_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    # access key with username from env var - secret should be created, env should reference it
+    username = "some-username"
+    _, _, _, original_function_dict = _generate_original_function(
+        v3io_access_key=v3io_access_key, v3io_username=username
     )
     original_function = mlrun.new_function(runtime=original_function_dict)
     function: mlrun.runtimes.pod.KubeResource = mlrun.new_function(
         runtime=original_function_dict
     )
-    _obfuscate_v3io_access_key_env_var(
-        function, mlrun.api.schemas.AuthInfo(username=username)
-    )
+    _obfuscate_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
     assert (
         DeepDiff(
             original_function.to_dict(),
@@ -540,9 +560,7 @@ def test_obfuscate_v3io_access_key_env_var(
 
     # access key is already a reference (obfuscating the same function again) - nothing should change
     original_function = mlrun.new_function(runtime=function)
-    _obfuscate_v3io_access_key_env_var(
-        function, mlrun.api.schemas.AuthInfo(username=username)
-    )
+    _obfuscate_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
     mlrun.api.crud.Secrets().store_auth_secret = unittest.mock.Mock()
     assert (
         DeepDiff(
@@ -848,6 +866,7 @@ def _mock_original_function(
 def _generate_original_function(
     access_key=None,
     kind=mlrun.runtimes.RuntimeKinds.job,
+    v3io_username=None,
     v3io_access_key=None,
     volumes=None,
     volume_mounts=None,
@@ -909,6 +928,13 @@ def _generate_original_function(
         original_function["metadata"]["credentials"] = {
             "access_key": access_key,
         }
+    if v3io_username:
+        original_function["spec"]["env"].append(
+            {
+                "name": "V3IO_USERNAME",
+                "value": v3io_username,
+            }
+        )
     if v3io_access_key:
         original_function["spec"]["env"].append(
             {

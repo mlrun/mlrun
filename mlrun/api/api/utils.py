@@ -296,14 +296,27 @@ def _obfuscate_v3io_access_key_env_var(function, auth_info: mlrun.api.schemas.Au
             and not isinstance(v3io_access_key, kubernetes.client.V1EnvVarSource)
             and not isinstance(v3io_access_key, dict)
         ):
-            if not auth_info.username:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Username is missing from auth info"
-                )
+            username = None
+            v3io_username = function.get_env("V3IO_USERNAME")
+            if v3io_username and isinstance(v3io_username, str):
+                username = v3io_username
+            if not username:
+                if mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
+                    # auth_info should always has username, sanity
+                    if not auth_info.username:
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            "Username is missing from auth info"
+                        )
+                    username = auth_info.username
+                else:
+                    logger.warning(
+                        "Could not find matching username for v3io access key in env or session, skipping obfuscation",
+                    )
+                    return
             secret_name = mlrun.api.crud.Secrets().store_auth_secret(
                 mlrun.api.schemas.AuthSecretData(
                     provider=mlrun.api.schemas.SecretProviderName.kubernetes,
-                    username=auth_info.username,
+                    username=username,
                     access_key=v3io_access_key,
                 )
             )

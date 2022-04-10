@@ -184,7 +184,7 @@ class SystemTestPreparer:
             command += " " + " ".join(args)
 
         result: invoke.runners.Result = self._ssh_connection.run(
-            command, hide=not live, in_stream=io.StringIO(stdin), warn=True
+            command, hide=not live, in_stream=io.StringIO(stdin), warn=True, pty=True
         )
 
         return result.stdout, None, result.return_code

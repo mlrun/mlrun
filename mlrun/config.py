@@ -160,8 +160,9 @@ default_config = {
                 "use_rotation": True,
                 "rotation_limit": 3,
             },
-            "connections_pool_size": 20,
-            "connections_pool_max_overflow": 50,
+            # None will set this to be equal to the httpdb.max_workers
+            "connections_pool_size": None,
+            "connections_pool_max_overflow": None,
         },
         "jobs": {
             # whether to allow to run local runtimes in the API - configurable to allow the scheduler testing to work

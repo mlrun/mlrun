@@ -28,7 +28,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     spark_image_deployed = (
         False  # Set to True if you want to avoid the image building phase
     )
-    test_branch = ""  # For testing specific branche. e.g.: "https://github.com/mlrun/mlrun.git@development"
+    test_branch = ""  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
 
     @classmethod
     def _init_env_from_file(cls):
@@ -91,6 +91,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_context=self.spark_service,
             run_config=fs.RunConfig(local=False),
         )
+        assert measurements.status.targets[0].run_id is not None
 
     def test_error_flow(self):
         df = pd.DataFrame(

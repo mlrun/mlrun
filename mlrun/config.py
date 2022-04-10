@@ -51,7 +51,7 @@ default_config = {
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     "nuclio_dashboard_url": "",
     "nuclio_version": "",
-    "default_nuclio_runtime": "python:3.7",
+    "default_nuclio_runtime": "python:3.6",
     "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
     "ui_url": "",  # remote/external mlrun UI url (for hyperlinks) (This is deprecated in favor of the ui block)
     "remote_host": "",
@@ -466,6 +466,14 @@ class Config:
         return self.decode_base64_config_and_load_to_object(
             "preemptible_nodes.tolerations", list
         )
+
+    def is_preemption_nodes_configured(self):
+        if (
+            not self.get_preemptible_tolerations()
+            and not self.get_preemptible_node_selector()
+        ):
+            return False
+        return True
 
     @staticmethod
     def get_valid_function_priority_class_names():

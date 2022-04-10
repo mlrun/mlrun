@@ -19,6 +19,7 @@ from mlrun.api.api.utils import (
     _obfuscate_v3io_volume_credentials,
     ensure_function_has_auth_set,
 )
+from mlrun.utils import logger
 
 # Want to use k8s_secrets_mock for all tests in this module. It is needed since
 # _generate_function_and_task_from_submit_run_body looks for project secrets for secret-account validation.
@@ -465,7 +466,7 @@ def test_ensure_function_has_auth_set(
 def test_obfuscate_v3io_access_key_env_var(
     db: Session, client: TestClient, k8s_secrets_mock: tests.api.conftest.K8sSecretsMock
 ):
-    # local function so nothing should be changed
+    logger.info("Obfuscate local function, nothing should be changed")
     v3io_access_key = "some-v3io-access-key"
     _, _, _, original_function_dict = _generate_original_function(
         kind=mlrun.runtimes.RuntimeKinds.local, v3io_access_key=v3io_access_key
@@ -482,7 +483,7 @@ def test_obfuscate_v3io_access_key_env_var(
         == {}
     )
 
-    # no access key - nothing should be changed
+    logger.info("Obfuscate function without access key, nothing should be changed")
     _, _, _, original_function_dict = _generate_original_function()
     original_function = mlrun.new_function(runtime=original_function_dict)
     function = mlrun.new_function(runtime=original_function_dict)
@@ -496,7 +497,9 @@ def test_obfuscate_v3io_access_key_env_var(
         == {}
     )
 
-    # access key without username when iguazio auth on - explode
+    logger.info(
+        "Obfuscate function with access key without username when iguazio auth on - explode"
+    )
     _, _, _, original_function_dict = _generate_original_function(
         v3io_access_key=v3io_access_key
     )
@@ -510,7 +513,9 @@ def test_obfuscate_v3io_access_key_env_var(
     ):
         _obfuscate_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
 
-    # access key without username when iguazio auth off - skip
+    logger.info(
+        "Obfuscate function with access key without username when iguazio auth off - skip"
+    )
     _, _, _, original_function_dict = _generate_original_function(
         v3io_access_key=v3io_access_key
     )
@@ -529,7 +534,10 @@ def test_obfuscate_v3io_access_key_env_var(
         == {}
     )
 
-    # access key with username from env var - secret should be created, env should reference it
+    logger.info(
+        "Happy flow - obfuscate function with access key with username from env var - secret should be "
+        "created, env should reference it"
+    )
     username = "some-username"
     _, _, _, original_function_dict = _generate_original_function(
         v3io_access_key=v3io_access_key, v3io_username=username
@@ -558,7 +566,9 @@ def test_obfuscate_v3io_access_key_env_var(
         mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
     )
 
-    # access key is already a reference (obfuscating the same function again) - nothing should change
+    logger.info(
+        "obfuscate same function again, access key is already a reference - nothing should change"
+    )
     original_function = mlrun.new_function(runtime=function)
     _obfuscate_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
     mlrun.api.crud.Secrets().store_auth_secret = unittest.mock.Mock()
@@ -572,7 +582,10 @@ def test_obfuscate_v3io_access_key_env_var(
     # assert we're not trying to store unneeded-ly
     assert mlrun.api.crud.Secrets().store_auth_secret.call_count == 0
 
-    # access key is already a reference, but this time a dict - nothing should change
+    logger.info(
+        "obfuscate same function again, access key is already a reference, but this time a dict - nothing "
+        "should change"
+    )
     function.spec.env.append(function.spec.env.pop().to_dict())
     original_function = mlrun.new_function(runtime=function)
     _obfuscate_v3io_access_key_env_var(
@@ -659,7 +672,7 @@ def test_obfuscate_v3io_volume_credentials(
             no_name_volume_mount
         )
 
-    # local function so nothing should be changed
+    logger.info("Obfuscate local function, nothing should be changed")
     _, _, _, original_function_dict = _generate_original_function(
         kind=mlrun.runtimes.RuntimeKinds.local,
         volumes=[v3io_volume],
@@ -677,7 +690,7 @@ def test_obfuscate_v3io_volume_credentials(
         == {}
     )
 
-    # no v3io volume so nothing should be changed
+    logger.info("Obfuscate function without v3io volume, nothing should be changed")
     _, _, _, original_function_dict = _generate_original_function(
         volumes=[regular_volume], volume_mounts=[regular_volume_mount]
     )
@@ -693,7 +706,7 @@ def test_obfuscate_v3io_volume_credentials(
         == {}
     )
 
-    # several edge cases - nothing should be changed
+    logger.info("Obfuscate several edge cases, nothing should be changed")
     _, _, _, original_function_dict = _generate_original_function(
         volumes=[
             no_access_key_v3io_volume,
@@ -719,7 +732,10 @@ def test_obfuscate_v3io_volume_credentials(
         == {}
     )
 
-    # happy flow - username resolved from volume mount - secret should be created, volume should reference it
+    logger.info(
+        "Happy flow, username resolved from volume mount, obfuscation should be done, secret should be "
+        "created, volume should reference it"
+    )
     _, _, _, original_function_dict = _generate_original_function(
         volumes=[v3io_volume], volume_mounts=[v3io_volume_mount]
     )
@@ -740,7 +756,10 @@ def test_obfuscate_v3io_volume_credentials(
     assert "accessKey" not in function.spec.volumes[0]["flexVolume"]["options"]
     assert function.spec.volumes[0]["flexVolume"]["secretRef"]["name"] == secret_name
 
-    # happy flow - username resolved from env var - secret should be created, volume should reference it
+    logger.info(
+        "Happy flow, username resolved from env var, obfuscation should be done, secret should be "
+        "created, volume should reference it"
+    )
     k8s_secrets_mock.reset_mock()
     _, _, _, original_function_dict = _generate_original_function(
         volumes=[v3io_volume], v3io_username=username

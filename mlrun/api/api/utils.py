@@ -234,7 +234,9 @@ def _obfuscate_v3io_volume_credentials(function: mlrun.runtimes.pod.KubeResource
                     "Found volume without name, skipping obfuscation", volume=volume
                 )
                 continue
-            username = _resolve_v3io_fuse_volume_access_key_matching_username(volume, volume["name"], volume_name_to_volume_mounts)
+            username = _resolve_v3io_fuse_volume_access_key_matching_username(
+                volume, volume["name"], volume_name_to_volume_mounts
+            )
             if not username:
                 continue
             secret_name = mlrun.api.crud.Secrets().store_auth_secret(
@@ -249,10 +251,12 @@ def _obfuscate_v3io_volume_credentials(function: mlrun.runtimes.pod.KubeResource
             flex_volume["secretRef"] = {"name": secret_name}
 
 
-def _resolve_v3io_fuse_volume_access_key_matching_username(function: mlrun.runtimes.pod.KubeResource,
-                                                           volume: dict,
-                                                           volume_name: str,
-                                                           volume_name_to_volume_mounts: dict) -> typing.Optional[str]:
+def _resolve_v3io_fuse_volume_access_key_matching_username(
+    function: mlrun.runtimes.pod.KubeResource,
+    volume: dict,
+    volume_name: str,
+    volume_name_to_volume_mounts: dict,
+) -> typing.Optional[str]:
     """
     Usually v3io fuse mount is set using mlrun.mount_v3io, which by default add a volume mount to /users/<username>, try
     to resolve the username from there
@@ -267,9 +271,9 @@ def _resolve_v3io_fuse_volume_access_key_matching_username(function: mlrun.runti
     for volume_mount in volume_name_to_volume_mounts[volume_name]:
         # volume_mount may be an V1VolumeMount instance (object access, snake case) or sanitized dict (dict
         # access, camel case)
-        sub_path = get_item_attribute(
-            volume_mount, "subPath"
-        ) or get_item_attribute(volume_mount, "sub_path")
+        sub_path = get_item_attribute(volume_mount, "subPath") or get_item_attribute(
+            volume_mount, "sub_path"
+        )
         if sub_path and sub_path.startswith("users/"):
             username_from_sub_path = sub_path.replace("users/", "")
             if username_from_sub_path:

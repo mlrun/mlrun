@@ -163,6 +163,9 @@ def obfuscate_sensitive_data(function, auth_info: mlrun.api.schemas.AuthInfo):
 
 
 def _obfuscate_v3io_volume_credentials(function: mlrun.runtimes.pod.KubeResource):
+    """
+    Go over all of the flex volumes with v3io/fuse driver of the function and try obfuscate their access key to a secret
+    """
     get_item_attribute = mlrun.runtimes.utils.get_item_name
     v3io_volume_indices = []
     # to prevent the code from having to deal both with the scenario of the volume as V1Volume object and both as
@@ -231,45 +234,9 @@ def _obfuscate_v3io_volume_credentials(function: mlrun.runtimes.pod.KubeResource
                     "Found volume without name, skipping obfuscation", volume=volume
                 )
                 continue
-            volume_name = volume["name"]
-            # Usually v3io fuse mount is set using mlrun.mount_v3io, which by default add a volume mount to
-            # /users/<username>, try to resolve the username from there
-            # If it's not found (user may set custom volume mounts), try to look for V3IO_USERNAME env var
-            # If it's not found, skip obfuscation for this volume
-            username = None
-            found_more_than_one_username = False
-            for volume_mount in volume_name_to_volume_mounts[volume_name]:
-                # volume_mount may be an V1VolumeMount instance (object access, snake case) or sanitized dict (dict
-                # access, camel case)
-                sub_path = get_item_attribute(
-                    volume_mount, "subPath"
-                ) or get_item_attribute(volume_mount, "sub_path")
-                if sub_path and sub_path.startswith("users/"):
-                    username_from_sub_path = sub_path.replace("users/", "")
-                    if username_from_sub_path:
-                        if username is not None and username != username_from_sub_path:
-                            found_more_than_one_username = True
-                            break
-                        username = username_from_sub_path
-            if found_more_than_one_username:
-                logger.warning(
-                    "Found more than one user for volume, skipping obfuscation",
-                    volume=volume,
-                    volume_mounts=volume_name_to_volume_mounts[volume_name],
-                )
-                continue
+            username = _resolve_v3io_fuse_volume_access_key_matching_username(volume, volume["name"], volume_name_to_volume_mounts)
             if not username:
-                v3io_username = function.get_env("V3IO_USERNAME")
-                if not v3io_username or not isinstance(v3io_username, str):
-                    logger.warning(
-                        "Could not resolve username from volume mount or env vars, skipping obfuscation",
-                        volume=volume,
-                        volume_mounts=volume_name_to_volume_mounts[volume_name],
-                        env=function.spec.env,
-                    )
-                    continue
-                username = v3io_username
-            username: str
+                continue
             secret_name = mlrun.api.crud.Secrets().store_auth_secret(
                 mlrun.api.schemas.AuthSecretData(
                     provider=mlrun.api.schemas.SecretProviderName.kubernetes,
@@ -280,6 +247,55 @@ def _obfuscate_v3io_volume_credentials(function: mlrun.runtimes.pod.KubeResource
 
             del flex_volume["options"]["accessKey"]
             flex_volume["secretRef"] = {"name": secret_name}
+
+
+def _resolve_v3io_fuse_volume_access_key_matching_username(function: mlrun.runtimes.pod.KubeResource,
+                                                           volume: dict,
+                                                           volume_name: str,
+                                                           volume_name_to_volume_mounts: dict) -> typing.Optional[str]:
+    """
+    Usually v3io fuse mount is set using mlrun.mount_v3io, which by default add a volume mount to /users/<username>, try
+    to resolve the username from there
+    If it's not found (user may set custom volume mounts), try to look for V3IO_USERNAME env var
+    If it's not found, skip obfuscation for this volume
+    :return: the resolved username (string), none if not found
+    """
+
+    get_item_attribute = mlrun.runtimes.utils.get_item_name
+    username = None
+    found_more_than_one_username = False
+    for volume_mount in volume_name_to_volume_mounts[volume_name]:
+        # volume_mount may be an V1VolumeMount instance (object access, snake case) or sanitized dict (dict
+        # access, camel case)
+        sub_path = get_item_attribute(
+            volume_mount, "subPath"
+        ) or get_item_attribute(volume_mount, "sub_path")
+        if sub_path and sub_path.startswith("users/"):
+            username_from_sub_path = sub_path.replace("users/", "")
+            if username_from_sub_path:
+                if username is not None and username != username_from_sub_path:
+                    found_more_than_one_username = True
+                    break
+                username = username_from_sub_path
+    if found_more_than_one_username:
+        logger.warning(
+            "Found more than one user for volume, skipping obfuscation",
+            volume=volume,
+            volume_mounts=volume_name_to_volume_mounts[volume_name],
+        )
+        return None
+    if not username:
+        v3io_username = function.get_env("V3IO_USERNAME")
+        if not v3io_username or not isinstance(v3io_username, str):
+            logger.warning(
+                "Could not resolve username from volume mount or env vars, skipping obfuscation",
+                volume=volume,
+                volume_mounts=volume_name_to_volume_mounts[volume_name],
+                env=function.spec.env,
+            )
+            return None
+        username = v3io_username
+    return username
 
 
 def _obfuscate_v3io_access_key_env_var(

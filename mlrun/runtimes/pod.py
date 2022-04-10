@@ -321,6 +321,8 @@ class KubeResourceSpec(FunctionSpec):
 
     def _set_volume_mount(self, volume_mount):
         # using the mountPath as the key cause it must be unique (k8s limitation)
+        # volume_mount may be an V1VolumeMount instance (object access, snake case) or sanitized dict (dict
+        # access, camel case)
         self._volume_mounts[
             get_item_name(volume_mount, "mountPath")
             or get_item_name(volume_mount, "mount_path")

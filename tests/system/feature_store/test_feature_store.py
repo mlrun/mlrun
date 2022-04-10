@@ -392,7 +392,9 @@ class TestFeatureStore(TestMLRunSystem):
         else:
             tp_obj = TargetPathObject(target_path, run_id, is_single_file)
             assert (mlrun.model.RUN_ID_PLACE_HOLDER in tp_obj.get_templated_path()) == (
-                   (pass_run_id and not is_single_file) or mlrun.model.RUN_ID_PLACE_HOLDER in target_path)
+                   (pass_run_id and not is_single_file) or
+                   mlrun.model.RUN_ID_PLACE_HOLDER in target_path
+            )
             assert mlrun.model.RUN_ID_PLACE_HOLDER not in tp_obj.get_absolute_path()
 
     def test_feature_set_db(self):

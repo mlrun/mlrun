@@ -181,7 +181,7 @@ class SystemTestPreparer:
         # timeout: typing.Optional[int] = None
     ) -> (str, str, int):
         workdir = workdir or self.Constants.workdir
-        command = f"cd {workdir}; " + command
+        command = f"cd {workdir} && " + command
         if args:
             command += " " + " ".join(args)
 
@@ -276,10 +276,10 @@ class SystemTestPreparer:
 
     def _prepare_test_env(self):
 
-        self._run_command(
-            "mkdir",
-            args=["-p", str(self.Constants.workdir)],
-        )
+        # self._run_command(
+        #     "mkdir",
+        #     args=["-p", str(self.Constants.workdir)],
+        # )
         contents = yaml.safe_dump(self._env_config)
         filepath = str(self.Constants.system_tests_env_yaml)
         self._logger.debug("Populating system tests env.yml", filepath=filepath)

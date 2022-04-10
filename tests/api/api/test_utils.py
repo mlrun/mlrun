@@ -719,9 +719,31 @@ def test_obfuscate_v3io_volume_credentials(
         == {}
     )
 
-    # happy flow - secret should be created, volume should reference it
+    # happy flow - username resolved from volume mount - secret should be created, volume should reference it
     _, _, _, original_function_dict = _generate_original_function(
         volumes=[v3io_volume], volume_mounts=[v3io_volume_mount]
+    )
+    original_function = mlrun.new_function(runtime=original_function_dict)
+    function = mlrun.new_function(runtime=original_function_dict)
+    _obfuscate_v3io_volume_credentials(function)
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+            exclude_paths=["root['spec']['volumes'][0]['flexVolume']"],
+        )
+        == {}
+    )
+    secret_name = k8s_secrets_mock.get_auth_secret_name(username, access_key)
+    k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
+    assert "accessKey" not in function.spec.volumes[0]["flexVolume"]["options"]
+    assert function.spec.volumes[0]["flexVolume"]["secretRef"]["name"] == secret_name
+
+    # happy flow - username resolved from env var - secret should be created, volume should reference it
+    k8s_secrets_mock.reset_mock()
+    _, _, _, original_function_dict = _generate_original_function(
+        volumes=[v3io_volume], v3io_username=username
     )
     original_function = mlrun.new_function(runtime=original_function_dict)
     function = mlrun.new_function(runtime=original_function_dict)

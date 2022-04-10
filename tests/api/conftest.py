@@ -93,11 +93,14 @@ async def async_client(db) -> Generator:
 
 class K8sSecretsMock:
     def __init__(self):
+        self._is_running_in_k8s = True
+        self.reset_mock()
+
+    def reset_mock(self):
         # project -> secret_key -> secret_value
         self.project_secrets_map = {}
         # ref -> secret_key -> secret_value
         self.auth_secrets_map = {}
-        self._is_running_in_k8s = True
 
     # cannot use a property since it's used as a method on the actual class
     def is_running_inside_kubernetes_cluster(self) -> bool:

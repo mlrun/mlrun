@@ -87,7 +87,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
     @pytest.mark.parametrize("case", job_cases.keys())
     def test_job_git(self, load_mode, case):
         command, workdir, handler, tag = job_cases[case]
-        fn = self._new_function("job", load_mode, command)
+        fn = self._new_function("job", f"{load_mode}-{case}", command)
         fn.with_source_archive(
             f"{git_uri}#{tag}",
             workdir=workdir,
@@ -168,6 +168,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         resp = fn.invoke("")
         assert "tag=" in resp.decode()
 
+    @pytest.mark.enterprise
     @pytest.mark.parametrize("load_mode", ["run", "build"])
     def test_job_tar(self, load_mode):
         self._upload_code_to_cluster()
@@ -183,7 +184,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         assert run.state() == "completed"
         assert run.output("tag")
 
-    @need_private_git
+    @pytest.mark.enterprise
     def test_nuclio_tar(self):
         self._upload_code_to_cluster()
         fn = self._new_function("nuclio", "tar")

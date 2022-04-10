@@ -226,7 +226,9 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
     )
     assert (
         DeepDiff(
-            parsed_function_object.spec._get_sanitized_attribute("affinity"),
+            mlrun.runtimes.pod.get_sanitized_attribute(
+                parsed_function_object.spec, "affinity"
+            ),
             submit_job_body["function"]["spec"]["affinity"],
             ignore_order=True,
         )
@@ -234,7 +236,9 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
     )
     assert (
         DeepDiff(
-            parsed_function_object.spec._get_sanitized_attribute("tolerations"),
+            mlrun.runtimes.pod.get_sanitized_attribute(
+                parsed_function_object.spec, "tolerations"
+            ),
             submit_job_body["function"]["spec"]["tolerations"],
             ignore_order=True,
         )

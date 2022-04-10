@@ -1030,17 +1030,28 @@ class TargetPathObject:
     ):
         self.run_id = run_id
         self.full_path_template = base_path
-        if not is_single_file:
-            if RUN_ID_PLACE_HOLDER not in self.full_path_template:
-                if self.full_path_template[-1] != "/":
-                    self.full_path_template = self.full_path_template + "/"
-                self.full_path_template = self.full_path_template + RUN_ID_PLACE_HOLDER
+        if run_id is not None:
+            if not is_single_file:
+                if RUN_ID_PLACE_HOLDER not in self.full_path_template:
+                    if self.full_path_template[-1] != "/":
+                        self.full_path_template = self.full_path_template + "/"
+                    self.full_path_template = (
+                        self.full_path_template + RUN_ID_PLACE_HOLDER
+                    )
+        else:
+            if RUN_ID_PLACE_HOLDER in self.full_path_template:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Error when trying to create TargetPathObject with place holder but no value for 'run_id'."
+                )
 
     def get_templated_path(self):
         return self.full_path_template
 
     def get_absolute_path(self):
-        return self.full_path_template.format(run_id=self.run_id)
+        if self.run_id:
+            return self.full_path_template.format(run_id=self.run_id)
+        else:
+            return self.full_path_template
 
 
 class DataSource(ModelObj):

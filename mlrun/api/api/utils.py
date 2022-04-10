@@ -279,8 +279,8 @@ def _obfuscate_v3io_volume_credentials(function):
                     )
                 )
 
-                volume["flexVolume"].setdefault("options", {})["accessKey"] = None
-                volume["flexVolume"]["secretRef"] = {"name": secret_name}
+                del flex_volume["options"]["accessKey"]
+                flex_volume["secretRef"] = {"name": secret_name}
 
 
 def _obfuscate_v3io_access_key_env_var(function, auth_info: mlrun.api.schemas.AuthInfo):

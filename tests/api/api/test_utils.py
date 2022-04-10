@@ -719,7 +719,7 @@ def test_obfuscate_v3io_volume_credentials(
     )
     secret_name = k8s_secrets_mock.get_auth_secret_name(username, access_key)
     k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
-    assert function.spec.volumes[0]["flexVolume"]["options"]["accessKey"] is None
+    assert "accessKey" not in function.spec.volumes[0]["flexVolume"]["options"]
     assert function.spec.volumes[0]["flexVolume"]["secretRef"]["name"] == secret_name
 
 

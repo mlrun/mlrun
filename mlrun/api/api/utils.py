@@ -162,10 +162,7 @@ def obfuscate_sensitive_data(function, auth_info: mlrun.api.schemas.AuthInfo):
 
 
 def _obfuscate_v3io_volume_credentials(function):
-    if (
-        function.kind
-        and function.kind not in mlrun.runtimes.RuntimeKinds.local_runtimes()
-    ):
+    if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
         get_item_attribute = mlrun.runtimes.utils.get_item_name
         function: mlrun.runtimes.pod.KubeResource
         v3io_volume_indices = []
@@ -288,10 +285,7 @@ def _obfuscate_v3io_volume_credentials(function):
 
 
 def _obfuscate_v3io_access_key_env_var(function, auth_info: mlrun.api.schemas.AuthInfo):
-    if (
-        function.kind
-        and function.kind not in mlrun.runtimes.RuntimeKinds.local_runtimes()
-    ):
+    if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
         function: mlrun.runtimes.pod.KubeResource
         v3io_access_key = function.get_env("V3IO_ACCESS_KEY")
         # if it's already a V1EnvVarSource or dict instance, it's already been obfuscated
@@ -334,8 +328,7 @@ def _obfuscate_v3io_access_key_env_var(function, auth_info: mlrun.api.schemas.Au
 
 def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo):
     if (
-        function.kind
-        and function.kind not in mlrun.runtimes.RuntimeKinds.local_runtimes()
+        not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
         and mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
     ):
         function: mlrun.runtimes.pod.KubeResource
@@ -389,7 +382,7 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
 
 def try_perform_auto_mount(function, auth_info: mlrun.api.schemas.AuthInfo):
     if (
-        function.kind in mlrun.runtimes.RuntimeKinds.local_runtimes()
+        not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
         or function.spec.disable_auto_mount
     ):
         return
@@ -466,8 +459,7 @@ def _submit_run(
             db_session, auth_info, data
         )
         if (
-            not fn.kind
-            or fn.kind in mlrun.runtimes.RuntimeKinds.local_runtimes()
+            not mlrun.runtimes.RuntimeKinds.is_local_runtime(fn.kind)
             and not mlrun.mlconf.httpdb.jobs.allow_local_run
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(

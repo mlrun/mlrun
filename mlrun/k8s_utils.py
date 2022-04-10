@@ -44,6 +44,11 @@ def get_k8s_helper(namespace=None, silent=False, log=False):
     return _k8s
 
 
+class SecretTypes:
+    opaque = "Opaque"
+    v3io_fuse = "v3io/fuse"
+
+
 class K8sHelper:
     def __init__(self, namespace=None, config_file=None, silent=False, log=True):
         self.namespace = namespace or mlconfig.namespace
@@ -359,10 +364,14 @@ class K8sHelper:
                 "access_key"
             ): access_key,
         }
-        self.store_secrets(secret_name, secret_data, namespace, type_="v3io/fuse")
+        self.store_secrets(
+            secret_name, secret_data, namespace, type_=SecretTypes.v3io_fuse
+        )
         return secret_name
 
-    def store_secrets(self, secret_name, secrets, namespace="", type_="Opaque"):
+    def store_secrets(
+        self, secret_name, secrets, namespace="", type_=SecretTypes.opaque
+    ):
         namespace = self.resolve_namespace(namespace)
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)

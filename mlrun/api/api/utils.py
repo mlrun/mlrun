@@ -157,173 +157,169 @@ async def submit_run(db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
 
 
 def obfuscate_sensitive_data(function, auth_info: mlrun.api.schemas.AuthInfo):
-    _obfuscate_v3io_access_key_env_var(function, auth_info)
-    _obfuscate_v3io_volume_credentials(function)
-
-
-def _obfuscate_v3io_volume_credentials(function):
     if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
-        get_item_attribute = mlrun.runtimes.utils.get_item_name
-        function: mlrun.runtimes.pod.KubeResource
-        v3io_volume_indices = []
-        # to prevent the code from having to deal both with the scenario of the volume as V1Volume object and both as
-        # (sanitized) dict (it's also snake case vs camel case), transforming all to dicts
-        new_volumes = []
-        k8s_api_client = kubernetes.client.ApiClient()
-        for volume in function.spec.volumes:
-            if isinstance(volume, dict):
-                if "flexVolume" in volume:
-                    # mlrun.platforms.iguazio.v3io_to_vol generates a dict with a class in the flexVolume field
-                    if not isinstance(volume["flexVolume"], dict):
-                        # sanity
-                        if isinstance(
-                            volume["flexVolume"], kubernetes.client.V1FlexVolumeSource
-                        ):
-                            volume[
-                                "flexVolume"
-                            ] = k8s_api_client.sanitize_for_serialization(
-                                volume["flexVolume"]
-                            )
-                        else:
-                            raise mlrun.errors.MLRunInvalidArgumentError(
-                                f"Unexpected flex volume type: {type(volume['flexVolume'])}"
-                            )
-                new_volumes.append(volume)
-            elif isinstance(volume, kubernetes.client.V1Volume):
-                new_volumes.append(k8s_api_client.sanitize_for_serialization(volume))
-            else:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Unexpected volume type: {type(volume)}"
-                )
-        function.spec.volumes = new_volumes
+        _obfuscate_v3io_access_key_env_var(function, auth_info)
+        _obfuscate_v3io_volume_credentials(function)
 
-        for index, volume in enumerate(function.spec.volumes):
-            if volume.get("flexVolume", {}).get("driver") == "v3io/fuse":
-                v3io_volume_indices.append(index)
-        if v3io_volume_indices:
-            volume_name_to_volume_mounts = collections.defaultdict(list)
-            for volume_mount in function.spec.volume_mounts:
-                # sanity
-                if not get_item_attribute(volume_mount, "name"):
+
+def _obfuscate_v3io_volume_credentials(function: mlrun.runtimes.pod.KubeResource):
+    get_item_attribute = mlrun.runtimes.utils.get_item_name
+    v3io_volume_indices = []
+    # to prevent the code from having to deal both with the scenario of the volume as V1Volume object and both as
+    # (sanitized) dict (it's also snake case vs camel case), transforming all to dicts
+    new_volumes = []
+    k8s_api_client = kubernetes.client.ApiClient()
+    for volume in function.spec.volumes:
+        if isinstance(volume, dict):
+            if "flexVolume" in volume:
+                # mlrun.platforms.iguazio.v3io_to_vol generates a dict with a class in the flexVolume field
+                if not isinstance(volume["flexVolume"], dict):
+                    # sanity
+                    if isinstance(
+                        volume["flexVolume"], kubernetes.client.V1FlexVolumeSource
+                    ):
+                        volume[
+                            "flexVolume"
+                        ] = k8s_api_client.sanitize_for_serialization(
+                            volume["flexVolume"]
+                        )
+                    else:
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            f"Unexpected flex volume type: {type(volume['flexVolume'])}"
+                        )
+            new_volumes.append(volume)
+        elif isinstance(volume, kubernetes.client.V1Volume):
+            new_volumes.append(k8s_api_client.sanitize_for_serialization(volume))
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unexpected volume type: {type(volume)}"
+            )
+    function.spec.volumes = new_volumes
+
+    for index, volume in enumerate(function.spec.volumes):
+        if volume.get("flexVolume", {}).get("driver") == "v3io/fuse":
+            v3io_volume_indices.append(index)
+    if v3io_volume_indices:
+        volume_name_to_volume_mounts = collections.defaultdict(list)
+        for volume_mount in function.spec.volume_mounts:
+            # sanity
+            if not get_item_attribute(volume_mount, "name"):
+                logger.warning(
+                    "Found volume mount without name, skipping it for volume obfuscation username resolution",
+                    volume_mount=volume_mount,
+                )
+                continue
+            volume_name_to_volume_mounts[
+                get_item_attribute(volume_mount, "name")
+            ].append(volume_mount)
+        for index in v3io_volume_indices:
+            volume = function.spec.volumes[index]
+            flex_volume = volume["flexVolume"]
+            # if it's already referencing a secret, nothing to do
+            if flex_volume.get("secretRef"):
+                continue
+            access_key = flex_volume.get("options", {}).get("accessKey")
+            # sanity
+            if not access_key:
+                logger.warning(
+                    "Found v3io fuse volume without access key, skipping obfuscation",
+                    volume=volume,
+                )
+                continue
+            if not volume.get("name"):
+                logger.warning(
+                    "Found volume without name, skipping obfuscation", volume=volume
+                )
+                continue
+            volume_name = volume["name"]
+            # Usually v3io fuse mount is set using mlrun.mount_v3io, which by default add a volume mount to
+            # /users/<username>, try to resolve the username from there
+            # If it's not found (user may set custom volume mounts), try to look for V3IO_USERNAME env var
+            # If it's not found, skip obfuscation for this volume
+            username = None
+            found_more_than_one_username = False
+            for volume_mount in volume_name_to_volume_mounts[volume_name]:
+                sub_path = get_item_attribute(
+                    volume_mount, "subPath"
+                ) or get_item_attribute(volume_mount, "sub_path")
+                if sub_path and sub_path.startswith("users/"):
+                    username_from_sub_path = sub_path.replace("users/", "")
+                    if username_from_sub_path:
+                        if username is not None and username != username_from_sub_path:
+                            found_more_than_one_username = True
+                            break
+                        username = username_from_sub_path
+            if found_more_than_one_username:
+                logger.warning(
+                    "Found more than one user for volume, skipping obfuscation",
+                    volume=volume,
+                    volume_mounts=volume_name_to_volume_mounts[volume_name],
+                )
+                continue
+            if not username:
+                v3io_username = function.get_env("V3IO_USERNAME")
+                if not v3io_username or not isinstance(v3io_username, str):
                     logger.warning(
-                        "Found volume mount without name, skipping it for volume obfuscation username resolution",
-                        volume_mount=volume_mount,
-                    )
-                    continue
-                volume_name_to_volume_mounts[
-                    get_item_attribute(volume_mount, "name")
-                ].append(volume_mount)
-            for index in v3io_volume_indices:
-                volume = function.spec.volumes[index]
-                flex_volume = volume["flexVolume"]
-                # if it's already referencing a secret, nothing to do
-                if flex_volume.get("secretRef"):
-                    continue
-                access_key = flex_volume.get("options", {}).get("accessKey")
-                # sanity
-                if not access_key:
-                    logger.warning(
-                        "Found v3io fuse volume without access key, skipping obfuscation",
-                        volume=volume,
-                    )
-                    continue
-                if not volume.get("name"):
-                    logger.warning(
-                        "Found volume without name, skipping obfuscation", volume=volume
-                    )
-                    continue
-                volume_name = volume["name"]
-                # Usually v3io fuse mount is set using mlrun.mount_v3io, which by default add a volume mount to
-                # /users/<username>, try to resolve the username from there
-                # If it's not found (user may set custom volume mounts), try to look for V3IO_USERNAME env var
-                # If it's not found, skip obfuscation for this volume
-                username = None
-                found_more_than_one_username = False
-                for volume_mount in volume_name_to_volume_mounts[volume_name]:
-                    sub_path = get_item_attribute(
-                        volume_mount, "subPath"
-                    ) or get_item_attribute(volume_mount, "sub_path")
-                    if sub_path and sub_path.startswith("users/"):
-                        username_from_sub_path = sub_path.replace("users/", "")
-                        if username_from_sub_path:
-                            if (
-                                username is not None
-                                and username != username_from_sub_path
-                            ):
-                                found_more_than_one_username = True
-                                break
-                            username = username_from_sub_path
-                if found_more_than_one_username:
-                    logger.warning(
-                        "Found more than one user for volume, skipping obfuscation",
+                        "Could not resolve username from volume mount or env vars, skipping obfuscation",
                         volume=volume,
                         volume_mounts=volume_name_to_volume_mounts[volume_name],
+                        env=function.spec.env,
                     )
                     continue
-                if not username:
-                    v3io_username = function.get_env("V3IO_USERNAME")
-                    if not v3io_username or not isinstance(v3io_username, str):
-                        logger.warning(
-                            "Could not resolve username from volume mount or env vars, skipping obfuscation",
-                            volume=volume,
-                            volume_mounts=volume_name_to_volume_mounts[volume_name],
-                            env=function.spec.env,
-                        )
-                        continue
-                    username = v3io_username
-                username: str
-                secret_name = mlrun.api.crud.Secrets().store_auth_secret(
-                    mlrun.api.schemas.AuthSecretData(
-                        provider=mlrun.api.schemas.SecretProviderName.kubernetes,
-                        username=username,
-                        access_key=access_key,
-                    )
-                )
-
-                del flex_volume["options"]["accessKey"]
-                flex_volume["secretRef"] = {"name": secret_name}
-
-
-def _obfuscate_v3io_access_key_env_var(function, auth_info: mlrun.api.schemas.AuthInfo):
-    if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
-        function: mlrun.runtimes.pod.KubeResource
-        v3io_access_key = function.get_env("V3IO_ACCESS_KEY")
-        # if it's already a V1EnvVarSource or dict instance, it's already been obfuscated
-        if (
-            v3io_access_key
-            and not isinstance(v3io_access_key, kubernetes.client.V1EnvVarSource)
-            and not isinstance(v3io_access_key, dict)
-        ):
-            username = None
-            v3io_username = function.get_env("V3IO_USERNAME")
-            if v3io_username and isinstance(v3io_username, str):
                 username = v3io_username
-            if not username:
-                if mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
-                    # auth_info should always has username, sanity
-                    if not auth_info.username:
-                        raise mlrun.errors.MLRunInvalidArgumentError(
-                            "Username is missing from auth info"
-                        )
-                    username = auth_info.username
-                else:
-                    logger.warning(
-                        "Could not find matching username for v3io access key in env or session, skipping obfuscation",
-                    )
-                    return
+            username: str
             secret_name = mlrun.api.crud.Secrets().store_auth_secret(
                 mlrun.api.schemas.AuthSecretData(
                     provider=mlrun.api.schemas.SecretProviderName.kubernetes,
                     username=username,
-                    access_key=v3io_access_key,
+                    access_key=access_key,
                 )
             )
-            access_key_secret_key = (
-                mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key")
+
+            del flex_volume["options"]["accessKey"]
+            flex_volume["secretRef"] = {"name": secret_name}
+
+
+def _obfuscate_v3io_access_key_env_var(
+    function: mlrun.runtimes.pod.KubeResource, auth_info: mlrun.api.schemas.AuthInfo
+):
+    v3io_access_key = function.get_env("V3IO_ACCESS_KEY")
+    # if it's already a V1EnvVarSource or dict instance, it's already been obfuscated
+    if (
+        v3io_access_key
+        and not isinstance(v3io_access_key, kubernetes.client.V1EnvVarSource)
+        and not isinstance(v3io_access_key, dict)
+    ):
+        username = None
+        v3io_username = function.get_env("V3IO_USERNAME")
+        if v3io_username and isinstance(v3io_username, str):
+            username = v3io_username
+        if not username:
+            if mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
+                # auth_info should always has username, sanity
+                if not auth_info.username:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "Username is missing from auth info"
+                    )
+                username = auth_info.username
+            else:
+                logger.warning(
+                    "Could not find matching username for v3io access key in env or session, skipping obfuscation",
+                )
+                return
+        secret_name = mlrun.api.crud.Secrets().store_auth_secret(
+            mlrun.api.schemas.AuthSecretData(
+                provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+                username=username,
+                access_key=v3io_access_key,
             )
-            function.set_env_from_secret(
-                "V3IO_ACCESS_KEY", secret_name, access_key_secret_key
-            )
+        )
+        access_key_secret_key = mlrun.api.schemas.AuthSecretData.get_field_secret_key(
+            "access_key"
+        )
+        function.set_env_from_secret(
+            "V3IO_ACCESS_KEY", secret_name, access_key_secret_key
+        )
 
 
 def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo):

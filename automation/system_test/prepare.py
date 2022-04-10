@@ -4,6 +4,7 @@ import pathlib
 import subprocess
 import sys
 import time
+import typing
 
 import click
 import fabric
@@ -177,6 +178,7 @@ class SystemTestPreparer:
         workdir: str = None,
         stdin: str = None,
         live: bool = True,
+        # timeout: typing.Optional[int] = None
     ) -> (str, str, int):
         workdir = workdir or self.Constants.workdir
         command = f"cd {workdir}; " + command
@@ -184,7 +186,11 @@ class SystemTestPreparer:
             command += " " + " ".join(args)
 
         result: invoke.runners.Result = self._ssh_connection.run(
-            command, hide=not live, in_stream=io.StringIO(stdin), warn=True, pty=True
+            command,
+            hide=not live,
+            in_stream=io.StringIO(stdin),
+            warn=True,
+            timeout=20 * 60,
         )
 
         return result.stdout, None, result.return_code

@@ -611,20 +611,35 @@ def test_obfuscate_v3io_volume_credentials(
         "no-access-key-v3io-volume-name", "", ""
     )
     no_name_v3io_volume = mlrun.platforms.iguazio.v3io_to_vol("", "", access_key)
+    k8s_api_client = kubernetes.client.ApiClient()
     if not use_structs:
-        v3io_volume["flexVolume"] = v3io_volume["flexVolume"].to_dict()
-        no_access_key_v3io_volume["flexVolume"] = no_access_key_v3io_volume[
+        v3io_volume["flexVolume"] = k8s_api_client.sanitize_for_serialization(
+            v3io_volume["flexVolume"]
+        )
+        no_access_key_v3io_volume[
             "flexVolume"
-        ].to_dict()
-        no_name_v3io_volume["flexVolume"] = no_name_v3io_volume["flexVolume"].to_dict()
-        no_matching_mount_v3io_volume["flexVolume"] = no_matching_mount_v3io_volume[
+        ] = k8s_api_client.sanitize_for_serialization(
+            no_access_key_v3io_volume["flexVolume"]
+        )
+        no_name_v3io_volume["flexVolume"] = k8s_api_client.sanitize_for_serialization(
+            no_name_v3io_volume["flexVolume"]
+        )
+        no_matching_mount_v3io_volume[
             "flexVolume"
-        ].to_dict()
-        v3io_volume_mount = v3io_volume_mount.to_dict()
-        conflicting_v3io_volume_mount = conflicting_v3io_volume_mount.to_dict()
-        regular_volume = regular_volume.to_dict()
-        regular_volume_mount = regular_volume_mount.to_dict()
-        no_name_volume_mount = no_name_volume_mount.to_dict()
+        ] = k8s_api_client.sanitize_for_serialization(
+            no_matching_mount_v3io_volume["flexVolume"]
+        )
+        v3io_volume_mount = k8s_api_client.sanitize_for_serialization(v3io_volume_mount)
+        conflicting_v3io_volume_mount = k8s_api_client.sanitize_for_serialization(
+            conflicting_v3io_volume_mount
+        )
+        regular_volume = k8s_api_client.sanitize_for_serialization(regular_volume)
+        regular_volume_mount = k8s_api_client.sanitize_for_serialization(
+            regular_volume_mount
+        )
+        no_name_volume_mount = k8s_api_client.sanitize_for_serialization(
+            no_name_volume_mount
+        )
 
     # local function so nothing should be changed
     _, _, _, original_function_dict = _generate_original_function(
@@ -704,14 +719,8 @@ def test_obfuscate_v3io_volume_credentials(
     )
     secret_name = k8s_secrets_mock.get_auth_secret_name(username, access_key)
     k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
-    if use_structs:
-        assert function.spec.volumes[0]["flexVolume"].options["accessKey"] is None
-        assert function.spec.volumes[0]["flexVolume"].secretRef["name"] == secret_name
-    else:
-        assert function.spec.volumes[0]["flexVolume"]["options"]["accessKey"] is None
-        assert (
-            function.spec.volumes[0]["flexVolume"]["secretRef"]["name"] == secret_name
-        )
+    assert function.spec.volumes[0]["flexVolume"]["options"]["accessKey"] is None
+    assert function.spec.volumes[0]["flexVolume"]["secretRef"]["name"] == secret_name
 
 
 def test_generate_function_and_task_from_submit_run_body_imported_function_project_assignment(

@@ -235,7 +235,7 @@ def _obfuscate_v3io_volume_credentials(function: mlrun.runtimes.pod.KubeResource
                 )
                 continue
             username = _resolve_v3io_fuse_volume_access_key_matching_username(
-                volume, volume["name"], volume_name_to_volume_mounts
+                function, volume, volume["name"], volume_name_to_volume_mounts
             )
             if not username:
                 continue

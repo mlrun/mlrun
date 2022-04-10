@@ -466,23 +466,6 @@ def test_ensure_function_has_auth_set(
 def test_obfuscate_v3io_access_key_env_var(
     db: Session, client: TestClient, k8s_secrets_mock: tests.api.conftest.K8sSecretsMock
 ):
-    logger.info("Obfuscate local function, nothing should be changed")
-    v3io_access_key = "some-v3io-access-key"
-    _, _, _, original_function_dict = _generate_original_function(
-        kind=mlrun.runtimes.RuntimeKinds.local, v3io_access_key=v3io_access_key
-    )
-    original_function = mlrun.new_function(runtime=original_function_dict)
-    function = mlrun.new_function(runtime=original_function_dict)
-    _obfuscate_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
-    assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-            ignore_order=True,
-        )
-        == {}
-    )
-
     logger.info("Obfuscate function without access key, nothing should be changed")
     _, _, _, original_function_dict = _generate_original_function()
     original_function = mlrun.new_function(runtime=original_function_dict)
@@ -500,6 +483,7 @@ def test_obfuscate_v3io_access_key_env_var(
     logger.info(
         "Obfuscate function with access key without username when iguazio auth on - explode"
     )
+    v3io_access_key = "some-v3io-access-key"
     _, _, _, original_function_dict = _generate_original_function(
         v3io_access_key=v3io_access_key
     )
@@ -671,24 +655,6 @@ def test_obfuscate_v3io_volume_credentials(
         no_name_volume_mount = k8s_api_client.sanitize_for_serialization(
             no_name_volume_mount
         )
-
-    logger.info("Obfuscate local function, nothing should be changed")
-    _, _, _, original_function_dict = _generate_original_function(
-        kind=mlrun.runtimes.RuntimeKinds.local,
-        volumes=[v3io_volume],
-        volume_mounts=[v3io_volume_mount],
-    )
-    original_function = mlrun.new_function(runtime=original_function_dict)
-    function = mlrun.new_function(runtime=original_function_dict)
-    _obfuscate_v3io_volume_credentials(function)
-    assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-            ignore_order=True,
-        )
-        == {}
-    )
 
     logger.info("Obfuscate function without v3io volume, nothing should be changed")
     _, _, _, original_function_dict = _generate_original_function(

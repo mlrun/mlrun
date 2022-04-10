@@ -193,7 +193,6 @@ def _obfuscate_v3io_volume_credentials(function):
                             )
                 new_volumes.append(volume)
             elif isinstance(volume, kubernetes.client.V1Volume):
-                # volume.to_dict()
                 new_volumes.append(k8s_api_client.sanitize_for_serialization(volume))
             else:
                 raise mlrun.errors.MLRunInvalidArgumentError(
@@ -204,7 +203,6 @@ def _obfuscate_v3io_volume_credentials(function):
         for index, volume in enumerate(function.spec.volumes):
             if volume.get("flexVolume", {}).get("driver") == "v3io/fuse":
                 v3io_volume_indices.append(index)
-        # if it's already a V1EnvVarSource instance, it's already been obfuscated
         if v3io_volume_indices:
             volume_name_to_volume_mounts = collections.defaultdict(list)
             for volume_mount in function.spec.volume_mounts:

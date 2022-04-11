@@ -51,7 +51,7 @@ default_config = {
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     "nuclio_dashboard_url": "",
     "nuclio_version": "",
-    "default_nuclio_runtime": "python:3.7",
+    "default_nuclio_runtime": "python:3.6",
     "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
     "ui_url": "",  # remote/external mlrun UI url (for hyperlinks) (This is deprecated in favor of the ui block)
     "remote_host": "",
@@ -160,8 +160,9 @@ default_config = {
                 "use_rotation": True,
                 "rotation_limit": 3,
             },
-            "connections_pool_size": 20,
-            "connections_pool_max_overflow": 50,
+            # None will set this to be equal to the httpdb.max_workers
+            "connections_pool_size": None,
+            "connections_pool_max_overflow": None,
         },
         "jobs": {
             # whether to allow to run local runtimes in the API - configurable to allow the scheduler testing to work

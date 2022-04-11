@@ -149,10 +149,13 @@ def mock_failed_get_func(status_code: int):
 # Mock class used for client-side runtime tests. This mocks the rundb interface, for running/deploying runtimes
 class RunDBMock:
     def __init__(self):
+        self.kind = "http"
+        self._pipeline = None
         self._function = None
 
     def reset(self):
         self._function = None
+        self._pipeline = None
 
     # Expected to return a hash-key
     def store_function(self, function, name, project="", tag=None, versioned=False):
@@ -161,6 +164,24 @@ class RunDBMock:
 
     def submit_job(self, runspec, schedule=None):
         return {"status": {"status_text": "just a status"}}
+
+    def submit_pipeline(
+        self,
+        project,
+        pipeline,
+        arguments,
+        experiment,
+        run,
+        namespace,
+        ops,
+        artifact_path,
+    ):
+        self._pipeline = pipeline
+        return True
+
+    def store_project(self, name, project):
+        self._project_name = name
+        self._project = project
 
     def remote_builder(
         self,

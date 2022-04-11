@@ -140,6 +140,7 @@ class AbstractSparkJobSpec(KubeResourceSpec):
         node_name=None,
         affinity=None,
         tolerations=None,
+        preemption_mode=None,
     ):
 
         super().__init__(
@@ -167,6 +168,7 @@ class AbstractSparkJobSpec(KubeResourceSpec):
             node_name=node_name,
             affinity=affinity,
             tolerations=tolerations,
+            preemption_mode=preemption_mode,
         )
 
         self.driver_resources = driver_resources or {}

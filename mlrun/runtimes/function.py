@@ -144,6 +144,7 @@ class NuclioSpec(KubeResourceSpec):
         workdir=None,
         image_pull_secret=None,
         tolerations=None,
+        preemption_mode=None,
     ):
 
         super().__init__(
@@ -171,6 +172,7 @@ class NuclioSpec(KubeResourceSpec):
             workdir=workdir,
             image_pull_secret=image_pull_secret,
             tolerations=tolerations,
+            preemption_mode=preemption_mode,
         )
 
         self.base_spec = base_spec or {}
@@ -637,6 +639,22 @@ class RemoteRuntime(KubeResource):
                 "tolerations are only supported from nuclio version 1.7.5"
             )
         super().with_node_selection(node_name, node_selector, affinity, tolerations)
+
+    @min_nuclio_versions("1.8.1")
+    def with_preemption_mode(self, mode):
+        """
+        Preemption mode controls whether pods can be scheduled on preemptible nodes.
+        Tolerations, node selector, and affinity are populated on preemptible nodes corresponding to the function spec.
+
+        Three modes are supported:
+
+        * **allow** - The function can be scheduled on preemptible nodes
+        * **constrain** - The function can only run on preemptible nodes
+        * **prevent** - The function cannot be scheduled on preemptible nodes
+
+        :param mode: accepts allow | constrain | prevent defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
+        """
+        super().with_preemption_mode(mode=mode)
 
     @min_nuclio_versions("1.6.18")
     def with_priority_class(self, name: typing.Optional[str] = None):
@@ -1150,7 +1168,8 @@ def compile_function_config(
             nuclio_spec.set_config("spec.nodeName", function.spec.node_name)
         if function.spec.affinity:
             nuclio_spec.set_config(
-                "spec.affinity", function.spec._get_sanitized_attribute("affinity")
+                "spec.affinity",
+                mlrun.runtimes.pod.get_sanitized_attribute(function.spec, "affinity"),
             )
 
     # don't send tolerations if nuclio is not compatible
@@ -1158,7 +1177,16 @@ def compile_function_config(
         if function.spec.tolerations:
             nuclio_spec.set_config(
                 "spec.tolerations",
-                function.spec._get_sanitized_attribute("tolerations"),
+                mlrun.runtimes.pod.get_sanitized_attribute(
+                    function.spec, "tolerations"
+                ),
+            )
+    # don't send preemption_mode if nuclio is not compatible
+    if validate_nuclio_version_compatibility("1.8.1"):
+        if function.spec.preemption_mode:
+            nuclio_spec.set_config(
+                "spec.PreemptionMode",
+                function.spec.preemption_mode,
             )
 
     # don't send default or any priority class name if nuclio is not compatible
@@ -1328,7 +1356,7 @@ def _compile_nuclio_archive_config(
 ):
     secrets = {}
     if project and get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
-        secrets = get_k8s_helper.get_project_secret_data(project)
+        secrets = get_k8s_helper().get_project_secret_data(project)
 
     def get_secret(key):
         return builder_env.get(key) or secrets.get(key, "")

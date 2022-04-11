@@ -242,30 +242,38 @@ def _create_enriched_mlrun_workflow(
     workflow = self._original_create_workflow(
         pipeline_func, pipeline_name, pipeline_description, params_list, pipeline_conf
     )
-    functions = []
-    if pipeline_context.functions:
-        try:
-            functions = pipeline_context.functions.values()
-        except Exception as e:
-            logger.debug(
-                "Unable to retrieve project functions, not enriching workflow with mlrun",
-                error=str(e),
-            )
-            return workflow
+    # We don't want to interrupt the original flow and don't know all the scenarios the function could be called.
+    # that's why we have try/except on all the code of the enrichment and also specific try/except for errors that
+    # we know can be raised.
+    try:
+        functions = []
+        if pipeline_context.functions:
+            try:
+                functions = pipeline_context.functions.values()
+            except Exception as err:
+                logger.debug(
+                    "Unable to retrieve project functions, not enriching workflow with mlrun",
+                    error=str(err),
+                )
+                return workflow
 
-    # enrich each pipeline step with your desire k8s attribute
-    for kfp_step_template in workflow["spec"]["templates"]:
-        if kfp_step_template.get("container"):
-            for function_obj in functions:
-                # we condition within each function since the comparison between the function and
-                # the kfp pod may change depending on the attribute type.
-                try:
-                    _set_priority_class_name_on_kfp_pod(kfp_step_template, function_obj)
-                except Exception as e:
-                    kfp_pod_name = kfp_step_template.get("name")
-                    logger.warning(
-                        f"Unable to enrich kfp pod {kfp_pod_name}", error=str(e)
-                    )
+        # enrich each pipeline step with your desire k8s attribute
+        for kfp_step_template in workflow["spec"]["templates"]:
+            if kfp_step_template.get("container"):
+                for function_obj in functions:
+                    # we condition within each function since the comparison between the function and
+                    # the kfp pod may change depending on the attribute type.
+                    try:
+                        _set_priority_class_name_on_kfp_pod(
+                            kfp_step_template, function_obj
+                        )
+                    except Exception as err:
+                        kfp_pod_name = kfp_step_template.get("name")
+                        logger.warning(
+                            f"Unable to enrich kfp pod {kfp_pod_name}", error=str(err)
+                        )
+    except Exception as err:
+        logger.debug("Something in the enrichment of kfp pods failed", error=str(err))
     return workflow
 
 

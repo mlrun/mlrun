@@ -11,12 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import mlrun
 import pytest
+
+import mlrun
 from mlrun.data_types.data_types import ValueType
 from mlrun.feature_store import Entity, Feature, FeatureSet
 from mlrun.feature_store.common import parse_feature_string
-
 from mlrun.model import TargetPathObject
 
 

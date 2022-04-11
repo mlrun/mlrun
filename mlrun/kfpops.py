@@ -799,14 +799,13 @@ def add_default_function_resources(
 def add_function_node_selection_attributes(
     function, container_op: dsl.ContainerOp
 ) -> dsl.ContainerOp:
-    print("nodetank", function.spec.node_selector)
     if function.spec.node_selector:
         container_op.node_selector = function.spec.node_selector
-    print("toltank", function.spec.tolerations)
+
     if function.spec.tolerations:
         container_op.tolerations = function.spec.tolerations
-    print("affinitutak", function.spec.affinity)
+
     if function.spec.affinity:
         container_op.affinity = function.spec.affinity
-    print("priority", function.spec.priority_class_name)
+
     return container_op

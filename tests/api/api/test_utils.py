@@ -1,5 +1,9 @@
+import base64
+import json
 from http import HTTPStatus
 
+import kubernetes.client
+import kubernetes.client as k8s_client
 import pytest
 from deepdiff import DeepDiff
 from fastapi.testclient import TestClient
@@ -7,6 +11,7 @@ from sqlalchemy.orm import Session
 
 import mlrun
 import mlrun.api.schemas
+import mlrun.k8s_utils
 import mlrun.runtimes.pod
 from mlrun.api.api.utils import _generate_function_and_task_from_submit_run_body
 
@@ -31,6 +36,7 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
         "function": {
             "metadata": {"credentials": {"access_key": "some-access-key-override"}},
             "spec": {
+                "preemption_mode": "prevent",
                 "volumes": [
                     {
                         "name": "override-volume-name",
@@ -234,6 +240,85 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
         )
         == {}
     )
+    assert (
+        parsed_function_object.spec.preemption_mode
+        == submit_job_body["function"]["spec"]["preemption_mode"]
+    )
+
+
+def test_generate_function_and_task_from_submit_run_with_preemptible_nodes_and_tolerations(
+    db: Session, client: TestClient
+):
+    k8s_api = kubernetes.client.ApiClient()
+    task_name = "task_name"
+    task_project = "task-project"
+    project, function_name, function_tag, original_function = _mock_original_function(
+        client
+    )
+    node_selector = {"label-1": "val1"}
+    mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
+        json.dumps(node_selector).encode("utf-8")
+    )
+    submit_job_body = {
+        "task": {
+            "spec": {"function": f"{project}/{function_name}:{function_tag}"},
+            "metadata": {"name": task_name, "project": task_project},
+        },
+        "function": {"spec": {"preemption_mode": "prevent"}},
+    }
+    expected_anti_affinity = k8s_client.V1Affinity(
+        node_affinity=k8s_client.V1NodeAffinity(
+            required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                node_selector_terms=mlrun.k8s_utils.generate_preemptible_nodes_anti_affinity_terms(),
+            ),
+        ),
+    )
+    parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
+        db, mlrun.api.schemas.AuthInfo(), submit_job_body
+    )
+    assert (
+        parsed_function_object.spec.preemption_mode
+        == submit_job_body["function"]["spec"]["preemption_mode"]
+    )
+    assert parsed_function_object.spec.affinity == expected_anti_affinity
+    assert parsed_function_object.spec.tolerations is None
+
+    preemptible_tolerations = [
+        k8s_client.V1Toleration(
+            effect="NoSchedule",
+            key="test1",
+            operator="Exists",
+        )
+    ]
+    serialized_tolerations = k8s_api.sanitize_for_serialization(preemptible_tolerations)
+    mlrun.mlconf.preemptible_nodes.tolerations = base64.b64encode(
+        json.dumps(serialized_tolerations).encode("utf-8")
+    )
+
+    submit_job_body = {
+        "task": {
+            "spec": {"function": f"{project}/{function_name}:{function_tag}"},
+            "metadata": {"name": task_name, "project": task_project},
+        },
+        "function": {"spec": {"preemption_mode": "constrain"}},
+    }
+    parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
+        db, mlrun.api.schemas.AuthInfo(), submit_job_body
+    )
+    expected_affinity = k8s_client.V1Affinity(
+        node_affinity=k8s_client.V1NodeAffinity(
+            required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                node_selector_terms=mlrun.k8s_utils.generate_preemptible_nodes_affinity_terms(),
+            ),
+        ),
+    )
+
+    assert (
+        parsed_function_object.spec.preemption_mode
+        == submit_job_body["function"]["spec"]["preemption_mode"]
+    )
+    assert parsed_function_object.spec.affinity == expected_affinity
+    assert parsed_function_object.spec.tolerations == preemptible_tolerations
 
 
 def test_generate_function_and_task_from_submit_run_body_keep_resources(

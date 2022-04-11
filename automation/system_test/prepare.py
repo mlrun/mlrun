@@ -4,8 +4,6 @@ import pathlib
 import subprocess
 import sys
 import time
-import typing
-
 import click
 import fabric
 import invoke.runners
@@ -13,6 +11,8 @@ import requests
 import semver
 import yaml
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
 import mlrun.utils
 
 logger = mlrun.utils.create_logger(level="debug", name="automation")

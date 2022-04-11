@@ -247,23 +247,27 @@ def _create_enriched_mlrun_workflow(
         try:
             functions = pipeline_context.functions.values()
         except Exception as e:
-            logger.debug("Unable to retrieve project functions, not enriching workflow with mlrun", error=str(e))
+            logger.debug(
+                "Unable to retrieve project functions, not enriching workflow with mlrun",
+                error=str(e),
+            )
             return workflow
 
     # enrich each pipeline step with your desire k8s attribute
-    for kfp_pod_template in workflow["spec"]["templates"]:
-        if kfp_pod_template.get("container"):
+    for kfp_step_template in workflow["spec"]["templates"]:
+        if kfp_step_template.get("container"):
             for function_obj in functions:
                 # we condition within each function since the comparison between the function and
                 # the kfp pod may change depending on the attribute type.
                 try:
-                    _set_priority_class_name_on_kfp_pod(kfp_pod_template, function_obj)
+                    _set_priority_class_name_on_kfp_pod(kfp_step_template, function_obj)
                 except Exception as e:
-                    kfp_pod_name = kfp_pod_template.get("name")
+                    kfp_pod_name = kfp_step_template.get("name")
                     logger.warning(
                         f"Unable to enrich kfp pod {kfp_pod_name}", error=str(e)
                     )
     return workflow
+
 
 # patching function as class method
 kfp.compiler.Compiler._original_create_workflow = kfp.compiler.Compiler._create_workflow

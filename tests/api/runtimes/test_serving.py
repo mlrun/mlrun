@@ -53,7 +53,7 @@ class TestServingRuntime(TestNuclioRuntime):
 
     @staticmethod
     def _mock_db_remote_deploy_functions():
-        def _remote_db_mock_function(func, with_mlrun):
+        def _remote_db_mock_function(func, with_mlrun, builder_env=None):
             deploy_nuclio_function(func)
             return {
                 "data": {

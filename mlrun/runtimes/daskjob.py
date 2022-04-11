@@ -102,6 +102,7 @@ class DaskSpec(KubeResourceSpec):
         pythonpath=None,
         workdir=None,
         tolerations=None,
+        preemption_mode=None,
     ):
 
         super().__init__(
@@ -129,6 +130,7 @@ class DaskSpec(KubeResourceSpec):
             pythonpath=pythonpath,
             workdir=workdir,
             tolerations=tolerations,
+            preemption_mode=preemption_mode,
         )
         self.args = args
 

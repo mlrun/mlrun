@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 import mlrun
 import mlrun.api.schemas
+import mlrun.runtimes.pod
 from mlrun.api.api.utils import _generate_function_and_task_from_submit_run_body
 
 # Want to use k8s_secrets_mock for all tests in this module. It is needed since
@@ -215,7 +216,9 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
     )
     assert (
         DeepDiff(
-            parsed_function_object.spec._get_sanitized_attribute("affinity"),
+            mlrun.runtimes.pod.get_sanitized_attribute(
+                parsed_function_object.spec, "affinity"
+            ),
             submit_job_body["function"]["spec"]["affinity"],
             ignore_order=True,
         )
@@ -223,7 +226,9 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
     )
     assert (
         DeepDiff(
-            parsed_function_object.spec._get_sanitized_attribute("tolerations"),
+            mlrun.runtimes.pod.get_sanitized_attribute(
+                parsed_function_object.spec, "tolerations"
+            ),
             submit_job_body["function"]["spec"]["tolerations"],
             ignore_order=True,
         )

@@ -26,9 +26,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     spark_service = ""
     pq_source = "testdata.parquet"
     spark_image_deployed = (
-        True  # Set to True if you want to avoid the image building phase
+        False  # Set to True if you want to avoid the image building phase
     )
-    test_branch = "https://github.com/gtopper/mlrun.git@ML-1919"
+    test_branch = ""  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
 
     @classmethod
     def _init_env_from_file(cls):
@@ -91,6 +91,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_context=self.spark_service,
             run_config=fs.RunConfig(local=False),
         )
+        assert measurements.status.targets[0].run_id is not None
 
     def test_error_flow(self):
         df = pd.DataFrame(
@@ -399,7 +400,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         data_set.add_aggregation(
             column="bid",
             operations=["sum", "max", "count"],
-            windows=["1h", "2h"],
+            windows=["2h"],
             period="10m",
             emit_policy=EmitEveryEvent(),
         )
@@ -417,9 +418,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         expected_results = df.to_dict(orient="list")
         expected_results.update(
             {
-                "bid_sum_1h": [2000, 10, 12, 26, 24],
-                "bid_max_1h": [2000, 10, 12, 16, 16],
-                "bid_count_1h": [1, 1, 1, 2, 2],
                 "bid_sum_2h": [2000, 10, 2012, 26, 34],
                 "bid_max_2h": [2000, 10, 2000, 16, 16],
                 "bid_count_2h": [1, 1, 2, 2, 3],
@@ -438,7 +436,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         storey_data_set.add_aggregation(
             column="bid",
             operations=["sum", "max", "count"],
-            windows=["1h", "2h"],
+            windows=["2h"],
             period="10m",
         )
         fs.ingest(storey_data_set, source)

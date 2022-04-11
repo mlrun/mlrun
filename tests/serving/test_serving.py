@@ -1,8 +1,12 @@
 import json
 import os
+import pathlib
 import time
 
+import pandas as pd
+import pytest
 from nuclio_sdk import Context as NuclioContext
+from sklearn.datasets import load_iris
 
 import mlrun
 from mlrun.runtimes import nuclio_init_hook
@@ -85,9 +89,30 @@ ensemble_spec = generate_spec(ensemble_object.to_dict())
 testdata = '{"inputs": [5]}'
 
 
+def _log_model(project):
+    iris = load_iris()
+    iris_dataset = pd.DataFrame(data=iris.data, columns=iris.feature_names)
+    iris_labels = pd.DataFrame(data=iris.target, columns=["label"])
+    iris_dataset = pd.concat([iris_dataset, iris_labels], axis=1)
+
+    # Upload the model through the projects API so that it is available to the serving function
+    model_dir = str(pathlib.Path(__file__).parent / "assets")
+    model = project.log_model(
+        "iris",
+        target_path=model_dir,
+        model_file="model.pkl",
+        training_set=iris_dataset,
+        label_column="label",
+        upload=False,
+    )
+    return model.uri
+
+
 class ModelTestingClass(V2ModelServer):
     def load(self):
         print("loading")
+        if self.model_path.startswith("store:"):
+            self.get_model()
 
     def predict(self, request):
         print("predict:", request)
@@ -270,20 +295,34 @@ def test_v2_explain():
 
 
 def test_v2_get_modelmeta():
-    def get_model(name, version, url):
-        event = MockEvent("", path=f"/v2/models/{url}", method="GET")
-        resp = context.mlrun_handler(context, event)
-        logger.info(f"resp: {resp}")
-        data = json.loads(resp.body)
+    project = mlrun.new_project("tstsrv")
+    fn = mlrun.new_function("tst", kind="serving")
+    model_uri = _log_model(project)
+    print(model_uri)
+    fn.add_model("m1", model_uri, "ModelTestingClass")
+    fn.add_model("m2", model_uri, "ModelTestingClass")
+    fn.add_model("m3:v2", model_uri, "ModelTestingClass")
 
-        # expected: {"name": "m3", "version": "v2", "inputs": [], "outputs": []}
-        assert (
-            data["name"] == name and data["version"] == version
-        ), f"wrong get model meta response {resp.body}"
+    server = fn.to_mock_server()
 
-    context = init_ctx()
-    get_model("m2", "", "m2")
-    get_model("m3", "v2", "m3/versions/v2")
+    # test model m2 name, ver (none), inputs and outputs
+    resp = server.test("/v2/models/m2/", method="GET")
+    logger.info(f"resp: {resp}")
+    assert (
+        resp["name"] == "m2" and resp["version"] == ""
+    ), f"wrong get model meta response {resp}"
+    assert len(resp["inputs"]) == 4 and len(resp["outputs"]) == 1
+    assert resp["inputs"][0]["value_type"] == "float"
+
+    # test versioned model m3 metadata
+    resp = server.test("/v2/models/m3/versions/v2", method="GET")
+    assert (
+        resp["name"] == "m3" and resp["version"] == "v2"
+    ), f"wrong get model meta response {resp}"
+
+    # test raise if model doesnt exist
+    with pytest.raises(RuntimeError):
+        server.test("/v2/models/m4", method="GET")
 
 
 def test_v2_custom_handler():

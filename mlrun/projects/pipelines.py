@@ -216,9 +216,9 @@ def _set_priority_class_name_on_kfp_pod(kfp_pod_template, function):
     if kfp_pod_template.get("container") and kfp_pod_template.get("name").startswith(
         function.metadata.name
     ):
-        kfp_pod_template["PriorityClassName"] = getattr(
-            function.spec, "priority_class_name", ""
-        )
+        priority_class_name = getattr(function.spec, "priority_class_name", None)
+        if priority_class_name:
+            kfp_pod_template["PriorityClassName"] = priority_class_name
 
 
 # When we run pipelines, the kfp.compile.Compile.compile() method takes the decorated function with @dsl.pipeline and
@@ -418,6 +418,7 @@ class _KFPRunner(_PipelineRunner):
 
     @classmethod
     def save(cls, project, workflow_spec: WorkflowSpec, target, artifact_path=None):
+        pipeline_context.set(project, workflow_spec)
         workflow_file = workflow_spec.get_source_file(project.spec.context)
         functions = FunctionsDict(project)
         pipeline = create_pipeline(

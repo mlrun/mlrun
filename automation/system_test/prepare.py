@@ -180,9 +180,8 @@ class SystemTestPreparer:
         live: bool = True,
         # timeout: typing.Optional[int] = None
     ) -> (str, str, int):
-        if workdir is not False:
-            workdir = workdir or self.Constants.workdir
-            command = f"cd {workdir} && " + command
+        workdir = workdir or self.Constants.workdir
+        command = f"cd {workdir}; " + command
         if args:
             command += " " + " ".join(args)
 
@@ -280,7 +279,6 @@ class SystemTestPreparer:
         self._run_command(
             "mkdir",
             args=["-p", str(self.Constants.workdir)],
-            workdir=False,
         )
         contents = yaml.safe_dump(self._env_config)
         filepath = str(self.Constants.system_tests_env_yaml)

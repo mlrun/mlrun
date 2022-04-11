@@ -318,7 +318,7 @@ def test_ensure_function_has_auth_set(
         unittest.mock.Mock(return_value=True)
     )
 
-    # local function so nothing should be changed
+    logger.info("Local function, nothing should be changed")
     _, _, _, original_function_dict = _generate_original_function(
         kind=mlrun.runtimes.RuntimeKinds.local
     )
@@ -334,7 +334,7 @@ def test_ensure_function_has_auth_set(
         == {}
     )
 
-    # generate access key - secret should be created, env should reference it
+    logger.info("Generate keyword, secret should be created, env should reference it")
     username = "username"
     access_key = "generated-access-key"
     _, _, _, original_function_dict = _generate_original_function(
@@ -375,7 +375,7 @@ def test_ensure_function_has_auth_set(
         mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
     )
 
-    # no access key - explode
+    logger.info("No access key - explode")
     _, _, _, original_function_dict = _generate_original_function(
         kind=mlrun.runtimes.RuntimeKinds.job
     )
@@ -386,7 +386,7 @@ def test_ensure_function_has_auth_set(
     ):
         ensure_function_has_auth_set(function, mlrun.api.schemas.AuthInfo())
 
-    # access key without username - explode
+    logger.info("Access key without username - explode")
     _, _, _, original_function_dict = _generate_original_function(
         kind=mlrun.runtimes.RuntimeKinds.job, access_key="some-access-key"
     )
@@ -396,7 +396,7 @@ def test_ensure_function_has_auth_set(
     ):
         ensure_function_has_auth_set(function, mlrun.api.schemas.AuthInfo())
 
-    # access key ref provided - env should be set
+    logger.info("Access key ref provided - env should be set")
     secret_name = "some-access-key-secret-name"
     access_key = f"{mlrun.model.Credentials.secret_reference_prefix}{secret_name}"
     _, _, _, original_function_dict = _generate_original_function(
@@ -423,7 +423,7 @@ def test_ensure_function_has_auth_set(
         mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
     )
 
-    # raw access key provided - secret should be created env should be set (to reference it)
+    logger.info("Raw access key provided - secret should be created, env should reference it")
     access_key = "some-access-key"
     username = "some-username"
     _, _, _, original_function_dict = _generate_original_function(

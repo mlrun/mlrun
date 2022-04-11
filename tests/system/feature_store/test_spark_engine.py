@@ -135,7 +135,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             }
         ).to_parquet(path=path, filesystem=fsys)
 
-        cron_trigger = "*/2 * * * *"
+        cron_trigger = "*/3 * * * *"
 
         source = ParquetSource(
             "myparquet", path=path, time_field="time", schedule=cron_trigger
@@ -173,11 +173,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             targets=targets,
             spark_context=self.spark_service,
         )
-        # ingest starts every second minute and it takes ~90 seconds to finish.
-        if (now.minute % 2) == 0:
-            sleep(60 - now.second + 60 + 90)
-        else:
-            sleep(60 - now.second + 90)
+        # ingest starts every third minute and it can take ~150 seconds to finish.
+        time_till_next_run = 180 - now.second - 60 * (now.minute % 3)
+        sleep(time_till_next_run + 150)
 
         features = [f"{name}.*"]
         vec = fs.FeatureVector("sched_test-vec", features)
@@ -201,7 +199,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 }
             ).to_parquet(path=path)
 
-            sleep(120)
+            sleep(180)
             resp = svc.get(
                 [
                     {"first_name": "yosi"},

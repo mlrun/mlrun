@@ -46,7 +46,7 @@ def get_model_monitoring_stream_processing_function(
     function.set_env_from_secret(
         "MODEL_MONITORING_ACCESS_KEY",
         mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
-        Secrets().generate_client_secret_key(
+        Secrets().generate_client_project_secret_key(
             SecretsClientType.model_monitoring, "MODEL_MONITORING_ACCESS_KEY"
         ),
     )

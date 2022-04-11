@@ -539,6 +539,8 @@ def add_or_refresh_credentials(
     # different access keys for the 2 usages
     token = (
         token
+        # can't use mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session cause this is running in the
+        # import execution path (when we're initializing the run db) and therefore we can't import mlrun.runtimes
         or os.environ.get("MLRUN_AUTH_SESSION")
         or os.environ.get("V3IO_ACCESS_KEY")
     )
@@ -597,3 +599,11 @@ def parse_v3io_path(url, suffix="/"):
     else:
         endpoint = None
     return endpoint, parsed_url.path.strip("/") + suffix
+
+
+def sanitize_username(username: str):
+    """
+    The only character an Iguazio username may have that is not valid for k8s usage is underscore (_)
+    So simply replace it with dash
+    """
+    return username.replace("_", "-")

@@ -174,7 +174,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_context=self.spark_service,
         )
         # ingest starts every third minute and it can take ~150 seconds to finish.
-        time_till_next_run = 180 - now.second - 60*(now.minute % 3)
+        time_till_next_run = 180 - now.second - 60 * (now.minute % 3)
         sleep(time_till_next_run + 150)
 
         features = [f"{name}.*"]

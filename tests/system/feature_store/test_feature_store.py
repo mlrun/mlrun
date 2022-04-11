@@ -367,6 +367,58 @@ class TestFeatureStore(TestMLRunSystem):
         assert df is not None
         assert target.run_id == "offline-features"
 
+    @pytest.mark.parametrize(
+        "target_path",
+        ["v3io:///bigdata/csvtest/csvname.csv", "v3io:///bigdata/csvtest/csvname"],
+    )
+    def test_csv_path(self, target_path):
+        df = pd.DataFrame(
+            {
+                "key": ["key1", "key2"],
+                "time_stamp": [
+                    datetime(2020, 11, 1, 17, 33, 15),
+                    datetime(2020, 10, 1, 17, 33, 15),
+                ],
+                "another_time_column": [
+                    datetime(2020, 9, 1, 17, 33, 15),
+                    datetime(2020, 8, 1, 17, 33, 15),
+                ],
+            }
+        )
+        fset = FeatureSet("csvnamefs", entities=[Entity("key")])
+        target = CSVTarget(name="csvtar", path=target_path)
+        fs.ingest(fset, source=df, targets=[target])
+
+        assert fset.get_target_path("csvtar") == target_path
+
+    def test_nosql_no_path(self):
+        df = pd.DataFrame(
+            {
+                "key": ["key1", "key2"],
+                "time_stamp": [
+                    datetime(2020, 11, 1, 17, 33, 15),
+                    datetime(2020, 10, 1, 17, 33, 15),
+                ],
+                "another_time_column": [
+                    datetime(2020, 9, 1, 17, 33, 15),
+                    datetime(2020, 8, 1, 17, 33, 15),
+                ],
+            }
+        )
+        fset = fs.FeatureSet("nosql-no-path", entities=[Entity("time_stamp")])
+        target_overwrite = True
+        ingest_kw = dict()
+        if target_overwrite is not None:
+            ingest_kw["overwrite"] = target_overwrite
+        fs.ingest(fset, df, infer_options=fs.InferOptions.default(), **ingest_kw)
+
+        assert fset.status.targets[
+            0
+        ].get_path().get_absolute_path() == fset.get_target_path("parquet")
+        assert fset.status.targets[
+            1
+        ].get_path().get_absolute_path() == fset.get_target_path("nosql")
+
     def test_feature_set_db(self):
         name = "stocks_test"
         stocks_set = fs.FeatureSet(name, entities=["ticker"])

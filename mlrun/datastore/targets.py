@@ -262,10 +262,12 @@ def get_offline_target(featureset, name=None):
     return None
 
 
-def get_online_target(resource):
+def get_online_target(resource, name=None):
     """return an optimal online feature set target"""
     # todo: take lookup order into account
     for target in resource.status.targets:
+        if name and target.name != name:
+            continue
         driver = kind_to_driver[target.kind]
         if driver.is_online:
             return get_target_driver(target, resource)
@@ -908,9 +910,7 @@ class CSVTarget(BaseStoreTarget):
         return df
 
     def is_single_file(self):
-        if self.path:
-            return self.path.endswith(".csv")
-        return False
+        return True
 
 
 class NoSqlTarget(BaseStoreTarget):

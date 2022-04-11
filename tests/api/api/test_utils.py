@@ -423,7 +423,9 @@ def test_ensure_function_has_auth_set(
         mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
     )
 
-    logger.info("Raw access key provided - secret should be created, env should reference it")
+    logger.info(
+        "Raw access key provided - secret should be created, env should reference it"
+    )
     access_key = "some-access-key"
     username = "some-username"
     _, _, _, original_function_dict = _generate_original_function(

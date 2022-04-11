@@ -27,6 +27,7 @@ from ..datastore.targets import (
     TargetTypes,
     default_target_names,
     get_offline_target,
+    get_online_target,
     get_target_driver,
     update_targets_run_id_for_ingest,
     validate_target_list,
@@ -348,6 +349,10 @@ class FeatureSet(ModelObj):
     def get_target_path(self, name=None):
         """get the url/path for an offline or specified data target"""
         target = get_offline_target(self, name=name)
+
+        if not target and name:
+            target = get_online_target(self, name)
+
         if target:
             return target.get_path().get_absolute_path()
 

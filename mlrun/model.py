@@ -1130,10 +1130,6 @@ class DataTargetBase(ModelObj):
         else:
             return None
 
-    def get_target_path(self):
-        path_object = self.get_path()
-        return path_object.get_absolute_path() if path_object else None
-
     def __init__(
         self,
         kind: str = None,

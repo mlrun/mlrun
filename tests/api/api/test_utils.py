@@ -1,6 +1,6 @@
-import unittest.mock
 import base64
 import json
+import unittest.mock
 from http import HTTPStatus
 
 import kubernetes.client
@@ -12,14 +12,14 @@ from sqlalchemy.orm import Session
 import mlrun
 import mlrun.api.crud
 import mlrun.api.schemas
-import mlrun.k8s_utils
 import mlrun.api.utils.auth.verifier
+import mlrun.k8s_utils
 import mlrun.runtimes.pod
 import tests.api.conftest
 from mlrun.api.api.utils import (
     _generate_function_and_task_from_submit_run_body,
-    _obfuscate_v3io_access_key_env_var,
-    _obfuscate_v3io_volume_credentials,
+    _mask_v3io_access_key_env_var,
+    _mask_v3io_volume_credentials,
     ensure_function_has_auth_set,
 )
 from mlrun.utils import logger
@@ -548,14 +548,14 @@ def test_ensure_function_has_auth_set(
     )
 
 
-def test_obfuscate_v3io_access_key_env_var(
+def test_mask_v3io_access_key_env_var(
     db: Session, client: TestClient, k8s_secrets_mock: tests.api.conftest.K8sSecretsMock
 ):
-    logger.info("Obfuscate function without access key, nothing should be changed")
+    logger.info("Mask function without access key, nothing should be changed")
     _, _, _, original_function_dict = _generate_original_function()
     original_function = mlrun.new_function(runtime=original_function_dict)
     function = mlrun.new_function(runtime=original_function_dict)
-    _obfuscate_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
+    _mask_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
     assert (
         DeepDiff(
             original_function.to_dict(),
@@ -566,7 +566,7 @@ def test_obfuscate_v3io_access_key_env_var(
     )
 
     logger.info(
-        "Obfuscate function with access key without username when iguazio auth on - explode"
+        "Mask function with access key without username when iguazio auth on - explode"
     )
     v3io_access_key = "some-v3io-access-key"
     _, _, _, original_function_dict = _generate_original_function(
@@ -580,10 +580,10 @@ def test_obfuscate_v3io_access_key_env_var(
         mlrun.errors.MLRunInvalidArgumentError,
         match=r"(.*)Username is missing(.*)",
     ):
-        _obfuscate_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
+        _mask_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
 
     logger.info(
-        "Obfuscate function with access key without username when iguazio auth off - skip"
+        "Mask function with access key without username when iguazio auth off - skip"
     )
     _, _, _, original_function_dict = _generate_original_function(
         v3io_access_key=v3io_access_key
@@ -593,7 +593,7 @@ def test_obfuscate_v3io_access_key_env_var(
     )
     original_function = mlrun.new_function(runtime=original_function_dict)
     function = mlrun.new_function(runtime=original_function_dict)
-    _obfuscate_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
+    _mask_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
     assert (
         DeepDiff(
             original_function.to_dict(),
@@ -604,7 +604,7 @@ def test_obfuscate_v3io_access_key_env_var(
     )
 
     logger.info(
-        "Happy flow - obfuscate function with access key with username from env var - secret should be "
+        "Happy flow - mask function with access key with username from env var - secret should be "
         "created, env should reference it"
     )
     username = "some-username"
@@ -615,7 +615,7 @@ def test_obfuscate_v3io_access_key_env_var(
     function: mlrun.runtimes.pod.KubeResource = mlrun.new_function(
         runtime=original_function_dict
     )
-    _obfuscate_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
+    _mask_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
     assert (
         DeepDiff(
             original_function.to_dict(),
@@ -636,10 +636,10 @@ def test_obfuscate_v3io_access_key_env_var(
     )
 
     logger.info(
-        "obfuscate same function again, access key is already a reference - nothing should change"
+        "mask same function again, access key is already a reference - nothing should change"
     )
     original_function = mlrun.new_function(runtime=function)
-    _obfuscate_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
+    _mask_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
     mlrun.api.crud.Secrets().store_auth_secret = unittest.mock.Mock()
     assert (
         DeepDiff(
@@ -652,12 +652,12 @@ def test_obfuscate_v3io_access_key_env_var(
     assert mlrun.api.crud.Secrets().store_auth_secret.call_count == 0
 
     logger.info(
-        "obfuscate same function again, access key is already a reference, but this time a dict - nothing "
+        "mask same function again, access key is already a reference, but this time a dict - nothing "
         "should change"
     )
     function.spec.env.append(function.spec.env.pop().to_dict())
     original_function = mlrun.new_function(runtime=function)
-    _obfuscate_v3io_access_key_env_var(
+    _mask_v3io_access_key_env_var(
         function, mlrun.api.schemas.AuthInfo(username=username)
     )
     mlrun.api.crud.Secrets().store_auth_secret = unittest.mock.Mock()
@@ -673,7 +673,7 @@ def test_obfuscate_v3io_access_key_env_var(
 
 
 @pytest.mark.parametrize("use_structs", [True, False])
-def test_obfuscate_v3io_volume_credentials(
+def test_mask_v3io_volume_credentials(
     db: Session,
     client: TestClient,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
@@ -741,13 +741,13 @@ def test_obfuscate_v3io_volume_credentials(
             no_name_volume_mount
         )
 
-    logger.info("Obfuscate function without v3io volume, nothing should be changed")
+    logger.info("Mask function without v3io volume, nothing should be changed")
     _, _, _, original_function_dict = _generate_original_function(
         volumes=[regular_volume], volume_mounts=[regular_volume_mount]
     )
     original_function = mlrun.new_function(runtime=original_function_dict)
     function = mlrun.new_function(runtime=original_function_dict)
-    _obfuscate_v3io_volume_credentials(function)
+    _mask_v3io_volume_credentials(function)
     assert (
         DeepDiff(
             original_function.to_dict(),
@@ -757,7 +757,7 @@ def test_obfuscate_v3io_volume_credentials(
         == {}
     )
 
-    logger.info("Obfuscate several edge cases, nothing should be changed")
+    logger.info("Mask several edge cases, nothing should be changed")
     _, _, _, original_function_dict = _generate_original_function(
         volumes=[
             no_access_key_v3io_volume,
@@ -773,7 +773,7 @@ def test_obfuscate_v3io_volume_credentials(
     )
     original_function = mlrun.new_function(runtime=original_function_dict)
     function = mlrun.new_function(runtime=original_function_dict)
-    _obfuscate_v3io_volume_credentials(function)
+    _mask_v3io_volume_credentials(function)
     assert (
         DeepDiff(
             original_function.to_dict(),
@@ -784,7 +784,7 @@ def test_obfuscate_v3io_volume_credentials(
     )
 
     logger.info(
-        "Happy flow, username resolved from volume mount, obfuscation should be done, secret should be "
+        "Happy flow, username resolved from volume mount, masking should be done, secret should be "
         "created, volume should reference it"
     )
     _, _, _, original_function_dict = _generate_original_function(
@@ -792,7 +792,7 @@ def test_obfuscate_v3io_volume_credentials(
     )
     original_function = mlrun.new_function(runtime=original_function_dict)
     function = mlrun.new_function(runtime=original_function_dict)
-    _obfuscate_v3io_volume_credentials(function)
+    _mask_v3io_volume_credentials(function)
     assert (
         DeepDiff(
             original_function.to_dict(),
@@ -808,7 +808,7 @@ def test_obfuscate_v3io_volume_credentials(
     assert function.spec.volumes[0]["flexVolume"]["secretRef"]["name"] == secret_name
 
     logger.info(
-        "Happy flow, username resolved from env var, obfuscation should be done, secret should be "
+        "Happy flow, username resolved from env var, masking should be done, secret should be "
         "created, volume should reference it"
     )
     k8s_secrets_mock.reset_mock()
@@ -817,7 +817,7 @@ def test_obfuscate_v3io_volume_credentials(
     )
     original_function = mlrun.new_function(runtime=original_function_dict)
     function = mlrun.new_function(runtime=original_function_dict)
-    _obfuscate_v3io_volume_credentials(function)
+    _mask_v3io_volume_credentials(function)
     assert (
         DeepDiff(
             original_function.to_dict(),

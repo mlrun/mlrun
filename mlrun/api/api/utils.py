@@ -145,7 +145,7 @@ def _generate_function_and_task_from_submit_run_body(
     # Validate function's service-account, based on allowed SAs for the project, if existing in a project-secret.
     process_function_service_account(function)
 
-    obfuscate_sensitive_data(function, auth_info)
+    mask_sensitive_data(function, auth_info)
     return function, task
 
 
@@ -156,15 +156,15 @@ async def submit_run(db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
     return response
 
 
-def obfuscate_sensitive_data(function, auth_info: mlrun.api.schemas.AuthInfo):
+def mask_sensitive_data(function, auth_info: mlrun.api.schemas.AuthInfo):
     if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
-        _obfuscate_v3io_access_key_env_var(function, auth_info)
-        _obfuscate_v3io_volume_credentials(function)
+        _mask_v3io_access_key_env_var(function, auth_info)
+        _mask_v3io_volume_credentials(function)
 
 
-def _obfuscate_v3io_volume_credentials(function: mlrun.runtimes.pod.KubeResource):
+def _mask_v3io_volume_credentials(function: mlrun.runtimes.pod.KubeResource):
     """
-    Go over all of the flex volumes with v3io/fuse driver of the function and try obfuscate their access key to a secret
+    Go over all of the flex volumes with v3io/fuse driver of the function and try mask their access key to a secret
     """
     get_item_attribute = mlrun.runtimes.utils.get_item_name
     v3io_volume_indices = []
@@ -208,7 +208,7 @@ def _obfuscate_v3io_volume_credentials(function: mlrun.runtimes.pod.KubeResource
             # sanity
             if not get_item_attribute(volume_mount, "name"):
                 logger.warning(
-                    "Found volume mount without name, skipping it for volume obfuscation username resolution",
+                    "Found volume mount without name, skipping it for volume masking username resolution",
                     volume_mount=volume_mount,
                 )
                 continue
@@ -225,13 +225,13 @@ def _obfuscate_v3io_volume_credentials(function: mlrun.runtimes.pod.KubeResource
             # sanity
             if not access_key:
                 logger.warning(
-                    "Found v3io fuse volume without access key, skipping obfuscation",
+                    "Found v3io fuse volume without access key, skipping masking",
                     volume=volume,
                 )
                 continue
             if not volume.get("name"):
                 logger.warning(
-                    "Found volume without name, skipping obfuscation", volume=volume
+                    "Found volume without name, skipping masking", volume=volume
                 )
                 continue
             username = _resolve_v3io_fuse_volume_access_key_matching_username(
@@ -261,7 +261,7 @@ def _resolve_v3io_fuse_volume_access_key_matching_username(
     Usually v3io fuse mount is set using mlrun.mount_v3io, which by default add a volume mount to /users/<username>, try
     to resolve the username from there
     If it's not found (user may set custom volume mounts), try to look for V3IO_USERNAME env var
-    If it's not found, skip obfuscation for this volume
+    If it's not found, skip masking for this volume
     :return: the resolved username (string), none if not found
     """
 
@@ -283,7 +283,7 @@ def _resolve_v3io_fuse_volume_access_key_matching_username(
                 username = username_from_sub_path
     if found_more_than_one_username:
         logger.warning(
-            "Found more than one user for volume, skipping obfuscation",
+            "Found more than one user for volume, skipping masking",
             volume=volume,
             volume_mounts=volume_name_to_volume_mounts[volume_name],
         )
@@ -292,7 +292,7 @@ def _resolve_v3io_fuse_volume_access_key_matching_username(
         v3io_username = function.get_env("V3IO_USERNAME")
         if not v3io_username or not isinstance(v3io_username, str):
             logger.warning(
-                "Could not resolve username from volume mount or env vars, skipping obfuscation",
+                "Could not resolve username from volume mount or env vars, skipping masking",
                 volume=volume,
                 volume_mounts=volume_name_to_volume_mounts[volume_name],
                 env=function.spec.env,
@@ -302,11 +302,11 @@ def _resolve_v3io_fuse_volume_access_key_matching_username(
     return username
 
 
-def _obfuscate_v3io_access_key_env_var(
+def _mask_v3io_access_key_env_var(
     function: mlrun.runtimes.pod.KubeResource, auth_info: mlrun.api.schemas.AuthInfo
 ):
     v3io_access_key = function.get_env("V3IO_ACCESS_KEY")
-    # if it's already a V1EnvVarSource or dict instance, it's already been obfuscated
+    # if it's already a V1EnvVarSource or dict instance, it's already been masked
     if (
         v3io_access_key
         and not isinstance(v3io_access_key, kubernetes.client.V1EnvVarSource)
@@ -326,7 +326,7 @@ def _obfuscate_v3io_access_key_env_var(
                 username = auth_info.username
             else:
                 logger.warning(
-                    "Could not find matching username for v3io access key in env or session, skipping obfuscation",
+                    "Could not find matching username for v3io access key in env or session, skipping masking",
                 )
                 return
         secret_name = mlrun.api.crud.Secrets().store_auth_secret(

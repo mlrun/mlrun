@@ -154,6 +154,11 @@ def get_offline_features(
     entity_timestamp_column = (
         entity_timestamp_column or feature_vector.spec.timestamp_field
     )
+
+    if target:
+        if not target.run_id:
+            target.run_id = "offline-features"
+
     if run_config:
         return run_merge_job(
             feature_vector,
@@ -360,7 +365,7 @@ def ingest(
             featureset, mlrun.api.schemas.AuthorizationAction.update
         )
         run_config = run_config.copy() if run_config else RunConfig()
-        source, run_config.parameters = _set_task_params(
+        source, run_config.parameters = set_task_params(
             featureset, source, targets, run_config.parameters, infer_options, overwrite
         )
         name = f"{featureset.metadata.name}_ingest"
@@ -624,7 +629,7 @@ def _run_ingestion_job(
         featureset = get_feature_set_by_uri(featureset)
 
     run_config = run_config.copy() if run_config else RunConfig()
-    source, run_config.parameters = _set_task_params(
+    source, run_config.parameters = set_task_params(
         featureset, source, targets, run_config.parameters, infer_options
     )
 
@@ -677,7 +682,7 @@ def deploy_ingestion_service(
             kind=source.kind,
             name=featureset.metadata.name,
         )
-    source, run_config.parameters = _set_task_params(
+    source, run_config.parameters = set_task_params(
         featureset, source, targets, run_config.parameters
     )
 
@@ -756,7 +761,10 @@ def _ingest_with_spark(
             targets = featureset.spec.targets
             targets = [get_target_driver(target, featureset) for target in targets]
 
-        for target in targets or []:
+        targets_to_ingest = copy.deepcopy(targets)
+        featureset.update_targets_for_ingest(targets_to_ingest, overwrite=overwrite)
+
+        for target in targets_to_ingest or []:
             if target.path and urlparse(target.path).scheme == "":
                 if mlrun_context:
                     mlrun_context.logger.error(
@@ -810,7 +818,9 @@ def _ingest_with_spark(
                 # if max_time is None(no data), next scheduled run should be with same start_time
                 max_time = source.start_time
             for target in featureset.status.targets:
-                featureset.status.update_last_written_for_target(target.path, max_time)
+                featureset.status.update_last_written_for_target(
+                    target.get_path().get_absolute_path(), max_time
+                )
 
         _post_ingestion(mlrun_context, featureset, spark)
     finally:
@@ -862,7 +872,7 @@ def _infer_from_static_df(
     return df
 
 
-def _set_task_params(
+def set_task_params(
     featureset: FeatureSet,
     source: DataSource = None,
     targets: List[DataTargetBase] = None,

@@ -184,7 +184,12 @@ class RunDBMock:
         self._project = project
 
     def remote_builder(
-        self, func, with_mlrun, mlrun_version_specifier=None, skip_deployed=False
+        self,
+        func,
+        with_mlrun,
+        mlrun_version_specifier=None,
+        skip_deployed=False,
+        builder_env=None,
     ):
         self._function = func.to_dict()
         status = NuclioStatus(

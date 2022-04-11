@@ -18,6 +18,7 @@ from datetime import datetime
 from kubernetes import client
 from sqlalchemy.orm import Session
 
+import mlrun.runtimes.pod
 from mlrun.api.db.base import DBInterface
 from mlrun.config import config as mlconf
 from mlrun.execution import MLClientCtx
@@ -87,12 +88,12 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
         update_in(
             job,
             "spec.template.spec.affinity",
-            self.spec._get_sanitized_attribute("affinity"),
+            mlrun.runtimes.pod.get_sanitized_attribute(self.spec, "affinity"),
         )
         update_in(
             job,
             "spec.template.spec.tolerations",
-            self.spec._get_sanitized_attribute("tolerations"),
+            mlrun.runtimes.pod.get_sanitized_attribute(self.spec, "tolerations"),
         )
         if self.spec.priority_class_name and len(
             mlconf.get_valid_function_priority_class_names()

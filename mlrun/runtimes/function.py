@@ -17,8 +17,8 @@ import json
 import typing
 import warnings
 from datetime import datetime
-from os import getenv
 from time import sleep
+from urllib.parse import urlparse
 
 import nuclio
 import requests
@@ -106,6 +106,8 @@ class NuclioSpec(KubeResourceSpec):
         "source",
         "function_kind",
         "readiness_timeout",
+        "function_handler",
+        "nuclio_runtime",
     ]
 
     def __init__(
@@ -142,6 +144,7 @@ class NuclioSpec(KubeResourceSpec):
         workdir=None,
         image_pull_secret=None,
         tolerations=None,
+        preemption_mode=None,
     ):
 
         super().__init__(
@@ -169,13 +172,15 @@ class NuclioSpec(KubeResourceSpec):
             workdir=workdir,
             image_pull_secret=image_pull_secret,
             tolerations=tolerations,
+            preemption_mode=preemption_mode,
         )
 
         self.base_spec = base_spec or {}
         self.function_kind = function_kind
         self.source = source or ""
         self.config = config or {}
-        self.function_handler = ""
+        self.function_handler = None
+        self.nuclio_runtime = None
         self.no_cache = no_cache
         self.readiness_timeout = readiness_timeout
 
@@ -276,111 +281,43 @@ class RemoteRuntime(KubeResource):
     def with_source_archive(
         self,
         source,
-        handler="",
+        workdir=None,
+        handler=None,
         runtime="",
-        secrets=None,
     ):
         """Load nuclio function from remote source
-        :param source: a full path to the nuclio function source (code entry) to load the function from
-        :param handler: a path to the function's handler, including path inside archive/git repo
-        :param runtime: (optional) the runtime of the function (defaults to python:3.7)
-        :param secrets: a dictionary of secrets to be used to fetch the function from the source.
-               (can also be passed using env vars). options:
-               ["V3IO_ACCESS_KEY",
-               "GIT_USERNAME",
-               "GIT_PASSWORD",
-               "AWS_ACCESS_KEY_ID",
-               "AWS_SECRET_ACCESS_KEY",
-               "AWS_SESSION_TOKEN"]
 
-        Examples::
-            git:
-                ("git://github.com/org/repo#my-branch",
-                 handler="path/inside/repo#main:handler",
-                 secrets={"GIT_PASSWORD": "my-access-token"})
-            s3:
-                ("s3://my-bucket/path/in/bucket/my-functions-archive",
-                 handler="path/inside/functions/archive#main:Handler",
-                 runtime="golang",
-                 secrets={"AWS_ACCESS_KEY_ID": "some-id", "AWS_SECRET_ACCESS_KEY": "some-secret"})
+                Note: remote source may require credentials, those can be stored in the project secrets or passed
+                in the function.deploy() using the builder_env dict, see the required credentials per source:
+                v3io - "V3IO_ACCESS_KEY".
+                git - "GIT_USERNAME", "GIT_PASSWORD".
+                AWS S3 - "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" or "AWS_SESSION_TOKEN".
+
+                :param source: a full path to the nuclio function source (code entry) to load the function from
+                :param handler: a path to the function's handler, including path inside archive/git repo
+                :param workdir: working dir  relative to the archive root (e.g. 'subdir')
+                :param runtime: (optional) the runtime of the function (defaults to python:3.7)
+
+                Examples::
+                    git:
+                        fn.with_source_archive("git://github.com/org/repo#my-branch",
+                          handler="main:handler",
+                          workdir="path/inside/repo")
+                    s3:
+                        fn.spec.nuclio_runtime = "golang"
+                        fn.with_source_archive("s3://my-bucket/path/in/bucket/my-functions-archive",
+                          handler="my_func:Handler",
+                          workdir="path/inside/functions/archive",
+                          runtime="golang")
+        )
         """
-        code_entry_type = self._resolve_code_entry_type(source)
-        if code_entry_type == "":
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Couldn't resolve code entry type from source"
-            )
-
-        code_entry_attributes = {}
-
-        # resolve work_dir and handler
-        work_dir, handler = self._resolve_work_dir_and_handler(handler)
-        if work_dir != "":
-            code_entry_attributes["workDir"] = work_dir
-
-        if secrets is None:
-            secrets = {}
-
-        # set default runtime if not specified otherwise
-        if runtime == "":
-            runtime = mlrun.config.config.default_nuclio_runtime
-
-        # archive
-        if code_entry_type == "archive":
-            if source.startswith("v3io"):
-                source = f"http{source[len('v3io'):]}"
-
-            v3io_access_key = secrets.get(
-                "V3IO_ACCESS_KEY", getenv("V3IO_ACCESS_KEY", "")
-            )
-            if v3io_access_key:
-                code_entry_attributes["headers"] = {
-                    "headers": {"X-V3io-Session-Key": v3io_access_key}
-                }
-
-        # s3
-        if code_entry_type == "s3":
-            bucket, item_key = parse_s3_bucket_and_key(source)
-
-            code_entry_attributes["s3Bucket"] = bucket
-            code_entry_attributes["s3ItemKey"] = item_key
-
-            code_entry_attributes["s3AccessKeyId"] = secrets.get(
-                "AWS_ACCESS_KEY_ID", getenv("AWS_ACCESS_KEY_ID", "")
-            )
-            code_entry_attributes["s3SecretAccessKey"] = secrets.get(
-                "AWS_SECRET_ACCESS_KEY", getenv("AWS_SECRET_ACCESS_KEY", "")
-            )
-            code_entry_attributes["s3SessionToken"] = secrets.get(
-                "AWS_SESSION_TOKEN", getenv("AWS_SESSION_TOKEN", "")
-            )
-
-        # git
-        if code_entry_type == "git":
-
-            # change git:// to https:// as nuclio expects it to be
-            if source.startswith("git://"):
-                source = source.replace("git://", "https://")
-
-            source, reference = self._resolve_git_reference_from_source(source)
-            if reference:
-                code_entry_attributes["reference"] = reference
-
-            code_entry_attributes["username"] = secrets.get("GIT_USERNAME", "")
-            code_entry_attributes["password"] = secrets.get(
-                "GIT_PASSWORD", getenv("GITHUB_TOKEN", "")
-            )
-
+        self.spec.build.source = source
         # update handler in function_handler
         self.spec.function_handler = handler
-
-        # populate spec with relevant fields
-        config = nuclio.config.new_config()
-        update_in(config, "spec.handler", handler)
-        update_in(config, "spec.runtime", runtime)
-        update_in(config, "spec.build.path", source)
-        update_in(config, "spec.build.codeEntryType", code_entry_type)
-        update_in(config, "spec.build.codeEntryAttributes", code_entry_attributes)
-        self.spec.base_spec = config
+        if workdir:
+            self.spec.workdir = workdir
+        if runtime:
+            self.spec.nuclio_runtime = runtime
 
         return self
 
@@ -586,6 +523,7 @@ class RemoteRuntime(KubeResource):
         tag="",
         verbose=False,
         auth_info: AuthInfo = None,
+        builder_env: dict = None,
     ):
         """Deploy the nuclio function to the cluster
 
@@ -594,6 +532,7 @@ class RemoteRuntime(KubeResource):
         :param tag:        function tag
         :param verbose:    set True for verbose logging
         :param auth_info:  service AuthInfo
+        :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         """
         # todo: verify that the function name is normalized
 
@@ -612,7 +551,7 @@ class RemoteRuntime(KubeResource):
             self.fill_credentials()
             db = self._get_db()
             logger.info("Starting remote function deploy")
-            data = db.remote_builder(self, False)
+            data = db.remote_builder(self, False, builder_env=builder_env)
             self.status = data["data"].get("status")
             self._wait_for_function_deployment(db, verbose=verbose)
 
@@ -631,6 +570,7 @@ class RemoteRuntime(KubeResource):
                 save_record = True
 
         else:
+            # todo: should be deprecated (only work via MLRun service)
             self.save(versioned=False)
             self._ensure_run_db()
             internal_invocation_urls, external_invocation_urls = deploy_nuclio_function(
@@ -700,6 +640,22 @@ class RemoteRuntime(KubeResource):
             )
         super().with_node_selection(node_name, node_selector, affinity, tolerations)
 
+    @min_nuclio_versions("1.8.1")
+    def with_preemption_mode(self, mode):
+        """
+        Preemption mode controls whether pods can be scheduled on preemptible nodes.
+        Tolerations, node selector, and affinity are populated on preemptible nodes corresponding to the function spec.
+
+        Three modes are supported:
+
+        * **allow** - The function can be scheduled on preemptible nodes
+        * **constrain** - The function can only run on preemptible nodes
+        * **prevent** - The function cannot be scheduled on preemptible nodes
+
+        :param mode: accepts allow | constrain | prevent defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
+        """
+        super().with_preemption_mode(mode=mode)
+
     @min_nuclio_versions("1.6.18")
     def with_priority_class(self, name: typing.Optional[str] = None):
         """k8s priority class"""
@@ -755,49 +711,6 @@ class RemoteRuntime(KubeResource):
             raise ValueError("function or deploy process not found")
         return self.status.state, text, last_log_timestamp
 
-    @staticmethod
-    def _resolve_git_reference_from_source(source):
-        split_source = source.split("#")
-
-        # no reference was passed
-        if len(split_source) != 2:
-            return source, ""
-
-        reference = split_source[1]
-        if reference.startswith("refs"):
-            return split_source, reference
-
-        return split_source[0], f"refs/heads/{reference}"
-
-    def _resolve_work_dir_and_handler(self, handler):
-        """
-        Resolves a nuclio function working dir and handler inside an archive/git repo
-        :param handler: a path describing working dir and handler of a nuclio function
-        :return: (working_dir, handler) tuple, as nuclio expects to get it
-
-        Example: ("a/b/c#main:Handler") -> ("a/b/c", "main:Handler")
-        """
-        if handler == "":
-            return "", self.spec.function_handler or "main:handler"
-
-        split_handler = handler.split("#")
-        if len(split_handler) == 1:
-            return "", handler
-
-        return "/".join(split_handler[:-1]), split_handler[-1]
-
-    @staticmethod
-    def _resolve_code_entry_type(source):
-        if source.startswith("s3://"):
-            return "s3"
-        if source.startswith("git://"):
-            return "git"
-
-        for archive_prefix in ["http://", "https://", "v3io://", "v3ios://"]:
-            if source.startswith(archive_prefix):
-                return "archive"
-        return ""
-
     def _get_runtime_env(self):
         # for runtime specific env var enrichment (before deploy)
         runtime_env = {
@@ -811,7 +724,7 @@ class RemoteRuntime(KubeResource):
             runtime_env["MLRUN_AUTH_SESSION"] = self.metadata.credentials.access_key
         return runtime_env
 
-    def get_nuclio_config_spec_env(self):
+    def _get_nuclio_config_spec_env(self):
         env_dict = {}
         external_source_env_dict = {}
 
@@ -1147,10 +1060,11 @@ def deploy_nuclio_function(
     watch=False,
     auth_info: AuthInfo = None,
     client_version: str = None,
+    builder_env: dict = None,
 ):
     dashboard = dashboard or mlconf.nuclio_dashboard_url
     function_name, project_name, function_config = compile_function_config(
-        function, client_version
+        function, client_version, builder_env or {}, auth_info=auth_info
     )
 
     # if mode allows it, enrich function http trigger with an ingress
@@ -1194,7 +1108,12 @@ def resolve_function_http_trigger(function_spec):
         return trigger_config
 
 
-def compile_function_config(function: RemoteRuntime, client_version: str = None):
+def compile_function_config(
+    function: RemoteRuntime,
+    client_version: str = None,
+    builder_env=None,
+    auth_info=None,
+):
     labels = function.metadata.labels or {}
     labels.update({"mlrun/class": function.kind})
     for key, value in labels.items():
@@ -1206,46 +1125,68 @@ def compile_function_config(function: RemoteRuntime, client_version: str = None)
     if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
         function.add_secrets_config_to_spec()
 
-    env_dict, external_source_env_dict = function.get_nuclio_config_spec_env()
-    spec = nuclio.ConfigSpec(
+    env_dict, external_source_env_dict = function._get_nuclio_config_spec_env()
+    nuclio_spec = nuclio.ConfigSpec(
         env=env_dict,
         external_source_env=external_source_env_dict,
         config=function.spec.config,
     )
-    spec.cmd = function.spec.build.commands or []
+    nuclio_spec.cmd = function.spec.build.commands or []
     project = function.metadata.project or "default"
     tag = function.metadata.tag
     handler = function.spec.function_handler
 
+    if function.spec.build.source:
+        _compile_nuclio_archive_config(
+            nuclio_spec, function, builder_env, project, auth_info=auth_info
+        )
+
+    runtime = function.spec.nuclio_runtime or mlrun.config.config.default_nuclio_runtime
+    nuclio_spec.set_config("spec.runtime", runtime)
+
     # In Nuclio >= 1.6.x default serviceType has changed to "ClusterIP".
-    spec.set_config("spec.serviceType", mlconf.httpdb.nuclio.default_service_type)
+    nuclio_spec.set_config(
+        "spec.serviceType", mlconf.httpdb.nuclio.default_service_type
+    )
     if function.spec.readiness_timeout:
-        spec.set_config("spec.readinessTimeoutSeconds", function.spec.readiness_timeout)
+        nuclio_spec.set_config(
+            "spec.readinessTimeoutSeconds", function.spec.readiness_timeout
+        )
     if function.spec.resources:
-        spec.set_config("spec.resources", function.spec.resources)
+        nuclio_spec.set_config("spec.resources", function.spec.resources)
     if function.spec.no_cache:
-        spec.set_config("spec.build.noCache", True)
+        nuclio_spec.set_config("spec.build.noCache", True)
     if function.spec.build.functionSourceCode:
-        spec.set_config(
+        nuclio_spec.set_config(
             "spec.build.functionSourceCode", function.spec.build.functionSourceCode
         )
     # don't send node selections if nuclio is not compatible
     if validate_nuclio_version_compatibility("1.5.20", "1.6.10"):
         if function.spec.node_selector:
-            spec.set_config("spec.nodeSelector", function.spec.node_selector)
+            nuclio_spec.set_config("spec.nodeSelector", function.spec.node_selector)
         if function.spec.node_name:
-            spec.set_config("spec.nodeName", function.spec.node_name)
+            nuclio_spec.set_config("spec.nodeName", function.spec.node_name)
         if function.spec.affinity:
-            spec.set_config(
-                "spec.affinity", function.spec._get_sanitized_attribute("affinity")
+            nuclio_spec.set_config(
+                "spec.affinity",
+                mlrun.runtimes.pod.get_sanitized_attribute(function.spec, "affinity"),
             )
 
     # don't send tolerations if nuclio is not compatible
     if validate_nuclio_version_compatibility("1.7.5"):
         if function.spec.tolerations:
-            spec.set_config(
+            nuclio_spec.set_config(
                 "spec.tolerations",
-                function.spec._get_sanitized_attribute("tolerations"),
+                mlrun.runtimes.pod.get_sanitized_attribute(
+                    function.spec, "tolerations"
+                ),
+            )
+    # don't send preemption_mode if nuclio is not compatible
+    if validate_nuclio_version_compatibility("1.8.1"):
+        if function.spec.preemption_mode:
+            nuclio_spec.set_config(
+                "spec.PreemptionMode",
+                function.spec.preemption_mode,
             )
 
     # don't send default or any priority class name if nuclio is not compatible
@@ -1254,19 +1195,25 @@ def compile_function_config(function: RemoteRuntime, client_version: str = None)
         and validate_nuclio_version_compatibility("1.6.18")
         and len(mlconf.get_valid_function_priority_class_names())
     ):
-        spec.set_config("spec.priorityClassName", function.spec.priority_class_name)
+        nuclio_spec.set_config(
+            "spec.priorityClassName", function.spec.priority_class_name
+        )
 
     if function.spec.replicas:
-        spec.set_config("spec.minReplicas", function.spec.replicas)
-        spec.set_config("spec.maxReplicas", function.spec.replicas)
+        nuclio_spec.set_config("spec.minReplicas", function.spec.replicas)
+        nuclio_spec.set_config("spec.maxReplicas", function.spec.replicas)
     else:
-        spec.set_config("spec.minReplicas", function.spec.min_replicas)
-        spec.set_config("spec.maxReplicas", function.spec.max_replicas)
+        nuclio_spec.set_config("spec.minReplicas", function.spec.min_replicas)
+        nuclio_spec.set_config("spec.maxReplicas", function.spec.max_replicas)
 
     if function.spec.service_account:
-        spec.set_config("spec.serviceAccount", function.spec.service_account)
+        nuclio_spec.set_config("spec.serviceAccount", function.spec.service_account)
 
-    if function.spec.base_spec or function.spec.build.functionSourceCode:
+    if (
+        function.spec.base_spec
+        or function.spec.build.functionSourceCode
+        or function.spec.build.source
+    ):
         config = function.spec.base_spec
         if not config:
             # if base_spec was not set (when not using code_to_function) and we have base64 code
@@ -1275,7 +1222,7 @@ def compile_function_config(function: RemoteRuntime, client_version: str = None)
             update_in(config, "spec.handler", handler or "main:handler")
 
         config = nuclio.config.extend_config(
-            config, spec, tag, function.spec.build.code_origin
+            config, nuclio_spec, tag, function.spec.build.code_origin
         )
         update_in(config, "metadata.name", function.metadata.name)
         update_in(config, "spec.volumes", function.spec.generate_nuclio_volumes())
@@ -1296,14 +1243,16 @@ def compile_function_config(function: RemoteRuntime, client_version: str = None)
         function.status.nuclio_name = name
         update_in(config, "metadata.name", name)
     else:
-
+        # todo: should be deprecated (only work via MLRun service)
+        # this may also be called in case of using single file code_to_function(embed_code=False)
+        # this option need to be removed or be limited to using remote files (this code runs in server)
         name, config, code = nuclio.build_file(
             function.spec.source,
             name=function.metadata.name,
             project=project,
             handler=handler,
             tag=tag,
-            spec=spec,
+            spec=nuclio_spec,
             kind=function.spec.function_kind,
             verbose=function.verbose,
         )
@@ -1396,3 +1345,140 @@ def get_nuclio_deploy_status(
 
     text = "\n".join(outputs) if outputs else ""
     return state, address, name, last_log_timestamp, text, function_status
+
+
+def _compile_nuclio_archive_config(
+    nuclio_spec,
+    function: RemoteRuntime,
+    builder_env,
+    project=None,
+    auth_info=None,
+):
+    secrets = {}
+    if project and get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+        secrets = get_k8s_helper().get_project_secret_data(project)
+
+    def get_secret(key):
+        return builder_env.get(key) or secrets.get(key, "")
+
+    source = function.spec.build.source
+    parsed_url = urlparse(source)
+    code_entry_type = ""
+    if source.startswith("s3://"):
+        code_entry_type = "s3"
+    if source.startswith("git://"):
+        code_entry_type = "git"
+    for archive_prefix in ["http://", "https://", "v3io://", "v3ios://"]:
+        if source.startswith(archive_prefix):
+            code_entry_type = "archive"
+
+    if code_entry_type == "":
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Couldn't resolve code entry type from source"
+        )
+
+    code_entry_attributes = {}
+
+    # resolve work_dir and handler
+    work_dir, handler = _resolve_work_dir_and_handler(function.spec.function_handler)
+    work_dir = function.spec.workdir or work_dir
+    if work_dir != "":
+        code_entry_attributes["workDir"] = work_dir
+
+    # archive
+    if code_entry_type == "archive":
+        v3io_access_key = builder_env.get("V3IO_ACCESS_KEY", "")
+        if source.startswith("v3io"):
+            if not parsed_url.netloc:
+                source = mlrun.mlconf.v3io_api + parsed_url.path
+            else:
+                source = f"http{source[len('v3io'):]}"
+            if auth_info and not v3io_access_key:
+                v3io_access_key = auth_info.data_session or auth_info.access_key
+
+        if v3io_access_key:
+            code_entry_attributes["headers"] = {"X-V3io-Session-Key": v3io_access_key}
+
+    # s3
+    if code_entry_type == "s3":
+        bucket, item_key = parse_s3_bucket_and_key(source)
+
+        code_entry_attributes["s3Bucket"] = bucket
+        code_entry_attributes["s3ItemKey"] = item_key
+
+        code_entry_attributes["s3AccessKeyId"] = get_secret("AWS_ACCESS_KEY_ID")
+        code_entry_attributes["s3SecretAccessKey"] = get_secret("AWS_SECRET_ACCESS_KEY")
+        code_entry_attributes["s3SessionToken"] = get_secret("AWS_SESSION_TOKEN")
+
+    # git
+    if code_entry_type == "git":
+
+        # change git:// to https:// as nuclio expects it to be
+        if source.startswith("git://"):
+            source = source.replace("git://", "https://")
+
+        source, reference, branch = _resolve_git_reference_from_source(source)
+        if not branch and not reference:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "git branch or refs must be specified in the source e.g.: "
+                "'git://<url>/org/repo.git#<branch-name or refs/heads/..>'"
+            )
+        if reference:
+            code_entry_attributes["reference"] = reference
+        if branch:
+            code_entry_attributes["branch"] = branch
+
+        password = get_secret("GIT_PASSWORD")
+        token = get_secret("GIT_TOKEN")
+        if token:
+            password = "x-oauth-basic"
+        code_entry_attributes["username"] = token or get_secret("GIT_USERNAME")
+        code_entry_attributes["password"] = password
+
+    # populate spec with relevant fields
+    nuclio_spec.set_config("spec.handler", handler)
+    nuclio_spec.set_config("spec.build.path", source)
+    nuclio_spec.set_config("spec.build.codeEntryType", code_entry_type)
+    nuclio_spec.set_config("spec.build.codeEntryAttributes", code_entry_attributes)
+
+
+def _resolve_git_reference_from_source(source):
+    # kaniko allow multiple "#" e.g. #refs/..#commit
+    split_source = source.split("#", 1)
+
+    # no reference was passed
+    if len(split_source) < 2:
+        return source, "", ""
+
+    reference = split_source[1]
+    if reference.startswith("refs/"):
+        return split_source[0], reference, ""
+
+    return split_source[0], "", reference
+
+
+def _resolve_work_dir_and_handler(handler):
+    """
+    Resolves a nuclio function working dir and handler inside an archive/git repo
+    :param handler: a path describing working dir and handler of a nuclio function
+    :return: (working_dir, handler) tuple, as nuclio expects to get it
+
+    Example: ("a/b/c#main:Handler") -> ("a/b/c", "main:Handler")
+    """
+
+    def extend_handler(base_handler):
+        # return default handler and module if not specified
+        if not base_handler:
+            return "main:handler"
+        if ":" not in base_handler:
+            base_handler = f"{base_handler}:handler"
+        return base_handler
+
+    if not handler:
+        return "", "main:handler"
+
+    split_handler = handler.split("#")
+    if len(split_handler) == 1:
+        return "", extend_handler(handler)
+
+    return split_handler[0], extend_handler(split_handler[1])

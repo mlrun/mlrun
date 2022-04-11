@@ -605,18 +605,20 @@ def new_function(
     if mode:
         runner.spec.mode = mode
     if source:
-        if not hasattr(runner, "with_source_archive"):
-            raise ValueError(
-                f"source archive option is not supported for {kind} runtime"
+        runner.spec.build.source = source
+    if handler:
+        if kind == RuntimeKinds.serving:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "cannot set the handler for serving runtime"
             )
-        runner.with_source_archive(source)
+        elif kind in RuntimeKinds.nuclio_runtimes():
+            runner.spec.function_handler = handler
+        else:
+            runner.spec.default_handler = handler
+
     if requirements:
         runner.with_requirements(requirements)
     runner.verify_base_image()
-    if handler:
-        runner.spec.default_handler = handler
-        if kind.startswith("nuclio"):
-            runner.spec.function_handler = handler
     return runner
 
 

@@ -49,10 +49,6 @@ Table Of Contents
    architecture
    mlops-dev-flow
    quick-start
-   tutorial/index
-      Add MLRun to existing code
-      Work from IDE
-      Additional demos / katacoda
    howto/index
    install
    

@@ -1,40 +1,44 @@
 import base64
 import json
-import unittest.mock
+import os
+import pathlib
+import sys
 
-import kfp.compiler
 import kubernetes
 import kubernetes.client
+import yaml
 
 import mlrun
 import tests.projects.base_pipeline
 
 
 class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
+    pipeline_path = "remote_pipeline.py"
+    pipeline_handler = "kfp_pipeline"
+    target_workflow_path = "workpipe.yaml"
+
     def _set_functions(self):
         self.project.set_function(
             func=f"{self.assets_path}/remote_pipeline.py",
             name="func1",
             image="mlrun/mlrun",
-            handler="func1",
         )
         self.project.set_function(
             func=f"{self.assets_path}/remote_pipeline.py",
             name="func2",
             image="mlrun/mlrun",
-            handler="func2",
         )
 
     def test_kfp_pipeline_enriched_with_priority_class_name(self, rundb_mock):
         mlrun.config.config.default_function_priority_class_name = "default-high"
 
         mlrun.projects.pipeline_context.clear(with_project=True)
-        self.project = self._create_project("remotepipe")
+        self._create_project("remotepipe")
         self._set_functions()
         self.project.set_workflow(
             "p1",
-            workflow_path=str(f'{self.assets_path / "remote_pipeline.py"}'),
-            handler="kfp_pipeline",
+            workflow_path=str(f"{self.assets_path / self.pipeline_path}"),
+            handler=self.pipeline_handler,
             engine="kfp",
             local=False,
         )
@@ -45,19 +49,24 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
         # after enriching the compile function passes the enriched workflow to
         # kfp.compiler.Compiler._write_workflow and that's why we mock _write_workflow to get the
         # passed args which one of them is workflow
-        kfp.compiler.Compiler._write_workflow = unittest.mock.Mock(return_value=True)
+        # kfp.compiler.Compiler._write_workflow = unittest.mock.Mock(return_value=True)
+        workflow_path = (
+            pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
+            / self.target_workflow_path
+        )
         self.project.save_workflow(
             "p1",
-            target=self.project.artifact_path,
+            target=workflow_path.as_posix(),
         )
-
-        workflow = kfp.compiler.Compiler._write_workflow.call_args_list[0][0][0]
-        for step in workflow["spec"]["templates"]:
-            if step.get("container"):
-                assert (
-                    step["PriorityClassName"]
-                    == mlrun.config.config.default_function_priority_class_name
-                )
+        with workflow_path.open() as workflow_file:
+            workflow = yaml.safe_load(workflow_file)
+            for step in workflow["spec"]["templates"]:
+                if step.get("container"):
+                    assert (
+                        step["PriorityClassName"]
+                        == mlrun.config.config.default_function_priority_class_name
+                    )
+        os.remove(workflow_path)
 
     def test_kfp_pipeline_enriched_with_affinity_and_tolerations_enriched_by_preemption_mode(
         self, rundb_mock
@@ -85,24 +94,26 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
         )
         mlrun.mlconf.function_defaults.preemption_mode = "constrain"
         mlrun.projects.pipeline_context.clear(with_project=True)
-        self.project = self._create_project("remotepipe")
+        self._create_project("remotepipe")
         self._set_functions()
         self.project.set_workflow(
             "p1",
-            workflow_path=str(f'{self.assets_path / "remote_pipeline.py"}'),
-            handler="kfp_pipeline",
+            workflow_path=str(f"{self.assets_path / self.pipeline_path}"),
+            handler=self.pipeline_handler,
             engine="kfp",
             local=False,
         )
         self.project.save()
 
-        kfp.compiler.Compiler._write_workflow = unittest.mock.Mock(return_value=True)
+        workflow_path = (
+            pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
+            / self.target_workflow_path
+        )
         self.project.save_workflow(
             "p1",
-            target=self.project.artifact_path,
+            target=workflow_path.as_posix(),
         )
 
-        workflow = kfp.compiler.Compiler._write_workflow.call_args_list[0][0][0]
         expected_tolerations = [
             {"effect": "NoSchedule", "key": "test1", "operator": "Exists"}
         ]
@@ -123,12 +134,16 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
                 }
             }
         }
-        for step in workflow["spec"]["templates"]:
-            if step.get("container"):
-                print(step)
-                assert (
-                    step["PriorityClassName"]
-                    == mlrun.config.config.default_function_priority_class_name
-                )
-                assert step["affinity"] == expected_preemptible_affinity
-                assert step["tolerations"] == expected_tolerations
+        with workflow_path.open() as workflow_file:
+            workflow = yaml.safe_load(workflow_file)
+            for step in workflow["spec"]["templates"]:
+                if step.get("container"):
+                    print(step)
+                    assert (
+                        step["PriorityClassName"]
+                        == mlrun.config.config.default_function_priority_class_name
+                    )
+                    assert step["affinity"] == expected_preemptible_affinity
+                    assert step["tolerations"] == expected_tolerations
+
+        os.remove(workflow_path)

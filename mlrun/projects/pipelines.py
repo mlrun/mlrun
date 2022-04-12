@@ -432,6 +432,8 @@ class _KFPRunner(_PipelineRunner):
         conf = new_pipe_meta(artifact_path, ttl=workflow_spec.ttl)
         compiler.Compiler().compile(pipeline, target, pipeline_conf=conf)
         workflow_spec.clear_tmp()
+        pipeline_context.clear()
+
 
     @classmethod
     def run(

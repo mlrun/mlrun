@@ -1147,6 +1147,18 @@ def compile_function_config(
         function.add_secrets_config_to_spec()
 
     env_dict, external_source_env_dict = function._get_nuclio_config_spec_env()
+    nuclio_runtime = (
+        function.spec.nuclio_runtime or mlrun.config.config.default_nuclio_runtime
+    )
+    # In nuclio 1.6.0<=v<1.8.0 python 3.7 and 3.8 runtime default behavior was to not decode event strings
+    # Our code is counting on the strings to be decoded, so add the needed env var for those versions
+    if (
+        "python" in nuclio_runtime
+        and is_nuclio_version_in_range("1.6.0", "1.8.0")
+        and "NUCLIO_PYTHON_DECODE_EVENT_STRINGS" not in env_dict
+    ):
+        env_dict["NUCLIO_PYTHON_DECODE_EVENT_STRINGS"] = "true"
+
     nuclio_spec = nuclio.ConfigSpec(
         env=env_dict,
         external_source_env=external_source_env_dict,
@@ -1162,8 +1174,7 @@ def compile_function_config(
             nuclio_spec, function, builder_env, project, auth_info=auth_info
         )
 
-    runtime = function.spec.nuclio_runtime or mlrun.config.config.default_nuclio_runtime
-    nuclio_spec.set_config("spec.runtime", runtime)
+    nuclio_spec.set_config("spec.runtime", nuclio_runtime)
 
     # In Nuclio >= 1.6.x default serviceType has changed to "ClusterIP".
     nuclio_spec.set_config(

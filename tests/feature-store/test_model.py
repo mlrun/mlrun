@@ -49,30 +49,40 @@ def test_features_parser():
 
 
 @pytest.mark.parametrize(
-    "raise_error, pass_run_id, is_single_file, target_path",
+    "pass_run_id, is_single_file, target_path, expected_path",
     [
-        (False, True, False, "v3io:///bigdata/{run_id}"),
-        (False, True, True, "v3io:///bigdata/{run_id}/file.parquet"),
-        (False, False, False, "v3io:///bigdata/"),
-        (False, False, True, "v3io:///bigdata/file.parquet"),
-        (False, True, False, "v3io:///bigdata/"),
-        (False, True, True, "v3io:///bigdata/file.parquet"),
-        (True, False, False, "v3io:///bigdata/{run_id}"),
-        (True, False, True, "v3io:///bigdata/{run_id}/file.parquet"),
+        (True, False, "v3io:///bigdata/{run_id}", "v3io:///bigdata/run_id_val"),
+        (
+            True,
+            True,
+            "v3io:///bigdata/{run_id}/file.parquet",
+            "v3io:///bigdata/run_id_val/file.parquet",
+        ),
+        (False, False, "v3io:///bigdata/", "v3io:///bigdata/"),
+        (False, True, "v3io:///bigdata/file.parquet", "v3io:///bigdata/file.parquet"),
+        (True, False, "v3io:///bigdata/", "v3io:///bigdata/run_id_val/"),
+        (
+            True,
+            True,
+            "v3io:///bigdata/file.parquet",
+            "v3io:///bigdata/run_id_val/file.parquet",
+        ),
+        (False, False, "v3io:///bigdata/{run_id}", None),
+        (False, True, "v3io:///bigdata/{run_id}/file.parquet", None),
     ],
 )
 def test_different_target_path_scenarios_for_run_id(
-    raise_error, pass_run_id, is_single_file, target_path
+    pass_run_id, is_single_file, target_path, expected_path
 ):
     run_id = "run_id_val" if pass_run_id else None
 
-    if raise_error:
+    if not expected_path:
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             TargetPathObject(target_path, run_id, is_single_file)
     else:
         tp_obj = TargetPathObject(target_path, run_id, is_single_file)
-        assert (mlrun.model.RUN_ID_PLACE_HOLDER in tp_obj.get_templated_path()) == (
-            (pass_run_id and not is_single_file)
-            or mlrun.model.RUN_ID_PLACE_HOLDER in target_path
-        )
+        assert (
+            mlrun.model.RUN_ID_PLACE_HOLDER in tp_obj.get_templated_path()
+        ) == pass_run_id
         assert mlrun.model.RUN_ID_PLACE_HOLDER not in tp_obj.get_absolute_path()
+        assert tp_obj.get_absolute_path() == expected_path

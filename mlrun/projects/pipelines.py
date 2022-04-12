@@ -434,7 +434,6 @@ class _KFPRunner(_PipelineRunner):
         workflow_spec.clear_tmp()
         pipeline_context.clear()
 
-
     @classmethod
     def run(
         cls,

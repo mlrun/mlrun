@@ -95,7 +95,7 @@ def get_default_prefix_for_target(kind):
 
 
 def get_default_prefix_for_source(kind):
-    return get_default_prefix_for_target(kind).replace(f"/{RUN_ID_PLACE_HOLDER}/", "/")
+    return get_default_prefix_for_target(kind)
 
 
 def validate_target_list(targets):
@@ -507,7 +507,7 @@ class BaseStoreTarget(DataTargetBase):
         is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
         return self.get_path() or (
             TargetPathObject(
-                _get_target_path(self, self._resource), self.run_id, is_single_file
+                _get_target_path(self, self._resource, self.run_id is None), self.run_id, is_single_file
             )
             if self._resource
             else None
@@ -1295,7 +1295,7 @@ kind_to_driver = {
 }
 
 
-def _get_target_path(driver, resource):
+def _get_target_path(driver, resource, run_id_mode=False):
     """return the default target path given the resource and target kind"""
     kind = driver.kind
     suffix = driver.suffix
@@ -1316,9 +1316,11 @@ def _get_target_path(driver, resource):
         project=project,
         kind=kind,
         name=name,
-        run_id=RUN_ID_PLACE_HOLDER,
     )
     # todo: handle ver tag changes, may need to copy files?
+    if not run_id_mode:
+        version = resource.metadata.tag
+        name = f"{name}-{version or 'latest'}"
     return f"{data_prefix}/{kind_prefix}/{name}{suffix}"
 
 

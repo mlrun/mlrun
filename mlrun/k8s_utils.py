@@ -350,7 +350,7 @@ class K8sHelper:
 
     @staticmethod
     def _hash_access_key(access_key: str):
-        return hashlib.sha256(access_key.encode()).hexdigest()
+        return hashlib.sha224(access_key.encode()).hexdigest()
 
     def store_project_secrets(self, project, secrets, namespace=""):
         secret_name = self.get_project_secret_name(project)

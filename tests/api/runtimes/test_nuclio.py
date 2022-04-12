@@ -24,6 +24,7 @@ from mlrun.runtimes.function import (
     compile_function_config,
     deploy_nuclio_function,
     enrich_function_with_ingress,
+    is_nuclio_version_in_range,
     min_nuclio_versions,
     resolve_function_ingresses,
     validate_nuclio_version_compatibility,
@@ -671,6 +672,23 @@ class TestNuclioRuntime(TestRuntimeBase):
         deploy_spec = args[0]["spec"]
 
         assert deploy_spec["priorityClassName"] == medium_priority_class_name
+
+    def test_is_nuclio_version_in_range(self):
+        mlconf.nuclio_version = "1.7.2"
+
+        assert not is_nuclio_version_in_range("1.6.11", "1.7.2")
+        assert not is_nuclio_version_in_range("1.7.0", "1.3.1")
+        assert not is_nuclio_version_in_range("1.7.3", "1.8.5")
+        assert not is_nuclio_version_in_range("1.7.2", "1.7.2")
+        assert is_nuclio_version_in_range("1.7.2", "1.7.3")
+        assert is_nuclio_version_in_range("1.7.0", "1.7.3")
+        assert is_nuclio_version_in_range("1.5.5", "1.7.3")
+        assert is_nuclio_version_in_range("1.5.5", "2.3.4")
+
+        # best effort - assumes compatibility
+        mlconf.nuclio_version = ""
+        assert is_nuclio_version_in_range("1.5.5", "2.3.4")
+        assert is_nuclio_version_in_range("1.7.2", "1.7.2")
 
     def test_validate_nuclio_version_compatibility(self):
         # nuclio version we have

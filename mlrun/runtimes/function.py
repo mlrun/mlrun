@@ -79,6 +79,25 @@ def validate_nuclio_version_compatibility(*min_versions):
     return False
 
 
+def is_nuclio_version_in_range(min_version: str, max_version: str) -> bool:
+    """
+    Return whether the Nuclio version is in the range, inclusive for min, exclusive for max - [min, max)
+    """
+    try:
+        parsed_min_version = semver.VersionInfo.parse(min_version)
+        parsed_max_version = semver.VersionInfo.parse(max_version)
+        parsed_current_version = semver.VersionInfo.parse(mlconf.nuclio_version)
+    except ValueError:
+        logger.warning(
+            "Unable to parse nuclio version, assuming in range",
+            nuclio_version=mlconf.nuclio_version,
+            min_version=min_version,
+            max_version=max_version,
+        )
+        return True
+    return parsed_min_version <= parsed_current_version < parsed_max_version
+
+
 def min_nuclio_versions(*versions):
     def decorator(function):
         def wrapper(*args, **kwargs):

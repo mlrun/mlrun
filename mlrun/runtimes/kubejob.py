@@ -239,8 +239,7 @@ class KubejobRuntime(KubeResource):
                 print(text, end="")
 
         print_log(text)
-        # offset is defined by the number of lines read
-        offset += len(text.splitlines())
+        offset += len(text)
         if watch:
             while self.status.state in ["pending", "running"]:
                 time.sleep(2)
@@ -253,7 +252,7 @@ class KubejobRuntime(KubeResource):
                 else:
                     text, _ = db.get_builder_status(self, offset, logs=logs)
                 print_log(text)
-                offset += len(text.splitlines())
+                offset += len(text)
 
         print()
         return self.status.state

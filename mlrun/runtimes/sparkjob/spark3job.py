@@ -544,6 +544,72 @@ class Spark3Runtime(AbstractSparkRuntime):
         preemption_mode = mlrun.api.schemas.function.PreemptionModes(mode)
         self.spec.executor_preemption_mode = preemption_mode.value
 
+    def with_driver_host_path_volume(
+        self,
+        host_path: str,
+        mount_path: str,
+        type: str = "",
+        volume_name: str = "host-path-volume",
+    ):
+        """
+        Add an host path volume and mount it to the driver pod
+        More info: https://kubernetes.io/docs/concepts/storage/volumes#hostpath
+
+        :param host_path:   Path of the directory on the host. If the path is a symlink, it will follow the link to the
+                            real path
+        :param mount_path:  Path within the container at which the volume should be mounted.  Must not contain ':'
+        :param type:        Type for HostPath Volume Defaults to ""
+        :param volume_name: Volume's name. Must be a DNS_LABEL and unique within the pod
+        """
+        self._with_host_path_volume(
+            "_driver_volume_mounts", host_path, mount_path, type, volume_name
+        )
+
+    def with_executor_host_path_volume(
+        self,
+        host_path: str,
+        mount_path: str,
+        type: str = "",
+        volume_name: str = "host-path-volume",
+    ):
+        """
+        Add an host path volume and mount it to the executor pod/s
+        More info: https://kubernetes.io/docs/concepts/storage/volumes#hostpath
+
+        :param host_path:   Path of the directory on the host. If the path is a symlink, it will follow the link to the
+                            real path
+        :param mount_path:  Path within the container at which the volume should be mounted.  Must not contain ':'
+        :param type:        Type for HostPath Volume Defaults to ""
+        :param volume_name: Volume's name. Must be a DNS_LABEL and unique within the pod
+        """
+        self._with_host_path_volume(
+            "_executor_volume_mounts", host_path, mount_path, type, volume_name
+        )
+
+    def _with_host_path_volume(
+        self,
+        volume_mounts_field_name,
+        host_path: str,
+        mount_path: str,
+        type_: str = "",
+        volume_name: str = "host-path-volume",
+    ):
+        volume = kubernetes.client.V1Volume(
+            name=volume_name,
+            host_path=kubernetes.client.V1HostPathVolumeSource(
+                path=host_path, type=type_
+            ),
+        )
+        volume_mount = kubernetes.client.V1VolumeMount(
+            mount_path=mount_path, name=volume_name
+        )
+        kubernetes_api_client = kubernetes.client.ApiClient()
+        self.spec.update_vols_and_mounts(
+            [kubernetes_api_client.sanitize_for_serialization(volume)],
+            [kubernetes_api_client.sanitize_for_serialization(volume_mount)],
+            volume_mounts_field_name,
+        )
+
     def with_dynamic_allocation(
         self, min_executors=None, max_executors=None, initial_executors=None
     ):

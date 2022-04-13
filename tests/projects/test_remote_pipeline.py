@@ -30,7 +30,20 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
             image="mlrun/mlrun",
             kind="job",
         )
-        return func1, func2
+
+        func3 = mlrun.new_function(
+            source=f"{self.assets_path}/remote_pipeline.py",
+            name="func3",
+            image="mlrun/mlrun",
+            kind="job",
+        )
+        func4 = mlrun.new_function(
+            source=f"{self.assets_path}/remote_pipeline.py",
+            name="func4",
+            image="mlrun/mlrun",
+            kind="nuclio",
+        )
+        return func1, func2, func3, func4
 
     def test_kfp_pipeline_enriched_with_priority_class_name(self, rundb_mock):
         mlrun.mlconf.valid_function_priority_class_names = (
@@ -39,13 +52,15 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
 
         mlrun.projects.pipeline_context.clear(with_project=True)
         self._create_project("remotepipe")
-        func1, func2 = self._get_functions()
+        func1, func2, func3, func4 = self._get_functions()
 
         func1.with_priority_class("default-high")
         func2.with_priority_class("default-low")
 
         self.project.set_function(func1)
         self.project.set_function(func2)
+        self.project.set_function(func3)
+        self.project.set_function(func4)
 
         self.project.set_workflow(
             "p1",
@@ -107,13 +122,17 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
         )
 
         self._create_project("remotepipe")
-        func1, func2 = self._get_functions()
+        func1, func2, func3, func4 = self._get_functions()
 
         func1.with_preemption_mode("constrain")
         func2.with_preemption_mode("prevent")
+        func3.with_preemption_mode("constrain")
+        func4.with_preemption_mode("allow")
 
         self.project.set_function(func1)
         self.project.set_function(func2)
+        self.project.set_function(func3)
+        self.project.set_function(func4)
 
         self.project.set_workflow(
             "p1",
@@ -133,10 +152,47 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
             target=str(workflow_path),
         )
 
-        preemptible_tolerations = [
-            {"effect": "NoSchedule", "key": "test1", "operator": "Exists"}
-        ]
-        preemptible_affinity = {
+        with workflow_path.open() as workflow_file:
+            workflow = yaml.safe_load(workflow_file)
+            for step in workflow["spec"]["templates"]:
+                if step.get("container") and step.get("name"):
+                    # the step name is constructed from the function name and the handler
+                    if step.get("name") == "func1-func1":
+                        # expects constrain
+                        assert step.get("affinity") == self._get_preemptible_affinity()
+                        assert (
+                            step.get("tolerations")
+                            == self._get_preemptible_tolerations()
+                        )
+                    elif step.get("name") == "func2-func1":
+                        # expects prevent
+                        assert step.get("affinity") is None
+                        assert step.get("tolerations") is None
+                    elif step.get("name") == "deploy-func3":
+                        # expects constrain
+                        assert step.get("affinity") == self._get_preemptible_affinity()
+                        assert (
+                            step.get("tolerations")
+                            == self._get_preemptible_tolerations()
+                        )
+                    elif step.get("name") == "deploy-func4":
+                        # expects allow
+                        assert (
+                            step.get("tolerations")
+                            == self._get_preemptible_tolerations()
+                        )
+                    else:
+                        raise mlrun.errors.MLRunRuntimeError(
+                            "You missed a container to test"
+                        )
+        # remove generated workflow file
+        os.remove(workflow_path)
+
+    def _get_preemptible_tolerations(self):
+        return [{"effect": "NoSchedule", "key": "test1", "operator": "Exists"}]
+
+    def _get_preemptible_affinity(self):
+        return {
             "nodeAffinity": {
                 "requiredDuringSchedulingIgnoredDuringExecution": {
                     "nodeSelectorTerms": [
@@ -153,17 +209,3 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
                 }
             }
         }
-        with workflow_path.open() as workflow_file:
-            workflow = yaml.safe_load(workflow_file)
-            for step in workflow["spec"]["templates"]:
-                if step.get("container") and step.get("name"):
-                    # the step name is constructed from the function name and the handler
-                    if step.get("name") == "func1-func1":
-                        # expects constrain
-                        assert step.get("affinity") == preemptible_affinity
-                        assert step.get("tolerations") == preemptible_tolerations
-                    elif step.get("name") == "func2-func1":
-                        # expects prevent
-                        assert step.get("affinity") is None
-                        assert step.get("tolerations") is None
-        os.remove(workflow_path)

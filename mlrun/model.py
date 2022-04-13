@@ -1066,7 +1066,9 @@ class TargetPathObject:
                         + self.full_path_template[dir_name_end:]
                     )
                     self.full_path_template = updated_path
-
+            else:
+                if self.full_path_template[-1] != "/" and self.full_path_template.endswith(RUN_ID_PLACE_HOLDER):
+                    self.full_path_template = self.full_path_template + "/"
         else:
             if RUN_ID_PLACE_HOLDER in self.full_path_template:
                 raise mlrun.errors.MLRunInvalidArgumentError(

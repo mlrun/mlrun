@@ -387,6 +387,10 @@ class TestFeatureStore(TestMLRunSystem):
                 "v3io:///bigdata/csvtest/csvname/",
                 "v3io:///bigdata/csvtest/csvname/{run_id}/",
             ),
+            (
+                "v3io:///bigdata/csvtest/csvname/{run_id}",
+                "v3io:///bigdata/csvtest/csvname/{run_id}/",
+            ),
         ],
     )
     def test_csv_path(self, target_path, final_path):

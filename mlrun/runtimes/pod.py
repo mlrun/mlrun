@@ -491,6 +491,7 @@ class KubeResourceSpec(FunctionSpec):
                         > Purges any `affinity` preemption related configuration
                         > Purges preemptible node selector
                         > Sets anti-affinity and overrides any affinity if no tolerations were configured
+            `none`      - Doesn't apply any preemptible node selection configuration.
         """
         # nothing to do here, configuration is not populated
         if not mlconf.is_preemption_nodes_configured():
@@ -509,6 +510,9 @@ class KubeResourceSpec(FunctionSpec):
                 default_preemption_mode=getattr(self, preemption_mode_field_name),
             )
         self_preemption_mode = getattr(self, preemption_mode_field_name)
+        # don't enrich with preemption configuration.
+        if self_preemption_mode == PreemptionModes.none.value:
+            return
         # remove preemptible tolerations and remove preemption related configuration
         # and enrich with anti-affinity if preemptible tolerations configuration haven't been provided
         if self_preemption_mode == PreemptionModes.prevent.value:
@@ -1043,13 +1047,17 @@ class KubeResource(BaseRuntime):
         Preemption mode controls whether pods can be scheduled on preemptible nodes.
         Tolerations, node selector, and affinity are populated on preemptible nodes corresponding to the function spec.
 
-        Three modes are supported:
+        The supported modes are:
 
         * **allow** - The function can be scheduled on preemptible nodes
         * **constrain** - The function can only run on preemptible nodes
         * **prevent** - The function cannot be scheduled on preemptible nodes
+        * **none** - No preemptible configuration will be applied on the function
 
-        :param mode: accepts allow | constrain | prevent defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
+        The default preemption mode is configurable in mlrun.mlconf.function_defaults.preemption_mode,
+        by default it's set to **prevent**
+
+        :param mode: allow | constrain | prevent | none defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
         """
         preemptible_mode = PreemptionModes(mode)
         self.spec.preemption_mode = preemptible_mode.value

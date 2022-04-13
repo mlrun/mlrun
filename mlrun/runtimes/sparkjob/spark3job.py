@@ -452,13 +452,17 @@ class Spark3Runtime(AbstractSparkRuntime):
         Preemption mode controls whether the spark driver can be scheduled on preemptible nodes.
         Tolerations, node selector, and affinity are populated on preemptible nodes corresponding to the function spec.
 
-        Three modes are supported:
+        The supported modes are:
 
         * **allow** - The function can be scheduled on preemptible nodes
         * **constrain** - The function can only run on preemptible nodes
         * **prevent** - The function cannot be scheduled on preemptible nodes
+        * **none** - No preemptible configuration will be applied on the function
 
-        :param mode: accepts allow | constrain | prevent defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
+        The default preemption mode is configurable in mlrun.mlconf.function_defaults.preemption_mode,
+        by default it's set to **prevent**
+
+        :param mode: allow | constrain | prevent | none defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
         """
         preemption_mode = mlrun.api.schemas.function.PreemptionModes(mode)
         self.spec.driver_preemption_mode = preemption_mode.value
@@ -470,13 +474,17 @@ class Spark3Runtime(AbstractSparkRuntime):
         Preemption mode controls whether the spark executor can be scheduled on preemptible nodes.
         Tolerations, node selector, and affinity are populated on preemptible nodes corresponding to the function spec.
 
-        Three modes are supported:
+        The supported modes are:
 
         * **allow** - The function can be scheduled on preemptible nodes
         * **constrain** - The function can only run on preemptible nodes
         * **prevent** - The function cannot be scheduled on preemptible nodes
+        * **none** - No preemptible configuration will be applied on the function
 
-        :param mode: accepts allow | constrain | prevent defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
+        The default preemption mode is configurable in mlrun.mlconf.function_defaults.preemption_mode,
+        by default it's set to **prevent**
+
+        :param mode: allow | constrain | prevent | none defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
         """
         preemption_mode = mlrun.api.schemas.function.PreemptionModes(mode)
         self.spec.executor_preemption_mode = preemption_mode.value

@@ -113,6 +113,7 @@ class HTTPRunDB(RunDBInterface):
         self.server_version = ""
         self.session = None
         self._wait_for_project_terminal_state_retry_interval = 3
+        self._wait_for_background_task_terminal_state_retry_interval = 3
         self._wait_for_project_deletion_interval = 3
         self.client_version = version.Version().get()["version"]
 
@@ -336,6 +337,18 @@ class HTTPRunDB(RunDBInterface):
             config.default_tensorboard_logs_path = (
                 server_cfg.get("default_tensorboard_logs_path")
                 or config.default_tensorboard_logs_path
+            )
+            config.function_defaults.preemption_mode = (
+                server_cfg.get("default_preemption_mode")
+                or config.function_defaults.preemption_mode
+            )
+            config.preemptible_nodes.node_selector = (
+                server_cfg.get("preemptible_nodes_node_selector")
+                or config.preemptible_nodes.node_selector
+            )
+            config.preemptible_nodes.tolerations = (
+                server_cfg.get("preemptible_nodes_tolerations")
+                or config.preemptible_nodes.tolerations
             )
 
         except Exception as exc:
@@ -1230,13 +1243,21 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         name: str,
     ) -> schemas.BackgroundTask:
-        """Retrieve updated information on a background task being executed."""
+        """Retrieve updated information on a project background task being executed."""
 
         project = project or config.default_project
         path = f"projects/{project}/background-tasks/{name}"
         error_message = (
-            f"Failed getting background task. project={project}, name={name}"
+            f"Failed getting project background task. project={project}, name={name}"
         )
+        response = self.api_call("GET", path, error_message)
+        return schemas.BackgroundTask(**response.json())
+
+    def get_background_task(self, name: str) -> schemas.BackgroundTask:
+        """Retrieve updated information on a background task being executed."""
+
+        path = f"background-tasks/{name}"
+        error_message = f"Failed getting background task. name={name}"
         response = self.api_call("GET", path, error_message)
         return schemas.BackgroundTask(**response.json())
 
@@ -2130,6 +2151,26 @@ class HTTPRunDB(RunDBInterface):
             _verify_project_in_terminal_state,
         )
 
+    def _wait_for_background_task_to_reach_terminal_state(
+        self, name: str
+    ) -> schemas.BackgroundTask:
+        def _verify_background_task_in_terminal_state():
+            background_task = self.get_background_task(name)
+            state = background_task.status.state
+            if state not in mlrun.api.schemas.BackgroundTaskState.terminal_states():
+                raise Exception(
+                    f"Background task not in terminal state. name={name}, state={state}"
+                )
+            return background_task
+
+        return mlrun.utils.helpers.retry_until_successful(
+            self._wait_for_background_task_terminal_state_retry_interval,
+            60 * 60,
+            logger,
+            False,
+            _verify_background_task_in_terminal_state,
+        )
+
     def _wait_for_project_to_be_deleted(self, project_name: str):
         def _verify_project_deleted():
             projects = self.list_projects(
@@ -2734,6 +2775,23 @@ class HTTPRunDB(RunDBInterface):
             error_message,
             body=dict_to_json(authorization_verification_input.dict()),
         )
+
+    def trigger_migrations(self) -> Optional[schemas.BackgroundTask]:
+        """Trigger migrations (will do nothing if no migrations are needed) and wait for them to finish if actually
+        triggered
+        :returns: :py:class:`~mlrun.api.schemas.BackgroundTask`.
+        """
+        response = self.api_call(
+            "POST",
+            "operations/migrations",
+            "Failed triggering migrations",
+        )
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            background_task = schemas.BackgroundTask(**response.json())
+            return self._wait_for_background_task_to_reach_terminal_state(
+                background_task.metadata.name
+            )
+        return None
 
 
 def _as_json(obj):

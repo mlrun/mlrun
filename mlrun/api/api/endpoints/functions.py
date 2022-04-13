@@ -26,7 +26,7 @@ import mlrun.api.utils.background_tasks
 import mlrun.api.utils.singletons.project_member
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
-from mlrun.api.crud.secrets import Secrets
+from mlrun.api.crud.secrets import Secrets, SecretsClientType
 from mlrun.api.schemas import SecretProviderName, SecretsData
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
@@ -481,6 +481,7 @@ def _build_function(
         if fn.kind in RuntimeKinds.nuclio_runtimes():
             mlrun.api.api.utils.ensure_function_has_auth_set(fn, auth_info)
             mlrun.api.api.utils.process_function_service_account(fn)
+            mlrun.api.api.utils.mask_sensitive_data(fn, auth_info)
 
             if fn.kind == RuntimeKinds.serving:
                 # Handle model monitoring
@@ -510,7 +511,10 @@ def _build_function(
                     )
 
             deploy_nuclio_function(
-                fn, auth_info=auth_info, client_version=client_version
+                fn,
+                auth_info=auth_info,
+                client_version=client_version,
+                builder_env=builder_env,
             )
             # deploy only start the process, the get status API is used to check readiness
             ready = False
@@ -577,6 +581,7 @@ def _start_function(
             function.set_db_connection(run_db)
             mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)
             mlrun.api.api.utils.process_function_service_account(function)
+            mlrun.api.api.utils.mask_sensitive_data(function, auth_info)
             #  resp = resource["start"](fn)  # TODO: handle resp?
             resource["start"](function, client_version=client_version)
             function.save(versioned=False)
@@ -694,17 +699,19 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
     )
 
     provider = SecretProviderName.kubernetes
-    secret_value = Secrets().get_secret(
+    secret_value = Secrets().get_project_secret(
         project_name,
         provider,
         secret_key,
         allow_secrets_from_k8s=True,
     )
     user_provided_key = secret_value is not None
-    internal_key_name = Secrets().generate_model_monitoring_secret_key(secret_key)
+    internal_key_name = Secrets().generate_client_project_secret_key(
+        SecretsClientType.model_monitoring, secret_key
+    )
 
     if not user_provided_key:
-        secret_value = Secrets().get_secret(
+        secret_value = Secrets().get_project_secret(
             project_name,
             provider,
             internal_key_name,
@@ -731,11 +738,11 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
             )
 
     secrets = SecretsData(provider=provider, secrets={internal_key_name: secret_value})
-    Secrets().store_secrets(project_name, secrets, allow_internal_secrets=True)
+    Secrets().store_project_secrets(project_name, secrets, allow_internal_secrets=True)
     if user_provided_key:
         logger.info(
             "Deleting user-provided access-key - replaced with an internal secret"
         )
-        Secrets().delete_secret(project_name, provider, secret_key)
+        Secrets().delete_project_secret(project_name, provider, secret_key)
 
     return secret_value

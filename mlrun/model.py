@@ -24,8 +24,10 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import mlrun
 
-from .config import config
 from .utils import dict_to_json, dict_to_yaml, get_artifact_target
+
+# Changing {run_id} will break and will not be backward compatible.
+RUN_ID_PLACE_HOLDER = "{run_id}"  # IMPORTANT: shouldn't be changed.
 
 
 class ModelObj:
@@ -76,9 +78,15 @@ class ModelObj:
             fields = list(inspect.signature(cls.__init__).parameters.keys())
         new_obj = cls()
         if struct:
-            for key, val in struct.items():
-                if key in fields and key not in deprecated_fields:
-                    setattr(new_obj, key, val)
+            # we are looping over the fields to save the same order and behavior in which the class
+            # initialize the attributes
+            for field in fields:
+                # we want to set the field only if the field exists in struct
+                if field in struct:
+                    field_val = struct.get(field, None)
+                    if field not in deprecated_fields:
+                        setattr(new_obj, field, field_val)
+
             for deprecated_field, new_field in deprecated_fields.items():
                 field_value = struct.get(new_field) or struct.get(deprecated_field)
                 if field_value:
@@ -257,6 +265,7 @@ class ObjectList:
 
 class Credentials(ModelObj):
     generate_access_key = "$generate"
+    secret_reference_prefix = "$ref:"
 
     def __init__(
         self,
@@ -283,7 +292,7 @@ class BaseMetadata(ModelObj):
         self.tag = tag
         self.hash = hash
         self.namespace = namespace
-        self.project = project or config.default_project
+        self.project = project or ""
         self.labels = labels or {}
         self.categories = categories or []
         self.annotations = annotations or {}
@@ -1018,6 +1027,65 @@ def new_task(
     return run
 
 
+class TargetPathObject:
+    """Class configuring the target path
+    This class will take consideration of a few parameters to create the correct end result path:
+    * run_id - if run_id is provided target will be considered as run_id mode
+               which require to contain a {run_id} place holder in the path.
+    * is_single_file - if true then run_id must be the directory containing the output file
+                       or generated before the file name (run_id/output.file).
+    * base_path - if contains the place holder for run_id, run_id must not be None.
+                  if run_id passed and place holder doesn't exist the place holder will
+                  be generated in the correct place.
+    """
+
+    def __init__(
+        self,
+        base_path=None,
+        run_id=None,
+        is_single_file=False,
+    ):
+        self.run_id = run_id
+        self.full_path_template = base_path
+        if run_id is not None:
+            if RUN_ID_PLACE_HOLDER not in self.full_path_template:
+                if not is_single_file:
+                    if self.full_path_template[-1] != "/":
+                        self.full_path_template = self.full_path_template + "/"
+                    self.full_path_template = (
+                        self.full_path_template + RUN_ID_PLACE_HOLDER + "/"
+                    )
+                else:
+                    dir_name_end = len(self.full_path_template)
+                    if self.full_path_template[-1] != "/":
+                        dir_name_end = self.full_path_template.rfind("/") + 1
+                    updated_path = (
+                        self.full_path_template[:dir_name_end]
+                        + RUN_ID_PLACE_HOLDER
+                        + "/"
+                        + self.full_path_template[dir_name_end:]
+                    )
+                    self.full_path_template = updated_path
+            else:
+                if self.full_path_template[-1] != "/":
+                    if self.full_path_template.endswith(RUN_ID_PLACE_HOLDER):
+                        self.full_path_template = self.full_path_template + "/"
+        else:
+            if RUN_ID_PLACE_HOLDER in self.full_path_template:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Error when trying to create TargetPathObject with place holder '{run_id}' but no value."
+                )
+
+    def get_templated_path(self):
+        return self.full_path_template
+
+    def get_absolute_path(self):
+        if self.run_id:
+            return self.full_path_template.format(run_id=self.run_id)
+        else:
+            return self.full_path_template
+
+
 class DataSource(ModelObj):
     """online or offline data source spec"""
 
@@ -1083,6 +1151,7 @@ class DataTargetBase(ModelObj):
         "max_events",
         "flush_after_seconds",
         "storage_options",
+        "run_id",
     ]
 
     # TODO - remove once "after_state" is fully deprecated
@@ -1091,6 +1160,13 @@ class DataTargetBase(ModelObj):
         return super().from_dict(
             struct, fields=fields, deprecated_fields={"after_state": "after_step"}
         )
+
+    def get_path(self):
+        if self.path:
+            is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
+            return TargetPathObject(self.path, self.run_id, is_single_file)
+        else:
+            return None
 
     def __init__(
         self,
@@ -1129,6 +1205,7 @@ class DataTargetBase(ModelObj):
         self.max_events = max_events
         self.flush_after_seconds = flush_after_seconds
         self.storage_options = storage_options
+        self.run_id = None
 
 
 class FeatureSetProducer(ModelObj):
@@ -1155,6 +1232,7 @@ class DataTarget(DataTargetBase):
         "updated",
         "size",
         "last_written",
+        "run_id",
     ]
 
     def __init__(

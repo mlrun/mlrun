@@ -277,8 +277,8 @@ class V2ModelServer(StepToDict):
                 "outputs": [],
             }
             if self.model_spec:
-                event_body["inputs"] = self.model_spec.inputs
-                event_body["outputs"] = self.model_spec.outputs
+                event_body["inputs"] = self.model_spec.inputs.to_dict()
+                event_body["outputs"] = self.model_spec.outputs.to_dict()
             event.body = _update_result_body(
                 self._result_path, original_body, event_body
             )

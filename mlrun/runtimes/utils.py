@@ -378,6 +378,13 @@ def set_named_item(obj, item):
         obj[item.name] = item
 
 
+def set_item_attribute(item, attribute, value):
+    if isinstance(item, dict):
+        item[attribute] = value
+    else:
+        setattr(item, attribute, value)
+
+
 def get_item_name(item, attr="name"):
     if isinstance(item, dict):
         return item.get(attr)
@@ -574,6 +581,8 @@ def enrich_function_from_dict(function, function_dict):
         "affinity",
         "priority_class_name",
         "credentials",
+        "tolerations",
+        "preemption_mode",
     ]:
         if attribute == "credentials":
             override_value = getattr(override_function.metadata, attribute, None)

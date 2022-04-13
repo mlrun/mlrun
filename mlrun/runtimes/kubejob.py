@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import time
 import typing
 
@@ -56,19 +57,36 @@ class KubejobRuntime(KubeResource):
             return True
         return False
 
-    def with_source_archive(self, source, pythonpath=None, pull_at_runtime=True):
+    def with_source_archive(
+        self, source, workdir=None, handler=None, pull_at_runtime=True
+    ):
         """load the code from git/tar/zip archive at runtime or build
 
         :param source:     valid path to git, zip, or tar file, e.g.
                            git://github.com/mlrun/something.git
                            http://some/url/file.zip
-        :param pythonpath: python search path relative to the archive root or absolute (e.g. './subdir')
+        :param handler: default function handler
+        :param workdir: working dir relative to the archive root or absolute (e.g. './subdir')
         :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
         """
-        self.spec.build.load_source_on_run = pull_at_runtime
         self.spec.build.source = source
-        if pythonpath:
-            self.spec.pythonpath = pythonpath
+        if handler:
+            self.spec.default_handler = handler
+        if workdir:
+            self.spec.workdir = workdir
+        self.spec.build.load_source_on_run = pull_at_runtime
+        if (
+            self.spec.build.base_image
+            and not self.spec.build.commands
+            and pull_at_runtime
+            and not self.spec.image
+        ):
+            # if we load source from repo and dont need a full build use the base_image as the image
+            self.spec.image = self.spec.build.base_image
+        elif not pull_at_runtime:
+            # clear the image so build will not be skipped
+            self.spec.build.base_image = self.spec.build.base_image or self.spec.image
+            self.spec.image = ""
 
     def build_config(
         self,
@@ -143,6 +161,11 @@ class KubejobRuntime(KubeResource):
         """
 
         build = self.spec.build
+
+        # make sure we disable load_on_run mode if the source code is in the image
+        if build.source:
+            build.load_source_on_run = False
+
         if with_mlrun is None:
             if build.with_mlrun is not None:
                 with_mlrun = build.with_mlrun
@@ -158,6 +181,10 @@ class KubejobRuntime(KubeResource):
                 "with_mlrun=False to skip if its already in the image"
             )
         self.status.state = ""
+        if build.base_image:
+            # clear the image so build will not be skipped
+            self.spec.image = ""
+
         # When we're in pipelines context we must watch otherwise the pipelines pod will exit before the operation
         # is actually done. (when a pipelines pod exits, the pipeline step marked as done)
         if is_kfp:
@@ -296,6 +323,14 @@ class KubejobRuntime(KubeResource):
         new_meta = self._get_meta(runobj)
 
         self._add_secrets_to_spec_before_running(runobj)
+        workdir = self.spec.workdir
+        if workdir:
+            if self.spec.build.source and self.spec.build.load_source_on_run:
+                # workdir will be set AFTER the clone
+                workdir = None
+            elif not workdir.startswith("/"):
+                # relative path mapped to real path in the job pod
+                workdir = os.path.join("/mlrun", workdir)
 
         pod_spec = func_to_pod(
             self.full_image_path(
@@ -305,7 +340,7 @@ class KubejobRuntime(KubeResource):
             extra_env,
             command,
             args,
-            self.spec.workdir,
+            workdir,
         )
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:

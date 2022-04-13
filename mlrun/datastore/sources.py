@@ -305,6 +305,8 @@ class BigQuerySource(BaseSourceDriver):
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
+        start_time=None,
+        end_time=None,
         gcp_project: str = None,
         spark_options: dict = None,
     ):
@@ -332,6 +334,8 @@ class BigQuerySource(BaseSourceDriver):
             key_field=key_field,
             time_field=time_field,
             schedule=schedule,
+            start_time=start_time,
+            end_time=end_time,
         )
         self._rows_iterator = None
 
@@ -427,6 +431,63 @@ class BigQuerySource(BaseSourceDriver):
         if named_view:
             df.createOrReplaceTempView(self.name)
         return df
+
+
+class SnowflakeSource(BaseSourceDriver):
+    support_spark = True
+    support_storey = False
+
+    def __init__(
+        self,
+        name: str = "",
+        attributes: Dict[str, str] = None,
+        key_field: str = None,
+        time_field: str = None,
+        schedule: str = None,
+        start_time=None,
+        end_time=None,
+        query: str = None,
+        url: str = None,
+        user: str = None,
+        password: str = None,
+        database: str = None,
+        schema: str = None,
+        warehouse: str = None,
+    ):
+        self.query = query
+        self.attributes = attributes
+        self.key_field = key_field
+        self.time_field = time_field
+        self.schedule = schedule
+        self.url = url
+        self.user = user
+        self.password = password
+        self.database = database
+        self.schema = schema
+        self.warehouse = warehouse
+
+        super().__init__(
+            name,
+            attributes=attributes,
+            key_field=key_field,
+            time_field=time_field,
+            schedule=schedule,
+            start_time=start_time,
+            end_time=end_time,
+        )
+
+    def get_spark_options(self):
+        return {
+            "format": "net.snowflake.spark.snowflake",
+            "query": self.query,
+            "sfURL": self.url,
+            "sfUser": self.user,
+            "sfPassword": self.password,
+            "sfDatabase": self.database,
+            "sfSchema": self.schema,
+            "sfWarehouse": self.warehouse,
+            "application": "Iguazio",
+        }
 
 
 class CustomSource(BaseSourceDriver):

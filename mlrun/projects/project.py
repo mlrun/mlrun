@@ -27,13 +27,13 @@ import yaml
 from git import Repo
 
 import mlrun.api.schemas
+import mlrun.db
 import mlrun.errors
 import mlrun.utils.regex
 
 from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifact
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
 from ..datastore import store_manager
-from ..db import get_run_db
 from ..features import Feature
 from ..model import EntrypointParam, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
@@ -357,7 +357,7 @@ def _add_username_to_project_name_if_needed(name, user_project):
 
 
 def _load_project_from_db(url, secrets, user_project=False):
-    db = get_run_db(secrets=secrets)
+    db = mlrun.db.get_run_db(secrets=secrets)
     project_name = _add_username_to_project_name_if_needed(
         url.replace("db://", ""), user_project
     )
@@ -1013,7 +1013,7 @@ class MlrunProject(ModelObj):
         )
         self.spec.artifacts = artifacts
 
-    def set_artifact(self, key, artifact=None, target_path=None):
+    def set_artifact(self, key, artifact=None, target_path=None, tag=None):
         """add/set an artifact in the project spec (will be registered on load)
 
         example::
@@ -1026,6 +1026,7 @@ class MlrunProject(ModelObj):
         :param key:  artifact key/name
         :param artifact:  mlrun Artifact object (or its subclasses)
         :param target_path: absolute target path url (point to the artifact content location)
+        :param tag:    artifact tag
         """
         if not artifact:
             artifact = Artifact()
@@ -1034,6 +1035,7 @@ class MlrunProject(ModelObj):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "absolute target_path url to a shared/object storage must be specified"
             )
+        artifact.tag = tag or artifact.tag
         self.spec.set_artifact(key, artifact)
 
     def register_artifacts(self):
@@ -1052,7 +1054,7 @@ class MlrunProject(ModelObj):
     def _get_artifact_manager(self):
         if self._artifact_manager:
             return self._artifact_manager
-        db = get_run_db(secrets=self._secrets)
+        db = mlrun.db.get_run_db(secrets=self._secrets)
         store_manager.set(self._secrets, db)
         self._artifact_manager = ArtifactManager(db)
         return self._artifact_manager
@@ -1073,7 +1075,7 @@ class MlrunProject(ModelObj):
         local_path="",
         artifact_path=None,
         format=None,
-        upload=True,
+        upload=None,
         labels=None,
         target_path=None,
     ):
@@ -1138,7 +1140,7 @@ class MlrunProject(ModelObj):
         tag="",
         local_path=None,
         artifact_path=None,
-        upload=True,
+        upload=None,
         labels=None,
         format="",
         preview=None,
@@ -1212,7 +1214,7 @@ class MlrunProject(ModelObj):
         metrics=None,
         parameters=None,
         artifact_path=None,
-        upload=True,
+        upload=None,
         labels=None,
         inputs: typing.List[Feature] = None,
         outputs: typing.List[Feature] = None,
@@ -1634,7 +1636,7 @@ class MlrunProject(ModelObj):
             if key != "MLRUN_DBPATH" and not key.startswith("V3IO_")
         }
         provider = provider or mlrun.api.schemas.SecretProviderName.kubernetes
-        get_run_db().create_project_secrets(
+        mlrun.db.get_run_db().create_project_secrets(
             self.metadata.name, provider=provider, secrets=env_vars
         )
 
@@ -1645,7 +1647,7 @@ class MlrunProject(ModelObj):
             # TODO: In 1.0 remove
             PendingDeprecationWarning,
         )
-        run_db = get_run_db(secrets=self._secrets)
+        run_db = mlrun.db.get_run_db(secrets=self._secrets)
         run_db.create_project_secrets(
             self.metadata.name, mlrun.api.schemas.SecretProviderName.vault, secrets
         )
@@ -1657,7 +1659,7 @@ class MlrunProject(ModelObj):
             )
             return self._secrets.vault.get_secrets(secrets, project=self.metadata.name)
 
-        run_db = get_run_db(secrets=self._secrets)
+        run_db = mlrun.db.get_run_db(secrets=self._secrets)
         project_secrets = run_db.list_project_secrets(
             self.metadata.name,
             self._secrets.vault.token,
@@ -1810,7 +1812,7 @@ class MlrunProject(ModelObj):
             # push runs table also when we have errors
             raise_error = exc
 
-        mldb = get_run_db(secrets=self._secrets)
+        mldb = mlrun.db.get_run_db(secrets=self._secrets)
         runs = mldb.list_runs(
             project=self.metadata.name, labels=f"workflow={run.run_id}"
         )
@@ -1847,7 +1849,7 @@ class MlrunProject(ModelObj):
         self.save_to_db()
 
     def save_to_db(self):
-        db = get_run_db(secrets=self._secrets)
+        db = mlrun.db.get_run_db(secrets=self._secrets)
         db.store_project(self.metadata.name, self.to_dict())
 
     def export(self, filepath=None):
@@ -1991,6 +1993,7 @@ class MlrunProject(ModelObj):
         env: dict = None,
         tag: str = None,
         verbose: bool = None,
+        builder_env: dict = None,
     ):
         """deploy real-time (nuclio based) functions
 
@@ -2000,6 +2003,7 @@ class MlrunProject(ModelObj):
         :param env:        dict of extra environment variables
         :param tag:        extra version tag
         :param verbose     add verbose prints/logs
+        :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         """
         return deploy_function(
             function,
@@ -2008,6 +2012,7 @@ class MlrunProject(ModelObj):
             env=env,
             tag=tag,
             verbose=verbose,
+            builder_env=builder_env,
             project_object=self,
         )
 
@@ -2049,7 +2054,7 @@ class MlrunProject(ModelObj):
         :param kind: Return artifacts of the requested kind.
         :param category: Return artifacts of the requested category.
         """
-        db = get_run_db(secrets=self._secrets)
+        db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_artifacts(
             name,
             self.metadata.name,
@@ -2092,7 +2097,7 @@ class MlrunProject(ModelObj):
             artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
             from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
         """
-        db = get_run_db(secrets=self._secrets)
+        db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_artifacts(
             name,
             self.metadata.name,
@@ -2118,7 +2123,7 @@ class MlrunProject(ModelObj):
         :param labels: Return functions that have specific labels assigned to them.
         :returns: List of function objects.
         """
-        db = get_run_db(secrets=self._secrets)
+        db = mlrun.db.get_run_db(secrets=self._secrets)
         functions = db.list_functions(name, self.metadata.name, tag=tag, labels=labels)
         if functions:
             # convert dict to function objects
@@ -2170,7 +2175,7 @@ class MlrunProject(ModelObj):
             last_update_time_to)``.
         :param last_update_time_to: Filter by run last update time in ``(last_update_time_from, last_update_time_to)``.
         """
-        db = get_run_db(secrets=self._secrets)
+        db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_runs(
             name,
             uid,

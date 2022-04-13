@@ -133,6 +133,8 @@ class ServingSpec(NuclioSpec):
         pythonpath=None,
         workdir=None,
         image_pull_secret=None,
+        tolerations=None,
+        preemption_mode=None,
     ):
 
         super().__init__(
@@ -167,6 +169,8 @@ class ServingSpec(NuclioSpec):
             pythonpath=pythonpath,
             workdir=workdir,
             image_pull_secret=image_pull_secret,
+            tolerations=tolerations,
+            preemption_mode=preemption_mode,
         )
 
         self.models = models or {}
@@ -432,7 +436,7 @@ class ServingRuntime(RemoteRuntime):
                     stream.path, group=group, shards=stream.shards, **trigger_args
                 )
 
-    def _deploy_function_refs(self):
+    def _deploy_function_refs(self, builder_env: dict = None):
         """set metadata and deploy child functions"""
         for function_ref in self._spec.function_refs.values():
             logger.info(f"deploy child function {function_ref.name} ...")
@@ -447,6 +451,7 @@ class ServingRuntime(RemoteRuntime):
             function_object.metadata.labels[
                 "mlrun/parent-function"
             ] = self.metadata.name
+            function_object._is_child_function = True
             if not function_object.spec.graph:
                 # copy the current graph only if the child doesnt have a graph of his own
                 function_object.set_env("SERVING_CURRENT_FUNCTION", function_ref.name)
@@ -454,7 +459,7 @@ class ServingRuntime(RemoteRuntime):
 
             function_object.verbose = self.verbose
             function_object.spec.secret_sources = self.spec.secret_sources
-            function_object.deploy()
+            function_object.deploy(builder_env=builder_env)
 
     def remove_states(self, keys: list):
         """remove one, multiple, or all states/models from the spec (blank list for all)"""
@@ -521,6 +526,7 @@ class ServingRuntime(RemoteRuntime):
         tag="",
         verbose=False,
         auth_info: mlrun.api.schemas.AuthInfo = None,
+        builder_env: dict = None,
     ):
         """deploy model serving function to a local/remote cluster
 
@@ -530,6 +536,7 @@ class ServingRuntime(RemoteRuntime):
         :param verbose:   verbose logging
         :param auth_info: The auth info to use to communicate with the Nuclio dashboard, required only when providing
                           dashboard
+        :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         """
         load_mode = self.spec.load_mode
         if load_mode and load_mode not in ["sync", "async"]:
@@ -537,10 +544,20 @@ class ServingRuntime(RemoteRuntime):
         if not self.spec.graph:
             raise ValueError("nothing to deploy, .spec.graph is none, use .add_model()")
 
-        if self.spec.graph.kind != StepKinds.router:
+        if self.spec.graph.kind != StepKinds.router and not getattr(
+            self, "_is_child_function", None
+        ):
             # initialize or create required streams/queues
             self.spec.graph.check_and_process_graph()
             self.spec.graph.init_queues()
+            functions_in_steps = self.spec.graph.list_child_functions()
+            child_functions = list(self._spec.function_refs.keys())
+            for function in functions_in_steps:
+                if function not in child_functions:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"function {function} is used in steps and is not defined, "
+                        "use the .add_child_function() to specify child function attributes"
+                    )
 
         # Handle secret processing before handling child functions, since secrets are transferred to them
         if self.spec.secret_sources:
@@ -555,7 +572,9 @@ class ServingRuntime(RemoteRuntime):
             self._deploy_function_refs()
             logger.info(f"deploy root function {self.metadata.name} ...")
 
-        return super().deploy(dashboard, project, tag, verbose, auth_info)
+        return super().deploy(
+            dashboard, project, tag, verbose, auth_info, builder_env=builder_env
+        )
 
     def _get_runtime_env(self):
         env = super()._get_runtime_env()

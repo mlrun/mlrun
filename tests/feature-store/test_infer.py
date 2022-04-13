@@ -9,7 +9,7 @@ import mlrun.feature_store as fs
 from mlrun.data_types import InferOptions
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.feature_store import Entity
-from mlrun.feature_store.api import infer_from_static_df
+from mlrun.feature_store.api import _infer_from_static_df
 from tests.conftest import tests_root_directory
 
 this_dir = f"{tests_root_directory}/feature-store/"
@@ -39,7 +39,7 @@ def test_infer_from_df():
     df = pd.read_csv(this_dir + "testdata.csv")
     df.set_index(key, inplace=True)
     featureset = fs.FeatureSet("testdata")
-    infer_from_static_df(df, featureset, options=InferOptions.all())
+    _infer_from_static_df(df, featureset, options=InferOptions.all())
     # print(featureset.to_yaml())
 
     # test entity infer

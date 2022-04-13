@@ -17,24 +17,36 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
     pipeline_handler = "kfp_pipeline"
     target_workflow_path = "workpipe.yaml"
 
-    def _set_functions(self):
-        self.project.set_function(
-            func=f"{self.assets_path}/remote_pipeline.py",
+    def _get_functions(self):
+        func1 = mlrun.new_function(
+            source=f"{self.assets_path}/remote_pipeline.py",
             name="func1",
             image="mlrun/mlrun",
+            kind="job",
         )
-        self.project.set_function(
-            func=f"{self.assets_path}/remote_pipeline.py",
+        func2 = mlrun.new_function(
+            source=f"{self.assets_path}/remote_pipeline.py",
             name="func2",
             image="mlrun/mlrun",
+            kind="job",
         )
+        return func1, func2
 
     def test_kfp_pipeline_enriched_with_priority_class_name(self, rundb_mock):
-        mlrun.config.config.default_function_priority_class_name = "default-high"
+        mlrun.mlconf.valid_function_priority_class_names = (
+            "default-high,default-medium,default-low"
+        )
 
         mlrun.projects.pipeline_context.clear(with_project=True)
         self._create_project("remotepipe")
-        self._set_functions()
+        func1, func2 = self._get_functions()
+
+        func1.with_priority_class("default-high")
+        func2.with_priority_class("default-low")
+
+        self.project.set_function(func1)
+        self.project.set_function(func2)
+
         self.project.set_workflow(
             "p1",
             workflow_path=str(f"{self.assets_path / self.pipeline_path}"),
@@ -61,18 +73,19 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
         with workflow_path.open() as workflow_file:
             workflow = yaml.safe_load(workflow_file)
             for step in workflow["spec"]["templates"]:
-                if step.get("container"):
-                    assert (
-                        step["PriorityClassName"]
-                        == mlrun.config.config.default_function_priority_class_name
-                    )
+                if step.get("container") and step.get("name"):
+                    # the step name is constructed from the function name and the handler
+                    if step.get("name") == "func1-func1":
+                        assert step.get("PriorityClassName") == "default-high"
+                    elif step.get("name") == "func2-func2":
+                        assert step.get("PriorityClassName") == "default-low"
         os.remove(workflow_path)
 
     def test_kfp_pipeline_enriched_with_affinity_and_tolerations_enriched_by_preemption_mode(
         self, rundb_mock
     ):
+        mlrun.projects.pipeline_context.clear(with_project=True)
         k8s_api = kubernetes.client.ApiClient()
-        mlrun.mlconf.default_function_priority_class_name = "default-high"
 
         node_selector = {"label-1": "val1"}
         mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
@@ -92,10 +105,16 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
         mlrun.mlconf.preemptible_nodes.tolerations = base64.b64encode(
             json.dumps(serialized_tolerations).encode("utf-8")
         )
-        mlrun.mlconf.function_defaults.preemption_mode = "constrain"
-        mlrun.projects.pipeline_context.clear(with_project=True)
+
         self._create_project("remotepipe")
-        self._set_functions()
+        func1, func2 = self._get_functions()
+
+        func1.with_preemption_mode("constrain")
+        func2.with_preemption_mode("prevent")
+
+        self.project.set_function(func1)
+        self.project.set_function(func2)
+
         self.project.set_workflow(
             "p1",
             workflow_path=str(f"{self.assets_path / self.pipeline_path}"),
@@ -114,10 +133,10 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
             target=workflow_path.as_posix(),
         )
 
-        expected_tolerations = [
+        preemptible_tolerations = [
             {"effect": "NoSchedule", "key": "test1", "operator": "Exists"}
         ]
-        expected_preemptible_affinity = {
+        preemptible_affinity = {
             "nodeAffinity": {
                 "requiredDuringSchedulingIgnoredDuringExecution": {
                     "nodeSelectorTerms": [
@@ -137,13 +156,14 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
         with workflow_path.open() as workflow_file:
             workflow = yaml.safe_load(workflow_file)
             for step in workflow["spec"]["templates"]:
-                if step.get("container"):
-                    print(step)
-                    assert (
-                        step["PriorityClassName"]
-                        == mlrun.config.config.default_function_priority_class_name
-                    )
-                    assert step["affinity"] == expected_preemptible_affinity
-                    assert step["tolerations"] == expected_tolerations
-
+                if step.get("container") and step.get("name"):
+                    # the step name is constructed from the function name and the handler
+                    if step.get("name") == "func1-func1":
+                        # expects constrain
+                        assert step.get("affinity") == preemptible_affinity
+                        assert step.get("tolerations") == preemptible_tolerations
+                    elif step.get("name") == "func2-func1":
+                        # expects prevent
+                        assert step.get("affinity") is None
+                        assert step.get("tolerations") is None
         os.remove(workflow_path)

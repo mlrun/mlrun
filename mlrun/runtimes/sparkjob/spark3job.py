@@ -14,7 +14,7 @@
 
 import typing
 
-from kubernetes import client
+import kubernetes.client
 
 import mlrun.api.schemas.function
 import mlrun.errors
@@ -37,6 +37,8 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         "executor_affinity",
         "driver_preemption_mode",
         "executor_preemption_mode",
+        "driver_volume_mounts",
+        "executor_volume_mounts",
     ]
 
     def __init__(
@@ -87,6 +89,8 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         preemption_mode=None,
         executor_preemption_mode=None,
         driver_preemption_mode=None,
+        driver_volume_mounts=None,
+        executor_volume_mounts=None,
     ):
 
         super().__init__(
@@ -138,6 +142,10 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         self.driver_affinity = driver_affinity
         self.executor_preemption_mode = executor_preemption_mode
         self.driver_preemption_mode = driver_preemption_mode
+        self._driver_volume_mounts = {}
+        self.driver_volume_mounts = driver_volume_mounts or {}
+        self._executor_volume_mounts = {}
+        self.executor_volume_mounts = executor_volume_mounts or {}
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(
@@ -149,7 +157,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
                 "driver_tolerations",
             ],
         )
-        api = client.ApiClient()
+        api = kubernetes.client.ApiClient()
         struct["executor_affinity"] = api.sanitize_for_serialization(
             self.executor_affinity
         )
@@ -163,7 +171,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         return struct
 
     @property
-    def executor_tolerations(self) -> typing.List[client.V1Toleration]:
+    def executor_tolerations(self) -> typing.List[kubernetes.client.V1Toleration]:
         return self._executor_tolerations
 
     @executor_tolerations.setter
@@ -175,7 +183,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         )
 
     @property
-    def driver_tolerations(self) -> typing.List[client.V1Toleration]:
+    def driver_tolerations(self) -> typing.List[kubernetes.client.V1Toleration]:
         return self._driver_tolerations
 
     @driver_tolerations.setter
@@ -187,7 +195,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         )
 
     @property
-    def executor_affinity(self) -> client.V1Affinity:
+    def executor_affinity(self) -> kubernetes.client.V1Affinity:
         return self._executor_affinity
 
     @executor_affinity.setter
@@ -199,7 +207,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         )
 
     @property
-    def driver_affinity(self) -> client.V1Affinity:
+    def driver_affinity(self) -> kubernetes.client.V1Affinity:
         return self._driver_affinity
 
     @driver_affinity.setter
@@ -241,6 +249,32 @@ class Spark3JobSpec(AbstractSparkJobSpec):
             affinity_field_name="executor_affinity",
             node_selector_field_name="executor_node_selector",
         )
+
+    @property
+    def driver_volume_mounts(self) -> list:
+        return list(self._driver_volume_mounts.values())
+
+    @driver_volume_mounts.setter
+    def driver_volume_mounts(self, volume_mounts):
+        self._driver_volume_mounts = {}
+        if volume_mounts:
+            for volume_mount in volume_mounts:
+                self._set_volume_mount(
+                    volume_mount, volume_mounts_field_name="_driver_volume_mounts"
+                )
+
+    @property
+    def executor_volume_mounts(self) -> list:
+        return list(self._executor_volume_mounts.values())
+
+    @executor_volume_mounts.setter
+    def executor_volume_mounts(self, volume_mounts):
+        self._executor_volume_mounts = {}
+        if volume_mounts:
+            for volume_mount in volume_mounts:
+                self._set_volume_mount(
+                    volume_mount, volume_mounts_field_name="_executor_volume_mounts"
+                )
 
 
 class Spark3Runtime(AbstractSparkRuntime):
@@ -325,6 +359,21 @@ class Spark3Runtime(AbstractSparkRuntime):
                         "spec.monitoring.prometheus.jmxExporterJar",
                         self.spec.monitoring["exporter_jar"],
                     )
+
+        if self.spec.driver_volume_mounts:
+            update_in(
+                job,
+                "spec.driver.volumeMounts",
+                self.spec.driver_volume_mounts,
+                append=True,
+            )
+        if self.spec.executor_volume_mounts:
+            update_in(
+                job,
+                "spec.executor.volumeMounts",
+                self.spec.executor_volume_mounts,
+                append=True,
+            )
         return
 
     def _get_spark_version(self):
@@ -354,8 +403,10 @@ class Spark3Runtime(AbstractSparkRuntime):
         self,
         node_name: typing.Optional[str] = None,
         node_selector: typing.Optional[typing.Dict[str, str]] = None,
-        affinity: typing.Optional[client.V1Affinity] = None,
-        tolerations: typing.Optional[typing.List[client.V1Toleration]] = None,
+        affinity: typing.Optional[kubernetes.client.V1Affinity] = None,
+        tolerations: typing.Optional[
+            typing.List[kubernetes.client.V1Toleration]
+        ] = None,
     ):
         if node_name:
             raise NotImplementedError(
@@ -376,8 +427,10 @@ class Spark3Runtime(AbstractSparkRuntime):
         self,
         node_name: typing.Optional[str] = None,
         node_selector: typing.Optional[typing.Dict[str, str]] = None,
-        affinity: typing.Optional[client.V1Affinity] = None,
-        tolerations: typing.Optional[typing.List[client.V1Toleration]] = None,
+        affinity: typing.Optional[kubernetes.client.V1Affinity] = None,
+        tolerations: typing.Optional[
+            typing.List[kubernetes.client.V1Toleration]
+        ] = None,
     ):
         """
         Enables to control on which k8s node the spark executor will run
@@ -407,8 +460,10 @@ class Spark3Runtime(AbstractSparkRuntime):
         self,
         node_name: typing.Optional[str] = None,
         node_selector: typing.Optional[typing.Dict[str, str]] = None,
-        affinity: typing.Optional[client.V1Affinity] = None,
-        tolerations: typing.Optional[typing.List[client.V1Toleration]] = None,
+        affinity: typing.Optional[kubernetes.client.V1Affinity] = None,
+        tolerations: typing.Optional[
+            typing.List[kubernetes.client.V1Toleration]
+        ] = None,
     ):
         """
         Enables to control on which k8s node the spark executor will run

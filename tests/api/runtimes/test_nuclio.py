@@ -941,7 +941,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
             fn.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
 
-        mlconf.nuclio_version = "1.8.1"
+        mlconf.nuclio_version = "1.8.6"
         fn.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
         assert fn.spec.preemption_mode == "allow"
 

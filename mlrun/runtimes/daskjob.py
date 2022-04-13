@@ -698,7 +698,8 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             return response
         service_resources = []
         for runtime_resources in runtime_resources_list:
-            service_resources += runtime_resources.service_resources
+            if runtime_resources.service_resources:
+                service_resources += runtime_resources.service_resources
         return self._enrich_service_resources_in_response(
             response, service_resources, group_by
         )

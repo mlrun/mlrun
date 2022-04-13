@@ -135,9 +135,14 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
                     stats_dict[stat] = str(val)
         results_dict[col] = stats_dict
 
-        if InferOptions.get_common_options(
-            options, InferOptions.Histogram
-        ) and get_dtype(df, col) in ["double", "int"]:
+        if (
+            InferOptions.get_common_options(options, InferOptions.Histogram)
+            and get_dtype(df, col) in ["double", "int"]
+            # in some situations (empty DF may cause this) we won't have stats for columns with suitable types, in this
+            # case we won't calculate histogram for the column.
+            and "min" in results_dict[col]
+            and "max" in results_dict[col]
+        ):
             hist_columns.append(col)
 
     # We may need multiple queries here. See comment before this function for reasoning.

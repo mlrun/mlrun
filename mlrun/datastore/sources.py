@@ -316,6 +316,8 @@ class BigQuerySource(BaseSourceDriver):
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
+        start_time=None,
+        end_time=None,
         gcp_project: str = None,
         spark_options: dict = None,
     ):
@@ -343,6 +345,8 @@ class BigQuerySource(BaseSourceDriver):
             key_field=key_field,
             time_field=time_field,
             schedule=schedule,
+            start_time=start_time,
+            end_time=end_time,
         )
         self._rows_iterator = None
 
@@ -451,6 +455,8 @@ class SnowflakeSource(BaseSourceDriver):
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
+        start_time=None,
+        end_time=None,
         query: str = None,
         url: str = None,
         user: str = None,
@@ -477,6 +483,8 @@ class SnowflakeSource(BaseSourceDriver):
             key_field=key_field,
             time_field=time_field,
             schedule=schedule,
+            start_time=start_time,
+            end_time=end_time,
         )
 
     def get_spark_options(self):

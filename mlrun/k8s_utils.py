@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import base64
+import hashlib
 import time
 import typing
 from datetime import datetime
@@ -21,10 +22,11 @@ import kubernetes.client
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
+import mlrun.api.schemas
 import mlrun.errors
 
 from .config import config as mlconfig
-from .platforms.iguazio import v3io_to_vol
+from .platforms.iguazio import sanitize_username, v3io_to_vol
 from .utils import logger
 
 _k8s = None
@@ -40,6 +42,11 @@ def get_k8s_helper(namespace=None, silent=False, log=False):
     if not _k8s:
         _k8s = K8sHelper(namespace, silent=silent, log=log)
     return _k8s
+
+
+class SecretTypes:
+    opaque = "Opaque"
+    v3io_fuse = "v3io/fuse"
 
 
 class K8sHelper:
@@ -329,13 +336,42 @@ class K8sHelper:
 
         return service_account.secrets[0].name
 
-    def get_project_secret_name(self, project):
+    def get_project_secret_name(self, project) -> str:
         return mlconfig.secret_stores.kubernetes.project_secret_name.format(
             project=project
         )
 
+    def get_auth_secret_name(self, username: str, access_key: str) -> str:
+        sanitized_username = sanitize_username(username)
+        hashed_access_key = self._hash_access_key(access_key)
+        return mlconfig.secret_stores.kubernetes.auth_secret_name.format(
+            sanitized_username=sanitized_username, hashed_access_key=hashed_access_key
+        )
+
+    @staticmethod
+    def _hash_access_key(access_key: str):
+        return hashlib.sha256(access_key.encode()).hexdigest()
+
     def store_project_secrets(self, project, secrets, namespace=""):
         secret_name = self.get_project_secret_name(project)
+        self.store_secrets(secret_name, secrets, namespace)
+
+    def store_auth_secret(self, username: str, access_key: str, namespace="") -> str:
+        secret_name = self.get_auth_secret_name(username, access_key)
+        secret_data = {
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username"): username,
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key(
+                "access_key"
+            ): access_key,
+        }
+        self.store_secrets(
+            secret_name, secret_data, namespace, type_=SecretTypes.v3io_fuse
+        )
+        return secret_name
+
+    def store_secrets(
+        self, secret_name, secrets, namespace="", type_=SecretTypes.opaque
+    ):
         namespace = self.resolve_namespace(namespace)
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
@@ -344,7 +380,7 @@ class K8sHelper:
             if exc.status != 404:
                 logger.error(f"failed to retrieve k8s secret: {exc}")
                 raise exc
-            k8s_secret = client.V1Secret(type="Opaque")
+            k8s_secret = client.V1Secret(type=type_)
             k8s_secret.metadata = client.V1ObjectMeta(
                 name=secret_name, namespace=namespace
             )
@@ -361,6 +397,12 @@ class K8sHelper:
 
     def delete_project_secrets(self, project, secrets, namespace=""):
         secret_name = self.get_project_secret_name(project)
+        self.delete_secrets(secret_name, secrets, namespace)
+
+    def delete_auth_secret(self, secret_ref: str, namespace=""):
+        self.delete_secrets(secret_ref, {}, namespace)
+
+    def delete_secrets(self, secret_name, secrets, namespace=""):
         namespace = self.resolve_namespace(namespace)
 
         try:

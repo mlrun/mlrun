@@ -160,8 +160,9 @@ default_config = {
                 "use_rotation": True,
                 "rotation_limit": 3,
             },
-            "connections_pool_size": 20,
-            "connections_pool_max_overflow": 50,
+            # None will set this to be equal to the httpdb.max_workers
+            "connections_pool_size": None,
+            "connections_pool_max_overflow": None,
         },
         "jobs": {
             # whether to allow to run local runtimes in the API - configurable to allow the scheduler testing to work
@@ -288,6 +289,7 @@ default_config = {
             # unless user asks for a specific list of secrets.
             "auto_add_project_secrets": True,
             "project_secret_name": "mlrun-project-secrets-{project}",
+            "auth_secret_name": "mlrun-auth-secrets-{sanitized_username}-{hashed_access_key}",
             "env_variable_prefix": "MLRUN_K8S_SECRET__",
         },
     },

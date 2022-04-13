@@ -32,7 +32,6 @@ from mlrun.datastore.targets import (
     NoSqlTarget,
     ParquetTarget,
     TargetTypes,
-    get_default_prefix_for_target,
     get_target_driver,
 )
 from mlrun.feature_store import Entity, FeatureSet
@@ -342,10 +341,15 @@ class TestFeatureStore(TestMLRunSystem):
             (None, False),  # default
             (f"v3io:///bigdata/{project_name}/gof_wt.parquet", False),  # single file
             (f"v3io:///bigdata/{project_name}/gof_wt/", False),  # directory
-            (f"v3io:///bigdata/{project_name}/{{run_id}}/gof_wt.parquet", True),  # single file with run_id
+            (
+                f"v3io:///bigdata/{project_name}/{{run_id}}/gof_wt.parquet",
+                True,
+            ),  # with run_id
         ],
     )
-    def test_different_target_paths_for_get_offline_features(self, target_path, should_raise_error):
+    def test_different_target_paths_for_get_offline_features(
+        self, target_path, should_raise_error
+    ):
         stocks = pd.DataFrame(
             {
                 "ticker": ["MSFT", "GOOG", "AAPL"],
@@ -371,10 +375,19 @@ class TestFeatureStore(TestMLRunSystem):
     @pytest.mark.parametrize(
         "target_path, final_path",
         [
-            ("v3io:///bigdata/csvtest/csvname.csv", "v3io:///bigdata/csvtest/{run_id}/csvname.csv"),
-            ("v3io:///bigdata/csvtest/csvname", "v3io:///bigdata/csvtest/{run_id}/csvname"),
-            ("v3io:///bigdata/csvtest/csvname/", "v3io:///bigdata/csvtest/csvname/{run_id}/")
-        ]
+            (
+                "v3io:///bigdata/csvtest/csvname.csv",
+                "v3io:///bigdata/csvtest/{run_id}/csvname.csv",
+            ),
+            (
+                "v3io:///bigdata/csvtest/csvname",
+                "v3io:///bigdata/csvtest/{run_id}/csvname",
+            ),
+            (
+                "v3io:///bigdata/csvtest/csvname/",
+                "v3io:///bigdata/csvtest/csvname/{run_id}/",
+            ),
+        ],
     )
     def test_csv_path(self, target_path, final_path):
         df = pd.DataFrame(
@@ -695,7 +708,6 @@ class TestFeatureStore(TestMLRunSystem):
         assert resp1 == resp2
 
         file_system = fsspec.filesystem("v3io")
-        kind = TargetTypes.parquet
         path = measurements.get_target_path("parquet")
         dataset = pq.ParquetDataset(
             path,

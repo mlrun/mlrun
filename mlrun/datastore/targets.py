@@ -24,12 +24,7 @@ import pandas as pd
 import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
-from mlrun.model import (
-    RUN_ID_PLACE_HOLDER,
-    DataTarget,
-    DataTargetBase,
-    TargetPathObject,
-)
+from mlrun.model import DataTarget, DataTargetBase, TargetPathObject
 from mlrun.utils import now_date
 from mlrun.utils.v3io_clients import get_frames_client
 
@@ -507,7 +502,9 @@ class BaseStoreTarget(DataTargetBase):
         is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
         return self.get_path() or (
             TargetPathObject(
-                _get_target_path(self, self._resource, self.run_id is None), self.run_id, is_single_file
+                _get_target_path(self, self._resource, self.run_id is None),
+                self.run_id,
+                is_single_file,
             )
             if self._resource
             else None

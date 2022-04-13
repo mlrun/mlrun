@@ -68,7 +68,7 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
         )
         self.project.save_workflow(
             "p1",
-            target=workflow_path.as_posix(),
+            target=str(workflow_path),
         )
         with workflow_path.open() as workflow_file:
             workflow = yaml.safe_load(workflow_file)
@@ -130,7 +130,7 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
         )
         self.project.save_workflow(
             "p1",
-            target=workflow_path.as_posix(),
+            target=str(workflow_path),
         )
 
         preemptible_tolerations = [

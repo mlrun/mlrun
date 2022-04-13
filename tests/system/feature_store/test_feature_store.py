@@ -381,7 +381,7 @@ class TestFeatureStore(TestMLRunSystem):
             ),
             (
                 "v3io:///bigdata/csvtest/csvname",
-                "v3io:///bigdata/csvtest/{run_id}/csvname",
+                "v3io:///bigdata/csvtest/csvname/{run_id}/",
             ),
             (
                 "v3io:///bigdata/csvtest/csvname/",

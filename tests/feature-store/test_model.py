@@ -51,7 +51,7 @@ def test_features_parser():
 @pytest.mark.parametrize(
     "pass_run_id, is_single_file, target_path, expected_path",
     [
-        (True, False, "v3io:///bigdata/{run_id}", "v3io:///bigdata/run_id_val"),
+        (True, False, "v3io:///bigdata/{run_id}", "v3io:///bigdata/run_id_val/"),
         (
             True,
             True,

@@ -13,3 +13,7 @@ def pipeline():
     print(run1)
     run2 = mlrun.run_function("func2", handler="func1", params={"p1": 29})
     print(run2)
+    build3 = mlrun.build_function("func3")
+    print(build3)
+    dep4 = mlrun.deploy_function("func4")
+    print(dep4)

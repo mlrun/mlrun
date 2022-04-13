@@ -162,7 +162,11 @@ class CSVSource(BaseSourceDriver):
 
         df = session.read.load(**self.get_spark_options())
         for col_name, col_type in df.dtypes:
-            if col_name == self.time_field or col_name in self._parse_dates:
+            if (
+                col_name == self.time_field
+                or self._parse_dates
+                and col_name in self._parse_dates
+            ):
                 df = df.withColumn(col_name, funcs.col(col_name).cast("timestamp"))
         if named_view:
             df.createOrReplaceTempView(self.name)

@@ -335,8 +335,8 @@ class HTTPRunDB(RunDBInterface):
                 or config.default_tensorboard_logs_path
             )
             config.default_function_pod_resources = (
-                server_cfg.get("default_function_pod_resources") or
-                config.default_function_pod_resources
+                server_cfg.get("default_function_pod_resources")
+                or config.default_function_pod_resources
             )
             config.function_defaults.preemption_mode = (
                 server_cfg.get("default_preemption_mode")

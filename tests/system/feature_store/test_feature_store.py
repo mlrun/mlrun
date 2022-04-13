@@ -337,17 +337,15 @@ class TestFeatureStore(TestMLRunSystem):
         assert "time" in df_with_index.columns, "'time' column should be present"
 
     @pytest.mark.parametrize(
-        "target_path",
+        "target_path, should_raise_error",
         [
-            None,  # default
-            f"v3io:///bigdata/{project_name}/gof_wt.parquet",  # single file
-            f"v3io:///bigdata/{project_name}/{{run_id}}/gof_wt.parquet",  # single file with run_id
-            f"v3io:///bigdata/{project_name}/gof_wt/",  # directory
-            f"v3io:///bigdata/{project_name}/gof_wt/{{run_id}}",  # directory with run_id
-            f"v3io:///bigdata/{project_name}/gof_wt/{{run_id}}/gof_wt",  # directory with run_id in middle of path
+            (None, False),  # default
+            (f"v3io:///bigdata/{project_name}/gof_wt.parquet", False),  # single file
+            (f"v3io:///bigdata/{project_name}/gof_wt/", False),  # directory
+            (f"v3io:///bigdata/{project_name}/{{run_id}}/gof_wt.parquet", True),  # single file with run_id
         ],
     )
-    def test_different_target_paths_for_get_offline_features(self, target_path):
+    def test_different_target_paths_for_get_offline_features(self, target_path, should_raise_error):
         stocks = pd.DataFrame(
             {
                 "ticker": ["MSFT", "GOOG", "AAPL"],
@@ -362,16 +360,23 @@ class TestFeatureStore(TestMLRunSystem):
 
         vector = fs.FeatureVector("SjqevLXR", ["stocks_test.*"])
         target = ParquetTarget(name="parquet", path=target_path)
-        fs.get_offline_features(vector, with_indexes=True, target=target)
-        df = pd.read_parquet(target.get_target_path())
-        assert df is not None
-        assert target.run_id == "offline-features"
+        if should_raise_error:
+            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+                fs.get_offline_features(vector, with_indexes=True, target=target)
+        else:
+            fs.get_offline_features(vector, with_indexes=True, target=target)
+            df = pd.read_parquet(target.get_target_path())
+            assert df is not None
 
     @pytest.mark.parametrize(
-        "target_path",
-        ["v3io:///bigdata/csvtest/csvname.csv", "v3io:///bigdata/csvtest/csvname"],
+        "target_path, final_path",
+        [
+            ("v3io:///bigdata/csvtest/csvname.csv", "v3io:///bigdata/csvtest/{run_id}/csvname.csv"),
+            ("v3io:///bigdata/csvtest/csvname", "v3io:///bigdata/csvtest/{run_id}/csvname"),
+            ("v3io:///bigdata/csvtest/csvname/", "v3io:///bigdata/csvtest/csvname/{run_id}/")
+        ]
     )
-    def test_csv_path(self, target_path):
+    def test_csv_path(self, target_path, final_path):
         df = pd.DataFrame(
             {
                 "key": ["key1", "key2"],
@@ -389,7 +394,8 @@ class TestFeatureStore(TestMLRunSystem):
         target = CSVTarget(name="csvtar", path=target_path)
         fs.ingest(fset, source=df, targets=[target])
 
-        assert fset.get_target_path("csvtar") == target_path
+        expected = final_path.format(run_id=fset.status.targets[0].run_id)
+        assert fset.get_target_path("csvtar") == expected
 
     def test_nosql_no_path(self):
         df = pd.DataFrame(
@@ -506,7 +512,8 @@ class TestFeatureStore(TestMLRunSystem):
             infer_options=fs.InferOptions.schema() + fs.InferOptions.Stats,
             run_config=fs.RunConfig(local=True),
         )
-        assert os.path.exists(target_path), "result file was not generated"
+        final_path = measurements.get_target_path()
+        assert os.path.exists(final_path), "result file was not generated"
         features = sorted(measurements.spec.features.keys())
         stats = sorted(measurements.status.stats.keys())
         print(features)
@@ -689,13 +696,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         file_system = fsspec.filesystem("v3io")
         kind = TargetTypes.parquet
-        path = f"{get_default_prefix_for_target(kind)}/sets/{name}"
-        path = path.format(
-            name=name,
-            kind=kind,
-            project=self.project_name,
-            run_id=measurements.status.targets[0].run_id,
-        )
+        path = measurements.get_target_path("parquet")
         dataset = pq.ParquetDataset(
             path,
             filesystem=file_system,
@@ -866,7 +867,8 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         # reading csv file
-        controller = build_flow([CSVSource(csv_path), ReduceToDataFrame()]).run()
+        final_path = stocks_set.get_target_path("mycsv")
+        controller = build_flow([CSVSource(final_path), ReduceToDataFrame()]).run()
         termination_result = controller.await_termination()
 
         expected = pd.DataFrame(
@@ -880,7 +882,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert termination_result.equals(
             expected
         ), f"{termination_result}\n!=\n{expected}"
-        os.remove(csv_path)
+        os.remove(final_path)
 
     def test_multiple_entities(self):
         name = f"measurements_{uuid.uuid4()}"
@@ -1595,14 +1597,16 @@ class TestFeatureStore(TestMLRunSystem):
         feature_set, _ = prepare_feature_set(
             "same-target-type", "ticker", quotes, timestamp_key="time", targets=targets
         )
-        parquet1 = pd.read_parquet(feature_set.get_target_path(name="parquet1"))
-        parquet2 = pd.read_parquet(feature_set.get_target_path(name="parquet2"))
+        final_path1 = feature_set.get_target_path(name="parquet1")
+        parquet1 = pd.read_parquet(final_path1)
+        final_path2 = feature_set.get_target_path(name="parquet2")
+        parquet2 = pd.read_parquet(final_path2)
 
         assert all(parquet1 == quotes.set_index("ticker"))
         assert all(parquet1 == parquet2)
 
-        os.remove(parquet_path1)
-        os.remove(parquet_path2)
+        os.remove(final_path1)
+        os.remove(final_path2)
 
     def test_post_aggregation_step(self):
         quotes_set = fs.FeatureSet("post-aggregation", entities=[fs.Entity("ticker")])

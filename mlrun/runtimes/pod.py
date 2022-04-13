@@ -1047,12 +1047,12 @@ class KubeResource(BaseRuntime):
         Preemption mode controls whether pods can be scheduled on preemptible nodes.
         Tolerations, node selector, and affinity are populated on preemptible nodes corresponding to the function spec.
 
-        Four modes are supported:
+        The supported modes are:
 
         * **allow** - The function can be scheduled on preemptible nodes
         * **constrain** - The function can only run on preemptible nodes
         * **prevent** - The function cannot be scheduled on preemptible nodes
-        * **none** - No preemptible configuration will apply on the function
+        * **none** - No preemptible configuration will be applied on the function
 
         The default preemption mode is configurable in mlrun.mlconf.function_defaults.preemption_mode,
         by default it's set to **prevent**

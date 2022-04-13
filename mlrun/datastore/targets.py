@@ -907,7 +907,9 @@ class CSVTarget(BaseStoreTarget):
         return df
 
     def is_single_file(self):
-        return True
+        if self.path:
+            return self.path.endswith(".csv")
+        return False
 
 
 class NoSqlTarget(BaseStoreTarget):

@@ -525,12 +525,11 @@ class TestFeatureStore(TestMLRunSystem):
             run_config=fs.RunConfig(local=True),
         )
         final_path = measurements.get_target_path()
-        assert 'latest' not in final_path
+        assert "latest" not in final_path
         assert measurements.status.targets is not None
         for target in measurements.status.targets:
-            assert 'latest' not in target.get_path().get_absolute_path()
+            assert "latest" not in target.get_path().get_absolute_path()
             assert target.run_id is not None
-
 
     def test_serverless_ingest(self):
         key = "patient_id"

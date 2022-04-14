@@ -20,6 +20,7 @@ from urllib.parse import urlparse
 
 import kfp.dsl
 import requests
+import semver
 import urllib3
 import v3io
 
@@ -28,37 +29,6 @@ from mlrun.config import config as mlconf
 from mlrun.utils import dict_to_json
 
 _cached_control_session = None
-
-
-def xcp_op(
-    src, dst, f="", recursive=False, mtime="", log_level="info", minsize=0, maxsize=0
-):
-    """Parallel cloud copy."""
-    from kfp import dsl
-
-    args = [
-        # '-f', f,
-        # '-t', mtime,
-        # '-m', maxsize,
-        # '-n', minsize,
-        # '-v', log_level,
-        src,
-        dst,
-    ]
-    if recursive:
-        args = ["-r"] + args
-
-    container_op = dsl.ContainerOp(
-        name="xcp",
-        image="yhaviv/invoke",
-        command=["xcp"],
-        arguments=args,
-    )
-    # import here to avoid circular imports
-    import mlrun.kfpops
-
-    container_op = mlrun.kfpops.add_default_function_node_selector(container_op)
-    return container_op
 
 
 VolumeMount = namedtuple("Mount", ["path", "sub_path"])
@@ -246,7 +216,15 @@ def mount_v3iod(namespace, v3io_config_configmap):
                 k8s_client.V1VolumeMount(mount_path=mount_path, name=name)
             )
 
-        add_vol(name="shm", mount_path="/dev/shm", host_path="/dev/shm/" + namespace)
+        # this is a legacy path for the daemon shared memory
+        host_path = "/dev/shm/"
+
+        # path to shared memory for daemon was changed in Iguazio 3.2.3-b1
+        igz_version = mlrun.mlconf.get_parsed_igz_version()
+        if igz_version and igz_version >= semver.VersionInfo.parse("3.2.3-b1"):
+            host_path = "/var/run/iguazio/dayman-shm/"
+        add_vol(name="shm", mount_path="/dev/shm", host_path=host_path + namespace)
+
         add_vol(
             name="v3iod-comm",
             mount_path="/var/run/iguazio/dayman",
@@ -561,6 +539,8 @@ def add_or_refresh_credentials(
     # different access keys for the 2 usages
     token = (
         token
+        # can't use mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session cause this is running in the
+        # import execution path (when we're initializing the run db) and therefore we can't import mlrun.runtimes
         or os.environ.get("MLRUN_AUTH_SESSION")
         or os.environ.get("V3IO_ACCESS_KEY")
     )
@@ -619,3 +599,11 @@ def parse_v3io_path(url, suffix="/"):
     else:
         endpoint = None
     return endpoint, parsed_url.path.strip("/") + suffix
+
+
+def sanitize_username(username: str):
+    """
+    The only character an Iguazio username may have that is not valid for k8s usage is underscore (_)
+    So simply replace it with dash
+    """
+    return username.replace("_", "-")

@@ -101,6 +101,8 @@ class DaskSpec(KubeResourceSpec):
         disable_auto_mount=False,
         pythonpath=None,
         workdir=None,
+        tolerations=None,
+        preemption_mode=None,
     ):
 
         super().__init__(
@@ -127,6 +129,8 @@ class DaskSpec(KubeResourceSpec):
             disable_auto_mount=disable_auto_mount,
             pythonpath=pythonpath,
             workdir=workdir,
+            tolerations=tolerations,
+            preemption_mode=preemption_mode,
         )
         self.args = args
 
@@ -694,7 +698,8 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             return response
         service_resources = []
         for runtime_resources in runtime_resources_list:
-            service_resources += runtime_resources.service_resources
+            if runtime_resources.service_resources:
+                service_resources += runtime_resources.service_resources
         return self._enrich_service_resources_in_response(
             response, service_resources, group_by
         )

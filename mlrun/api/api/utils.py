@@ -1,3 +1,4 @@
+import collections
 import re
 import traceback
 import typing
@@ -6,6 +7,7 @@ from http import HTTPStatus
 from os import environ
 from pathlib import Path
 
+import kubernetes.client
 from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
@@ -13,6 +15,8 @@ from sqlalchemy.orm import Session
 import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
 import mlrun.errors
+import mlrun.runtimes.pod
+import mlrun.utils.helpers
 from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.schemas import SecretProviderName
@@ -140,6 +144,8 @@ def _generate_function_and_task_from_submit_run_body(
 
     # Validate function's service-account, based on allowed SAs for the project, if existing in a project-secret.
     process_function_service_account(function)
+
+    mask_sensitive_data(function, auth_info)
     return function, task
 
 
@@ -150,12 +156,200 @@ async def submit_run(db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
     return response
 
 
+def mask_sensitive_data(function, auth_info: mlrun.api.schemas.AuthInfo):
+    if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
+        _mask_v3io_access_key_env_var(function, auth_info)
+        _mask_v3io_volume_credentials(function)
+
+
+def _mask_v3io_volume_credentials(function: mlrun.runtimes.pod.KubeResource):
+    """
+    Go over all of the flex volumes with v3io/fuse driver of the function and try mask their access key to a secret
+    """
+    get_item_attribute = mlrun.runtimes.utils.get_item_name
+    v3io_volume_indices = []
+    # to prevent the code from having to deal both with the scenario of the volume as V1Volume object and both as
+    # (sanitized) dict (it's also snake case vs camel case), transforming all to dicts
+    new_volumes = []
+    k8s_api_client = kubernetes.client.ApiClient()
+    for volume in function.spec.volumes:
+        if isinstance(volume, dict):
+            if "flexVolume" in volume:
+                # mlrun.platforms.iguazio.v3io_to_vol generates a dict with a class in the flexVolume field
+                if not isinstance(volume["flexVolume"], dict):
+                    # sanity
+                    if isinstance(
+                        volume["flexVolume"], kubernetes.client.V1FlexVolumeSource
+                    ):
+                        volume[
+                            "flexVolume"
+                        ] = k8s_api_client.sanitize_for_serialization(
+                            volume["flexVolume"]
+                        )
+                    else:
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            f"Unexpected flex volume type: {type(volume['flexVolume'])}"
+                        )
+            new_volumes.append(volume)
+        elif isinstance(volume, kubernetes.client.V1Volume):
+            new_volumes.append(k8s_api_client.sanitize_for_serialization(volume))
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unexpected volume type: {type(volume)}"
+            )
+    function.spec.volumes = new_volumes
+
+    for index, volume in enumerate(function.spec.volumes):
+        if volume.get("flexVolume", {}).get("driver") == "v3io/fuse":
+            v3io_volume_indices.append(index)
+    if v3io_volume_indices:
+        volume_name_to_volume_mounts = collections.defaultdict(list)
+        for volume_mount in function.spec.volume_mounts:
+            # sanity
+            if not get_item_attribute(volume_mount, "name"):
+                logger.warning(
+                    "Found volume mount without name, skipping it for volume masking username resolution",
+                    volume_mount=volume_mount,
+                )
+                continue
+            volume_name_to_volume_mounts[
+                get_item_attribute(volume_mount, "name")
+            ].append(volume_mount)
+        for index in v3io_volume_indices:
+            volume = function.spec.volumes[index]
+            flex_volume = volume["flexVolume"]
+            # if it's already referencing a secret, nothing to do
+            if flex_volume.get("secretRef"):
+                continue
+            access_key = flex_volume.get("options", {}).get("accessKey")
+            # sanity
+            if not access_key:
+                logger.warning(
+                    "Found v3io fuse volume without access key, skipping masking",
+                    volume=volume,
+                )
+                continue
+            if not volume.get("name"):
+                logger.warning(
+                    "Found volume without name, skipping masking", volume=volume
+                )
+                continue
+            username = _resolve_v3io_fuse_volume_access_key_matching_username(
+                function, volume, volume["name"], volume_name_to_volume_mounts
+            )
+            if not username:
+                continue
+            secret_name = mlrun.api.crud.Secrets().store_auth_secret(
+                mlrun.api.schemas.AuthSecretData(
+                    provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+                    username=username,
+                    access_key=access_key,
+                )
+            )
+
+            del flex_volume["options"]["accessKey"]
+            flex_volume["secretRef"] = {"name": secret_name}
+
+
+def _resolve_v3io_fuse_volume_access_key_matching_username(
+    function: mlrun.runtimes.pod.KubeResource,
+    volume: dict,
+    volume_name: str,
+    volume_name_to_volume_mounts: dict,
+) -> typing.Optional[str]:
+    """
+    Usually v3io fuse mount is set using mlrun.mount_v3io, which by default add a volume mount to /users/<username>, try
+    to resolve the username from there
+    If it's not found (user may set custom volume mounts), try to look for V3IO_USERNAME env var
+    If it's not found, skip masking for this volume
+    :return: the resolved username (string), none if not found
+    """
+
+    get_item_attribute = mlrun.runtimes.utils.get_item_name
+    username = None
+    found_more_than_one_username = False
+    for volume_mount in volume_name_to_volume_mounts[volume_name]:
+        # volume_mount may be an V1VolumeMount instance (object access, snake case) or sanitized dict (dict
+        # access, camel case)
+        sub_path = get_item_attribute(volume_mount, "subPath") or get_item_attribute(
+            volume_mount, "sub_path"
+        )
+        if sub_path and sub_path.startswith("users/"):
+            username_from_sub_path = sub_path.replace("users/", "")
+            if username_from_sub_path:
+                if username is not None and username != username_from_sub_path:
+                    found_more_than_one_username = True
+                    break
+                username = username_from_sub_path
+    if found_more_than_one_username:
+        logger.warning(
+            "Found more than one user for volume, skipping masking",
+            volume=volume,
+            volume_mounts=volume_name_to_volume_mounts[volume_name],
+        )
+        return None
+    if not username:
+        v3io_username = function.get_env("V3IO_USERNAME")
+        if not v3io_username or not isinstance(v3io_username, str):
+            logger.warning(
+                "Could not resolve username from volume mount or env vars, skipping masking",
+                volume=volume,
+                volume_mounts=volume_name_to_volume_mounts[volume_name],
+                env=function.spec.env,
+            )
+            return None
+        username = v3io_username
+    return username
+
+
+def _mask_v3io_access_key_env_var(
+    function: mlrun.runtimes.pod.KubeResource, auth_info: mlrun.api.schemas.AuthInfo
+):
+    v3io_access_key = function.get_env("V3IO_ACCESS_KEY")
+    # if it's already a V1EnvVarSource or dict instance, it's already been masked
+    if (
+        v3io_access_key
+        and not isinstance(v3io_access_key, kubernetes.client.V1EnvVarSource)
+        and not isinstance(v3io_access_key, dict)
+    ):
+        username = None
+        v3io_username = function.get_env("V3IO_USERNAME")
+        if v3io_username and isinstance(v3io_username, str):
+            username = v3io_username
+        if not username:
+            if mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
+                # auth_info should always has username, sanity
+                if not auth_info.username:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "Username is missing from auth info"
+                    )
+                username = auth_info.username
+            else:
+                logger.warning(
+                    "Could not find matching username for v3io access key in env or session, skipping masking",
+                )
+                return
+        secret_name = mlrun.api.crud.Secrets().store_auth_secret(
+            mlrun.api.schemas.AuthSecretData(
+                provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+                username=username,
+                access_key=v3io_access_key,
+            )
+        )
+        access_key_secret_key = mlrun.api.schemas.AuthSecretData.get_field_secret_key(
+            "access_key"
+        )
+        function.set_env_from_secret(
+            "V3IO_ACCESS_KEY", secret_name, access_key_secret_key
+        )
+
+
 def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo):
     if (
-        function.kind
-        and function.kind not in mlrun.runtimes.RuntimeKinds.local_runtimes()
+        not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
         and mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
     ):
+        function: mlrun.runtimes.pod.KubeResource
         if (
             function.metadata.credentials.access_key
             == mlrun.model.Credentials.generate_access_key
@@ -169,16 +363,44 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Function access key must be set (function.metadata.credentials.access_key)"
             )
+        if not function.metadata.credentials.access_key.startswith(
+            mlrun.model.Credentials.secret_reference_prefix
+        ):
+            if not auth_info.username:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Username is missing from auth info"
+                )
+            secret_name = mlrun.api.crud.Secrets().store_auth_secret(
+                mlrun.api.schemas.AuthSecretData(
+                    provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+                    username=auth_info.username,
+                    access_key=function.metadata.credentials.access_key,
+                )
+            )
+            function.metadata.credentials.access_key = (
+                f"{mlrun.model.Credentials.secret_reference_prefix}{secret_name}"
+            )
+        else:
+            secret_name = function.metadata.credentials.access_key.lstrip(
+                mlrun.model.Credentials.secret_reference_prefix
+            )
+
+        access_key_secret_key = mlrun.api.schemas.AuthSecretData.get_field_secret_key(
+            "access_key"
+        )
         auth_env_vars = {
-            "MLRUN_AUTH_SESSION": function.metadata.credentials.access_key,
+            mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session: (
+                secret_name,
+                access_key_secret_key,
+            )
         }
-        for key, value in auth_env_vars.items():
-            function.set_env(key, value)
+        for env_key, (secret_name, secret_key) in auth_env_vars.items():
+            function.set_env_from_secret(env_key, secret_name, secret_key)
 
 
 def try_perform_auto_mount(function, auth_info: mlrun.api.schemas.AuthInfo):
     if (
-        function.kind in mlrun.runtimes.RuntimeKinds.local_runtimes()
+        mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
         or function.spec.disable_auto_mount
     ):
         return
@@ -197,10 +419,12 @@ def process_function_service_account(function):
     if not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
         return
 
-    allowed_service_accounts = mlrun.api.crud.secrets.Secrets().get_secret(
+    allowed_service_accounts = mlrun.api.crud.secrets.Secrets().get_project_secret(
         function.metadata.project,
         SecretProviderName.kubernetes,
-        mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key("allowed"),
+        mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
+            mlrun.api.crud.secrets.SecretsClientType.service_accounts, "allowed"
+        ),
         allow_secrets_from_k8s=True,
         allow_internal_secrets=True,
     )
@@ -210,10 +434,12 @@ def process_function_service_account(function):
             for service_account in allowed_service_accounts.split(",")
         ]
 
-    default_service_account = mlrun.api.crud.secrets.Secrets().get_secret(
+    default_service_account = mlrun.api.crud.secrets.Secrets().get_project_secret(
         function.metadata.project,
         SecretProviderName.kubernetes,
-        mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key("default"),
+        mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
+            mlrun.api.crud.secrets.SecretsClientType.service_accounts, "default"
+        ),
         allow_secrets_from_k8s=True,
         allow_internal_secrets=True,
     )
@@ -251,8 +477,7 @@ def _submit_run(
             db_session, auth_info, data
         )
         if (
-            not fn.kind
-            or fn.kind in mlrun.runtimes.RuntimeKinds.local_runtimes()
+            mlrun.runtimes.RuntimeKinds.is_local_runtime(fn.kind)
             and not mlrun.mlconf.httpdb.jobs.allow_local_run
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(

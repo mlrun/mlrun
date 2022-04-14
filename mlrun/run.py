@@ -605,18 +605,20 @@ def new_function(
     if mode:
         runner.spec.mode = mode
     if source:
-        if not hasattr(runner, "with_source_archive"):
-            raise ValueError(
-                f"source archive option is not supported for {kind} runtime"
+        runner.spec.build.source = source
+    if handler:
+        if kind == RuntimeKinds.serving:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "cannot set the handler for serving runtime"
             )
-        runner.with_source_archive(source)
+        elif kind in RuntimeKinds.nuclio_runtimes():
+            runner.spec.function_handler = handler
+        else:
+            runner.spec.default_handler = handler
+
     if requirements:
         runner.with_requirements(requirements)
     runner.verify_base_image()
-    if handler:
-        runner.spec.default_handler = handler
-        if kind.startswith("nuclio"):
-            runner.spec.function_handler = handler
     return runner
 
 
@@ -935,7 +937,7 @@ def run_pipeline(
     arguments = arguments or {}
 
     if remote or url:
-        mldb = get_run_db(url)
+        mldb = mlrun.db.get_run_db(url)
         if mldb.kind != "http":
             raise ValueError(
                 "run pipeline require access to remote api-service"
@@ -1008,7 +1010,7 @@ def wait_for_pipeline_completion(
     )
 
     if remote:
-        mldb = get_run_db()
+        mldb = mlrun.db.get_run_db()
 
         def get_pipeline_if_completed(run_id, namespace=namespace):
             resp = mldb.get_pipeline(run_id, namespace=namespace, project=project)
@@ -1088,7 +1090,7 @@ def get_pipeline(
     """
     namespace = namespace or mlconf.namespace
     if remote:
-        mldb = get_run_db()
+        mldb = mlrun.db.get_run_db()
         if mldb.kind != "http":
             raise ValueError(
                 "get pipeline require access to remote api-service"
@@ -1142,7 +1144,7 @@ def list_pipelines(
     """
     if full:
         format_ = mlrun.api.schemas.PipelinesFormat.full
-    run_db = get_run_db()
+    run_db = mlrun.db.get_run_db()
     pipelines = run_db.list_pipelines(
         project, namespace, sort_by, page_token, filter_, format_, page_size
     )

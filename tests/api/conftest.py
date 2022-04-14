@@ -1,5 +1,4 @@
 import typing
-import unittest.mock
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Generator
 
@@ -8,6 +7,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+import mlrun.api.schemas
 import mlrun.api.utils.singletons.k8s
 from mlrun import mlconf
 from mlrun.api.db.sqldb.session import _init_engine, create_session
@@ -93,16 +93,43 @@ async def async_client(db) -> Generator:
 
 class K8sSecretsMock:
     def __init__(self):
+        self._is_running_in_k8s = True
+        self.reset_mock()
+
+    def reset_mock(self):
         # project -> secret_key -> secret_value
         self.project_secrets_map = {}
-        self._is_running_in_k8s = True
+        # ref -> secret_key -> secret_value
+        self.auth_secrets_map = {}
 
-    # cannot use a property since it's used as a side-effect in the fixture's mock.
-    def is_running_in_k8s_cluster(self) -> bool:
+    # cannot use a property since it's used as a method on the actual class
+    def is_running_inside_kubernetes_cluster(self) -> bool:
         return self._is_running_in_k8s
 
     def set_is_running_in_k8s_cluster(self, value: bool):
         self._is_running_in_k8s = value
+
+    def get_auth_secret_name(self, username: str, access_key: str) -> str:
+        return f"secret-ref-{username}-{access_key}"
+
+    def store_auth_secret(self, username: str, access_key: str, namespace="") -> str:
+        secret_ref = self.get_auth_secret_name(username, access_key)
+        self.auth_secrets_map.setdefault(secret_ref, {}).update(
+            self._generate_auth_secret_data(username, access_key)
+        )
+        return secret_ref
+
+    @staticmethod
+    def _generate_auth_secret_data(username: str, access_key: str):
+        return {
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username"): username,
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key(
+                "access_key"
+            ): access_key,
+        }
+
+    def delete_auth_secret(self, secret_ref: str, namespace=""):
+        del self.auth_secrets_map[secret_ref]
 
     def store_project_secrets(self, project, secrets, namespace=""):
         self.project_secrets_map.setdefault(project, {}).update(secrets)
@@ -160,27 +187,37 @@ class K8sSecretsMock:
             == {}
         )
 
+    def assert_auth_secret(self, secret_ref: str, username: str, access_key: str):
+        assert (
+            deepdiff.DeepDiff(
+                self.auth_secrets_map[secret_ref],
+                self._generate_auth_secret_data(username, access_key),
+                ignore_order=True,
+            )
+            == {}
+        )
+
     def set_service_account_keys(
         self, project, default_service_account, allowed_service_accounts
     ):
         secrets = {}
         if default_service_account:
             secrets[
-                mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key(
-                    "default"
+                mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
+                    mlrun.api.crud.secrets.SecretsClientType.service_accounts, "default"
                 )
             ] = default_service_account
         if allowed_service_accounts:
             secrets[
-                mlrun.api.crud.secrets.Secrets().generate_service_account_secret_key(
-                    "allowed"
+                mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
+                    mlrun.api.crud.secrets.SecretsClientType.service_accounts, "allowed"
                 )
             ] = ",".join(allowed_service_accounts)
         self.store_project_secrets(project, secrets)
 
 
 @pytest.fixture()
-def k8s_secrets_mock(client: TestClient) -> K8sSecretsMock:
+def k8s_secrets_mock(monkeypatch, client: TestClient) -> K8sSecretsMock:
     logger.info("Creating k8s secrets mock")
     k8s_secrets_mock = K8sSecretsMock()
 
@@ -190,33 +227,16 @@ def k8s_secrets_mock(client: TestClient) -> K8sSecretsMock:
         "get_project_secret_data",
         "store_project_secrets",
         "delete_project_secrets",
+        "get_auth_secret_name",
+        "store_auth_secret",
+        "delete_auth_secret",
     ]
 
-    original_functions = {
-        name: getattr(mlrun.api.utils.singletons.k8s.get_k8s(), name)
-        for name in mocked_function_names
-    }
-
-    mlrun.api.utils.singletons.k8s.get_k8s().is_running_inside_kubernetes_cluster = (
-        unittest.mock.Mock(side_effect=k8s_secrets_mock.is_running_in_k8s_cluster)
-    )
-    mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_keys = (
-        unittest.mock.Mock(side_effect=k8s_secrets_mock.get_project_secret_keys)
-    )
-    mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_data = (
-        unittest.mock.Mock(side_effect=k8s_secrets_mock.get_project_secret_data)
-    )
-    mlrun.api.utils.singletons.k8s.get_k8s().store_project_secrets = unittest.mock.Mock(
-        side_effect=k8s_secrets_mock.store_project_secrets
-    )
-    mlrun.api.utils.singletons.k8s.get_k8s().delete_project_secrets = (
-        unittest.mock.Mock(side_effect=k8s_secrets_mock.delete_project_secrets)
-    )
+    for mocked_function_name in mocked_function_names:
+        monkeypatch.setattr(
+            mlrun.api.utils.singletons.k8s.get_k8s(),
+            mocked_function_name,
+            getattr(k8s_secrets_mock, mocked_function_name),
+        )
 
     yield k8s_secrets_mock
-
-    # Revert mocked functions
-    for func in mocked_function_names:
-        setattr(
-            mlrun.api.utils.singletons.k8s.get_k8s(), func, original_functions[func]
-        )

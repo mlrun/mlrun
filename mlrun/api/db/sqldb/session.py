@@ -37,9 +37,15 @@ def _init_engine(dsn=None):
     dsn = dsn or config.httpdb.dsn
     kwargs = {}
     if "mysql" in dsn:
+        pool_size = config.httpdb.db.connections_pool_size
+        if pool_size is None:
+            pool_size = config.httpdb.max_workers
+        max_overflow = config.httpdb.db.connections_pool_max_overflow
+        if max_overflow is None:
+            max_overflow = config.httpdb.max_workers
         kwargs = {
-            "pool_size": config.httpdb.db.connections_pool_size,
-            "max_overflow": config.httpdb.db.connections_pool_max_overflow,
+            "pool_size": pool_size,
+            "max_overflow": max_overflow,
         }
     engine = create_engine(dsn, **kwargs)
     _init_session_maker()

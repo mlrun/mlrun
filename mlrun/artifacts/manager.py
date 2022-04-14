@@ -162,7 +162,11 @@ class ArtifactManager:
             )
 
         if target_path:
-            if not (target_path.startswith("/") or "://" in target_path):
+            if not (
+                target_path.startswith("/")
+                or ":\\" in target_path
+                or "://" in target_path
+            ):
                 raise ValueError(
                     f"target_path ({target_path}) param cannot be relative"
                 )
@@ -185,7 +189,7 @@ class ArtifactManager:
         item.producer = producer.get_meta()
         item.iter = producer.iteration
         item.project = producer.project
-        item.tag = tag
+        item.tag = tag or item.tag
 
         if db_key is None:
             # set the default artifact db key
@@ -202,7 +206,7 @@ class ArtifactManager:
             item.upload()
 
         if db_key:
-            self._log_to_db(db_key, producer.project, producer.inputs, item, tag)
+            self._log_to_db(db_key, producer.project, producer.inputs, item)
         size = str(item.size) or "?"
         db_str = "Y" if (self.artifact_db and db_key) else "N"
         logger.debug(
@@ -240,6 +244,7 @@ class ArtifactManager:
         link_iteration=0,
         link_key=None,
         link_tree=None,
+        db_key=None,
     ):
         if self.artifact_db:
             item = LinkArtifact(
@@ -251,7 +256,7 @@ class ArtifactManager:
             )
             item.tree = tree
             item.iter = iter
-            item.db_key = name + "_" + key
+            item.db_key = db_key or (name + "_" + key)
             self.artifact_db.store_artifact(
                 item.db_key,
                 item.to_dict(),

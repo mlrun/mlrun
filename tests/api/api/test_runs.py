@@ -112,7 +112,7 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
         updated=run_1_update_time,
     )
     run.struct = run_1
-    get_db()._upsert(db, run, ignore=True)
+    get_db()._upsert(db, [run], ignore=True)
 
     between_run_1_and_2 = datetime.now(timezone.utc)
 
@@ -138,7 +138,7 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
         updated=run_2_update_time,
     )
     run.struct = run_2
-    get_db()._upsert(db, run, ignore=True)
+    get_db()._upsert(db, [run], ignore=True)
 
     # all start time range
     assert_time_range_request(client, [run_1_uid, run_2_uid])

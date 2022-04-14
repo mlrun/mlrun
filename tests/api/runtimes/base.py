@@ -309,10 +309,29 @@ class TestRuntimeBase:
             side_effect=_generate_pod
         )
 
+        self._mock_get_logger_pods()
+
+    def _mock_get_logger_pods(self):
         # Our purpose is not to test the client watching on logs, mock empty list (used in get_logger_pods)
         get_k8s().v1api.list_namespaced_pod = unittest.mock.Mock(
             return_value=client.V1PodList(items=[])
         )
+
+    def _mock_create_namespaced_custom_object(self):
+        def _generate_custom_object(
+            group: str,
+            version: str,
+            namespace: str,
+            plural: str,
+            body: object,
+            **kwargs,
+        ):
+            return deepcopy(body)
+
+        get_k8s().crdapi.create_namespaced_custom_object = unittest.mock.Mock(
+            side_effect=_generate_custom_object
+        )
+        self._mock_get_logger_pods()
 
     # Vault now supported in KubeJob and Serving, so moved to base.
     def _mock_vault_functionality(self):
@@ -342,11 +361,18 @@ class TestRuntimeBase:
         runtime = runtime.from_dict(runtime.to_dict())
         self._execute_run(runtime, **kwargs)
 
+    def _reset_mocks(self):
+        get_k8s().v1api.create_namespaced_pod.reset_mock()
+        get_k8s().v1api.list_namespaced_pod.reset_mock()
+
+    def _reset_custom_object_mocks(self):
+        mlrun.api.utils.singletons.k8s.get_k8s().crdapi.create_namespaced_custom_object.reset_mock()
+        get_k8s().v1api.list_namespaced_pod.reset_mock()
+
     def _execute_run(self, runtime, **kwargs):
         # Reset the mock, so that when checking is create_pod was called, no leftovers are there (in case running
         # multiple runs in the same test)
-        get_k8s().v1api.create_namespaced_pod.reset_mock()
-        get_k8s().v1api.list_namespaced_pod.reset_mock()
+        self._reset_mocks()
 
         runtime.run(
             name=self.name,
@@ -470,7 +496,25 @@ class TestRuntimeBase:
         args, _ = get_k8s().v1api.create_namespaced_pod.call_args
         return args[1]
 
-    def _get_namespace_arg(self):
+    def _get_custom_object_creation_body(self):
+        (
+            _,
+            kwargs,
+        ) = (
+            mlrun.api.utils.singletons.k8s.get_k8s().crdapi.create_namespaced_custom_object.call_args
+        )
+        return kwargs["body"]
+
+    def _get_create_custom_object_namespace_arg(self):
+        (
+            _,
+            kwargs,
+        ) = (
+            mlrun.api.utils.singletons.k8s.get_k8s().crdapi.create_namespaced_custom_object.call_args
+        )
+        return kwargs["namespace"]
+
+    def _get_create_pod_namespace_arg(self):
         args, _ = get_k8s().v1api.create_namespaced_pod.call_args
         return args[0]
 
@@ -593,7 +637,7 @@ class TestRuntimeBase:
             create_pod_mock = get_k8s().v1api.create_namespaced_pod
             create_pod_mock.assert_called_once()
 
-        assert self._get_namespace_arg() == self.namespace
+        assert self._get_create_pod_namespace_arg() == self.namespace
 
         pod = self._get_pod_creation_args()
         self._assert_labels(pod.metadata.labels, expected_runtime_class_name)
@@ -1214,6 +1258,67 @@ class TestRuntimeBase:
         self.assert_node_selection(
             tolerations=self._generate_not_preemptible_tolerations(),
         )
+
+    def assert_run_with_preemption_mode_none_transitions(self):
+        # no preemptible nodes tolerations configured, test modes based on affinity/anti-affinity
+        preemptible_node_selector = self._generate_node_selector()
+        mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
+            json.dumps(preemptible_node_selector).encode("utf-8")
+        )
+        mlrun.mlconf.function_defaults.preemption_mode = (
+            mlrun.api.schemas.PreemptionModes.prevent.value
+        )
+
+        logger.info("prevent, expecting anti affinity")
+        runtime = self._generate_runtime()
+        runtime.with_node_selection()
+        self.execute_function(runtime)
+        self.assert_node_selection(affinity=self._generate_preemptible_anti_affinity())
+
+        logger.info("prevent -> none, expecting to stay the same")
+        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.none.value)
+        self.execute_function(runtime)
+        self.assert_node_selection(affinity=self._generate_preemptible_anti_affinity())
+
+        logger.info(
+            "none, enrich with tolerations expecting anti-affinity to stay and tolerations to be added"
+        )
+        runtime.with_node_selection(tolerations=self._generate_tolerations())
+        self.execute_function(runtime)
+        self.assert_node_selection(
+            affinity=self._generate_preemptible_anti_affinity(),
+            tolerations=self._generate_tolerations(),
+        )
+
+        logger.info(
+            "none -> constrain, expecting preemptible affinity and user's tolerations"
+        )
+        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        self.execute_function(runtime)
+        self.assert_node_selection(
+            affinity=self._generate_preemptible_affinity(),
+            tolerations=self._generate_tolerations(),
+        )
+
+        logger.info(
+            "constrain -> none, expecting preemptible affinity to stay and user's tolerations"
+        )
+        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.none.value)
+        self.execute_function(runtime)
+        self.assert_node_selection(
+            affinity=self._generate_preemptible_affinity(),
+            tolerations=self._generate_tolerations(),
+        )
+
+        logger.info("none -> allow, expecting user's tolerations to stay")
+        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        self.execute_function(runtime)
+        self.assert_node_selection(tolerations=self._generate_tolerations())
+
+        logger.info("allow -> none, expecting user's tolerations to stay")
+        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.none.value)
+        self.execute_function(runtime)
+        self.assert_node_selection(tolerations=self._generate_tolerations())
 
     def assert_run_with_preemption_mode_without_preemptible_configuration(self):
         for test_case in [

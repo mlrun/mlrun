@@ -162,6 +162,15 @@ class RunDBMock:
         self._function = function
         return "1234-1234-1234-1234"
 
+    def get_function(self, function, project, tag):
+        return {
+            "name": function,
+            "metadata": "bla",
+            "uid": "1234-1234-1234-1234",
+            "project": project,
+            "tag": tag,
+        }
+
     def submit_job(self, runspec, schedule=None):
         return {"status": {"status_text": "just a status"}}
 

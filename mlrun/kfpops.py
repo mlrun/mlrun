@@ -799,13 +799,15 @@ def add_default_function_resources(
 def add_function_node_selection_attributes(
     function, container_op: dsl.ContainerOp
 ) -> dsl.ContainerOp:
-    if function.spec.node_selector:
-        container_op.node_selector = function.spec.node_selector
 
-    if function.spec.tolerations:
-        container_op.tolerations = function.spec.tolerations
+    if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
+        if getattr(function.spec, "node_selector"):
+            container_op.node_selector = function.spec.node_selector
 
-    if function.spec.affinity:
-        container_op.affinity = function.spec.affinity
+        if getattr(function.spec, "tolerations"):
+            container_op.tolerations = function.spec.tolerations
+
+        if getattr(function.spec, "affinity"):
+            container_op.affinity = function.spec.affinity
 
     return container_op

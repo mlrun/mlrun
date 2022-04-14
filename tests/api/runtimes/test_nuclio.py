@@ -941,7 +941,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
             fn.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
 
-        mlconf.nuclio_version = "1.8.1"
+        mlconf.nuclio_version = "1.8.6"
         fn.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
         assert fn.spec.preemption_mode == "allow"
 
@@ -964,6 +964,11 @@ class TestNuclioRuntime(TestRuntimeBase):
         self, db: Session, client: TestClient
     ):
         self.assert_run_preemption_mode_with_preemptible_node_selector_and_tolerations_with_extra_settings()
+
+    def test_with_preemption_mode_none_transitions(
+        self, db: Session, client: TestClient
+    ):
+        self.assert_run_with_preemption_mode_none_transitions()
 
     def test_preemption_mode_with_preemptible_node_selector_without_preemptible_tolerations_with_extra_settings(
         self, db: Session, client: TestClient

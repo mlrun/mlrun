@@ -502,7 +502,7 @@ class BaseStoreTarget(DataTargetBase):
         is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
         return self.get_path() or (
             TargetPathObject(
-                _get_target_path(self, self._resource, self.run_id is None),
+                _get_target_path(self, self._resource, self.run_id is not None),
                 self.run_id,
                 is_single_file,
             )

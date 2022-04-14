@@ -79,6 +79,25 @@ def validate_nuclio_version_compatibility(*min_versions):
     return False
 
 
+def is_nuclio_version_in_range(min_version: str, max_version: str) -> bool:
+    """
+    Return whether the Nuclio version is in the range, inclusive for min, exclusive for max - [min, max)
+    """
+    try:
+        parsed_min_version = semver.VersionInfo.parse(min_version)
+        parsed_max_version = semver.VersionInfo.parse(max_version)
+        parsed_current_version = semver.VersionInfo.parse(mlconf.nuclio_version)
+    except ValueError:
+        logger.warning(
+            "Unable to parse nuclio version, assuming in range",
+            nuclio_version=mlconf.nuclio_version,
+            min_version=min_version,
+            max_version=max_version,
+        )
+        return True
+    return parsed_min_version <= parsed_current_version < parsed_max_version
+
+
 def min_nuclio_versions(*versions):
     def decorator(function):
         def wrapper(*args, **kwargs):
@@ -1128,6 +1147,18 @@ def compile_function_config(
         function.add_secrets_config_to_spec()
 
     env_dict, external_source_env_dict = function._get_nuclio_config_spec_env()
+    nuclio_runtime = (
+        function.spec.nuclio_runtime or mlrun.config.config.default_nuclio_runtime
+    )
+    # In nuclio 1.6.0<=v<1.8.0 python 3.7 and 3.8 runtime default behavior was to not decode event strings
+    # Our code is counting on the strings to be decoded, so add the needed env var for those versions
+    if (
+        "python" in nuclio_runtime
+        and is_nuclio_version_in_range("1.6.0", "1.8.0")
+        and "NUCLIO_PYTHON_DECODE_EVENT_STRINGS" not in env_dict
+    ):
+        env_dict["NUCLIO_PYTHON_DECODE_EVENT_STRINGS"] = "true"
+
     nuclio_spec = nuclio.ConfigSpec(
         env=env_dict,
         external_source_env=external_source_env_dict,
@@ -1143,8 +1174,7 @@ def compile_function_config(
             nuclio_spec, function, builder_env, project, auth_info=auth_info
         )
 
-    runtime = function.spec.nuclio_runtime or mlrun.config.config.default_nuclio_runtime
-    nuclio_spec.set_config("spec.runtime", runtime)
+    nuclio_spec.set_config("spec.runtime", nuclio_runtime)
 
     # In Nuclio >= 1.6.x default serviceType has changed to "ClusterIP".
     nuclio_spec.set_config(

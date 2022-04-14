@@ -341,11 +341,10 @@ class K8sHelper:
             project=project
         )
 
-    def get_auth_secret_name(self, username: str, access_key: str) -> str:
-        sanitized_username = sanitize_username(username)
+    def get_auth_secret_name(self, access_key: str) -> str:
         hashed_access_key = self._hash_access_key(access_key)
         return mlconfig.secret_stores.kubernetes.auth_secret_name.format(
-            sanitized_username=sanitized_username, hashed_access_key=hashed_access_key
+            hashed_access_key=hashed_access_key
         )
 
     @staticmethod
@@ -357,7 +356,7 @@ class K8sHelper:
         self.store_secrets(secret_name, secrets, namespace)
 
     def store_auth_secret(self, username: str, access_key: str, namespace="") -> str:
-        secret_name = self.get_auth_secret_name(username, access_key)
+        secret_name = self.get_auth_secret_name(access_key)
         secret_data = {
             mlrun.api.schemas.AuthSecretData.get_field_secret_key("username"): username,
             mlrun.api.schemas.AuthSecretData.get_field_secret_key(
@@ -365,12 +364,15 @@ class K8sHelper:
             ): access_key,
         }
         self.store_secrets(
-            secret_name, secret_data, namespace, type_=SecretTypes.v3io_fuse
+            secret_name, secret_data, namespace, type_=SecretTypes.v3io_fuse,
+            labels={
+                "mlrun/username": username
+            }
         )
         return secret_name
 
     def store_secrets(
-        self, secret_name, secrets, namespace="", type_=SecretTypes.opaque
+        self, secret_name, secrets, namespace="", type_=SecretTypes.opaque, labels: typing.Optional[dict] = None
     ):
         namespace = self.resolve_namespace(namespace)
         try:
@@ -382,7 +384,7 @@ class K8sHelper:
                 raise exc
             k8s_secret = client.V1Secret(type=type_)
             k8s_secret.metadata = client.V1ObjectMeta(
-                name=secret_name, namespace=namespace
+                name=secret_name, namespace=namespace, labels=labels
             )
             k8s_secret.string_data = secrets
             self.v1api.create_namespaced_secret(namespace, k8s_secret)

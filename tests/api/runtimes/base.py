@@ -309,10 +309,29 @@ class TestRuntimeBase:
             side_effect=_generate_pod
         )
 
+        self._mock_get_logger_pods()
+
+    def _mock_get_logger_pods(self):
         # Our purpose is not to test the client watching on logs, mock empty list (used in get_logger_pods)
         get_k8s().v1api.list_namespaced_pod = unittest.mock.Mock(
             return_value=client.V1PodList(items=[])
         )
+
+    def _mock_create_namespaced_custom_object(self):
+        def _generate_custom_object(
+            group: str,
+            version: str,
+            namespace: str,
+            plural: str,
+            body: object,
+            **kwargs,
+        ):
+            return deepcopy(body)
+
+        get_k8s().crdapi.create_namespaced_custom_object = unittest.mock.Mock(
+            side_effect=_generate_custom_object
+        )
+        self._mock_get_logger_pods()
 
     # Vault now supported in KubeJob and Serving, so moved to base.
     def _mock_vault_functionality(self):
@@ -342,11 +361,18 @@ class TestRuntimeBase:
         runtime = runtime.from_dict(runtime.to_dict())
         self._execute_run(runtime, **kwargs)
 
+    def _reset_mocks(self):
+        get_k8s().v1api.create_namespaced_pod.reset_mock()
+        get_k8s().v1api.list_namespaced_pod.reset_mock()
+
+    def _reset_custom_object_mocks(self):
+        mlrun.api.utils.singletons.k8s.get_k8s().crdapi.create_namespaced_custom_object.reset_mock()
+        get_k8s().v1api.list_namespaced_pod.reset_mock()
+
     def _execute_run(self, runtime, **kwargs):
         # Reset the mock, so that when checking is create_pod was called, no leftovers are there (in case running
         # multiple runs in the same test)
-        get_k8s().v1api.create_namespaced_pod.reset_mock()
-        get_k8s().v1api.list_namespaced_pod.reset_mock()
+        self._reset_mocks()
 
         runtime.run(
             name=self.name,
@@ -470,7 +496,25 @@ class TestRuntimeBase:
         args, _ = get_k8s().v1api.create_namespaced_pod.call_args
         return args[1]
 
-    def _get_namespace_arg(self):
+    def _get_custom_object_creation_body(self):
+        (
+            _,
+            kwargs,
+        ) = (
+            mlrun.api.utils.singletons.k8s.get_k8s().crdapi.create_namespaced_custom_object.call_args
+        )
+        return kwargs["body"]
+
+    def _get_create_custom_object_namespace_arg(self):
+        (
+            _,
+            kwargs,
+        ) = (
+            mlrun.api.utils.singletons.k8s.get_k8s().crdapi.create_namespaced_custom_object.call_args
+        )
+        return kwargs["namespace"]
+
+    def _get_create_pod_namespace_arg(self):
         args, _ = get_k8s().v1api.create_namespaced_pod.call_args
         return args[0]
 
@@ -593,7 +637,7 @@ class TestRuntimeBase:
             create_pod_mock = get_k8s().v1api.create_namespaced_pod
             create_pod_mock.assert_called_once()
 
-        assert self._get_namespace_arg() == self.namespace
+        assert self._get_create_pod_namespace_arg() == self.namespace
 
         pod = self._get_pod_creation_args()
         self._assert_labels(pod.metadata.labels, expected_runtime_class_name)

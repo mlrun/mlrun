@@ -225,14 +225,16 @@ class KubeResourceSpec(FunctionSpec):
         struct["tolerations"] = api.sanitize_for_serialization(self.tolerations)
         return struct
 
-    def update_vols_and_mounts(self, volumes, volume_mounts):
+    def update_vols_and_mounts(
+        self, volumes, volume_mounts, volume_mounts_field_name="_volume_mounts"
+    ):
         if volumes:
             for vol in volumes:
                 set_named_item(self._volumes, vol)
 
         if volume_mounts:
             for volume_mount in volume_mounts:
-                self._set_volume_mount(volume_mount)
+                self._set_volume_mount(volume_mount, volume_mounts_field_name)
 
     def _get_affinity_as_k8s_class_instance(self):
         pass
@@ -319,11 +321,13 @@ class KubeResourceSpec(FunctionSpec):
         api = k8s_client.ApiClient()
         return api.sanitize_for_serialization(attribute)
 
-    def _set_volume_mount(self, volume_mount):
+    def _set_volume_mount(
+        self, volume_mount, volume_mounts_field_name="_volume_mounts"
+    ):
         # using the mountPath as the key cause it must be unique (k8s limitation)
         # volume_mount may be an V1VolumeMount instance (object access, snake case) or sanitized dict (dict
         # access, camel case)
-        self._volume_mounts[
+        getattr(self, volume_mounts_field_name)[
             get_item_name(volume_mount, "mountPath")
             or get_item_name(volume_mount, "mount_path")
         ] = volume_mount
@@ -895,7 +899,12 @@ class KubeResource(BaseRuntime):
         struct = api.sanitize_for_serialization(struct)
         if strip:
             spec = struct["spec"]
-            for attr in ["volumes", "volume_mounts"]:
+            for attr in [
+                "volumes",
+                "volume_mounts",
+                "driver_volume_mounts",
+                "executor_volume_mounts",
+            ]:
                 if attr in spec:
                     del spec[attr]
             if "env" in spec and spec["env"]:

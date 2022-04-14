@@ -157,6 +157,21 @@ class CSVSource(BaseSourceDriver):
             "inferSchema": "true",
         }
 
+    def to_spark_df(self, session, named_view=False):
+        import pyspark.sql.functions as funcs
+
+        df = session.read.load(**self.get_spark_options())
+        for col_name, col_type in df.dtypes:
+            if (
+                col_name == self.time_field
+                or self._parse_dates
+                and col_name in self._parse_dates
+            ):
+                df = df.withColumn(col_name, funcs.col(col_name).cast("timestamp"))
+        if named_view:
+            df.createOrReplaceTempView(self.name)
+        return df
+
     def to_dataframe(self):
         kwargs = self.attributes.get("reader_args", {})
         chunksize = self.attributes.get("chunksize")

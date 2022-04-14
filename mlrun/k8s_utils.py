@@ -26,7 +26,7 @@ import mlrun.api.schemas
 import mlrun.errors
 
 from .config import config as mlconfig
-from .platforms.iguazio import sanitize_username, v3io_to_vol
+from .platforms.iguazio import v3io_to_vol
 from .utils import logger
 
 _k8s = None
@@ -364,15 +364,21 @@ class K8sHelper:
             ): access_key,
         }
         self.store_secrets(
-            secret_name, secret_data, namespace, type_=SecretTypes.v3io_fuse,
-            labels={
-                "mlrun/username": username
-            }
+            secret_name,
+            secret_data,
+            namespace,
+            type_=SecretTypes.v3io_fuse,
+            labels={"mlrun/username": username},
         )
         return secret_name
 
     def store_secrets(
-        self, secret_name, secrets, namespace="", type_=SecretTypes.opaque, labels: typing.Optional[dict] = None
+        self,
+        secret_name,
+        secrets,
+        namespace="",
+        type_=SecretTypes.opaque,
+        labels: typing.Optional[dict] = None,
     ):
         namespace = self.resolve_namespace(namespace)
         try:

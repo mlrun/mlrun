@@ -277,21 +277,27 @@ class Projects(
     async def _calculate_pipelines_counters(
         self,
     ) -> typing.Dict[str, int]:
-        def _list_pipelines(session):
-            return mlrun.api.crud.Pipelines().list_pipelines(
-                session, "*", format_=mlrun.api.schemas.PipelinesFormat.metadata_only
-            )
-
         project_to_running_pipelines_count = collections.defaultdict(int)
         if not mlrun.mlconf.resolve_kfp_url():
             return project_to_running_pipelines_count
 
         _, _, pipelines = await fastapi.concurrency.run_in_threadpool(
             mlrun.api.db.session.run_function_with_new_db_session,
-            _list_pipelines,
+            self._list_pipelines_for_counters,
         )
 
         for pipeline in pipelines:
             if pipeline["status"] not in mlrun.run.RunStatuses.stable_statuses():
                 project_to_running_pipelines_count[pipeline["project"]] += 1
         return project_to_running_pipelines_count
+
+    @staticmethod
+    def _list_pipelines_for_counters(session) -> typing.Tuple[int, typing.Optional[int], typing.List[dict]]:
+        """
+        This function is a wrapper made in order to comply to run_function_with_new_db_session interface
+        It's only purposed to be used inside _calculate_pipelines_counters
+        It's a staticmethod (and not inner function of _calculate_pipelines_counters) to enable mocking it
+        """
+        return mlrun.api.crud.Pipelines().list_pipelines(
+            session, "*", format_=mlrun.api.schemas.PipelinesFormat.metadata_only
+        )

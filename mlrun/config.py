@@ -508,14 +508,14 @@ class Config:
         if config.kfp_url:
             return config.kfp_url
         igz_version = self.get_parsed_igz_version()
-        if namespace is None:
-            if not config.namespace:
-                raise mlrun.errors.MLRunNotFoundError(
-                    "For KubeFlow Pipelines to function, a namespace must be configured"
-                )
-            namespace = config.namespace
         # TODO: When Iguazio 3.4 will deprecate we can remove this line
         if igz_version and igz_version <= semver.VersionInfo.parse("3.6.0-b1"):
+            if namespace is None:
+                if not config.namespace:
+                    raise mlrun.errors.MLRunNotFoundError(
+                        "For KubeFlow Pipelines to function, a namespace must be configured"
+                    )
+                namespace = config.namespace
             # When instead of host we provided namespace we tackled this issue
             # https://github.com/canonical/bundle-kubeflow/issues/412
             # TODO: When we'll move to kfp 1.4.0 (server side) it should be resolved

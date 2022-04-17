@@ -281,6 +281,7 @@ class Projects(
             return mlrun.api.crud.Pipelines().list_pipelines(
                 session, "*", format_=mlrun.api.schemas.PipelinesFormat.metadata_only
             )
+
         project_to_running_pipelines_count = collections.defaultdict(int)
         if not mlrun.mlconf.resolve_kfp_url():
             return project_to_running_pipelines_count

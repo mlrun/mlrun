@@ -155,10 +155,6 @@ def get_offline_features(
         entity_timestamp_column or feature_vector.spec.timestamp_field
     )
 
-    if target:
-        if not target.run_id:
-            target.run_id = "offline-features"
-
     if run_config:
         return run_merge_job(
             feature_vector,
@@ -682,8 +678,11 @@ def deploy_ingestion_service(
             kind=source.kind,
             name=featureset.metadata.name,
         )
+    targets_to_ingest = copy.deepcopy(targets)
+    featureset.update_targets_for_ingest(targets_to_ingest)
+
     source, run_config.parameters = set_task_params(
-        featureset, source, targets, run_config.parameters
+        featureset, source, targets_to_ingest, run_config.parameters
     )
 
     name = normalize_name(name or f"{featureset.metadata.name}-ingest")

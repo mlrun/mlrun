@@ -611,12 +611,12 @@ def add_default_env(k8s_client, cop):
             )
         )
 
-    if "MLRUN_AUTH_SESSION" in os.environ or "V3IO_ACCESS_KEY" in os.environ:
+    auth_env_var = mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
+    if auth_env_var in os.environ or "V3IO_ACCESS_KEY" in os.environ:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
-                name="MLRUN_AUTH_SESSION",
-                value=os.environ.get("MLRUN_AUTH_SESSION")
-                or os.environ.get("V3IO_ACCESS_KEY"),
+                name=auth_env_var,
+                value=os.environ.get(auth_env_var) or os.environ.get("V3IO_ACCESS_KEY"),
             )
         )
 
@@ -799,13 +799,15 @@ def add_default_function_resources(
 def add_function_node_selection_attributes(
     function, container_op: dsl.ContainerOp
 ) -> dsl.ContainerOp:
-    if function.spec.node_selector:
-        container_op.node_selector = function.spec.node_selector
 
-    if function.spec.tolerations:
-        container_op.tolerations = function.spec.tolerations
+    if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
+        if getattr(function.spec, "node_selector"):
+            container_op.node_selector = function.spec.node_selector
 
-    if function.spec.affinity:
-        container_op.affinity = function.spec.affinity
+        if getattr(function.spec, "tolerations"):
+            container_op.tolerations = function.spec.tolerations
+
+        if getattr(function.spec, "affinity"):
+            container_op.affinity = function.spec.affinity
 
     return container_op

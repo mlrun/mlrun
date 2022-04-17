@@ -24,10 +24,12 @@ from mlrun.runtimes.function import (
     compile_function_config,
     deploy_nuclio_function,
     enrich_function_with_ingress,
+    is_nuclio_version_in_range,
     min_nuclio_versions,
     resolve_function_ingresses,
     validate_nuclio_version_compatibility,
 )
+from mlrun.utils import logger
 from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
 
@@ -119,6 +121,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
         return runtime
 
+    def _reset_mock(self):
+        nuclio.deploy.deploy_config.reset_mock()
+
     def _assert_deploy_called_basic_config(
         self,
         expected_class="remote",
@@ -128,11 +133,15 @@ class TestNuclioRuntime(TestRuntimeBase):
         expected_env_from_secrets=None,
         expected_service_account=None,
         expected_build_base_image=None,
+        expected_nuclio_runtime=None,
+        expected_env=None,
     ):
         if expected_labels is None:
             expected_labels = {}
         deploy_mock = nuclio.deploy.deploy_config
         assert deploy_mock.call_count == call_count
+
+        deploy_configs = []
 
         call_args_list = deploy_mock.call_args_list
         for single_call_args in call_args_list:
@@ -151,6 +160,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             assert kwargs["project"] == self.project
 
             deploy_config = args[0]
+            deploy_configs.append(deploy_config)
             function_metadata = deploy_config["metadata"]
             assert function_metadata["name"] == expected_function_name
             labels_for_diff = expected_labels.copy()
@@ -175,6 +185,10 @@ class TestNuclioRuntime(TestRuntimeBase):
                     or expected_build_base_image
                 )
 
+            if expected_env:
+                env_vars = deploy_config["spec"]["env"]
+                self._assert_pod_env(env_vars, expected_env)
+
             if expected_env_from_secrets:
                 env_vars = deploy_config["spec"]["env"]
                 self._assert_pod_env_from_secrets(env_vars, expected_env_from_secrets)
@@ -183,6 +197,10 @@ class TestNuclioRuntime(TestRuntimeBase):
                 assert (
                     deploy_config["spec"]["serviceAccount"] == expected_service_account
                 )
+
+            if expected_nuclio_runtime:
+                assert deploy_config["spec"]["runtime"] == expected_nuclio_runtime
+        return deploy_configs
 
     def _assert_triggers(self, http_trigger=None, v3io_trigger=None):
         args, _ = nuclio.deploy.deploy_config.call_args
@@ -672,6 +690,77 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         assert deploy_spec["priorityClassName"] == medium_priority_class_name
 
+    def test_deploy_python_decode_string_env_var_enrichment(
+        self, db: Session, client: TestClient
+    ):
+        mlconf.default_nuclio_runtime = "python:3.7"
+        decode_event_strings_env_var_name = "NUCLIO_PYTHON_DECODE_EVENT_STRINGS"
+
+        logger.info("Function runtime is golang - do nothing")
+        function = self._generate_runtime(self.runtime_kind)
+        function.spec.nuclio_runtime = "golang"
+        self.execute_function(function)
+        deploy_configs = self._assert_deploy_called_basic_config(
+            expected_class=self.class_name,
+            expected_nuclio_runtime=function.spec.nuclio_runtime,
+        )
+        assert decode_event_strings_env_var_name not in deploy_configs[0]["spec"]["env"]
+
+        logger.info("Function runtime is python, but nuclio is >=1.8.0 - do nothing")
+        self._reset_mock()
+        mlconf.nuclio_version = "1.8.5"
+        function = self._generate_runtime(self.runtime_kind)
+        self.execute_function(function)
+        self._assert_deploy_called_basic_config(
+            expected_class=self.class_name,
+            expected_nuclio_runtime=mlconf.default_nuclio_runtime,
+        )
+        assert decode_event_strings_env_var_name not in deploy_configs[0]["spec"]["env"]
+
+        logger.info(
+            "Function runtime is python, nuclio version in range, but already has the env var set - do nothing"
+        )
+        self._reset_mock()
+        mlconf.nuclio_version = "1.7.5"
+        function = self._generate_runtime(self.runtime_kind)
+        function.set_env(decode_event_strings_env_var_name, "false")
+        self.execute_function(function)
+        self._assert_deploy_called_basic_config(
+            expected_class=self.class_name,
+            expected_nuclio_runtime=mlconf.default_nuclio_runtime,
+            expected_env={decode_event_strings_env_var_name: "false"},
+        )
+
+        logger.info(
+            "Function runtime is python, nuclio version in range, env var not set - add it"
+        )
+        self._reset_mock()
+        mlconf.nuclio_version = "1.7.5"
+        function = self._generate_runtime(self.runtime_kind)
+        self.execute_function(function)
+        self._assert_deploy_called_basic_config(
+            expected_class=self.class_name,
+            expected_nuclio_runtime=mlconf.default_nuclio_runtime,
+            expected_env={decode_event_strings_env_var_name: "true"},
+        )
+
+    def test_is_nuclio_version_in_range(self):
+        mlconf.nuclio_version = "1.7.2"
+
+        assert not is_nuclio_version_in_range("1.6.11", "1.7.2")
+        assert not is_nuclio_version_in_range("1.7.0", "1.3.1")
+        assert not is_nuclio_version_in_range("1.7.3", "1.8.5")
+        assert not is_nuclio_version_in_range("1.7.2", "1.7.2")
+        assert is_nuclio_version_in_range("1.7.2", "1.7.3")
+        assert is_nuclio_version_in_range("1.7.0", "1.7.3")
+        assert is_nuclio_version_in_range("1.5.5", "1.7.3")
+        assert is_nuclio_version_in_range("1.5.5", "2.3.4")
+
+        # best effort - assumes compatibility
+        mlconf.nuclio_version = ""
+        assert is_nuclio_version_in_range("1.5.5", "2.3.4")
+        assert is_nuclio_version_in_range("1.7.2", "1.7.2")
+
     def test_validate_nuclio_version_compatibility(self):
         # nuclio version we have
         mlconf.nuclio_version = "1.6.10"
@@ -852,7 +941,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
             fn.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
 
-        mlconf.nuclio_version = "1.8.1"
+        mlconf.nuclio_version = "1.8.6"
         fn.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
         assert fn.spec.preemption_mode == "allow"
 
@@ -875,6 +964,11 @@ class TestNuclioRuntime(TestRuntimeBase):
         self, db: Session, client: TestClient
     ):
         self.assert_run_preemption_mode_with_preemptible_node_selector_and_tolerations_with_extra_settings()
+
+    def test_with_preemption_mode_none_transitions(
+        self, db: Session, client: TestClient
+    ):
+        self.assert_run_with_preemption_mode_none_transitions()
 
     def test_preemption_mode_with_preemptible_node_selector_without_preemptible_tolerations_with_extra_settings(
         self, db: Session, client: TestClient

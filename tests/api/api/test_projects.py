@@ -347,7 +347,15 @@ def test_list_project_summaries_different_installation_modes(
         **response.json()
     )
     _assert_project_summary(
-        project_summaries_output.project_summaries[0], 0, 0, 0, 0, 0, 0, 0
+        # accessing the zero index as there's only one project
+        project_summaries_output.project_summaries[0],
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
     )
 
     # Enterprise installation configuration pre 3.4.0
@@ -361,7 +369,15 @@ def test_list_project_summaries_different_installation_modes(
         **response.json()
     )
     _assert_project_summary(
-        project_summaries_output.project_summaries[0], 0, 0, 0, 0, 0, 0, 0
+        # accessing the zero index as there's only one project
+        project_summaries_output.project_summaries[0],
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
     )
 
     # Kubernetes installation configuration (mlrun-kit)
@@ -375,7 +391,15 @@ def test_list_project_summaries_different_installation_modes(
         **response.json()
     )
     _assert_project_summary(
-        project_summaries_output.project_summaries[0], 0, 0, 0, 0, 0, 0, 0
+        # accessing the zero index as there's only one project
+        project_summaries_output.project_summaries[0],
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
     )
 
     # Docker installation configuration
@@ -389,7 +413,15 @@ def test_list_project_summaries_different_installation_modes(
         **response.json()
     )
     _assert_project_summary(
-        project_summaries_output.project_summaries[0], 0, 0, 0, 0, 0, 0, 0
+        # accessing the zero index as there's only one project
+        project_summaries_output.project_summaries[0],
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
     )
 
 

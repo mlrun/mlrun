@@ -11,9 +11,10 @@ import mlrun.api.utils.singletons.project_member
 from mlrun.api import schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
+from mlrun.api.schemas.artifact import ArtifactsFormat
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
-from mlrun.utils import logger
+from mlrun.utils import is_legacy_artifact, logger
 
 router = APIRouter()
 
@@ -103,12 +104,12 @@ def get_artifact(
     key: str,
     tag: str = "latest",
     iter: int = 0,
-    legacy_format: bool = Query(True, alias="legacy-format"),
+    format_: ArtifactsFormat = Query(ArtifactsFormat.legacy, alias="format"),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     data = mlrun.api.crud.Artifacts().get_artifact(
-        db_session, key, tag, iter, project, legacy_format
+        db_session, key, tag, iter, project, format_
     )
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
@@ -152,7 +153,7 @@ def list_artifacts(
     labels: List[str] = Query([], alias="label"),
     iter: int = Query(None, ge=0),
     best_iteration: bool = Query(False, alias="best-iteration"),
-    legacy_format: bool = Query(True, alias="legacy-format"),
+    format_: ArtifactsFormat = Query(ArtifactsFormat.legacy, alias="format"),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -174,7 +175,7 @@ def list_artifacts(
         category=category,
         iter=iter,
         best_iteration=best_iteration,
-        legacy_format=legacy_format,
+        format_=format_,
     )
 
     artifacts = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
@@ -213,10 +214,10 @@ def delete_artifacts(
 
 # Extract project and resource name from legacy artifact structure as well as from new format
 def _artifact_project_and_resource_name_extractor(artifact):
-    if "metadata" in artifact:
+    if is_legacy_artifact(artifact):
+        return artifact.get("project", mlrun.mlconf.default_project), artifact["db_key"]
+    else:
         return (
             artifact.get("metadata").get("project", mlrun.mlconf.default_project),
             artifact.get("spec")["db_key"],
         )
-    else:
-        return artifact.get("project", mlrun.mlconf.default_project), artifact["db_key"]

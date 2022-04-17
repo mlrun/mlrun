@@ -628,7 +628,8 @@ class HTTPRunDB(RunDBInterface):
         tag = tag or "latest"
         path = f"projects/{project}/artifact/{key}?tag={tag}"
         error = f"read artifact {project}/{key}"
-        params = {"legacy-format": False}
+        # The default is legacy format, need to override it.
+        params = {"format": schemas.ArtifactsFormat.full.value}
         if iter:
             params["iter"] = str(iter)
         resp = self.api_call("GET", path, error, params=params)
@@ -696,7 +697,7 @@ class HTTPRunDB(RunDBInterface):
             "best-iteration": best_iteration,
             "kind": kind,
             "category": category,
-            "legacy-format": False,
+            "format": schemas.ArtifactsFormat.full.value,
         }
         error = "list artifacts"
         resp = self.api_call("GET", "artifacts", error, params=params)

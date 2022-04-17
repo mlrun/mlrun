@@ -53,6 +53,7 @@ from mlrun.utils import (
     generate_artifact_uri,
     generate_object_uri,
     get_in,
+    is_legacy_artifact,
     logger,
     update_in,
 )
@@ -353,7 +354,7 @@ class SQLDB(DBInterface):
         )
 
     @staticmethod
-    def _process_stored_artifact_dict(artifact, key, iter=None):
+    def _process_artifact_dict_to_store(artifact, key, iter=None):
         updated = artifact["metadata"].get("updated")
         if not updated:
             updated = artifact["metadata"]["updated"] = datetime.now(timezone.utc)
@@ -374,7 +375,7 @@ class SQLDB(DBInterface):
         return updated, key, labels
 
     @staticmethod
-    def _process_stored_legacy_artifact_dict(artifact, key, iter=None):
+    def _process_legacy_artifact_dict_to_store(artifact, key, iter=None):
         updated = artifact.get("updated")
         if not updated:
             updated = artifact["updated"] = datetime.now(timezone.utc)
@@ -407,12 +408,12 @@ class SQLDB(DBInterface):
     ):
         project = project or config.default_project
         artifact = deepcopy(artifact)
-        if "metadata" in artifact:
-            updated, key, labels = self._process_stored_artifact_dict(
+        if is_legacy_artifact(artifact):
+            updated, key, labels = self._process_legacy_artifact_dict_to_store(
                 artifact, key, iter
             )
         else:
-            updated, key, labels = self._process_stored_legacy_artifact_dict(
+            updated, key, labels = self._process_artifact_dict_to_store(
                 artifact, key, iter
             )
 
@@ -429,10 +430,10 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _set_tag_in_artifact_struct(artifact, tag):
-        if "metadata" in artifact:
-            artifact["metadata"]["tag"] = tag
-        else:
+        if is_legacy_artifact(artifact):
             artifact["tag"] = tag
+        else:
+            artifact["metadata"]["tag"] = tag
 
     def _add_tags_to_artifact_struct(
         self, session, artifact_struct, artifact_id, tag=None
@@ -536,10 +537,10 @@ class SQLDB(DBInterface):
             if best_iteration:
                 if has_iteration:
                     continue
-                if "spec" in artifact.struct:
-                    link_iteration = artifact.struct["spec"].get("link_iteration")
-                else:
+                if is_legacy_artifact(artifact.struct):
                     link_iteration = artifact.struct.get("link_iteration")
+                else:
+                    link_iteration = artifact.struct["spec"].get("link_iteration")
 
                 if link_iteration:
                     linked_key = f"{link_iteration}-{artifact.key}"

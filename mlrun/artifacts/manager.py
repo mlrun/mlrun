@@ -16,7 +16,7 @@ import pathlib
 from os.path import isdir
 
 from ..db import RunDBInterface
-from ..utils import logger, uxjoin
+from ..utils import is_legacy_artifact, logger, uxjoin
 from .base import (
     Artifact,
     DirArtifact,
@@ -92,10 +92,10 @@ def dict_to_artifact(struct: dict):
     # property to make this distinction
     kind = struct.get("kind", "")
 
-    if "metadata" in struct:
-        artifact_class = artifact_types[kind]
-    else:
+    if is_legacy_artifact(struct):
         artifact_class = legacy_artifact_types[kind]
+    else:
+        artifact_class = artifact_types[kind]
 
     return artifact_class.from_dict(struct)
 

@@ -39,7 +39,7 @@ from ..model import EntrypointParam, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
 from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
-from ..utils import RunNotifications, is_ipython, logger, update_in
+from ..utils import RunNotifications, is_ipython, is_legacy_artifact, logger, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from .operations import build_function, deploy_function, run_function
@@ -618,10 +618,10 @@ class ProjectSpec(ModelObj):
                 raise ValueError("artifacts must be a dict or class")
             if isinstance(artifact, dict):
                 # Support legacy artifacts
-                if "metadata" in artifact:
-                    key = artifact.get("metadata").get("key", "")
-                else:
+                if is_legacy_artifact(artifact):
                     key = artifact.get("key")
+                else:
+                    key = artifact.get("metadata").get("key", "")
                 if not key:
                     raise ValueError('artifacts "key" must be specified')
             else:

@@ -9,6 +9,7 @@ import mlrun.api.utils.singletons.project_member
 import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
+from mlrun.api.schemas.artifact import ArtifactsFormat
 
 
 class Artifacts(
@@ -51,7 +52,7 @@ class Artifacts(
         tag: str = "latest",
         iter: int = 0,
         project: str = mlrun.mlconf.default_project,
-        legacy_format: bool = True,
+        format_: ArtifactsFormat = ArtifactsFormat.legacy,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
         artifact = mlrun.api.utils.singletons.db.get_db().read_artifact(
@@ -61,7 +62,7 @@ class Artifacts(
             iter,
             project,
         )
-        if legacy_format:
+        if format_ == ArtifactsFormat.legacy:
             return _transform_artifact_struct_to_legacy_format(artifact)
         return artifact
 
@@ -78,7 +79,7 @@ class Artifacts(
         category: typing.Optional[mlrun.api.schemas.ArtifactCategories] = None,
         iter: typing.Optional[int] = None,
         best_iteration: bool = False,
-        legacy_format: bool = True,
+        format_: ArtifactsFormat = ArtifactsFormat.legacy,
     ) -> typing.List:
         project = project or mlrun.mlconf.default_project
         if labels is None:
@@ -96,7 +97,7 @@ class Artifacts(
             iter,
             best_iteration,
         )
-        if not legacy_format:
+        if format_ != ArtifactsFormat.legacy:
             return artifacts
         return [
             _transform_artifact_struct_to_legacy_format(artifact)

@@ -78,24 +78,23 @@ class StorePrefix:
 
 
 def get_artifact_target(item: dict, project=None):
-    # If the artifact is a LegacyArtifact, then it won't have a "metadata" field.
-    if "metadata" in item:
-        db_key = item["spec"].get("db_key")
-        project_str = project or item["metadata"].get("project")
-        tree = item["metadata"].get("tree")
-    else:
+    if is_legacy_artifact(item):
         db_key = item.get("db_key")
         project_str = project or item.get("project")
         tree = item.get("tree")
+    else:
+        db_key = item["spec"].get("db_key")
+        project_str = project or item["metadata"].get("project")
+        tree = item["metadata"].get("tree")
 
     kind = item.get("kind")
     if kind in ["dataset", "model"] and db_key:
         return f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}:{tree}"
 
     return (
-        item["spec"].get("target_path")
-        if "metadata" in item
-        else item.get("target_path")
+        item.get("target_path")
+        if is_legacy_artifact(item)
+        else item["spec"].get("target_path")
     )
 
 
@@ -1317,3 +1316,10 @@ def str_to_timestamp(time_str: str, now_time: Timestamp = None):
         return timestamp
 
     return Timestamp(time_str)
+
+
+def is_legacy_artifact(artifact):
+    if isinstance(artifact, dict):
+        return "metadata" not in artifact
+    else:
+        return not hasattr(artifact, "metadata")

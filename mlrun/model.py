@@ -24,7 +24,7 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import mlrun
 
-from .utils import dict_to_json, dict_to_yaml, get_artifact_target
+from .utils import dict_to_json, dict_to_yaml, get_artifact_target, is_legacy_artifact
 
 # Changing {run_id} will break and will not be backward compatible.
 RUN_ID_PLACE_HOLDER = "{run_id}"  # IMPORTANT: shouldn't be changed.
@@ -774,7 +774,7 @@ class RunObject(RunTemplate):
             outputs = {k: v for k, v in self.status.results.items()}
         if self.status.artifacts:
             for a in self.status.artifacts:
-                key = a["metadata"]["key"] if "metadata" in a else a["key"]
+                key = a["key"] if is_legacy_artifact(a) else a["metadata"]["key"]
                 outputs[key] = get_artifact_target(a, self.metadata.project)
         return outputs
 

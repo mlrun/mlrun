@@ -288,8 +288,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.inline instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         return self.spec.inline
@@ -300,8 +300,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.inline instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         self.spec.inline = body
@@ -312,8 +312,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the metadata, use artifact.metadata.tag instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         return self.metadata.tag
@@ -324,8 +324,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the metadata, use artifact.metadata.tag instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         self.metadata.tag = tag
@@ -336,8 +336,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the metadata, use artifact.metadata.key instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         return self.metadata.key
@@ -348,8 +348,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the metadata, use artifact.metadata.key instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         self.metadata.key = key
@@ -360,8 +360,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.src_path instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         return self.spec.src_path
@@ -372,8 +372,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.src_path instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         self.spec.src_path = src_path
@@ -384,8 +384,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.target_path instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         return self.spec.target_path
@@ -396,8 +396,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.target_path instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         self.spec.target_path = target_path
@@ -408,8 +408,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.producer instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         return self.spec.producer
@@ -420,8 +420,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.producer instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         self.spec.producer = producer
@@ -432,8 +432,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.format instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         return self.spec.format
@@ -444,8 +444,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.format instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         self.spec.format = format
@@ -456,8 +456,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.viewer instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         return self.spec.viewer
@@ -468,8 +468,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.viewer instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         self.spec.viewer = viewer
@@ -480,8 +480,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.size instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         return self.spec.size
@@ -492,8 +492,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.size instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         self.spec.size = size
@@ -504,8 +504,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.db_key instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         return self.spec.db_key
@@ -516,8 +516,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.db_key instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         self.spec.db_key = db_key
@@ -528,8 +528,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.sources instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         return self.spec.sources
@@ -540,8 +540,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.sources instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         self.spec.sources = sources
@@ -552,8 +552,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.extra_data instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         return self.spec.extra_data
@@ -564,8 +564,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.extra_data instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         self.spec.extra_data = extra_data
@@ -576,8 +576,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.metadata.labels instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         return self.metadata.labels
@@ -588,8 +588,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the metadata, use artifact.metadata.labels instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         self.metadata.labels = labels
@@ -600,8 +600,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.metadata.iter instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         return self.metadata.iter
@@ -612,8 +612,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the metadata, use artifact.metadata.iter instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         self.metadata.iter = iter
@@ -624,8 +624,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.metadata.tree instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         return self.metadata.tree
@@ -636,8 +636,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the metadata, use artifact.metadata.tree instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         self.metadata.tree = tree
@@ -648,8 +648,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.metadata.project instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         return self.metadata.project
@@ -660,8 +660,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the metadata, use artifact.metadata.project instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         self.metadata.project = project
@@ -672,8 +672,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.metadata.hash instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         return self.metadata.hash
@@ -684,8 +684,8 @@ class Artifact(ModelObj):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the metadata, use artifact.metadata.hash instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
             PendingDeprecationWarning,
         )
         self.metadata.hash = hash

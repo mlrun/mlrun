@@ -366,26 +366,33 @@ def test_iguazio_api_url_resolution():
 
 
 def test_resolve_kfp_url():
-    # nothing configured should return nothing
-    assert mlconf.config.kfp_url == ""
-    assert mlconf.config.namespace == ""
-    with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        mlconf.config.resolve_kfp_url()
+    mlconf.config.igz_version = ""
+    mlconf.config.namespace = ""
 
+    # URL configured - return it
     mlconf.config.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
     assert mlconf.config.resolve_kfp_url() == mlconf.config.kfp_url
 
+    # igz configured and less than 3.6.0 without namespace - explode
     mlconf.config.kfp_url = ""
-    mlconf.config.namespace = "default-tenant"
-
     mlconf.config.igz_version = "1.2.3"
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        mlconf.config.resolve_kfp_url()
+
+    # igz configured and less than 3.6.0 with namespace - resolve
+    mlconf.config.namespace = "default-tenant"
     assert (
         mlconf.config.resolve_kfp_url()
         == "http://ml-pipeline.default-tenant.svc.cluster.local:8888"
     )
 
+    # igz configured and over 3.6.0 - return None (after 3.6.0 kfp_url should be configured)
     mlconf.config.igz_version = "4.0.0"
-    assert mlconf.config.resolve_kfp_url() is None
+    assert mlconf.config.resolve_kfp_url() == None
+
+    # nothing configured - return None
+    mlconf.config.igz_version = ""
+    assert mlconf.config.resolve_kfp_url() == None
 
 
 def test_get_hub_url():

@@ -1039,7 +1039,7 @@ class MlrunProject(ModelObj):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "absolute target_path url to a shared/object storage must be specified"
             )
-        artifact.tag = tag or artifact.tag
+        artifact.metadata.tag = tag or artifact.metadata.tag
         self.spec.set_artifact(key, artifact)
 
     def register_artifacts(self):

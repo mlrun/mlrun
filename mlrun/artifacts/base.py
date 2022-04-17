@@ -28,11 +28,18 @@ calc_hash = True
 
 
 class ArtifactMetadata(ModelObj):
-    _dict_fields = ["key", "project", "iter", "tree", "description", "hash"]
+    _dict_fields = ["key", "project", "iter", "tree", "description", "hash", "tag"]
     _extra_fields = ["updated", "labels"]
 
     def __init__(
-        self, key=None, project=None, iter=None, tree=None, description=None, hash=None
+        self,
+        key=None,
+        project=None,
+        iter=None,
+        tree=None,
+        description=None,
+        hash=None,
+        tag=None,
     ):
         self.key = key
         self.project = project
@@ -42,6 +49,7 @@ class ArtifactMetadata(ModelObj):
         self.hash = hash
         self.labels = {}
         self.updated = None
+        self.tag = tag  # temp store of the tag
 
     def base_dict(self):
         return super().to_dict()
@@ -99,7 +107,6 @@ class ArtifactSpec(ModelObj):
         self.sources = []
         self.producer = None
         self.license = ""
-        self.tag = None  # temp store of the tag
 
     def base_dict(self):
         return super().to_dict()
@@ -215,30 +222,6 @@ class Artifact(ModelObj):
         return False
 
     @property
-    def inline(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.inline instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
-        return self.spec.inline
-
-    @inline.setter
-    def inline(self, body):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.inline instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
-        self.spec.inline = body
-
-    @property
     def uri(self):
         """return artifact uri (store://..)"""
         return self.get_store_url()
@@ -298,6 +281,54 @@ class Artifact(ModelObj):
 
     # Following properties are for backwards compatibility with the ArtifactLegacy class. They should be
     # removed once we only work with the new Artifact structure.
+
+    @property
+    def inline(self):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.inline instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.inline
+
+    @inline.setter
+    def inline(self, body):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.inline instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.inline = body
+
+    @property
+    def tag(self):
+        """This is a property of the metadata, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the metadata, use artifact.metadata.tag instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.metadata.tag
+
+    @tag.setter
+    def tag(self, tag):
+        """This is a property of the metadata, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the metadata, use artifact.metadata.tag instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        self.metadata.tag = tag
 
     @property
     def key(self):

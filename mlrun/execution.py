@@ -551,7 +551,7 @@ class MLClientCtx(object):
                     self.iteration,
                     artifact["spec"]["target_path"],
                     link_iteration=best,
-                    db_key=artifact["db_key"],
+                    db_key=artifact["spec"]["db_key"],
                 )
 
         if summary is not None:

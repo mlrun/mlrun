@@ -388,11 +388,11 @@ def test_resolve_kfp_url():
 
     # igz configured and over 3.6.0 - return None (after 3.6.0 kfp_url should be configured)
     mlconf.config.igz_version = "4.0.0"
-    assert mlconf.config.resolve_kfp_url() == None
+    assert mlconf.config.resolve_kfp_url() is None
 
     # nothing configured - return None
     mlconf.config.igz_version = ""
-    assert mlconf.config.resolve_kfp_url() == None
+    assert mlconf.config.resolve_kfp_url() is None
 
 
 def test_get_hub_url():

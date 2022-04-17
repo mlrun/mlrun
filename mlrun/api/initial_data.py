@@ -21,7 +21,7 @@ import mlrun.artifacts
 from mlrun.api.db.init_db import init_db
 from mlrun.api.db.session import close_session, create_session
 from mlrun.config import config
-from mlrun.utils import logger
+from mlrun.utils import is_legacy_artifact, logger
 
 
 def init_data(
@@ -221,7 +221,7 @@ def _fix_datasets_large_previews(
                 artifact_dict
                 and artifact_dict.get("kind") == mlrun.artifacts.DatasetArtifact.kind
             ):
-                is_legacy = "metadata" not in artifact_dict
+                is_legacy = is_legacy_artifact(artifact_dict)
 
                 header = (
                     artifact_dict.get("header", [])

@@ -509,6 +509,28 @@ class TestFeatureStore(TestMLRunSystem):
         actual_stat = actual_stat.sort_index().sort_index(axis=1)
         assert isinstance(actual_stat["top"]["booly"], bool)
 
+    def test_ingest_to_default_path(self):
+        key = "patient_id"
+        measurements = fs.FeatureSet(
+            "measurements", entities=[Entity(key)], timestamp_key="timestamp"
+        )
+        source = CSVSource(
+            "mycsv", path=os.path.relpath(str(self.assets_path / "testdata.csv"))
+        )
+
+        fs.ingest(
+            measurements,
+            source,
+            infer_options=fs.InferOptions.schema() + fs.InferOptions.Stats,
+            run_config=fs.RunConfig(local=True),
+        )
+        final_path = measurements.get_target_path()
+        assert "latest" not in final_path
+        assert measurements.status.targets is not None
+        for target in measurements.status.targets:
+            assert "latest" not in target.get_path().get_absolute_path()
+            assert target.run_id is not None
+
     def test_serverless_ingest(self):
         key = "patient_id"
         measurements = fs.FeatureSet(

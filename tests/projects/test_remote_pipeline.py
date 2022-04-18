@@ -9,6 +9,7 @@ import kubernetes.client
 import yaml
 
 import mlrun
+import tests.projects.assets.remote_pipeline_with_overridden_resources
 import tests.projects.base_pipeline
 
 
@@ -19,26 +20,26 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
 
     def _get_functions(self):
         func1 = mlrun.new_function(
-            source=f"{self.assets_path}/remote_pipeline.py",
+            source=f"{self.assets_path}/{self.pipeline_path}",
             name="func1",
             image="mlrun/mlrun",
             kind="job",
         )
         func2 = mlrun.new_function(
-            source=f"{self.assets_path}/remote_pipeline.py",
+            source=f"{self.assets_path}/{self.pipeline_path}",
             name="func2",
             image="mlrun/mlrun",
             kind="job",
         )
 
         func3 = mlrun.new_function(
-            source=f"{self.assets_path}/remote_pipeline.py",
+            source=f"{self.assets_path}/{self.pipeline_path}",
             name="func3",
             image="mlrun/mlrun",
             kind="job",
         )
         func4 = mlrun.new_function(
-            source=f"{self.assets_path}/remote_pipeline.py",
+            source=f"{self.assets_path}/{self.pipeline_path}",
             name="func4",
             image="mlrun/mlrun",
             kind="nuclio",
@@ -209,3 +210,75 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
                 }
             }
         }
+
+    def test_kfp_pipeline_overwrites_enriched_attributes(self, rundb_mock):
+        mlrun.projects.pipeline_context.clear(with_project=True)
+        k8s_api = kubernetes.client.ApiClient()
+        self.pipeline_path = "remote_pipeline_with_overridden_resources.py"
+        default_function_pod_resources = {
+            "requests": {"cpu": "25m", "memory": "1Mi"},
+            "limits": {"cpu": "2", "memory": "20Gi"},
+        }
+        mlrun.mlconf.default_function_pod_resources = default_function_pod_resources
+
+        node_selector = {"label-1": "val1"}
+        mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
+            json.dumps(node_selector).encode("utf-8")
+        )
+
+        self._create_project("remotepipe")
+        func1 = mlrun.new_function(
+            source=f"{self.assets_path}/{self.pipeline_path}",
+            name="func1",
+            image="mlrun/mlrun",
+            kind="job",
+        )
+        func2 = mlrun.new_function(
+            source=f"{self.assets_path}/{self.pipeline_path}",
+            name="func2",
+            image="mlrun/mlrun",
+            kind="job",
+        )
+
+        func2.with_preemption_mode("constrain")
+        self.project.set_function(func1)
+        self.project.set_function(func2)
+
+        self.project.set_workflow(
+            "p1",
+            workflow_path=str(f"{self.assets_path / self.pipeline_path}"),
+            handler=self.pipeline_handler,
+            engine="kfp",
+            local=False,
+        )
+        self.project.save()
+
+        workflow_path = (
+            pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
+            / self.target_workflow_path
+        )
+        self.project.save_workflow(
+            "p1",
+            target=str(workflow_path),
+        )
+
+        with workflow_path.open() as workflow_file:
+            workflow = yaml.safe_load(workflow_file)
+            for step in workflow["spec"]["templates"]:
+                if step.get("container") and step.get("name"):
+                    # the step name is constructed from the function name and the handler
+                    if step.get("name") == "func1-func1":
+                        assert (
+                            step["container"]["resources"]["requests"]
+                            == mlrun.mlconf.default_function_pod_resources.requests.to_dict()
+                        )
+                        assert step["container"]["resources"]["limits"] == {
+                            "cpu": "2000m",
+                            "memory": "4G",
+                        }
+                    elif step.get("name") == "func2-func1":
+                        assert step["affinity"] == k8s_api.sanitize_for_serialization(
+                            tests.projects.assets.remote_pipeline_with_overridden_resources.overridden_affinity
+                        )
+        # remove generated workflow file
+        os.remove(workflow_path)

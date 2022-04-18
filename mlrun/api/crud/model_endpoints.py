@@ -10,6 +10,7 @@ from v3io.dataplane import RaiseForStatus
 from v3io_frames import frames_pb2
 from v3io_frames.errors import CreateError
 
+
 import mlrun.api.api.utils
 import mlrun.api.utils.singletons.k8s
 import mlrun.datastore.store_resources
@@ -45,7 +46,8 @@ from mlrun.utils.model_monitoring import (
     parse_model_endpoint_store_prefix,
 )
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
-
+from mlrun import code_to_function
+from pathlib import Path
 
 class ModelEndpoints:
     def create_or_patch(
@@ -681,9 +683,30 @@ class ModelEndpoints:
 
         logger.info(f"Deploying model monitoring batch processing function [{project}]")
 
-        fn: KubejobRuntime = mlrun.import_function(
-            f"hub://model_monitoring_batch:{config.model_endpoint_monitoring.batch_processing_function_branch}"
+        # fn: KubejobRuntime = mlrun.import_function(
+        #     f"hub://model_monitoring_batch:{config.model_endpoint_monitoring.batch_processing_function_branch}"
+        # )
+
+        MONIOTINRG_BATCH_FUNCTION_PATH = Path(__file__).parent / "model_monitoring_batch.py"
+
+
+        print('[EYAL]: MODEL MONITORING BATCH UPDATE')
+        fn: KubejobRuntime = code_to_function(
+            name="model-monitoring-batch",
+            project=project,
+            filename=str(MONIOTINRG_BATCH_FUNCTION_PATH),
+            kind="job",
+            image="mlrun/mlrun",
         )
+
+
+        # function = code_to_function(
+        #     name="model-monitoring-stream",
+        #     project=project,
+        #     filename=str(STREAM_PROCESSING_FUNCTION_PATH),
+        #     kind="serving",
+        #     image="eyaligu/mlrun-api:1.0.0-rc22",
+        # )
 
         fn.set_db_connection(get_run_db_instance(db_session))
 

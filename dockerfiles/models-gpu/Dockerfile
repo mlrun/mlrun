@@ -61,7 +61,7 @@ RUN conda install -n base -c rapidsai -c nvidia -c conda-forge rapids=21.12 pyth
 
 RUN conda install \
     astunparse \
-    numpy>=1.16.5, <1.22.0 \
+    numpy">=1.16.5, <1.22.0" \
     ninja \
     pyyaml~=5.1 \
     mkl \
@@ -84,7 +84,9 @@ RUN git clone --recursive https://github.com/pytorch/pytorch \
     && git submodule sync \
     && git submodule update --init --recursive --jobs 0
 
-RUN export CMAKE_PREFIX_PATH=${CONDA_PREFIX:-"$(dirname $(which conda))/../"} && python setup.py install
+RUN cd pytorch \
+    && export CMAKE_PREFIX_PATH=${CONDA_PREFIX:-"$(dirname $(which conda))/../"} \
+    && python setup.py install
 
 #RUN conda install -n base pytorch::pytorch==1.7.0 pytorch::torchvision==0.8.0 \
 #    && conda clean -aqy

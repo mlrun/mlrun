@@ -56,6 +56,9 @@ RUN conda config --add channels conda-forge && \
 RUN conda install -n base cmake cython \
     && conda clean -aqy
 
+RUN conda install -n base -c rapidsai -c nvidia -c conda-forge rapids=21.12 python=3.7 cudatoolkit=${CUDA_VER} \
+    && conda clean -aqy
+
 RUN conda install -n base pytorch::pytorch==1.11.0 pytorch::torchvision==0.12.0 \
     && conda clean -aqy
 

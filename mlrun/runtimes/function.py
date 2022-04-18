@@ -1196,6 +1196,11 @@ def compile_function_config(
         nuclio_spec.set_config(
             "spec.build.functionSourceCode", function.spec.build.functionSourceCode
         )
+    # the corresponding attribute for build.secret in nuclio is imagePullSecrets, attached link for reference
+    # https://github.com/nuclio/nuclio/blob/e4af2a000dc52ee17337e75181ecb2652b9bf4e5/pkg/processor/build/builder.go#L1073
+    if function.spec.build.secret:
+        nuclio_spec.set_config("spec.imagePullSecrets", function.spec.build.secret)
+
     # don't send node selections if nuclio is not compatible
     if validate_nuclio_version_compatibility("1.5.20", "1.6.10"):
         if function.spec.node_selector:

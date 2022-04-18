@@ -761,4 +761,5 @@ source_kind_to_driver = {
     KafkaSource.kind: KafkaSource,
     CustomSource.kind: CustomSource,
     BigQuerySource.kind: BigQuerySource,
+    SnowflakeSource.kind: SnowflakeSource,
 }

@@ -941,8 +941,6 @@ class TestNuclioRuntime(TestRuntimeBase):
         # because of nuclio.config.extend_config in compile_function_config
         assert deployed_config["spec"]["imagePullSecrets"] == fn.spec.build.secret
 
-
-
     def test_nuclio_with_preemption_mode(self):
         fn = self._generate_runtime(self.runtime_kind)
         assert fn.spec.preemption_mode == "prevent"

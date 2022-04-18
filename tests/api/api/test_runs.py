@@ -314,10 +314,7 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
     )
 
     for run in runs:
-        assert (
-            run["metadata"]["name"] == "run-name-3"
-            and run["metadata"]["iter"] == 0
-        )
+        assert run["metadata"]["name"] == "run-name-3" and run["metadata"]["iter"] == 0
 
     # Some negative testing - no sort by field
     response = client.get("/api/runs?partition-by=name")

@@ -1645,9 +1645,11 @@ class SQLDB(DBInterface):
         )
         if max_partitions > 0:
             max_partition_value = (
-                func.max(sort_by_field).over(
+                func.max(sort_by_field)
+                .over(
                     partition_by=partition_field,
-                ).label("max_partition_value")
+                )
+                .label("max_partition_value")
             )
             query = query.add_column(max_partition_value)
 
@@ -1672,7 +1674,9 @@ class SQLDB(DBInterface):
         # We query on max-partitions, so need to do another sub-query and order per the latest updated time of
         # a run in the partition.
         partition_rank = (
-            func.dense_rank().over(order_by=subquery.c.max_partition_value.desc()).label("partition_rank")
+            func.dense_rank()
+            .over(order_by=subquery.c.max_partition_value.desc())
+            .label("partition_rank")
         )
         result_query = result_query.add_column(partition_rank).subquery()
         result_query = session.query(aliased(cls, result_query)).filter(

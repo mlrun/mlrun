@@ -89,6 +89,17 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
             iter=True,
         )
 
+        # partitioned list, specific project, 4 rows per partition, max of 2 partitions, so 2 names * 4 rows = 8
+        runs = _list_and_assert_objects(
+            8,
+            project=projects[0],
+            partition_by=mlrun.api.schemas.RunPartitionByField.name,
+            partition_sort_by=mlrun.api.schemas.SortField.updated,
+            partition_order=mlrun.api.schemas.OrderType.desc,
+            rows_per_partition=4,
+            max_partitions=2,
+        )
+
         # Some negative testing - no sort by field
         with pytest.raises(mlrun.errors.MLRunBadRequestError):
             _list_and_assert_objects(

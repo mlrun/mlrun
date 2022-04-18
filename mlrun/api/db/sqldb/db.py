@@ -233,6 +233,7 @@ class SQLDB(DBInterface):
         rows_per_partition: int = 1,
         partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
+        max_partitions: int = 0,
     ):
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
@@ -271,6 +272,7 @@ class SQLDB(DBInterface):
                 rows_per_partition,
                 partition_sort_by,
                 partition_order,
+                max_partitions,
             )
 
         runs = RunList()
@@ -1627,25 +1629,40 @@ class SQLDB(DBInterface):
         rows_per_partition: int,
         partition_sort_by: schemas.SortField,
         partition_order: schemas.OrderType,
+        max_partitions: int = 0,
     ):
+
+        partition_field = partition_by.to_partition_by_db_field(cls)
 
         row_number_column = (
             func.row_number()
             .over(
-                partition_by=partition_by.to_partition_by_db_field(cls),
+                partition_by=partition_field,
                 order_by=partition_order.to_order_by_predicate(
                     partition_sort_by.to_db_field(cls),
                 ),
             )
             .label("row_number")
         )
+        if max_partitions > 0:
+            name_rank = (
+                func.dense_rank()
+                .over(order_by=partition_field.asc())
+                .label("partition_number")
+            )
+            query = query.add_column(name_rank)
 
         # Need to generate a subquery so we can filter based on the row_number, since it
         # is a window function using over().
         subquery = query.add_column(row_number_column).subquery()
-        return session.query(aliased(cls, subquery)).filter(
+        result_query = session.query(aliased(cls, subquery)).filter(
             subquery.c.row_number <= rows_per_partition
         )
+        if max_partitions > 0:
+            result_query = result_query.filter(
+                subquery.c.partition_number <= max_partitions
+            )
+        return result_query
 
     def list_feature_sets(
         self,

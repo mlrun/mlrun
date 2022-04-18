@@ -61,7 +61,7 @@ RUN conda install -n base -c rapidsai -c nvidia -c conda-forge rapids=21.12 pyth
 
 RUN conda install \
     astunparse \
-    numpy">=1.16.5, <1.22.0" \
+    "numpy>=1.16.5, <1.22.0" \
     ninja \
     pyyaml~=5.1 \
     mkl \

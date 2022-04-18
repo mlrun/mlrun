@@ -56,6 +56,11 @@ class TestNuclioRuntime(TestRuntimeBase):
         os.environ["V3IO_USERNAME"] = self.v3io_user = "test-user"
 
     @staticmethod
+    def _get_deployed_config():
+        args, _ = nuclio.deploy.deploy_config.call_args
+        return args[0]
+
+    @staticmethod
     def _mock_nuclio_deploy_config():
         nuclio.deploy.deploy_config = unittest.mock.Mock(return_value="some-server")
 
@@ -106,7 +111,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         deploy_nuclio_function(runtime)
 
     def _generate_runtime(
-        self, kind="nuclio", labels=None
+        self, kind=None, labels=None
     ) -> typing.Union[mlrun.runtimes.RemoteRuntime, mlrun.runtimes.ServingRuntime]:
 
         runtime = code_to_function(
@@ -114,7 +119,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             project=self.project,
             filename=self.code_filename,
             handler=self.code_handler,
-            kind=kind,
+            kind=kind or self.runtime_kind,
             image=self.image_name,
             description="test function",
             labels=labels,
@@ -925,6 +930,13 @@ class TestNuclioRuntime(TestRuntimeBase):
                 },
             },
         }
+
+    def test_deploy_function_with_build_secret(self):
+        fn = self._generate_runtime()
+        fn.spec.build.secret = "bla"
+        self.execute_function(fn)
+        deployed_config = self._get_deployed_config()
+        assert deployed_config["spec"]["imagePullSecrets"] == fn.spec.build.secret
 
     def test_nuclio_with_preemption_mode(self):
         fn = self._generate_runtime(self.runtime_kind)

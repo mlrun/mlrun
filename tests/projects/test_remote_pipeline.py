@@ -14,7 +14,6 @@ import tests.projects.base_pipeline
 
 
 class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
-    pipeline_path = "remote_pipeline.py"
     pipeline_handler = "kfp_pipeline"
     target_workflow_path = "workpipe.yaml"
 
@@ -47,11 +46,12 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
         return func1, func2, func3, func4
 
     def test_kfp_pipeline_enriched_with_priority_class_name(self, rundb_mock):
+        self.pipeline_path = "remote_pipeline.py"
+        mlrun.projects.pipeline_context.clear(with_project=True)
+
         mlrun.mlconf.valid_function_priority_class_names = (
             "default-high,default-medium,default-low"
         )
-
-        mlrun.projects.pipeline_context.clear(with_project=True)
         self._create_project("remotepipe")
         func1, func2, func3, func4 = self._get_functions()
 
@@ -100,6 +100,7 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
     def test_kfp_pipeline_enriched_with_affinity_and_tolerations_enriched_by_preemption_mode(
         self, rundb_mock
     ):
+        self.pipeline_path = "remote_pipeline.py"
         mlrun.projects.pipeline_context.clear(with_project=True)
         k8s_api = kubernetes.client.ApiClient()
 

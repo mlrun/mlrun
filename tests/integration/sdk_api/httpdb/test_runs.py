@@ -89,15 +89,29 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
             iter=True,
         )
 
-        # partitioned list, specific project, 4 rows per partition, max of 2 partitions, so 2 names * 4 rows = 8
+        # partitioned list, specific project, 5 rows per partition, max of 2 partitions, so 2 names * 5 rows = 10
         runs = _list_and_assert_objects(
-            8,
+            10,
+            project=projects[0],
+            partition_by=mlrun.api.schemas.RunPartitionByField.name,
+            partition_sort_by=mlrun.api.schemas.SortField.updated,
+            partition_order=mlrun.api.schemas.OrderType.desc,
+            rows_per_partition=5,
+            max_partitions=2,
+            iter=True,
+        )
+
+        # partitioned list, specific project, 4 rows per partition, max of 2 partitions, but only iter=0 so each
+        # partition has 3 rows, so 2 * 3 = 6
+        runs = _list_and_assert_objects(
+            6,
             project=projects[0],
             partition_by=mlrun.api.schemas.RunPartitionByField.name,
             partition_sort_by=mlrun.api.schemas.SortField.updated,
             partition_order=mlrun.api.schemas.OrderType.desc,
             rows_per_partition=4,
             max_partitions=2,
+            iter=False,
         )
 
         # Some negative testing - no sort by field

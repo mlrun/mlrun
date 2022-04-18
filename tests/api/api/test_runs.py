@@ -295,7 +295,8 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
         10,
     )
     for run in runs:
-        assert run["metadata"]["name"] in ["run-name-1", "run-name-2"]
+        # Partitions are ordered from latest updated to oldest, which means that 3,2 must be here.
+        assert run["metadata"]["name"] in ["run-name-2", "run-name-3"]
 
     # Complex query, with partitioning and filtering over iter==0
     runs = _list_and_assert_objects(
@@ -307,16 +308,13 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
             "partition-sort-by": mlrun.api.schemas.SortField.updated,
             "partition-order": mlrun.api.schemas.OrderType.desc,
             "rows-per-partition": 2,
-            "max-partitions": 2,
+            "max-partitions": 1,
         },
-        4,
+        2,
     )
 
     for run in runs:
-        assert (
-            run["metadata"]["name"] in ["run-name-1", "run-name-2"]
-            and run["metadata"]["iter"] == 0
-        )
+        assert run["metadata"]["name"] == "run-name-3" and run["metadata"]["iter"] == 0
 
     # Some negative testing - no sort by field
     response = client.get("/api/runs?partition-by=name")

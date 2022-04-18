@@ -678,7 +678,9 @@ def deploy_ingestion_service(
             kind=source.kind,
             name=featureset.metadata.name,
         )
-    targets_to_ingest = copy.deepcopy(targets)
+
+    targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
+    targets_to_ingest = copy.deepcopy(targets_to_ingest)
     featureset.update_targets_for_ingest(targets_to_ingest)
 
     source, run_config.parameters = set_task_params(

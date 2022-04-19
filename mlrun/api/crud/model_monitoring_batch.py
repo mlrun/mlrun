@@ -102,7 +102,7 @@ class VirtualDrift:
         self.label_col = label_col
         self.feature_weights = feature_weights
         self.capping = inf_capping
-        self.discretizers: Dict[str, KBinsDiscretizer] = {}
+        # self.discretizers: Dict[str, KBinsDiscretizer] = {}
         self.metrics = {
             "tvd": TotalVarianceDistance,
             "hellinger": HellingerDistance,

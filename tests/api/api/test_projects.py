@@ -319,6 +319,112 @@ def test_list_and_get_project_summaries(
     )
 
 
+def test_list_project_summaries_different_installation_modes(
+    db: Session, client: TestClient, project_member_mode: str
+) -> None:
+    """
+    The list project summaries endpoint is used in our projects screen and tend to break in different installation modes
+    """
+    # create empty project
+    empty_project_name = "empty-project"
+    empty_project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=empty_project_name),
+    )
+    response = client.post("projects", json=empty_project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+
+    mlrun.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
+        return_value=(0, None, [])
+    )
+    # Enterprise installation configuration post 3.4.0
+    mlrun.mlconf.igz_version = "3.6.0-b26.20210904121245"
+    mlrun.mlconf.kfp_url = "https://somekfp-url.com"
+    mlrun.mlconf.namespace = "default-tenant"
+
+    response = client.get("project-summaries")
+    assert response.status_code == HTTPStatus.OK.value
+    project_summaries_output = mlrun.api.schemas.ProjectSummariesOutput(
+        **response.json()
+    )
+    _assert_project_summary(
+        # accessing the zero index as there's only one project
+        project_summaries_output.project_summaries[0],
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    )
+
+    # Enterprise installation configuration pre 3.4.0
+    mlrun.mlconf.igz_version = "3.2.0-b26.20210904121245"
+    mlrun.mlconf.kfp_url = ""
+    mlrun.mlconf.namespace = "default-tenant"
+
+    response = client.get("project-summaries")
+    assert response.status_code == HTTPStatus.OK.value
+    project_summaries_output = mlrun.api.schemas.ProjectSummariesOutput(
+        **response.json()
+    )
+    _assert_project_summary(
+        # accessing the zero index as there's only one project
+        project_summaries_output.project_summaries[0],
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    )
+
+    # Kubernetes installation configuration (mlrun-kit)
+    mlrun.mlconf.igz_version = ""
+    mlrun.mlconf.kfp_url = ""
+    mlrun.mlconf.namespace = "mlrun"
+
+    response = client.get("project-summaries")
+    assert response.status_code == HTTPStatus.OK.value
+    project_summaries_output = mlrun.api.schemas.ProjectSummariesOutput(
+        **response.json()
+    )
+    _assert_project_summary(
+        # accessing the zero index as there's only one project
+        project_summaries_output.project_summaries[0],
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    )
+
+    # Docker installation configuration
+    mlrun.mlconf.igz_version = ""
+    mlrun.mlconf.kfp_url = ""
+    mlrun.mlconf.namespace = ""
+
+    response = client.get("project-summaries")
+    assert response.status_code == HTTPStatus.OK.value
+    project_summaries_output = mlrun.api.schemas.ProjectSummariesOutput(
+        **response.json()
+    )
+    _assert_project_summary(
+        # accessing the zero index as there's only one project
+        project_summaries_output.project_summaries[0],
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    )
+
+
 def test_delete_project_deletion_strategy_check(
     db: Session,
     client: TestClient,

@@ -67,6 +67,7 @@ class FileDB(DBInterface):
         rows_per_partition: int = 1,
         partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
+        max_partitions: int = 0,
     ):
         return self._transform_run_db_error(
             self.db.list_runs,
@@ -86,6 +87,7 @@ class FileDB(DBInterface):
             rows_per_partition,
             partition_sort_by,
             partition_order,
+            max_partitions,
         )
 
     def del_run(self, session, uid, project="", iter=0):

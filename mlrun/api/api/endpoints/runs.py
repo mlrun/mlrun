@@ -162,6 +162,7 @@ def list_runs(
     partition_order: mlrun.api.schemas.OrderType = Query(
         mlrun.api.schemas.OrderType.desc, alias="partition-order"
     ),
+    max_partitions: int = Query(0, alias="max-partitions", ge=0),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -189,6 +190,7 @@ def list_runs(
         rows_per_partition,
         partition_sort_by,
         partition_order,
+        max_partitions,
     )
     filtered_runs = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.run,

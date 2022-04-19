@@ -1453,13 +1453,9 @@ class SQLDB(DBInterface):
         return results
 
     @staticmethod
-    def _generate_feature_set_digest(feature_set: schemas.FeatureSet, tag=None):
-        feature_set_metadata = feature_set.metadata
-        # if tag:
-        #     feature_set_metadata.tag = tag
-
+    def _generate_feature_set_digest(feature_set: schemas.FeatureSet):
         return schemas.FeatureSetDigestOutput(
-            metadata=feature_set_metadata,
+            metadata=feature_set.metadata,
             spec=schemas.FeatureSetDigestSpec(
                 entities=feature_set.spec.entities,
                 features=feature_set.spec.features,
@@ -1547,7 +1543,7 @@ class SQLDB(DBInterface):
                     schemas.FeatureListOutput(
                         feature=feature,
                         feature_set_digest=self._generate_feature_set_digest(
-                            feature_set, feature_set.metadata.tag
+                            feature_set
                         ),
                     )
                 )

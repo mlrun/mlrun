@@ -281,6 +281,41 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
         15,
     )
 
+    # partitioned list, specific project, 5 rows per partition, max of 2 partitions, so 2 names * 5 rows = 10
+    runs = _list_and_assert_objects(
+        client,
+        {
+            "project": projects[0],
+            "partition-by": mlrun.api.schemas.RunPartitionByField.name,
+            "partition-sort-by": mlrun.api.schemas.SortField.updated,
+            "partition-order": mlrun.api.schemas.OrderType.desc,
+            "rows-per-partition": 5,
+            "max-partitions": 2,
+        },
+        10,
+    )
+    for run in runs:
+        # Partitions are ordered from latest updated to oldest, which means that 3,2 must be here.
+        assert run["metadata"]["name"] in ["run-name-2", "run-name-3"]
+
+    # Complex query, with partitioning and filtering over iter==0
+    runs = _list_and_assert_objects(
+        client,
+        {
+            "project": projects[0],
+            "iter": False,
+            "partition-by": mlrun.api.schemas.RunPartitionByField.name,
+            "partition-sort-by": mlrun.api.schemas.SortField.updated,
+            "partition-order": mlrun.api.schemas.OrderType.desc,
+            "rows-per-partition": 2,
+            "max-partitions": 1,
+        },
+        2,
+    )
+
+    for run in runs:
+        assert run["metadata"]["name"] == "run-name-3" and run["metadata"]["iter"] == 0
+
     # Some negative testing - no sort by field
     response = client.get("/api/runs?partition-by=name")
     assert response.status_code == HTTPStatus.BAD_REQUEST.value

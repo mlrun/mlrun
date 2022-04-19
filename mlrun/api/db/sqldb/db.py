@@ -233,6 +233,7 @@ class SQLDB(DBInterface):
         rows_per_partition: int = 1,
         partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
+        max_partitions: int = 0,
     ):
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
@@ -271,6 +272,7 @@ class SQLDB(DBInterface):
                 rows_per_partition,
                 partition_sort_by,
                 partition_order,
+                max_partitions,
             )
 
         runs = RunList()
@@ -1627,25 +1629,60 @@ class SQLDB(DBInterface):
         rows_per_partition: int,
         partition_sort_by: schemas.SortField,
         partition_order: schemas.OrderType,
+        max_partitions: int = 0,
     ):
+
+        partition_field = partition_by.to_partition_by_db_field(cls)
+        sort_by_field = partition_sort_by.to_db_field(cls)
 
         row_number_column = (
             func.row_number()
             .over(
-                partition_by=partition_by.to_partition_by_db_field(cls),
-                order_by=partition_order.to_order_by_predicate(
-                    partition_sort_by.to_db_field(cls),
-                ),
+                partition_by=partition_field,
+                order_by=partition_order.to_order_by_predicate(sort_by_field),
             )
             .label("row_number")
         )
+        if max_partitions > 0:
+            max_partition_value = (
+                func.max(sort_by_field)
+                .over(
+                    partition_by=partition_field,
+                )
+                .label("max_partition_value")
+            )
+            query = query.add_column(max_partition_value)
 
         # Need to generate a subquery so we can filter based on the row_number, since it
         # is a window function using over().
         subquery = query.add_column(row_number_column).subquery()
-        return session.query(aliased(cls, subquery)).filter(
+
+        if max_partitions == 0:
+            # If we don't query on max-partitions, we end here. Need to alias the subquery so that the ORM will
+            # be able to properly map it to objects.
+            result_query = session.query(aliased(cls, subquery)).filter(
+                subquery.c.row_number <= rows_per_partition
+            )
+            return result_query
+
+        # Otherwise no need for an alias, as this is an internal query and will be wrapped by another one where
+        # alias will apply. We just apply the filter here.
+        result_query = session.query(subquery).filter(
             subquery.c.row_number <= rows_per_partition
         )
+
+        # We query on max-partitions, so need to do another sub-query and order per the latest updated time of
+        # a run in the partition.
+        partition_rank = (
+            func.dense_rank()
+            .over(order_by=subquery.c.max_partition_value.desc())
+            .label("partition_rank")
+        )
+        result_query = result_query.add_column(partition_rank).subquery()
+        result_query = session.query(aliased(cls, result_query)).filter(
+            result_query.c.partition_rank <= max_partitions
+        )
+        return result_query
 
     def list_feature_sets(
         self,

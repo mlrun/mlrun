@@ -774,7 +774,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
 
     def test_is_nuclio_version_in_range(self):
-        mlconf.nuclio_version = "1.7.2"
+        mlrun.runtimes.utils.cached_nuclio_version = "1.7.2"
 
         assert not is_nuclio_version_in_range("1.6.11", "1.7.2")
         assert not is_nuclio_version_in_range("1.7.0", "1.3.1")
@@ -786,7 +786,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         assert is_nuclio_version_in_range("1.5.5", "2.3.4")
 
         # best effort - assumes compatibility
-        mlconf.nuclio_version = ""
+        mlrun.runtimes.utils.cached_nuclio_version = ""
         assert is_nuclio_version_in_range("1.5.5", "2.3.4")
         assert is_nuclio_version_in_range("1.7.2", "1.7.2")
 

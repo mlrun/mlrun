@@ -1764,47 +1764,65 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _update_feature_set_features(
-        feature_set: FeatureSet, feature_dicts: List[dict], replace=False
+        feature_set: FeatureSet, feature_dicts: List[dict]
     ):
-        if replace:
-            feature_set.features = []
+        new_features = set(feature_dict["name"] for feature_dict in feature_dicts)
+        current_features = set(feature.name for feature in feature_set.features)
+
+        features_to_remove = current_features.difference(new_features)
+        features_to_add = new_features.difference(current_features)
+
+        feature_set.features = [
+            feature
+            for feature in feature_set.features
+            if feature.name not in features_to_remove
+        ]
 
         for feature_dict in feature_dicts:
-            labels = feature_dict.get("labels") or {}
-            feature = Feature(
-                name=feature_dict["name"],
-                value_type=feature_dict["value_type"],
-                labels=[],
-            )
-            update_labels(feature, labels)
-            feature_set.features.append(feature)
+            if feature_dict["name"] in features_to_add:
+                labels = feature_dict.get("labels") or {}
+                feature = Feature(
+                    name=feature_dict["name"],
+                    value_type=feature_dict["value_type"],
+                    labels=[],
+                )
+                update_labels(feature, labels)
+                feature_set.features.append(feature)
 
     @staticmethod
-    def _update_feature_set_entities(
-        feature_set: FeatureSet, entity_dicts: List[dict], replace=False
-    ):
-        if replace:
-            feature_set.entities = []
+    def _update_feature_set_entities(feature_set: FeatureSet, entity_dicts: List[dict]):
+        new_entities = set(entity_dict["name"] for entity_dict in entity_dicts)
+        current_entities = set(entity.name for entity in feature_set.entities)
+
+        entities_to_remove = current_entities.difference(new_entities)
+        entities_to_add = new_entities.difference(current_entities)
+
+        feature_set.entities = [
+            entity
+            for entity in feature_set.entities
+            if entity.name not in entities_to_remove
+        ]
 
         for entity_dict in entity_dicts:
-            labels = entity_dict.get("labels") or {}
-            entity = Entity(
-                name=entity_dict["name"],
-                value_type=entity_dict["value_type"],
-                labels=[],
-            )
-            update_labels(entity, labels)
-            feature_set.entities.append(entity)
+            if entity_dict["name"] in entities_to_add:
+                labels = entity_dict.get("labels") or {}
+                entity = Entity(
+                    name=entity_dict["name"],
+                    value_type=entity_dict["value_type"],
+                    labels=[],
+                )
+                update_labels(entity, labels)
+                feature_set.entities.append(entity)
 
     def _update_feature_set_spec(
-        self, feature_set: FeatureSet, new_feature_set_dict: dict, replace=True
+        self, feature_set: FeatureSet, new_feature_set_dict: dict
     ):
         feature_set_spec = new_feature_set_dict.get("spec")
         features = feature_set_spec.pop("features", [])
         entities = feature_set_spec.pop("entities", [])
 
-        self._update_feature_set_features(feature_set, features, replace)
-        self._update_feature_set_entities(feature_set, entities, replace)
+        self._update_feature_set_features(feature_set, features)
+        self._update_feature_set_entities(feature_set, entities)
 
     @staticmethod
     def _common_object_validate_and_perform_uid_change(

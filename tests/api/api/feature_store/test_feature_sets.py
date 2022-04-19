@@ -839,19 +839,3 @@ def test_multi_label_query(db: Session, client: TestClient) -> None:
         "label=serial_number=0&label=serial_number=1",
         0,
     )
-
-
-def test_get_feature_no_double_response(db: Session, client: TestClient) -> None:
-    # This test reproduces ML-2004, where creating a versioned and then a non-versioned fset result in features
-    # list queries returning twice the same feature-set.
-
-    project_name = f"prj-{uuid4().hex}"
-
-    name = "feature_set"
-    feature_set = _generate_feature_set(name)
-    _store_and_assert_feature_set(client, project_name, name, "latest", feature_set, versioned=True)
-    _store_and_assert_feature_set(client, project_name, name, "latest", feature_set, versioned=False)
-
-    response = _list_and_assert_objects(client, "features", project_name, "name=bid", 2)
-
-    pass

@@ -696,7 +696,8 @@ class ModelEndpoints:
             project=project,
             filename=str(MONIOTINRG_BATCH_FUNCTION_PATH),
             kind="job",
-            image='eyaligu/mlrun-api:latest'
+            image='eyaligu/mlrun-api:latest',
+            handler='handler'
             # image="mlrun/mlrun",
         )
 

@@ -86,11 +86,12 @@ def is_nuclio_version_in_range(min_version: str, max_version: str) -> bool:
     try:
         parsed_min_version = semver.VersionInfo.parse(min_version)
         parsed_max_version = semver.VersionInfo.parse(max_version)
-        parsed_current_version = semver.VersionInfo.parse(mlconf.nuclio_version)
+        nuclio_version = mlrun.runtimes.utils.resolve_nuclio_version()
+        parsed_current_version = semver.VersionInfo.parse(nuclio_version)
     except ValueError:
         logger.warning(
             "Unable to parse nuclio version, assuming in range",
-            nuclio_version=mlconf.nuclio_version,
+            nuclio_version=nuclio_version,
             min_version=min_version,
             max_version=max_version,
         )
@@ -1154,10 +1155,23 @@ def compile_function_config(
     nuclio_runtime = (
         function.spec.nuclio_runtime or mlrun.config.config.default_nuclio_runtime
     )
+    if is_nuclio_version_in_range("0.0.0", "1.6.0") and nuclio_runtime in [
+        "python:3.7",
+        "python:3.8",
+    ]:
+        nuclio_runtime_set_from_spec = nuclio_runtime == function.spec.nuclio_runtime
+        if nuclio_runtime_set_from_spec:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Nuclio version does not support the configured runtime: {nuclio_runtime}"
+            )
+        else:
+            # our default is python:3.7, simply set it to python:3.6 to keep supporting envs with old Nuclio
+            nuclio_runtime = "python:3.6"
+
     # In nuclio 1.6.0<=v<1.8.0 python 3.7 and 3.8 runtime default behavior was to not decode event strings
     # Our code is counting on the strings to be decoded, so add the needed env var for those versions
     if (
-        "python" in nuclio_runtime
+        nuclio_runtime in ["python:3.7", "python:3.8", "python"]
         and is_nuclio_version_in_range("1.6.0", "1.8.0")
         and "NUCLIO_PYTHON_DECODE_EVENT_STRINGS" not in env_dict
     ):

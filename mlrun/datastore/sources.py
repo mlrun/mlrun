@@ -449,6 +449,7 @@ class BigQuerySource(BaseSourceDriver):
 
 
 class SnowflakeSource(BaseSourceDriver):
+    kind = "snowflake"
     support_spark = True
     support_storey = False
 

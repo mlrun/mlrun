@@ -14,7 +14,7 @@ from mlrun.run import MLClientCtx
 from mlrun.utils import logger, config
 from mlrun.utils.model_monitoring import EndpointType, parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_v3io_client, get_frames_client
-from sklearn.preprocessing import KBinsDiscretizer
+# from sklearn.preprocessing import KBinsDiscretizer
 
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f%z"
 ## for testing

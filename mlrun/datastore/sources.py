@@ -449,6 +449,7 @@ class BigQuerySource(BaseSourceDriver):
 
 
 class SnowflakeSource(BaseSourceDriver):
+    kind = "snowflake"
     support_spark = True
     support_storey = False
 
@@ -761,4 +762,5 @@ source_kind_to_driver = {
     KafkaSource.kind: KafkaSource,
     CustomSource.kind: CustomSource,
     BigQuerySource.kind: BigQuerySource,
+    SnowflakeSource.kind: SnowflakeSource,
 }

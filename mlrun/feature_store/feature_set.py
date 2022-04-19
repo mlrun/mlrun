@@ -434,6 +434,9 @@ class FeatureSet(ModelObj):
         targets: List[DataTargetBase],
         overwrite: bool = None,
     ):
+        if not targets:
+            return
+
         ingestion_target_names = [t.name for t in targets]
 
         status_targets = {}

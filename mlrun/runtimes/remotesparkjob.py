@@ -53,6 +53,7 @@ class RemoteSparkSpec(KubeResourceSpec):
         disable_auto_mount=False,
         pythonpath=None,
         tolerations=None,
+        preemption_mode=None,
     ):
         super().__init__(
             command=command,
@@ -79,6 +80,7 @@ class RemoteSparkSpec(KubeResourceSpec):
             disable_auto_mount=disable_auto_mount,
             pythonpath=pythonpath,
             tolerations=tolerations,
+            preemption_mode=preemption_mode,
         )
         self.provider = provider
 

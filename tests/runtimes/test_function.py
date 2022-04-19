@@ -5,6 +5,10 @@ from deepdiff import DeepDiff
 
 import mlrun
 from mlrun import code_to_function
+from mlrun.runtimes.function import (
+    _resolve_git_reference_from_source,
+    _resolve_work_dir_and_handler,
+)
 from tests.runtimes.test_base import TestAutoMount
 
 
@@ -132,3 +136,28 @@ def test_v3io_stream_trigger():
     assert trigger["password"] == "x"
     assert trigger["attributes"]["yy"] == "123"
     assert trigger["attributes"]["ackWindowSize"] == 10
+
+
+def test_resolve_work_dir_and_handler():
+    cases = [
+        (None, ("", "main:handler")),
+        ("x", ("", "x:handler")),
+        ("x:y", ("", "x:y")),
+        ("dir#", ("dir", "main:handler")),
+        ("dir#x", ("dir", "x:handler")),
+        ("dir#x:y", ("dir", "x:y")),
+    ]
+    for handler, expected in cases:
+        assert expected == _resolve_work_dir_and_handler(handler)
+
+
+def test_resolve_git_reference_from_source():
+    cases = [
+        # source, (repo, refs, branch)
+        ("repo", ("repo", "", "")),
+        ("repo#br", ("repo", "", "br")),
+        ("repo#refs/heads/main", ("repo", "refs/heads/main", "")),
+        ("repo#refs/heads/main#commit", ("repo", "refs/heads/main#commit", "")),
+    ]
+    for source, expected in cases:
+        assert expected == _resolve_git_reference_from_source(source)

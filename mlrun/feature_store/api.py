@@ -154,6 +154,7 @@ def get_offline_features(
     entity_timestamp_column = (
         entity_timestamp_column or feature_vector.spec.timestamp_field
     )
+
     if run_config:
         return run_merge_job(
             feature_vector,
@@ -677,8 +678,13 @@ def deploy_ingestion_service(
             kind=source.kind,
             name=featureset.metadata.name,
         )
+
+    targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
+    targets_to_ingest = copy.deepcopy(targets_to_ingest)
+    featureset.update_targets_for_ingest(targets_to_ingest)
+
     source, run_config.parameters = set_task_params(
-        featureset, source, targets, run_config.parameters
+        featureset, source, targets_to_ingest, run_config.parameters
     )
 
     name = normalize_name(name or f"{featureset.metadata.name}-ingest")
@@ -756,7 +762,10 @@ def _ingest_with_spark(
             targets = featureset.spec.targets
             targets = [get_target_driver(target, featureset) for target in targets]
 
-        for target in targets or []:
+        targets_to_ingest = copy.deepcopy(targets)
+        featureset.update_targets_for_ingest(targets_to_ingest, overwrite=overwrite)
+
+        for target in targets_to_ingest or []:
             if target.path and urlparse(target.path).scheme == "":
                 if mlrun_context:
                     mlrun_context.logger.error(

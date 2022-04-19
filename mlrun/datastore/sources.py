@@ -157,6 +157,21 @@ class CSVSource(BaseSourceDriver):
             "inferSchema": "true",
         }
 
+    def to_spark_df(self, session, named_view=False):
+        import pyspark.sql.functions as funcs
+
+        df = session.read.load(**self.get_spark_options())
+        for col_name, col_type in df.dtypes:
+            if (
+                col_name == self.time_field
+                or self._parse_dates
+                and col_name in self._parse_dates
+            ):
+                df = df.withColumn(col_name, funcs.col(col_name).cast("timestamp"))
+        if named_view:
+            df.createOrReplaceTempView(self.name)
+        return df
+
     def to_dataframe(self):
         kwargs = self.attributes.get("reader_args", {})
         chunksize = self.attributes.get("chunksize")
@@ -305,6 +320,8 @@ class BigQuerySource(BaseSourceDriver):
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
+        start_time=None,
+        end_time=None,
         gcp_project: str = None,
         spark_options: dict = None,
     ):
@@ -332,6 +349,8 @@ class BigQuerySource(BaseSourceDriver):
             key_field=key_field,
             time_field=time_field,
             schedule=schedule,
+            start_time=start_time,
+            end_time=end_time,
         )
         self._rows_iterator = None
 
@@ -430,6 +449,7 @@ class BigQuerySource(BaseSourceDriver):
 
 
 class SnowflakeSource(BaseSourceDriver):
+    kind = "snowflake"
     support_spark = True
     support_storey = False
 
@@ -440,6 +460,8 @@ class SnowflakeSource(BaseSourceDriver):
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
+        start_time=None,
+        end_time=None,
         query: str = None,
         url: str = None,
         user: str = None,
@@ -466,6 +488,8 @@ class SnowflakeSource(BaseSourceDriver):
             key_field=key_field,
             time_field=time_field,
             schedule=schedule,
+            start_time=start_time,
+            end_time=end_time,
         )
 
     def get_spark_options(self):
@@ -738,4 +762,5 @@ source_kind_to_driver = {
     KafkaSource.kind: KafkaSource,
     CustomSource.kind: CustomSource,
     BigQuerySource.kind: BigQuerySource,
+    SnowflakeSource.kind: SnowflakeSource,
 }

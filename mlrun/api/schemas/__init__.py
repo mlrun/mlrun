@@ -55,6 +55,7 @@ from .frontend_spec import (
     FeatureFlags,
     FrontendSpec,
     NuclioStreamsFeatureFlag,
+    PreemptionNodesFeatureFlag,
     ProjectMembershipFeatureFlag,
 )
 from .function import FunctionState, PreemptionModes
@@ -120,6 +121,7 @@ from .schedule import (
     ScheduleUpdate,
 )
 from .secret import (
+    AuthSecretData,
     SecretKeysData,
     SecretProviderName,
     SecretsData,

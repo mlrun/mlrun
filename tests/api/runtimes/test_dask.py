@@ -57,7 +57,7 @@ class TestDaskRuntime(TestRuntimeBase):
         _, kwargs = self.kube_cluster_mock.call_args
         return kwargs["scheduler_pod_template"]
 
-    def _get_namespace_arg(self):
+    def _get_create_pod_namespace_arg(self):
         _, kwargs = self.kube_cluster_mock.call_args
         return kwargs["namespace"]
 

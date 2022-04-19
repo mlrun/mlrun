@@ -1155,10 +1155,15 @@ def compile_function_config(
     nuclio_runtime = (
         function.spec.nuclio_runtime or mlrun.config.config.default_nuclio_runtime
     )
-    if is_nuclio_version_in_range("0.0.0", "1.6.0") and nuclio_runtime in ["python:3.7", "python:3.8"]:
+    if is_nuclio_version_in_range("0.0.0", "1.6.0") and nuclio_runtime in [
+        "python:3.7",
+        "python:3.8",
+    ]:
         nuclio_runtime_set_from_spec = nuclio_runtime == function.spec.nuclio_runtime
         if nuclio_runtime_set_from_spec:
-            raise mlrun.errors.MLRunInvalidArgumentError(f"Nuclio version does not support the configured runtime: {nuclio_runtime}")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Nuclio version does not support the configured runtime: {nuclio_runtime}"
+            )
         else:
             # our default is python:3.7, simply set it to python:3.6 to keep supporting envs with old Nuclio
             nuclio_runtime = "python:3.6"

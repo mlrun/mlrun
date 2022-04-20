@@ -546,7 +546,7 @@ class Config:
         return auto_mount_params
 
     def get_default_function_pod_resources(
-        self, with_gpu_requests=True, with_gpu_limits=True
+        self, with_gpu_requests=False, with_gpu_limits=False
     ):
         resources = {}
         resource_requirements = ["requests", "limits"]

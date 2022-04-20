@@ -515,7 +515,6 @@ def get_gpu_from_resource_requirement(requirement: dict):
     Kubernetes support 3 types of resources, two of which their name doesn't change : cpu, memory.
     :param requirement: requirement resource ( limits / requests ) which contain the resources.
     """
-    resources = ["cpu", "memory"]
     if not requirement:
         return None, None
 
@@ -524,7 +523,7 @@ def get_gpu_from_resource_requirement(requirement: dict):
             "Unable to resolve the gpu type because there are more than 3 resources"
         )
     for resource, value in requirement.items():
-        if resource not in resources:
+        if resource not in ["cpu", "memory"]:
             return resource, value
     return None, None
 

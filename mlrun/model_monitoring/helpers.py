@@ -93,7 +93,7 @@ def get_model_monitoring_batch_function(
 
     logger.info(f"Deploying model monitoring batch processing function [{project}]")
 
-    fn: KubejobRuntime = code_to_function(
+    function: KubejobRuntime = code_to_function(
         name="model-monitoring-batch",
         project=project,
         filename=str(MONIOTINRG_BATCH_FUNCTION_PATH),
@@ -101,13 +101,13 @@ def get_model_monitoring_batch_function(
         image='eyaligu/mlrun-api:latest',
         handler='handler'
     )
-    fn.set_db_connection(get_run_db_instance(db_session))
+    function.set_db_connection(get_run_db_instance(db_session))
 
-    fn.metadata.project = project
+    function.metadata.project = project
 
-    fn.apply(mlrun.mount_v3io())
+    function.apply(mlrun.mount_v3io())
 
-    fn.set_env_from_secret(
+    function.set_env_from_secret(
         "MODEL_MONITORING_ACCESS_KEY",
         mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
         Secrets().generate_client_project_secret_key(
@@ -116,6 +116,6 @@ def get_model_monitoring_batch_function(
     )
 
     # Needs to be a member of the project and have access to project data path
-    fn.metadata.credentials.access_key = model_monitoring_access_key
+    function.metadata.credentials.access_key = model_monitoring_access_key
 
-    return fn
+    return function

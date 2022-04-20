@@ -375,7 +375,7 @@ class KubeResourceSpec(FunctionSpec):
     ):
         resources_types = ["cpu", "memory"]
         resource_requirements = ["requests", "limits"]
-        default_resources = mlconf.get_default_function_pod_resources()
+        default_resources = mlconf.get_default_function_pod_resources(False, False)
 
         if resources:
             for resource_requirement in resource_requirements:

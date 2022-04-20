@@ -785,7 +785,7 @@ def show_kfp_run(run, clear_output=False):
 def add_default_function_resources(
     container_op: dsl.ContainerOp,
 ) -> dsl.ContainerOp:
-    default_resources = config.get_default_function_pod_resources()
+    default_resources = config.get_default_function_pod_resources(False, False)
     for resource_name, resource_value in default_resources["requests"].items():
         if resource_value:
             container_op.container.add_resource_request(resource_name, resource_value)

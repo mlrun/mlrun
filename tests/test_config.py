@@ -194,7 +194,6 @@ def test_with_gpu_option_get_default_function_pod_resources(config):
         default_function_pod_resources_request_memory_env_key: requests_memory,
         default_function_pod_resources_request_gpu_env_key: requests_gpu,
         default_function_pod_resources_limits_gpu_env_key: limits_gpu,
-
     }
     with patch_env(env):
         mlconf.config.reload()

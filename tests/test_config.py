@@ -173,6 +173,84 @@ def test_decode_base64_config_and_load_to_object():
     assert decoded_list_output == expected_decoded_list_output
 
 
+def test_with_gpu_option_get_default_function_pod_resources(config):
+    requests_gpu = "2"
+    limits_gpu = "2"
+    env = {
+        default_function_pod_resources_request_gpu_env_key: requests_gpu,
+        default_function_pod_resources_limits_gpu_env_key: limits_gpu,
+    }
+    with patch_env(env):
+        mlconf.config.reload()
+
+        for test_case in [
+            {
+                "with_gpu_requests": True,
+                "with_gpu_limits": True,
+                "expected_resources": {
+                    "requests": {
+                        "cpu": None,
+                        "memory": None,
+                        "nvidia.com/gpu": requests_gpu,
+                    },
+                    "limits": {
+                        "cpu": None,
+                        "memory": None,
+                        "nvidia.com/gpu": limits_gpu,
+                    },
+                },
+            },
+            {
+                "with_gpu_requests": False,
+                "with_gpu_limits": True,
+                "expected_resources": {
+                    "requests": {"cpu": None, "memory": None},
+                    "limits": {
+                        "cpu": None,
+                        "memory": None,
+                        "nvidia.com/gpu": limits_gpu,
+                    },
+                },
+            },
+            {
+                "with_gpu_requests": True,
+                "with_gpu_limits": False,
+                "expected_resources": {
+                    "requests": {
+                        "cpu": None,
+                        "memory": None,
+                        "nvidia.com/gpu": requests_gpu,
+                    },
+                    "limits": {
+                        "cpu": None,
+                        "memory": None,
+                    },
+                },
+            },
+            {
+                "with_gpu_requests": False,
+                "with_gpu_limits": False,
+                "expected_resources": {
+                    "requests": {"cpu": None, "memory": None},
+                    "limits": {"cpu": None, "memory": None},
+                },
+            },
+        ]:
+            with_requests_gpu = test_case.get("with_gpu_requests")
+            with_gpu_limits = test_case.get("with_gpu_limits")
+            resources = config.get_default_function_pod_resources(
+                with_requests_gpu, with_gpu_limits
+            )
+            assert (
+                deepdiff.DeepDiff(
+                    resources,
+                    test_case.get("expected_resources"),
+                    ignore_order=True,
+                )
+                == {}
+            )
+
+
 def test_get_default_function_pod_requirement_resources(config):
     requests_gpu = "2"
     limits_gpu = "2"

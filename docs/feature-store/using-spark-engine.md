@@ -143,8 +143,8 @@ feature_set.graph.to(name="s1", handler="my_spark_func")
 
 my_func = code_to_function("func", kind="spark")
 
-my_func.with_driver_requests(cpu="200m", mem="1g")
-my_func.with_executor_requests(cpu="200m", mem="1g")
+my_func.with_driver_requests(cpu="200m", mem="1G")
+my_func.with_executor_requests(cpu="200m", mem="1G")
 my_func.with_igz_spark()
 
 # Enables using the default image (can be replace with specifying a specific image with .spec.image)

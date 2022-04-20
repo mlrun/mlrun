@@ -36,6 +36,7 @@ from mlrun.errors import (
 )
 from mlrun.model_monitoring.helpers import (
     get_model_monitoring_stream_processing_function,
+    get_model_monitoring_batch_function
 )
 from mlrun.runtimes import KubejobRuntime
 from mlrun.runtimes.function import get_nuclio_deploy_status
@@ -668,38 +669,37 @@ class ModelEndpoints:
         db_session,
         auth_info: mlrun.api.schemas.AuthInfo,
     ):
-        logger.info(
-            f"Checking deployment status for model monitoring batch processing function [{project}]"
-        )
-        function_list = get_db().list_functions(
-            session=db_session, name="model-monitoring-batch", project=project
-        )
-
-        if function_list:
-            logger.info(
-                f"Detected model monitoring batch processing function [{project}] already deployed"
-            )
-            return
-
-        logger.info(f"Deploying model monitoring batch processing function [{project}]")
-
-        # fn: KubejobRuntime = mlrun.import_function(
-        #     f"hub://model_monitoring_batch:{config.model_endpoint_monitoring.batch_processing_function_branch}"
+        # logger.info(
+        #     f"Checking deployment status for model monitoring batch processing function [{project}]"
         # )
-
-        MONIOTINRG_BATCH_FUNCTION_PATH = Path(__file__).parent / "model_monitoring_batch.py"
-
-
-        print('[EYAL]: MODEL MONITORING BATCH UPDATE')
-        fn: KubejobRuntime = code_to_function(
-            name="model-monitoring-batch",
-            project=project,
-            filename=str(MONIOTINRG_BATCH_FUNCTION_PATH),
-            kind="job",
-            image='eyaligu/mlrun-api:latest',
-            handler='handler'
-            # image="mlrun/mlrun",
-        )
+        # function_list = get_db().list_functions(
+        #     session=db_session, name="model-monitoring-batch", project=project
+        # )
+        #
+        # if function_list:
+        #     logger.info(
+        #         f"Detected model monitoring batch processing function [{project}] already deployed"
+        #     )
+        #     return
+        #
+        # logger.info(f"Deploying model monitoring batch processing function [{project}]")
+        #
+        # # fn: KubejobRuntime = mlrun.import_function(
+        # #     f"hub://model_monitoring_batch:{config.model_endpoint_monitoring.batch_processing_function_branch}"
+        # # )
+        #
+        # MONIOTINRG_BATCH_FUNCTION_PATH = Path(__file__).parent / "model_monitoring_batch.py"
+        #
+        #
+        # print('[EYAL]: MODEL MONITORING BATCH UPDATE')
+        # fn: KubejobRuntime = code_to_function(
+        #     name="model-monitoring-batch",
+        #     project=project,
+        #     filename=str(MONIOTINRG_BATCH_FUNCTION_PATH),
+        #     kind="job",
+        #     image='eyaligu/mlrun-api:latest',
+        #     handler='handler'
+        # )
 
 
         # function = code_to_function(
@@ -710,22 +710,30 @@ class ModelEndpoints:
         #     image="eyaligu/mlrun-api:1.0.0-rc22",
         # )
 
-        fn.set_db_connection(get_run_db_instance(db_session))
+        # fn.set_db_connection(get_run_db_instance(db_session))
+        #
+        # fn.metadata.project = project
+        #
+        # fn.apply(mlrun.mount_v3io())
+        #
+        # fn.set_env_from_secret(
+        #     "MODEL_MONITORING_ACCESS_KEY",
+        #     mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
+        #     Secrets().generate_client_project_secret_key(
+        #         SecretsClientType.model_monitoring, "MODEL_MONITORING_ACCESS_KEY"
+        #     ),
+        # )
+        #
+        # # Needs to be a member of the project and have access to project data path
+        # fn.metadata.credentials.access_key = model_monitoring_access_key
 
-        fn.metadata.project = project
-
-        fn.apply(mlrun.mount_v3io())
-
-        fn.set_env_from_secret(
-            "MODEL_MONITORING_ACCESS_KEY",
-            mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
-            Secrets().generate_client_project_secret_key(
-                SecretsClientType.model_monitoring, "MODEL_MONITORING_ACCESS_KEY"
-            ),
+        fn = get_model_monitoring_batch_function(
+            project=project,
+            model_monitoring_access_key=model_monitoring_access_key,
+            db_session=db_session,
+            auth_info=auth_info,
         )
 
-        # Needs to be a member of the project and have access to project data path
-        fn.metadata.credentials.access_key = model_monitoring_access_key
 
         function_uri = fn.save(versioned=True)
         function_uri = function_uri.replace("db://", "")

@@ -98,7 +98,7 @@ def test_new_function_with_resources():
             },
             "expected_resources": {
                 "requests": {"cpu": "50mi", "memory": "1M"},
-                "limits": {"cpu": "1", "memory": "1G", "nvidia.com/gpu": "1"},
+                "limits": {"cpu": "1", "memory": "1G"},
             },
         },
         {

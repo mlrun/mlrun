@@ -300,10 +300,6 @@ class HTTPRunDB(RunDBInterface):
                 config.valid_function_priority_class_names
                 or server_cfg.get("valid_function_priority_class_names")
             )
-            config.default_function_pod_resources = (
-                config.default_function_pod_resources
-                or server_cfg.get("default_function_pod_resources")
-            )
             # These have a default value, therefore local config will always have a value, prioritize the
             # API value first
             config.ui.projects_prefix = (
@@ -337,6 +333,10 @@ class HTTPRunDB(RunDBInterface):
             config.default_tensorboard_logs_path = (
                 server_cfg.get("default_tensorboard_logs_path")
                 or config.default_tensorboard_logs_path
+            )
+            config.default_function_pod_resources = (
+                server_cfg.get("default_function_pod_resources")
+                or config.default_function_pod_resources
             )
             config.function_defaults.preemption_mode = (
                 server_cfg.get("default_preemption_mode")
@@ -510,6 +510,7 @@ class HTTPRunDB(RunDBInterface):
         rows_per_partition: int = 1,
         partition_sort_by: Union[schemas.SortField, str] = None,
         partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
+        max_partitions: int = 0,
     ) -> RunList:
         """Retrieve a list of runs, filtered by various options.
         Example::
@@ -541,6 +542,8 @@ class HTTPRunDB(RunDBInterface):
         :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
             Currently the only allowed values are `created` and `updated`.
         :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
+        :param max_partitions: Maximal number of partitions to include in the result. Default is `0` which means no
+            limit.
         """
 
         project = project or config.default_project
@@ -566,6 +569,7 @@ class HTTPRunDB(RunDBInterface):
                     rows_per_partition,
                     partition_sort_by,
                     partition_order,
+                    max_partitions,
                 )
             )
         error = "list runs"
@@ -1596,7 +1600,12 @@ class HTTPRunDB(RunDBInterface):
 
     @staticmethod
     def _generate_partition_by_params(
-        partition_by_cls, partition_by, rows_per_partition, sort_by, order
+        partition_by_cls,
+        partition_by,
+        rows_per_partition,
+        sort_by,
+        order,
+        max_partitions=None,
     ):
         if isinstance(partition_by, partition_by_cls):
             partition_by = partition_by.value
@@ -1605,12 +1614,15 @@ class HTTPRunDB(RunDBInterface):
         if isinstance(order, schemas.OrderType):
             order = order.value
 
-        return {
+        partition_params = {
             "partition-by": partition_by,
             "rows-per-partition": rows_per_partition,
             "partition-sort-by": sort_by,
             "partition-order": order,
         }
+        if max_partitions is not None:
+            partition_params["max-partitions"] = max_partitions
+        return partition_params
 
     def list_feature_sets(
         self,

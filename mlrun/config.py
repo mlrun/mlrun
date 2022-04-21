@@ -51,7 +51,7 @@ default_config = {
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     "nuclio_dashboard_url": "",
     "nuclio_version": "",
-    "default_nuclio_runtime": "python:3.6",
+    "default_nuclio_runtime": "python:3.7",
     "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
     "ui_url": "",  # remote/external mlrun UI url (for hyperlinks) (This is deprecated in favor of the ui block)
     "remote_host": "",
@@ -289,13 +289,14 @@ default_config = {
             # unless user asks for a specific list of secrets.
             "auto_add_project_secrets": True,
             "project_secret_name": "mlrun-project-secrets-{project}",
+            "auth_secret_name": "mlrun-auth-secrets.{hashed_access_key}",
             "env_variable_prefix": "MLRUN_K8S_SECRET__",
         },
     },
     "feature_store": {
         "data_prefixes": {
-            "default": "v3io:///projects/{project}/FeatureStore/{name}/{run_id}/{kind}",
-            "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{run_id}/{kind}",
+            "default": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
+            "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
@@ -507,14 +508,14 @@ class Config:
         if config.kfp_url:
             return config.kfp_url
         igz_version = self.get_parsed_igz_version()
-        if namespace is None:
-            if not config.namespace:
-                raise mlrun.errors.MLRunNotFoundError(
-                    "For KubeFlow Pipelines to function, a namespace must be configured"
-                )
-            namespace = config.namespace
         # TODO: When Iguazio 3.4 will deprecate we can remove this line
         if igz_version and igz_version <= semver.VersionInfo.parse("3.6.0-b1"):
+            if namespace is None:
+                if not config.namespace:
+                    raise mlrun.errors.MLRunNotFoundError(
+                        "For KubeFlow Pipelines to function, a namespace must be configured"
+                    )
+                namespace = config.namespace
             # When instead of host we provided namespace we tackled this issue
             # https://github.com/canonical/bundle-kubeflow/issues/412
             # TODO: When we'll move to kfp 1.4.0 (server side) it should be resolved

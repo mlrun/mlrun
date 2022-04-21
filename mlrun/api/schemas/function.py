@@ -35,3 +35,5 @@ class PreemptionModes(str, Enum):
     constrain = "constrain"
     # prevents the function pods from running on preemptible nodes
     prevent = "prevent"
+    # doesn't apply any preemptible node selection on the function
+    none = "none"

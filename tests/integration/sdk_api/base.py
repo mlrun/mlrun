@@ -74,6 +74,10 @@ class TestMLRunIntegration:
             / "assets"
         )
 
+    @property
+    def base_url(self):
+        return mlrun.config.config.dbpath + "/api/v1/"
+
     def _setup_env(self, env: dict):
         self._logger.debug("Setting up test environment")
         self._test_env.update(env)

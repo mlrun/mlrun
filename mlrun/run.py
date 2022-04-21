@@ -937,7 +937,7 @@ def run_pipeline(
     arguments = arguments or {}
 
     if remote or url:
-        mldb = get_run_db(url)
+        mldb = mlrun.db.get_run_db(url)
         if mldb.kind != "http":
             raise ValueError(
                 "run pipeline require access to remote api-service"
@@ -1010,7 +1010,7 @@ def wait_for_pipeline_completion(
     )
 
     if remote:
-        mldb = get_run_db()
+        mldb = mlrun.db.get_run_db()
 
         def get_pipeline_if_completed(run_id, namespace=namespace):
             resp = mldb.get_pipeline(run_id, namespace=namespace, project=project)
@@ -1090,7 +1090,7 @@ def get_pipeline(
     """
     namespace = namespace or mlconf.namespace
     if remote:
-        mldb = get_run_db()
+        mldb = mlrun.db.get_run_db()
         if mldb.kind != "http":
             raise ValueError(
                 "get pipeline require access to remote api-service"
@@ -1144,7 +1144,7 @@ def list_pipelines(
     """
     if full:
         format_ = mlrun.api.schemas.PipelinesFormat.full
-    run_db = get_run_db()
+    run_db = mlrun.db.get_run_db()
     pipelines = run_db.list_pipelines(
         project, namespace, sort_by, page_token, filter_, format_, page_size
     )

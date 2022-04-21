@@ -265,6 +265,7 @@ class ObjectList:
 
 class Credentials(ModelObj):
     generate_access_key = "$generate"
+    secret_reference_prefix = "$ref:"
 
     def __init__(
         self,
@@ -1027,6 +1028,17 @@ def new_task(
 
 
 class TargetPathObject:
+    """Class configuring the target path
+    This class will take consideration of a few parameters to create the correct end result path:
+    * run_id - if run_id is provided target will be considered as run_id mode
+               which require to contain a {run_id} place holder in the path.
+    * is_single_file - if true then run_id must be the directory containing the output file
+                       or generated before the file name (run_id/output.file).
+    * base_path - if contains the place holder for run_id, run_id must not be None.
+                  if run_id passed and place holder doesn't exist the place holder will
+                  be generated in the correct place.
+    """
+
     def __init__(
         self,
         base_path=None,
@@ -1035,17 +1047,43 @@ class TargetPathObject:
     ):
         self.run_id = run_id
         self.full_path_template = base_path
-        if not is_single_file:
+        if run_id is not None:
             if RUN_ID_PLACE_HOLDER not in self.full_path_template:
+                if not is_single_file:
+                    if self.full_path_template[-1] != "/":
+                        self.full_path_template = self.full_path_template + "/"
+                    self.full_path_template = (
+                        self.full_path_template + RUN_ID_PLACE_HOLDER + "/"
+                    )
+                else:
+                    dir_name_end = len(self.full_path_template)
+                    if self.full_path_template[-1] != "/":
+                        dir_name_end = self.full_path_template.rfind("/") + 1
+                    updated_path = (
+                        self.full_path_template[:dir_name_end]
+                        + RUN_ID_PLACE_HOLDER
+                        + "/"
+                        + self.full_path_template[dir_name_end:]
+                    )
+                    self.full_path_template = updated_path
+            else:
                 if self.full_path_template[-1] != "/":
-                    self.full_path_template = self.full_path_template + "/"
-                self.full_path_template = self.full_path_template + RUN_ID_PLACE_HOLDER
+                    if self.full_path_template.endswith(RUN_ID_PLACE_HOLDER):
+                        self.full_path_template = self.full_path_template + "/"
+        else:
+            if RUN_ID_PLACE_HOLDER in self.full_path_template:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Error when trying to create TargetPathObject with place holder '{run_id}' but no value."
+                )
 
     def get_templated_path(self):
         return self.full_path_template
 
     def get_absolute_path(self):
-        return self.full_path_template.format(run_id=self.run_id)
+        if self.run_id:
+            return self.full_path_template.format(run_id=self.run_id)
+        else:
+            return self.full_path_template
 
 
 class DataSource(ModelObj):
@@ -1129,10 +1167,6 @@ class DataTargetBase(ModelObj):
             return TargetPathObject(self.path, self.run_id, is_single_file)
         else:
             return None
-
-    def get_target_path(self):
-        path_object = self.get_path()
-        return path_object.get_absolute_path() if path_object else None
 
     def __init__(
         self,

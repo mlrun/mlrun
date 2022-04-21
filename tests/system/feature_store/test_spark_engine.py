@@ -12,7 +12,7 @@ from storey import EmitEveryEvent
 import mlrun
 import mlrun.feature_store as fs
 from mlrun import store_manager
-from mlrun.datastore.sources import ParquetSource
+from mlrun.datastore.sources import CSVSource, ParquetSource
 from mlrun.datastore.targets import CSVTarget, NoSqlTarget, ParquetTarget
 from mlrun.features import Entity
 from tests.system.base import TestMLRunSystem
@@ -25,6 +25,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     project_name = "fs-system-spark-engine"
     spark_service = ""
     pq_source = "testdata.parquet"
+    csv_source = "testdata.csv"
     spark_image_deployed = (
         False  # Set to True if you want to avoid the image building phase
     )
@@ -45,6 +46,16 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         path += "/bigdata/" + self.pq_source
         return path
 
+    def get_local_csv_source_path(self):
+        return os.path.relpath(str(self.assets_path / self.csv_source))
+
+    def get_remote_csv_source_path(self, without_prefix=False):
+        path = "v3io://"
+        if without_prefix:
+            path = ""
+        path += "/bigdata/" + self.csv_source
+        return path
+
     def custom_setup(self):
         from mlrun import get_run_db
         from mlrun.run import new_function
@@ -60,6 +71,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             store.upload(
                 self.get_remote_pq_source_path(without_prefix=True),
                 self.get_local_pq_source_path(),
+            )
+            store, _ = store_manager.get_or_create_store(
+                self.get_remote_csv_source_path()
+            )
+            store.upload(
+                self.get_remote_csv_source_path(without_prefix=True),
+                self.get_local_csv_source_path(),
             )
             if not self.test_branch:
                 RemoteSparkRuntime.deploy_default_image()
@@ -92,6 +110,32 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=fs.RunConfig(local=False),
         )
         assert measurements.status.targets[0].run_id is not None
+
+    def test_basic_remote_spark_ingest_csv(self):
+        key = "patient_id"
+        name = "measurements"
+        measurements = fs.FeatureSet(
+            name,
+            entities=[fs.Entity(key)],
+            engine="spark",
+        )
+        source = CSVSource(
+            "mycsv", path=self.get_remote_csv_source_path(), time_field="timestamp"
+        )
+        fs.ingest(
+            measurements,
+            source,
+            return_df=True,
+            spark_context=self.spark_service,
+            run_config=fs.RunConfig(local=False),
+        )
+
+        features = [f"{name}.*"]
+        vec = fs.FeatureVector("test-vec", features)
+
+        resp = fs.get_offline_features(vec)
+        df = resp.to_dataframe()
+        assert type(df["timestamp"][0]).__name__ == "Timestamp"
 
     def test_error_flow(self):
         df = pd.DataFrame(
@@ -184,7 +228,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             }
         ).to_parquet(path=path, filesystem=fsys)
 
-        cron_trigger = "*/2 * * * *"
+        cron_trigger = "*/3 * * * *"
 
         source = ParquetSource(
             "myparquet", path=path, time_field="time", schedule=cron_trigger
@@ -222,11 +266,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             targets=targets,
             spark_context=self.spark_service,
         )
-        # ingest starts every second minute and it takes ~90 seconds to finish.
-        if (now.minute % 2) == 0:
-            sleep(60 - now.second + 60 + 90)
-        else:
-            sleep(60 - now.second + 90)
+        # ingest starts every third minute and it can take ~150 seconds to finish.
+        time_till_next_run = 180 - now.second - 60 * (now.minute % 3)
+        sleep(time_till_next_run + 150)
 
         features = [f"{name}.*"]
         vec = fs.FeatureVector("sched_test-vec", features)
@@ -250,7 +292,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 }
             ).to_parquet(path=path)
 
-            sleep(120)
+            sleep(180)
             resp = svc.get(
                 [
                     {"first_name": "yosi"},

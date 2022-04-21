@@ -27,9 +27,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     pq_source = "testdata.parquet"
     csv_source = "testdata.csv"
     spark_image_deployed = (
-        False  # Set to True if you want to avoid the image building phase
+        True  # Set to True if you want to avoid the image building phase
     )
-    test_branch = ""  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
+    test_branch = "https://github.com/gtopper/mlrun.git@ML-1919"
 
     @classmethod
     def _init_env_from_file(cls):
@@ -163,7 +163,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     def test_ingest_to_csv(self):
         key = "patient_id"
         csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
-        csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey"
+        csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
 
         measurements = fs.FeatureSet(
             "measurements_spark",
@@ -172,7 +172,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             engine="spark",
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
-        targets = [CSVTarget(path=csv_path_spark)]
+        targets = [CSVTarget(name="csv", path=csv_path_spark)]
         fs.ingest(
             measurements,
             source,
@@ -180,34 +180,41 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_context=self.spark_service,
             run_config=fs.RunConfig(local=False),
         )
+        csv_path_spark = measurements.get_target_path(name="csv")
 
         measurements = fs.FeatureSet(
             "measurements_storey",
             entities=[fs.Entity(key)],
             timestamp_key="timestamp",
-            engine="spark",
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
-        targets = [CSVTarget(path=csv_path_storey)]
+        targets = [CSVTarget(name="csv", path=csv_path_storey)]
         fs.ingest(
             measurements,
             source,
             targets,
         )
+        csv_path_storey = measurements.get_target_path(name="csv")
 
+        read_back_df_spark = None
         file_system = fsspec.filesystem("v3io")
-        spark_output_files = file_system.ls(csv_path_spark)
-        for filename in  spark_output_files:
-            if filename != "_SUCCESS":
-                read_back_df_spark = pd.read_csv(f"{csv_path_spark}/{filename}")
+        for file_entry in file_system.ls(csv_path_spark):
+            filepath = file_entry["name"]
+            if not filepath.endswith("/_SUCCESS"):
+                read_back_df_spark = pd.read_csv(f"v3io://{filepath}")
                 break
+        assert read_back_df_spark is not None
 
-        spark_output_files = file_system.ls(csv_path_storey)
-        for filename in  spark_output_files:
-            read_back_df_storey = pd.read_csv(f"{csv_path_spark}/{filename}")
+        read_back_df_storey = None
+        for file_entry in file_system.ls(csv_path_storey):
+            filepath = file_entry["name"]
+            read_back_df_storey = pd.read_csv(f"v3io://{filepath}")
             break
+        assert read_back_df_storey is not None
 
-        assert read_back_df_spark.equals(read_back_df_storey)
+        assert read_back_df_spark.sort_index(axis=1).equals(
+            read_back_df_storey.sort_index(axis=1)
+        )
 
     @pytest.mark.parametrize("partitioned", [True, False])
     def test_schedule_on_filtered_by_time(self, partitioned):

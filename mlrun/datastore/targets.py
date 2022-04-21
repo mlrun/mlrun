@@ -894,10 +894,12 @@ class CSVTarget(BaseStoreTarget):
         import pyspark.sql.functions as funcs
 
         for col_name, col_type in df.dtypes:
-            if col_type in ["float", "double"] or col_type.startswith("decimal("):
-                # df.write.csv saves decimal numbers with a precision of 3 decimal places, but we want 6 decimal places
+            if col_type == "timestamp":
+                # df.write.csv saves dates with millisecond precision, but we want microsecond precision
                 # for compatibility with storey.
-                df = df.withColumn(col_name, funcs.format_string("%.6f", col_name))
+                df = df.withColumn(
+                    col_name, funcs.date_format(col_name, "yyyy-MM-dd HH:mm:ss.SSSSSS")
+                )
         return df
 
     def as_df(

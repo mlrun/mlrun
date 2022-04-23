@@ -230,10 +230,12 @@ class MLMLRunInterface(MLRunInterface, ABC):
         if self._model_handler is not None:
             # Set the sample set to the training set if None:
             if self._model_handler.sample_set is None:
-                self._model_handler.set_sample_set(
-                    sample_set=concatenate_x_y(
+                sample_set, y_columns = concatenate_x_y(
                         x=x, y=y, y_columns=self._model_handler.y_columns
-                    )[0]
+                    )
+                self._model_handler.set_y_columns(y_columns=y_columns)
+                self._model_handler.set_sample_set(
+                    sample_set=sample_set
                 )
             # Log the model:
             self._logger.log_run(model_handler=self._model_handler)

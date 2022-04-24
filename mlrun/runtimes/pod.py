@@ -31,13 +31,13 @@ from ..k8s_utils import (
     generate_preemptible_nodes_affinity_terms,
     generate_preemptible_nodes_anti_affinity_terms,
     generate_preemptible_tolerations,
-    verify_gpu_requests_and_limits,
 )
 from ..secrets import SecretsStore
 from ..utils import get_in, logger, normalize_name, update_in
 from .base import BaseRuntime, FunctionSpec, spec_fields
 from .utils import (
     apply_kfp,
+    get_gpu_from_resource_requirement,
     get_item_name,
     get_resource_labels,
     set_named_item,
@@ -373,16 +373,11 @@ class KubeResourceSpec(FunctionSpec):
     def enrich_resources_with_default_pod_resources(
         self, resources_field_name: str, resources: dict
     ):
-        resources_types = ["cpu", "memory", "nvidia.com/gpu"]
+        resources_types = ["cpu", "memory"]
         resource_requirements = ["requests", "limits"]
-        gpu_type = "nvidia.com/gpu"
         default_resources = mlconf.get_default_function_pod_resources()
 
         if resources:
-            verify_gpu_requests_and_limits(
-                requests_gpu=resources.setdefault("requests", {}).setdefault(gpu_type),
-                limits_gpu=resources.setdefault("limits", {}).setdefault(gpu_type),
-            )
             for resource_requirement in resource_requirements:
                 for resource_type in resources_types:
                     if (
@@ -391,19 +386,9 @@ class KubeResourceSpec(FunctionSpec):
                         )
                         is None
                     ):
-                        if resource_type == gpu_type:
-                            if resource_requirement == "requests":
-                                continue
-                            else:
-                                resources[resource_requirement][
-                                    resource_type
-                                ] = default_resources[resource_requirement].get(
-                                    gpu_type
-                                )
-                        else:
-                            resources[resource_requirement][
-                                resource_type
-                            ] = default_resources[resource_requirement][resource_type]
+                        resources[resource_requirement][
+                            resource_type
+                        ] = default_resources[resource_requirement][resource_type]
         # This enables the user to define that no defaults would be applied on the resources
         elif resources == {}:
             return resources
@@ -414,11 +399,12 @@ class KubeResourceSpec(FunctionSpec):
             mem=resources["requests"]["memory"],
             cpu=resources["requests"]["cpu"],
         )
+        gpu_type, gpu_value = get_gpu_from_resource_requirement(resources["limits"])
         resources["limits"] = verify_limits(
             resources_field_name,
             mem=resources["limits"]["memory"],
             cpu=resources["limits"]["cpu"],
-            gpus=resources["limits"][gpu_type],
+            gpus=gpu_value,
             gpu_type=gpu_type,
         )
         if not resources["requests"] and not resources["limits"]:

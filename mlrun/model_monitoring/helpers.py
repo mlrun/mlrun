@@ -99,8 +99,8 @@ def get_model_monitoring_batch_function(
         project=project,
         filename=str(MONIOTINRG_BATCH_FUNCTION_PATH),
         kind="job",
-        image='mlrun/mlrun',
-        # image='eyaligu/mlrun-api:latest',
+        # image='mlrun/mlrun',
+        image='eyaligu/mlrun-api:latest',
         handler='handler'
     )
     function.set_db_connection(get_run_db_instance(db_session))

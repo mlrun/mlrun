@@ -35,7 +35,7 @@ def get_model_monitoring_stream_processing_function(
         project=project,
         filename=str(STREAM_PROCESSING_FUNCTION_PATH),
         kind="serving",
-        image='mlrun/mlrun'
+        image="mlrun/mlrun"
     )
 
     # add stream trigger
@@ -98,7 +98,7 @@ def get_model_monitoring_batch_function(
         project=project,
         filename=str(MONIOTINRG_BATCH_FUNCTION_PATH),
         kind="job",
-        image='mlrun/mlrun',
+        image="mlrun/mlrun",
         handler='handler'
     )
     function.set_db_connection(get_run_db_instance(db_session))

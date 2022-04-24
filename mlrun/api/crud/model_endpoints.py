@@ -10,7 +10,6 @@ from v3io.dataplane import RaiseForStatus
 from v3io_frames import frames_pb2
 from v3io_frames.errors import CreateError
 
-
 import mlrun.api.api.utils
 import mlrun.api.utils.singletons.k8s
 import mlrun.datastore.store_resources

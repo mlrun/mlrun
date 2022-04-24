@@ -35,7 +35,7 @@ def get_model_monitoring_stream_processing_function(
         project=project,
         filename=str(STREAM_PROCESSING_FUNCTION_PATH),
         kind="serving",
-        image="mlrun/mlrun"
+        image="mlrun/mlrun",
     )
 
     # add stream trigger

@@ -14,8 +14,7 @@ import mlrun.api.api.utils
 import mlrun.api.utils.singletons.k8s
 import mlrun.datastore.store_resources
 from mlrun.api.api.endpoints.functions import _build_function
-from mlrun.api.api.utils import _submit_run, get_run_db_instance
-from mlrun.api.crud.secrets import Secrets, SecretsClientType
+from mlrun.api.api.utils import _submit_run
 from mlrun.api.schemas import (
     Features,
     Metric,
@@ -25,7 +24,6 @@ from mlrun.api.schemas import (
     ModelEndpointStatus,
 )
 from mlrun.api.schemas.model_endpoints import ModelEndpointList
-from mlrun.api.utils.singletons.db import get_db
 from mlrun.artifacts import ModelArtifact
 from mlrun.config import config
 from mlrun.errors import (
@@ -37,7 +35,6 @@ from mlrun.model_monitoring.helpers import (
     get_model_monitoring_stream_processing_function,
     get_model_monitoring_batch_function
 )
-from mlrun.runtimes import KubejobRuntime
 from mlrun.runtimes.function import get_nuclio_deploy_status
 from mlrun.utils.helpers import logger
 from mlrun.utils.model_monitoring import (
@@ -46,8 +43,6 @@ from mlrun.utils.model_monitoring import (
     parse_model_endpoint_store_prefix,
 )
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
-from mlrun import code_to_function
-from pathlib import Path
 
 class ModelEndpoints:
     def create_or_patch(

@@ -2407,6 +2407,18 @@ class TestFeatureStore(TestMLRunSystem):
             "ddata": {0: "Paris", 1: "Tel Aviv"},
         }
 
+    def test_feature_vector_with_all_features_and_label_feature(self):
+        feature_set = FeatureSet("fs-label", entities=[Entity("ticker")])
+        fs.ingest(feature_set, stocks)
+        expected = stocks.to_dict()
+        expected.pop("ticker")
+
+        fv = fs.FeatureVector("fv-label", ["fs-label.*"], "fs-label.name")
+        res = fs.get_offline_features(fv)
+
+        assert res is not None
+        assert res.to_dataframe().to_dict() == expected
+
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)

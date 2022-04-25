@@ -19,5 +19,4 @@ Function objects are all inclusive (code, spec, API, and metadata definitions), 
 functions-overview
 ../runtimes/distributed
 nuclio-real-time-functions
-../runtimes/node-affinity
 ```

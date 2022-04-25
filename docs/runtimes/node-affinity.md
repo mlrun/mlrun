@@ -1,96 +1,167 @@
-# Node affinity for MLRun jobs
-Node affinity can be applied to MLRun to determine on which nodes 
-they can be placed. The rules are defined using custom labels on nodes and label selectors. 
-Node affinity allows towards Spot or On Demand groups of nodes.
+# Managing job resources
 
-**In this section**
-- [On demand vs spot](#On-demand-vs-spot)
-- [Stateless and stateful applications](#Stateless-and-stateful-applications)
-- [Node selector](#node-selector)
+Configuration of job resources is relevant for all supported cloud platforms.
 
-## On demand vs spot 
+<!--
+  ## Function!!!!!! Resources: limit and request CPU, GPU, and Memory  
 
-Amazon Elastic Compute Cloud (Amazon EC2) provides scalable computing capacity in the Amazon Web Services (AWS) Cloud. 
-Using Amazon EC2 eliminates your need to invest in hardware up front, so you can develop and deploy applications faster. 
+  You can configure how much of each resource a function needs. Kubernetes uses this information when placing a pod on a node. The memory and 
+  CPU configurations that you specify in the service are applied to each replica. Limits and requests are supported for all services.
 
-Using the Iguazio platform you can deploy two different kinds of EC2 instances, on-demand and spot. 
-On-Demand Instances provide full control over the EC2 instance lifecycle. You decide when to launch, stop, hibernate, start, 
-reboot, or terminate it. With spot instances you request EC2 capacity from specific availability zones and is 
+  Service limit!
+
+  When creating a new function, set the **Memory** and **CPU** in the **Common Parameters** tab, under **Resources** .
+
+  Modify the Memory, CPU, GPU for an ML function by pressing **ML functions**, then press **<img src="../_static/images/kebab-menu.png" width="25"/>** 
+  of the function, and select **Edit** and scroll to the **Resources** section.
+-->
+
+## Node affinity (node selectors)
+
+You can assign a node or a node group for jobs executed by this service. When specified, the pods of a function can only run on nodes whose 
+labels match the node selector entries configured for the specific function. If node selection for the service is not specified, the 
+selection criteria defaults to the Kubernetes default behavior, and jobs run on a random node.
+
+For MLRun and Nuclio, you can specify node selectors on a per-job basis. The default node selectors (defined in the service level) are 
+applied to all jobs unless you specifically override them for a specific job. 
+
+You can configure node affinity for:
+- Jupyter
+- Presto (The node selection also affects any additional services that are directly affected by Presto, for example like hive and mariadb, 
+which are created if Enable hive is checked in the Presto service.)
+- Grafana
+- Shell
+- MLRun (default value applied to all jobs that can be overwritten for individual jobs)
+- Nuclio (default value applied to all jobs that can be overwritten for individual jobs)
+
+See more about [Kubernetes nodeSelector](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector).
+
+### UI configuration
+
+Configure node selection on the service level in the service's **Custom Parameters** tab, under **Resources**, by adding or removing 
+Key:Value pairs. For MLRun and Nuclio, this is the default node selection for all MLRun jobs and Nuclio functions. 
+
+You can also configure the node selection for individual MLRun jobs by going to **Platform dashboard | Projects | New Job | Resources | Node 
+selector**, and adding or removing Key:Value pairs. Configure the node selection for individual Nuclio functions when creating a function in 
+the **Confguration** tab, under **Resources**, by adding Key:Value pairs.
+
+### SDK configuration
+
+Configure node selection by adding the key:value pairs in your Jupyter notebook. <br>
+For example:
+
+```func.with_node_selection(node_selector={name})```
+
+See [with_node_selection](api/mlrun.runtimes.html?highlight=node_selector#mlrun.runtimes.RemoteRuntime.with_node_selection).
+
+
+## Pod toleration (Spot vs. On-demand nodes)
+
+Pod toleration controls whether pods can be scheduled on spot nodes. Pod toleration is supported for all functions. Run on Spot nodes has three values:
+- Allow: The function pod can run on a spot node if one is available.
+- Constrain: The function pod only runs on spot nodes, and does not run if none is available.
+- Prevent: The function pod cannot run on a spot node. 
+
+See more about [Kubernetes Taints and Tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration).
+
+
+### On Demand vs. Spot 
+
+On-demand Instances provide full control over the instance lifecycle. You decide when to launch, stop, hibernate, start, 
+reboot, or terminate it. With Spot instances you request capacity from specific availability zones, though it is  
 susceptible to spot capacity availability. This is a good choice if you can be flexible about when your applications run 
-and if your applications can be interrupted.
+and if your applications can be interrupted. 
 
-## Stateless and stateful applications 
-When deploying your MLRun jobs to specific nodes, please take into consideration that on demand 
-nodes are best designed to run stateful applications while spot nodes are best designed to stateless applications. 
-MLRun jobs which are stateful, and are assigned to run on spot nodes, may be subject to interruption 
+### Stateless and Stateful Applications 
+When deploying your MLRun jobs to specific nodes, take into consideration that On-demand 
+nodes are designed to run stateful applications while spot nodes are designed for stateless applications. 
+MLRun jobs that are stateful and are assigned to run on spot nodes, might be subject to interruption 
 and will to be designed so that the job/function state will be saved when scaling to zero.
 
-## Node selector
-Using the **Node Selector** you can assign MLRun jobs to specific nodes within the cluster. 
-**Node Selector** is available for all modes of deployment in the platform including the platform UI, 
-command line, and programmable interfaces.
-
-To assign MLRun jobs to specific nodes you use the Kubernetes node label 
-`app.iguazio.com/lifecycle` with the values of:
-
-* preemptible – assign to EC2 Spot instances
-
-* non-preemptible – assign to EC2 On Demand instances
+### UI configuration
 
 ```{admonition} Note
-By default Iguazio uses the key:value pair 
-<br>
-```app.iguazio.com/lifecycle = preemptible```
-<br>
-or
-<br>
-```app.iguazio.com/lifecycle = non-preemptible```
-<br>
-to determine spot or on demand nodes.
+Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/).
 ```
 
-You can use multiple labels to assign MLRun jobs to specific nodes. 
-However, when you use multiple labels a logical `and` is performed on the labels.
+You can configure pod toleration when creating a job, rerunning an existing job, and creating an ML function. 
+The **Run on Spot nodes** drop-down list is in the **Resources** section of jobs. 
+Configure the pod toleration for individual Nuclio functions when creating a function in the **Confguration** tab, under **Resources**. 
+
+### SDK configuration
+
+Configure pod toleration by adding the tolerations parameter in your Jupyter notebook. <br>
+For example:
+
+```func.with_preemption_mode(mode={value})```
+
+See [with_node_selection](api/mlrun.runtimes.#mlrun.runtimes.RemoteRuntime.with_node_selection).
+
+
+## Pod priority
+
+Pods can have priorities, which indicate the relative importance of one pod to the other pods on the node. The oriority is used for 
+scheduling: a lower priority pod can be evicted to allow scheduling of a higher priority pod. Pod priority is relevant for all pods created 
+by the service. For MLRun, it applies to the jobs created by MLRun. For Nuclio it applies to the pods of the Nuclio-created functions.
+
+Eviction uses these values to determine what to evict with conjunction to the pods priority [Interactions between Pod priority and quality of service](https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/#interactions-of-pod-priority-and-qos).
+
+The priority values are: High, Medium, Low. The default is Medium. Pod priority is supported for:
+- MLRun jobs: the default priority class for the jobs that MLRun creates.
+- Nuclio functions: the default priority class for the user-created functions.
+- Jupyter
+- Presto (The pods priority also affects any additional services that are directly affected by Presto, for example like hive and mariadb, 
+which are created if Enable hive is checked in the Presto service.)
+- Grafana
+- Shell
+
+See more about [Kubernetes Pod Priority and Preemption](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/)
+
+### UI configuration
 
 ```{admonition} Note
-* Do not use node specific labels as this may result in eliminating all possible nodes.
-* When assigning MLRun jobs to Spot instances it is the user’s responsibility 
-  to deal with preempting issues within the running application/function.
-``` 
+Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/).
+```
+Configure the default priority for a service, which is applied to all subsequently created user-jobs, in the service's **Common Parameters** 
+tab, **User jobs defaults** section, **Priority class** drop-down list.
 
-**To assign an MLRun job to a node:**
-1. From the platform dashboard, press projects in the left menu pane.
-2. Press on a project, and then press Jobs and Workflows.
-3. Press New Job, or select a job from the list of running jobs.
-4. Scroll to and open the Resources pane.
-5. In the **Node Selector** section, press **+**.
-   <br>
-   <br/>
-   <img src="../_static/images/ml_run-job_resources_node_selector.png" width="600"/>
-<br>
-<br/>
-6. Enter a **key:value** pair. For example:
-   <br>
-   <br/>
-   <img src="../_static/images/mlrun_jobs_key_non-preemtible.png" width="600"/>
-   <br>
-   <br/>
-   or
-   <br>
-   <br/>
-   <img src="../_static/images/mlrun_jobs_key_preemtible.png" width="600"/>
-   <br>
-   <br/>
-   When complete press **Run now** or **Schedule for later**.  
-<br>
+Modify the priority for an ML function by pressing **ML functions**, then **<img src="../_static/images/kebab-menu.png" width="25"/>** 
+of the function, **Edit** | **Resources** | **Pods Priority** drop-down list.
 
-**Assign an MLRun job to a node using the SDK**
 
-You can use node selection using the SDK by adding the key:value pairs in your Jupyter notebook. 
-For On demand use the following function:
-<br><br>
-```func.with_node_selection(node_selector={'app.iguazio.com/lifecycle': 'non-preemptible'})```
-<br><br>
-For Spot instances use the following function:
-<br><br>
-```func.with_node_selection(node_selector={'app.iguazio.com/lifecycle': 'preemptible'})``` 
+### SDK configuration
+
+Configure pod priority by adding the priority class parameter in your Jupyter notebook. <br>
+For example:
+
+```func.with_priority_class(name={value})```
+
+
+See [with_priority_class](api/mlrun.runtimes.html.#mlrun.runtimes.RemoteRuntime.with_priority_class).
+
+## CPU and memory limits for user jobs  
+
+When you create a pod in an MLRun job or Nuclio function, the pod has default CPU and memory limits. When the job runs, it allocates 
+resources for itself starting with the default values. You can overwrite the defaults when creating a job,a function, or a service. 
+<!-- The default values are: -->
+
+[Resource Management for Pods and Containers](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+
+
+When creating a new function, set the **Memory** and **CPU** in the **Common Parameters** tab, under **User jobs defaults** .
+
+
+
+## Volumes
+
+### UI configuration
+
+### SDK configuration
+
+
+
+
+
+
+
+

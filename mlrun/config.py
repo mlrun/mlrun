@@ -545,13 +545,20 @@ class Config:
 
         return auto_mount_params
 
-    def get_default_function_pod_resources(self):
+    def get_default_function_pod_resources(
+        self, with_gpu_requests=False, with_gpu_limits=False
+    ):
         resources = {}
         resource_requirements = ["requests", "limits"]
         for requirement in resource_requirements:
+            with_gpu = (
+                with_gpu_requests if requirement == "requests" else with_gpu_limits
+            )
             resources[
                 requirement
-            ] = self.get_default_function_pod_requirement_resources(requirement)
+            ] = self.get_default_function_pod_requirement_resources(
+                requirement, with_gpu
+            )
         return resources
 
     @staticmethod

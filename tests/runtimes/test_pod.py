@@ -143,21 +143,6 @@ def test_resource_enrichment_in_resource_spec_initialization():
         == {}
     )
 
-    # setting only gpu request without limits
-    with pytest.raises(mlrun.errors.MLRunConflictError):
-        spec_requests = {"nvidia.com/gpu": "1"}
-        mlrun.runtimes.pod.KubeResourceSpec(
-            resources={"requests": spec_requests, "limits": spec_limits}
-        )
-
-    # setting different gpu requests and limits
-    with pytest.raises(mlrun.errors.MLRunConflictError):
-        spec_requests = {"nvidia.com/gpu": "1"}
-        spec_limits = {"nvidia.com/gpu": "2"}
-        mlrun.runtimes.pod.KubeResourceSpec(
-            resources={"requests": spec_requests, "limits": spec_limits}
-        )
-
     # setting resource not in the k8s resources patterns
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         spec_requests = {"cpu": "1wrong"}

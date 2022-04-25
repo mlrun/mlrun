@@ -4,17 +4,17 @@ import mlrun
 import mlrun.feature_store as fs
 from mlrun import code_to_function, v3io_cred
 from mlrun.api.api.utils import get_run_db_instance
-from mlrun.utils.helpers import logger
-from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.crud.secrets import Secrets, SecretsClientType
-from mlrun.runtimes import KubejobRuntime
-
+from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
 from mlrun.model_monitoring.stream_processing_fs import EventStreamProcessor
+from mlrun.runtimes import KubejobRuntime
+from mlrun.utils.helpers import logger
 
 HELPERS_FILE_PATH = Path(__file__)
 STREAM_PROCESSING_FUNCTION_PATH = HELPERS_FILE_PATH.parent / "stream_processing_fs.py"
 MONIOTINRG_BATCH_FUNCTION_PATH = Path(__file__).parent / "model_monitoring_batch.py"
+
 
 def get_model_monitoring_stream_processing_function(
     project: str, model_monitoring_access_key: str, db_session
@@ -72,12 +72,13 @@ def get_model_monitoring_stream_processing_function(
 
     return function
 
+
 def get_model_monitoring_batch_function(
-        project: str,
-        model_monitoring_access_key: str,
-        db_session,
-        auth_info: mlrun.api.schemas.AuthInfo,
-    ):
+    project: str,
+    model_monitoring_access_key: str,
+    db_session,
+    auth_info: mlrun.api.schemas.AuthInfo,
+):
     logger.info(
         f"Checking deployment status for model monitoring batch processing function [{project}]"
     )
@@ -99,7 +100,7 @@ def get_model_monitoring_batch_function(
         filename=str(MONIOTINRG_BATCH_FUNCTION_PATH),
         kind="job",
         image="mlrun/mlrun",
-        handler='handler'
+        handler="handler",
     )
     function.set_db_connection(get_run_db_instance(db_session))
 

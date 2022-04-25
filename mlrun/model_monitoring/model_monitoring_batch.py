@@ -2,21 +2,21 @@ import json
 import os
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import List, Optional
 
 import numpy as np
 import pandas as pd
 import v3io
-from mlrun import get_run_db
-from mlrun import store_manager
+
+from mlrun import get_run_db, store_manager
 from mlrun.data_types.infer import DFDataInfer, InferOptions
 from mlrun.run import MLClientCtx
-from mlrun.utils import logger, config
+from mlrun.utils import config, logger
 from mlrun.utils.model_monitoring import EndpointType, parse_model_endpoint_store_prefix
-from mlrun.utils.v3io_clients import get_v3io_client, get_frames_client
-
+from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f%z"
+
 
 @dataclass
 class TotalVarianceDistance:
@@ -224,7 +224,7 @@ class BatchProcessor:
 
         self.v3io_access_key = v3io_access_key
         self.model_monitoring_access_key = (
-                model_monitoring_access_key or v3io_access_key
+            model_monitoring_access_key or v3io_access_key
         )
 
         self.virtual_drift = VirtualDrift(inf_capping=10)
@@ -244,8 +244,10 @@ class BatchProcessor:
             stream_path
         )
 
-        self.parquet_path = config.model_endpoint_monitoring.store_prefixes.user_space.format(
-            project=project, kind="parquet"
+        self.parquet_path = (
+            config.model_endpoint_monitoring.store_prefixes.user_space.format(
+                project=project, kind="parquet"
+            )
         )
 
         logger.info(
@@ -308,9 +310,7 @@ class BatchProcessor:
         fs = store.get_filesystem(silent=False)
 
         if not fs.exists(sub):
-            logger.warn(
-                f"{sub} does not exist"
-            )
+            logger.warn(f"{sub} does not exist")
             return
 
         for endpoint_dir in fs.ls(sub):

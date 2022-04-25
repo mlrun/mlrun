@@ -32,8 +32,8 @@ from mlrun.errors import (
     MLRunNotFoundError,
 )
 from mlrun.model_monitoring.helpers import (
+    get_model_monitoring_batch_function,
     get_model_monitoring_stream_processing_function,
-    get_model_monitoring_batch_function
 )
 from mlrun.runtimes.function import get_nuclio_deploy_status
 from mlrun.utils.helpers import logger
@@ -43,6 +43,7 @@ from mlrun.utils.model_monitoring import (
     parse_model_endpoint_store_prefix,
 )
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
+
 
 class ModelEndpoints:
     def create_or_patch(
@@ -670,7 +671,6 @@ class ModelEndpoints:
             db_session=db_session,
             auth_info=auth_info,
         )
-
 
         function_uri = fn.save(versioned=True)
         function_uri = function_uri.replace("db://", "")

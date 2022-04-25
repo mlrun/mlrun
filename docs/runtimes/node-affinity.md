@@ -18,16 +18,16 @@ Configuration of job resources is relevant for all supported cloud platforms.
 
 ## Node affinity (node selectors)
 
-You can assign a node or a node group for jobs executed by this service. When specified, the pods of a function can only run on nodes whose 
-labels match the node selector entries configured for the specific function. If node selection for the service is not specified, the 
+You can assign a node or a node group for jobs executed by a service. When specified, the pods of a function can only run on nodes whose 
+labels match the node selector entries configured for the specific service. If node selection for the service is not specified, the 
 selection criteria defaults to the Kubernetes default behavior, and jobs run on a random node.
 
-For MLRun and Nuclio, you can specify node selectors on a per-job basis. The default node selectors (defined in the service level) are 
-applied to all jobs unless you specifically override them for a specific job. 
+For MLRun and Nuclio, you can specify node selectors on a per-job basis. The default node selectors (defined at the service level) are 
+applied to all jobs unless you specifically override them for an individual job. 
 
 You can configure node affinity for:
 - Jupyter
-- Presto (The node selection also affects any additional services that are directly affected by Presto, for example like hive and mariadb, 
+- Presto (The node selection also affects any additional services that are directly affected by Presto, for example hive and mariadb, 
 which are created if Enable hive is checked in the Presto service.)
 - Grafana
 - Shell
@@ -67,7 +67,7 @@ See more about [Kubernetes Taints and Tolerations](https://kubernetes.io/docs/co
 
 ### On Demand vs. Spot 
 
-On-demand Instances provide full control over the instance lifecycle. You decide when to launch, stop, hibernate, start, 
+On-demand instances provide full control over the instance lifecycle. You decide when to launch, stop, hibernate, start, 
 reboot, or terminate it. With Spot instances you request capacity from specific availability zones, though it is  
 susceptible to spot capacity availability. This is a good choice if you can be flexible about when your applications run 
 and if your applications can be interrupted. 
@@ -122,7 +122,7 @@ See more about [Kubernetes Pod Priority and Preemption](https://kubernetes.io/do
 ```{admonition} Note
 Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/).
 ```
-Configure the default priority for a service, which is applied to all subsequently created user-jobs, in the service's **Common Parameters** 
+Configure the default priority for a service, which is applied to all subsequently created user-jobs in the service's **Common Parameters** 
 tab, **User jobs defaults** section, **Priority class** drop-down list.
 
 Modify the priority for an ML function by pressing **ML functions**, then **<img src="../_static/images/kebab-menu.png" width="25"/>** 
@@ -139,16 +139,19 @@ For example:
 
 See [with_priority_class](api/mlrun.runtimes.html.#mlrun.runtimes.RemoteRuntime.with_priority_class).
 
-## CPU and memory limits for user jobs  
+## CPU, GPU, and memory limits for user jobs  
 
 When you create a pod in an MLRun job or Nuclio function, the pod has default CPU and memory limits. When the job runs, it allocates 
-resources for itself starting with the default values. You can overwrite the defaults when creating a job,a function, or a service. 
+resources for itself starting with the default values. The default is set at the service level. You can overwrite the default when creating a job, or a function. 
 <!-- The default values are: -->
 
-[Resource Management for Pods and Containers](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+See more about [Resource Management for Pods and Containers](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/).
 
+### UI configuration
+When creating a service, set the **Memory** and **CPU** in the **Common Parameters** tab, under **User jobs defaults**.
+When creating a job or a function, **how to cfg?????**
 
-When creating a new function, set the **Memory** and **CPU** in the **Common Parameters** tab, under **User jobs defaults** .
+### SDK configuration
 
 
 

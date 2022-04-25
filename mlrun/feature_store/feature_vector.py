@@ -338,7 +338,10 @@ class FeatureVector(ModelObj):
             feature_fields = feature_set_object.spec.features.keys()
             if feature_name == "*":
                 for field in feature_fields:
-                    if field != feature_set_object.spec.timestamp_key and field != label_column_name:
+                    if (
+                        field != feature_set_object.spec.timestamp_key
+                        and field != label_column_name
+                    ):
                         if alias:
                             add_feature(
                                 field,

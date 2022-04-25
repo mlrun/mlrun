@@ -449,13 +449,13 @@ class BigQuerySource(BaseSourceDriver):
 
 
 class SnowflakeSource(BaseSourceDriver):
+    kind = "snowflake"
     support_spark = True
     support_storey = False
 
     def __init__(
         self,
         name: str = "",
-        attributes: Dict[str, str] = None,
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
@@ -469,21 +469,19 @@ class SnowflakeSource(BaseSourceDriver):
         schema: str = None,
         warehouse: str = None,
     ):
-        self.query = query
-        self.attributes = attributes
-        self.key_field = key_field
-        self.time_field = time_field
-        self.schedule = schedule
-        self.url = url
-        self.user = user
-        self.password = password
-        self.database = database
-        self.schema = schema
-        self.warehouse = warehouse
+        attrs = {
+            "query": query,
+            "url": url,
+            "user": user,
+            "password": password,
+            "database": database,
+            "schema": schema,
+            "warehouse": warehouse,
+        }
 
         super().__init__(
             name,
-            attributes=attributes,
+            attributes=attrs,
             key_field=key_field,
             time_field=time_field,
             schedule=schedule,
@@ -494,13 +492,13 @@ class SnowflakeSource(BaseSourceDriver):
     def get_spark_options(self):
         return {
             "format": "net.snowflake.spark.snowflake",
-            "query": self.query,
-            "sfURL": self.url,
-            "sfUser": self.user,
-            "sfPassword": self.password,
-            "sfDatabase": self.database,
-            "sfSchema": self.schema,
-            "sfWarehouse": self.warehouse,
+            "query": self.attributes.get("query"),
+            "sfURL": self.attributes.get("url"),
+            "sfUser": self.attributes.get("user"),
+            "sfPassword": self.attributes.get("password"),
+            "sfDatabase": self.attributes.get("database"),
+            "sfSchema": self.attributes.get("schema"),
+            "sfWarehouse": self.attributes.get("warehouse"),
             "application": "Iguazio",
         }
 
@@ -761,4 +759,5 @@ source_kind_to_driver = {
     KafkaSource.kind: KafkaSource,
     CustomSource.kind: CustomSource,
     BigQuerySource.kind: BigQuerySource,
+    SnowflakeSource.kind: SnowflakeSource,
 }

@@ -136,6 +136,7 @@ class EventStreamProcessor:
         feature_set = fs.FeatureSet(
             "monitoring", entities=[ENDPOINT_ID], timestamp_key=TIMESTAMP
         )
+        feature_set.metadata.project = self.project
         feature_set.graph.to(
             "ProcessEndpointEvent",
             kv_container=self.kv_container,

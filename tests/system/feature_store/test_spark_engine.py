@@ -13,7 +13,7 @@ import mlrun
 import mlrun.feature_store as fs
 from mlrun import store_manager
 from mlrun.datastore.sources import CSVSource, ParquetSource
-from mlrun.datastore.targets import NoSqlTarget, ParquetTarget
+from mlrun.datastore.targets import CSVTarget, NoSqlTarget, ParquetTarget
 from mlrun.features import Entity
 from tests.system.base import TestMLRunSystem
 
@@ -159,6 +159,62 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 spark_context=self.spark_service,
                 run_config=fs.RunConfig(local=False),
             )
+
+    def test_ingest_to_csv(self):
+        key = "patient_id"
+        csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
+        csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
+
+        measurements = fs.FeatureSet(
+            "measurements_spark",
+            entities=[fs.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        fs.ingest(
+            measurements,
+            source,
+            targets,
+            spark_context=self.spark_service,
+            run_config=fs.RunConfig(local=False),
+        )
+        csv_path_spark = measurements.get_target_path(name="csv")
+
+        measurements = fs.FeatureSet(
+            "measurements_storey",
+            entities=[fs.Entity(key)],
+            timestamp_key="timestamp",
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_storey)]
+        fs.ingest(
+            measurements,
+            source,
+            targets,
+        )
+        csv_path_storey = measurements.get_target_path(name="csv")
+
+        read_back_df_spark = None
+        file_system = fsspec.filesystem("v3io")
+        for file_entry in file_system.ls(csv_path_spark):
+            filepath = file_entry["name"]
+            if not filepath.endswith("/_SUCCESS"):
+                read_back_df_spark = pd.read_csv(f"v3io://{filepath}")
+                break
+        assert read_back_df_spark is not None
+
+        read_back_df_storey = None
+        for file_entry in file_system.ls(csv_path_storey):
+            filepath = file_entry["name"]
+            read_back_df_storey = pd.read_csv(f"v3io://{filepath}")
+            break
+        assert read_back_df_storey is not None
+
+        assert read_back_df_spark.sort_index(axis=1).equals(
+            read_back_df_storey.sort_index(axis=1)
+        )
 
     @pytest.mark.parametrize("partitioned", [True, False])
     def test_schedule_on_filtered_by_time(self, partitioned):

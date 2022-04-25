@@ -2407,6 +2407,53 @@ class TestFeatureStore(TestMLRunSystem):
             "ddata": {0: "Paris", 1: "Tel Aviv"},
         }
 
+    @pytest.mark.parametrize(
+        "targets, feature_set_targets, expected_target_names",
+        [
+            [None, None, ["parquet", "nosql"]],
+            [[ParquetTarget("par")], None, ["par"]],
+            [[ParquetTarget("par", "v3io:///bigdata/dis-dt.parquet")], None, ["par"]],
+            [None, [ParquetTarget("par2")], ["par2"]],
+            [[ParquetTarget("par")], [ParquetTarget("par2")], ["par"]],
+        ],
+    )
+    def test_deploy_ingestion_service_with_different_targets(
+        self, targets, feature_set_targets, expected_target_names
+    ):
+        fset_name = "dis-set"
+        fset = FeatureSet(f"{fset_name}", entities=[Entity("ticker")])
+
+        if feature_set_targets:
+            fset.set_targets(feature_set_targets, with_defaults=False)
+        fs.ingest(fset, quotes)
+        source = StreamSource(key_field="ticker", time_field="time")
+        filename = str(
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "api"
+            / "runtimes"
+            / "assets"
+            / "sample_function.py"
+        )
+
+        function = mlrun.code_to_function(
+            "ingest_transactions", kind="serving", filename=filename
+        )
+        function.spec.default_content_type = "application/json"
+        function.spec.image_pull_policy = "Always"
+        run_config = fs.RunConfig(function=function, local=False).apply(
+            mlrun.mount_v3io()
+        )
+        fs.deploy_ingestion_service(
+            featureset=fset, source=source, run_config=run_config, targets=targets
+        )
+
+        fset.reload()  # refresh to ingestion service updates
+        assert fset.status.targets is not None
+        for actual_tar in fset.status.targets:
+            assert actual_tar.run_id is not None
+        for expected in expected_target_names:
+            assert fset.get_target_path(expected) is not None
+
     def test_feature_vector_with_all_features_and_label_feature(self):
         feature_set = FeatureSet("fs-label", entities=[Entity("ticker")])
         fs.ingest(feature_set, stocks)

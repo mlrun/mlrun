@@ -86,7 +86,7 @@ Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.co
 
 You can configure pod toleration when creating a job, rerunning an existing job, and creating an ML function. 
 The **Run on Spot nodes** drop-down list is in the **Resources** section of jobs. 
-Configure the pod toleration for individual Nuclio functions when creating a function in the **Confguration** tab, under **Resources**. 
+Configure the pod toleration for individual Nuclio functions when creating a function in the **Configuration** tab, under **Resources**. 
 
 ### SDK configuration
 
@@ -149,7 +149,7 @@ See more about [Resource Management for Pods and Containers](https://kubernetes.
 
 ### UI configuration
 When creating a service, set the **Memory** and **CPU** in the **Common Parameters** tab, under **User jobs defaults**.
-When creating a job or a function, **how to cfg?????**
+When creating a job or a function, overwrite the default **Memory**, **CPU**, or **GPU** in the **Configuration** tab, under **Resources**.
 
 ### SDK configuration
 

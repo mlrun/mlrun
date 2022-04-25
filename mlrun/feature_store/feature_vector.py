@@ -309,11 +309,13 @@ class FeatureVector(ModelObj):
         feature_set_fields = collections.defaultdict(list)
         features = copy(self.spec.features)
         label_column_name = None
+        label_column_fset = None
         if offline and self.spec.label_feature:
             features.append(self.spec.label_feature)
-            _, name, alias = parse_feature_string(self.spec.label_feature)
+            feature_set, name, alias = parse_feature_string(self.spec.label_feature)
             self.status.label_column = alias or name
             label_column_name = name
+            label_column_fset = feature_set
 
         def add_feature(name, alias, feature_set_object, feature_set_full_name):
             if alias in processed_features.keys():
@@ -338,9 +340,8 @@ class FeatureVector(ModelObj):
             feature_fields = feature_set_object.spec.features.keys()
             if feature_name == "*":
                 for field in feature_fields:
-                    if (
-                        field != feature_set_object.spec.timestamp_key
-                        and field != label_column_name
+                    if field != feature_set_object.spec.timestamp_key and not (
+                        feature_set == label_column_fset and field == label_column_name
                     ):
                         if alias:
                             add_feature(

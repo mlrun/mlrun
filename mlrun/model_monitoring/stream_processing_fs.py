@@ -137,6 +137,7 @@ class EventStreamProcessor:
             "monitoring", entities=[ENDPOINT_ID], timestamp_key=TIMESTAMP
         )
         feature_set.metadata.project = self.project
+        # feature_set.metadata.function_uri =
         feature_set.graph.to(
             "ProcessEndpointEvent",
             kv_container=self.kv_container,
@@ -508,7 +509,7 @@ class ProcessEndpointEvent(MapClass):
 
             events.append(
                 {
-                    FUNCTION_URI: function_uri,
+                    # FUNCTION_URI: function_uri,
                     MODEL: versioned_model,
                     MODEL_CLASS: model_class,
                     TIMESTAMP: timestamp,
@@ -648,6 +649,7 @@ class MapFeatureNames(MapClass):
         self.label_columns = {}
 
     def _infer_feature_names_from_data(self, event):
+        print('[EYAL]: Print feature names from infer function')
         for endpoint_id in self.feature_names:
             if len(self.feature_names[endpoint_id]) >= len(event[FEATURES]):
                 return self.feature_names[endpoint_id]
@@ -661,7 +663,9 @@ class MapFeatureNames(MapClass):
 
     def do(self, event: Dict):
         endpoint_id = event[ENDPOINT_ID]
-
+        print('[EYAL]: Now in map feature names')
+        print('[EYAL]: Event: ', event)
+        print('[EYAL]: self.feature_names: ', self.feature_names)
         if endpoint_id not in self.feature_names:
             endpoint_record = get_endpoint_record(
                 kv_container=self.kv_container,
@@ -669,7 +673,9 @@ class MapFeatureNames(MapClass):
                 endpoint_id=endpoint_id,
                 access_key=self.access_key,
             )
+            print('[EYAL]: endpoint_record: ', endpoint_record)
             feature_names = endpoint_record.get(FEATURE_NAMES)
+            print('[EYAL]: New feature names: ', feature_names)
             feature_names = json.loads(feature_names) if feature_names else None
 
             label_columns = endpoint_record.get(LABEL_COLUMNS)
@@ -677,6 +683,7 @@ class MapFeatureNames(MapClass):
 
             if not feature_names and self._infer_columns_from_data:
                 feature_names = self._infer_feature_names_from_data(event)
+                print('[EYAL]: new feature names: ', feature_names)
 
             if not feature_names:
                 logger.warn(
@@ -684,6 +691,7 @@ class MapFeatureNames(MapClass):
                     endpoint_id=endpoint_id,
                 )
                 feature_names = [f"f{i}" for i, _ in enumerate(event[FEATURES])]
+                print('[EYAL]: get feature names from event[FEATURES]: ', feature_names)
                 get_v3io_client().kv.update(
                     container=self.kv_container,
                     table_path=self.kv_path,
@@ -723,9 +731,12 @@ class MapFeatureNames(MapClass):
 
         feature_names = self.feature_names[endpoint_id]
         features = event[FEATURES]
+        print('[EYAL]: again, update feature names to feature_names[endpoint_id]: ', feature_names)
+        print('[EYAL]: plus update feautres to event[FEATURES]: ', features)
         event[NAMED_FEATURES] = {
             name: feature for name, feature in zip(feature_names, features)
         }
+        print('[EYAL]: adding event the named features: ', event)
 
         label_columns = self.label_columns[endpoint_id]
         prediction = event[PREDICTION]

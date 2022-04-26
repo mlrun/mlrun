@@ -17,52 +17,15 @@ Configuration of job resources is relevant for all supported cloud platforms.
 -->
 
 **In this section**
-- [Node affinity (node selectors)](#node-affinity-node-selectors)
 - [Preemption mode: Spot vs. On-demand nodes](#preemption-mode-spot-vs-on-demand-nodes)
 - [Pod priority](#pod-priority)
 - [CPU, GPU, and memory limits for user jobs](#cpu-gpu-and-memory-limits-for-user-jobs)
-- [Volumes](#volumes)
-
-## Node affinity (node selectors)
-
-You can assign a node or a node group for services or for jobs executed by a service. When specified, the service or the pods of a function can only run on nodes whose 
-labels match the node selector entries configured for the specific service. If node selection for the service is not specified, the 
-selection criteria defaults to the Kubernetes default behavior, and jobs run on a random node.
-
-For MLRun and Nuclio, you can specify node selectors on a per-job basis. The default node selectors (defined at the service level) are 
-applied to all jobs unless you specifically override them for an individual job. 
-
-You can configure node affinity for:
-- Jupyter
-- Presto (The node selection also affects any additional services that are directly affected by Presto, for example hive and mariadb, 
-which are created if Enable hive is checked in the Presto service.)
-- Grafana
-- Shell
-- MLRun (default value applied to all jobs that can be overwritten for individual jobs)
-- Nuclio (default value applied to all jobs that can be overwritten for individual jobs)
-
-See more about [Kubernetes nodeSelector](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector).
-
-### UI configuration
-
-Configure node selection on the service level in the service's **Custom Parameters** tab, under **Resources**, by adding or removing 
-Key:Value pairs. For MLRun and Nuclio, this is the default node selection for all MLRun jobs and Nuclio functions. 
-
-You can also configure the node selection for individual MLRun jobs by going to **Platform dashboard | Projects | New Job | Resources | Node 
-selector**, and adding or removing Key:Value pairs. Configure the node selection for individual Nuclio functions when creating a function in 
-the **Confguration** tab, under **Resources**, by adding Key:Value pairs.
-
-### SDK configuration
-
-Configure node selection by adding the key:value pairs in your Jupyter notebook formatted as a Python dictionary. <br>
-For example:
-
-```func.with_node_selection(node_selector={name})```
-
-See [with_node_selection](api/mlrun.runtimes.html?highlight=node_selector#mlrun.runtimes.RemoteRuntime.with_node_selection).
+- [Node affinity (node selectors)](#node-affinity-node-selectors)- [Volumes](#volumes)
 
 
 ## Preemption mode: Spot vs. On-demand nodes
+
+Node selector is supported for all cloud platforms. It is relevant for MLRun and Nuclio only.
 
 Preemption mode controls whether pods can be scheduled on preemptible (spot) nodes. Preemption mode is supported for all functions. Preemption mode has three values:
 - Allow: The function pod can run on a spot node if one is available.
@@ -82,8 +45,12 @@ and if your applications can be interrupted.
 ### Stateless and Stateful Applications 
 When deploying your MLRun jobs to specific nodes, take into consideration that On-demand 
 nodes are designed to run stateful applications while spot nodes are designed for stateless applications. 
-MLRun jobs that are stateful and are assigned to run on spot nodes might be subject to interruption 
-and have to be designed so that the job/function state will be saved when scaling to zero.
+MLRun jobs are more stateful by nature. An MLRun job that is assigned to run on a spot node might be subject to interruption; 
+it would have to be designed so that the job/function state will be saved when scaling to zero.
+
+```{admonition} Important
+When an MLRun job is running on a spot node and it fails, it won't get back up again. Howewer, if Nuclio goes down due to a spot issue, it would be brought up by Kubernetes.
+```
 
 ### UI configuration
 
@@ -105,7 +72,7 @@ For example:
 See [with_node_selection](api/mlrun.runtimes.#mlrun.runtimes.RemoteRuntime.with_node_selection).
 
 
-## Pod priority
+## Pod priority for user jobs
 
 Pods (services, or jobs created by those services) can have priorities, which indicate the relative importance of one pod to the other pods on the node. The oriority is used for 
 scheduling: a lower priority pod can be evicted to allow scheduling of a higher priority pod. Pod priority is relevant for all pods created 
@@ -121,8 +88,6 @@ Pod priority is specified through Priority classes, which map to a priority valu
 which are created if Enable hive is checked in the Presto service.)
 - Grafana
 - Shell
-
-See more about [Kubernetes Pod Priority and Preemption](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/)
 
 ### UI configuration
 
@@ -160,6 +125,44 @@ When creating a service, set the **Memory** and **CPU** in the **Common Paramete
 When creating a job or a function, overwrite the default **Memory**, **CPU**, or **GPU** in the **Configuration** tab, under **Resources**.
 
 ### SDK configuration
+
+## Node affinity (node selectors)
+
+You can assign a node or a node group for services or for jobs executed by a service. When specified, the service or the pods of a function can only run on nodes whose 
+labels match the node selector entries configured for the specific service. If node selection for the service is not specified, the 
+selection criteria defaults to the Kubernetes default behavior, and jobs run on a random node.
+
+For MLRun and Nuclio, you can also specify node selectors on a per-job basis. The default node selectors (defined at the service level) are 
+applied to all jobs unless you specifically override them for an individual job. 
+
+You can configure node affinity for:
+- Jupyter
+- Presto (The node selection also affects any additional services that are directly affected by Presto, for example hive and mariadb, 
+which are created if Enable hive is checked in the Presto service.)
+- Grafana
+- Shell
+- MLRun (default value applied to all jobs that can be overwritten for individual jobs)
+- Nuclio (default value applied to all jobs that can be overwritten for individual jobs)
+
+See more about [Kubernetes nodeSelector](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector).
+
+### UI configuration
+
+Configure node selection on the service level in the service's **Custom Parameters** tab, under **Resources**, by adding or removing 
+Key:Value pairs. For MLRun and Nuclio, this is the default node selection for all MLRun jobs and Nuclio functions. 
+
+You can also configure the node selection for individual MLRun jobs by going to **Platform dashboard | Projects | New Job | Resources | Node 
+selector**, and adding or removing Key:Value pairs. Configure the node selection for individual Nuclio functions when creating a function in 
+the **Confguration** tab, under **Resources**, by adding Key:Value pairs.
+
+### SDK configuration
+
+Configure node selection by adding the key:value pairs in your Jupyter notebook formatted as a Python dictionary. <br>
+For example:
+
+```func.with_node_selection(node_selector={name})```
+
+See [with_node_selection](api/mlrun.runtimes.html?highlight=node_selector#mlrun.runtimes.RemoteRuntime.with_node_selection).
 
 
 

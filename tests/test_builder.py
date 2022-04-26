@@ -54,9 +54,7 @@ def test_build_config_with_multiple_commands():
 
 
 def test_build_config_preserve_order():
-    function = mlrun.new_function(
-        "some-function", kind="job"
-    )
+    function = mlrun.new_function("some-function", kind="job")
     # run a lot of times as order change
     commands = []
     for index in range(10):

@@ -2466,7 +2466,11 @@ class TestFeatureStore(TestMLRunSystem):
         assert res is not None
         assert res.to_dataframe().to_dict() == expected
 
-    def test_feature_vector_with_all_features_and_label_feature_two_feature_sets(self):
+    def test_get_offline_for_two_feature_set_with_same_column_name(self):
+        # This test is testing that all columns are returned with no failure even though
+        # two features sets and the label column has the column 'name'.
+        expected = ["fs1_exchange", "name", "fs2_name", "fs2_exchange"]
+
         feature_set = FeatureSet("fs1", entities=[Entity("ticker")])
         fs.ingest(feature_set, stocks)
         feature_set = FeatureSet("fs2", entities=[Entity("ticker")])
@@ -2475,7 +2479,6 @@ class TestFeatureStore(TestMLRunSystem):
         fv = fs.FeatureVector("fv-label", ["fs1.* as fs1", "fs2.* as fs2"], "fs1.name")
         res = fs.get_offline_features(fv)
 
-        expected = ["fs1_exchange", "name", "fs2_name", "fs2_exchange"]
         assert res is not None
         assert len(expected) == len(res.to_dataframe().to_dict().keys())
         for key in res.to_dataframe().to_dict().keys():

@@ -1,6 +1,6 @@
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-from .artifact import ArtifactCategories
+from .artifact import ArtifactCategories, ArtifactsFormat
 from .auth import (
     AuthInfo,
     AuthorizationAction,

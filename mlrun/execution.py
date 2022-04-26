@@ -540,16 +540,18 @@ class MLClientCtx(object):
             for k, v in get_in(task, ["status", "results"], {}).items():
                 self._results[k] = v
             for artifact in get_in(task, ["status", run_keys.artifacts], []):
-                self._artifacts_manager.artifacts[artifact["key"]] = artifact
+                self._artifacts_manager.artifacts[
+                    artifact["metadata"]["key"]
+                ] = artifact
                 self._artifacts_manager.link_artifact(
                     self.project,
                     self.name,
                     self.tag,
-                    artifact["key"],
+                    artifact["metadata"]["key"],
                     self.iteration,
-                    artifact["target_path"],
+                    artifact["spec"]["target_path"],
                     link_iteration=best,
-                    db_key=artifact["db_key"],
+                    db_key=artifact["spec"]["db_key"],
                 )
 
         if summary is not None:

@@ -100,8 +100,18 @@ def artifacts_html(x, pathcol="path"):
         return ""
     html = ""
     for i in x:
-        link, ref = link_to_ipython(i[pathcol])
-        html += f'<div {ref}title="{link}">{i["key"]}</div>'
+        # support legacy format
+        if pathcol in i:
+            link, ref = link_to_ipython(i[pathcol])
+        else:
+            link, ref = link_to_ipython(i["spec"][pathcol])
+
+        if "key" in i:
+            key = i["key"]
+        else:
+            key = i["metadata"]["key"]
+
+        html += f'<div {ref}title="{link}">{key}</div>'
     return html
 
 

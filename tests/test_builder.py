@@ -53,6 +53,22 @@ def test_build_config_with_multiple_commands():
     assert len(fn.spec.build.commands) == 2
 
 
+def test_build_config_preserve_order():
+    function = mlrun.new_function(
+        "some-function", kind="job"
+    )
+    # run a lot of times as order change
+    commands = []
+    for index in range(10):
+        commands.append(str(index))
+    # when using un-stable (doesn't preserve order) methods to make a list unique (like list(set(x))) it's random
+    # whether the order will be preserved, therefore run in a loop
+    for _ in range(100):
+        function.spec.build.commands = []
+        function.build_config(commands=commands)
+        assert function.spec.build.commands == commands
+
+
 def test_build_runtime_insecure_registries(monkeypatch):
     _patch_k8s_helper(monkeypatch)
     mlrun.mlconf.httpdb.builder.docker_registry = "registry.hub.docker.com/username"

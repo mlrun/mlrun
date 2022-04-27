@@ -115,7 +115,7 @@ def get_model_monitoring_batch_function(
         name="model-monitoring-batch",
         project=project,
         kind="job",
-        image="mlrun/mlrun",
+        image="eyaligu/mlrun-api:monitoring-feature-set",
         handler="mlrun.model_monitoring.model_monitoring_batch.handler",
     )
     function.set_db_connection(get_run_db_instance(db_session))

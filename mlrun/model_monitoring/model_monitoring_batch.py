@@ -349,7 +349,8 @@ class BatchProcessor:
 
                 # loading monitoring features and metadata from feature store
                 monitoring_fs = fstore.get_feature_set(f"store://feature-sets/{self.project}/monitoring:latest")
-                df = monitoring_fs.to_dataframe(start_time=str_to_timestamp('now floor 1H'), end_time=str_to_timestamp('now -1H floor 1H'), time_column='timestamp')
+                # df = monitoring_fs.to_dataframe(start_time=str_to_timestamp('now floor 1H'), end_time=str_to_timestamp('now -1H floor 1H'), time_column='timestamp')
+                df = monitoring_fs.to_dataframe(start_time=str_to_timestamp('now'),end_time=str_to_timestamp('now -1H'),time_column='timestamp')
 
                 timestamp = df["timestamp"].iloc[-1]
 

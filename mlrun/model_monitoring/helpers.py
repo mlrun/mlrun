@@ -30,6 +30,7 @@ def get_model_monitoring_stream_processing_function(
     http_source = mlrun.datastore.sources.HttpSource()
     fset.spec.source = http_source
 
+
     function = code_to_function(
         name="model-monitoring-stream",
         project=project,
@@ -111,6 +112,15 @@ def get_model_monitoring_batch_function(
         image="eyaligu/mlrun-api:monitoring-feature-set",
         handler="handler",
     )
+
+    # function: KubejobRuntime = code_to_function(
+    #     name="model-monitoring-batch",
+    #     project=project,
+    #     filename=str(MONIOTINRG_BATCH_FUNCTION_PATH),
+    #     kind="job",
+    #     image="mlrun/mlrun",
+    #     handler="handler",
+    # )
 
     # function: KubejobRuntime = mlrun.new_function(
     #     name="model-monitoring-batch",

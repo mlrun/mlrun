@@ -2454,6 +2454,36 @@ class TestFeatureStore(TestMLRunSystem):
         for expected in expected_target_names:
             assert fset.get_target_path(expected) is not None
 
+    def test_feature_vector_with_all_features_and_label_feature(self):
+        feature_set = FeatureSet("fs-label", entities=[Entity("ticker")])
+        fs.ingest(feature_set, stocks)
+        expected = stocks.to_dict()
+        expected.pop("ticker")
+
+        fv = fs.FeatureVector("fv-label", ["fs-label.*"], "fs-label.name")
+        res = fs.get_offline_features(fv)
+
+        assert res is not None
+        assert res.to_dataframe().to_dict() == expected
+
+    def test_get_offline_for_two_feature_set_with_same_column_name(self):
+        # This test is testing that all columns are returned with no failure even though
+        # two features sets and the label column has the column 'name'.
+        expected = ["fs1_exchange", "name", "fs2_name", "fs2_exchange"]
+
+        feature_set = FeatureSet("fs1", entities=[Entity("ticker")])
+        fs.ingest(feature_set, stocks)
+        feature_set = FeatureSet("fs2", entities=[Entity("ticker")])
+        fs.ingest(feature_set, stocks)
+
+        fv = fs.FeatureVector("fv-label", ["fs1.* as fs1", "fs2.* as fs2"], "fs1.name")
+        res = fs.get_offline_features(fv)
+
+        assert res is not None
+        assert len(expected) == len(res.to_dataframe().to_dict().keys())
+        for key in res.to_dataframe().to_dict().keys():
+            assert key in expected
+
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)

@@ -890,6 +890,18 @@ class CSVTarget(BaseStoreTarget):
             "header": "true",
         }
 
+    def prepare_spark_df(self, df):
+        import pyspark.sql.functions as funcs
+
+        for col_name, col_type in df.dtypes:
+            if col_type == "timestamp":
+                # df.write.csv saves timestamps with millisecond precision, but we want microsecond precision
+                # for compatibility with storey.
+                df = df.withColumn(
+                    col_name, funcs.date_format(col_name, "yyyy-MM-dd HH:mm:ss.SSSSSS")
+                )
+        return df
+
     def as_df(
         self,
         columns=None,

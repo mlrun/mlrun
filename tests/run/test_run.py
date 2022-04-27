@@ -48,7 +48,7 @@ def test_noparams():
     )
 
     assert result.output("accuracy") == 2, "failed to run"
-    assert result.status.artifacts[0].get("key") == "chart", "failed to run"
+    assert result.status.artifacts[0]["metadata"].get("key") == "chart", "failed to run"
 
     # verify the DF artifact was created and stored
     df = result.artifact("mydf").as_df()
@@ -90,7 +90,7 @@ def test_with_params():
     result = new_function().run(spec, handler=my_func)
 
     assert result.output("accuracy") == 16, "failed to run"
-    assert result.status.artifacts[0].get("key") == "chart", "failed to run"
+    assert result.status.artifacts[0]["metadata"].get("key") == "chart", "failed to run"
     assert result.artifact("chart").url, "failed to return artifact data item"
 
 
@@ -167,16 +167,18 @@ def test_local_context():
     db = mlrun.get_run_db()
     run = db.read_run(context._uid, project=project_name)
     assert run["status"]["state"] == "completed", "run status not updated in db"
-    assert run["status"]["artifacts"][0]["key"] == "xx", "artifact not updated in db"
     assert (
-        run["status"]["artifacts"][0]["format"] == "z"
+        run["status"]["artifacts"][0]["metadata"]["key"] == "xx"
+    ), "artifact not updated in db"
+    assert (
+        run["status"]["artifacts"][0]["spec"]["format"] == "z"
     ), "run/artifact attribute not updated in db"
     assert (
-        run["status"]["artifacts"][1]["target_path"] == out_path + "/mm/"
+        run["status"]["artifacts"][1]["spec"]["target_path"] == out_path + "/mm/"
     ), "artifact not uploaded to subpath"
 
     db_artifact = db.read_artifact(artifact.db_key, project=project_name)
-    assert db_artifact["format"] == "z", "artifact attribute not updated in db"
+    assert db_artifact["spec"]["format"] == "z", "artifact attribute not updated in db"
 
 
 def test_run_class_code():

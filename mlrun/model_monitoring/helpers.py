@@ -31,21 +31,21 @@ def get_model_monitoring_stream_processing_function(
     fset.spec.source = http_source
 
 
-    function = code_to_function(
-        name="model-monitoring-stream",
-        project=project,
-        filename=str(STREAM_PROCESSING_FUNCTION_PATH),
-        kind="serving",
-        image="eyaligu/mlrun-api:monitoring-feature-set",
-    )
-
-    # function = mlrun.new_function(
+    # function = code_to_function(
     #     name="model-monitoring-stream",
     #     project=project,
+    #     filename=str(STREAM_PROCESSING_FUNCTION_PATH),
     #     kind="serving",
     #     image="eyaligu/mlrun-api:monitoring-feature-set",
-    #     handler="mlrun.model_monitoring.stream_processing_fs.handler",
     # )
+
+    function = mlrun.new_function(
+        name="model-monitoring-stream",
+        project=project,
+        kind="serving",
+        image="eyaligu/mlrun-api:monitoring-feature-set",
+        handler="mlrun.model_monitoring.stream_processing_fs.handler",
+    )
 
     # add stream trigger
     function.metadata.project = project
@@ -103,15 +103,15 @@ def get_model_monitoring_batch_function(
 
     logger.info(f"Deploying model monitoring batch processing function [{project}]")
 
-    function: KubejobRuntime = code_to_function(
-        name="model-monitoring-batch",
-        project=project,
-        filename=str(MONIOTINRG_BATCH_FUNCTION_PATH),
-        kind="job",
-        # image="mlrun/mlrun",
-        image="eyaligu/mlrun-api:monitoring-feature-set",
-        handler="handler",
-    )
+    # function: KubejobRuntime = code_to_function(
+    #     name="model-monitoring-batch",
+    #     project=project,
+    #     filename=str(MONIOTINRG_BATCH_FUNCTION_PATH),
+    #     kind="job",
+    #     # image="mlrun/mlrun",
+    #     image="eyaligu/mlrun-api:monitoring-feature-set",
+    #     handler="handler",
+    # )
 
     # function: KubejobRuntime = code_to_function(
     #     name="model-monitoring-batch",
@@ -122,13 +122,13 @@ def get_model_monitoring_batch_function(
     #     handler="handler",
     # )
 
-    # function: KubejobRuntime = mlrun.new_function(
-    #     name="model-monitoring-batch",
-    #     project=project,
-    #     kind="job",
-    #     image="eyaligu/mlrun-api:monitoring-feature-set",
-    #     handler="mlrun.model_monitoring.model_monitoring_batch.handler",
-    # )
+    function: KubejobRuntime = mlrun.new_function(
+        name="model-monitoring-batch",
+        project=project,
+        kind="job",
+        image="eyaligu/mlrun-api:monitoring-feature-set",
+        handler="mlrun.model_monitoring.model_monitoring_batch.handler",
+    )
     function.set_db_connection(get_run_db_instance(db_session))
 
     function.metadata.project = project

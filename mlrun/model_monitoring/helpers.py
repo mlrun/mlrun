@@ -102,22 +102,23 @@ def get_model_monitoring_batch_function(
 
     logger.info(f"Deploying model monitoring batch processing function [{project}]")
 
-    # function: KubejobRuntime = code_to_function(
-    #     name="model-monitoring-batch",
-    #     project=project,
-    #     filename=str(MONIOTINRG_BATCH_FUNCTION_PATH),
-    #     kind="job",
-    #     image="mlrun/mlrun",
-    #     handler="handler",
-    # )
-
-    function: KubejobRuntime = mlrun.new_function(
+    function: KubejobRuntime = code_to_function(
         name="model-monitoring-batch",
         project=project,
+        filename=str(MONIOTINRG_BATCH_FUNCTION_PATH),
         kind="job",
+        # image="mlrun/mlrun",
         image="eyaligu/mlrun-api:monitoring-feature-set",
-        handler="mlrun.model_monitoring.model_monitoring_batch.handler",
+        handler="handler",
     )
+
+    # function: KubejobRuntime = mlrun.new_function(
+    #     name="model-monitoring-batch",
+    #     project=project,
+    #     kind="job",
+    #     image="eyaligu/mlrun-api:monitoring-feature-set",
+    #     handler="mlrun.model_monitoring.model_monitoring_batch.handler",
+    # )
     function.set_db_connection(get_run_db_instance(db_session))
 
     function.metadata.project = project

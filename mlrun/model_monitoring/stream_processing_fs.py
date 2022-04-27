@@ -434,7 +434,7 @@ class ProcessEndpointEvent(MapClass):
 
     def do(self, full_event):
         print('[EYAL]: ProcessEndpointEvent started')
-        print('[EYAL]: Full event at the beginning: ', full_event)
+        # print('[EYAL]: Full event at the beginning: ', full_event)
         event = full_event.body
 
         # code that calculates the endppint id. should be

@@ -132,7 +132,7 @@ def get_model_monitoring_batch_function(
     #     handler="mlrun.model_monitoring.model_monitoring_batch.handler",
     # )
 
-    function.run()
+    # function.run()
 
     function.set_db_connection(get_run_db_instance(db_session))
 

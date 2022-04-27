@@ -57,7 +57,7 @@ class TestDB(TestMLRunSystem):
         for artifact_key in ["chart", "html_result", "model", "mydf"]:
             artifact_exists = False
             for artifact in artifacts:
-                if artifact["key"] == artifact_key:
+                if artifact["metadata"]["key"] == artifact_key:
                     artifact_exists = True
                     break
             assert artifact_exists

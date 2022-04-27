@@ -14,6 +14,7 @@ from mlrun.run import MLClientCtx
 from mlrun.utils import config, logger
 from mlrun.utils.model_monitoring import EndpointType, parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
+import mlrun.feature_store as fstore
 
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f%z"
 
@@ -37,7 +38,13 @@ class TotalVarianceDistance:
 class HellingerDistance:
     """
     Hellinger distance is an f divergence measure, similar to the Kullback-Leibler (KL) divergence.
+    It used to quantify the difference between two probability distributions.
     However, unlike KL Divergence the Hellinger divergence is symmetric and bounded over a probability space.
+
+    :param distrib_t: array of distribution t
+    :param distrib_u: array of distribution u
+
+    :return: ndarray of Hellinger distance  .
     """
 
     distrib_t: np.ndarray
@@ -338,6 +345,13 @@ class BatchProcessor:
                     continue
 
                 df = pd.read_parquet(full_path)
+
+                # -- EYAL FROM HERE
+
+                monitoring_fs = fstore.get_feature_set(f"store://feature-sets/{self.project}/monitoring:latest")
+                df = monitoring_fs.to_dataframe()
+                print('[EYAL]: df was loaded from feature store: ', df)
+
                 timestamp = df["timestamp"].iloc[-1]
 
                 named_features_df = list(df["named_features"])

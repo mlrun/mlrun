@@ -11,7 +11,7 @@ import v3io
 from mlrun import get_run_db, store_manager
 from mlrun.data_types.infer import DFDataInfer, InferOptions
 from mlrun.run import MLClientCtx
-from mlrun.utils import config, logger
+from mlrun.utils import config, logger, str_to_timestamp
 from mlrun.utils.model_monitoring import EndpointType, parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 import mlrun.feature_store as fstore
@@ -312,28 +312,28 @@ class BatchProcessor:
             if endpoint.spec.active:
                 active_endpoints.add(endpoint.metadata.uid)
 
-        store, sub = store_manager.get_or_create_store(self.parquet_path)
-        prefix = self.parquet_path.replace(sub, "")
-        fs = store.get_filesystem(silent=False)
+        # store, sub = store_manager.get_or_create_store(self.parquet_path)
+        # prefix = self.parquet_path.replace(sub, "")
+        # fs = store.get_filesystem(silent=False)
 
-        if not fs.exists(sub):
-            logger.warn(f"{sub} does not exist")
-            return
+        # if not fs.exists(sub):
+        #     logger.warn(f"{sub} does not exist")
+        #     return
 
-        for endpoint_dir in fs.ls(sub):
-            endpoint_id = endpoint_dir["name"].split("=")[-1]
-            if endpoint_id not in active_endpoints:
-                continue
-
+        # for endpoint_dir in fs.ls(sub):
+        #     endpoint_id = endpoint_dir["name"].split("=")[-1]
+        #     if endpoint_id not in active_endpoints:
+        #         continue
+        for endpoint_id in active_endpoints:
             try:
-                last_year = self.get_last_created_dir(fs, endpoint_dir)
-                last_month = self.get_last_created_dir(fs, last_year)
-                last_day = self.get_last_created_dir(fs, last_month)
-                last_hour = self.get_last_created_dir(fs, last_day)
-
-                full_path = f"{prefix}{last_hour['name']}"
-
-                logger.info(f"Now processing {full_path}")
+                # last_year = self.get_last_created_dir(fs, endpoint_dir)
+                # last_month = self.get_last_created_dir(fs, last_year)
+                # last_day = self.get_last_created_dir(fs, last_month)
+                # last_hour = self.get_last_created_dir(fs, last_day)
+                #
+                # full_path = f"{prefix}{last_hour['name']}"
+                #
+                # logger.info(f"Now processing {full_path}")
 
                 endpoint = self.db.get_model_endpoint(
                     project=self.project, endpoint_id=endpoint_id
@@ -344,13 +344,12 @@ class BatchProcessor:
                     logger.info(f"{endpoint_id} is router skipping")
                     continue
 
-                df = pd.read_parquet(full_path)
+                # df = pd.read_parquet(full_path)
 
-                # -- EYAL FROM HERE
 
+                # loading monitoring features and metadata from feature store
                 monitoring_fs = fstore.get_feature_set(f"store://feature-sets/{self.project}/monitoring:latest")
-                df = monitoring_fs.to_dataframe()
-                print('[EYAL]: df was loaded from feature store: ', df)
+                df = monitoring_fs.to_dataframe(start_time=str_to_timestamp('now floor 1H'), end_time=str_to_timestamp('now -1H floor 1H'), time_column='timestamp')
 
                 timestamp = df["timestamp"].iloc[-1]
 

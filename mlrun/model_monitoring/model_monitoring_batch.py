@@ -44,13 +44,18 @@ class HellingerDistance:
     :param distrib_t: array of distribution t
     :param distrib_u: array of distribution u
 
-    :return: ndarray of Hellinger distance  .
+    :return: Hellinger distance (float)
     """
 
     distrib_t: np.ndarray
     distrib_u: np.ndarray
 
     def compute(self) -> float:
+        print('[EYAL]: distrib_t: ', self.distrib_t)
+        print('[EYAL]: distrib_u: ', self.distrib_u)
+        print('[EYAL]: Hellinger Distance: ', np.sqrt(
+            0.5 * ((np.sqrt(self.distrib_u) - np.sqrt(self.distrib_t)) ** 2).sum()
+        ))
         return np.sqrt(
             0.5 * ((np.sqrt(self.distrib_u) - np.sqrt(self.distrib_t)) ** 2).sum()
         )
@@ -62,6 +67,12 @@ class KullbackLeiblerDivergence:
     KL Divergence (or relative entropy) is a measure of how one probability distribution differs from another.
     It is an asymmetric measure (thus it's not a metric) and it doesn't satisfy the triangle inequality.
     KL Divergence of 0, indicates two identical distributions.
+
+    :param distrib_t: array of distribution t
+    :param distrib_u: array of distribution u
+
+    :return: KL Divergence (float)
+
     """
 
     distrib_t: np.ndarray
@@ -132,6 +143,20 @@ class VirtualDrift:
         return histograms
 
     def compute_metrics_over_df(self, base_histogram, latest_histogram):
+        """
+        Calculate each metric per feature for detecting drift
+
+        :param base_histogram: distribution of the features from the original sample set
+        :param latest_histogram: distribution of the features from the latest batch
+
+        :return: A dictionary in which for each metric we have feature values.
+
+        """
+
+
+        print('[EYAL]: Now in compute_metrics_over_df')
+        print('[EYAL]: Base Histogram: ', base_histogram)
+        print('[EYAL]: Latest Histogram: ', latest_histogram)
         drift_measures = {}
         for metric_name, metric in self.metrics.items():
             drift_measures[metric_name] = {
@@ -140,6 +165,7 @@ class VirtualDrift:
                 ).compute()
                 for feature in base_histogram
             }
+        print('[EYAL]: Drift Measures: ', drift_measures)
         return drift_measures
 
     def compute_drift_from_histograms(self, feature_stats, current_stats):

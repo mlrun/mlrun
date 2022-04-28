@@ -143,17 +143,15 @@ class VirtualDrift:
         return histograms
 
     def compute_metrics_over_df(self, base_histogram, latest_histogram):
-        """
-        Calculate each metric per feature for detecting drift
-
-        :param base_histogram: distribution of the features from the original sample set
-        :param latest_histogram: distribution of the features from the latest batch
-
-        :return: A dictionary in which for each metric we have feature values.
-
-        """
-
-
+        # """
+        # Calculate each metric per feature for detecting drift
+        #
+        # :param base_histogram: distribution of the features from the original sample set
+        # :param latest_histogram: distribution of the features from the latest batch
+        #
+        # :return: A dictionary in which for each metric we have feature values.
+        #
+        # """
         print('[EYAL]: Now in compute_metrics_over_df')
         print('[EYAL]: Base Histogram: ', base_histogram)
         print('[EYAL]: Latest Histogram: ', latest_histogram)

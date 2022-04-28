@@ -495,3 +495,66 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         storey_result_dict = storey_df.to_dict(orient="list")
 
         assert storey_result_dict == result_dict
+
+    def test_mix_of_partitioned_and_nonpartitioned_targets(self):
+        name = "test_mix_of_partitioned_and_nonpartitioned_targets"
+
+        path = "v3io:///bigdata/bla.parquet"
+        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        pd.DataFrame(
+            {
+                "time": [
+                    pd.Timestamp("2021-01-10 10:00:00"),
+                    pd.Timestamp("2021-01-10 11:00:00"),
+                ],
+                "first_name": ["moshe", "yosi"],
+                "data": [2000, 10],
+            }
+        ).to_parquet(path=path, filesystem=fsys)
+
+        source = ParquetSource(
+            "myparquet",
+            path=path,
+            time_field="time",
+        )
+
+        feature_set = fs.FeatureSet(
+            name=name,
+            entities=[fs.Entity("first_name")],
+            timestamp_key="time",
+            engine="spark",
+        )
+
+        partitioned_output_path = "v3io:///bigdata/partitioned/"
+        nonpartitioned_output_path = "v3io:///bigdata/nonpartitioned/"
+        targets = [
+            ParquetTarget(
+                name="tar1",
+                path=partitioned_output_path,
+                partitioned=True,
+            ),
+            ParquetTarget(
+                name="tar2", path=nonpartitioned_output_path, partitioned=False
+            ),
+        ]
+
+        fs.ingest(
+            feature_set,
+            source,
+            run_config=fs.RunConfig(local=False),
+            targets=targets,
+            spark_context=self.spark_service,
+        )
+
+        partitioned_df = pd.read_parquet(partitioned_output_path)
+        partitioned_df.set_index(["time"], inplace=True)
+        partitioned_df.drop(columns=["year", "month", "day", "hour"], inplace=True)
+        nonpartitioned_df = pd.read_parquet(nonpartitioned_output_path)
+        nonpartitioned_df.set_index(["time"], inplace=True)
+
+        pd.testing.assert_frame_equal(
+            partitioned_df,
+            nonpartitioned_df,
+            check_index_type=True,
+            check_column_type=True,
+        )

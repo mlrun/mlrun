@@ -126,6 +126,14 @@ When creating a job or a function, overwrite the default **Memory**, **CPU**, or
 
 ### SDK configuration
 
+Configure the limits assigned to a function by using `with_limits`. For example:
+
+```function.with_limits(mem="8G", cpu="3", gpus="1")```
+
+```{admonition} Note
+When specifying GPUs, MLRun uses `nvidia.com/gpu` as default GPU type. To use a different type of GPU, specify it using the optional `gpu_type` parameter.
+```
+
 ## Node affinity (node selectors)
 
 You can assign a node or a node group for services or for jobs executed by a service. When specified, the service or the pods of a function can only run on nodes whose 

@@ -155,14 +155,13 @@ class VirtualDrift:
         }
 
     def dict_to_histogram(self, histogram_dict):
-        """
-        convert histogram dictionary into pandas DataFrame with feature histograms as columns
-
-        :param histogram_dict:          Histogram dictionary
-
-        :return:                        histogram dataframe
-        """
-
+        # """
+        # convert histogram dictionary into pandas DataFrame with feature histograms as columns
+        #
+        # :param histogram_dict:          Histogram dictionary
+        #
+        # :return:                        histogram dataframe
+        # """
         # TODO EYAL - explain this loop - what is feature (the dataframe column) and what is stats (the values of this column)
         histograms = {}
         for feature, stats in histogram_dict.items():
@@ -190,17 +189,17 @@ class VirtualDrift:
         return histograms
 
     def compute_metrics_over_df(self, base_histogram, latest_histogram):
-        """
-        Calculate each metric per feature for detecting drift
-
-        :param base_histogram:          histogram dataframe that represents the distribution of the features from the
-                                        original training set
-        :param latest_histogram:        histogram dataframe that represents the distribution of the features from the
-                                        latest input batch
-
-        :return: A dictionary in which for each metric we have feature values.
-
-        """
+        # """
+        # Calculate each metric per feature for detecting drift
+        #
+        # :param base_histogram:          histogram dataframe that represents the distribution of the features from the
+        #                                 original training set
+        # :param latest_histogram:        histogram dataframe that represents the distribution of the features from the
+        #                                 latest input batch
+        #
+        # :return: A dictionary in which for each metric we have feature values.
+        #
+        # """
         print('[EYAL]: Now in compute_metrics_over_df')
         print('[EYAL]: Base Histogram: ', base_histogram)
         print('[EYAL]: Latest Histogram: ', latest_histogram)
@@ -218,18 +217,18 @@ class VirtualDrift:
 
     def compute_drift_from_histograms(self, feature_stats, current_stats):
         print('[EYAL]: now in compute_drift_from_histograms')
-        """
-        compare the distributions of both the original features data and the recent input data from the model server.
-        
-
-        :param feature_stats:           Histogram dictionary of the original feature dataset that was used in the 
-                                        model training
-        :param current_stats:           Histogram dictionary of the recent input data that was collected from the model
-                                        server 
-                                        
-        :return: A dictionary that includes the drift results for each feature.
-                                        
-        """
+        # """
+        # compare the distributions of both the original features data and the recent input data from the model server.
+        #
+        #
+        # :param feature_stats:           Histogram dictionary of the original feature dataset that was used in the
+        #                                 model training
+        # :param current_stats:           Histogram dictionary of the recent input data that was collected from the model
+        #                                 server
+        #
+        # :return: A dictionary that includes the drift results for each feature.
+        #
+        # """
 
         # Convert histogram dictionaries to DataFrame of the histograms
         # with feature histogram as cols
@@ -569,19 +568,19 @@ class BatchProcessor:
                 self.exception = e
 
     def check_for_drift(self, drift_result, endpoint):
-        """
-        Check for drift based on the defined decision rule and the calculated results
-
-
-        :param drift_result:           dictionary of the drift results for each metric per feature
-
-        :param endpoint:               Model endpoint
-
-
-        :return: Tuple with:
-            1. drift status (str) based on the
-            2. drift mean (float) based on the mean of Total Variance Distance and Hellinger distance
-        """
+        # """
+        # Check for drift based on the defined decision rule and the calculated results
+        #
+        #
+        # :param drift_result:           dictionary of the drift results for each metric per feature
+        #
+        # :param endpoint:               Model endpoint
+        #
+        #
+        # :return: Tuple with:
+        #     1. drift status (str) based on the
+        #     2. drift mean (float) based on the mean of Total Variance Distance and Hellinger distance
+        # """
 
         # Calculate drift mean value based on TVD and Hellinger distance
         tvd_mean = drift_result.get("tvd_mean")

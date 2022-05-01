@@ -1,5 +1,8 @@
 # Managing job resources
 
+MLRun orchestrates serverless functions over Kubernetes. You can specify the desired resource requirements (CPU, memory, GPUs) and preferences/priorities in the 
+logical function object. These are used during the function deployment.
+
 Configuration of job resources is relevant for all supported cloud platforms.
 
 <!--

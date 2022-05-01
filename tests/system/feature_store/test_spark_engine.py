@@ -13,7 +13,7 @@ import mlrun
 import mlrun.feature_store as fs
 from mlrun import store_manager
 from mlrun.datastore.sources import CSVSource, ParquetSource
-from mlrun.datastore.targets import NoSqlTarget, ParquetTarget
+from mlrun.datastore.targets import CSVTarget, NoSqlTarget, ParquetTarget
 from mlrun.features import Entity
 from tests.system.base import TestMLRunSystem
 
@@ -159,6 +159,62 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 spark_context=self.spark_service,
                 run_config=fs.RunConfig(local=False),
             )
+
+    def test_ingest_to_csv(self):
+        key = "patient_id"
+        csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
+        csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
+
+        measurements = fs.FeatureSet(
+            "measurements_spark",
+            entities=[fs.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        fs.ingest(
+            measurements,
+            source,
+            targets,
+            spark_context=self.spark_service,
+            run_config=fs.RunConfig(local=False),
+        )
+        csv_path_spark = measurements.get_target_path(name="csv")
+
+        measurements = fs.FeatureSet(
+            "measurements_storey",
+            entities=[fs.Entity(key)],
+            timestamp_key="timestamp",
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_storey)]
+        fs.ingest(
+            measurements,
+            source,
+            targets,
+        )
+        csv_path_storey = measurements.get_target_path(name="csv")
+
+        read_back_df_spark = None
+        file_system = fsspec.filesystem("v3io")
+        for file_entry in file_system.ls(csv_path_spark):
+            filepath = file_entry["name"]
+            if not filepath.endswith("/_SUCCESS"):
+                read_back_df_spark = pd.read_csv(f"v3io://{filepath}")
+                break
+        assert read_back_df_spark is not None
+
+        read_back_df_storey = None
+        for file_entry in file_system.ls(csv_path_storey):
+            filepath = file_entry["name"]
+            read_back_df_storey = pd.read_csv(f"v3io://{filepath}")
+            break
+        assert read_back_df_storey is not None
+
+        assert read_back_df_spark.sort_index(axis=1).equals(
+            read_back_df_storey.sort_index(axis=1)
+        )
 
     @pytest.mark.parametrize("partitioned", [True, False])
     def test_schedule_on_filtered_by_time(self, partitioned):
@@ -439,3 +495,66 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         storey_result_dict = storey_df.to_dict(orient="list")
 
         assert storey_result_dict == result_dict
+
+    def test_mix_of_partitioned_and_nonpartitioned_targets(self):
+        name = "test_mix_of_partitioned_and_nonpartitioned_targets"
+
+        path = "v3io:///bigdata/bla.parquet"
+        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        pd.DataFrame(
+            {
+                "time": [
+                    pd.Timestamp("2021-01-10 10:00:00"),
+                    pd.Timestamp("2021-01-10 11:00:00"),
+                ],
+                "first_name": ["moshe", "yosi"],
+                "data": [2000, 10],
+            }
+        ).to_parquet(path=path, filesystem=fsys)
+
+        source = ParquetSource(
+            "myparquet",
+            path=path,
+            time_field="time",
+        )
+
+        feature_set = fs.FeatureSet(
+            name=name,
+            entities=[fs.Entity("first_name")],
+            timestamp_key="time",
+            engine="spark",
+        )
+
+        partitioned_output_path = "v3io:///bigdata/partitioned/"
+        nonpartitioned_output_path = "v3io:///bigdata/nonpartitioned/"
+        targets = [
+            ParquetTarget(
+                name="tar1",
+                path=partitioned_output_path,
+                partitioned=True,
+            ),
+            ParquetTarget(
+                name="tar2", path=nonpartitioned_output_path, partitioned=False
+            ),
+        ]
+
+        fs.ingest(
+            feature_set,
+            source,
+            run_config=fs.RunConfig(local=False),
+            targets=targets,
+            spark_context=self.spark_service,
+        )
+
+        partitioned_df = pd.read_parquet(partitioned_output_path)
+        partitioned_df.set_index(["time"], inplace=True)
+        partitioned_df.drop(columns=["year", "month", "day", "hour"], inplace=True)
+        nonpartitioned_df = pd.read_parquet(nonpartitioned_output_path)
+        nonpartitioned_df.set_index(["time"], inplace=True)
+
+        pd.testing.assert_frame_equal(
+            partitioned_df,
+            nonpartitioned_df,
+            check_index_type=True,
+            check_column_type=True,
+        )

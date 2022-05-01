@@ -10,6 +10,10 @@ MLRun supports:
 
 Function objects are all inclusive (code, spec, API, and metadata definitions), which allows placing them in a shared and versioned function market place. This means that different members of the team can produce or consume functions. Each function is versioned and stored in the MLRun database with a unique hash code, and gets a new hash code upon changes. There is also an open public marketplace that stores many pre-developed functions for use in your projects.
 
+MLRun also has an open [public marketplace](https://www.mlrun.org/marketplace/functions/) that stores many pre-developed functions for
+use in your projects. 
+
+<img src="../_static/images/mlrun-functions.png" alt="mlrun-architecture" width="600"/><br>
 
 **In this section**
 
@@ -19,4 +23,7 @@ Function objects are all inclusive (code, spec, API, and metadata definitions), 
 functions-overview
 ../runtimes/distributed
 nuclio-real-time-functions
+../runtimes/node-affinity
 ```
+
+See also [Creating and using functions](../runtimes/functions).

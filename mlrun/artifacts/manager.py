@@ -16,14 +16,36 @@ import pathlib
 from os.path import isdir
 
 from ..db import RunDBInterface
-from ..utils import logger, uxjoin
-from .base import Artifact, DirArtifact, LinkArtifact
-from .dataset import DatasetArtifact, TableArtifact
-from .model import ModelArtifact
-from .plots import ChartArtifact, PlotArtifact
+from ..utils import is_legacy_artifact, logger, uxjoin
+from .base import (
+    Artifact,
+    DirArtifact,
+    LegacyArtifact,
+    LegacyDirArtifact,
+    LegacyLinkArtifact,
+    LinkArtifact,
+)
+from .dataset import (
+    DatasetArtifact,
+    LegacyDatasetArtifact,
+    LegacyTableArtifact,
+    TableArtifact,
+)
+from .model import LegacyModelArtifact, ModelArtifact
+from .plots import (
+    BokehArtifact,
+    ChartArtifact,
+    LegacyBokehArtifact,
+    LegacyChartArtifact,
+    LegacyPlotArtifact,
+    LegacyPlotlyArtifact,
+    PlotArtifact,
+    PlotlyArtifact,
+)
 
 artifact_types = {
     "": Artifact,
+    "artifact": Artifact,
     "dir": DirArtifact,
     "link": LinkArtifact,
     "plot": PlotArtifact,
@@ -31,6 +53,22 @@ artifact_types = {
     "table": TableArtifact,
     "model": ModelArtifact,
     "dataset": DatasetArtifact,
+    "plotly": PlotlyArtifact,
+    "bokeh": BokehArtifact,
+}
+
+# TODO - Remove this when legacy types are deleted (1.2.0?)
+legacy_artifact_types = {
+    "": LegacyArtifact,
+    "dir": LegacyDirArtifact,
+    "link": LegacyLinkArtifact,
+    "plot": LegacyPlotArtifact,
+    "chart": LegacyChartArtifact,
+    "table": LegacyTableArtifact,
+    "model": LegacyModelArtifact,
+    "dataset": LegacyDatasetArtifact,
+    "plotly": LegacyPlotlyArtifact,
+    "bokeh": LegacyBokehArtifact,
 }
 
 
@@ -50,8 +88,15 @@ class ArtifactProducer:
 
 
 def dict_to_artifact(struct: dict):
+    # Need to distinguish between LegacyArtifact classes and Artifact classes. Use existence of the "metadata"
+    # property to make this distinction
     kind = struct.get("kind", "")
-    artifact_class = artifact_types[kind]
+
+    if is_legacy_artifact(struct):
+        artifact_class = legacy_artifact_types[kind]
+    else:
+        artifact_class = artifact_types[kind]
+
     return artifact_class.from_dict(struct)
 
 

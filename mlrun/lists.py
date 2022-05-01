@@ -23,7 +23,7 @@ import mlrun.frameworks
 from .artifacts import Artifact, dict_to_artifact
 from .config import config
 from .render import artifacts_to_html, runs_to_html
-from .utils import flatten, get_artifact_target, get_in
+from .utils import flatten, get_artifact_target, get_in, is_legacy_artifact
 
 list_header = [
     "project",
@@ -167,21 +167,22 @@ class ArtifactList(list):
         """return the artifact list as flattened rows"""
         rows = []
         head = {
-            "tree": "",
-            "key": "",
-            "iter": "",
-            "kind": "",
-            "path": "target_path",
-            "hash": "",
-            "viewer": "",
-            "updated": "",
-            "description": "",
-            "producer": "",
-            "sources": "",
-            "labels": "",
+            "tree": ["tree", "metadata.tree"],
+            "key": ["key", "metadata.key"],
+            "iter": ["iter", "metadata.iter"],
+            "kind": ["kind", "kind"],
+            "path": ["target_path", "spec.target_path"],
+            "hash": ["hash", "metadata.hash"],
+            "viewer": ["viewer", "spec.viewer"],
+            "updated": ["updated", "metadata.updated"],
+            "description": ["description", "metadata.description"],
+            "producer": ["producer", "spec.producer"],
+            "sources": ["sources", "spec.sources"],
+            "labels": ["labels", "metadata.labels"],
         }
         for artifact in self:
-            row = [get_in(artifact, v or k, "") for k, v in head.items()]
+            fields_index = 0 if is_legacy_artifact(artifact) else 1
+            row = [get_in(artifact, v[fields_index], "") for k, v in head.items()]
             rows.append(row)
 
         return [head.keys()] + rows

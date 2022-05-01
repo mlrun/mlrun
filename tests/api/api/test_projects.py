@@ -1215,6 +1215,7 @@ def _create_artifacts(client: TestClient, project_name, artifacts_count, kind):
             artifact = {
                 "kind": kind,
                 "metadata": {"key": key, "project": project_name},
+                "spec": {"src_path": "/some/local/path"},
             }
             response = client.post(
                 f"artifact/{project_name}/{uid}/{key}", json=artifact

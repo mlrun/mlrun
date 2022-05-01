@@ -169,8 +169,7 @@ class VirtualDrift:
         print('[EYAL]: Feature example: ', feature)
         print('[EYAL]: stats example: ', stats)
 
-        print('[EYAL]: Histograms columns before concat: ', histograms.columns)
-        print('[EYAL]: Histogram values before concat: ', histograms.values)
+        print('[EYAL]: Histograms dictionary before concat: ', histograms)
 
         # TODO EYAL - explain this loop
         # Get features value counts

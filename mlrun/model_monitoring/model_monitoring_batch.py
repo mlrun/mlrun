@@ -159,14 +159,24 @@ class VirtualDrift:
 
     def dict_to_histogram(self, histogram_dict):
         """
+        convert histogram dictionary into pandas DataFrame with feature histograms as columns
 
+        :param histogram_dict:          Histogram dictionary
 
-        :param histogram_dict:
+        :return:                        histogram dataframe
         """
+
+        # TODO EYAL - explain this loop - what is feature (the dataframe column) and what is stats (the values of this column)
         histograms = {}
         for feature, stats in histogram_dict.items():
             histograms[feature] = stats["hist"][0]
+        print('[EYAL]: Feature example: ', feature)
+        print('[EYAL]: stats example: ', stats)
 
+        print('[EYAL]: Histograms columns before concat: ', histograms.columns)
+        print('[EYAL]: Histogram values before concat: ', histograms.values)
+
+        # TODO EYAL - explain this loop
         # Get features value counts
         histograms = pd.concat(
             [
@@ -177,21 +187,27 @@ class VirtualDrift:
         )
         # To Distribution
         histograms = histograms / histograms.sum()
+
+        print('[EYAL]: Histograms dataframe columns: ', histograms.columns)
+        print('[EYAL]: Histogram values: ', histograms.values)
         return histograms
 
     def compute_metrics_over_df(self, base_histogram, latest_histogram):
-        # """
-        # Calculate each metric per feature for detecting drift
-        #
-        # :param base_histogram: distribution of the features from the original sample set
-        # :param latest_histogram: distribution of the features from the latest batch
-        #
-        # :return: A dictionary in which for each metric we have feature values.
-        #
-        # """
+        """
+        Calculate each metric per feature for detecting drift
+
+        :param base_histogram:          histogram dataframe that represents the distribution of the features from the
+                                        original training set
+        :param latest_histogram:        histogram dataframe that represents the distribution of the features from the
+                                        latest input batch
+
+        :return: A dictionary in which for each metric we have feature values.
+
+        """
         print('[EYAL]: Now in compute_metrics_over_df')
         print('[EYAL]: Base Histogram: ', base_histogram)
         print('[EYAL]: Latest Histogram: ', latest_histogram)
+        # Compute each metric for each feature distributions and store the results in dictionary
         drift_measures = {}
         for metric_name, metric in self.metrics.items():
             drift_measures[metric_name] = {
@@ -204,15 +220,28 @@ class VirtualDrift:
         return drift_measures
 
     def compute_drift_from_histograms(self, feature_stats, current_stats):
-        # Process histogram dictionaries to Dataframe of the histograms
-        # with Feature histogram as cols
+        print('[EYAL]: now in compute_drift_from_histograms')
+        """
+        compare the distributions of both the original features data and the recent input data from the model server.
+        
+
+        :param feature_stats:           Histogram dictionary of the original feature dataset that was used in the 
+                                        model training
+        :param current_stats:           Histogram dictionary of the recent input data that was collected from the model
+                                        server 
+                                        
+        :return: A dictionary that includes the drift results for each feature.
+                                        
+        """
+
+        # Convert histogram dictionaries to DataFrame of the histograms
+        # with feature histogram as cols
         base_histogram = self.dict_to_histogram(feature_stats)
         latest_histogram = self.dict_to_histogram(current_stats)
 
         # Verify all the features exist between datasets
         base_features = set(base_histogram.columns)
         latest_features = set(latest_histogram.columns)
-
         features_common = list(base_features.intersection(latest_features))
         feature_difference = list(base_features ^ latest_features)
 
@@ -220,7 +249,7 @@ class VirtualDrift:
             raise ValueError(
                 f"No common features found: {base_features} <> {latest_features}"
             )
-
+        # Drop columns of non-exist features
         base_histogram = base_histogram.drop(
             feature_difference, axis=1, errors="ignore"
         )
@@ -228,7 +257,7 @@ class VirtualDrift:
             feature_difference, axis=1, errors="ignore"
         )
 
-        # Compute the drift per feature
+        # Compute the drift metric per feature
         features_drift_measures = self.compute_metrics_over_df(
             base_histogram.loc[:, features_common],
             latest_histogram.loc[:, features_common],
@@ -246,8 +275,11 @@ class VirtualDrift:
                     feature_values, self.feature_weights
                 )
 
+        # Define drift result dictionary with values as a dictionary
         drift_result = defaultdict(dict)
 
+        # Fill drift result dictionary with the features drift measures
+        # and the total sum and mean of each statistical metric
         for feature in features_common:
             for metric, values in features_drift_measures.items():
                 drift_result[feature][metric] = values[feature]
@@ -260,6 +292,10 @@ class VirtualDrift:
                     weighted_mean = metric_measure["total_weighted_mean"]
                     drift_result[f"{metric}_weighted_mean"] = weighted_mean
 
+        print('[EYAL]: drift_result dictionary after the loop: ', drift_result)
+
+        # Compute the drift metric for the labels
+        # It is a crucial part of identifying a possible concept drift
         if self.label_col:
             label_drift_measures = self.compute_metrics_over_df(
                 base_histogram.loc[:, self.label_col],
@@ -268,6 +304,8 @@ class VirtualDrift:
             for metric, values in label_drift_measures.items():
                 drift_result[self.label_col][metric] = values[metric]
 
+        # Compute the drift metric for the predictions
+        # It is a crucial part of identifying a possible concept drift
         if self.prediction_col:
             prediction_drift_measures = self.compute_metrics_over_df(
                 base_histogram.loc[:, self.prediction_col],
@@ -413,6 +451,8 @@ class BatchProcessor:
         #     endpoint_id = endpoint_dir["name"].split("=")[-1]
         #     if endpoint_id not in active_endpoints:
         #         continue
+
+        # For each model endpoint, we calculate the drift analysis
         for endpoint_id in active_endpoints:
             try:
                 # last_year = self.get_last_created_dir(fs, endpoint_dir)
@@ -424,10 +464,12 @@ class BatchProcessor:
                 #
                 # logger.info(f"Now processing {full_path}")
 
+                # Get model endpoint object
                 endpoint = self.db.get_model_endpoint(
                     project=self.project, endpoint_id=endpoint_id
                 )
 
+                # Skip router endpoint
                 if endpoint.status.endpoint_type == EndpointType.ROUTER:
                     # endpoint.status.feature_stats is None
                     logger.info(f"{endpoint_id} is router skipping")
@@ -442,23 +484,28 @@ class BatchProcessor:
                 # df = monitoring_fs.to_dataframe(start_time=str_to_timestamp('now'),end_time=str_to_timestamp('now -1H'),time_column='timestamp')
                 df = monitoring_fs.to_dataframe()
 
-
+                # get the timestamp of the latest request
                 timestamp = df["timestamp"].iloc[-1]
 
+                # Create DataFrame based on the input features
                 named_features_df = list(df["named_features"])
                 named_features_df = pd.DataFrame(named_features_df)
 
+                # Get the current stats that are represented by histogram of each feature within the dataset
                 current_stats = DFDataInfer.get_stats(
                     df=named_features_df, options=InferOptions.Histogram
                 )
+                print('[EYAL]: Curren Stats: ', current_stats)
 
+                # compute the drift based on the distribution of the current stats and the distribution of
+                # the feature stats which is stored in the model endpoint object
                 drift_result = self.virtual_drift.compute_drift_from_histograms(
                     feature_stats=endpoint.status.feature_stats,
                     current_stats=current_stats,
                 )
-
                 logger.info("Drift result", drift_result=drift_result)
 
+                # Check for possible drift based on the results of the statistical metrics
                 drift_status, drift_measure = self.check_for_drift(
                     drift_result=drift_result, endpoint=endpoint
                 )
@@ -470,6 +517,7 @@ class BatchProcessor:
                     drift_measure=drift_measure,
                 )
 
+                # if drift was detected, add the results to the input stream
                 if drift_status == "POSSIBLE_DRIFT" or drift_status == "DRIFT_DETECTED":
                     self.v3io.stream.put_records(
                         container=self.stream_container,
@@ -488,6 +536,7 @@ class BatchProcessor:
                         ],
                     )
 
+                # update the results in the KV table
                 self.v3io.kv.update(
                     container=self.kv_container,
                     table_path=self.kv_path,
@@ -499,6 +548,7 @@ class BatchProcessor:
                     },
                 )
 
+                # update the results in tsdb
                 tsdb_drift_measures = {
                     "endpoint_id": endpoint_id,
                     "timestamp": pd.to_datetime(timestamp, format=TIME_FORMAT),
@@ -522,14 +572,31 @@ class BatchProcessor:
                 self.exception = e
 
     def check_for_drift(self, drift_result, endpoint):
+        """
+        Check for drift based on the defined decision rule and the calculated results
+
+
+        :param drift_result:           dictionary of the drift results for each metric per feature
+
+        :param endpoint:               Model endpoint
+
+
+        :return: Tuple with:
+            1. drift status (str) based on the
+            2. drift mean (float) based on the mean of Total Variance Distance and Heelinger distance
+
+        """
+
+        # Calculate drift mean value based on TVD and Hellinger distance
         tvd_mean = drift_result.get("tvd_mean")
         hellinger_mean = drift_result.get("hellinger_mean")
-
         drift_mean = 0.0
         if tvd_mean and hellinger_mean:
             drift_mean = (tvd_mean + hellinger_mean) / 2
 
+        # get drift thresholds from model configuration
         monitor_configuration = endpoint.spec.monitor_configuration or {}
+        print('[EYAL]: Monitor Configruation: ', monitor_configuration)
 
         possible_drift = monitor_configuration.get(
             "possible_drift", self.default_possible_drift_threshold
@@ -538,6 +605,7 @@ class BatchProcessor:
             "possible_drift", self.default_drift_detected_threshold
         )
 
+        # decision rule for drift detection
         drift_status = "NO_DRIFT"
         if drift_mean >= drift_detected:
             drift_status = "DRIFT_DETECTED"

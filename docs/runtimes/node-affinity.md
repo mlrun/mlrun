@@ -43,7 +43,26 @@ When creating a job or a function, overwrite the default **Memory**, **CPU**, or
 
 Configure the limits assigned to a function by using `with_limits`. For example:
 
-```function.with_limits(mem="8G", cpu="3", gpus="1")```
+```
+import mlrun
+import os
+fn = mlrun.import_function("hub://xgb_trainer")
+fn.spec.build.base_image = "mlrun/ml-models"
+
+# Increase function limits beyond default values, and require GPUs
+fn.with_limits(mem="16G", cpu="4", gpus="2")
+task_params = {"model_type": "classifier",
+               "CLASS_tree_method": "hist",
+               "CLASS_objective": "binary:logistic",
+               "CLASS_booster": "gbtree",
+               "FIT_verbose": 0,
+               "label_column": "labels"}
+ 
+   
+train_run = fn.run(params = task_params, 
+                   inputs={"dataset"  : 'https://s3.wasabisys.com/iguazio/data/function-marketplace-data/xgb_trainer/classifier-data.csv',
+                           "models_dest": os.getcwd() + "/"+"models"})
+```
 
 ```{admonition} Note
 When specifying GPUs, MLRun uses `nvidia.com/gpu` as default GPU type. To use a different type of GPU, specify it using the optional `gpu_type` parameter.
@@ -127,8 +146,27 @@ Configure the Spot node support for individual Nuclio functions when creating a 
 Configure preemption mode by adding the parameter in your Jupyter notebook, specifying a mode from the list of values above. <br>
 For example:
 
-```func.with_preemption_mode(mode={value})```
+```
+import mlrun
+import os
+fn = mlrun.import_function("hub://xgb_trainer")
+fn.spec.build.base_image = "mlrun/ml-models"
 
+# Don't allow the function to run on Spot nodes
+fn.with_preemption_mode(mode="prevent")
+task_params = {"model_type": "classifier",
+               "CLASS_tree_method": "hist",
+               "CLASS_objective": "binary:logistic",
+               "CLASS_booster": "gbtree",
+               "FIT_verbose": 0,
+               "label_column": "labels"}
+ 
+   
+train_run = fn.run(params = task_params, 
+                   inputs={"dataset"  : 'https://s3.wasabisys.com/iguazio/data/function-marketplace-data/xgb_trainer/classifier-data.csv',
+                           "models_dest": os.getcwd() + "/"+"models"})
+```
+                           
 See [with_node_selection](api/mlrun.runtimes.#mlrun.runtimes.RemoteRuntime.with_node_selection).
 
 

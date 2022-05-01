@@ -33,8 +33,8 @@ class TotalVarianceDistance:
     def compute(self) -> float:
         # """
         # Calculate Total variance distance
-        # :param distrib_t:       array of distribution t
-        # :param distrib_u:       array of distribution u
+        # :param distrib_t: array of distribution t (usually the latest dataset distribution)
+        # :param distrib_u: array of distribution u (usutally the training dataset distribution)
         # :return:                Total Variance Distance (float)
         # """
         return np.sum(np.abs(self.distrib_t - self.distrib_u)) / 2
@@ -47,8 +47,8 @@ class HellingerDistance:
     It used to quantify the difference between two probability distributions.
     However, unlike KL Divergence the Hellinger divergence is symmetric and bounded over a probability space.
 
-    :param distrib_t: array of distribution t
-    :param distrib_u: array of distribution u
+    :param distrib_t: array of distribution t (usually the latest dataset distribution)
+    :param distrib_u: array of distribution u (usutally the training dataset distribution)
 
     :return: Hellinger distance (float)
     """
@@ -74,8 +74,8 @@ class KullbackLeiblerDivergence:
     It is an asymmetric measure (thus it's not a metric) and it doesn't satisfy the triangle inequality.
     KL Divergence of 0, indicates two identical distributions.
 
-    :param distrib_t: array of distribution t
-    :param distrib_u: array of distribution u
+    :param distrib_t: array of distribution t (usually the latest dataset distribution)
+    :param distrib_u: array of distribution u (usutally the training dataset distribution)
 
     :return: KL Divergence (float)
 
@@ -163,6 +163,7 @@ class VirtualDrift:
         # :return:                        histogram dataframe
         # """
         # TODO EYAL - explain this loop - what is feature (the dataframe column) and what is stats (the values of this column)
+        # create a dictionary in which for each feature we keep it's histogram values
         histograms = {}
         for feature, stats in histogram_dict.items():
             histograms[feature] = stats["hist"][0]
@@ -171,34 +172,29 @@ class VirtualDrift:
 
         print('[EYAL]: Histograms dictionary before concat: ', histograms)
 
-        # TODO EYAL - explain this loop
-        # Get features value counts
-        histograms = pd.concat(
-            [
-                pd.DataFrame(data=hist, columns=[feature])
-                for feature, hist in histograms.items()
-            ],
-            axis=1,
-        )
-        # To Distribution
+        # convert dictionary to pandas DataFrame
+        histograms = pd.DataFrame(histograms)
+
+        # Normalize to probability distribution of each feature
         histograms = histograms / histograms.sum()
 
-        print('[EYAL]: Histograms dataframe columns: ', histograms.columns)
-        print('[EYAL]: Histogram values: ', histograms.values)
         return histograms
 
     def compute_metrics_over_df(self, base_histogram, latest_histogram):
-        # """
-        # Calculate each metric per feature for detecting drift
-        #
-        # :param base_histogram:          histogram dataframe that represents the distribution of the features from the
-        #                                 original training set
-        # :param latest_histogram:        histogram dataframe that represents the distribution of the features from the
-        #                                 latest input batch
-        #
-        # :return: A dictionary in which for each metric we have feature values.
-        #
-        # """
+        """
+        Calculate each metric per feature for detecting drift
+
+        :param base_histogram:          histogram dataframe that represents the distribution of the features from the
+                                        original training set
+        :param latest_histogram:        histogram dataframe that represents the distribution of the features from the
+                                        latest input batch
+
+        :return: A dictionary in which for each metric (key) we keep the values for each feature.
+
+        For example:
+        {tvd: {feature_1: 0.001, feature_2: 0.2: ,...}}
+
+        """
         print('[EYAL]: Now in compute_metrics_over_df')
         print('[EYAL]: Base Histogram: ', base_histogram)
         print('[EYAL]: Latest Histogram: ', latest_histogram)
@@ -289,8 +285,7 @@ class VirtualDrift:
 
         print('[EYAL]: drift_result dictionary after the loop: ', drift_result)
 
-        # Compute the drift metric for the labels
-        # It is a crucial part of identifying a possible concept drift
+        # Compute the drift metric for the labels (crucial part for concept drift detection)
         if self.label_col:
             label_drift_measures = self.compute_metrics_over_df(
                 base_histogram.loc[:, self.label_col],
@@ -487,6 +482,8 @@ class BatchProcessor:
                 named_features_df = pd.DataFrame(named_features_df)
 
                 # Get the current stats that are represented by histogram of each feature within the dataset
+                # In the following dictionary, each key is a feature with dictionary of stats
+                # (including histogram distribution) as a value
                 current_stats = DFDataInfer.get_stats(
                     df=named_features_df, options=InferOptions.Histogram
                 )

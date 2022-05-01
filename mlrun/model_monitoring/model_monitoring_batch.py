@@ -31,6 +31,15 @@ class TotalVarianceDistance:
     distrib_u: np.ndarray
 
     def compute(self) -> float:
+        """
+        Calculate Total variance distance
+
+        :param distrib_t:       array of distribution t
+        :param distrib_u:       array of distribution u
+
+        :return:                Total Variance Distance (float)
+
+        """
         return np.sum(np.abs(self.distrib_t - self.distrib_u)) / 2
 
 
@@ -108,6 +117,14 @@ class KullbackLeiblerDivergence:
 
 
 class VirtualDrift:
+
+    """
+    Virtual Drift object is used for handling the drift analysis calculations.
+    It contains the metric objects and the related methods for the detection of potential drifting
+    based on the given metric objects.
+
+    """
+
     def __init__(
         self,
         prediction_col: Optional[str] = None,
@@ -115,10 +132,25 @@ class VirtualDrift:
         feature_weights: Optional[List[float]] = None,
         inf_capping: Optional[float] = 10,
     ):
+        """
+        Initialize a Virtual Drift object
+
+        :param prediction_col:          The name of the dataframe column which represents the predictions of the model.
+                                        If provided, it will be used for calculating drift over the predictinos.
+        :param label_col:               The name of the dataframe column which represents the labels of the model.
+                                        If provided, it will be used for calculating drift over the labels.
+        :param feature_weights:         Weights that can be apply to the features and take into account during the drift analysis
+        :param inf_capping:             A possible bounder for the results of the statistical metric.
+                                        For example, when calculating KL divergence and getting infinite distance, the result
+                                        is replaced with the capping value.
+
+        """
         self.prediction_col = prediction_col
         self.label_col = label_col
         self.feature_weights = feature_weights
         self.capping = inf_capping
+
+        # Initialize objects of the current metrics
         self.metrics = {
             "tvd": TotalVarianceDistance,
             "hellinger": HellingerDistance,
@@ -126,6 +158,11 @@ class VirtualDrift:
         }
 
     def dict_to_histogram(self, histogram_dict):
+        """
+
+
+        :param histogram_dict:
+        """
         histograms = {}
         for feature, stats in histogram_dict.items():
             histograms[feature] = stats["hist"][0]
@@ -243,6 +280,12 @@ class VirtualDrift:
 
 
 class BatchProcessor:
+    """
+    The main object to handle the batch processing job. This object is used to get the required configurations and
+    to manage the main monitoring drift detection process based on the current batch.
+    Note that the BatchProcessor object requires access keys along with valid project configurations.
+
+    """
     def __init__(
         self,
         context: MLClientCtx,
@@ -250,6 +293,16 @@ class BatchProcessor:
         model_monitoring_access_key: str,
         v3io_access_key: str,
     ):
+
+        """
+        Initialize Batch Processor object.
+
+        :param context:                         A MLrun context.
+        :param project:                         Project name.
+        :param model_monitoring_access_key:     Access key to apply the model monitoring process.
+        :param v3io_access_key:                 Token key for v3io.
+
+        """
         self.context = context
         self.project = project
 
@@ -258,23 +311,23 @@ class BatchProcessor:
             model_monitoring_access_key or v3io_access_key
         )
 
+        # Initialize virtual drift object
         self.virtual_drift = VirtualDrift(inf_capping=10)
 
+        # Define the required paths for the project objects
+        # Note that the kv table, tsdb, and the input stream paths are located at the default location
+        # while the parquet path is located at the user-space location
         template = config.model_endpoint_monitoring.store_prefixes.default
-
         kv_path = template.format(project=self.project, kind="endpoints")
         _, self.kv_container, self.kv_path = parse_model_endpoint_store_prefix(kv_path)
-
         tsdb_path = template.format(project=project, kind="events")
         _, self.tsdb_container, self.tsdb_path = parse_model_endpoint_store_prefix(
             tsdb_path
         )
-
         stream_path = template.format(project=self.project, kind="log_stream")
         _, self.stream_container, self.stream_path = parse_model_endpoint_store_prefix(
             stream_path
         )
-
         self.parquet_path = (
             config.model_endpoint_monitoring.store_prefixes.user_space.format(
                 project=project, kind="parquet"
@@ -295,6 +348,7 @@ class BatchProcessor:
             stream_path=self.stream_path,
         )
 
+        # Get the drift thresholds from the model monitoring configurations
         self.default_possible_drift_threshold = (
             config.model_endpoint_monitoring.drift_thresholds.default.possible_drift
         )
@@ -302,16 +356,25 @@ class BatchProcessor:
             config.model_endpoint_monitoring.drift_thresholds.default.drift_detected
         )
 
+        # get a runtime database
         self.db = get_run_db()
+
+        # get the frames clients based on the v3io configuration
+        # it will be used later for writing the results into the tsdb
         self.v3io = get_v3io_client(access_key=self.v3io_access_key)
         self.frames = get_frames_client(
             address=config.v3io_framesd,
             container=self.tsdb_container,
             token=self.v3io_access_key,
         )
+
+        # if an error occurs, it will be raised using this argument
         self.exception = None
 
     def post_init(self):
+        """pre-process of the batch processing"""
+
+        # create v3io stream based on the input stream
         response = self.v3io.create_stream(
             container=self.stream_container,
             path=self.stream_path,
@@ -324,7 +387,9 @@ class BatchProcessor:
             response.raise_for_status([409, 204, 403])
 
     def run(self):
+        '''Main method for manage the drift analysis and write the results into tsdb and KV table'''
 
+        # get model endpoints (each deployed project has at least 1 serving model)
         try:
             endpoints = self.db.list_model_endpoints(self.project)
         except Exception as e:
@@ -373,8 +438,10 @@ class BatchProcessor:
 
                 # loading monitoring features and metadata from feature store
                 monitoring_fs = fstore.get_feature_set(f"store://feature-sets/{self.project}/monitoring:latest")
-                # df = monitoring_fs.to_dataframe(start_time=str_to_timestamp('now floor 1H'), end_time=str_to_timestamp('now -1H floor 1H'), time_column='timestamp')
-                df = monitoring_fs.to_dataframe(start_time=str_to_timestamp('now'),end_time=str_to_timestamp('now -1H'),time_column='timestamp')
+
+                # df = monitoring_fs.to_dataframe(start_time=str_to_timestamp('now'),end_time=str_to_timestamp('now -1H'),time_column='timestamp')
+                df = monitoring_fs.to_dataframe()
+
 
                 timestamp = df["timestamp"].iloc[-1]
 
@@ -448,7 +515,7 @@ class BatchProcessor:
                     index_cols=["timestamp", "endpoint_id", "record_type"],
                 )
 
-                logger.info(f"Done updating drift measures {full_path}")
+                # logger.info(f"Done updating drift measures {full_path}")
 
             except Exception as e:
                 logger.error(f"Exception for endpoint {endpoint_id}")

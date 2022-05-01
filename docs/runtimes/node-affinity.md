@@ -33,7 +33,7 @@ resources up to the limits defined. The default limits are set at the service le
 also overwrite the default when creating a job, or a function. 
 <!-- The default values are: -->
 
-See more about [Resource Management for Pods and Containers](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/).
+See more about [Kubernetes Resource Management for Pods and Containers](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/).
 
 ### UI configuration
 When creating a service, set the **Memory** and **CPU** in the **Common Parameters** tab, under **User jobs defaults**.
@@ -47,7 +47,7 @@ Configure the limits assigned to a function by using `with_limits`. For example:
 import mlrun
 import os
 fn = mlrun.import_function("hub://xgb_trainer")
-fn.spec.build.base_image = "mlrun/ml-models"
+fn.spec.build.base_image = "mlrun/ml-models-gpu"
 
 # Increase function limits beyond default values, and require GPUs
 fn.with_limits(mem="16G", cpu="4", gpus="2")
@@ -150,7 +150,7 @@ For example:
 import mlrun
 import os
 fn = mlrun.import_function("hub://xgb_trainer")
-fn.spec.build.base_image = "mlrun/ml-models"
+fn.spec.build.base_image = "mlrun/ml-models-gpu"
 
 # Don't allow the function to run on Spot nodes
 fn.with_preemption_mode(mode="prevent")

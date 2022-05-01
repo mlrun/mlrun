@@ -23,7 +23,7 @@ Configuration of job resources is relevant for all supported cloud platforms.
 - [CPU, GPU, and memory limits for user jobs](#cpu-gpu-and-memory-limits-for-user-jobs)
 - [Volumes](#volumes)
 - [Preemption mode: Spot vs. On-demand nodes](#preemption-mode-spot-vs-on-demand-nodes)
-- [Pod priority](#pod-priority)
+- [Pod priority](#pod-priority-for-user-jobs)
 - [Node affinity (node selectors)](#node-affinity-node-selectors)- [Volumes](#volumes)
 
 ## CPU, GPU, and memory limits for user jobs  
@@ -172,7 +172,7 @@ See [with_node_selection](api/mlrun.runtimes.#mlrun.runtimes.RemoteRuntime.with_
 
 ## Pod priority for user jobs
 
-Pods (services, or jobs created by those services) can have priorities, which indicate the relative importance of one pod to the other pods on the node. The oriority is used for 
+Pods (services, or jobs created by those services) can have priorities, which indicate the relative importance of one pod to the other pods on the node. The priority is used for 
 scheduling: a lower priority pod can be evicted to allow scheduling of a higher priority pod. Pod priority is relevant for all pods created 
 by the service. For MLRun, it applies to the jobs created by MLRun. For Nuclio it applies to the pods of the Nuclio-created functions.
 

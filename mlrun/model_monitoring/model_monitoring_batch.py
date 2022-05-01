@@ -31,15 +31,12 @@ class TotalVarianceDistance:
     distrib_u: np.ndarray
 
     def compute(self) -> float:
-        """
-        Calculate Total variance distance
-
-        :param distrib_t:       array of distribution t
-        :param distrib_u:       array of distribution u
-
-        :return:                Total Variance Distance (float)
-
-        """
+        # """
+        # Calculate Total variance distance
+        # :param distrib_t:       array of distribution t
+        # :param distrib_u:       array of distribution u
+        # :return:                Total Variance Distance (float)
+        # """
         return np.sum(np.abs(self.distrib_t - self.distrib_u)) / 2
 
 
@@ -583,8 +580,7 @@ class BatchProcessor:
 
         :return: Tuple with:
             1. drift status (str) based on the
-            2. drift mean (float) based on the mean of Total Variance Distance and Heelinger distance
-
+            2. drift mean (float) based on the mean of Total Variance Distance and Hellinger distance
         """
 
         # Calculate drift mean value based on TVD and Hellinger distance

@@ -111,9 +111,10 @@ def get_kfp_outputs(artifacts, labels, project):
     outputs = []
     out_dict = {}
     for output in artifacts:
-        key = output["key"]
-        target = output.get("target_path", "")
-        target = output.get("inline", target)
+        key = output.get("metadata")["key"]
+        output_spec = output.get("spec", {})
+        target = output_spec.get("target_path", "")
+        target = output_spec.get("inline", target)
         out_dict[key] = get_artifact_target(output, project=project)
 
         if target.startswith("v3io:///"):
@@ -124,13 +125,13 @@ def get_kfp_outputs(artifacts, labels, project):
             user = user or "admin"
             target = "http://v3io-webapi:8081/users/" + user + target[5:]
 
-        viewer = output.get("viewer", "")
+        viewer = output_spec.get("viewer", "")
         if viewer in ["web-app", "chart"]:
             meta = {"type": "web-app", "source": target}
             outputs += [meta]
 
         elif viewer == "table":
-            header = output.get("header", None)
+            header = output_spec.get("header", None)
             if header and target.endswith(".csv"):
                 meta = {
                     "type": "table",
@@ -140,13 +141,13 @@ def get_kfp_outputs(artifacts, labels, project):
                 }
                 outputs += [meta]
 
-        elif output["kind"] == "dataset":
-            header = output.get("header")
-            preview = output.get("preview")
+        elif output.get("kind") == "dataset":
+            header = output_spec.get("header")
+            preview = output_spec.get("preview")
             if preview:
                 tbl_md = gen_md_table(header, preview)
                 text = f"## Dataset: {key}  \n\n" + tbl_md
-                del output["preview"]
+                del output_spec["preview"]
 
                 meta = {"type": "markdown", "storage": "inline", "source": text}
                 outputs += [meta]
@@ -214,7 +215,7 @@ def mlrun_op(
     :param out_path: default output path/url (prefix) for artifacts
     :param rundb:    path for rundb (or use 'MLRUN_DBPATH' env instead)
     :param mode:     run mode, e.g. 'pass' for using the command without mlrun wrapper
-    :param handler   code entry-point/hanfler name
+    :param handler   code entry-point/handler name
     :param job_image name of the image user for the job
     :param verbose:  add verbose prints/logs
     :param scrape_metrics:  whether to add the `mlrun/scrape-metrics` label to this run's resources
@@ -328,7 +329,12 @@ def mlrun_op(
             raise ValueError("name or function object must be specified")
         name = function_name
         if handler:
-            name += "-" + handler
+            short_name = handler
+            for separator in ["#", "::", "."]:
+                # drop paths, module or class name from short name
+                if separator in short_name:
+                    short_name = short_name.split(separator)[-1]
+            name += "-" + short_name
 
     if hyperparams or param_file:
         outputs.append("iteration_results")
@@ -408,7 +414,8 @@ def mlrun_op(
             "mlpipeline-metrics": "/mlpipeline-metrics.json",
         },
     )
-    cop = add_default_function_node_selector(cop)
+    cop = add_default_function_resources(cop)
+    cop = add_function_node_selection_attributes(container_op=cop, function=function)
 
     add_annotations(cop, PipelineRunType.run, function, func_url, project)
     if code_env:
@@ -478,7 +485,8 @@ def deploy_op(
         command=cmd,
         file_outputs={"endpoint": "/tmp/output", "name": "/tmp/name"},
     )
-    cop = add_default_function_node_selector(cop)
+    cop = add_default_function_resources(cop)
+    cop = add_function_node_selection_attributes(container_op=cop, function=function)
 
     add_annotations(cop, PipelineRunType.deploy, function, func_url)
     add_default_env(k8s_client, cop)
@@ -546,7 +554,8 @@ def build_op(
         command=cmd,
         file_outputs={"state": "/tmp/state", "image": "/tmp/image"},
     )
-    cop = add_default_function_node_selector(cop)
+    cop = add_default_function_resources(cop)
+    cop = add_function_node_selection_attributes(container_op=cop, function=function)
 
     add_annotations(cop, PipelineRunType.build, function, func_url)
     if config.httpdb.builder.docker_registry:
@@ -603,12 +612,12 @@ def add_default_env(k8s_client, cop):
             )
         )
 
-    if "MLRUN_AUTH_SESSION" in os.environ or "V3IO_ACCESS_KEY" in os.environ:
+    auth_env_var = mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
+    if auth_env_var in os.environ or "V3IO_ACCESS_KEY" in os.environ:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
-                name="MLRUN_AUTH_SESSION",
-                value=os.environ.get("MLRUN_AUTH_SESSION")
-                or os.environ.get("V3IO_ACCESS_KEY"),
+                name=auth_env_var,
+                value=os.environ.get(auth_env_var) or os.environ.get("V3IO_ACCESS_KEY"),
             )
         )
 
@@ -774,9 +783,32 @@ def show_kfp_run(run, clear_output=False):
             logger.warning(f"failed to plot graph, {exc}")
 
 
-def add_default_function_node_selector(
+def add_default_function_resources(
     container_op: dsl.ContainerOp,
 ) -> dsl.ContainerOp:
-    for label_name, label_value in config.get_default_function_node_selector().items():
-        container_op.add_node_selector_constraint(label_name, label_value)
+    default_resources = config.get_default_function_pod_resources()
+    for resource_name, resource_value in default_resources["requests"].items():
+        if resource_value:
+            container_op.container.add_resource_request(resource_name, resource_value)
+
+    for resource_name, resource_value in default_resources["limits"].items():
+        if resource_value:
+            container_op.container.add_resource_limit(resource_name, resource_value)
+    return container_op
+
+
+def add_function_node_selection_attributes(
+    function, container_op: dsl.ContainerOp
+) -> dsl.ContainerOp:
+
+    if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
+        if getattr(function.spec, "node_selector"):
+            container_op.node_selector = function.spec.node_selector
+
+        if getattr(function.spec, "tolerations"):
+            container_op.tolerations = function.spec.tolerations
+
+        if getattr(function.spec, "affinity"):
+            container_op.affinity = function.spec.affinity
+
     return container_op

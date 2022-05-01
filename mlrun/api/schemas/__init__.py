@@ -1,6 +1,6 @@
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-from .artifact import ArtifactCategories
+from .artifact import ArtifactCategories, ArtifactsFormat
 from .auth import (
     AuthInfo,
     AuthorizationAction,
@@ -55,10 +55,11 @@ from .frontend_spec import (
     FeatureFlags,
     FrontendSpec,
     NuclioStreamsFeatureFlag,
+    PreemptionNodesFeatureFlag,
     ProjectMembershipFeatureFlag,
 )
-from .function import FunctionState
-from .k8s import Resources, ResourceSpec
+from .function import FunctionState, PreemptionModes
+from .k8s import NodeSelectorOperator, Resources, ResourceSpec
 from .marketplace import (
     IndexedMarketplaceSource,
     MarketplaceCatalog,
@@ -120,6 +121,7 @@ from .schedule import (
     ScheduleUpdate,
 )
 from .secret import (
+    AuthSecretData,
     SecretKeysData,
     SecretProviderName,
     SecretsData,

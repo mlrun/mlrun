@@ -137,6 +137,9 @@ class FunctionSpec(ModelObj):
     def build(self, build):
         self._build = self._verify_dict(build, "build", ImageBuilder)
 
+    def enrich_function_preemption_spec(self):
+        pass
+
 
 class BaseRuntime(ModelObj):
     kind = "base"
@@ -219,6 +222,29 @@ class BaseRuntime(ModelObj):
             return True
         return False
 
+    def _enrich_on_client_side(self):
+        self.try_auto_mount_based_on_config()
+        self.fill_credentials()
+
+    def _enrich_on_server_side(self):
+        pass
+
+    def _enrich_on_server_and_client_sides(self):
+        """
+        enrich function also in client side and also on server side
+        """
+        pass
+
+    def _enrich_function(self):
+        """
+        enriches the function based on the flow state we run in (sdk or server)
+        """
+        if self._use_remote_api():
+            self._enrich_on_client_side()
+        else:
+            self._enrich_on_server_side()
+        self._enrich_on_server_and_client_sides()
+
     def _function_uri(self, tag=None, hash_key=None):
         return generate_object_uri(
             self.metadata.project,
@@ -248,9 +274,12 @@ class BaseRuntime(ModelObj):
         pass
 
     def fill_credentials(self):
-        if "MLRUN_AUTH_SESSION" in os.environ or "V3IO_ACCESS_KEY" in os.environ:
+        auth_session_env_var = (
+            mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
+        )
+        if auth_session_env_var in os.environ or "V3IO_ACCESS_KEY" in os.environ:
             self.metadata.credentials.access_key = os.environ.get(
-                "MLRUN_AUTH_SESSION"
+                auth_session_env_var
             ) or os.environ.get("V3IO_ACCESS_KEY")
 
     def run(
@@ -309,10 +338,7 @@ class BaseRuntime(ModelObj):
         if self.spec.mode and self.spec.mode not in run_modes:
             raise ValueError(f'run mode can only be {",".join(run_modes)}')
 
-        # Perform auto-mount if necessary - make sure it only runs on client side (when using remote API)
-        if self._use_remote_api():
-            self.try_auto_mount_based_on_config()
-            self.fill_credentials()
+        self._enrich_function()
 
         if local:
             return self._run_local(
@@ -581,8 +607,10 @@ class BaseRuntime(ModelObj):
         def_name = self.metadata.name
         if runspec.spec.handler_name:
             short_name = runspec.spec.handler_name
-            if "::" in short_name:
-                short_name = short_name.split("::")[1]  # drop class name
+            for separator in ["#", "::", "."]:
+                # drop paths, module or class name from short name
+                if separator in short_name:
+                    short_name = short_name.split(separator)[-1]
             def_name += "-" + short_name
         runspec.metadata.name = name or runspec.metadata.name or def_name
         verify_field_regex(
@@ -707,6 +735,9 @@ class BaseRuntime(ModelObj):
                 if code:
                     raise ValueError("cannot specify both code and source archive")
                 args += ["--source", self.spec.build.source]
+                if self.spec.workdir:
+                    # set the absolute/relative path to the cloned code
+                    args += ["--workdir", self.spec.workdir]
 
             if command:
                 args += [command]

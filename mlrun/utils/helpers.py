@@ -78,11 +78,24 @@ class StorePrefix:
 
 
 def get_artifact_target(item: dict, project=None):
-    kind = item.get("kind")
-    if kind in ["dataset", "model"] and item.get("db_key"):
+    if is_legacy_artifact(item):
+        db_key = item.get("db_key")
         project_str = project or item.get("project")
-        return f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{item.get('db_key')}:{item.get('tree')}"
-    return item.get("target_path")
+        tree = item.get("tree")
+    else:
+        db_key = item["spec"].get("db_key")
+        project_str = project or item["metadata"].get("project")
+        tree = item["metadata"].get("tree")
+
+    kind = item.get("kind")
+    if kind in ["dataset", "model"] and db_key:
+        return f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}:{tree}"
+
+    return (
+        item.get("target_path")
+        if is_legacy_artifact(item)
+        else item["spec"].get("target_path")
+    )
 
 
 logger = create_logger(config.log_level, config.log_formatter, "mlrun", sys.stdout)
@@ -1303,3 +1316,10 @@ def str_to_timestamp(time_str: str, now_time: Timestamp = None):
         return timestamp
 
     return Timestamp(time_str)
+
+
+def is_legacy_artifact(artifact):
+    if isinstance(artifact, dict):
+        return "metadata" not in artifact
+    else:
+        return not hasattr(artifact, "metadata")

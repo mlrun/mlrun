@@ -2,7 +2,7 @@
 
 <!-- ## Data preparation, ## Model serving -->
 
-This section presents:
+**In this section**
 * [Data and feature engineering](#Data-and-feature-engineering-using-the-feature-store)
 * [Example of Simple model serving router](#example-of-a-simple-model-serving-router)
 * [Example of Advanced data processing and serving ensemble](#example-of-advanced-data-processing-and-serving-ensemble)
@@ -29,7 +29,7 @@ Read more in the [Feature Store Overview](../feature-store/feature-store.md), an
 
 Graphs are used for serving models with different transformations.
 
-To deploy a serving function you need to import or create the serving function, 
+To deploy a serving function, you need to import or create the serving function, 
 add models to it, and then deploy it.  
 
 ```python

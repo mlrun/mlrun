@@ -19,6 +19,8 @@ from base64 import b64decode, b64encode
 from os import path
 from urllib.parse import urlparse
 
+from kubernetes import client
+
 import mlrun.api.schemas
 import mlrun.errors
 import mlrun.runtimes.utils
@@ -104,6 +106,18 @@ def make_kaniko_pod(
     if verbose:
         args += ["--verbosity", "debug"]
 
+    # While requests mainly affect scheduling, setting a limit may prevent Kaniko
+    # from finishing successfully (destructive), since we're not allowing to override the default
+    # specifically for the Kaniko pod, we're setting only the requests
+    # we cannot specify gpu requests without specifying gpu limits, so we set requests without gpu field
+    default_requests = config.get_default_function_pod_requirement_resources(
+        "requests", with_gpu=False
+    )
+    resources = {
+        "requests": mlrun.runtimes.utils.generate_resources(
+            mem=default_requests.get("memory"), cpu=default_requests.get("cpu")
+        )
+    }
     kpod = BasePod(
         name or "mlrun-build",
         config.httpdb.builder.kaniko_image,
@@ -111,6 +125,7 @@ def make_kaniko_pod(
         kind="build",
         project=project,
         default_pod_spec_attributes=extra_runtime_spec,
+        resources=resources,
     )
     kpod.env = builder_env
 
@@ -200,7 +215,7 @@ def build_image(
     client_version=None,
     runtime_spec=None,
 ):
-
+    builder_env = builder_env or {}
     if registry:
         dest = "/".join([registry, dest])
     elif dest.startswith(IMAGE_NAME_ENRICH_REGISTRY_PREFIX):
@@ -243,21 +258,27 @@ def build_image(
         if source
         else None
     )
+    access_key = builder_env.get(
+        "V3IO_ACCESS_KEY", auth_info.data_session or auth_info.access_key
+    )
+    username = builder_env.get("V3IO_USERNAME", auth_info.username)
 
+    builder_env = _generate_builder_env(project, builder_env)
+
+    parsed_url = urlparse(source)
     if inline_code:
         context = "/empty"
     elif source and "://" in source and not v3io:
-        context = source
-    elif source:
-        parsed_url = urlparse(source)
-        if v3io:
-            source = parsed_url.path
-        elif source.startswith("git://"):
+        if source.startswith("git://"):
             # if the user provided branch (w/o refs/..) we add the "refs/.."
             fragment = parsed_url.fragment or ""
             if not fragment.startswith("refs/"):
                 source = source.replace("#" + fragment, f"#refs/heads/{fragment}")
-        to_mount = True
+        context = source
+    elif source:
+        if v3io:
+            source = parsed_url.path
+            to_mount = True
         if source.endswith(".tar.gz"):
             source, src_dir = path.split(source)
     else:
@@ -290,8 +311,8 @@ def build_image(
         kpod.mount_v3io(
             remote=source,
             mount_path="/context",
-            access_key=auth_info.data_session or auth_info.access_key,
-            user=auth_info.username,
+            access_key=access_key,
+            user=username,
         )
 
     k8s = get_k8s_helper()
@@ -440,3 +461,21 @@ def build_runtime(
     runtime.spec.image = local + build.image
     runtime.status.state = mlrun.api.schemas.FunctionState.ready
     return True
+
+
+def _generate_builder_env(project, builder_env):
+    k8s = get_k8s_helper()
+    secret_name = k8s.get_project_secret_name(project)
+    existing_secret_keys = k8s.get_project_secret_keys(project, filter_internal=True)
+
+    # generate env list from builder env and project secrets
+    env = []
+    for key in existing_secret_keys:
+        if key not in builder_env:
+            value_from = client.V1EnvVarSource(
+                secret_key_ref=client.V1SecretKeySelector(name=secret_name, key=key)
+            )
+            env.append(client.V1EnvVar(name=key, value_from=value_from))
+    for key, value in builder_env.items():
+        env.append(client.V1EnvVar(name=key, value=value))
+    return env

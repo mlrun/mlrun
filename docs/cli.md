@@ -1,11 +1,11 @@
 # Command-Line Interface (Tech preview) <!-- omit in toc -->
 
-- [CLI Commands](#cli-commands)
-- [Building and Running a Function from a Git Repository](#building-and-running-a-function-from-a-git-repository)
-- [Using a Sources Archive](#using-a-sources-archive)
+- [CLI commands](#cli-commands)
+- [Building and running a function from a Git Repository](#building-and-running-a-function-from-a-git-repository)
+- [Using a sources archive](#using-a-sources-archive)
 
 <a id="cli-commands"></a>
-## CLI Commands
+## CLI commands
 
 Use the following commands of the MLRun command-line interface (CLI) &mdash; `mlrun` &mdash; to build and run MLRun functions:
 
@@ -224,10 +224,10 @@ Examples:
 |  --seek TEXT     | Where to start/seek (EARLIEST or LATEST)  |
 |  -i, &minus;&minus;interval  | Interval in seconds. Default = 3 |
 |  -j, &minus;&minus;is-json   | Indicates that the payload is json (will be deserialized). |
-
+    
 <a id="git-func"></a>
-## Building and Running a Function from a Git Repository
-
+## Building and running a function from a Git repository
+ 
 To build and run a function from a Git repository, start out by adding a YAML function-configuration file in your local environment.
 This file should describe the function and define its specification.
 For example, create a **myfunc.yaml** file with the following content in your working directory:
@@ -242,7 +242,7 @@ spec:
   image: .mlrun/func-default-remote-demo-ps-latest
   image_pull_policy: Always
   build:
-    base_image: mlrun/mlrun:0.10.1
+    base_image: mlrun/mlrun:1.0.0
     source: git://github.com/mlrun/mlrun
 ```
 
@@ -272,12 +272,12 @@ spec:
   image_pull_policy: Always
   build:
     commands: []
-    base_image: mlrun/mlrun:0.10.1
+    base_image: mlrun/mlrun:1.0.0
     source: git://github.com/mlrun/ci-demo.git
 ```
 
 <a id="sources-archive"></a>
-## Using a Sources Archive
+## Using a sources archive
 
 The `-a|--archive` option of the CLI [`build`](#cli-cmd-build) command enables you to define a remote object path for storing TAR archive files with all the required code dependencies.
 The remote location can be, for example, in an AWS S3 bucket or in a data container in an Iguazio MLOps Platform ("platform") cluster.
@@ -300,7 +300,7 @@ spec:
   image_pull_policy: Always
   build:
     commands: []
-    base_image: mlrun/mlrun:0.10.1
+    base_image: mlrun/mlrun:1.0.0
 ```
 
 Next, run the following MLRun CLI command to build the function; replace the `<...>` placeholders to match your configuration:

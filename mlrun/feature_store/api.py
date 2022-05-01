@@ -25,6 +25,7 @@ from ..data_types import InferOptions, get_infer_interface
 from ..datastore.sources import BaseSourceDriver, StreamSource
 from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
+    BaseStoreTarget,
     get_default_prefix_for_source,
     get_default_targets,
     get_target_driver,
@@ -138,7 +139,7 @@ def get_offline_features(
         entity_timestamp_column must be passed when using time filtering.
     :param end_time:        datetime, high limit of time needed to be filtered. Optional.
         entity_timestamp_column must be passed when using time filtering.
-    :param with_indexes:    return vector with index columns (default False)
+    :param with_indexes:    return vector with index columns and timestamp_key from the feature sets (default False)
     :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
     :param engine:          processing engine kind ("local", "dask", or "spark")
     :param engine_args:     kwargs for the processing engine
@@ -153,6 +154,7 @@ def get_offline_features(
     entity_timestamp_column = (
         entity_timestamp_column or feature_vector.spec.timestamp_field
     )
+
     if run_config:
         return run_merge_job(
             feature_vector,
@@ -359,7 +361,7 @@ def ingest(
             featureset, mlrun.api.schemas.AuthorizationAction.update
         )
         run_config = run_config.copy() if run_config else RunConfig()
-        source, run_config.parameters = _set_task_params(
+        source, run_config.parameters = set_task_params(
             featureset, source, targets, run_config.parameters, infer_options, overwrite
         )
         name = f"{featureset.metadata.name}_ingest"
@@ -623,7 +625,7 @@ def _run_ingestion_job(
         featureset = get_feature_set_by_uri(featureset)
 
     run_config = run_config.copy() if run_config else RunConfig()
-    source, run_config.parameters = _set_task_params(
+    source, run_config.parameters = set_task_params(
         featureset, source, targets, run_config.parameters, infer_options
     )
 
@@ -676,8 +678,13 @@ def deploy_ingestion_service(
             kind=source.kind,
             name=featureset.metadata.name,
         )
-    source, run_config.parameters = _set_task_params(
-        featureset, source, targets, run_config.parameters
+
+    targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
+    targets_to_ingest = copy.deepcopy(targets_to_ingest)
+    featureset.update_targets_for_ingest(targets_to_ingest)
+
+    source, run_config.parameters = set_task_params(
+        featureset, source, targets_to_ingest, run_config.parameters
     )
 
     name = normalize_name(name or f"{featureset.metadata.name}-ingest")
@@ -712,13 +719,14 @@ def deploy_ingestion_service(
 def _ingest_with_spark(
     spark=None,
     featureset: Union[FeatureSet, str] = None,
-    source: DataSource = None,
-    targets: List[DataTargetBase] = None,
+    source: BaseSourceDriver = None,
+    targets: List[BaseStoreTarget] = None,
     infer_options: InferOptions = InferOptions.default(),
     mlrun_context=None,
     namespace=None,
     overwrite=None,
 ):
+    created_spark_context = False
     try:
         import pyspark.sql
 
@@ -733,6 +741,7 @@ def _ingest_with_spark(
                 )
 
             spark = pyspark.sql.SparkSession.builder.appName(session_name).getOrCreate()
+            created_spark_context = True
 
         if isinstance(source, pd.DataFrame):
             df = spark.createDataFrame(source)
@@ -753,7 +762,10 @@ def _ingest_with_spark(
             targets = featureset.spec.targets
             targets = [get_target_driver(target, featureset) for target in targets]
 
-        for target in targets or []:
+        targets_to_ingest = copy.deepcopy(targets)
+        featureset.update_targets_for_ingest(targets_to_ingest, overwrite=overwrite)
+
+        for target in targets_to_ingest or []:
             if target.path and urlparse(target.path).scheme == "":
                 if mlrun_context:
                     mlrun_context.logger.error(
@@ -768,6 +780,8 @@ def _ingest_with_spark(
             logger.info(
                 f"writing to target {target.name}, spark options {spark_options}"
             )
+
+            df_to_write = df
 
             # If partitioning by time, add the necessary columns
             if timestamp_key and "partitionBy" in spark_options:
@@ -788,15 +802,21 @@ def _ingest_with_spark(
                     "minute": minute,
                     "second": second,
                 }
-                timestamp_col = df[timestamp_key]
+                timestamp_col = df_to_write[timestamp_key]
                 for partition in spark_options["partitionBy"]:
-                    if partition not in df.columns and partition in time_unit_to_op:
+                    if (
+                        partition not in df_to_write.columns
+                        and partition in time_unit_to_op
+                    ):
                         op = time_unit_to_op[partition]
-                        df = df.withColumn(partition, op(timestamp_col))
+                        df_to_write = df_to_write.withColumn(
+                            partition, op(timestamp_col)
+                        )
+            df_to_write = target.prepare_spark_df(df_to_write)
             if overwrite:
-                df.write.mode("overwrite").save(**spark_options)
+                df_to_write.write.mode("overwrite").save(**spark_options)
             else:
-                df.write.mode("append").save(**spark_options)
+                df_to_write.write.mode("append").save(**spark_options)
             target.set_resource(featureset)
             target.update_resource_status("ready")
 
@@ -806,12 +826,16 @@ def _ingest_with_spark(
                 # if max_time is None(no data), next scheduled run should be with same start_time
                 max_time = source.start_time
             for target in featureset.status.targets:
-                featureset.status.update_last_written_for_target(target.path, max_time)
+                featureset.status.update_last_written_for_target(
+                    target.get_path().get_absolute_path(), max_time
+                )
 
         _post_ingestion(mlrun_context, featureset, spark)
     finally:
-        if spark:
+        if created_spark_context:
             spark.stop()
+            # We shouldn't return a dataframe that depends on a stopped context
+            return
     return df
 
 
@@ -856,7 +880,7 @@ def _infer_from_static_df(
     return df
 
 
-def _set_task_params(
+def set_task_params(
     featureset: FeatureSet,
     source: DataSource = None,
     targets: List[DataTargetBase] = None,

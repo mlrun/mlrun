@@ -4,6 +4,12 @@ This figure illustrates a simplistic flow of an MLRun serving graph with remote 
 <img src="../_static/images/graph-flow.png" alt="graph-flow" width="600"/>
 
 As explained in [MLRun Serving Graphs](./serving-graph.md), the serving graph is based on Nuclio functions. 
+
+**In this section**
+- [Using Nuclio with stream triggers](#Using-Nuclio-with-stream-triggers)
+- [Consumer function configuration](#Consumer-function-configuration)
+- [Remote function retry mechanism](#Remote-function-retry-mechanism)
+- [Configuration considerations](#Configuration-considerations)
  
 ## Using Nuclio with stream triggers
 

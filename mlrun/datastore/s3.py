@@ -53,7 +53,7 @@ class S3Store(DataStore):
                 "choose-signer.s3.*", disable_signing
             )
 
-    def get_filesystem(self, silent=True):
+    def get_filesystem(self, silent=False):
         """return fsspec file system object, if supported"""
         if self._filesystem:
             return self._filesystem

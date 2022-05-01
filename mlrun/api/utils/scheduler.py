@@ -287,15 +287,17 @@ class Scheduler:
                 raise mlrun.errors.MLRunAccessDeniedError(
                     "Access key is required to create schedules in OPA authorization mode"
                 )
-            access_key_secret_key = mlrun.api.crud.Secrets().generate_client_secret_key(
-                mlrun.api.crud.SecretsClientType.schedules,
-                name,
-                self._secret_access_key_subtype,
+            access_key_secret_key = (
+                mlrun.api.crud.Secrets().generate_client_project_secret_key(
+                    mlrun.api.crud.SecretsClientType.schedules,
+                    name,
+                    self._secret_access_key_subtype,
+                )
             )
             # schedule name may be an invalid secret key, therefore we're using the key map feature of our secrets
             # handler
             secret_key_map = (
-                mlrun.api.crud.Secrets().generate_client_key_map_secret_key(
+                mlrun.api.crud.Secrets().generate_client_key_map_project_secret_key(
                     mlrun.api.crud.SecretsClientType.schedules
                 )
             )
@@ -304,14 +306,14 @@ class Scheduler:
             }
             if auth_info.username:
                 username_secret_key = (
-                    mlrun.api.crud.Secrets().generate_client_secret_key(
+                    mlrun.api.crud.Secrets().generate_client_project_secret_key(
                         mlrun.api.crud.SecretsClientType.schedules,
                         name,
                         self._secret_username_subtype,
                     )
                 )
                 secrets[username_secret_key] = auth_info.username
-            mlrun.api.crud.Secrets().store_secrets(
+            mlrun.api.crud.Secrets().store_project_secrets(
                 project,
                 schemas.SecretsData(
                     provider=self._secrets_provider,
@@ -330,24 +332,28 @@ class Scheduler:
         import mlrun.api.crud
 
         if mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
-            access_key_secret_key = mlrun.api.crud.Secrets().generate_client_secret_key(
-                mlrun.api.crud.SecretsClientType.schedules,
-                name,
-                self._secret_access_key_subtype,
+            access_key_secret_key = (
+                mlrun.api.crud.Secrets().generate_client_project_secret_key(
+                    mlrun.api.crud.SecretsClientType.schedules,
+                    name,
+                    self._secret_access_key_subtype,
+                )
             )
 
-            username_secret_key = mlrun.api.crud.Secrets().generate_client_secret_key(
-                mlrun.api.crud.SecretsClientType.schedules,
-                name,
-                self._secret_username_subtype,
+            username_secret_key = (
+                mlrun.api.crud.Secrets().generate_client_project_secret_key(
+                    mlrun.api.crud.SecretsClientType.schedules,
+                    name,
+                    self._secret_username_subtype,
+                )
             )
             secret_key_map = (
-                mlrun.api.crud.Secrets().generate_client_key_map_secret_key(
+                mlrun.api.crud.Secrets().generate_client_key_map_project_secret_key(
                     mlrun.api.crud.SecretsClientType.schedules
                 )
             )
             # TODO: support delete secrets (plural and not only singular) using key map
-            mlrun.api.crud.Secrets().delete_secret(
+            mlrun.api.crud.Secrets().delete_project_secret(
                 project,
                 self._secrets_provider,
                 access_key_secret_key,
@@ -355,7 +361,7 @@ class Scheduler:
                 allow_internal_secrets=True,
                 key_map_secret_key=secret_key_map,
             )
-            mlrun.api.crud.Secrets().delete_secret(
+            mlrun.api.crud.Secrets().delete_project_secret(
                 project,
                 self._secrets_provider,
                 username_secret_key,
@@ -371,17 +377,19 @@ class Scheduler:
         import mlrun.api.crud
 
         schedule_access_key_secret_key = (
-            mlrun.api.crud.Secrets().generate_client_secret_key(
+            mlrun.api.crud.Secrets().generate_client_project_secret_key(
                 mlrun.api.crud.SecretsClientType.schedules,
                 name,
                 self._secret_access_key_subtype,
             )
         )
-        secret_key_map = mlrun.api.crud.Secrets().generate_client_key_map_secret_key(
-            mlrun.api.crud.SecretsClientType.schedules
+        secret_key_map = (
+            mlrun.api.crud.Secrets().generate_client_key_map_project_secret_key(
+                mlrun.api.crud.SecretsClientType.schedules
+            )
         )
         # TODO: support listing (and not only get) secrets using key map
-        access_key = mlrun.api.crud.Secrets().get_secret(
+        access_key = mlrun.api.crud.Secrets().get_project_secret(
             project,
             self._secrets_provider,
             schedule_access_key_secret_key,
@@ -392,13 +400,13 @@ class Scheduler:
         username = None
         if include_username:
             schedule_username_secret_key = (
-                mlrun.api.crud.Secrets().generate_client_secret_key(
+                mlrun.api.crud.Secrets().generate_client_project_secret_key(
                     mlrun.api.crud.SecretsClientType.schedules,
                     name,
                     self._secret_username_subtype,
                 )
             )
-            username = mlrun.api.crud.Secrets().get_secret(
+            username = mlrun.api.crud.Secrets().get_project_secret(
                 project,
                 self._secrets_provider,
                 schedule_username_secret_key,

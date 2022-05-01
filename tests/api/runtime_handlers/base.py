@@ -254,9 +254,10 @@ class TestRuntimeHandlerBase:
                 "pod", pod_dict, resources, "pod_resources", group_by_field_extractor
             )
         for index, service in enumerate(expected_services):
+            service_dict = service.to_dict()
             self._assert_resource_in_response_resources(
                 "service",
-                service,
+                service_dict,
                 resources,
                 "service_resources",
                 group_by_field_extractor,

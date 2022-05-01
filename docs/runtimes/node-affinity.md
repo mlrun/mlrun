@@ -20,11 +20,68 @@ Configuration of job resources is relevant for all supported cloud platforms.
 -->
 
 **In this section**
+- [CPU, GPU, and memory limits for user jobs](#cpu-gpu-and-memory-limits-for-user-jobs)
+- [Volumes](#volumes)
 - [Preemption mode: Spot vs. On-demand nodes](#preemption-mode-spot-vs-on-demand-nodes)
 - [Pod priority](#pod-priority)
-- [CPU, GPU, and memory limits for user jobs](#cpu-gpu-and-memory-limits-for-user-jobs)
 - [Node affinity (node selectors)](#node-affinity-node-selectors)- [Volumes](#volumes)
 
+## CPU, GPU, and memory limits for user jobs  
+
+When you create a pod in an MLRun job or Nuclio function, the pod has default CPU and memory limits. When the job runs, it can consume 
+resources up to the limits defined. The default limits are set at the service level. You can change the default limit for the service, and 
+also overwrite the default when creating a job, or a function. 
+<!-- The default values are: -->
+
+See more about [Resource Management for Pods and Containers](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/).
+
+### UI configuration
+When creating a service, set the **Memory** and **CPU** in the **Common Parameters** tab, under **User jobs defaults**.
+When creating a job or a function, overwrite the default **Memory**, **CPU**, or **GPU** in the **Configuration** tab, under **Resources**.
+
+### SDK configuration
+
+Configure the limits assigned to a function by using `with_limits`. For example:
+
+```function.with_limits(mem="8G", cpu="3", gpus="1")```
+
+```{admonition} Note
+When specifying GPUs, MLRun uses `nvidia.com/gpu` as default GPU type. To use a different type of GPU, specify it using the optional `gpu_type` parameter.
+```
+
+## Volumes
+
+When you create a pod in an MLRun job or Nuclio function, the pod by default has access to a file-system which is ephemeral, and gets 
+deleted when the pod completes its execution. In many cases, a job requires access to files residing on external storage, or to files 
+containing configurations and secrets exposed through Kubernetes config-maps or secrets.
+Pods can be configured to consume the following types of volumes, and to mount them as local files in the local pod file-system:
+
+- V3IO containers: when running on the Iguazio system, pods have access to the underlying V3IO shared storage. This option mounts a V3IO container or a subpath within it to the pod through the V3IO FUSE driver.
+- PVC: Mount a Kubernetes persistent volume claim (PVC) to the pod. The persistent volume and the claim need to be configured beforehand.
+- Config Map: Mount a Kubernetes Config Map as local files to the pod.
+- Secret: Mount a Kubernetes secret as local files to the pod.
+
+For each of the options, a name needs to be assigned to the volume, as well as a local path to mount the volume at (using a Kubernetes Volume Mount). Depending on the type of the volume, other configuration options may be needed, such as an access-key needed for V3IO volume.
+
+See more about [Volumes](https://kubernetes.io/docs/concepts/storage/volumes/).
+
+MLRun supports the concept of volume auto-mount which automatically mounts the most commonly used type of volume to all pods, unless disabled. See more about [MLRun auto mount](../runtimes/function-storage.html).
+
+### UI configuration
+
+You can configure Volumes when creating a job, rerunning an existing job, and creating an ML function.
+Modify the Volumes for an ML function by pressing **ML functions**, then **<img src="../_static/images/kebab-menu.png" width="25"/>** 
+of the function, **Edit** | **Resources** | **Volumes** drop-down list. 
+
+Select the volume mount type: either Auto (using auto-mount), Manual or None. If selecting Manual, fill in the details in the volumes list .for each volume to mount to the pod. Multiple volumes can be configured for a single pod.
+
+### SDK configuration
+
+Configure Volumes attached to a function by using the `apply` function modifier on the function. For example:
+
+```func.apply(mlrun.platforms.mount_v3io())```
+
+See [list of MLRun mount modifiers](../api/mlrun.platforms.html).
 
 ## Preemption mode: Spot vs. On-demand nodes
 
@@ -114,29 +171,6 @@ For example:
 
 See [with_priority_class](api/mlrun.runtimes.html.#mlrun.runtimes.RemoteRuntime.with_priority_class).
 
-## CPU, GPU, and memory limits for user jobs  
-
-When you create a pod in an MLRun job or Nuclio function, the pod has default CPU and memory limits. When the job runs, it can consume 
-resources up to the limits defined. The default limits are set at the service level. You can change the default limit for the service, and 
-also overwrite the default when creating a job, or a function. 
-<!-- The default values are: -->
-
-See more about [Resource Management for Pods and Containers](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/).
-
-### UI configuration
-When creating a service, set the **Memory** and **CPU** in the **Common Parameters** tab, under **User jobs defaults**.
-When creating a job or a function, overwrite the default **Memory**, **CPU**, or **GPU** in the **Configuration** tab, under **Resources**.
-
-### SDK configuration
-
-Configure the limits assigned to a function by using `with_limits`. For example:
-
-```function.with_limits(mem="8G", cpu="3", gpus="1")```
-
-```{admonition} Note
-When specifying GPUs, MLRun uses `nvidia.com/gpu` as default GPU type. To use a different type of GPU, specify it using the optional `gpu_type` parameter.
-```
-
 ## Node affinity (node selectors)
 
 You can assign a node or a node group for services or for jobs executed by a service. When specified, the service or the pods of a function can only run on nodes whose 
@@ -174,44 +208,3 @@ For example:
 ```func.with_node_selection(node_selector={name})```
 
 See [with_node_selection](api/mlrun.runtimes.html?highlight=node_selector#mlrun.runtimes.RemoteRuntime.with_node_selection).
-
-
-
-## Volumes
-
-When you create a pod in an MLRun job or Nuclio function, the pod by default has access to a file-system which is ephemeral, and gets 
-deleted when the pod completes its execution. In many cases, a job requires access to files residing on external storage, or to files 
-containing configurations and secrets exposed through Kubernetes config-maps or secrets.
-Pods can be configured to consume the following types of volumes, and to mount them as local files in the local pod file-system:
-
-- V3IO containers: when running on the Iguazio system, pods have access to the underlying V3IO shared storage. This option mounts a V3IO container or a subpath within it to the pod through the V3IO FUSE driver.
-- PVC: Mount a Kubernetes persistent volume claim (PVC) to the pod. The persistent volume and the claim need to be configured beforehand.
-- Config Map: Mount a Kubernetes Config Map as local files to the pod.
-- Secret: Mount a Kubernetes secret as local files to the pod.
-
-For each of the options, a name needs to be assigned to the volume, as well as a local path to mount the volume at (using a Kubernetes Volume Mount). Depending on the type of the volume, other configuration options may be needed, such as an access-key needed for V3IO volume.
-
-See more about [Volumes](https://kubernetes.io/docs/concepts/storage/volumes/).
-
-MLRun supports the concept of volume auto-mount which automatically mounts the most commonly used type of volume to all pods, unless disabled. See more about [MLRun auto mount](../runtimes/function-storage.html).
-
-### UI configuration
-
-You can configure Volumes when creating a job, rerunning an existing job, and creating an ML function.
-Modify the Volumes for an ML function by pressing **ML functions**, then **<img src="../_static/images/kebab-menu.png" width="25"/>** 
-of the function, **Edit** | **Resources** | **Volumes** drop-down list. 
-
-Select the volume mount type: either Auto (using auto-mount), Manual or None. If selecting Manual, fill in the details in the volumes list .for each volume to mount to the pod. Multiple volumes can be configured for a single pod.
-
-### SDK configuration
-
-Configure Volumes attached to a function by using the `apply` function modifier on the function. For example:
-
-```func.apply(mlrun.platforms.mount_v3io())```
-
-See [list of MLRun mount modifiers](../api/mlrun.platforms.html).
-
-
-
-
-

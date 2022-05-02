@@ -35,7 +35,7 @@
 | EDA                      | Exploratory data analysis. Used by data scientists to understand dataset via cleaning, visualization, and statistical tests.                                                                   |
 | ML pipeline              | Pipeline of operations for machine learning. It can include loading data, feature engineering, feature selection, model training, hyperparameter tuning, model validation, and model deployment. |
 | Feature                  | Data field/vector definition and metadata (name, type, stats, etc.). A dataset is a collection of features.                                                                                                           |
-| MLOps                    | Set of practices that reliably and efficiently deploys and maintains machine learning models in production. Combinination of Machine Learning and DevOps.                                   |
+| MLOps                    | Set of practices that reliably and efficiently deploys and maintains machine learning models in production. Combination of Machine Learning and DevOps.                                   |
 | Dataframe                | Tabular representation of data, often using tools such as Pandas, Spark, or Dask.                                                                                                              |
 
 ## ML Libraries / Tools
@@ -43,9 +43,9 @@
 
 | Name              | Description                                                                                                                                                                                    |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Dask                     | Flexible library for parallel computing in Python. Often used for data engieering, data science, and machine learning.                                                                         |
+| Dask                     | Flexible library for parallel computing in Python. Often used for data engineering, data science, and machine learning.                                                                         |
 | Keras                    | An open-source software library that provides a Python interface for artificial neural networks. Keras acts as an interface for the TensorFlow library.                                         |
-| KubeFlow pipeline        | Platform for building and deploying portable, scalable machine learning (ML) workflows based on Docker container.s                                                                             |
+| KubeFlow pipeline        | Platform for building and deploying portable, scalable machine learning (ML) workflows based on Docker containers.                                                                             |
 | PyTorch                  | An open source machine learning framework based on the Torch library, used for applications such as computer vision and natural language. processing                                                 |
 | Sklearn                  | Open source machine learning Python library. Used for modelling, pipelines, data transformations, feature engineering, and more.                                                              |
 | Spark                    | Open source parallel processing framework for running large-scale data analytics applications across clustered computers. Often used for data engineering, data science, and machine learning. |

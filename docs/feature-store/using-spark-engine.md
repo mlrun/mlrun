@@ -130,6 +130,7 @@ def my_spark_func(df, context=None):
 
 # mlrun: end-code
 ```
+
 ```python
 from mlrun.datastore.sources import CSVSource
 from mlrun import code_to_function
@@ -158,6 +159,61 @@ my_func.spec.replicas = 2
 
 config = fstore.RunConfig(local=False, function=my_func, handler="ingest_handler")
 fstore.ingest(feature_set, source, run_config=config)
+```
+
+## Spark code_to_function ingestion example
+
+The following code executes data ingestion using `code_to_function`.
+
+```
+# mlrun: start-code
+
+def handler(context, event):
+    print ("Your code here")
+    return 
+
+# mlrun: end-code
+```
+
+```
+# This section has to be invoked once per MLRun/Iguazio upgrade
+# from mlrun.runtimes import Spark3Runtime
+# Spark3Runtime.deploy_default_image()
+```
+
+```
+from mlrun import code_to_function
+
+some_function = code_to_function('some-function-name', kind='spark', code_output='.')
+some_function.spec.use_default_image = True
+some_function.with_driver_requests(cpu="200m", mem="1g")
+some_function.with_executor_requests(cpu="200m", mem="1g")
+some_function.with_igz_spark()
+
+sr = some_function.run(name='some-function-name', handler='handler', local=False)
+```
+
+
+## Spark dataframe ingestion example
+
+The following code executes data ingestion from a spark dataframe that is running locally.
+The specified dataframe should be associated with `spark_context`.
+
+```
+from pyspark.sql import SparkSession
+import mlrun.feature_store as fstore
+
+columns = ["id", "count"]
+data = [("a", "12"), ("b", "14"), ("c", "88")]
+
+spark = SparkSession.builder.appName('example').getOrCreate()
+df = spark.createDataFrame(data).toDF(*columns)
+
+fset = fstore.FeatureSet("myset", entities=[fstore.Entity("id")], engine="spark")
+
+fstore.ingest(fset, df, spark_context=spark)
+
+spark.stop()
 ```
 
 ## Spark execution engine over S3 - full flow example

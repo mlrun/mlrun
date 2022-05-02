@@ -50,7 +50,7 @@
 | Sklearn                  | Open source machine learning Python library. Used for modelling, pipelines, data transformations, feature engineering, and more.                                                              |
 | Spark                    | Open source parallel processing framework for running large-scale data analytics applications across clustered computers. Often used for data engineering, data science, and machine learning. |
 | TensorFlow               | A Google developed open-source software library for machine learning and deep learning.                                                                                                                            |
-| TensorBoard              |  TensorFlow’s visualization toolkit, used for tracking metrics like loss and accuracy, visualizing the model graph, viewign histograms of weights, biases, or other tensors as they change over time, etc. |
+| TensorBoard              |  TensorFlow’s visualization toolkit, used for tracking metrics like loss and accuracy, visualizing the model graph, viewing histograms of weights, biases, or other tensors as they change over time, etc. |
 | XGBoost                  | Optimized distributed gradient boosting library designed to be highly efficient, flexible and portable. Implements machine learning algorithms under the Gradient Boosting framework.          |
 
 [Back to top](#top)

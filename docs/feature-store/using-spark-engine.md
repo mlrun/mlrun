@@ -33,6 +33,8 @@ See full examples in:
 - [Local Spark ingestion example](#local-spark-ingestion-example)
 - [Remote Spark ingestion example](#remote-spark-ingestion-example)
 - [Spark operator ingestion example](#spark-operator-ingestion-example)
+- [Spark code_to_function ingestion example](#spark-code-to-function-ingestion-example)
+- [Spark dataframe ingestion example](#spark-dataframe-ingestion-example)
 - [Spark execution engine over S3 - full flow example](#spark-execution-engine-over-S3-full-flow-example)       
        
 ## Local Spark ingestion example

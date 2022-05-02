@@ -167,6 +167,8 @@ fstore.ingest(feature_set, source, run_config=config)
 
 The following code executes data ingestion using `code_to_function`.
 
+When running with Spark `code_to_function`, the MLRun execution details are returned, allowing tracking of the job’s status and results.
+
 ```
 # mlrun: start-code
 

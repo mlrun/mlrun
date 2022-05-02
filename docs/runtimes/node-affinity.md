@@ -20,11 +20,23 @@ Configuration of job resources is relevant for all supported cloud platforms.
 -->
 
 **In this section**
+- [Replicas](#replicas)
 - [CPU, GPU, and memory limits for user jobs](#cpu-gpu-and-memory-limits-for-user-jobs)
 - [Volumes](#volumes)
 - [Preemption mode: Spot vs. On-demand nodes](#preemption-mode-spot-vs-on-demand-nodes)
 - [Pod priority](#pod-priority-for-user-jobs)
-- [Node affinity (node selectors)](#node-affinity-node-selectors)- [Volumes](#volumes)
+- [Node affinity (node selectors)](#node-affinity-node-selectors)
+
+## Replicas
+
+Some runtimes can scale horizontally, configured either as a number of replicas:</br>
+`spec.replicas` </br>
+or a range (for auto scaling in Dask or Nuclio:</br>
+```
+spec.min_replicas = 1
+spec.max_replicas = 4
+```
+See more details in [Dask](../runtimes/dask-overview), [MPIJob and Horovod](../runtimes/horovod), [Spark](../runtimes/spark-operator), [Nuclio](../concepts/nuclio-real-time-functions).
 
 ## CPU, GPU, and memory limits for user jobs  
 
@@ -82,9 +94,9 @@ Pods can be configured to consume the following types of volumes, and to mount t
 
 For each of the options, a name needs to be assigned to the volume, as well as a local path to mount the volume at (using a Kubernetes Volume Mount). Depending on the type of the volume, other configuration options may be needed, such as an access-key needed for V3IO volume.
 
-See more about [Volumes](https://kubernetes.io/docs/concepts/storage/volumes/).
+See more about [Kubernetes Volumes](https://kubernetes.io/docs/concepts/storage/volumes/).
 
-MLRun supports the concept of volume auto-mount which automatically mounts the most commonly used type of volume to all pods, unless disabled. See more about [MLRun auto mount](../runtimes/function-storage.html).
+MLRun supports the concept of volume auto-mount which automatically mounts the most commonly used type of volume to all pods, unless disabled. See more about [MLRun auto mount](function-storage).
 
 ### UI configuration
 
@@ -92,15 +104,31 @@ You can configure Volumes when creating a job, rerunning an existing job, and cr
 Modify the Volumes for an ML function by pressing **ML functions**, then **<img src="../_static/images/kebab-menu.png" width="25"/>** 
 of the function, **Edit** | **Resources** | **Volumes** drop-down list. 
 
-Select the volume mount type: either Auto (using auto-mount), Manual or None. If selecting Manual, fill in the details in the volumes list .for each volume to mount to the pod. Multiple volumes can be configured for a single pod.
+Select the volume mount type: either Auto (using auto-mount), Manual or None. If selecting Manual, fill in the details in the volumes list 
+for each volume to mount to the pod. Multiple volumes can be configured for a single pod.
 
 ### SDK configuration
 
-Configure Volumes attached to a function by using the `apply` function modifier on the function. For example:
+Configure volumes attached to a function by using the `apply` function modifier on the function. 
 
-```func.apply(mlrun.platforms.mount_v3io())```
+For example, using v3io storage:
+```
+# import the training function from the marketplace (hub://)
+train = mlrun.import_function('hub://sklearn_classifier')# Import the function:
+open_archive_function = mlrun.import_function("hub://open_archive")
 
-See [list of MLRun mount modifiers](../api/mlrun.platforms.html).
+# use mount_v3io() for iguazio volumes
+open_archive_function.apply(mount_v3io())
+```
+You can specify the v3io path to use for the volume (`remote`), the volume mount path (`volume_mounts`), and security credentials, for example: `mlrun.platforms.mount_v3io(name='v3io', remote='', mount_path='', access_key='', user='', secret=None, volume_mounts=None)`. See full details in [mount_v3io](../api/mlrun.platforms.html#mlrun.platforms.mount_v3io).
+
+Alternatively, using a PVC volume:
+```
+# use or mount_pvc() for k8s PVC volumes
+open_archive_function.apply(mount_pvc())
+```
+
+See full details in [mount_pvc](../api/mlrun.platforms.html#mlrun.platforms.mount_pvc).
 
 ## Preemption mode: Spot vs. On-demand nodes
 
@@ -144,7 +172,7 @@ Configure the Spot node support for individual Nuclio functions when creating a 
 ### SDK configuration
 
 Configure preemption mode by adding the parameter in your Jupyter notebook, specifying a mode from the list of values above. <br>
-For example:
+This example illustrates a function that cannot be scheduled on preemptible nodes:
 
 ```
 import mlrun
@@ -166,8 +194,34 @@ train_run = fn.run(params = task_params,
                    inputs={"dataset"  : 'https://s3.wasabisys.com/iguazio/data/function-marketplace-data/xgb_trainer/classifier-data.csv',
                            "models_dest": os.getcwd() + "/"+"models"})
 ```
+
+See [`with_preemption_mode`](../api/mlrun.runtimes.html#RemoteRuntime.with_preemption_mode).
+
+Alternatively, you can specify the preemption using `with_priority_class` and `fn.with_priority_class(name="default-priority")node_selector`. This example specifies that the pod/function runs only on non-preemptible nodes:
+
+```
+import mlrun
+import os
+fn = mlrun.import_function("hub://xgb_trainer")
+fn.spec.build.base_image = "mlrun/ml-models-gpu"
+
+fn.with_priority_class(name="default-priority")
+fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle":"non-preemptible"})
+
+task_params = {"model_type": "classifier",
+               "CLASS_tree_method": "hist",
+               "CLASS_objective": "binary:logistic",
+               "CLASS_booster": "gbtree",
+               "FIT_verbose": 0,
+               "label_column": "labels"}
+ 
+   
+train_run = fn.run(params = task_params, 
+                   inputs={"dataset"  : 'https://s3.wasabisys.com/iguazio/data/function-marketplace-data/xgb_trainer/classifier-data.csv',
+                           "models_dest": os.getcwd() + "/"+"models"})
+```
                            
-See [with_node_selection](api/mlrun.runtimes.#mlrun.runtimes.RemoteRuntime.with_node_selection).
+See [`with_node_selection`](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.with_node_selection).
 
 
 ## Pod priority for user jobs
@@ -204,10 +258,32 @@ of the function, **Edit** | **Resources** | **Pods Priority** drop-down list.
 Configure pod priority by adding the priority class parameter in your Jupyter notebook. <br>
 For example:
 
-```func.with_priority_class(name={value})```
+```
+import mlrun
+import os
+fn = mlrun.import_function("hub://xgb_trainer")
+fn.spec.build.base_image = "mlrun/ml-models-gpu"
+
+# Increase function limits beyond default values, and require GPUs
+fn.with_limits(mem="16G", cpu="4", gpus="2")
+task_params = {"model_type": "classifier",
+               "CLASS_tree_method": "hist",
+               "CLASS_objective": "binary:logistic",
+               "CLASS_booster": "gbtree",
+               "FIT_verbose": 0,
+               "label_column": "labels"}
+               
+# Add priority
+func.with_priority_class(name={value})
+ 
+   
+train_run = fn.run(params = task_params, 
+                   inputs={"dataset"  : 'https://s3.wasabisys.com/iguazio/data/function-marketplace-data/xgb_trainer/classifier-data.csv',
+                           "models_dest": os.getcwd() + "/"+"models"})
+```
 
 
-See [with_priority_class](api/mlrun.runtimes.html.#mlrun.runtimes.RemoteRuntime.with_priority_class).
+See [with_priority_class](../api/mlrun.runtimes.html.#mlrun.runtimes.RemoteRuntime.with_priority_class).
 
 ## Node affinity (node selectors)
 
@@ -243,6 +319,29 @@ the **Confguration** tab, under **Resources**, by adding Key:Value pairs.
 Configure node selection by adding the key:value pairs in your Jupyter notebook formatted as a Python dictionary. <br>
 For example:
 
-```func.with_node_selection(node_selector={name})```
+```
+import mlrun
+import os
+fn = mlrun.import_function("hub://xgb_trainer")
+fn.spec.build.base_image = "mlrun/ml-models-gpu"
 
-See [with_node_selection](api/mlrun.runtimes.html?highlight=node_selector#mlrun.runtimes.RemoteRuntime.with_node_selection).
+# Increase function limits beyond default values, and require GPUs
+fn.with_limits(mem="16G", cpu="4", gpus="2")
+task_params = {"model_type": "classifier",
+               "CLASS_tree_method": "hist",
+               "CLASS_objective": "binary:logistic",
+               "CLASS_booster": "gbtree",
+               "FIT_verbose": 0,
+               "label_column": "labels"}
+               
+# Add node selection
+func.with_node_selection(node_selector={name})
+ 
+   
+train_run = fn.run(params = task_params, 
+                   inputs={"dataset"  : 'https://s3.wasabisys.com/iguazio/data/function-marketplace-data/xgb_trainer/classifier-data.csv',
+                           "models_dest": os.getcwd() + "/"+"models"})
+```
+
+
+See [`with_node_selection`](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.with_node_selection).

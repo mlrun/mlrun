@@ -180,6 +180,7 @@ class DataStore:
                         time_column,
                     )
                     kwargs["filters"] = filters
+
                 return df_module.read_parquet(*args, **kwargs)
 
         elif url.endswith(".json") or format == "json":

@@ -137,14 +137,6 @@ class EventStreamProcessor:
             "monitoring", entities=[ENDPOINT_ID], timestamp_key=TIMESTAMP
         )
         feature_set.metadata.project = self.project
-        # endpoint_record = get_endpoint_record(
-        #     kv_container=self.kv_container,
-        #     kv_path=self.kv_path,
-        #     endpoint_id=event[],
-        #     access_key=self.access_key,
-        # )
-
-        # feature_set.metadata.function_uri =
         feature_set.graph.to(
             "ProcessEndpointEvent",
             kv_container=self.kv_container,
@@ -313,15 +305,13 @@ class ProcessBeforeKV(MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
-        print('[EYAL]: Now in ProcessBeforeKV')
         # compute prediction per second
         event[PREDICTIONS_PER_SECOND] = float(event[PREDICTIONS_COUNT_5M]) / 300
-        print('[EYAL]: Event after calculating predictions per second: ', event)
         # Filter relevant keys
         e = {
             k: event[k]
             for k in [
-                # FUNCTION_URI,
+                FUNCTION_URI,
                 MODEL,
                 MODEL_CLASS,
                 TIMESTAMP,
@@ -342,7 +332,6 @@ class ProcessBeforeKV(MapClass):
         e = {**e, **e.pop(UNPACKED_LABELS, {})}
         # Write labels to kv as json string to be presentable later
         e[LABELS] = json.dumps(e[LABELS])
-        print('[EYAL]: Going to store the following details in kv table: ', e)
         return e
 
 
@@ -352,17 +341,13 @@ class ProcessBeforeTSDB(MapClass):
 
     def do(self, event):
         # compute prediction per second
-        print('[EYAL]: now in ProcessBeforeTSDB')
-
         event[PREDICTIONS_PER_SECOND] = float(event[PREDICTIONS_COUNT_5M]) / 300
-        print('[EYAL]: Event after calculating predictions per second: ', event)
         base_fields = [TIMESTAMP, ENDPOINT_ID]
 
         base_event = {k: event[k] for k in base_fields}
         base_event[TIMESTAMP] = pd.to_datetime(
             base_event[TIMESTAMP], format=TIME_FORMAT
         )
-        print('[EYAL]: Create base events as a pandas datetime object: ', base_event)
 
         base_metrics = {
             RECORD_TYPE: BASE_METRICS,
@@ -374,16 +359,12 @@ class ProcessBeforeTSDB(MapClass):
             **base_event,
         }
 
-        print('[EYAL]: base metrics values: ', base_metrics)
-
         endpoint_features = {
             RECORD_TYPE: ENDPOINT_FEATURES,
             **event[NAMED_PREDICTIONS],
             **event[NAMED_FEATURES],
             **base_event,
         }
-
-        print('[EYAL]: Endpoint features: ', endpoint_features)
 
         processed = {BASE_METRICS: base_metrics, ENDPOINT_FEATURES: endpoint_features}
 
@@ -394,8 +375,6 @@ class ProcessBeforeTSDB(MapClass):
                 **base_event,
             }
 
-        print('[EYAL]: Return a processed object: ', processed)
-
         return processed
 
 
@@ -404,19 +383,15 @@ class ProcessBeforeParquet(MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
-        print('[EYAL]: Now in ProcessBeforeParquet')
-        print('[EYAL]: event: ', event)
         logger.info("ProcessBeforeParquet1", event=event)
         for key in [UNPACKED_LABELS, FEATURES]:
             event.pop(key, None)
         value = event.get("entities")
-        print('[EYAL]: value based on entities from events: ', value)
         if value is not None:
             event = {**value, **event}
         for key in [LABELS, METRICS, ENTITIES]:
             if not event.get(key):
                 event[key] = None
-        print('[EYAL]: event at the end of ProcessBeforeParquet:', event)
         logger.info("ProcessBeforeParquet2", event=event)
         return event
 
@@ -433,8 +408,6 @@ class ProcessEndpointEvent(MapClass):
         self.endpoints: Set[str] = set()
 
     def do(self, full_event):
-        print('[EYAL]: ProcessEndpointEvent started')
-        # print('[EYAL]: Full event at the beginning: ', full_event)
         event = full_event.body
 
         # code that calculates the endppint id. should be
@@ -535,7 +508,7 @@ class ProcessEndpointEvent(MapClass):
 
             events.append(
                 {
-                    # FUNCTION_URI: function_uri,
+                    FUNCTION_URI: function_uri,
                     MODEL: versioned_model,
                     MODEL_CLASS: model_class,
                     TIMESTAMP: timestamp,
@@ -555,7 +528,6 @@ class ProcessEndpointEvent(MapClass):
             )
 
         storey_event = Event(body=events, key=endpoint_id, time=timestamp)
-        print('[EYAL]: Return an event object with the following body: ', events)
         return storey_event
 
     def is_list_of_numerics(
@@ -645,9 +617,6 @@ class FilterAndUnpackKeys(MapClass):
         self.keys = keys
 
     def do(self, event):
-        print('[EYAL]: Now in FilterAndUnpackKeys')
-        print('[EYAL]: current keys: ', self.keys)
-        print('[EYAL]: current event: ', event)
         new_event = {}
         for key in self.keys:
             if key in event:
@@ -658,7 +627,6 @@ class FilterAndUnpackKeys(MapClass):
                 unpacked = {**unpacked, **new_event[key]}
             else:
                 unpacked[key] = new_event[key]
-        print('[EYAL]: unpacked keys: ', unpacked)
         return unpacked if unpacked else None
 
 
@@ -680,7 +648,6 @@ class MapFeatureNames(MapClass):
         self.label_columns = {}
 
     def _infer_feature_names_from_data(self, event):
-        print('[EYAL]: Print feature names from infer function')
         for endpoint_id in self.feature_names:
             if len(self.feature_names[endpoint_id]) >= len(event[FEATURES]):
                 return self.feature_names[endpoint_id]
@@ -693,10 +660,8 @@ class MapFeatureNames(MapClass):
         return None
 
     def do(self, event: Dict):
-        print('[EYAL]: MapFeatureNames started:')
         endpoint_id = event[ENDPOINT_ID]
-        print('[EYAL]: Event: ', event)
-        print('[EYAL]: self.feature_names: ', self.feature_names)
+
         if endpoint_id not in self.feature_names:
             endpoint_record = get_endpoint_record(
                 kv_container=self.kv_container,
@@ -704,9 +669,7 @@ class MapFeatureNames(MapClass):
                 endpoint_id=endpoint_id,
                 access_key=self.access_key,
             )
-            print('[EYAL]: endpoint_record: ', endpoint_record)
             feature_names = endpoint_record.get(FEATURE_NAMES)
-            print('[EYAL]: New feature names: ', feature_names)
             feature_names = json.loads(feature_names) if feature_names else None
 
             label_columns = endpoint_record.get(LABEL_COLUMNS)
@@ -714,7 +677,6 @@ class MapFeatureNames(MapClass):
 
             if not feature_names and self._infer_columns_from_data:
                 feature_names = self._infer_feature_names_from_data(event)
-                print('[EYAL]: new feature names: ', feature_names)
 
             if not feature_names:
                 logger.warn(
@@ -722,7 +684,6 @@ class MapFeatureNames(MapClass):
                     endpoint_id=endpoint_id,
                 )
                 feature_names = [f"f{i}" for i, _ in enumerate(event[FEATURES])]
-                print('[EYAL]: get feature names from event[FEATURES]: ', feature_names)
                 get_v3io_client().kv.update(
                     container=self.kv_container,
                     table_path=self.kv_path,
@@ -762,12 +723,9 @@ class MapFeatureNames(MapClass):
 
         feature_names = self.feature_names[endpoint_id]
         features = event[FEATURES]
-        print('[EYAL]: again, update feature names to feature_names[endpoint_id]: ', feature_names)
-        print('[EYAL]: plus update feautres to event[FEATURES]: ', features)
         event[NAMED_FEATURES] = {
             name: feature for name, feature in zip(feature_names, features)
         }
-        print('[EYAL]: adding event the named features: ', event)
 
         label_columns = self.label_columns[endpoint_id]
         prediction = event[PREDICTION]
@@ -785,9 +743,6 @@ class WriteToKV(MapClass):
         self.table = table
 
     def do(self, event: Dict):
-        print('[EYAL]: Now in WriteToKV')
-        print('[EYAL]: write the following event: ', event)
-        print('[EYAL]: Use the following kv table: ', self.table)
         get_v3io_client().kv.update(
             container=self.container,
             table_path=self.table,
@@ -814,21 +769,17 @@ class InferSchema(MapClass):
         self.keys = set()
 
     def do(self, event: Dict):
-        print('[EYAL]: Now in InferSchema')
         key_set = set(event.keys())
-        print('[EYAL]: Creating key set: ', key_set)
-        print('[EYAL]: A reminder - our self.keys is :', self.keys)
         if not key_set.issubset(self.keys):
             self.keys.update(key_set)
             get_frames_client(
                 token=self.v3io_access_key,
                 container=self.container,
                 address=self.v3io_framesd,
-            ).execute(backend="kv", table=self.table, command="InferSchema")
+            ).execute(backend="kv", table=self.table, command="infer_schema")
             logger.info(
                 "Found new keys, inferred schema", table=self.table, event=event
             )
-        print('[EYAL]: Event at the end if inferschema (no changes): ', event)
         return event
 
 

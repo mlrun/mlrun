@@ -4,16 +4,17 @@
 
 | MLRun Terms              | Description                                                                                                                                                                                    |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| FeatureSet               | A group of features that are ingested together and stored in logical group.                                                                                                                      |
-| FeatureVector            | A combination of multiple Features originating from different FeatureSets.                                                                                                                       |
-| HTTPRunDB                | API for wrapper to the internal DB in MLRun.                                                                                                                                                     |
-|hub                       | Used in code to reference the [MLRun Marketplace](../runtimes/load-from-marketplace).                                                                                                                                                     |
-| MLRun Function           | An abstraction over the code, extra packages, runtime configuration and desired resources which allow execution in a local environment and on various serverless engines on top of K8s.                                                                                                 |
-| MLRun Marketplace        | A collection of pre-built MLRun functions avilable for usage.                                                                                                                                    |
-| MLRun project            | A logical container for all the work on a particular activity/application that include functions, workflow, artifacts, secrets, and more, and can be assigned to a specific group of users.                                                                    |
-| Nuclio function          | Subtype of MLRun function that uses the Nuclio runtime for any generic real-time function.                                                                                                            |
-| Serving function         | Subtype of MLRun function that uses the Nuclio runtime specifically for serving ML models or real-time pipelines.                                                                                     |
-| storey                   | Asynchronous streaming library for real time event processing and feature extraction. Used in Iguazio's feature store and real-time. pipelines                                                |
+| FeatureSet               | A group of features that are ingested together and stored in logical group. See [Feature Sets](../feature-store/feature-sets).                                                        |
+| FeatureVector            | A combination of multiple Features originating from different FeatureSets. See [Creating and using feature vectors](../feature-store/feature-vectors).                                      |
+| HTTPRunDB                | API for wrapper to the internal DB in MLRun. See [mlrun.db.httpdb.HTTPRunDB](../api/mlrun.db.html#mlrun.db.httpdb.HTTPRunDB).                 |
+|hub                       | Used in code to reference the [MLRun functions Marketplace](../runtimes/load-from-marketplace).                                                            |
+| MLRun Function           | An abstraction over the code, extra packages, runtime configuration and desired resources which allow execution in a local environment and on various serverless engines on top of K8s. See [MLRun serverless functions](../concepts/functions-concepts#mlrun-serverless-functions) and [Creating and using functions](../runtimes/functions). |
+| MLRun Marketplace | A collection of pre-built MLRun functions avilable for usage. See [MLRun functions Marketplace](../runtimes/load-from-marketplace).                                                                                                 |
+| MLRun project            | A logical container for all the work on a particular activity/application that include functions, workflow, artifacts, secrets, and more, and can be assigned to a specific group of users. See [Projects](../projects/project).  |
+| mpijob |  One of the MLRun batch runtimes that runs distributed jobs and Horovod over the MPI job operator, used mainly for deep learning jobs. See [MLRun MPIJob and Horovod Runtime](runtimes/horovod).  |
+| Nuclio function          | Subtype of MLRun function that uses the Nuclio runtime for any generic real-time function. See [Nuclio real-time functions](../concepts/nuclio-real-time-functions) and [Nuclio documentation](https://nuclio.io/docs/latest/).   |
+| Serving function         | Subtype of MLRun function that uses the Nuclio runtime specifically for serving ML models or real-time pipelines. See [Real-time serving pipelines (graphs)](../serving/serving-graph) and [Model serving pipelines](../serving/build-graph-model-serving). |
+| storey                   | Asynchronous streaming library for real time event processing and feature extraction. Used in Iguazio's feature store and real-time pipelines. See [storey.transformations - Graph transformations](../api/storey.transformations). |
 |                          |                                                                        
 
 ## Iguazio (V3IO) Terms
@@ -29,7 +30,7 @@
 ## Standard ML Terms
 | Name                                       | Description          |   
 |--------------------------------------------------|---------------------------------------------------------------------------| 
-| Artifact                 | A versioned output of a data processing or model training jobs, can be used as input for other jobs or pipelines in the project. There are various types of artifacts (file, model, dataset, chart, etc.) that incorporate useful metadata.       |
+| Artifact                 | A versioned output of a data processing or model training jobs, can be used as input for other jobs or pipelines in the project. There are various types of artifacts (file, model, dataset, chart, etc.) that incorporate useful metadata. See [MLRun Artifacts and models](../store/artifacts).     |
 | DAG                      | Directed acyclic graph, used to describe workflows/pipelines.                                                                                                                                  |
 | Feature engineering      | Apply domain knowledge and statistical techniques to raw data to extract more information out of data and improve performance of machine. learning models                                      |
 | EDA                      | Exploratory data analysis. Used by data scientists to understand dataset via cleaning, visualization, and statistical tests.                                                                   |

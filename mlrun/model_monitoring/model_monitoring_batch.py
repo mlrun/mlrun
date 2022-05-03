@@ -11,10 +11,9 @@ import v3io
 from mlrun import get_run_db, store_manager
 from mlrun.data_types.infer import DFDataInfer, InferOptions
 from mlrun.run import MLClientCtx
-from mlrun.utils import config, logger, str_to_timestamp
+from mlrun.utils import config, logger
 from mlrun.utils.model_monitoring import EndpointType, parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
-import mlrun.feature_store as fstore
 
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f%z"
 
@@ -25,18 +24,20 @@ class TotalVarianceDistance:
     Provides a symmetric drift distance between two periods t and u
     Z - vector of random variables
     Pt - Probability distribution over time span t
+
+    :args distrib_t: array of distribution t (usually the latest dataset distribution)
+    :args distrib_u: array of distribution u (usually the training dataset distribution)
     """
 
     distrib_t: np.ndarray
     distrib_u: np.ndarray
 
     def compute(self) -> float:
-        # """
-        # Calculate Total variance distance
-        # :param distrib_t: array of distribution t (usually the latest dataset distribution)
-        # :param distrib_u: array of distribution u (usutally the training dataset distribution)
-        # :return:                Total Variance Distance (float)
-        # """
+        """
+        Calculate Total variance distance
+
+        :return: Total Variance Distance (float)
+        """
         return np.sum(np.abs(self.distrib_t - self.distrib_u)) / 2
 
 
@@ -46,22 +47,21 @@ class HellingerDistance:
     Hellinger distance is an f divergence measure, similar to the Kullback-Leibler (KL) divergence.
     It used to quantify the difference between two probability distributions.
     However, unlike KL Divergence the Hellinger divergence is symmetric and bounded over a probability space.
+    The output range of Hellinger distance is [0,1]. The closer to 0, the more similar the two distributions.
 
-    :param distrib_t: array of distribution t (usually the latest dataset distribution)
-    :param distrib_u: array of distribution u (usutally the training dataset distribution)
-
-    :return: Hellinger distance (float)
+    :args distrib_t: array of distribution t (usually the latest dataset distribution)
+    :args distrib_u: array of distribution u (usually the training dataset distribution)
     """
 
     distrib_t: np.ndarray
     distrib_u: np.ndarray
 
     def compute(self) -> float:
-        print('[EYAL]: distrib_t: ', self.distrib_t)
-        print('[EYAL]: distrib_u: ', self.distrib_u)
-        print('[EYAL]: Hellinger Distance: ', np.sqrt(
-            0.5 * ((np.sqrt(self.distrib_u) - np.sqrt(self.distrib_t)) ** 2).sum()
-        ))
+        """
+        Calculate Hellinger Distance
+
+        :return: Hellinger Distance (float)
+        """
         return np.sqrt(
             0.5 * ((np.sqrt(self.distrib_u) - np.sqrt(self.distrib_t)) ** 2).sum()
         )
@@ -74,17 +74,22 @@ class KullbackLeiblerDivergence:
     It is an asymmetric measure (thus it's not a metric) and it doesn't satisfy the triangle inequality.
     KL Divergence of 0, indicates two identical distributions.
 
-    :param distrib_t: array of distribution t (usually the latest dataset distribution)
-    :param distrib_u: array of distribution u (usutally the training dataset distribution)
-
-    :return: KL Divergence (float)
-
+    :args distrib_t: array of distribution t (usually the latest dataset distribution)
+    :args distrib_u: array of distribution u (usually the training dataset distribution)
     """
 
     distrib_t: np.ndarray
     distrib_u: np.ndarray
 
     def compute(self, capping=None, kld_scaling=0.0001) -> float:
+        """
+        :param capping:              A bounded value for the KL Divergence. For infinite distance, the result
+                                     is replaced with the capping value which indicates a huge differences between
+                                     the distributions.
+        :param kld_scaling:          Will be used to replace 0 values for executing the logarithmic operation.
+
+        :return: KL Divergence (float)
+        """
         t_u = np.sum(
             np.where(
                 self.distrib_t != 0,
@@ -116,10 +121,8 @@ class KullbackLeiblerDivergence:
 class VirtualDrift:
 
     """
-    Virtual Drift object is used for handling the drift analysis calculations.
-    It contains the metric objects and the related methods for the detection of potential drifting
-    based on the given metric objects.
-
+    Virtual Drift object is used for handling the drift calculations.
+    It contains the metrics objects and the related methods for the detection of potential drift.
     """
 
     def __init__(
@@ -133,21 +136,22 @@ class VirtualDrift:
         Initialize a Virtual Drift object
 
         :param prediction_col:          The name of the dataframe column which represents the predictions of the model.
-                                        If provided, it will be used for calculating drift over the predictinos.
+                                        If provided, it will be used for calculating drift over the predictions.
         :param label_col:               The name of the dataframe column which represents the labels of the model.
                                         If provided, it will be used for calculating drift over the labels.
-        :param feature_weights:         Weights that can be apply to the features and take into account during the drift analysis
-        :param inf_capping:             A possible bounder for the results of the statistical metric.
-                                        For example, when calculating KL divergence and getting infinite distance, the result
-                                        is replaced with the capping value.
-
+        :param feature_weights:         Weights that can be applied to the features and to be considered during the
+                                        drift analysis.
+        :param inf_capping:             A bounded value for the results of the statistical metric.
+                                        For example, when calculating KL divergence and getting infinite distance
+                                        between the two distributions, the result will be replaced with the
+                                        capping value.
         """
         self.prediction_col = prediction_col
         self.label_col = label_col
         self.feature_weights = feature_weights
         self.capping = inf_capping
 
-        # Initialize objects of the current metrics
+        # initialize objects of the current metrics
         self.metrics = {
             "tvd": TotalVarianceDistance,
             "hellinger": HellingerDistance,
@@ -155,50 +159,44 @@ class VirtualDrift:
         }
 
     def dict_to_histogram(self, histogram_dict):
-        # """
-        # convert histogram dictionary into pandas DataFrame with feature histograms as columns
-        #
-        # :param histogram_dict:          Histogram dictionary
-        #
-        # :return:                        histogram dataframe
-        # """
-        # TODO EYAL - explain this loop - what is feature (the dataframe column) and what is stats (the values of this column)
-        # create a dictionary in which for each feature we keep it's histogram values
+        """
+        Convert histogram dictionary to pandas DataFrame with feature histograms as columns
+
+        :param histogram_dict:          Histogram dictionary
+
+        :return:                        Histogram dataframe
+        """
+
+        # create a dictionary with feature histograms as values
         histograms = {}
         for feature, stats in histogram_dict.items():
             histograms[feature] = stats["hist"][0]
-        print('[EYAL]: Feature example: ', feature)
-        print('[EYAL]: stats example: ', stats)
 
-        print('[EYAL]: Histograms dictionary before concat: ', histograms)
-
-        # convert dictionary to pandas DataFrame
+        # convert the dictionary to pandas DataFrame
         histograms = pd.DataFrame(histograms)
 
-        # Normalize to probability distribution of each feature
+        # normalize to probability distribution of each feature
         histograms = histograms / histograms.sum()
 
         return histograms
 
     def compute_metrics_over_df(self, base_histogram, latest_histogram):
         """
-        Calculate each metric per feature for detecting drift
+        Calculate metrics values for each feature
 
         :param base_histogram:          histogram dataframe that represents the distribution of the features from the
                                         original training set
         :param latest_histogram:        histogram dataframe that represents the distribution of the features from the
                                         latest input batch
 
-        :return: A dictionary in which for each metric (key) we keep the values for each feature.
+        :return: A dictionary in which for each metric (key) we assign the values for each feature.
 
         For example:
         {tvd: {feature_1: 0.001, feature_2: 0.2: ,...}}
 
         """
-        print('[EYAL]: Now in compute_metrics_over_df')
-        print('[EYAL]: Base Histogram: ', base_histogram)
-        print('[EYAL]: Latest Histogram: ', latest_histogram)
-        # Compute each metric for each feature distributions and store the results in dictionary
+
+        # compute the different metrics for each feature distribution and store the results in dictionary
         drift_measures = {}
         for metric_name, metric in self.metrics.items():
             drift_measures[metric_name] = {
@@ -207,40 +205,37 @@ class VirtualDrift:
                 ).compute()
                 for feature in base_histogram
             }
-        print('[EYAL]: Drift Measures: ', drift_measures)
+
         return drift_measures
 
     def compute_drift_from_histograms(self, feature_stats, current_stats):
-        print('[EYAL]: now in compute_drift_from_histograms')
-        # """
-        # compare the distributions of both the original features data and the recent input data from the model server.
-        #
-        #
-        # :param feature_stats:           Histogram dictionary of the original feature dataset that was used in the
-        #                                 model training
-        # :param current_stats:           Histogram dictionary of the recent input data that was collected from the model
-        #                                 server
-        #
-        # :return: A dictionary that includes the drift results for each feature.
-        #
-        # """
+        """
+        Compare the distributions of both the original features data and the latest input data
 
-        # Convert histogram dictionaries to DataFrame of the histograms
+        :param feature_stats:           Histogram dictionary of the original feature dataset that was used in the
+                                        model training.
+        :param current_stats:           Histogram dictionary of the recent input data
+
+        :return:                        A dictionary that includes the drift results for each feature.
+
+        """
+
+        # convert histogram dictionaries to DataFrame of the histograms
         # with feature histogram as cols
         base_histogram = self.dict_to_histogram(feature_stats)
         latest_histogram = self.dict_to_histogram(current_stats)
 
-        # Verify all the features exist between datasets
+        # verify all the features exist between datasets
         base_features = set(base_histogram.columns)
         latest_features = set(latest_histogram.columns)
         features_common = list(base_features.intersection(latest_features))
         feature_difference = list(base_features ^ latest_features)
-
         if not features_common:
             raise ValueError(
                 f"No common features found: {base_features} <> {latest_features}"
             )
-        # Drop columns of non-exist features
+
+        # drop columns of non-exist features
         base_histogram = base_histogram.drop(
             feature_difference, axis=1, errors="ignore"
         )
@@ -248,29 +243,29 @@ class VirtualDrift:
             feature_difference, axis=1, errors="ignore"
         )
 
-        # Compute the drift metric per feature
+        # compute the statistical metrics per feature
         features_drift_measures = self.compute_metrics_over_df(
             base_histogram.loc[:, features_common],
             latest_histogram.loc[:, features_common],
         )
 
-        # Compute total drift measures for features
+        # compute total value for each metric
         for metric_name in self.metrics.keys():
             feature_values = list(features_drift_measures[metric_name].values())
             features_drift_measures[metric_name]["total_sum"] = np.sum(feature_values)
             features_drift_measures[metric_name]["total_mean"] = np.mean(feature_values)
 
-            # Add weighted mean by given feature weights if provided
+            # add weighted mean by given feature weights if provided
             if self.feature_weights:
                 features_drift_measures[metric_name]["total_weighted_mean"] = np.dot(
                     feature_values, self.feature_weights
                 )
 
-        # Define drift result dictionary with values as a dictionary
+        # define drift result dictionary with values as a dictionary
         drift_result = defaultdict(dict)
 
-        # Fill drift result dictionary with the features drift measures
-        # and the total sum and mean of each statistical metric
+        # fill drift result dictionary with the statistical metrics results per feature
+        # and the total sum and mean of each metric
         for feature in features_common:
             for metric, values in features_drift_measures.items():
                 drift_result[feature][metric] = values[feature]
@@ -283,9 +278,7 @@ class VirtualDrift:
                     weighted_mean = metric_measure["total_weighted_mean"]
                     drift_result[f"{metric}_weighted_mean"] = weighted_mean
 
-        print('[EYAL]: drift_result dictionary after the loop: ', drift_result)
-
-        # Compute the drift metric for the labels (crucial part for concept drift detection)
+        # compute the drift metric over the labels
         if self.label_col:
             label_drift_measures = self.compute_metrics_over_df(
                 base_histogram.loc[:, self.label_col],
@@ -294,8 +287,7 @@ class VirtualDrift:
             for metric, values in label_drift_measures.items():
                 drift_result[self.label_col][metric] = values[metric]
 
-        # Compute the drift metric for the predictions
-        # It is a crucial part of identifying a possible concept drift
+        # compute the drift metric over the predictions
         if self.prediction_col:
             prediction_drift_measures = self.compute_metrics_over_df(
                 base_histogram.loc[:, self.prediction_col],
@@ -314,6 +306,7 @@ class BatchProcessor:
     Note that the BatchProcessor object requires access keys along with valid project configurations.
 
     """
+
     def __init__(
         self,
         context: MLClientCtx,
@@ -325,10 +318,10 @@ class BatchProcessor:
         """
         Initialize Batch Processor object.
 
-        :param context:                         A MLrun context.
-        :param project:                         Project name.
-        :param model_monitoring_access_key:     Access key to apply the model monitoring process.
-        :param v3io_access_key:                 Token key for v3io.
+        :param context:                         a MLrun context.
+        :param project:                         project name.
+        :param model_monitoring_access_key:     access key to apply the model monitoring process.
+        :param v3io_access_key:                 token key for v3io.
 
         """
         self.context = context
@@ -339,11 +332,11 @@ class BatchProcessor:
             model_monitoring_access_key or v3io_access_key
         )
 
-        # Initialize virtual drift object
+        # initialize virtual drift object
         self.virtual_drift = VirtualDrift(inf_capping=10)
 
-        # Define the required paths for the project objects
-        # Note that the kv table, tsdb, and the input stream paths are located at the default location
+        # define the required paths for the project objects.
+        # note that the kv table, tsdb, and the input stream paths are located at the default location
         # while the parquet path is located at the user-space location
         template = config.model_endpoint_monitoring.store_prefixes.default
         kv_path = template.format(project=self.project, kind="endpoints")
@@ -376,7 +369,7 @@ class BatchProcessor:
             stream_path=self.stream_path,
         )
 
-        # Get the drift thresholds from the model monitoring configurations
+        # get drift thresholds from the model monitoring configuration
         self.default_possible_drift_threshold = (
             config.model_endpoint_monitoring.drift_thresholds.default.possible_drift
         )
@@ -396,7 +389,7 @@ class BatchProcessor:
             token=self.v3io_access_key,
         )
 
-        # if an error occurs, it will be raised using this argument
+        # if an error occurs, it will be raised using the following argument
         self.exception = None
 
     def post_init(self):
@@ -415,7 +408,7 @@ class BatchProcessor:
             response.raise_for_status([409, 204, 403])
 
     def run(self):
-        '''Main method for manage the drift analysis and write the results into tsdb and KV table'''
+        """Main method for manage the drift analysis and write the results into tsdb and KV table"""
 
         # get model endpoints (each deployed project has at least 1 serving model)
         try:
@@ -429,75 +422,67 @@ class BatchProcessor:
             if endpoint.spec.active:
                 active_endpoints.add(endpoint.metadata.uid)
 
-        # store, sub = store_manager.get_or_create_store(self.parquet_path)
-        # prefix = self.parquet_path.replace(sub, "")
-        # fs = store.get_filesystem(silent=False)
+        store, sub = store_manager.get_or_create_store(self.parquet_path)
+        prefix = self.parquet_path.replace(sub, "")
+        fs = store.get_filesystem(silent=False)
 
-        # if not fs.exists(sub):
-        #     logger.warn(f"{sub} does not exist")
-        #     return
+        if not fs.exists(sub):
+            logger.warn(f"{sub} does not exist")
+            return
 
-        # for endpoint_dir in fs.ls(sub):
-        #     endpoint_id = endpoint_dir["name"].split("=")[-1]
-        #     if endpoint_id not in active_endpoints:
-        #         continue
+        for endpoint_dir in fs.ls(sub):
+            endpoint_id = endpoint_dir["name"].split("=")[-1]
+            if endpoint_id not in active_endpoints:
+                continue
 
-        # For each model endpoint, we calculate the drift analysis
+        # perform drift analysis for each model endpoint
         for endpoint_id in active_endpoints:
             try:
-                # last_year = self.get_last_created_dir(fs, endpoint_dir)
-                # last_month = self.get_last_created_dir(fs, last_year)
-                # last_day = self.get_last_created_dir(fs, last_month)
-                # last_hour = self.get_last_created_dir(fs, last_day)
-                #
-                # full_path = f"{prefix}{last_hour['name']}"
-                #
-                # logger.info(f"Now processing {full_path}")
+                last_year = self.get_last_created_dir(fs, endpoint_dir)
+                last_month = self.get_last_created_dir(fs, last_year)
+                last_day = self.get_last_created_dir(fs, last_month)
+                last_hour = self.get_last_created_dir(fs, last_day)
 
-                # Get model endpoint object
+                full_path = f"{prefix}{last_hour['name']}"
+
+                logger.info(f"Now processing {full_path}")
+
+                # get model endpoint object
                 endpoint = self.db.get_model_endpoint(
                     project=self.project, endpoint_id=endpoint_id
                 )
 
-                # Skip router endpoint
+                # skip router endpoint
                 if endpoint.status.endpoint_type == EndpointType.ROUTER:
                     # endpoint.status.feature_stats is None
                     logger.info(f"{endpoint_id} is router skipping")
                     continue
 
-                # df = pd.read_parquet(full_path)
-
-
-                # loading monitoring features and metadata from feature store
-                monitoring_fs = fstore.get_feature_set(f"store://feature-sets/{self.project}/monitoring:latest")
-
-                # df = monitoring_fs.to_dataframe(start_time=str_to_timestamp('now'),end_time=str_to_timestamp('now -1H'),time_column='timestamp')
-                df = monitoring_fs.to_dataframe()
+                df = pd.read_parquet(full_path)
 
                 # get the timestamp of the latest request
                 timestamp = df["timestamp"].iloc[-1]
 
-                # Create DataFrame based on the input features
+                # create DataFrame based on the input features
                 named_features_df = list(df["named_features"])
                 named_features_df = pd.DataFrame(named_features_df)
 
-                # Get the current stats that are represented by histogram of each feature within the dataset
-                # In the following dictionary, each key is a feature with dictionary of stats
+                # get the current stats that are represented by histogram of each feature within the dataset.
+                # in the following dictionary, each key is a feature with dictionary of stats
                 # (including histogram distribution) as a value
                 current_stats = DFDataInfer.get_stats(
                     df=named_features_df, options=InferOptions.Histogram
                 )
-                print('[EYAL]: Curren Stats: ', current_stats)
 
-                # compute the drift based on the distribution of the current stats and the distribution of
-                # the feature stats which is stored in the model endpoint object
+                # compute the drift based on the histogram of the current stats and the histogram of
+                # the original feature stats that can be found in the model endpoint object
                 drift_result = self.virtual_drift.compute_drift_from_histograms(
                     feature_stats=endpoint.status.feature_stats,
                     current_stats=current_stats,
                 )
                 logger.info("Drift result", drift_result=drift_result)
 
-                # Check for possible drift based on the results of the statistical metrics
+                # check for possible drift based on the results of the statistical metrics defined above
                 drift_status, drift_measure = self.check_for_drift(
                     drift_result=drift_result, endpoint=endpoint
                 )
@@ -564,30 +549,27 @@ class BatchProcessor:
                 self.exception = e
 
     def check_for_drift(self, drift_result, endpoint):
-        # """
-        # Check for drift based on the defined decision rule and the calculated results
-        #
-        #
-        # :param drift_result:           dictionary of the drift results for each metric per feature
-        #
-        # :param endpoint:               Model endpoint
-        #
-        #
-        # :return: Tuple with:
-        #     1. drift status (str) based on the
-        #     2. drift mean (float) based on the mean of Total Variance Distance and Hellinger distance
-        # """
+        """
+        Check for drift based on the defined decision rule and the calculated results of the statistical metrics
 
-        # Calculate drift mean value based on TVD and Hellinger distance
+        :param drift_result:           dictionary of statistical metrics results per feature
+
+        :param endpoint:               model endpoint
+
+        :return: Tuple with:
+            1. drift status (str) based on the decision rule
+            2. drift mean (float) based on the mean of the Total Variance Distance and the Hellinger distance
+        """
+
+        # calculate the mean of the drift based on TVD and Hellinger distance
         tvd_mean = drift_result.get("tvd_mean")
         hellinger_mean = drift_result.get("hellinger_mean")
         drift_mean = 0.0
         if tvd_mean and hellinger_mean:
             drift_mean = (tvd_mean + hellinger_mean) / 2
 
-        # get drift thresholds from model configuration
+        # get drift thresholds from the model configuration
         monitor_configuration = endpoint.spec.monitor_configuration or {}
-        print('[EYAL]: Monitor Configruation: ', monitor_configuration)
 
         possible_drift = monitor_configuration.get(
             "possible_drift", self.default_possible_drift_threshold

@@ -30,24 +30,13 @@ def get_model_monitoring_stream_processing_function(
     http_source = mlrun.datastore.sources.HttpSource()
     fset.spec.source = http_source
 
-
     function = code_to_function(
         name="model-monitoring-stream",
         project=project,
         filename=str(STREAM_PROCESSING_FUNCTION_PATH),
         kind="serving",
-        image="eyaligu/mlrun-api:monitoring-feature-set",
+        image="mlrun/mlrun",
     )
-
-    # function = mlrun.new_function(
-    #     name="model-monitoring-stream",
-    #     project=project,
-    #     kind="serving",
-    #     image="eyaligu/mlrun-api:monitoring-feature-set",
-    #     handler="mlrun.model_monitoring.stream_processing_fs.handler",
-    # )
-    #
-    # function.run(local=True)
 
     # add stream trigger
     function.metadata.project = project
@@ -110,30 +99,9 @@ def get_model_monitoring_batch_function(
         project=project,
         filename=str(MONIOTINRG_BATCH_FUNCTION_PATH),
         kind="job",
-        # image="mlrun/mlrun",
-        image="eyaligu/mlrun-api:monitoring-feature-set",
+        image="mlrun/mlrun",
         handler="handler",
     )
-
-    # function: KubejobRuntime = code_to_function(
-    #     name="model-monitoring-batch",
-    #     project=project,
-    #     filename=str(MONIOTINRG_BATCH_FUNCTION_PATH),
-    #     kind="job",
-    #     image="mlrun/mlrun",
-    #     handler="handler",
-    # )
-
-    # function: KubejobRuntime = mlrun.new_function(
-    #     name="model-monitoring-batch",
-    #     project=project,
-    #     kind="job",
-    #     image="eyaligu/mlrun-api:monitoring-feature-set",
-    #     handler="mlrun.model_monitoring.model_monitoring_batch.handler",
-    # )
-
-    # function.run()
-
     function.set_db_connection(get_run_db_instance(db_session))
 
     function.metadata.project = project

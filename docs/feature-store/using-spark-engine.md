@@ -322,7 +322,7 @@ feature_set = fstore.FeatureSet(
 source = SnowflakeSource(
     "customer_sf",
     query="select * from customer limit 100000",
-    url="nf77378.eu-west-2.aws.snowflakecomputing.com",
+    url="nnnnnn.snowflakecomputing.com",
     user="nnnnnn",
     password="nnnnnn",
     database="SNOWFLAKE_SAMPLE_DATA",
@@ -332,11 +332,3 @@ source = SnowflakeSource(
 
 fstore.ingest(feature_set, source, spark_context=True)
 ```
-
-
-
-
-
-
-
-

@@ -35,7 +35,8 @@ See full examples in:
 - [Spark operator ingestion example](#spark-operator-ingestion-example)
 - [Spark code_to_function ingestion example](#spark-code-to-function-ingestion-example)
 - [Spark dataframe ingestion example](#spark-dataframe-ingestion-example)
-- [Spark execution engine over S3 - full flow example](#spark-execution-engine-over-S3-full-flow-example)       
+- [Spark over S3 full flow example](#spark-over-s3-full-flow-example)
+- [Spark ingestion from Snowflake example](#spark-ingestion-from-snowflake-example)
        
 ## Local Spark ingestion example
 
@@ -220,7 +221,7 @@ fstore.ingest(fset, df, spark_context=spark)
 spark.stop()
 ```
 
-## Spark execution engine over S3 - full flow example
+## Spark over S3 - full flow example
 
 For Spark to work with S3, it requires several properties to be set. The following example writes a
 feature set to S3 in the parquet format in a remote k8s job:
@@ -299,3 +300,43 @@ target = ParquetTarget(
 
 fstore.ingest(feature_set, source, targets=[target], run_config=run_config, spark_context=spark_service_name)
 ```
+
+## Spark ingestion from Snowflake example
+
+The following code executes data ingestion from Snowflake.
+
+```
+from pyspark.sql import SparkSession
+
+import mlrun
+import mlrun.feature_store as fstore
+from mlrun.datastore.sources import SnowflakeSource
+
+spark = SparkSession.builder.appName("snowy").getOrCreate()
+
+mlrun.set_environment(project="feature-store")
+feature_set = fstore.FeatureSet(
+    name="customer", entities=[fstore.Entity("C_CUSTKEY")], engine="spark"
+)
+
+source = SnowflakeSource(
+    "customer_sf",
+    query="select * from customer limit 100000",
+    url="nf77378.eu-west-2.aws.snowflakecomputing.com",
+    user="nnnnnn",
+    password="nnnnnn",
+    database="SNOWFLAKE_SAMPLE_DATA",
+    schema="TPCH_SF1",
+    warehouse="compute_wh",
+)
+
+fstore.ingest(feature_set, source, spark_context=True)
+```
+
+
+
+
+
+
+
+

@@ -100,6 +100,8 @@ class AbstractSparkJobSpec(KubeResourceSpec):
         "main_class",
         "spark_conf",
         "hadoop_conf",
+        "driver_java_options",
+        "executor_java_options",
         "use_default_image",
     ]
 
@@ -132,6 +134,8 @@ class AbstractSparkJobSpec(KubeResourceSpec):
         build=None,
         spark_conf=None,
         hadoop_conf=None,
+        driver_java_options=None,
+        executor_java_options=None,
         node_selector=None,
         use_default_image=False,
         priority_class_name=None,
@@ -179,6 +183,8 @@ class AbstractSparkJobSpec(KubeResourceSpec):
         )
         self.spark_conf = spark_conf or {}
         self.hadoop_conf = hadoop_conf or {}
+        self.driver_java_options = driver_java_options
+        self.executor_java_options = executor_java_options
         self.job_type = job_type
         self.python_version = python_version
         self.spark_version = spark_version

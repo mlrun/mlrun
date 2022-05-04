@@ -374,6 +374,18 @@ class Spark3Runtime(AbstractSparkRuntime):
                 self.spec.executor_volume_mounts,
                 append=True,
             )
+        if self.spec.driver_java_options:
+            update_in(
+                job,
+                "spec.driver.javaOptions",
+                self.spec.driver_java_options,
+            )
+        if self.spec.executor_java_options:
+            update_in(
+                job,
+                "spec.executor.javaOptions",
+                self.spec.executor_java_options,
+            )
         return
 
     def _get_spark_version(self):

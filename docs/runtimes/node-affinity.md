@@ -134,30 +134,44 @@ See full details in [mount_pvc](../api/mlrun.platforms.html#mlrun.platforms.moun
 
 Node selector is supported for all cloud platforms. It is relevant for MLRun and Nuclio only.
 
-Preemption mode controls whether pods can be scheduled on preemptible (spot) nodes. Preemption mode is supported for all functions. Preemption mode has three values:
-- Allow: The function pod can run on a spot node if one is available.
-- Constrain: The function pod only runs on spot nodes, and does not run if none is available.
-- Prevent: The function pod cannot run on a spot node. 
+When running ML functions you might want to control whether to run on spot nodes or on-demand nodes. Preemption mode controls whether pods can be scheduled on preemptible (spot) nodes. Preemption mode is supported for all functions. 
 
-Preemption mode uses Kubernets Taints and Toleration to enforce the mode selected. Read more in [Kubernetes Taints and Tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration).
+Preemption mode uses Kubernets Taints and Toleration to enforce the mode selected. Read more in [Kubernetes Taints and Tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration). 
 
-
-### On Demand vs. Spot 
+### Why preemption mode
 
 On-demand instances provide full control over the instance lifecycle. You decide when to launch, stop, hibernate, start, 
-reboot, or terminate it. With Spot instances you request capacity from specific availability zones, though it is  
+reboot, or terminate it. With Spot instances you request capacity from specific availabile zones, though it is  
 susceptible to spot capacity availability. This is a good choice if you can be flexible about when your applications run 
 and if your applications can be interrupted. 
 
+Here are some questions to consider when choosing the type of node:
+
+- Is the function mission critical and must be operational at all times?
+- Is the function a stateful function or stateless function?
+- Can the function recover from unexpected failure?
+- Is this a job that should run only when there are available inexpensive resources?
+
+```{admonition} Important
+When an MLRun job is running on a spot node and it fails, it won't get back up again. Howewer, if Nuclio goes down due to a spot issue, it 
+is brought up by Kubernetes.
+```
+
+Kuberenetes has a few methods for configuring which nodes to run on. To get a deeper understanding , see [Pod Priority and Preemption](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption).
+Also, you must understand the configuration of the spot nodes as specified by the cloud provider.
+
 ### Stateless and Stateful Applications 
-When deploying your MLRun jobs to specific nodes, take into consideration that On-demand 
+When deploying your MLRun jobs to specific nodes, take into consideration that on-demand 
 nodes are designed to run stateful applications while spot nodes are designed for stateless applications. 
 MLRun jobs are more stateful by nature. An MLRun job that is assigned to run on a spot node might be subject to interruption; 
 it would have to be designed so that the job/function state will be saved when scaling to zero.
 
-```{admonition} Important
-When an MLRun job is running on a spot node and it fails, it won't get back up again. Howewer, if Nuclio goes down due to a spot issue, it would be brought up by Kubernetes.
-```
+## Supported preemption modes
+
+Preemption mode has three values:
+- Allow: The function pod can run on a spot node if one is available.
+- Constrain: The function pod only runs on spot nodes, and does not run if none is available.
+- Prevent: Default. The function pod cannot run on a spot node. 
 
 ### UI configuration
 
@@ -171,7 +185,7 @@ Configure the Spot node support for individual Nuclio functions when creating a 
 
 ### SDK configuration
 
-Configure preemption mode by adding the parameter in your Jupyter notebook, specifying a mode from the list of values above. <br>
+Configure preemption mode by adding the `with_preemption_mode` parameter in your Jupyter notebook, and specifying a mode from the list of values above. <br>
 This example illustrates a function that cannot be scheduled on preemptible nodes:
 
 ```

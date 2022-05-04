@@ -16,7 +16,9 @@ class PackageTester:
         s3_import = "import mlrun.datastore.s3"
         azure_blob_storage_import = "import mlrun.datastore.azure_blob"
         azure_key_vault_import = "import mlrun.utils.azure_vault"
-        google_cloud_bigquery_import = "from mlrun.datastore.sources import BigQuerySource"
+        google_cloud_bigquery_import = (
+            "from mlrun.datastore.sources import BigQuerySource"
+        )
         google_cloud_storage_import = "import mlrun.datastore.google_cloud_storage"
 
         self._extras_tests_data = {

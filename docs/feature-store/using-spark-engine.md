@@ -322,7 +322,7 @@ feature_set = fstore.FeatureSet(
 source = SnowflakeSource(
     "customer_sf",
     query="select * from customer limit 100000",
-    url="nnnnnn.snowflakecomputing.com",
+    url="<url>",
     user="nnnnnn",
     password="nnnnnn",
     database="SNOWFLAKE_SAMPLE_DATA",

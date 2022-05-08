@@ -222,8 +222,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler, expected_number_of_list_pods_calls
         )
 
-        self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.created)
-
+        self._assert_run_reached_state(
+            db, self.project, self.run_uid, RunStates.created
+        )
 
     def test_monitor_run_debouncing_non_terminal_state_without_resource(
         self, db: Session, client: TestClient

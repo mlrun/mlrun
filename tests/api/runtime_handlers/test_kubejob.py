@@ -1,3 +1,4 @@
+import time
 from datetime import timedelta
 
 from fastapi.testclient import TestClient
@@ -172,6 +173,92 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_list_namespaced_pods_calls(
             self.runtime_handler, len(list_namespaced_pods_calls)
         )
+
+    def test_run_in_k8s_non_terminal_state_with_unexisting_resource(
+        self, db: Session, client: TestClient
+    ):
+        list_namespaced_pods_calls = [
+            [self.pending_job_pod],
+            [self.running_job_pod],
+            [],
+        ]
+        expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+        for _ in range(expected_number_of_list_pods_calls):
+            self.runtime_handler.monitor_runs(get_db(), db)
+
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler, expected_number_of_list_pods_calls
+        )
+
+        self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
+
+    def test_run_in_non_terminal_state_with_unexisting_resource(
+        self, db: Session, client: TestClient
+    ):
+        # set monitoring interval so debouncing will be active
+        config.runs_monitoring_interval = 2
+
+        # mocking existing run in running state and last update time close to the monitoring interval
+        self.run["status"]["state"] = RunStates.created
+        self.run["status"]["last_update"] = (
+            now_date() - timedelta(seconds=config.runs_monitoring_interval)
+        ).isoformat()
+
+        mlrun.api.crud.Runs().store_run(
+            db, self.run, self.run_uid, project=self.project
+        )
+
+        list_namespaced_pods_calls = [
+            [],
+        ]
+
+        expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+        for _ in range(expected_number_of_list_pods_calls):
+            self.runtime_handler.monitor_runs(get_db(), db)
+
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler, expected_number_of_list_pods_calls
+        )
+
+        self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.created)
+
+
+    def test_monitor_run_debouncing_non_terminal_state_without_resource(
+        self, db: Session, client: TestClient
+    ):
+        # set monitoring interval so debouncing will be active
+        config.runs_monitoring_interval = 2
+
+        # mocking existing run in running state and last update time close to the monitoring interval
+        self.run["status"]["state"] = RunStates.running
+        self.run["status"]["last_update"] = (
+            now_date() - timedelta(seconds=config.runs_monitoring_interval)
+        ).isoformat()
+
+        mlrun.api.crud.Runs().store_run(
+            db, self.run, self.run_uid, project=self.project
+        )
+
+        # Mocking pod that is still in non-terminal state
+        self._mock_list_namespaced_pods([[], []])
+
+        # Triggering monitor cycle
+        self.runtime_handler.monitor_runs(get_db(), db)
+
+        # verifying monitoring was debounced
+        self._assert_run_reached_state(
+            db, self.project, self.run_uid, RunStates.running
+        )
+        # sleeping the monitoring interval
+        time.sleep(config.runs_monitoring_interval)
+
+        # Triggering monitor cycle
+        self.runtime_handler.monitor_runs(get_db(), db)
+
+        # verifying monitoring wasn't debounced and changed to error
+        self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
 
     def test_delete_resources_with_force(self, db: Session, client: TestClient):
         list_namespaced_pods_calls = [

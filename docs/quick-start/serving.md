@@ -6,6 +6,7 @@ import numpy as np
 from typing import List
 import mlrun
 
+
 class ClassifierModel(mlrun.serving.V2ModelServer):
     def load(self):
         """load and initialize the model and/or other elements"""

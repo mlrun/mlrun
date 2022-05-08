@@ -5,9 +5,9 @@ from mlrun.frameworks.sklearn import apply_mlrun
 
 
 def train(
-    dataset: mlrun.DataItem, 
-    label_column: str = "label", 
-    n_estimators: int = 100, 
+    dataset: mlrun.DataItem,
+    label_column: str = "label",
+    n_estimators: int = 100,
     learning_rate: float = 0.1,
     max_depth: int = 3,
     model_name: str = "cancer_classifier"

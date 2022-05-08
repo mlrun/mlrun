@@ -1,10 +1,16 @@
-# Tutorials
+# Additional Tutorials and Examples
 
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 1
 
 ../tutorial/index
 convert-to-mlrun
-Work from IDE
-Additional demos / katacoda
 ```
+
+## MLRun Demos
+
+See [**MLRun demos repository**](https://github.com/mlrun/demos) for various end to end examples
+
+## Katakoda Scenarios
+
+Go through interactive MLRun [**Katacoda Scenarios**](https://www.katacoda.com/mlrun) which teach how to install and use MLRun.

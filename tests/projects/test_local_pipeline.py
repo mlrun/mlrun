@@ -27,8 +27,8 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
         self.project.register_artifacts()
 
         for artifact in self.project.spec.artifacts:
-            assert artifact["key"] in ["data1", "data2"]
-            assert artifact["target_path"] == self.data_url
+            assert artifact["metadata"]["key"] in ["data1", "data2"]
+            assert artifact["spec"]["target_path"] == self.data_url
 
         artifacts = self.project.list_artifacts(tag="x")
         assert len(artifacts) == 1

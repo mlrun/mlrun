@@ -21,7 +21,7 @@ import mlrun.artifacts
 from mlrun.api.db.init_db import init_db
 from mlrun.api.db.session import close_session, create_session
 from mlrun.config import config
-from mlrun.utils import logger
+from mlrun.utils import is_legacy_artifact, logger
 
 
 def init_data(
@@ -221,7 +221,13 @@ def _fix_datasets_large_previews(
                 artifact_dict
                 and artifact_dict.get("kind") == mlrun.artifacts.DatasetArtifact.kind
             ):
-                header = artifact_dict.get("header", [])
+                is_legacy = is_legacy_artifact(artifact_dict)
+
+                header = (
+                    artifact_dict.get("header", [])
+                    if is_legacy
+                    else artifact_dict.get("spec", {}).get("header", [])
+                )
                 if header and len(header) > mlrun.artifacts.dataset.max_preview_columns:
                     logger.debug(
                         "Found dataset artifact with more than allowed columns in preview fields. Fixing",
@@ -232,9 +238,14 @@ def _fix_datasets_large_previews(
                     ]
 
                     # align preview
-                    if artifact_dict.get("preview"):
+                    preview = (
+                        artifact_dict.get("preview")
+                        if is_legacy
+                        else artifact_dict.get("spec", {}).get("preview")
+                    )
+                    if preview:
                         new_preview = []
-                        for preview_row in artifact_dict["preview"]:
+                        for preview_row in preview:
                             # sanity
                             if (
                                 len(preview_row)
@@ -251,25 +262,44 @@ def _fix_datasets_large_previews(
                                 ]
                             )
 
-                        artifact_dict["preview"] = new_preview
+                        if is_legacy:
+                            artifact_dict["preview"] = new_preview
+                        else:
+                            artifact_dict["spec"]["preview"] = new_preview
 
                     # align stats
                     for column_to_remove in columns_to_remove:
-                        if column_to_remove in artifact_dict.get("stats", {}):
-                            del artifact_dict["stats"][column_to_remove]
+                        artifact_stats = (
+                            artifact_dict.get("stats", {})
+                            if is_legacy
+                            else artifact_dict.get("spec").get("stats", {})
+                        )
+                        if column_to_remove in artifact_stats:
+                            del artifact_stats[column_to_remove]
 
                     # align schema
-                    if artifact_dict.get("schema", {}).get("fields"):
+                    schema_dict = (
+                        artifact_dict.get("schema", {})
+                        if is_legacy
+                        else artifact_dict.get("spec").get("schema", {})
+                    )
+                    if schema_dict.get("fields"):
                         new_schema_fields = []
-                        for field in artifact_dict["schema"]["fields"]:
+                        for field in schema_dict["fields"]:
                             if field.get("name") not in columns_to_remove:
                                 new_schema_fields.append(field)
-                        artifact_dict["schema"]["fields"] = new_schema_fields
+                        schema_dict["fields"] = new_schema_fields
 
                     # lastly, align headers
-                    artifact_dict["header"] = header[
-                        : mlrun.artifacts.dataset.max_preview_columns
-                    ]
+                    if is_legacy:
+                        artifact_dict["header"] = header[
+                            : mlrun.artifacts.dataset.max_preview_columns
+                        ]
+                    else:
+                        artifact_dict["spec"]["header"] = header[
+                            : mlrun.artifacts.dataset.max_preview_columns
+                        ]
+
                     logger.debug(
                         "Fixed dataset artifact preview fields. Storing",
                         artifact=artifact_dict,

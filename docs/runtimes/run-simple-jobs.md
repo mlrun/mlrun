@@ -60,7 +60,7 @@ Once the run is complete open the MLRun UI and see the artifacts and results, si
 All of the metrics and artifacts are stored as metadata of the model, so it's easy to do a comparison 
 between models later on.
 
-###Model Registry
+### Model Registry
 
 Models and their metadata are automatically stored in the **Model Registry**. Check the Model Artifacts Tab to see the models.
 

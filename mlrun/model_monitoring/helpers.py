@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from sqlalchemy.orm import Session
+
 import mlrun
 import mlrun.feature_store as fs
 from mlrun import code_to_function, v3io_cred
@@ -11,13 +13,15 @@ from mlrun.model_monitoring.stream_processing_fs import EventStreamProcessor
 from mlrun.runtimes import KubejobRuntime
 from mlrun.utils.helpers import logger
 
-CURRENT_FILE_PATH = Path(__file__)
-STREAM_PROCESSING_FUNCTION_PATH = CURRENT_FILE_PATH.parent / "stream_processing_fs.py"
-MONIOTINRG_BATCH_FUNCTION_PATH = CURRENT_FILE_PATH.parent / "model_monitoring_batch.py"
+_CURRENT_FILE_PATH = Path(__file__)
+_STREAM_PROCESSING_FUNCTION_PATH = _CURRENT_FILE_PATH.parent / "stream_processing_fs.py"
+_MONIOTINRG_BATCH_FUNCTION_PATH = (
+    _CURRENT_FILE_PATH.parent / "model_monitoring_batch.py"
+)
 
 
 def get_model_monitoring_stream_processing_function(
-    project: str, model_monitoring_access_key: str, db_session
+    project: str, model_monitoring_access_key: str, db_session: Session
 ):
     """
     Initialize model monitoring stream processing function.
@@ -45,9 +49,9 @@ def get_model_monitoring_stream_processing_function(
 
     # create a new serving function for the streaming process
     function = code_to_function(
-        name="eyaligu/mlrun-api:monitoring-feature-set",
+        name="model-monitoring-stream",
         project=project,
-        filename=str(STREAM_PROCESSING_FUNCTION_PATH),
+        filename=str(_STREAM_PROCESSING_FUNCTION_PATH),
         kind="serving",
         image="mlrun/mlrun",
     )
@@ -92,7 +96,8 @@ def get_model_monitoring_stream_processing_function(
 def get_model_monitoring_batch_function(
     project: str,
     model_monitoring_access_key: str,
-    db_session,
+    db_session: Session,
+    auth_info: mlrun.api.schemas.AuthInfo,
 ):
     """
     Initialize model monitoring batch function.
@@ -104,7 +109,6 @@ def get_model_monitoring_batch_function(
     :return:                            A function object from a mlrun runtime class
 
     """
-
 
     logger.info(
         f"Checking deployment status for model monitoring batch processing function [{project}]"
@@ -125,9 +129,9 @@ def get_model_monitoring_batch_function(
     function: KubejobRuntime = code_to_function(
         name="model-monitoring-batch",
         project=project,
-        filename=str(MONIOTINRG_BATCH_FUNCTION_PATH),
+        filename=str(_MONIOTINRG_BATCH_FUNCTION_PATH),
         kind="job",
-        image="eyaligu/mlrun-api:monitoring-feature-set",
+        image="mlrun/mlrun",
         handler="handler",
     )
     function.set_db_connection(get_run_db_instance(db_session))

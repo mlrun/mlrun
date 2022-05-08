@@ -2,20 +2,21 @@ import json
 import os
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import v3io
 
 from mlrun import get_run_db, store_manager
+from mlrun.api.schemas import ModelEndpoint
 from mlrun.data_types.infer import DFDataInfer, InferOptions
 from mlrun.run import MLClientCtx
 from mlrun.utils import config, logger
 from mlrun.utils.model_monitoring import EndpointType, parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 
-TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f%z"
+_TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f%z"
 
 
 @dataclass
@@ -26,7 +27,7 @@ class TotalVarianceDistance:
     Pt - Probability distribution over time span t
 
     :args distrib_t: array of distribution t (usually the latest dataset distribution)
-    :args distrib_u: array of distribution u (usually the training dataset distribution)
+    :args distrib_u: array of distribution u (usually the sample dataset distribution)
     """
 
     distrib_t: np.ndarray
@@ -34,9 +35,9 @@ class TotalVarianceDistance:
 
     def compute(self) -> float:
         """
-        Calculate Total variance distance
+        Calculate Total Variance distance.
 
-        :return: Total Variance Distance (float)
+        :returns:  Total Variance Distance.
         """
         return np.sum(np.abs(self.distrib_t - self.distrib_u)) / 2
 
@@ -50,7 +51,7 @@ class HellingerDistance:
     The output range of Hellinger distance is [0,1]. The closer to 0, the more similar the two distributions.
 
     :args distrib_t: array of distribution t (usually the latest dataset distribution)
-    :args distrib_u: array of distribution u (usually the training dataset distribution)
+    :args distrib_u: array of distribution u (usually the sample dataset distribution)
     """
 
     distrib_t: np.ndarray
@@ -60,7 +61,7 @@ class HellingerDistance:
         """
         Calculate Hellinger Distance
 
-        :return: Hellinger Distance (float)
+        :returns: Hellinger Distance
         """
         return np.sqrt(
             0.5 * ((np.sqrt(self.distrib_u) - np.sqrt(self.distrib_t)) ** 2).sum()
@@ -75,20 +76,20 @@ class KullbackLeiblerDivergence:
     KL Divergence of 0, indicates two identical distributions.
 
     :args distrib_t: array of distribution t (usually the latest dataset distribution)
-    :args distrib_u: array of distribution u (usually the training dataset distribution)
+    :args distrib_u: array of distribution u (usually the sample dataset distribution)
     """
 
     distrib_t: np.ndarray
     distrib_u: np.ndarray
 
-    def compute(self, capping=None, kld_scaling=0.0001) -> float:
+    def compute(self, capping: float = None, kld_scaling: float = 1e-4) -> float:
         """
         :param capping:              A bounded value for the KL Divergence. For infinite distance, the result
                                      is replaced with the capping value which indicates a huge differences between
                                      the distributions.
         :param kld_scaling:          Will be used to replace 0 values for executing the logarithmic operation.
 
-        :return: KL Divergence (float)
+        :returns: KL Divergence
         """
         t_u = np.sum(
             np.where(
@@ -119,7 +120,6 @@ class KullbackLeiblerDivergence:
 
 
 class VirtualDrift:
-
     """
     Virtual Drift object is used for handling the drift calculations.
     It contains the metrics objects and the related methods for the detection of potential drift.
@@ -158,13 +158,15 @@ class VirtualDrift:
             "kld": KullbackLeiblerDivergence,
         }
 
-    def dict_to_histogram(self, histogram_dict):
+    def dict_to_histogram(
+        self, histogram_dict: Dict[str, Dict[str, Any]]
+    ) -> pd.DataFrame:
         """
         Convert histogram dictionary to pandas DataFrame with feature histograms as columns
 
         :param histogram_dict:          Histogram dictionary
 
-        :return:                        Histogram dataframe
+        :returns:                        Histogram dataframe
         """
 
         # create a dictionary with feature histograms as values
@@ -180,16 +182,20 @@ class VirtualDrift:
 
         return histograms
 
-    def compute_metrics_over_df(self, base_histogram, latest_histogram):
+    def compute_metrics_over_df(
+        self,
+        base_histogram: Dict[str, Dict[str, Any]],
+        latest_histogram: Dict[str, Dict[str, Any]],
+    ) -> Dict[str, Dict[str, Any]]:
         """
         Calculate metrics values for each feature
 
         :param base_histogram:          histogram dataframe that represents the distribution of the features from the
                                         original training set
         :param latest_histogram:        histogram dataframe that represents the distribution of the features from the
-                                        latest input batch
+                         Ï              latest input batch
 
-        :return: A dictionary in which for each metric (key) we assign the values for each feature.
+        :returns: A dictionary in which for each metric (key) we assign the values for each feature.
 
         For example:
         {tvd: {feature_1: 0.001, feature_2: 0.2: ,...}}
@@ -208,15 +214,18 @@ class VirtualDrift:
 
         return drift_measures
 
-    def compute_drift_from_histograms(self, feature_stats, current_stats):
+    def compute_drift_from_histograms(
+        self,
+        feature_stats: Dict[str, Dict[str, Any]],
+        current_stats: Dict[str, Dict[str, Any]],
+    ) -> Dict[str, Dict[str, Any]]:
         """
         Compare the distributions of both the original features data and the latest input data
-
         :param feature_stats:           Histogram dictionary of the original feature dataset that was used in the
                                         model training.
         :param current_stats:           Histogram dictionary of the recent input data
 
-        :return:                        A dictionary that includes the drift results for each feature.
+        :returns:                        A dictionary that includes the drift results for each feature.
 
         """
 
@@ -304,7 +313,6 @@ class BatchProcessor:
     The main object to handle the batch processing job. This object is used to get the required configurations and
     to manage the main monitoring drift detection process based on the current batch.
     Note that the BatchProcessor object requires access keys along with valid project configurations.
-
     """
 
     def __init__(
@@ -318,7 +326,7 @@ class BatchProcessor:
         """
         Initialize Batch Processor object.
 
-        :param context:                         a MLrun context.
+        :param context:                         a MLRun context.
         :param project:                         project name.
         :param model_monitoring_access_key:     access key to apply the model monitoring process.
         :param v3io_access_key:                 token key for v3io.
@@ -528,7 +536,7 @@ class BatchProcessor:
                 # update the results in tsdb
                 tsdb_drift_measures = {
                     "endpoint_id": endpoint_id,
-                    "timestamp": pd.to_datetime(timestamp, format=TIME_FORMAT),
+                    "timestamp": pd.to_datetime(timestamp, format=_TIME_FORMAT),
                     "record_type": "drift_measures",
                     "tvd_mean": drift_result["tvd_mean"],
                     "kld_mean": drift_result["kld_mean"],
@@ -548,15 +556,16 @@ class BatchProcessor:
                 logger.error(f"Exception for endpoint {endpoint_id}")
                 self.exception = e
 
-    def check_for_drift(self, drift_result, endpoint):
+    def check_for_drift(
+        self, drift_result: Dict[str, Dict[str, Any]], endpoint: ModelEndpoint
+    ) -> Tuple[str, float]:
         """
         Check for drift based on the defined decision rule and the calculated results of the statistical metrics
 
         :param drift_result:           dictionary of statistical metrics results per feature
-
         :param endpoint:               model endpoint
 
-        :return: Tuple with:
+        :returns: Tuple with:
             1. drift status (str) based on the decision rule
             2. drift mean (float) based on the mean of the Total Variance Distance and the Hellinger distance
         """

@@ -11,36 +11,51 @@ from mlrun.model_monitoring.stream_processing_fs import EventStreamProcessor
 from mlrun.runtimes import KubejobRuntime
 from mlrun.utils.helpers import logger
 
-HELPERS_FILE_PATH = Path(__file__)
-STREAM_PROCESSING_FUNCTION_PATH = HELPERS_FILE_PATH.parent / "stream_processing_fs.py"
-MONIOTINRG_BATCH_FUNCTION_PATH = Path(__file__).parent / "model_monitoring_batch.py"
+CURRENT_FILE_PATH = Path(__file__)
+STREAM_PROCESSING_FUNCTION_PATH = CURRENT_FILE_PATH.parent / "stream_processing_fs.py"
+MONIOTINRG_BATCH_FUNCTION_PATH = CURRENT_FILE_PATH.parent / "model_monitoring_batch.py"
 
 
 def get_model_monitoring_stream_processing_function(
     project: str, model_monitoring_access_key: str, db_session
 ):
+    """
+    Initialize model monitoring stream processing function.
+
+    :param project:                     project name.
+    :param model_monitoring_access_key: access key to apply the model monitoring process.
+    :param db_session:                  A session that manages the current dialog with the database.
+
+    :return:                            A function object from a mlrun runtime class
+
+    """
+
+    # initialize Stream Processor object
     stream_processor = EventStreamProcessor(
         project=project,
         model_monitoring_access_key=model_monitoring_access_key,
         parquet_batching_max_events=config.model_endpoint_monitoring.parquet_batching_max_events,
     )
+
+    # create feature set for this project
     fset = stream_processor.create_feature_set()
     fset._override_run_db(db_session)
-
     http_source = mlrun.datastore.sources.HttpSource()
     fset.spec.source = http_source
 
+    # create a new serving function for the streaming process
     function = code_to_function(
-        name="model-monitoring-stream",
+        name="eyaligu/mlrun-api:monitoring-feature-set",
         project=project,
         filename=str(STREAM_PROCESSING_FUNCTION_PATH),
         kind="serving",
         image="mlrun/mlrun",
     )
 
-    # add stream trigger
+    # set the project to the serving function
     function.metadata.project = project
 
+    # add v3io stream trigger
     stream_path = config.model_endpoint_monitoring.store_prefixes.default.format(
         project=project, kind="stream"
     )
@@ -48,6 +63,7 @@ def get_model_monitoring_stream_processing_function(
         stream_path=stream_path, name="monitoring_stream_trigger"
     )
 
+    # set model monitoring access key for managing permissions
     function.set_env_from_secret(
         "MODEL_MONITORING_ACCESS_KEY",
         mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
@@ -77,8 +93,19 @@ def get_model_monitoring_batch_function(
     project: str,
     model_monitoring_access_key: str,
     db_session,
-    auth_info: mlrun.api.schemas.AuthInfo,
 ):
+    """
+    Initialize model monitoring batch function.
+
+    :param project:                     project name.
+    :param model_monitoring_access_key: access key to apply the model monitoring process.
+    :param db_session:                  A session that manages the current dialog with the database.
+
+    :return:                            A function object from a mlrun runtime class
+
+    """
+
+
     logger.info(
         f"Checking deployment status for model monitoring batch processing function [{project}]"
     )
@@ -94,20 +121,21 @@ def get_model_monitoring_batch_function(
 
     logger.info(f"Deploying model monitoring batch processing function [{project}]")
 
+    # create job function runtime for the model monitoring batch
     function: KubejobRuntime = code_to_function(
         name="model-monitoring-batch",
         project=project,
         filename=str(MONIOTINRG_BATCH_FUNCTION_PATH),
         kind="job",
-        image="mlrun/mlrun",
+        image="eyaligu/mlrun-api:monitoring-feature-set",
         handler="handler",
     )
     function.set_db_connection(get_run_db_instance(db_session))
 
+    # set the project to the job function
     function.metadata.project = project
 
-    function.apply(mlrun.mount_v3io())
-
+    # set model monitoring access key for managing permissions
     function.set_env_from_secret(
         "MODEL_MONITORING_ACCESS_KEY",
         mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
@@ -115,6 +143,8 @@ def get_model_monitoring_batch_function(
             SecretsClientType.model_monitoring, "MODEL_MONITORING_ACCESS_KEY"
         ),
     )
+
+    function.apply(mlrun.mount_v3io())
 
     # Needs to be a member of the project and have access to project data path
     function.metadata.credentials.access_key = model_monitoring_access_key

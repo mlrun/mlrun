@@ -1316,7 +1316,7 @@ class BaseRuntimeHandler(ABC):
         if not db_run_state:
             # can't do any verification due to no run_state updated
             return
-        if db_run_state not in RunStates.terminal_states():
+        if db_run_state in RunStates.k8s_non_terminal_states():
             for runtime_resource in runtime_resources:
                 (
                     run_project,

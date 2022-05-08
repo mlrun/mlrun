@@ -1284,6 +1284,86 @@ class BaseRuntimeHandler(ABC):
                     exc=str(exc),
                     traceback=traceback.format_exc(),
                 )
+        for project, runs in project_run_uid_map.items():
+            if runs:
+                for run_uid in runs:
+                    self._ensure_run_not_stuck_on_non_terminal_state(
+                        db, db_session, project, run_uid, runtime_resources
+                    )
+
+    def _ensure_run_not_stuck_on_non_terminal_state(
+        self, db: DBInterface, db_session: Session, project, run_uid, runtime_resources
+    ):
+        """
+        Assuring that a run does not become trapped in a non-terminal state as a result of not finding
+        corresponding k8s resource.
+        This can occur when a node is evicted or preempted, causing the resources to be removed from the resource
+        listing when the final state recorded in the database is non-terminal.
+        This will have a significant impact on scheduled jobs, since they will not be created until the
+        previous run reaches a terminal state
+        """
+        try:
+            run = db.read_run(db_session, run_uid, project)
+        except mlrun.errors.MLRunNotFoundError:
+            logger.warning(
+                "Run not found, got deleted by another process",
+                project=project,
+                uid=run_uid,
+            )
+            return
+        now = now_date()
+        db_run_state = run.get("status", {}).get("state")
+        if not db_run_state:
+            # can't do any verification due to no run_state updated
+            return
+        if db_run_state not in RunStates.terminal_states():
+            for runtime_resource in runtime_resources:
+                (
+                    run_project,
+                    resource_run_uid,
+                    name,
+                ) = self._resolve_runtime_resource_run(runtime_resource)
+                if project == run_project and resource_run_uid == run_uid:
+                    # if found resource there is no need to continue
+                    return
+            last_update_str = run.get("status", {}).get("last_update")
+            debounce_period = config.runs_monitoring_interval
+            updated_now = False
+            if last_update_str is not None:
+                last_update = datetime.fromisoformat(last_update_str)
+                run_state = RunStates.error
+            else:
+                last_update = now_date()
+                updated_now = True
+                logger.info(
+                    "Monitor Found run in non-terminal state without last update time set, "
+                    "updating last update time to now, to be able to evaluate next time if something changed. "
+                    "Debouncing",
+                    project=project,
+                    uid=run_uid,
+                    db_run_state=db_run_state,
+                    now=now,
+                    debounce_period=debounce_period,
+                )
+                run_state = db_run_state
+            if not updated_now and last_update > now - timedelta(
+                seconds=float(debounce_period)
+            ):
+                logger.warning(
+                    "Monitoring did not discover a runtime resource that corresponded to a run in a "
+                    "non-terminal state. but record has recently updated. Debouncing",
+                    project=project,
+                    uid=run_uid,
+                    db_run_state=db_run_state,
+                    last_update=last_update,
+                    now=now,
+                    debounce_period=debounce_period,
+                )
+            else:
+                logger.info("Updating run state", run_uid=run_uid, run_state=run_state)
+                run.setdefault("status", {})["state"] = run_state
+                run.setdefault("status", {})["last_update"] = now
+                db.store_run(db_session, run, run_uid, project)
 
     def _add_object_label_selector_if_needed(
         self,

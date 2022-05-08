@@ -8,32 +8,18 @@ source data is fully read into a data-frame that is processed, writing the outpu
 Spark execution can be done locally, utilizing a local Spark session provided to the ingestion call. To 
 use Spark as the transformation engine in ingestion, follow these steps:
 
-1. When constructing the {py:class}`~mlrun.feature_store.FeatureSet` object, pass an `engine` parameter and set it 
+When constructing the {py:class}`~mlrun.feature_store.FeatureSet` object, pass an `engine` parameter and set it 
    to `spark`. For example:
    
     ```python
     feature_set = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")], engine="spark")
     ```
 
-2. To use a local Spark session, pass a Spark session context when calling the 
-   {py:func}`~mlrun.feature_store.ingest` function, as the `spark_context` parameter. This session is used for
-   data operations and transformations.
-   
-3. To use a remote execution engine (remote spark or spark operator), pass a `RunConfig` object as the `run_config` parameter for 
-the `ingest` API. The actual remote function to execute depends on the object passed:
-   
-    - A default `RunConfig`, in which case the ingestion code either generates a new MLRun function runtime
-       of type `remote-spark`, or utilizes the function specified in `feature_set.spec.function` (in which case,
-       it has to be of runtime type `remote-spark` or `spark`).
-      
-    - A `RunConfig` that has a function configured within it. As mentioned, the function runtime must be of 
-       type `remote-spark` or `spark`.
        
-See full examples in:
+See code examples in:
 - [Local Spark ingestion example](#local-spark-ingestion-example)
 - [Remote Spark ingestion example](#remote-spark-ingestion-example)
 - [Spark operator ingestion example](#spark-operator-ingestion-example)
-- [Spark code_to_function ingestion example](#spark-code-to-function-ingestion-example)
 - [Spark dataframe ingestion example](#spark-dataframe-ingestion-example)
 - [Spark over S3 full flow example](#spark-over-s3-full-flow-example)
 - [Spark ingestion from Snowflake example](#spark-ingestion-from-snowflake-example)
@@ -41,7 +27,10 @@ See full examples in:
 ## Local Spark ingestion example
 
 The following code executes data ingestion using a local Spark session.
-When using a local Spark session, the `ingest` API would wait for its completion.
+
+When using a local Spark session, the `ingest` API would wait for its completion. To use a local Spark session, pass a Spark session context when calling the 
+   {py:func}`~mlrun.feature_store.ingest` function, as the `spark_context` parameter. This session is used for
+   data operations and transformations.
 
 ```python
 import mlrun
@@ -65,6 +54,16 @@ fstore.ingest(feature_set, source, spark_context=spark)
 ## Remote Spark ingestion example
 
 When using remote execution the MLRun run execution details are returned, allowing tracking of its status and results.
+
+To use a remote execution engine, pass a `RunConfig` object as the `run_config` parameter for 
+the `ingest` API. The actual remote function to execute depends on the object passed:
+   
+    - A default `RunConfig`, in which case the ingestion code either generates a new MLRun function runtime
+       of type `remote-spark`, or utilizes the function specified in `feature_set.spec.function` (in which case,
+       it has to be of runtime type `remote-spark` or `spark`).
+      
+    - A `RunConfig` that has a function configured within it. As mentioned, the function runtime must be of 
+       type `remote-spark` or `spark`.
 
 The following code should be executed only once to build the remote spark image before running the first ingest.
 It may take a few minutes to prepare the image.
@@ -110,6 +109,16 @@ fstore.ingest(feature_set, source, run_config=config, spark_context=spark_servic
 
 ## Spark operator ingestion example
 When running with a Spark operator, the MLRun execution details are returned, allowing tracking of the job's status and results.
+
+To use a remote execution engine, pass a `RunConfig` object as the `run_config` parameter for 
+the `ingest` API. The actual remote function to execute depends on the object passed:
+   
+    - A default `RunConfig`, in which case the ingestion code either generates a new MLRun function runtime
+       of type `remote-spark`, or utilizes the function specified in `feature_set.spec.function` (in which case,
+       it has to be of runtime type `remote-spark` or `spark`).
+      
+    - A `RunConfig` that has a function configured within it. As mentioned, the function runtime must be of 
+       type `remote-spark` or `spark`.
 
 The following code should be executed only once to build the spark job image before running the first ingest.
 It may take a few minutes to prepare the image.
@@ -164,45 +173,12 @@ config = fstore.RunConfig(local=False, function=my_func, handler="ingest_handler
 fstore.ingest(feature_set, source, run_config=config)
 ```
 
-## Spark code_to_function ingestion example
-
-The following code executes data ingestion using `code_to_function`.
-
-When running with Spark `code_to_function`, the MLRun execution details are returned, allowing tracking of the job’s status and results.
-
-```
-# mlrun: start-code
-
-def handler(context, event):
-    print ("Your code here")
-    return 
-
-# mlrun: end-code
-```
-
-```
-# This section has to be invoked once per MLRun/Iguazio upgrade
-# from mlrun.runtimes import Spark3Runtime
-# Spark3Runtime.deploy_default_image()
-```
-
-```
-from mlrun import code_to_function
-
-some_function = code_to_function('some-function-name', kind='spark', code_output='.')
-some_function.spec.use_default_image = True
-some_function.with_driver_requests(cpu="200m", mem="1g")
-some_function.with_executor_requests(cpu="200m", mem="1g")
-some_function.with_igz_spark()
-
-sr = some_function.run(name='some-function-name', handler='handler', local=False)
-```
 
 
 ## Spark dataframe ingestion example
 
 The following code executes data ingestion from a spark dataframe that is running locally.
-The specified dataframe should be associated with `spark_context`.
+The specified dataframe should be associated with `spark_context`. 
 
 ```
 from pyspark.sql import SparkSession

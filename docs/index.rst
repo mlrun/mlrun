@@ -48,7 +48,7 @@ Table Of Contents
 
    architecture
    mlops-dev-flow
-   quick-start
+   quick-start/quick-start
    howto/index
    install
    

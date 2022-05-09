@@ -39,6 +39,8 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         "executor_preemption_mode",
         "driver_volume_mounts",
         "executor_volume_mounts",
+        "driver_java_options",
+        "executor_java_options",
     ]
 
     def __init__(
@@ -91,6 +93,8 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         driver_preemption_mode=None,
         driver_volume_mounts=None,
         executor_volume_mounts=None,
+        driver_java_options=None,
+        executor_java_options=None,
     ):
 
         super().__init__(
@@ -146,6 +150,8 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         self.driver_volume_mounts = driver_volume_mounts or {}
         self._executor_volume_mounts = {}
         self.executor_volume_mounts = executor_volume_mounts or {}
+        self.driver_java_options = driver_java_options
+        self.executor_java_options = executor_java_options
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(

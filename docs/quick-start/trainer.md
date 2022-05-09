@@ -13,7 +13,7 @@ def train(
     n_estimators: int = 100, 
     learning_rate: float = 0.1,
     max_depth: int = 3,
-    model_name: str = "cancer_classifier"
+    model_name: str = "cancer_classifier",
 ):
     # Initialize our dataframes
     df = dataset.as_df()

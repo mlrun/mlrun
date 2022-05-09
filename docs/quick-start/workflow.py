@@ -23,5 +23,11 @@ def pipeline(model_name="cancer_classifier"):
     # Deploy the trained model as a serverless function
     mlrun.deploy_function(
         "serving",
-        models=[{"key": model_name, "model_path": train.outputs["model"], "class_name": 'ClassifierModel'}],
+        models=[
+            {
+                "key": model_name,
+                "model_path": train.outputs["model"],
+                "class_name": "ClassifierModel",
+            }
+        ],
     )

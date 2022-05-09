@@ -14,7 +14,18 @@ When constructing the {py:class}`~mlrun.feature_store.FeatureSet` object, pass a
     ```python
     feature_set = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")], engine="spark")
     ```
-
+To use a remote execution engine, pass a `RunConfig` object as the `run_config` parameter for 
+the `ingest` API. The actual remote function to execute depends on the object passed:
+   
+    - A default `RunConfig`, in which case the ingestion code either generates a new MLRun function runtime
+       of type `remote-spark`, or utilizes the function specified in `feature_set.spec.function` (in which case,
+       it has to be of runtime type `remote-spark` or `spark`).
+      
+    - A `RunConfig` that has a function configured within it. As mentioned, the function runtime must be of 
+       type `remote-spark` or `spark`.
+       
+To use a local Spark session, pass a Spark session context when calling the {py:func}`~mlrun.feature_store.ingest` function, as the 
+`spark_context` parameter. This session is used for data operations and transformations.
        
 See code examples in:
 - [Local Spark ingestion example](#local-spark-ingestion-example)
@@ -28,9 +39,7 @@ See code examples in:
 
 The following code executes data ingestion using a local Spark session.
 
-When using a local Spark session, the `ingest` API would wait for its completion. To use a local Spark session, pass a Spark session context when calling the 
-   {py:func}`~mlrun.feature_store.ingest` function, as the `spark_context` parameter. This session is used for
-   data operations and transformations.
+When using a local Spark session, the `ingest` API would wait for its completion. 
 
 ```python
 import mlrun
@@ -54,16 +63,6 @@ fstore.ingest(feature_set, source, spark_context=spark)
 ## Remote Spark ingestion example
 
 When using remote execution the MLRun run execution details are returned, allowing tracking of its status and results.
-
-To use a remote execution engine, pass a `RunConfig` object as the `run_config` parameter for 
-the `ingest` API. The actual remote function to execute depends on the object passed:
-   
-    - A default `RunConfig`, in which case the ingestion code either generates a new MLRun function runtime
-       of type `remote-spark`, or utilizes the function specified in `feature_set.spec.function` (in which case,
-       it has to be of runtime type `remote-spark` or `spark`).
-      
-    - A `RunConfig` that has a function configured within it. As mentioned, the function runtime must be of 
-       type `remote-spark` or `spark`.
 
 The following code should be executed only once to build the remote spark image before running the first ingest.
 It may take a few minutes to prepare the image.
@@ -108,17 +107,7 @@ fstore.ingest(feature_set, source, run_config=config, spark_context=spark_servic
 ```
 
 ## Spark operator ingestion example
-When running with a Spark operator, the MLRun execution details are returned, allowing tracking of the job's status and results.
-
-To use a remote execution engine, pass a `RunConfig` object as the `run_config` parameter for 
-the `ingest` API. The actual remote function to execute depends on the object passed:
-   
-    - A default `RunConfig`, in which case the ingestion code either generates a new MLRun function runtime
-       of type `remote-spark`, or utilizes the function specified in `feature_set.spec.function` (in which case,
-       it has to be of runtime type `remote-spark` or `spark`).
-      
-    - A `RunConfig` that has a function configured within it. As mentioned, the function runtime must be of 
-       type `remote-spark` or `spark`.
+When running with a Spark operator, the MLRun execution details are returned, allowing tracking of the job's status and results. Spark operator ingestion is executed remotely.
 
 The following code should be executed only once to build the spark job image before running the first ingest.
 It may take a few minutes to prepare the image.
@@ -177,7 +166,7 @@ fstore.ingest(feature_set, source, run_config=config)
 
 ## Spark dataframe ingestion example
 
-The following code executes data ingestion from a spark dataframe that is running locally.
+The following code executes data ingestion from a spark dataframe that is running locally. (It cannot be executed remotely.)
 The specified dataframe should be associated with `spark_context`. 
 
 ```
@@ -199,7 +188,7 @@ spark.stop()
 
 ## Spark over S3 - full flow example
 
-For Spark to work with S3, it requires several properties to be set. The following example writes a
+For Spark to work with S3, it requires several properties to be set. Spark over S3 can be executed both remotely and locally. The following example writes a
 feature set to S3 in the parquet format in a remote k8s job:
 
 One-time setup:
@@ -279,7 +268,7 @@ fstore.ingest(feature_set, source, targets=[target], run_config=run_config, spar
 
 ## Spark ingestion from Snowflake example
 
-The following code executes data ingestion from Snowflake.
+Spark ingestion from Snowflake can be executed both remotely and locally. The following code executes local data ingestion from Snowflake.
 
 ```
 from pyspark.sql import SparkSession

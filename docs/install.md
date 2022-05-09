@@ -1,7 +1,21 @@
 # Installation and setup guide <!-- omit in toc -->
 
 This guide outlines the steps for installing and running MLRun. 
-Once MLRun is installed you can access it remotely from your IDE (PyCharm or VSCode), read [**how to setup your IDE environment**](./howto/remote.md). 
+Once MLRun is installed you can access it remotely from your IDE (PyCharm or VSCode), read [**IDE configuration**](./howto/remote.html#ide-configuration). 
+
+## Overview
+
+MLrun has two parts: the client and the server. The client is installed by a simple `pip install` command.
+There are two options to deploy the server side:
+- [Docker (local installation)](install-local-docker-reg): Use this option to run your code locally on your laptop.
+```{admonition} Note
+Docker does not include Nuclio and therefore cannot be used to deploy serving functions.
+```
+- [Kubernetes (full installation)](install-kubernetes): Use this option to run MLRun jobs at scale on a kubernetes cluster.
+
+The enterprise version of MLrun is deployed in Iguazio cluster.
+
+<img src="_static/images/install-local-full.png" alt="pipeline" width="600"/>
 
 <a id="MLRun-client-backward-compatibility"></a>
 ## MLRun client backward compatibility  

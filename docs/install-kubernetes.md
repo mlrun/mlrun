@@ -103,7 +103,7 @@ Note the reference to the pre-created `registry-credentials` secret in `global.r
 helm --namespace mlrun \
     install mlrun-kit \
     --wait \
-    --timeout 960 \
+    --timeout 960s \
     --set global.registry.url=<registry-url> \
     --set global.registry.secretName=registry-credentials \
     v3io-stable/mlrun-kit
@@ -123,7 +123,7 @@ command as follows:
 helm --namespace mlrun \
     install my-mlrun \
     --wait \
-    --timeout 960 \
+    --timeout 960s \
     --set global.registry.url=<registry URL e.g. index.docker.io/iguazio > \
     --set global.registry.secretName=registry-credentials \
     --set global.externalHostAddress=$(minikube ip) \

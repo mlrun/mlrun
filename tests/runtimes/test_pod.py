@@ -1,5 +1,6 @@
 import inspect
 
+import kubernetes.client
 import pytest
 from deepdiff import DeepDiff
 
@@ -142,21 +143,6 @@ def test_resource_enrichment_in_resource_spec_initialization():
         == {}
     )
 
-    # setting only gpu request without limits
-    with pytest.raises(mlrun.errors.MLRunConflictError):
-        spec_requests = {"nvidia.com/gpu": "1"}
-        mlrun.runtimes.pod.KubeResourceSpec(
-            resources={"requests": spec_requests, "limits": spec_limits}
-        )
-
-    # setting different gpu requests and limits
-    with pytest.raises(mlrun.errors.MLRunConflictError):
-        spec_requests = {"nvidia.com/gpu": "1"}
-        spec_limits = {"nvidia.com/gpu": "2"}
-        mlrun.runtimes.pod.KubeResourceSpec(
-            resources={"requests": spec_requests, "limits": spec_limits}
-        )
-
     # setting resource not in the k8s resources patterns
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         spec_requests = {"cpu": "1wrong"}
@@ -188,3 +174,20 @@ def test_resource_enrichment_in_resource_spec_initialization():
         )
         == {}
     )
+
+
+def test_volume_mounts_addition():
+    volume_mount = kubernetes.client.V1VolumeMount(
+        mount_path="some-path", name="volume-name"
+    )
+    dict_volume_mount = volume_mount.to_dict()
+    sanitized_dict_volume_mount = (
+        kubernetes.client.ApiClient().sanitize_for_serialization(volume_mount)
+    )
+    function = mlrun.new_function(kind=mlrun.runtimes.RuntimeKinds.job)
+    function.spec.volume_mounts = [
+        volume_mount,
+        dict_volume_mount,
+        sanitized_dict_volume_mount,
+    ]
+    assert len(function.spec.volume_mounts) == 1

@@ -24,12 +24,7 @@ import pandas as pd
 import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
-from mlrun.model import (
-    RUN_ID_PLACE_HOLDER,
-    DataTarget,
-    DataTargetBase,
-    TargetPathObject,
-)
+from mlrun.model import DataTarget, DataTargetBase, TargetPathObject
 from mlrun.utils import now_date
 from mlrun.utils.v3io_clients import get_frames_client
 
@@ -95,7 +90,7 @@ def get_default_prefix_for_target(kind):
 
 
 def get_default_prefix_for_source(kind):
-    return get_default_prefix_for_target(kind).replace(f"/{RUN_ID_PLACE_HOLDER}/", "/")
+    return get_default_prefix_for_target(kind)
 
 
 def validate_target_list(targets):
@@ -262,10 +257,12 @@ def get_offline_target(featureset, name=None):
     return None
 
 
-def get_online_target(resource):
+def get_online_target(resource, name=None):
     """return an optimal online feature set target"""
     # todo: take lookup order into account
     for target in resource.status.targets:
+        if name and target.name != name:
+            continue
         driver = kind_to_driver[target.kind]
         if driver.is_online:
             return get_target_driver(target, resource)
@@ -505,7 +502,9 @@ class BaseStoreTarget(DataTargetBase):
         is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
         return self.get_path() or (
             TargetPathObject(
-                _get_target_path(self, self._resource), self.run_id, is_single_file
+                _get_target_path(self, self._resource, self.run_id is not None),
+                self.run_id,
+                is_single_file,
             )
             if self._resource
             else None
@@ -891,6 +890,18 @@ class CSVTarget(BaseStoreTarget):
             "header": "true",
         }
 
+    def prepare_spark_df(self, df):
+        import pyspark.sql.functions as funcs
+
+        for col_name, col_type in df.dtypes:
+            if col_type == "timestamp":
+                # df.write.csv saves timestamps with millisecond precision, but we want microsecond precision
+                # for compatibility with storey.
+                df = df.withColumn(
+                    col_name, funcs.date_format(col_name, "yyyy-MM-dd HH:mm:ss.SSSSSS")
+                )
+        return df
+
     def as_df(
         self,
         columns=None,
@@ -910,7 +921,7 @@ class CSVTarget(BaseStoreTarget):
     def is_single_file(self):
         if self.path:
             return self.path.endswith(".csv")
-        return False
+        return True
 
 
 class NoSqlTarget(BaseStoreTarget):
@@ -1295,7 +1306,7 @@ kind_to_driver = {
 }
 
 
-def _get_target_path(driver, resource):
+def _get_target_path(driver, resource, run_id_mode=False):
     """return the default target path given the resource and target kind"""
     kind = driver.kind
     suffix = driver.suffix
@@ -1316,9 +1327,11 @@ def _get_target_path(driver, resource):
         project=project,
         kind=kind,
         name=name,
-        run_id=RUN_ID_PLACE_HOLDER,
     )
     # todo: handle ver tag changes, may need to copy files?
+    if not run_id_mode:
+        version = resource.metadata.tag
+        name = f"{name}-{version or 'latest'}"
     return f"{data_prefix}/{kind_prefix}/{name}{suffix}"
 
 

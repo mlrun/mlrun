@@ -170,7 +170,7 @@ jobs:
         echo "MLRUN_DBPATH: http://$(minikube ip):${MLRUN_API_NODE_PORT}" > tests/system/env.yml
 
     - name: Run system tests
-      timeout-minutes: 15
+      timeout-minutes: 25
       run: |
         MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}" \
         MLRUN_VERSION="${{ steps.computed_params.outputs.mlrun_version }}" \

@@ -201,3 +201,8 @@ class NuclioIngressAddTemplatedIngressModes:
     always = "always"
     never = "never"
     on_cluster_ip = "onClusterIP"
+
+
+class FunctionEnvironmentVariables:
+    _env_prefix = "MLRUN_"
+    auth_session = f"{_env_prefix}AUTH_SESSION"

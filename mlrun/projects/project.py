@@ -39,7 +39,7 @@ from ..model import EntrypointParam, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
 from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
-from ..utils import RunNotifications, is_ipython, logger, update_in
+from ..utils import RunNotifications, is_ipython, is_legacy_artifact, logger, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from .operations import build_function, deploy_function, run_function
@@ -617,7 +617,11 @@ class ProjectSpec(ModelObj):
             if not isinstance(artifact, dict) and not hasattr(artifact, "to_dict"):
                 raise ValueError("artifacts must be a dict or class")
             if isinstance(artifact, dict):
-                key = artifact.get("key", "")
+                # Support legacy artifacts
+                if is_legacy_artifact(artifact):
+                    key = artifact.get("key")
+                else:
+                    key = artifact.get("metadata").get("key", "")
                 if not key:
                     raise ValueError('artifacts "key" must be specified')
             else:
@@ -631,7 +635,7 @@ class ProjectSpec(ModelObj):
     def set_artifact(self, key, artifact):
         if hasattr(artifact, "base_dict"):
             artifact = artifact.base_dict()
-        artifact["key"] = key
+        artifact["metadata"]["key"] = key
         self._artifacts[key] = artifact
 
     def remove_artifact(self, key):
@@ -1030,12 +1034,12 @@ class MlrunProject(ModelObj):
         """
         if not artifact:
             artifact = Artifact()
-        artifact.target_path = target_path or artifact.target_path
-        if not artifact.target_path or "://" not in artifact.target_path:
+        artifact.spec.target_path = target_path or artifact.spec.target_path
+        if not artifact.spec.target_path or "://" not in artifact.spec.target_path:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "absolute target_path url to a shared/object storage must be specified"
             )
-        artifact.tag = tag or artifact.tag
+        artifact.metadata.tag = tag or artifact.metadata.tag
         self.spec.set_artifact(key, artifact)
 
     def register_artifacts(self):

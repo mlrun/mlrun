@@ -31,13 +31,13 @@ from ..k8s_utils import (
     generate_preemptible_nodes_affinity_terms,
     generate_preemptible_nodes_anti_affinity_terms,
     generate_preemptible_tolerations,
-    verify_gpu_requests_and_limits,
 )
 from ..secrets import SecretsStore
 from ..utils import get_in, logger, normalize_name, update_in
 from .base import BaseRuntime, FunctionSpec, spec_fields
 from .utils import (
     apply_kfp,
+    get_gpu_from_resource_requirement,
     get_item_name,
     get_resource_labels,
     set_named_item,
@@ -225,14 +225,16 @@ class KubeResourceSpec(FunctionSpec):
         struct["tolerations"] = api.sanitize_for_serialization(self.tolerations)
         return struct
 
-    def update_vols_and_mounts(self, volumes, volume_mounts):
+    def update_vols_and_mounts(
+        self, volumes, volume_mounts, volume_mounts_field_name="_volume_mounts"
+    ):
         if volumes:
             for vol in volumes:
                 set_named_item(self._volumes, vol)
 
         if volume_mounts:
             for volume_mount in volume_mounts:
-                self._set_volume_mount(volume_mount)
+                self._set_volume_mount(volume_mount, volume_mounts_field_name)
 
     def _get_affinity_as_k8s_class_instance(self):
         pass
@@ -319,9 +321,16 @@ class KubeResourceSpec(FunctionSpec):
         api = k8s_client.ApiClient()
         return api.sanitize_for_serialization(attribute)
 
-    def _set_volume_mount(self, volume_mount):
+    def _set_volume_mount(
+        self, volume_mount, volume_mounts_field_name="_volume_mounts"
+    ):
         # using the mountPath as the key cause it must be unique (k8s limitation)
-        self._volume_mounts[get_item_name(volume_mount, "mountPath")] = volume_mount
+        # volume_mount may be an V1VolumeMount instance (object access, snake case) or sanitized dict (dict
+        # access, camel case)
+        getattr(self, volume_mounts_field_name)[
+            get_item_name(volume_mount, "mountPath")
+            or get_item_name(volume_mount, "mount_path")
+        ] = volume_mount
 
     def _verify_and_set_limits(
         self,
@@ -364,16 +373,11 @@ class KubeResourceSpec(FunctionSpec):
     def enrich_resources_with_default_pod_resources(
         self, resources_field_name: str, resources: dict
     ):
-        resources_types = ["cpu", "memory", "nvidia.com/gpu"]
+        resources_types = ["cpu", "memory"]
         resource_requirements = ["requests", "limits"]
-        gpu_type = "nvidia.com/gpu"
         default_resources = mlconf.get_default_function_pod_resources()
 
         if resources:
-            verify_gpu_requests_and_limits(
-                requests_gpu=resources.setdefault("requests", {}).setdefault(gpu_type),
-                limits_gpu=resources.setdefault("limits", {}).setdefault(gpu_type),
-            )
             for resource_requirement in resource_requirements:
                 for resource_type in resources_types:
                     if (
@@ -382,19 +386,9 @@ class KubeResourceSpec(FunctionSpec):
                         )
                         is None
                     ):
-                        if resource_type == gpu_type:
-                            if resource_requirement == "requests":
-                                continue
-                            else:
-                                resources[resource_requirement][
-                                    resource_type
-                                ] = default_resources[resource_requirement].get(
-                                    gpu_type
-                                )
-                        else:
-                            resources[resource_requirement][
-                                resource_type
-                            ] = default_resources[resource_requirement][resource_type]
+                        resources[resource_requirement][
+                            resource_type
+                        ] = default_resources[resource_requirement][resource_type]
         # This enables the user to define that no defaults would be applied on the resources
         elif resources == {}:
             return resources
@@ -405,11 +399,12 @@ class KubeResourceSpec(FunctionSpec):
             mem=resources["requests"]["memory"],
             cpu=resources["requests"]["cpu"],
         )
+        gpu_type, gpu_value = get_gpu_from_resource_requirement(resources["limits"])
         resources["limits"] = verify_limits(
             resources_field_name,
             mem=resources["limits"]["memory"],
             cpu=resources["limits"]["cpu"],
-            gpus=resources["limits"][gpu_type],
+            gpus=gpu_value,
             gpu_type=gpu_type,
         )
         if not resources["requests"] and not resources["limits"]:
@@ -486,6 +481,7 @@ class KubeResourceSpec(FunctionSpec):
                         > Purges any `affinity` preemption related configuration
                         > Purges preemptible node selector
                         > Sets anti-affinity and overrides any affinity if no tolerations were configured
+            `none`      - Doesn't apply any preemptible node selection configuration.
         """
         # nothing to do here, configuration is not populated
         if not mlconf.is_preemption_nodes_configured():
@@ -504,6 +500,9 @@ class KubeResourceSpec(FunctionSpec):
                 default_preemption_mode=getattr(self, preemption_mode_field_name),
             )
         self_preemption_mode = getattr(self, preemption_mode_field_name)
+        # don't enrich with preemption configuration.
+        if self_preemption_mode == PreemptionModes.none.value:
+            return
         # remove preemptible tolerations and remove preemption related configuration
         # and enrich with anti-affinity if preemptible tolerations configuration haven't been provided
         if self_preemption_mode == PreemptionModes.prevent.value:
@@ -886,7 +885,12 @@ class KubeResource(BaseRuntime):
         struct = api.sanitize_for_serialization(struct)
         if strip:
             spec = struct["spec"]
-            for attr in ["volumes", "volume_mounts"]:
+            for attr in [
+                "volumes",
+                "volume_mounts",
+                "driver_volume_mounts",
+                "executor_volume_mounts",
+            ]:
                 if attr in spec:
                     del spec[attr]
             if "env" in spec and spec["env"]:
@@ -921,6 +925,17 @@ class KubeResource(BaseRuntime):
         if value is not None:
             return self._set_env(name, value=str(value))
         return self._set_env(name, value_from=value_from)
+
+    def get_env(self, name, default=None):
+        """Get the pod environment variable for the given name, if not found return the default
+        If it's a scalar value, will return it, if the value is from source, return the k8s struct (V1EnvVarSource)"""
+        for env_var in self.spec.env:
+            if get_item_name(env_var) == name:
+                value = get_item_name(env_var, "value")
+                if value is not None:
+                    return value
+                return get_item_name(env_var, "value_from")
+        return default
 
     def is_env_exists(self, name):
         """Check whether there is an environment variable define for the given key"""
@@ -1027,13 +1042,17 @@ class KubeResource(BaseRuntime):
         Preemption mode controls whether pods can be scheduled on preemptible nodes.
         Tolerations, node selector, and affinity are populated on preemptible nodes corresponding to the function spec.
 
-        Three modes are supported:
+        The supported modes are:
 
         * **allow** - The function can be scheduled on preemptible nodes
         * **constrain** - The function can only run on preemptible nodes
         * **prevent** - The function cannot be scheduled on preemptible nodes
+        * **none** - No preemptible configuration will be applied on the function
 
-        :param mode: accepts allow | constrain | prevent defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
+        The default preemption mode is configurable in mlrun.mlconf.function_defaults.preemption_mode,
+        by default it's set to **prevent**
+
+        :param mode: allow | constrain | prevent | none defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
         """
         preemptible_mode = PreemptionModes(mode)
         self.spec.preemption_mode = preemptible_mode.value

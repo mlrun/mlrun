@@ -74,9 +74,7 @@ class TestKubejobRuntime(TestRuntimeBase):
     ):
         runtime = self._generate_runtime()
 
-        gpu_type = "nvidia.com/gpu"
-        # TODO add support for different gpu_type
-        # gpu_type = "test/gpu"
+        gpu_type = "test/gpu"
         expected_limits = generate_resources(2, 4, 4, gpu_type)
         runtime.with_limits(
             mem=expected_limits["memory"],
@@ -168,6 +166,11 @@ class TestKubejobRuntime(TestRuntimeBase):
         self, db: Session, client: TestClient
     ):
         self.assert_run_preemption_mode_with_preemptible_node_selector_without_preemptible_tolerations_with_extra_settings()  # noqa: E501
+
+    def test_with_preemption_mode_none_transitions(
+        self, db: Session, client: TestClient
+    ):
+        self.assert_run_with_preemption_mode_none_transitions()
 
     def assert_node_selection(
         self, node_name=None, node_selector=None, affinity=None, tolerations=None

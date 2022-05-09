@@ -32,7 +32,6 @@ from mlrun.datastore.targets import (
     NoSqlTarget,
     ParquetTarget,
     TargetTypes,
-    get_default_prefix_for_target,
     get_target_driver,
 )
 from mlrun.feature_store import Entity, FeatureSet
@@ -337,17 +336,20 @@ class TestFeatureStore(TestMLRunSystem):
         assert "time" in df_with_index.columns, "'time' column should be present"
 
     @pytest.mark.parametrize(
-        "target_path",
+        "target_path, should_raise_error",
         [
-            None,  # default
-            f"v3io:///bigdata/{project_name}/gof_wt.parquet",  # single file
-            f"v3io:///bigdata/{project_name}/{{run_id}}/gof_wt.parquet",  # single file with run_id
-            f"v3io:///bigdata/{project_name}/gof_wt/",  # directory
-            f"v3io:///bigdata/{project_name}/gof_wt/{{run_id}}",  # directory with run_id
-            f"v3io:///bigdata/{project_name}/gof_wt/{{run_id}}/gof_wt",  # directory with run_id in middle of path
+            (None, False),  # default
+            (f"v3io:///bigdata/{project_name}/gof_wt.parquet", False),  # single file
+            (f"v3io:///bigdata/{project_name}/gof_wt/", False),  # directory
+            (
+                f"v3io:///bigdata/{project_name}/{{run_id}}/gof_wt.parquet",
+                True,
+            ),  # with run_id
         ],
     )
-    def test_different_target_paths_for_get_offline_features(self, target_path):
+    def test_different_target_paths_for_get_offline_features(
+        self, target_path, should_raise_error
+    ):
         stocks = pd.DataFrame(
             {
                 "ticker": ["MSFT", "GOOG", "AAPL"],
@@ -362,10 +364,83 @@ class TestFeatureStore(TestMLRunSystem):
 
         vector = fs.FeatureVector("SjqevLXR", ["stocks_test.*"])
         target = ParquetTarget(name="parquet", path=target_path)
-        fs.get_offline_features(vector, with_indexes=True, target=target)
-        df = pd.read_parquet(target.get_target_path())
-        assert df is not None
-        assert target.run_id == "offline-features"
+        if should_raise_error:
+            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+                fs.get_offline_features(vector, with_indexes=True, target=target)
+        else:
+            fs.get_offline_features(vector, with_indexes=True, target=target)
+            df = pd.read_parquet(target.get_target_path())
+            assert df is not None
+
+    @pytest.mark.parametrize(
+        "target_path, final_path",
+        [
+            (
+                "v3io:///bigdata/csvtest/csvname.csv",
+                "v3io:///bigdata/csvtest/{run_id}/csvname.csv",
+            ),
+            (
+                "v3io:///bigdata/csvtest/csvname",
+                "v3io:///bigdata/csvtest/csvname/{run_id}/",
+            ),
+            (
+                "v3io:///bigdata/csvtest/csvname/",
+                "v3io:///bigdata/csvtest/csvname/{run_id}/",
+            ),
+            (
+                "v3io:///bigdata/csvtest/csvname/{run_id}",
+                "v3io:///bigdata/csvtest/csvname/{run_id}/",
+            ),
+        ],
+    )
+    def test_csv_path(self, target_path, final_path):
+        df = pd.DataFrame(
+            {
+                "key": ["key1", "key2"],
+                "time_stamp": [
+                    datetime(2020, 11, 1, 17, 33, 15),
+                    datetime(2020, 10, 1, 17, 33, 15),
+                ],
+                "another_time_column": [
+                    datetime(2020, 9, 1, 17, 33, 15),
+                    datetime(2020, 8, 1, 17, 33, 15),
+                ],
+            }
+        )
+        fset = FeatureSet("csvnamefs", entities=[Entity("key")])
+        target = CSVTarget(name="csvtar", path=target_path)
+        fs.ingest(fset, source=df, targets=[target])
+
+        expected = final_path.format(run_id=fset.status.targets[0].run_id)
+        assert fset.get_target_path("csvtar") == expected
+
+    def test_nosql_no_path(self):
+        df = pd.DataFrame(
+            {
+                "key": ["key1", "key2"],
+                "time_stamp": [
+                    datetime(2020, 11, 1, 17, 33, 15),
+                    datetime(2020, 10, 1, 17, 33, 15),
+                ],
+                "another_time_column": [
+                    datetime(2020, 9, 1, 17, 33, 15),
+                    datetime(2020, 8, 1, 17, 33, 15),
+                ],
+            }
+        )
+        fset = fs.FeatureSet("nosql-no-path", entities=[Entity("time_stamp")])
+        target_overwrite = True
+        ingest_kw = dict()
+        if target_overwrite is not None:
+            ingest_kw["overwrite"] = target_overwrite
+        fs.ingest(fset, df, infer_options=fs.InferOptions.default(), **ingest_kw)
+
+        assert fset.status.targets[
+            0
+        ].get_path().get_absolute_path() == fset.get_target_path("parquet")
+        assert fset.status.targets[
+            1
+        ].get_path().get_absolute_path() == fset.get_target_path("nosql")
 
     def test_feature_set_db(self):
         name = "stocks_test"
@@ -434,6 +509,28 @@ class TestFeatureStore(TestMLRunSystem):
         actual_stat = actual_stat.sort_index().sort_index(axis=1)
         assert isinstance(actual_stat["top"]["booly"], bool)
 
+    def test_ingest_to_default_path(self):
+        key = "patient_id"
+        measurements = fs.FeatureSet(
+            "measurements", entities=[Entity(key)], timestamp_key="timestamp"
+        )
+        source = CSVSource(
+            "mycsv", path=os.path.relpath(str(self.assets_path / "testdata.csv"))
+        )
+
+        fs.ingest(
+            measurements,
+            source,
+            infer_options=fs.InferOptions.schema() + fs.InferOptions.Stats,
+            run_config=fs.RunConfig(local=True),
+        )
+        final_path = measurements.get_target_path()
+        assert "latest" not in final_path
+        assert measurements.status.targets is not None
+        for target in measurements.status.targets:
+            assert "latest" not in target.get_path().get_absolute_path()
+            assert target.run_id is not None
+
     def test_serverless_ingest(self):
         key = "patient_id"
         measurements = fs.FeatureSet(
@@ -454,7 +551,8 @@ class TestFeatureStore(TestMLRunSystem):
             infer_options=fs.InferOptions.schema() + fs.InferOptions.Stats,
             run_config=fs.RunConfig(local=True),
         )
-        assert os.path.exists(target_path), "result file was not generated"
+        final_path = measurements.get_target_path()
+        assert os.path.exists(final_path), "result file was not generated"
         features = sorted(measurements.spec.features.keys())
         stats = sorted(measurements.status.stats.keys())
         print(features)
@@ -636,14 +734,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert resp1 == resp2
 
         file_system = fsspec.filesystem("v3io")
-        kind = TargetTypes.parquet
-        path = f"{get_default_prefix_for_target(kind)}/sets/{name}"
-        path = path.format(
-            name=name,
-            kind=kind,
-            project=self.project_name,
-            run_id=measurements.status.targets[0].run_id,
-        )
+        path = measurements.get_target_path("parquet")
         dataset = pq.ParquetDataset(
             path,
             filesystem=file_system,
@@ -814,7 +905,8 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         # reading csv file
-        controller = build_flow([CSVSource(csv_path), ReduceToDataFrame()]).run()
+        final_path = stocks_set.get_target_path("mycsv")
+        controller = build_flow([CSVSource(final_path), ReduceToDataFrame()]).run()
         termination_result = controller.await_termination()
 
         expected = pd.DataFrame(
@@ -828,7 +920,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert termination_result.equals(
             expected
         ), f"{termination_result}\n!=\n{expected}"
-        os.remove(csv_path)
+        os.remove(final_path)
 
     def test_multiple_entities(self):
         name = f"measurements_{uuid.uuid4()}"
@@ -1543,14 +1635,16 @@ class TestFeatureStore(TestMLRunSystem):
         feature_set, _ = prepare_feature_set(
             "same-target-type", "ticker", quotes, timestamp_key="time", targets=targets
         )
-        parquet1 = pd.read_parquet(feature_set.get_target_path(name="parquet1"))
-        parquet2 = pd.read_parquet(feature_set.get_target_path(name="parquet2"))
+        final_path1 = feature_set.get_target_path(name="parquet1")
+        parquet1 = pd.read_parquet(final_path1)
+        final_path2 = feature_set.get_target_path(name="parquet2")
+        parquet2 = pd.read_parquet(final_path2)
 
         assert all(parquet1 == quotes.set_index("ticker"))
         assert all(parquet1 == parquet2)
 
-        os.remove(parquet_path1)
-        os.remove(parquet_path2)
+        os.remove(final_path1)
+        os.remove(final_path2)
 
     def test_post_aggregation_step(self):
         quotes_set = fs.FeatureSet("post-aggregation", entities=[fs.Entity("ticker")])
@@ -2312,6 +2406,83 @@ class TestFeatureStore(TestMLRunSystem):
             "some_data": {0: 10, 1: 20},
             "ddata": {0: "Paris", 1: "Tel Aviv"},
         }
+
+    @pytest.mark.parametrize(
+        "targets, feature_set_targets, expected_target_names",
+        [
+            [None, None, ["parquet", "nosql"]],
+            [[ParquetTarget("par")], None, ["par"]],
+            [[ParquetTarget("par", "v3io:///bigdata/dis-dt.parquet")], None, ["par"]],
+            [None, [ParquetTarget("par2")], ["par2"]],
+            [[ParquetTarget("par")], [ParquetTarget("par2")], ["par"]],
+        ],
+    )
+    def test_deploy_ingestion_service_with_different_targets(
+        self, targets, feature_set_targets, expected_target_names
+    ):
+        fset_name = "dis-set"
+        fset = FeatureSet(f"{fset_name}", entities=[Entity("ticker")])
+
+        if feature_set_targets:
+            fset.set_targets(feature_set_targets, with_defaults=False)
+        fs.ingest(fset, quotes)
+        source = StreamSource(key_field="ticker", time_field="time")
+        filename = str(
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "api"
+            / "runtimes"
+            / "assets"
+            / "sample_function.py"
+        )
+
+        function = mlrun.code_to_function(
+            "ingest_transactions", kind="serving", filename=filename
+        )
+        function.spec.default_content_type = "application/json"
+        function.spec.image_pull_policy = "Always"
+        run_config = fs.RunConfig(function=function, local=False).apply(
+            mlrun.mount_v3io()
+        )
+        fs.deploy_ingestion_service(
+            featureset=fset, source=source, run_config=run_config, targets=targets
+        )
+
+        fset.reload()  # refresh to ingestion service updates
+        assert fset.status.targets is not None
+        for actual_tar in fset.status.targets:
+            assert actual_tar.run_id is not None
+        for expected in expected_target_names:
+            assert fset.get_target_path(expected) is not None
+
+    def test_feature_vector_with_all_features_and_label_feature(self):
+        feature_set = FeatureSet("fs-label", entities=[Entity("ticker")])
+        fs.ingest(feature_set, stocks)
+        expected = stocks.to_dict()
+        expected.pop("ticker")
+
+        fv = fs.FeatureVector("fv-label", ["fs-label.*"], "fs-label.name")
+        res = fs.get_offline_features(fv)
+
+        assert res is not None
+        assert res.to_dataframe().to_dict() == expected
+
+    def test_get_offline_for_two_feature_set_with_same_column_name(self):
+        # This test is testing that all columns are returned with no failure even though
+        # two features sets and the label column has the column 'name'.
+        expected = ["fs1_exchange", "name", "fs2_name", "fs2_exchange"]
+
+        feature_set = FeatureSet("fs1", entities=[Entity("ticker")])
+        fs.ingest(feature_set, stocks)
+        feature_set = FeatureSet("fs2", entities=[Entity("ticker")])
+        fs.ingest(feature_set, stocks)
+
+        fv = fs.FeatureVector("fv-label", ["fs1.* as fs1", "fs2.* as fs2"], "fs1.name")
+        res = fs.get_offline_features(fv)
+
+        assert res is not None
+        assert len(expected) == len(res.to_dataframe().to_dict().keys())
+        for key in res.to_dataframe().to_dict().keys():
+            assert key in expected
 
 
 def verify_purge(fset, targets):

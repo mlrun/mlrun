@@ -378,6 +378,13 @@ def set_named_item(obj, item):
         obj[item.name] = item
 
 
+def set_item_attribute(item, attribute, value):
+    if isinstance(item, dict):
+        item[attribute] = value
+    else:
+        setattr(item, attribute, value)
+
+
 def get_item_name(item, attr="name"):
     if isinstance(item, dict):
         return item.get(attr)
@@ -498,6 +505,27 @@ def verify_requests(
             mlrun.utils.regex.k8s_resource_quantity_regex,
         )
     return generate_resources(mem=mem, cpu=cpu)
+
+
+def get_gpu_from_resource_requirement(requirement: dict):
+    """
+    Because there could be different types of gpu types, and we don't know all the gpu types possible,
+    we want to get the gpu type and its value, we can figure out the type by knowing what resource types are static
+    and the possible number of resources.
+    Kubernetes support 3 types of resources, two of which their name doesn't change : cpu, memory.
+    :param requirement: requirement resource ( limits / requests ) which contain the resources.
+    """
+    if not requirement:
+        return None, None
+
+    if len(requirement) > 3:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Unable to resolve the gpu type because there are more than 3 resources"
+        )
+    for resource, value in requirement.items():
+        if resource not in ["cpu", "memory"]:
+            return resource, value
+    return None, None
 
 
 def generate_resources(mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):

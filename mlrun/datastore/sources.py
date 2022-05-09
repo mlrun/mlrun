@@ -157,6 +157,21 @@ class CSVSource(BaseSourceDriver):
             "inferSchema": "true",
         }
 
+    def to_spark_df(self, session, named_view=False):
+        import pyspark.sql.functions as funcs
+
+        df = session.read.load(**self.get_spark_options())
+        for col_name, col_type in df.dtypes:
+            if (
+                col_name == self.time_field
+                or self._parse_dates
+                and col_name in self._parse_dates
+            ):
+                df = df.withColumn(col_name, funcs.col(col_name).cast("timestamp"))
+        if named_view:
+            df.createOrReplaceTempView(self.name)
+        return df
+
     def to_dataframe(self):
         kwargs = self.attributes.get("reader_args", {})
         chunksize = self.attributes.get("chunksize")
@@ -314,10 +329,6 @@ class BigQuerySource(BaseSourceDriver):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot specify both table and query args"
             )
-        if not query and not table:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "must specify at least one of table or query args"
-            )
         attrs = {
             "query": query,
             "table": table,
@@ -374,6 +385,7 @@ class BigQuerySource(BaseSourceDriver):
         bqclient = bigquery.Client(project=gcp_project, credentials=credentials)
 
         query = self.attributes.get("query")
+        table = self.attributes.get("table")
         chunksize = self.attributes.get("chunksize")
         if query:
             query_job = bqclient.query(query)
@@ -384,7 +396,7 @@ class BigQuerySource(BaseSourceDriver):
                 return self._rows_iterator.to_dataframe_iterable(dtypes=dtypes)
             else:
                 return self._rows_iterator.to_dataframe(dtypes=dtypes)
-        else:
+        elif table:
             table = self.attributes.get("table")
             max_results = self.attributes.get("max_results")
 
@@ -396,6 +408,10 @@ class BigQuerySource(BaseSourceDriver):
                 return rows.to_dataframe_iterable(dtypes=dtypes)
             else:
                 return rows.to_dataframe(dtypes=dtypes)
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "table or query args must be specified"
+            )
 
     def is_iterator(self):
         return True if self.attributes.get("chunksize") else False
@@ -424,7 +440,7 @@ class BigQuerySource(BaseSourceDriver):
             options["viewsEnabled"] = True
             options["materializationDataset"] = materialization_dataset
             options["query"] = query
-        if table:
+        elif table:
             options["path"] = table
 
         df = session.read.format("bigquery").load(**options)
@@ -434,13 +450,13 @@ class BigQuerySource(BaseSourceDriver):
 
 
 class SnowflakeSource(BaseSourceDriver):
+    kind = "snowflake"
     support_spark = True
     support_storey = False
 
     def __init__(
         self,
         name: str = "",
-        attributes: Dict[str, str] = None,
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
@@ -454,21 +470,19 @@ class SnowflakeSource(BaseSourceDriver):
         schema: str = None,
         warehouse: str = None,
     ):
-        self.query = query
-        self.attributes = attributes
-        self.key_field = key_field
-        self.time_field = time_field
-        self.schedule = schedule
-        self.url = url
-        self.user = user
-        self.password = password
-        self.database = database
-        self.schema = schema
-        self.warehouse = warehouse
+        attrs = {
+            "query": query,
+            "url": url,
+            "user": user,
+            "password": password,
+            "database": database,
+            "schema": schema,
+            "warehouse": warehouse,
+        }
 
         super().__init__(
             name,
-            attributes=attributes,
+            attributes=attrs,
             key_field=key_field,
             time_field=time_field,
             schedule=schedule,
@@ -479,13 +493,13 @@ class SnowflakeSource(BaseSourceDriver):
     def get_spark_options(self):
         return {
             "format": "net.snowflake.spark.snowflake",
-            "query": self.query,
-            "sfURL": self.url,
-            "sfUser": self.user,
-            "sfPassword": self.password,
-            "sfDatabase": self.database,
-            "sfSchema": self.schema,
-            "sfWarehouse": self.warehouse,
+            "query": self.attributes.get("query"),
+            "sfURL": self.attributes.get("url"),
+            "sfUser": self.attributes.get("user"),
+            "sfPassword": self.attributes.get("password"),
+            "sfDatabase": self.attributes.get("database"),
+            "sfSchema": self.attributes.get("schema"),
+            "sfWarehouse": self.attributes.get("warehouse"),
             "application": "Iguazio",
         }
 
@@ -746,4 +760,5 @@ source_kind_to_driver = {
     KafkaSource.kind: KafkaSource,
     CustomSource.kind: CustomSource,
     BigQuerySource.kind: BigQuerySource,
+    SnowflakeSource.kind: SnowflakeSource,
 }

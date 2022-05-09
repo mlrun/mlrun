@@ -111,9 +111,10 @@ def get_kfp_outputs(artifacts, labels, project):
     outputs = []
     out_dict = {}
     for output in artifacts:
-        key = output["key"]
-        target = output.get("target_path", "")
-        target = output.get("inline", target)
+        key = output.get("metadata")["key"]
+        output_spec = output.get("spec", {})
+        target = output_spec.get("target_path", "")
+        target = output_spec.get("inline", target)
         out_dict[key] = get_artifact_target(output, project=project)
 
         if target.startswith("v3io:///"):
@@ -124,13 +125,13 @@ def get_kfp_outputs(artifacts, labels, project):
             user = user or "admin"
             target = "http://v3io-webapi:8081/users/" + user + target[5:]
 
-        viewer = output.get("viewer", "")
+        viewer = output_spec.get("viewer", "")
         if viewer in ["web-app", "chart"]:
             meta = {"type": "web-app", "source": target}
             outputs += [meta]
 
         elif viewer == "table":
-            header = output.get("header", None)
+            header = output_spec.get("header", None)
             if header and target.endswith(".csv"):
                 meta = {
                     "type": "table",
@@ -140,13 +141,13 @@ def get_kfp_outputs(artifacts, labels, project):
                 }
                 outputs += [meta]
 
-        elif output["kind"] == "dataset":
-            header = output.get("header")
-            preview = output.get("preview")
+        elif output.get("kind") == "dataset":
+            header = output_spec.get("header")
+            preview = output_spec.get("preview")
             if preview:
                 tbl_md = gen_md_table(header, preview)
                 text = f"## Dataset: {key}  \n\n" + tbl_md
-                del output["preview"]
+                del output_spec["preview"]
 
                 meta = {"type": "markdown", "storage": "inline", "source": text}
                 outputs += [meta]
@@ -611,12 +612,12 @@ def add_default_env(k8s_client, cop):
             )
         )
 
-    if "MLRUN_AUTH_SESSION" in os.environ or "V3IO_ACCESS_KEY" in os.environ:
+    auth_env_var = mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
+    if auth_env_var in os.environ or "V3IO_ACCESS_KEY" in os.environ:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
-                name="MLRUN_AUTH_SESSION",
-                value=os.environ.get("MLRUN_AUTH_SESSION")
-                or os.environ.get("V3IO_ACCESS_KEY"),
+                name=auth_env_var,
+                value=os.environ.get(auth_env_var) or os.environ.get("V3IO_ACCESS_KEY"),
             )
         )
 
@@ -799,13 +800,15 @@ def add_default_function_resources(
 def add_function_node_selection_attributes(
     function, container_op: dsl.ContainerOp
 ) -> dsl.ContainerOp:
-    if function.spec.node_selector:
-        container_op.node_selector = function.spec.node_selector
 
-    if function.spec.tolerations:
-        container_op.tolerations = function.spec.tolerations
+    if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
+        if getattr(function.spec, "node_selector"):
+            container_op.node_selector = function.spec.node_selector
 
-    if function.spec.affinity:
-        container_op.affinity = function.spec.affinity
+        if getattr(function.spec, "tolerations"):
+            container_op.tolerations = function.spec.tolerations
+
+        if getattr(function.spec, "affinity"):
+            container_op.affinity = function.spec.affinity
 
     return container_op

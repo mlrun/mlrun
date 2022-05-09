@@ -1,6 +1,7 @@
 import pandas as pd
-import mlrun
 from sklearn.datasets import load_breast_cancer
+
+import mlrun
 
 
 def breast_cancer_generator(context, format="csv"):

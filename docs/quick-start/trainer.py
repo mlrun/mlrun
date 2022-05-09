@@ -1,6 +1,7 @@
-import mlrun
 from sklearn import ensemble
 from sklearn.model_selection import train_test_split
+
+import mlrun
 from mlrun.frameworks.sklearn import apply_mlrun
 
 

@@ -1,6 +1,8 @@
-from cloudpickle import load
-import numpy as np
 from typing import List
+
+import numpy as np
+from cloudpickle import load
+
 import mlrun
 
 

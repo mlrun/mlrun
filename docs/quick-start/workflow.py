@@ -1,5 +1,6 @@
-import mlrun
 from kfp import dsl
+
+import mlrun
 
 
 # Create a Kubeflow Pipelines pipeline

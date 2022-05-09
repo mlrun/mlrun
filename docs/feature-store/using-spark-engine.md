@@ -5,8 +5,7 @@ using Spark, the internal execution graph is executed synchronously, by utilizin
 write operations, as well as potential transformations on the data. Executing synchronously means that the 
 source data is fully read into a data-frame that is processed, writing the output to the targets defined.
 
-Spark execution can be done locally, utilizing a local Spark session provided to the ingestion call. To 
-use Spark as the transformation engine in ingestion, follow these steps:
+To use Spark as the transformation engine in ingestion, follow these steps:
 
 When constructing the {py:class}`~mlrun.feature_store.FeatureSet` object, pass an `engine` parameter and set it 
    to `spark`. For example:
@@ -24,7 +23,8 @@ the `ingest` API. The actual remote function to execute depends on the object pa
     - A `RunConfig` that has a function configured within it. As mentioned, the function runtime must be of 
        type `remote-spark` or `spark`.
        
-To use a local Spark session, pass a Spark session context when calling the {py:func}`~mlrun.feature_store.ingest` function, as the 
+Spark execution can be done locally, utilizing a local Spark session provided to the ingestion call. To use a local Spark session, pass a 
+Spark session context when calling the {py:func}`~mlrun.feature_store.ingest` function, as the 
 `spark_context` parameter. This session is used for data operations and transformations.
        
 See code examples in:
@@ -297,3 +297,39 @@ source = SnowflakeSource(
 
 fstore.ingest(feature_set, source, spark_context=True)
 ```
+
+## Spark ingestion from Azure example
+
+
+
+``
+import mlrun
+import mlrun.feature_store as fs
+```
+# Initialize the MLRun project object
+project_name = "spark-azure-test"
+project = mlrun.get_or_create_project(project_name, context="./")
+
+from mlrun.runtimes import RemoteSparkRuntime
+RemoteSparkRuntime.deploy_default_image()
+
+from mlrun.datastore.sources import CSVSource
+from mlrun.datastore.targets import ParquetTarget
+from mlrun import code_to_function
+import mlrun.feature_store as fstore
+
+feature_set = fs.FeatureSet("rides7", entities=[fs.Entity("ride_id")], engine="spark", timestamp_key="key")
+
+source = CSVSource("rides", path="wasbs://warroom@mlrunwarroom.blob.core.windows.net/ny_taxi_train_subset_ride_id.csv")
+
+spark_service_name = "spark-fs" # As configured & shown in the Iguazio dashboard
+
+fn = code_to_function(kind='remote-spark',  name='func')
+
+run_config = fstore.RunConfig(local=False, function=fn, handler="ingest_handler")
+
+target = ParquetTarget(partitioned = True, time_partitioning_granularity="month")
+
+feature_set.set_targets(targets=[target],with_defaults=False)
+
+fstore.ingest(feature_set, source, run_config=run_config, spark_context=spark_service_name)

@@ -13,7 +13,7 @@ Docker does not include Nuclio and therefore cannot be used to deploy serving fu
 ```
 - [Kubernetes (full installation)](install-kubernetes): Use this option to run MLRun jobs at scale on a kubernetes cluster.
 
-The enterprise version of MLrun is deployed in Iguazio cluster.
+The enterprise version of MLrun is deployed in an Iguazio cluster.
 
 <img src="_static/images/install-local-full.png" alt="pipeline" width="600"/>
 

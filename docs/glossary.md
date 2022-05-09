@@ -55,12 +55,3 @@
 | XGBoost                  | Optimized distributed gradient boosting library designed to be highly efficient, flexible and portable. Implements machine learning algorithms under the Gradient Boosting framework.          |
 
 [Back to top](#top)
-
-<!--Add?
-MPI - Message Passing Interface
--->
-
-<!-- Really Specific - Maybe not for Glossary?	
-ACCESS_KEY 	Some kind of authentication - no context for what this is
-ctx 	Common abbreviation for context - should be evident from code
-Event 	 part of streaming ... relation of event to row in FeatureSet - really specific?

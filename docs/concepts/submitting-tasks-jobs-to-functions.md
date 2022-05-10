@@ -2,7 +2,7 @@
 
 MLRun batch function objects support a {py:meth}`~mlrun.runtimes.BaseRuntime.run` method for invoking a job over them. 
 The run method accepts various parameters such as `name`, `handler`, `params`, `inputs`, `schedule`, etc. 
-Alternatively you can pass a **`Task`** object (see: {py:func}`~mlrun.model.new_task`) that holds all of the 
+Alternatively, you can pass a **`Task`** object (see: {py:func}`~mlrun.model.new_task`) that holds all of the 
 parameters plus the advanced options. 
 
 ```{admonition} Run/simulate functions locally: 
@@ -44,7 +44,7 @@ Run object has the following methods/properties:
 - `to_dict()`, `to_yaml()`, `to_json()` &mdash; converts the run object to a dictionary, YAML, or JSON format (respectively).
 
 <br>You can view the job details, logs, and artifacts in the UI. When you first open the **Monitor 
-Jobs** tab it displays the last jobs that ran and their data. Click a job name to view its run history, and click a run to view more of the 
+Jobs** tab it displays the last jobs that ran and their data. Click a job name to view its run history and click a run to view more of the 
 run's data.
 
 <br><img src="../_static/images/project-jobs-train-artifacts-test_set.png" alt="project-jobs-train-artifacts-test_set" width="800"/>

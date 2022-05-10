@@ -126,7 +126,7 @@ Example:  `mlrun logs ba409c0cb4904d60aa8f8d1c05b40a75 --project getting-started
 | -p, &minus;&minus;project TEXT | Project name |
 | &minus;&minus;offset INTEGER  | Retrieve partial log, get up to size bytes starting at the offset from beginning of log |
 | &minus;&minus;db TEXT         | API service url |
-| -w, &minus;&minus;watch       |Retrieve logs of a running process, and watch the progress of the execution until it completes. Prints out the logs and continues to periodically poll for, and print, new logs as long as the state of the runtime that generates this log is either `pending` or `running`. |
+| -w, &minus;&minus;watch       |Retrieve logs of a running process and watch the progress of the execution until it completes. Prints out the logs and continues to periodically poll for, and print, new logs as long as the state of the runtime that generates this log is either `pending` or `running`. |
 
 
 <a id="cli-cmd-project"></a>

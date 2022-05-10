@@ -80,7 +80,7 @@ class HTTPRunDB(RunDBInterface):
       will be replaced by the name of the default project (usually ``default``). Therefore, if performing an API to
       list functions, for example, and not providing a project name - the result will not be functions from all
       projects but rather from the ``default`` project.
-    - Many objects can be assigned labels, and listed/queried by label. The label parameter for query APIs allows for
+    - Many objects can be assigned labels and listed/queried by label. The label parameter for query APIs allows for
       listing objects that:
 
       - Have a specific label, by asking for ``label="<label_name>"``. In this case the actual value of the label
@@ -403,7 +403,7 @@ class HTTPRunDB(RunDBInterface):
         return "unknown", resp.content
 
     def watch_log(self, uid, project="", watch=True, offset=0):
-        """Retrieve logs of a running process, and watch the progress of the execution until it completes. This
+        """Retrieve logs of a running process and watch the progress of the execution until it completes. This
         method will print out the logs and continue to periodically poll for, and print, new logs as long as the
         state of the runtime which generates this log is either ``pending`` or ``running``.
 
@@ -526,7 +526,7 @@ class HTTPRunDB(RunDBInterface):
         :param labels: List runs that have a specific label assigned. Currently only a single label filter can be
             applied, otherwise result will be empty.
         :param state: List only runs whose state is specified.
-        :param sort: Whether to sort the result according to their start time. Otherwise results will be
+        :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
         :param last: Deprecated - currently not used.
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.

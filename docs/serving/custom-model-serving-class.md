@@ -1,7 +1,7 @@
 # Creating a custom model serving class
 
 Model serving classes implement the full model serving functionality which include
-loading models, pre- and post-processing, prediction, explainability, and model monitoring.
+loading models, pre- and post-processing, prediction, explainability and model monitoring.
 
 Model serving classes must inherit from `mlrun.serving.V2ModelServer`, and at the minimum 
 implement the `load()` (download the model file(s) and load the model into memory) 
@@ -93,7 +93,7 @@ And it should return the specified response object.
 
 ## explain() method
 
-The explain method provides a hook for model explainability, and is accessed using the `/explain` operation.
+The explain method provides a hook for model explainability and is accessed using the `/explain` operation.
 
 ## pre/post and validate hooks
 
@@ -145,7 +145,7 @@ If you want to use multiple versions for the same model, use `:` to separate the
 For example, if the name is `mymodel:v2` it means model name `mymodel` version `v2`.
 
 You should specify the `model_path` (url of the model artifact/dir) and the `class_name` name 
-(or class `module.submodule.class`). Alternatively you can set the `model_url` for calling a 
+(or class `module.submodule.class`). Alternatively, you can set the `model_url` for calling a 
 model that is served by another function (can be used for ensembles).
 
 The function object(fn) accepts many options. You can specify replicas range (auto-scaling), cpu/gpu/mem resources, add shared 

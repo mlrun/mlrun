@@ -2,7 +2,7 @@
 # Distributed Functions
 
 Many of the runtimes support horizontal scaling. You can specify the number of `replicas` or the 
-min&mdash;max value range (for auto scaling in Dask or Nuclio). When scaling functions MLRun uses a high speed
+min&mdash;max value range (for auto scaling in Dask or Nuclio). When scaling functions MLRun uses a high-speed
 messaging protocol and shared storage (volumes, objects, databases, or streams). MLRun runtimes
 handle the orchestration and monitoring of the distributed task.
 

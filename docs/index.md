@@ -16,7 +16,7 @@ After you develop your model and feature engineering logic you need to deploy th
 with real-time feature engineering, online model serving, API and data integrations, model and data quality 
 monitoring, no intrusive upgrades and so on. 
 
-However, the implementation is challenging: various environments ("runtimes") use different configurations, parameters, and data sources.
+However, the implementation is challenging: various environments ("runtimes") use different configurations, parameters and data sources.
 In addition, multiple frameworks and platforms are used to focus on different stages of the development life cycle.
 This leads to constant development and DevOps/MLOps work.
 

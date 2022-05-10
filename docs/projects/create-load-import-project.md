@@ -22,7 +22,7 @@ Projects can also be loaded and workflows/pipelines can be executed using the CL
 
 To define a new project from scratch, use {py:meth}`~mlrun.projects.new_project`. You must specify a `name`, 
 location for the `context` directory (e.g. `./`) and other optional parameters (see below).
-The `context` dir holds the configuration, code, and workflow files. File paths in the project are relative to the context root.
+The `context` dir holds the configuration, code and workflow files. File paths in the project are relative to the context root.
 
 ```python
     # create a project with local and marketplace functions
@@ -43,7 +43,7 @@ The `context` dir holds the configuration, code, and workflow files. File paths 
 ```
 
 
-When projects are saved a `project.yaml` file with project definitions is written to the `context` dir. Alternatively you
+When projects are saved a `project.yaml` file with project definitions is written to the `context` dir. Alternatively, you
 can manually create the `project.yaml` file and load it using `load_project()` or the `from_template` parameter.
 The generated `project.yaml` for the above project looks like:
 
@@ -90,7 +90,7 @@ Example of creating a new project from a zip template:
 
 ```{admonition} Note
 * Projects are visible in the MLRun dashboard only after they're saved to the MLRun database (with `.save()`) or after the workflows are executed (with `.run()`).
-* You can ensure the project name is unique per user by setting the the `user_project` parameter to `True`.
+* You can ensure the project name is unique per user by setting the `user_project` parameter to `True`.
 ```
 
 ## Load and run projects from context, git or archive

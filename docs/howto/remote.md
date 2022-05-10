@@ -72,7 +72,7 @@ artifact. You can use template values in the artifact path. The supported values
     V3IO_ACCESS_KEY=<platform access key>
     ```
 
-    You can get the platform access key from the platform dashboard: select the user-profile picture or icon from the top right corner of any page, and select **Access Keys** from the menu. In the **Access Keys** window, either copy an existing access key or create a new key and copy it. Alternatively, you can get the access key by checking the value of the `V3IO_ACCESS_KEY` environment variable in a web-shell or Jupyter Notebook service.
+    You can get the platform access key from the platform dashboard: select the user-profile picture or icon from the top right corner of any page and select **Access Keys** from the menu. In the **Access Keys** window, either copy an existing access key or create a new key and copy it. Alternatively, you can get the access key by checking the value of the `V3IO_ACCESS_KEY` environment variable in a web-shell or Jupyter Notebook service.
 
 ## IDE configuration
 

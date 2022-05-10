@@ -20,7 +20,7 @@ Projects can also be loaded and workflows/pipelines can be executed using the CL
 
 Projects host or link to functions that are used in job or workflow runs. You add functions to a project using 
 {py:meth}`~mlrun.projects.MlrunProject.set_function`. This registers them as part of the project definition (and Yaml file).
-Alternatively you can create functions using methods like {py:func}`~mlrun.run.code_to_function` and save them to the DB (under the same project). 
+Alternatively, you can create functions using methods like {py:func}`~mlrun.run.code_to_function` and save them to the DB (under the same project). 
 The preferred approach is to use `set_function` (which also records the functions in the project spec).
 
 The {py:meth}`~mlrun.projects.MlrunProject.set_function` method allow you to add/update many types of functions:
@@ -81,7 +81,7 @@ You can use those methods as `project` methods, or as global (`mlrun.`) methods,
     
 The first parameter in those three methods is the function name (in the project), or it can be a function object if we want to use functions we imported/created ad hoc, example:
 
-    # import a serving function from the marketplace and deploy a tarined model over it
+    # import a serving function from the marketplace and deploy a trained model over it
     serving = import_function("hub://v2_model_server", new_name="serving")
     deploy = deploy_function(
         serving,

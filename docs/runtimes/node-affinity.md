@@ -61,7 +61,7 @@ However, when you use multiple labels a logical `and` is performed on the labels
 **To assign an MLRun job to a node:**
 1. From the platform dashboard, press projects in the left menu pane.
 2. Press on a project, and then press Jobs and Workflows.
-3. Press New Job, or select a job from the list of running jobs.
+3. Press New Job or select a job from the list of running jobs.
 4. Scroll to and open the Resources pane.
 5. In the **Node Selector** section, press **+**.
    <br>

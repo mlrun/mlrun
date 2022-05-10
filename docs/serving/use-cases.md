@@ -81,7 +81,7 @@ tests one or more classifier models against a held-out dataset.
 
 MLRun Serving graphs can host advanced pipelines that handle event/data processing, ML functionality, 
  or any custom task. The following example demonstrates an asynchronous pipeline that pre-processes data, 
-passes the data into a model ensemble, and finishes off with post processing. 
+passes the data into a model ensemble and finishes off with post processing. 
 
 **For a complete example, see the [Advanced graph example notebook](./graph-example.ipynb).**
 

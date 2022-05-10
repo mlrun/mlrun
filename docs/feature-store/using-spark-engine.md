@@ -37,7 +37,8 @@ See code examples in:
        
 ## Local Spark ingestion example
 
-The following code executes data ingestion using a local Spark session.
+A local Spark session is a session running in the Jupyter service.<br>
+The following code executes data ingestion using a local Spark session. 
 
 When using a local Spark session, the `ingest` API would wait for its completion. 
 
@@ -62,7 +63,8 @@ fstore.ingest(feature_set, source, spark_context=spark)
 
 ## Remote Spark ingestion example
 
-When using remote execution the MLRun run execution details are returned, allowing tracking of its status and results.
+Remote Spark refers to  a session running from another service, for example, the Spark standalone service or the Spark operator service. 
+When using remote execution the MLRun run execution details are returned, allowing tracking of its status and results. 
 
 The following code should be executed only once to build the remote spark image before running the first ingest.
 It may take a few minutes to prepare the image.
@@ -107,7 +109,7 @@ fstore.ingest(feature_set, source, run_config=config, spark_context=spark_servic
 ```
 
 ## Spark operator ingestion example
-When running with a Spark operator, the MLRun execution details are returned, allowing tracking of the job's status and results. Spark operator ingestion is executed remotely.
+When running with a Spark operator, the MLRun execution details are returned, allowing tracking of the job's status and results. Spark operator ingestion is always executed remotely.
 
 The following code should be executed only once to build the spark job image before running the first ingest.
 It may take a few minutes to prepare the image.
@@ -166,7 +168,7 @@ fstore.ingest(feature_set, source, run_config=config)
 
 ## Spark dataframe ingestion example
 
-The following code executes data ingestion from a spark dataframe that is running locally. (It cannot be executed remotely.)
+The following code executes data ingestion from a spark dataframe that is running locally. (Ingestion cannot be executed remotely.)
 The specified dataframe should be associated with `spark_context`. 
 
 ```
@@ -300,7 +302,7 @@ fstore.ingest(feature_set, source, spark_context=True)
 
 ## Spark ingestion from Azure example
 
-
+Spark ingestion from Azure can be executed both remotely and locally. The following code executes remote data ingestion from Azure.
 
 ``
 import mlrun

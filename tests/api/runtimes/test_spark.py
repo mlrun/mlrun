@@ -130,27 +130,13 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
 
         expected_values = {
             "executor": {
-                "requests": {
-                    "cpu": "1",
-                    "mem": "1G"
-                },
-                "limits": {
-                    "cpu": "2",
-                    "gpu_type": "nvidia.com/gpu",
-                    "gpus": 1
-                }
+                "requests": {"cpu": "1", "mem": "1G"},
+                "limits": {"cpu": "2", "gpu_type": "nvidia.com/gpu", "gpus": 1},
             },
             "driver": {
-                "requests": {
-                    "cpu": "2",
-                    "mem": "512m"
-                },
-                "limits": {
-                    "cpu": "3",
-                    "gpu_type": "nvidia.com/gpu",
-                    "gpus": 1
-                }
-            }
+                "requests": {"cpu": "2", "mem": "512m"},
+                "limits": {"cpu": "3", "gpu_type": "nvidia.com/gpu", "gpus": 1},
+            },
         }
 
         runtime.with_executor_requests(cpu="1", mem="1G")
@@ -160,7 +146,9 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         runtime.with_driver_limits(cpu="3", gpus=1)
 
         self.execute_function(runtime)
-        self._assert_custom_object_creation_config(expected_driver_and_executor=expected_values)
+        self._assert_custom_object_creation_config(
+            expected_driver_and_executor=expected_values
+        )
 
     def test_run_with_host_path_volume(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient

@@ -108,6 +108,7 @@ def test_requirement_specifiers_convention():
         "numpy": {">=1.16.5, <1.22.0"},
         "alembic": {"~=1.4,<1.6.0"},
         "boto3": {"~=1.9, <1.17.107"},
+        "azure-core": {"<1.23"},
         "azure-storage-blob": {"~=12.0, <12.7.0"},
         "dask-ml": {"~=1.4,<1.9.0"},
         "pyarrow": {">=1,<6"},

@@ -1,6 +1,6 @@
 # Setting a remote environment <!-- omit in toc -->
 
-MLRun allows you to use your code on a local machine while running your functions on a remote cluster. This tutorial explains how you can set this up.
+You can write your code on a local machine while running your functions on a remote cluster. This tutorial explains how to set this up.
 
 **In this section**
 - [Prerequisites](#prerequisites)
@@ -29,10 +29,9 @@ Before you begin, ensure that the following prerequisites are met:
     pip install mlrun==<version>
     ```
 
-    If you already installed a previous version of MLRun, you should first uninstall it by running:
-
+    If you already installed a previous version of MLRun, upgrade it by running
     ```sh
-    pip uninstall -y mlrun
+    pip install mlrun==<version> -u
     ```
 
 2. Ensure that you have remote access to your MLRun service (i.e., to the service URL on the remote Kubernetes cluster).
@@ -48,10 +47,10 @@ Use one of the following options:
 
 Set environment variables to define your MLRun configuration. As a minimum requirement:
 
-1. Set `MLRUN_DBPATH` to the URL of the remote MLRun database/API service; replace the `<...>` placeholders to identify your remote target:
+1. Set `MLRUN_DBPATH` to the URL of the remote MLRun API service:
 
     ```ini
-    MLRUN_DBPATH=<API endpoint of the MLRun APIs service endpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
+    MLRUN_DBPATH=<URL of the MLRun APIs service endpoint, e.g. "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
     ```
     
 2. To store the artifacts on the remote server, you need to set the `MLRUN_ARTIFACT_PATH` to the desired root folder of your 
@@ -71,7 +70,7 @@ artifact. You can use template values in the artifact path. The supported values
     MLRUN_ARTIFACT_PATH=/User/artifacts/{{project}}/{{run.uid}}
     ```
 
-3. If the remote service is on an instance of the Iguazio MLOps Platform (**"the platform"**), set the following environment variables as well; replace the `<...>` placeholders with the information for your specific platform cluster:
+3. If the remote service is on an instance of the Iguazio MLOps Platform (**"the platform"**), set the following environment variables as well:
 
     ```ini
     V3IO_USERNAME=<username of a platform user with access to the MLRun service>
@@ -85,7 +84,7 @@ artifact. You can use template values in the artifact path. The supported values
 
 You can create a script that sets the desired environment variables before launching your IDE
 
-Create a file `mlrun_env.sh`, and copy-paste the code below; replace the `<...>` placeholders to identify your remote target:
+Create a file `mlrun_env.sh`, and copy-paste the code below:
 
 ``` bash
 #!/usr/bin/env bash
@@ -130,7 +129,9 @@ Usage:
    - `set_env_from_file()` for reading `.env` files, setting the OS environment and reloading MLRun config
    - `project.set_secrets()` reads dict or secrets env file and stores it in the project secrets
       (note that MLRUN_DBPATH and V3IO_xxx vars are not written to the project secrets)
-   - `function.set_envs()` now have a new param `file_pat`h to set the env from an `.env` file
+   - `function.set_envs()` to specify the .env file with one of the parameters:
+      `env_vars`:  dict with env key/values
+      `file_path`: `.env` file with key=value lines
 
 ```
 # set the env vars from a file and also return the results as a dict (e.g. for using in a function)
@@ -143,6 +144,8 @@ project.set_secrets(file_path=env_file)
 # copy env from file into a function spec
 function.set_envs(file_path=env_file)
 ```
+
+## Load the configuration and credential environmental variables from the command line
 
 1. Create an env file similar to the example, with lines in the form KEY=VALUE, and comment lines starting with "#".
 2. Use `--env-file <env file path>` in mlrun run/build/deploy/project CLI commands to load the config and credential env vars from file.
@@ -174,7 +177,7 @@ You can use PyCharm with MLRun remote by changing the environment variables conf
 
 #### Create environment file
 
-Create an environment file called `mlrun.env` in your workspace folder. Copy-paste the configuration below; replace the `<...>` placeholders to identify your remote target:
+Create an environment file called `mlrun.env` in your workspace folder. Copy-paste the configuration below:
 
 ``` ini
 # Remote URL to mlrun service

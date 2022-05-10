@@ -14,6 +14,8 @@ aiobotocore~=1.4.0
 # aioitertools 0.9 and above requires typing-extensions>4, which conflicts with kfp
 aioitertools<0.9
 s3fs~=2021.8.1
+# azure-core>=1.23.0 uses ParamSpec, and hence depends on typing_extensions>=4
+azure-core<1.23
 azure-storage-blob~=12.0
 adlfs~=2021.8.1
 azure-identity~=1.5

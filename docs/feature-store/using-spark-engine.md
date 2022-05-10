@@ -34,6 +34,7 @@ See code examples in:
 - [Spark dataframe ingestion example](#spark-dataframe-ingestion-example)
 - [Spark over S3 full flow example](#spark-over-s3-full-flow-example)
 - [Spark ingestion from Snowflake example](#spark-ingestion-from-snowflake-example)
+- [Spark ingestion from Azure example](#spark-ingestion-from-azure-example)
        
 ## Local Spark ingestion example
 
@@ -168,7 +169,7 @@ fstore.ingest(feature_set, source, run_config=config)
 
 ## Spark dataframe ingestion example
 
-The following code executes data ingestion from a spark dataframe that is running locally. (Ingestion cannot be executed remotely.)
+The following code executes data ingestion from a spark dataframe that is running locally. (Spark dataframe Ingestion cannot be executed remotely.)
 The specified dataframe should be associated with `spark_context`. 
 
 ```

@@ -129,9 +129,7 @@ Usage:
    - `set_env_from_file()` for reading `.env` files, setting the OS environment and reloading MLRun config
    - `project.set_secrets()` reads dict or secrets env file and stores it in the project secrets
       (note that MLRUN_DBPATH and V3IO_xxx vars are not written to the project secrets)
-   - `function.set_envs()` to specify the .env file with one of the parameters:
-      `env_vars`:  dict with env key/values
-      `file_path`: `.env` file with key=value lines
+   - `function.set_envs()` set the pod environment variables from key/value dict or .env file
 
 ```
 # set the env vars from a file and also return the results as a dict (e.g. for using in a function)

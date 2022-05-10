@@ -230,18 +230,20 @@ class AbstractSparkRuntime(KubejobRuntime):
         sj = new_function(kind=cls.kind, name="spark-default-image-deploy-temp")
         sj.spec.build.image = cls._get_default_deployed_mlrun_image_name(with_gpu)
 
-        sj.with_executor_requests(cpu=1, mem="512m", gpus=1 if with_gpu else None)
-        sj.with_driver_requests(cpu=1, mem="512m", gpus=1 if with_gpu else None)
+        sj.with_executor_requests(cpu=1, mem="512m")
+        sj.with_executor_limits(cpu=1, mem="512m", gpus=1 if with_gpu else None)
+        sj.with_driver_requests(cpu=1, mem="512m")
+        sj.with_driver_limits(cpu=1, mem="512m", gpus=1 if with_gpu else None)
 
         sj.deploy()
         get_run_db().delete_function(name=sj.metadata.name)
 
     def _is_using_gpu(self):
         _, driver_gpu = self._get_gpu_type_and_quantity(
-            resources=self.spec.driver_resources["requests"]
+            resources=self.spec.driver_resources["limits"]
         )
         _, executor_gpu = self._get_gpu_type_and_quantity(
-            resources=self.spec.executor_resources["requests"]
+            resources=self.spec.executor_resources["limits"]
         )
         return bool(driver_gpu or executor_gpu)
 
@@ -469,7 +471,7 @@ with ctx:
                     str,
                 )
             gpu_type, gpu_quantity = self._get_gpu_type_and_quantity(
-                resources=self.spec.executor_resources["requests"]
+                resources=self.spec.executor_resources["limits"]
             )
             if gpu_type:
                 update_in(job, "spec.executor.gpu.name", gpu_type)
@@ -498,7 +500,7 @@ with ctx:
                     str,
                 )
             gpu_type, gpu_quantity = self._get_gpu_type_and_quantity(
-                resources=self.spec.driver_resources["requests"]
+                resources=self.spec.driver_resources["limits"]
             )
             if gpu_type:
                 update_in(job, "spec.driver.gpu.name", gpu_type)

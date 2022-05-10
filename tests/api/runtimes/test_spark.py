@@ -36,6 +36,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         expected_volumes: typing.Optional[list] = None,
         expected_driver_volume_mounts: typing.Optional[list] = None,
         expected_executor_volume_mounts: typing.Optional[list] = None,
+        expected_driver_and_executor: dict = None,
     ):
         if assert_create_custom_object_called:
             mlrun.api.utils.singletons.k8s.get_k8s().crdapi.create_namespaced_custom_object.assert_called_once()
@@ -50,6 +51,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             expected_driver_volume_mounts,
             expected_executor_volume_mounts,
         )
+        self._assert_driver_and_executor(body, expected_driver_and_executor)
 
     def _assert_volume_and_mounts(
         self,
@@ -91,6 +93,25 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 == {}
             )
 
+    def _assert_driver_and_executor(self, body, expected_values):
+        actual_driver = body["spec"]["driver"]
+        actual_executor = body["spec"]["executor"]
+        self._assert_limits(actual_driver, expected_values["driver"]["limits"])
+        self._assert_requests(actual_driver, expected_values["driver"]["requests"])
+        self._assert_limits(actual_executor, expected_values["executor"]["limits"])
+        self._assert_requests(actual_executor, expected_values["executor"]["requests"])
+
+    @staticmethod
+    def _assert_requests(actual, expected):
+        assert actual["coreRequest"] == expected["cpu"]
+        assert actual["memory"] == expected["mem"]
+
+    @staticmethod
+    def _assert_limits(actual, expected):
+        assert actual["coreLimit"] == expected["cpu"]
+        assert actual["gpu"]["name"] == expected["gpu_type"]
+        assert actual["gpu"]["quantity"] == expected["gpus"]
+
     def _sanitize_list_for_serialization(self, list_: list):
         kubernetes_api_client = kubernetes.client.ApiClient()
         return list(map(kubernetes_api_client.sanitize_for_serialization, list_))
@@ -101,6 +122,45 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
         self.execute_function(runtime)
         self._assert_custom_object_creation_config()
+
+    def test_run_with_limits_and_requests(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
+
+        expected_values = {
+            "executor": {
+                "requests": {
+                    "cpu": "1",
+                    "mem": "1G"
+                },
+                "limits": {
+                    "cpu": "2",
+                    "gpu_type": "nvidia.com/gpu",
+                    "gpus": 1
+                }
+            },
+            "driver": {
+                "requests": {
+                    "cpu": "2",
+                    "mem": "512m"
+                },
+                "limits": {
+                    "cpu": "3",
+                    "gpu_type": "nvidia.com/gpu",
+                    "gpus": 1
+                }
+            }
+        }
+
+        runtime.with_executor_requests(cpu="1", mem="1G")
+        runtime.with_executor_limits(cpu="2", gpus=1)
+
+        runtime.with_driver_requests(cpu="2", mem="512m")
+        runtime.with_driver_limits(cpu="3", gpus=1)
+
+        self.execute_function(runtime)
+        self._assert_custom_object_creation_config(expected_driver_and_executor=expected_values)
 
     def test_run_with_host_path_volume(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient

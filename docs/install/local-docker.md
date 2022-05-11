@@ -74,10 +74,10 @@ This creates 4 services:
 2. MLRun UI (in `http://localhost:8060`)
 3. Nuclio Dashboard/controller (in `http://localhost:8070`)
 
-After the installation access the Jupyter server (in [http://localhost:8888](http://localhost:8888)) and run through the `quick-start` tutorial and `demos`.
+After the installation, access the Jupyter server (in [http://localhost:8888](http://localhost:8888)) and run through the `quick-start` tutorial and `demos`.
 You can see the projects, tasks, and artifacts in MLRun UI (in [http://localhost:8060](http://localhost:8060))
 
-The Jupyter environment is pre-configured to work with the local MLRun and Nuclio services, 
-you can switch to remote or managed MLRun cluster by editing the `mlrun.env` file in the Jupyter files tree.
+The Jupyter environment is pre-configured to work with the local MLRun and Nuclio services. 
+You can switch to a remote or managed MLRun cluster by editing the `mlrun.env` file in the Jupyter files tree.
 
 The artifacts and DB are stored under **/home/jovyan/data** (`/data` in Jupyter tree). 

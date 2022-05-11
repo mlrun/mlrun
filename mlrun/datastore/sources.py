@@ -329,10 +329,6 @@ class BigQuerySource(BaseSourceDriver):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot specify both table and query args"
             )
-        if not query and not table:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "must specify at least one of table or query args"
-            )
         attrs = {
             "query": query,
             "table": table,
@@ -389,6 +385,7 @@ class BigQuerySource(BaseSourceDriver):
         bqclient = bigquery.Client(project=gcp_project, credentials=credentials)
 
         query = self.attributes.get("query")
+        table = self.attributes.get("table")
         chunksize = self.attributes.get("chunksize")
         if query:
             query_job = bqclient.query(query)
@@ -399,7 +396,7 @@ class BigQuerySource(BaseSourceDriver):
                 return self._rows_iterator.to_dataframe_iterable(dtypes=dtypes)
             else:
                 return self._rows_iterator.to_dataframe(dtypes=dtypes)
-        else:
+        elif table:
             table = self.attributes.get("table")
             max_results = self.attributes.get("max_results")
 
@@ -411,6 +408,10 @@ class BigQuerySource(BaseSourceDriver):
                 return rows.to_dataframe_iterable(dtypes=dtypes)
             else:
                 return rows.to_dataframe(dtypes=dtypes)
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "table or query args must be specified"
+            )
 
     def is_iterator(self):
         return True if self.attributes.get("chunksize") else False
@@ -439,7 +440,7 @@ class BigQuerySource(BaseSourceDriver):
             options["viewsEnabled"] = True
             options["materializationDataset"] = materialization_dataset
             options["query"] = query
-        if table:
+        elif table:
             options["path"] = table
 
         df = session.read.format("bigquery").load(**options)

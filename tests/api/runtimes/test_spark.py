@@ -29,6 +29,24 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             runtime.with_driver_requests(cpu=1, mem="512m")
         return runtime
 
+    def _assert_java_options(
+        self,
+        body: dict,
+        expected_driver_java_options: str,
+        expected_executor_java_options: str,
+    ):
+        if expected_driver_java_options:
+            assert body["spec"]["driver"]["javaOptions"] == expected_driver_java_options
+        else:
+            assert "javaOptions" not in body["spec"]["driver"]
+        if expected_executor_java_options:
+            assert (
+                body["spec"]["executor"]["javaOptions"]
+                == expected_executor_java_options
+            )
+        else:
+            assert "javaOptions" not in body["spec"]["executor"]
+
     def _assert_custom_object_creation_config(
         self,
         expected_runtime_class_name="spark",
@@ -36,6 +54,8 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         expected_volumes: typing.Optional[list] = None,
         expected_driver_volume_mounts: typing.Optional[list] = None,
         expected_executor_volume_mounts: typing.Optional[list] = None,
+        expected_driver_java_options=None,
+        expected_executor_java_options=None,
         expected_driver_and_executor: dict = None,
     ):
         if assert_create_custom_object_called:
@@ -51,6 +71,11 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             expected_driver_volume_mounts,
             expected_executor_volume_mounts,
         )
+
+        self._assert_java_options(
+            body, expected_driver_java_options, expected_executor_java_options
+        )
+
         self._assert_driver_and_executor(body, expected_driver_and_executor)
 
     def _assert_volume_and_mounts(
@@ -215,4 +240,18 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 shared_volume_executor_volume_mount,
                 executor_volume_volume_mount,
             ],
+        )
+
+    def test_java_options(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        runtime = self._generate_runtime()
+        driver_java_options = "-Dmyproperty=somevalue"
+        runtime.spec.driver_java_options = driver_java_options
+        executor_java_options = "-Dmyotherproperty=someothervalue"
+        runtime.spec.executor_java_options = executor_java_options
+        self.execute_function(runtime)
+        self._assert_custom_object_creation_config(
+            expected_driver_java_options=driver_java_options,
+            expected_executor_java_options=executor_java_options,
         )

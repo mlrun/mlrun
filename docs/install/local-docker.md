@@ -1,29 +1,29 @@
 # Install MLRun locally using Docker
 
-You can install and use MLRun and Nuclio locally on your computer, this will not include all the services and elastic 
-scaling capabilities which you can get with the Kubernetes based deployment but is much simpler to start with.
+ou can install and use MLRun and Nuclio locally on your computer. This does not include all the services and elastic 
+scaling capabilities, which you can get with the Kubernetes based deployment, but it is much simpler to start with.
 
 ```{admonition} Note
 - Using Docker is limited to local, Nuclio, and Serving runtimes and local pipelines.
 ```
 
-The installation is done using [`docker compose`](https://docs.docker.com/compose/) and will deploy MLRun service, 
-MLRun UI, Nuclio serverless engine, and optionally Jupyter server. 
+Use [`docker compose`](https://docs.docker.com/compose/) to install MLRun. It deploys the MLRun service,
+MLRun UI, Nuclio serverless engine, and optionally the Jupyter server.
 
 There are two installation options:
 - [**Use MLRun with your own client (PyCharm, VSCode, Jupyter)**](#use-mlrun-with-your-own-client)
 - [**Use MLRun with MLRun Jupyter image (pre loaded with examples/demos)**](#use-mlrun-with-mlrun-jupyter-image)
 
-In both cased you need to set the `SHARED_DIR` environment variable to point to a host path for storing MLRun artifacts and DB, 
-for example `export SHARED_DIR=~/mlrun-data` (or use `set SHARED_DIR=c:\mlrun-data` in windows), make sure the directory exist.
+In both cases you need to set the `SHARED_DIR` environment variable to point to a host path for storing MLRun artifacts and DB, 
+for example `export SHARED_DIR=~/mlrun-data` (or use `set SHARED_DIR=c:\mlrun-data` in windows), make sure the directory exists.
 
-It is recommended to set the `HOST_IP` variable with your computer IP address (required for Nuclio dashboard), 
+It is recommended to set the `HOST_IP` variable with your computer IP address (required for Nuclio dashboard). 
 you can check your IP address using the `ip addr` command on Linux or `ifconfig` in Mac or `ipconfig` in Windows.
 You can select a specific MLRun version with the `TAG` variable and Nuclio version with the `NUCLIO_TAG` variable.
 
 ## Use MLRun with your own client
 
-The following commands will install MLRun + Nuclio for work with your own IDE or notebook. 
+The following commands install MLRun + Nuclio for work with your own IDE or notebook. 
 
 Download the {Download}`compose-mlrun.yaml<./compose-mlrun.yaml>` file and type:
 ````{toggle} view compose-mlrun.yaml
@@ -46,12 +46,12 @@ This will create 3 services:
 2. MLRun UI (in `http://localhost:8060`)
 3. Nuclio Dashboard/controller (in `http://localhost:8070`)
 
-after the installation set your client environment to work with the MLRun service, by setting the MLRun path env variable to 
+After installing MLRun service, set your client environment to work with the service, by setting the MLRun path env variable to 
 `MLRUN_DBPATH=http://localhost:8080` or using `.env` files (see [setting client environment](./remote.md)).
 
 ## Use MLRun with MLRun Jupyter image
 
-For the quickest experience with MLRun you can deploy MLRun with a pre integrated Jupyter server loaded with various MLRun examples and ready to go
+For the quickest experience with MLRun you can deploy MLRun with a pre integrated Jupyter server loaded with various ready-to-use MLRun examples.
 
 Download the {Download}`compose-jupy.yaml<./compose-jupy.yaml>` file and type:
 ````{toggle} view compose-jupy.yaml
@@ -68,7 +68,7 @@ docker-compose -f compose-jupy.yaml up
 
 > in Windows use `set` instead of `export`, and specify a valid windows path (such as `c:\mlrun-data`)
 
-This will create 4 services:
+This creates 4 services:
 1. Jupyter lab (in `http://localhost:8888`)
 1. MLRun API (in `http://localhost:8080`), running on the Jupyter container
 2. MLRun UI (in `http://localhost:8060`)

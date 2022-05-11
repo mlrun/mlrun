@@ -81,6 +81,10 @@ class SparkFeatureMerger(BaseMerger):
         # join the feature data frames
         self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
 
+        # filter joined data frame
+        if filter:
+            self._result_df = self._result_df.filter(filter)
+
         self._result_df = self._result_df.drop(*self._drop_columns)
 
         if self.vector.status.label_column:

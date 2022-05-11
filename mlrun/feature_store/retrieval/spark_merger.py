@@ -15,15 +15,8 @@ class SparkFeatureMerger(BaseMerger):
     def to_spark_df(self, session, path):
         return session.read.load(path)
 
-    def _generate_vector(
-        self,
-        entity_rows,
-        entity_timestamp_column,
-        feature_set_objects,
-        feature_set_fields,
-        start_time=None,
-        end_time=None,
-    ):
+    def _generate_vector(self, entity_rows, entity_timestamp_column, feature_set_objects, feature_set_fields,
+                         start_time=None, end_time=None, filter=None):
         from pyspark.sql import SparkSession
         from pyspark.sql.functions import col
 

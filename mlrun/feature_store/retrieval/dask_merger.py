@@ -15,15 +15,8 @@ class DaskFeatureMerger(BaseMerger):
         self.client = engine_args.get("dask_client")
         self._dask_cluster_uri = engine_args.get("dask_cluster_uri")
 
-    def _generate_vector(
-        self,
-        entity_rows,
-        entity_timestamp_column,
-        feature_set_objects,
-        feature_set_fields,
-        start_time=None,
-        end_time=None,
-    ):
+    def _generate_vector(self, entity_rows, entity_timestamp_column, feature_set_objects, feature_set_fields,
+                         start_time=None, end_time=None, filter=None):
         # init the dask client if needed
         if not self.client:
             if self._dask_cluster_uri:

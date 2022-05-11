@@ -18,7 +18,9 @@ In both cases you need to set the `SHARED_DIR` environment variable to point to 
 for example `export SHARED_DIR=~/mlrun-data` (or use `set SHARED_DIR=c:\mlrun-data` in windows), make sure the directory exists.
 
 It is recommended to set the `HOST_IP` variable with your computer IP address (required for Nuclio dashboard). 
-you can check your IP address using the `ip addr` command on Linux or `ifconfig` in Mac or `ipconfig` in Windows.
+you can check your IP address using the `ip addr` command on Linux or `ifconfig` in Mac or `ipconfig` in Windows
+(select an address which does not change dynamically, for example the `vEthernet` interface in Windows).
+
 You can select a specific MLRun version with the `TAG` variable and Nuclio version with the `NUCLIO_TAG` variable.
 
 ## Use MLRun with your own client
@@ -39,7 +41,8 @@ docker-compose -f compose-mlrun.yaml up
 ``` 
 
 
-> in Windows use `set` instead of `export`, and specify a valid windows path (such as `c:\mlrun-data`)
+> - In Windows use `set` instead of `export`, and specify a valid windows path (such as `c:\mlrun-data`).
+> - Add the `-d` flag to `docker-compose` for running in detached mode (run in the background).
 
 This will create 3 services:
 1. MLRun API (in `http://localhost:8080`)
@@ -66,7 +69,8 @@ export HOST_IP=<your host IP address>
 docker-compose -f compose-jupy.yaml up
 ``` 
 
-> in Windows use `set` instead of `export`, and specify a valid windows path (such as `c:\mlrun-data`)
+> - In Windows use `set` instead of `export`, and specify a valid windows path (such as `c:\mlrun-data`).
+> - Add the `-d` flag to `docker-compose` for running in detached mode (run in the background).
 
 This creates 4 services:
 1. Jupyter lab (in `http://localhost:8888`)

@@ -144,7 +144,7 @@ def get_offline_features(
     :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
     :param engine:          processing engine kind ("local", "dask", or "spark")
     :param engine_args:     kwargs for the processing engine
-    :param filter:
+    :param filter:          The query string to filter unnecessary rows
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True

@@ -48,6 +48,10 @@ class DaskFeatureMerger(BaseMerger):
 
         self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
 
+        # filter joined data frame
+        if filter:
+            self._result_df = self._result_df.query(filter).compute()
+
         self._result_df = self._result_df.drop(
             columns=self._drop_columns, errors="ignore"
         )

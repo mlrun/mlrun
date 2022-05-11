@@ -18,7 +18,7 @@ In both cased you need to set the `SHARED_DIR` environment variable to point to 
 for example `export SHARED_DIR=~/mlrun-data` (or use `set SHARED_DIR=c:\mlrun-data` in windows), make sure the directory exist.
 
 It is recommended to set the `HOST_IP` variable with your computer IP address (required for Nuclio dashboard), 
-you can check your IP address using the `ip addr` command (or `ipconfig` in windows).
+you can check your IP address using the `ip addr` command on Linux or `ifconfig` in Mac or `ipconfig` in Windows.
 You can select a specific MLRun version with the `TAG` variable and Nuclio version with the `NUCLIO_TAG` variable.
 
 ## Use MLRun with your own client
@@ -42,12 +42,12 @@ docker-compose -f compose-mlrun.yaml up
 > in Windows use `set` instead of `export`, and specify a valid windows path (such as `c:\mlrun-data`)
 
 This will create 3 services:
-1. MLRun API (in `http:\\localhost:8080`)
-2. MLRun UI (in `http:\\localhost:8060`)
-3. Nuclio Dashboard/controller (in `http:\\localhost:8070`)
+1. MLRun API (in `http://localhost:8080`)
+2. MLRun UI (in `http://localhost:8060`)
+3. Nuclio Dashboard/controller (in `http://localhost:8070`)
 
 after the installation set your client environment to work with the MLRun service, by setting the MLRun path env variable to 
-`MLRUN_DBPATH=http:\\localhost:8080` or using `.env` files (see [setting client environment]()).
+`MLRUN_DBPATH=http://localhost:8080` or using `.env` files (see [setting client environment](./remote.md)).
 
 ## Use MLRun with MLRun Jupyter image
 
@@ -69,13 +69,13 @@ docker-compose -f compose-jupy.yaml up
 > in Windows use `set` instead of `export`, and specify a valid windows path (such as `c:\mlrun-data`)
 
 This will create 4 services:
-1. Jupyter lab (in `http:\\localhost:8888`)
-1. MLRun API (in `http:\\localhost:8080`), running on the Jupyter container
-2. MLRun UI (in `http:\\localhost:8060`)
-3. Nuclio Dashboard/controller (in `http:\\localhost:8070`)
+1. Jupyter lab (in `http://localhost:8888`)
+1. MLRun API (in `http://localhost:8080`), running on the Jupyter container
+2. MLRun UI (in `http://localhost:8060`)
+3. Nuclio Dashboard/controller (in `http://localhost:8070`)
 
-After the installation access the Jupyter server (in [http:\\localhost:8888](http:\\localhost:8888)) and run through the `quick-start` tutorial and `demos`.
-You can see the projects, tasks, and artifacts in MLRun UI (in [http:\\localhost:8060](http:\\localhost:8060))
+After the installation access the Jupyter server (in [http://localhost:8888](http://localhost:8888)) and run through the `quick-start` tutorial and `demos`.
+You can see the projects, tasks, and artifacts in MLRun UI (in [http://localhost:8060](http://localhost:8060))
 
 The Jupyter environment is pre-configured to work with the local MLRun and Nuclio services, 
 you can switch to remote or managed MLRun cluster by editing the `mlrun.env` file in the Jupyter files tree.

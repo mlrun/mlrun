@@ -38,7 +38,6 @@ services:
       NUCLIO_DASHBOARD_EXTERNAL_IP_ADDRESSES: "${HOST_IP:-127.0.0.1}"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /tmp:/tmp
     networks:
       - mlrun
 

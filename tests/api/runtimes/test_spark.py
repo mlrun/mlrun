@@ -125,7 +125,9 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             self._assert_limits(actual_driver, expected_values["driver"]["limits"])
             self._assert_requests(actual_driver, expected_values["driver"]["requests"])
             self._assert_limits(actual_executor, expected_values["executor"]["limits"])
-            self._assert_requests(actual_executor, expected_values["executor"]["requests"])
+            self._assert_requests(
+                actual_executor, expected_values["executor"]["requests"]
+            )
 
     @staticmethod
     def _assert_requests(actual, expected):

@@ -39,7 +39,6 @@ class BaseMerger(abc.ABC):
         end_time=None,
         with_indexes=None,
         update_stats=None,
-        filter=None
     ):
         self._target = target
 
@@ -70,9 +69,14 @@ class BaseMerger(abc.ABC):
             for key in feature_set.spec.entities.keys():
                 self._append_index(key)
 
-        return self._generate_vector(entity_rows, entity_timestamp_column, feature_set_objects=feature_set_objects,
-                                     feature_set_fields=feature_set_fields, start_time=start_time, end_time=end_time,
-                                     filter=filter)
+        return self._generate_vector(
+            entity_rows,
+            entity_timestamp_column,
+            feature_set_objects=feature_set_objects,
+            feature_set_fields=feature_set_fields,
+            start_time=start_time,
+            end_time=end_time,
+        )
 
     def _write_to_target(self):
         if self._target:
@@ -114,7 +118,6 @@ class BaseMerger(abc.ABC):
         feature_set_fields,
         start_time=None,
         end_time=None,
-        filter=None
     ):
         raise NotImplementedError("_generate_vector() operation not supported in class")
 

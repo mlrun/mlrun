@@ -98,7 +98,6 @@ def get_offline_features(
     update_stats: bool = False,
     engine: str = None,
     engine_args: dict = None,
-    filter: str = None
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 
@@ -178,9 +177,16 @@ def get_offline_features(
         end_time = pd.Timestamp.now()
     merger_engine = get_merger(engine)
     merger = merger_engine(feature_vector, **(engine_args or {}))
-    return merger.start(entity_rows, entity_timestamp_column, target=target, drop_columns=drop_columns,
-                        start_time=start_time, end_time=end_time, with_indexes=with_indexes, update_stats=update_stats,
-                        filter=filter)
+    return merger.start(
+        entity_rows,
+        entity_timestamp_column,
+        target=target,
+        drop_columns=drop_columns,
+        start_time=start_time,
+        end_time=end_time,
+        with_indexes=with_indexes,
+        update_stats=update_stats,
+    )
 
 
 def get_online_feature_service(

@@ -22,8 +22,15 @@ class LocalFeatureMerger(BaseMerger):
     def __init__(self, vector, **engine_args):
         super().__init__(vector, **engine_args)
 
-    def _generate_vector(self, entity_rows, entity_timestamp_column, feature_set_objects, feature_set_fields,
-                         start_time=None, end_time=None, filter=None):
+    def _generate_vector(
+        self,
+        entity_rows,
+        entity_timestamp_column,
+        feature_set_objects,
+        feature_set_fields,
+        start_time=None,
+        end_time=None,
+    ):
 
         feature_sets = []
         dfs = []
@@ -62,9 +69,6 @@ class LocalFeatureMerger(BaseMerger):
             self._result_df = self._result_df.dropna(
                 subset=[self.vector.status.label_column]
             )
-
-        if filter:
-            self._result_df.query(filter, inplace=True)
 
         if self._drop_indexes:
             self._result_df.reset_index(drop=True, inplace=True)

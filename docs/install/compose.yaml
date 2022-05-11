@@ -15,8 +15,6 @@ services:
       - "${SHARED_DIR:?err}:/data"
     networks:
       - mlrun
-    stdin_open: true # docker run -i
-    tty: true        # docker run -t
 
   mlrun-ui:
     image: "mlrun/mlrun-ui:${TAG:-1.0.0}"

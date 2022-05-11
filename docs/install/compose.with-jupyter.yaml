@@ -1,6 +1,3 @@
-# docker run -it -p 8080:8080 -p 30040:8888 --rm -d --network mlrun-network --name jupyter
-# -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:1.0.0
-
 services:
   jupyter:
     image: "mlrun/jupyter:${TAG:-1.0.0}"

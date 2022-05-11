@@ -27,9 +27,9 @@ You can select a specific MLRun version with the `TAG` variable and Nuclio versi
 
 The following commands install MLRun + Nuclio for work with your own IDE or notebook. 
 
-Download the {Download}`compose-mlrun.yaml<./compose-mlrun.yaml>` file and type:
-````{toggle} view compose-mlrun.yaml
-   ```{literalinclude} ./compose-mlrun.yaml
+Download the {Download}`compose.yaml<./compose.yaml>` file to the working dir and type:
+````{toggle} view compose.yaml
+   ```{literalinclude} ./compose.yaml
    :language: yaml
    ```
 ````
@@ -37,7 +37,7 @@ Download the {Download}`compose-mlrun.yaml<./compose-mlrun.yaml>` file and type:
 ```sh
 export SHARED_DIR=~/mlrun-data
 export HOST_IP=<your host IP address>
-docker-compose -f compose-mlrun.yaml up
+docker-compose -f compose.yaml up
 ``` 
 
 
@@ -56,9 +56,9 @@ After installing MLRun service, set your client environment to work with the ser
 
 For the quickest experience with MLRun you can deploy MLRun with a pre integrated Jupyter server loaded with various ready-to-use MLRun examples.
 
-Download the {Download}`compose-jupy.yaml<./compose-jupy.yaml>` file and type:
-````{toggle} view compose-jupy.yaml
-   ```{literalinclude} ./compose-jupy.yaml
+Download the {Download}`compose.with-jupyter.yaml<./compose.with-jupyter.yaml>` file to the working dir and type:
+````{toggle} view compose.with-jupyter.yaml
+   ```{literalinclude} ./compose.with-jupyter.yaml
    :language: yaml
    ```
 ````
@@ -66,7 +66,7 @@ Download the {Download}`compose-jupy.yaml<./compose-jupy.yaml>` file and type:
 ```sh
 export SHARED_DIR=~/mlrun-data
 export HOST_IP=<your host IP address>
-docker-compose -f compose-jupy.yaml up
+docker-compose -f compose.with-jupyter.yaml up
 ``` 
 
 > - In Windows use `set` instead of `export`, and specify a valid windows path (such as `c:\mlrun-data`).

@@ -84,7 +84,11 @@ extras_require = {
         "aioitertools<0.9",
         "s3fs~=2021.8.1",
     ],
-    "azure-blob-storage": ["azure-storage-blob~=12.0", "adlfs~=2021.8.1"],
+    "azure-blob-storage": [
+        "azure-storage-blob~=12.0",
+        "azure-core<1.23",
+        "adlfs~=2021.8.1",
+    ],
     "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
     "bokeh": [
         # >=2.4.2 to force having a security fix done in 2.4.2

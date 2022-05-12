@@ -230,6 +230,7 @@ class AbstractSparkRuntime(KubejobRuntime):
         sj = new_function(kind=cls.kind, name="spark-default-image-deploy-temp")
         sj.spec.build.image = cls._get_default_deployed_mlrun_image_name(with_gpu)
 
+        # setting required resources
         sj.with_executor_requests(cpu=1, mem="512m")
         sj.with_executor_limits(cpu=1, mem="512m", gpus=1 if with_gpu else None)
         sj.with_driver_requests(cpu=1, mem="512m")

@@ -3,13 +3,13 @@ import typing
 import deepdiff
 import fastapi.testclient
 import kubernetes
+import pytest
 import sqlalchemy.orm
 
 import mlrun.api.schemas
 import mlrun.api.utils.singletons.k8s
 import mlrun.errors
 import mlrun.runtimes.pod
-import pytest
 import tests.api.runtimes.base
 
 
@@ -81,7 +81,9 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         if expected_driver_resources:
             self._assert_resources(body["spec"]["driver"], expected_driver_resources)
         if expected_executor_resources:
-            self._assert_resources(body["spec"]["executor"], expected_executor_resources)
+            self._assert_resources(
+                body["spec"]["executor"], expected_executor_resources
+            )
 
     def _assert_volume_and_mounts(
         self,
@@ -152,7 +154,9 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
     def test_run_without_required_resources(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):
-        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(set_resources=False)
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
             self.execute_function(runtime)
         assert exc.value.args[0] == "Sparkjob must contain executor requests"
@@ -160,7 +164,9 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
     def test_run_with_limits_and_requests(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):
-        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(set_resources=False)
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
 
         expected_executor = {
             "requests": {"cpu": "1", "mem": "1G"},

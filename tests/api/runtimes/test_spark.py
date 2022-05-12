@@ -76,7 +76,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             body, expected_driver_java_options, expected_executor_java_options
         )
 
-        self._assert_driver_and_executor(body, expected_driver_and_executor)
+        self._assert_driver_and_executor_parameters(body, expected_driver_and_executor)
 
     def _assert_volume_and_mounts(
         self,
@@ -118,7 +118,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 == {}
             )
 
-    def _assert_driver_and_executor(self, body, expected_values):
+    def _assert_driver_and_executor_parameters(self, body, expected_values):
         if expected_values:
             actual_driver = body["spec"]["driver"]
             actual_executor = body["spec"]["executor"]

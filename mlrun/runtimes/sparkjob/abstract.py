@@ -658,7 +658,7 @@ with ctx:
         self.spec._verify_and_set_requests("executor_resources", mem, cpu)
 
     def with_executor_limits(
-        self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"
+        self, cpu=None, mem=None, gpus=None, gpu_type="nvidia.com/gpu"
     ):
         """set executor pod limits"""
         self.spec._verify_and_set_limits("executor_resources", mem, cpu, gpus, gpu_type)
@@ -668,7 +668,7 @@ with ctx:
         self.spec._verify_and_set_requests("driver_resources", mem, cpu)
 
     def with_driver_limits(
-        self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"
+        self, cpu=None, mem=None, gpus=None, gpu_type="nvidia.com/gpu"
     ):
         """set driver pod cpu limits"""
         self.spec._verify_and_set_limits("driver_resources", mem, cpu, gpus, gpu_type)

@@ -1360,6 +1360,8 @@ class BaseRuntimeHandler(ABC):
                     debounce_period=debounce_period,
                 )
             if last_update > now - timedelta(seconds=debounce_period):
+                # we are setting non-terminal states to runs before the run is actually applied to k8s, that is
+                # why we want to give a grace period in case that is the situation and the resource hasn't been applied
                 logger.warning(
                     "Monitoring did not discover a runtime resource that corresponded to a run in a "
                     "non-terminal state. but record has recently updated. Debouncing",

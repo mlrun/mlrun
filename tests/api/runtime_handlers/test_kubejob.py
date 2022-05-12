@@ -1,4 +1,4 @@
-import time
+import typing
 from datetime import timedelta
 
 from fastapi.testclient import TestClient
@@ -174,92 +174,128 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler, len(list_namespaced_pods_calls)
         )
 
-    def test_run_in_k8s_non_terminal_state_with_unexisting_resource(
+    def test_ensure_run_not_stuck_on_non_terminal_state(
         self, db: Session, client: TestClient
     ):
-        list_namespaced_pods_calls = [
-            [self.pending_job_pod],
-            [self.running_job_pod],
-            [],
-        ]
-        expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
-        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
-        for _ in range(expected_number_of_list_pods_calls):
-            self.runtime_handler.monitor_runs(get_db(), db)
+        for test_case in [
+            # no monitoring interval and no debouncing interval which means if run found in non-terminal state
+            # the monitoring will override to terminal status
+            {
+                "runs_monitoring_interval": 0,
+                "debouncing_interval": None,
+                "list_namespaced_pods_calls": [[]],
+                "interval_time_to_add_to_run_update_time": 0,
+                "start_run_states": RunStates.non_terminal_states(),
+                "expected_reached_state": RunStates.gone,
+            },
+            # monitoring interval and debouncing interval are configured which means debouncing interval will
+            # be the debounce period, run is still in the debounce period that's why expecting not to override state
+            # to terminal state
+            {
+                "runs_monitoring_interval": 30,
+                "debouncing_interval": 100,
+                "list_namespaced_pods_calls": [[], [], []],
+                "interval_time_to_add_to_run_update_time": -50,
+                "start_run_states": RunStates.non_terminal_states(),
+                "expected_reached_state": RunStates.non_terminal_states(),
+            },
+            # monitoring interval and debouncing interval are configured which means debouncing interval will
+            # be the debounce period, run isn't still in the debounce period that's why expecting to override state
+            # to terminal state
+            {
+                "runs_monitoring_interval": 30,
+                "debouncing_interval": 100,
+                "list_namespaced_pods_calls": [[], [], []],
+                "interval_time_to_add_to_run_update_time": -200,
+                "start_run_states": RunStates.non_terminal_states(),
+                "expected_reached_state": RunStates.gone,
+            },
+            # monitoring interval configured and debouncing interval isn't configured which means
+            # monitoring interval * 2 will be the debounce period.
+            # run isn't in the debounce period that's why expecting to override state to terminal state
+            {
+                "runs_monitoring_interval": 30,
+                "debouncing_interval": None,
+                "list_namespaced_pods_calls": [[], [], []],
+                "interval_time_to_add_to_run_update_time": -65,
+                "start_run_states": RunStates.non_terminal_states(),
+                "expected_reached_state": RunStates.gone,
+            },
+            # monitoring interval configured and debouncing interval isn't configured which means
+            # monitoring interval * 2 will be the debounce period.
+            # run is in the debounce period that's why expecting not to override state to terminal state
+            {
+                "runs_monitoring_interval": 30,
+                "debouncing_interval": None,
+                "list_namespaced_pods_calls": [[], [], []],
+                "interval_time_to_add_to_run_update_time": -35,
+                "start_run_states": RunStates.non_terminal_states(),
+                "expected_reached_state": RunStates.non_terminal_states(),
+            },
+        ]:
+            self._logger.info("running test case", test_case=test_case)
+            config.runs_monitoring_interval = test_case.get(
+                "runs_monitoring_interval", 0
+            )
 
-        self._assert_list_namespaced_pods_calls(
-            self.runtime_handler, expected_number_of_list_pods_calls
-        )
+            config.runs_monitoring_non_terminal_run_without_resource_debouncing_interval = test_case.get(
+                "debouncing_interval", None
+            )
 
-        self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
+            list_namespaced_pods_calls = test_case.get(
+                "list_namespaced_pods_calls", [[]]
+            )
+            interval_time_to_add_to_run_update_time = test_case.get(
+                "interval_time_to_add_to_run_update_time", 0
+            )
+            expected_reached_state: typing.Union[str, list] = test_case.get(
+                "expected_reached_state", RunStates.running
+            )
+            start_run_states = test_case.get("start_run_states", [RunStates.running])
+            for idx in range(len(start_run_states)):
+                self.run["status"]["state"] = start_run_states[idx]
 
-    def test_run_in_non_terminal_state_with_unexisting_resource(
-        self, db: Session, client: TestClient
-    ):
-        # set monitoring interval so debouncing will be active
-        config.runs_monitoring_interval = 2
+                original_update_run_updated_time = (
+                    mlrun.api.utils.singletons.db.get_db()._update_run_updated_time
+                )
+                mlrun.api.utils.singletons.db.get_db()._update_run_updated_time = (
+                    tests.conftest.freeze(
+                        original_update_run_updated_time,
+                        now=now_date()
+                        + timedelta(
+                            seconds=interval_time_to_add_to_run_update_time,
+                        ),
+                    )
+                )
+                mlrun.api.crud.Runs().store_run(
+                    db, self.run, self.run_uid, project=self.project
+                )
+                mlrun.api.utils.singletons.db.get_db()._update_run_updated_time = (
+                    original_update_run_updated_time
+                )
+                # Mocking pod that is still in non-terminal state
+                self._mock_list_namespaced_pods(list_namespaced_pods_calls)
 
-        # mocking existing run in running state and last update time close to the monitoring interval
-        self.run["status"]["state"] = RunStates.created
-        self.run["status"]["last_update"] = (
-            now_date() - timedelta(seconds=config.runs_monitoring_interval)
-        ).isoformat()
+                # Triggering monitor cycle
+                expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
+                self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+                for i in range(expected_number_of_list_pods_calls):
+                    self.runtime_handler.monitor_runs(get_db(), db)
 
-        mlrun.api.crud.Runs().store_run(
-            db, self.run, self.run_uid, project=self.project
-        )
+                self._assert_list_namespaced_pods_calls(
+                    self.runtime_handler, expected_number_of_list_pods_calls
+                )
 
-        list_namespaced_pods_calls = [
-            [],
-        ]
-
-        expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
-        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
-        for _ in range(expected_number_of_list_pods_calls):
-            self.runtime_handler.monitor_runs(get_db(), db)
-
-        self._assert_list_namespaced_pods_calls(
-            self.runtime_handler, expected_number_of_list_pods_calls
-        )
-
-        self._assert_run_reached_state(
-            db, self.project, self.run_uid, RunStates.created
-        )
-
-    def test_monitor_run_debouncing_non_terminal_state_without_resource(
-        self, db: Session, client: TestClient
-    ):
-        # set monitoring interval so debouncing will be active
-        config.runs_monitoring_interval = 2
-
-        # mocking existing run in running state and last update time close to the monitoring interval
-        self.run["status"]["state"] = RunStates.running
-        self.run["status"]["last_update"] = (
-            now_date() - timedelta(seconds=config.runs_monitoring_interval)
-        ).isoformat()
-
-        mlrun.api.crud.Runs().store_run(
-            db, self.run, self.run_uid, project=self.project
-        )
-
-        # Mocking pod that is still in non-terminal state
-        self._mock_list_namespaced_pods([[], []])
-
-        # Triggering monitor cycle
-        self.runtime_handler.monitor_runs(get_db(), db)
-
-        # verifying monitoring was debounced
-        self._assert_run_reached_state(
-            db, self.project, self.run_uid, RunStates.running
-        )
-        # sleeping the monitoring interval
-        time.sleep(config.runs_monitoring_interval)
-
-        # Triggering monitor cycle
-        self.runtime_handler.monitor_runs(get_db(), db)
-
-        # verifying monitoring wasn't debounced and changed to error
-        self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
+                # verifying monitoring was debounced
+                if type(expected_reached_state) == list:
+                    self._assert_run_reached_state(
+                        db, self.project, self.run_uid, expected_reached_state[idx]
+                    )
+                else:
+                    self._assert_run_reached_state(
+                        db, self.project, self.run_uid, expected_reached_state
+                    )
+                get_db().del_run(db, self.run_uid, self.project)
 
     def test_delete_resources_with_force(self, db: Session, client: TestClient):
         list_namespaced_pods_calls = [
@@ -348,27 +384,6 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             log,
             self.failed_job_pod.metadata.name,
         )
-
-    def test_monitor_run_no_pods(self, db: Session, client: TestClient):
-        list_namespaced_pods_calls = [
-            [],
-            [],
-            [],
-        ]
-        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
-        expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
-        expected_monitor_cycles_to_reach_expected_state = (
-            expected_number_of_list_pods_calls
-        )
-        for _ in range(expected_monitor_cycles_to_reach_expected_state):
-            self.runtime_handler.monitor_runs(get_db(), db)
-        self._assert_list_namespaced_pods_calls(
-            self.runtime_handler, expected_number_of_list_pods_calls
-        )
-        self._assert_run_reached_state(
-            db, self.project, self.run_uid, RunStates.created
-        )
-        self._assert_run_logs(db, self.project, self.run_uid, "")
 
     def test_monitor_run_overriding_terminal_state(
         self, db: Session, client: TestClient

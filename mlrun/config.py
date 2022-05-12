@@ -89,6 +89,9 @@ default_config = {
     "runtimes_cleanup_interval": "300",
     # runs monitoring interval in seconds
     "runs_monitoring_interval": "30",
+    # runs monitoring debouncing interval in seconds for run with non-terminal state without corresponding k8s resource
+    # by default the interval will be - (runs_monitoring_interval * 2 ), if set will override the default
+    "runs_monitoring_non_terminal_run_without_resource_debouncing_interval": None,
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them
     "runtime_resources_deletion_grace_period": "14400",
@@ -560,6 +563,15 @@ class Config:
                 requirement, with_gpu
             )
         return resources
+
+    def resolve_debouncing_period_for_non_terminal_state_run_without_resource(self):
+        return (
+            float(
+                self.runs_monitoring_non_terminal_run_without_resource_debouncing_interval
+            )
+            if self.runs_monitoring_non_terminal_run_without_resource_debouncing_interval
+            else float(config.runs_monitoring_interval) * 2.0
+        )
 
     @staticmethod
     def get_default_function_pod_requirement_resources(

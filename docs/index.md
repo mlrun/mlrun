@@ -8,44 +8,50 @@
 <a id="the-challenge"></a>
 ## The challenge
 
-As an ML developer or data scientist, you typically want to write code in your preferred local development environment (IDE) or web notebook, and then run the same code on a larger cluster using scale-out containers or functions.
-When you determine that the code is ready, you or someone else needs to transfer the code to an automated ML workflow (for example, using [Kubeflow Pipelines](https://www.kubeflow.org/docs/pipelines/pipelines-quickstart/)).
-This pipeline should be secure and include capabilities such as logging and monitoring, as well as allow adjustments to relevant components and easy redeployment.
+Most data science solutions and platforms on the market today begin and therefore emphasize the research workflow. 
+When it comes time to integrate the generated models into real-world AI applications, they have significant functionality gaps.
 
-After you develop your model and feature engineering logic you need to deploy those into production pipelines 
-with real-time feature engineering, online model serving, API and data integrations, model and data quality 
-monitoring, no intrusive upgrades and so on. 
+These types of solutions tend to be useful only for the model development flow, and contribute very little to the production pipeline: 
+automated data collection and preparation, automated training and evaluation pipelines, real-time application pipelines, 
+data quality and model monitoring, feedback loops, etc.
 
-However, the implementation is challenging: various environments ("runtimes") use different configurations, parameters, and data sources.
-In addition, multiple frameworks and platforms are used to focus on different stages of the development life cycle.
-This leads to constant development and DevOps/MLOps work.
+To address the full ML application lifecycle, it’s common for organizations to combine many different tools which then forces 
+them to develop and maintain complex glue layers, introduce manual processes, and creates technology silos that slow down 
+developers and data scientists. 
 
-Furthermore, as your project scales, you need greater computation power or GPUs, and you need to access large-scale data sets.
-This cannot succeed on laptops.
-You need a way to seamlessly run your code on a remote cluster and automatically scale it out.
+With this disjointed approach, the ML team must re-engineer the entire flow to fit production environments and methodologies 
+while consuming excessive resources. Organizations need a way to streamline the process, 
+automate as many tasks as possible, and break the silos between data, ML, and DevOps/MLOps teams.
 
 <a id="why-mlrun"></a>
-## Why MLRun?
+## MLRun - The Open Source MLOps Orchestration
 
-When running ML experiments, ideally you can record and version your code, configuration, outputs, and associated inputs (lineage), 
-so you can easily reproduce and explain your results.
-The fact that you probably need to use different types of storage (such as files and AWS S3 buckets) and various databases, further complicates the implementation.
+Instead of this siloed, complex and manual process, MLRun enables production pipeline design using a modular strategy, 
+where the different parts contribute to a continuous, automated, and far simpler path from research and development to scalable 
+production pipelines, without refactoring code, adding glue logic, or spending significant efforts on data and ML engineering.
 
-Once the development is complete, it's time to serve models online or build real-time pipelines without having to refactor or 
-re-implement the logic, or call in an army of developers to help.
+MLRun uses **Serverless Function** technology: write the code once, using your preferred development environment and 
+simple "local" semantics, and then run it as-is on different platforms and at scale. MLRun automates the build process, execution, 
+data movement, scaling, versioning, parameterization, outputs tracking, CI/CD integration, deployment to production, monitoring, and more. 
 
-Wouldn't it be great if you could write the code once, using your preferred development environment and simple "local" semantics, and then run it as-is on different platforms?
-Imagine having a layer that automates the build process, execution, data movement, scaling, versioning, parameterization, outputs tracking, deployment to production, monitoring, and more.
-A world of easily developed, published, or consumed data or ML "functions" that can be used to form complex and large-scale offline or real-time ML pipelines.
+Those easily developed data or ML "functions" can then be published or loaded from a marketplace and used later to form offline or real-time 
+production pipelines with minimal engineering efforts.
 
-In addition, imagine a marketplace of ML functions that includes both open-source templates and your internally developed functions, to support code for reuse across projects and companies and thus further accelerate your work.
+<p align="center"><img src="_static/images/mlrun-flow.png" alt="mlrun-flow" width="600"/></p><br>
 
-<b>That is what MLRun does &mdash; simplifies & accelerates the time to production.</b>
+Data preparation, model development, model and application delivery, and end to end monitoring are tightly connected: 
+they cannot be managed in silos. This is where MLRun MLOps orchestration comes in. ML, data, and DevOps/MLOps teams 
+collaborate using the same set of tools, practices, APIs, metadata, and version control.
+
+<b>MLRun simplifies & accelerates the time to production.</b>
 
 ## Architecture 
 
-<img src="_static/images/pipeline.png" alt="pipeline" width="800"/>
+![pipeline](./_static/images/pipeline.png)
 
+<img src="_static/images/pipeline.png" alt="pipeline"/>
+
+<br><br>
 MLRun is composed of the following layers:
 
 - **Feature Store** &mdash; collects, prepares, catalogs, and serves data features for development (offline) and real-time (online) 
@@ -56,10 +62,10 @@ data (generated by the feature store) and code from the source control (Git).
 the API handling, data preparation/enrichment, model serving, ensembles, driving and measuring actions, etc.
 - **Real-Time monitoring and retraining** &mdash; monitors data, models, and production components and provides a feedback loop for exploring production data, identifying drift, alerting on anomalies or data quality issues, triggering re-training jobs, measuring business impact, etc.
 
-While each of those steps may be independent, they still require tight integration. For example:
-- The training jobs need to obtain features from the feature store and update the feature store with metadata, which will be used in the serving or monitoring.
-- The real-time pipeline needs to enrich incoming events with features stored in the feature store, and may use feature metadata (policies, statistics, schema, etc.) to impute missing data or validate data quality.
-- The monitoring layer must collect real-time inputs and outputs from the real-time pipeline and compare it with features data/metadata from the feature store or model metadata generated by the training layer, and it needs to write all the fresh production data back to the feature store so it can be used for various tasks such as data analysis, model re-training (on fresh data), model improvements.
+While each of those layers is independent, the integration provides much greater value and simplicity. For example:
+- The training jobs obtain features from the feature store and update the feature store with metadata, which will be used in the serving or monitoring.
+- The real-time pipeline enriches incoming events with features stored in the feature store, and can also use feature metadata (policies, statistics, schema, etc.) to impute missing data or validate data quality.
+- The monitoring layer collects real-time inputs and outputs from the real-time pipeline and compares them with the features data/metadata from the feature store or model metadata generated by the training layer. It writes all the fresh production data back to the feature store so it can be used for various tasks such as data analysis, model re-training (on fresh data), model improvements.
 
 When one of the components detailed above is updated, it immediately impacts the feature generation, the model serving pipeline, and the monitoring. MLRun applies versioning to each component, as well as versioning and rolling upgrades across components.
 

@@ -1,4 +1,4 @@
-# Data stores and feature store
+# Data Stores and Data Items
 
 One of the biggest challenge in distributed systems is handling data given the different access methods, APIs, and 
 authentication mechanisms across types and providers.
@@ -16,5 +16,4 @@ Working with the abstractions enable you to securely access different data sourc
 :maxdepth: 2
 ../store/datastore
 data-items
-../feature-store/feature-store
 ```

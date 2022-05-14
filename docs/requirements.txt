@@ -7,3 +7,4 @@ sphinx-copybutton~=0.3.0
 sphinx-togglebutton~=0.2.2
 myst-nb~=0.10.0
 sphinx-book-theme~=0.0.39
+sphinx-panels~=0.6.0

@@ -1308,7 +1308,7 @@ class BaseRuntimeHandler(ABC):
                         )
                     except Exception as exc:
                         logger.warning(
-                            "Failed monitoring run. Continuing",
+                            "Failed ensuring run not stuck. Continuing",
                             run_uid=run_uid,
                             run=run,
                             project=project,

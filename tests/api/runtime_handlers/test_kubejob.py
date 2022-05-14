@@ -186,7 +186,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 "list_namespaced_pods_calls": [[]],
                 "interval_time_to_add_to_run_update_time": 0,
                 "start_run_states": RunStates.non_terminal_states(),
-                "expected_reached_state": RunStates.gone,
+                "expected_reached_state": RunStates.absent,
             },
             # monitoring interval and debouncing interval are configured which means debouncing interval will
             # be the debounce period, run is still in the debounce period that's why expecting not to override state
@@ -200,7 +200,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 "expected_reached_state": RunStates.non_terminal_states(),
             },
             # monitoring interval and debouncing interval are configured which means debouncing interval will
-            # be the debounce period, run isn't still in the debounce period that's why expecting to override state
+            # be the debounce period, run update time passed the debounce period that's why expecting to override state
             # to terminal state
             {
                 "runs_monitoring_interval": 30,
@@ -208,7 +208,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 "list_namespaced_pods_calls": [[], [], []],
                 "interval_time_to_add_to_run_update_time": -200,
                 "start_run_states": RunStates.non_terminal_states(),
-                "expected_reached_state": RunStates.gone,
+                "expected_reached_state": RunStates.absent,
             },
             # monitoring interval configured and debouncing interval isn't configured which means
             # monitoring interval * 2 will be the debounce period.
@@ -219,7 +219,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 "list_namespaced_pods_calls": [[], [], []],
                 "interval_time_to_add_to_run_update_time": -65,
                 "start_run_states": RunStates.non_terminal_states(),
-                "expected_reached_state": RunStates.gone,
+                "expected_reached_state": RunStates.absent,
             },
             # monitoring interval configured and debouncing interval isn't configured which means
             # monitoring interval * 2 will be the debounce period.
@@ -255,6 +255,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             for idx in range(len(start_run_states)):
                 self.run["status"]["state"] = start_run_states[idx]
 
+                # using freeze enables us to set the now attribute when calling the sub-function
+                # _update_run_updated_time without the need to call the function directly
                 original_update_run_updated_time = (
                     mlrun.api.utils.singletons.db.get_db()._update_run_updated_time
                 )

@@ -60,7 +60,7 @@ class RunStates(object):
     pending = "pending"
     unknown = "unknown"
     aborted = "aborted"
-    gone = "gone"
+    absent = "absent"
 
     @staticmethod
     def all():
@@ -72,7 +72,7 @@ class RunStates(object):
             RunStates.pending,
             RunStates.unknown,
             RunStates.aborted,
-            RunStates.gone,
+            RunStates.absent,
         ]
 
     @staticmethod
@@ -81,19 +81,12 @@ class RunStates(object):
             RunStates.completed,
             RunStates.error,
             RunStates.aborted,
-            RunStates.gone,
+            RunStates.absent,
         ]
 
     @staticmethod
     def non_terminal_states():
         return list(set(RunStates.all()) - set(RunStates.terminal_states()))
-
-    @staticmethod
-    def k8s_non_terminal_states():
-        return [
-            RunStates.pending,
-            RunStates.running,
-        ]
 
 
 class SparkApplicationStates:

@@ -1292,7 +1292,7 @@ class BaseRuntimeHandler(ABC):
                     exc=str(exc),
                     traceback=traceback.format_exc(),
                 )
-        project_run_uid_map = self._list_runs_for_monitoring(db, db_session)
+        project_run_uid_map = self._list_runs_for_monitoring(db, db_session, states=RunStates.non_terminal_states())
         for project, runs in project_run_uid_map.items():
             if runs:
                 for run_uid, run in runs.items():
@@ -1337,9 +1337,19 @@ class BaseRuntimeHandler(ABC):
         now = now_date()
         db_run_state = run.get("status", {}).get("state")
         if not db_run_state:
-            # can't do any verification due to no run_state updated
+            # we are setting the run state to a terminal state to avoid log spamming, this is mainly sanity as we are
+            # setting state to runs when storing new runs.
+            logger.info("Runs monitoring found a run without state, updating to a terminal state",
+                        project=project,
+                        uid=run_uid,
+                        db_run_state=db_run_state,
+                        now=now,
+                        )
+            run.setdefault("status", {})["state"] = RunStates.absent
+            run.setdefault("status", {})["last_update"] = now.isoformat()
+            db.store_run(db_session, run, run_uid, project)
             return
-        if db_run_state not in RunStates.terminal_states():
+        if db_run_state in RunStates.non_terminal_states():
             if run_runtime_resources_map and run_uid in run_runtime_resources_map.get(
                 project, {}
             ):
@@ -1349,12 +1359,7 @@ class BaseRuntimeHandler(ABC):
             debounce_period = (
                 config.resolve_debouncing_period_for_non_terminal_state_run_without_resource()
             )
-            if last_update_str is not None:
-                last_update = datetime.fromisoformat(last_update_str)
-                run_state = RunStates.absent
-            else:
-                last_update = now
-                run_state = db_run_state
+            if last_update_str is None:
                 logger.info(
                     "Runs monitoring found run in non-terminal state without last update time set, "
                     "updating last update time to now, to be able to evaluate next time if something changed",
@@ -1364,7 +1369,11 @@ class BaseRuntimeHandler(ABC):
                     now=now,
                     debounce_period=debounce_period,
                 )
-            if last_update > now - timedelta(seconds=debounce_period):
+                run.setdefault("status", {})["last_update"] = now.isoformat()
+                db.store_run(db_session, run, run_uid, project)
+                return
+
+            if datetime.fromisoformat(last_update_str) > now - timedelta(seconds=debounce_period):
                 # we are setting non-terminal states to runs before the run is actually applied to k8s, meaning there is
                 # a timeframe where the run exists and no runtime resources exist and it's ok, therefore we're applying
                 # a debounce period before setting the state to absent
@@ -1374,14 +1383,14 @@ class BaseRuntimeHandler(ABC):
                     project=project,
                     uid=run_uid,
                     db_run_state=db_run_state,
-                    last_update=last_update,
+                    last_update=datetime.fromisoformat(last_update_str),
                     now=now,
                     debounce_period=debounce_period,
                 )
             else:
-                logger.info("Updating run state", run_uid=run_uid, run_state=run_state)
-                run.setdefault("status", {})["state"] = run_state
-                run.setdefault("status", {})["last_update"] = now
+                logger.info("Updating run state", run_uid=run_uid, run_state=RunStates.absent)
+                run.setdefault("status", {})["state"] = RunStates.absent
+                run.setdefault("status", {})["last_update"] = now.isoformat()
                 db.store_run(db_session, run, run_uid, project)
 
     def _add_object_label_selector_if_needed(
@@ -1902,8 +1911,9 @@ class BaseRuntimeHandler(ABC):
         self,
         db: DBInterface,
         db_session: Session,
+        states: list = None
     ):
-        runs = db.list_runs(db_session, project="*")
+        runs = db.list_runs(db_session, project="*", states=states)
         project_run_uid_map = {}
         run_with_missing_data = []
         duplicated_runs = []

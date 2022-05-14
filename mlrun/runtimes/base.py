@@ -1292,9 +1292,6 @@ class BaseRuntimeHandler(ABC):
                     exc=str(exc),
                     traceback=traceback.format_exc(),
                 )
-        project_run_uid_map = self._list_runs_for_monitoring(
-            db, db_session, states=RunStates.non_terminal_states()
-        )
         for project, runs in project_run_uid_map.items():
             if runs:
                 for run_uid, run in runs.items():

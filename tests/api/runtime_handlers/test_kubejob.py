@@ -195,7 +195,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 "runs_monitoring_interval": 30,
                 "debouncing_interval": 100,
                 "list_namespaced_pods_calls": [[], [], []],
-                "interval_time_to_add_to_run_update_time": -50,
+                "interval_time_to_add_to_run_update_time": -70,
                 "start_run_states": RunStates.non_terminal_states(),
                 "expected_reached_state": RunStates.non_terminal_states(),
             },
@@ -238,7 +238,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 "runs_monitoring_interval", 0
             )
 
-            config.runs_monitoring_non_terminal_run_without_resource_debouncing_interval = test_case.get(
+            config.runs_monitoring_missing_runtime_resources_debouncing_interval = test_case.get(
                 "debouncing_interval", None
             )
 

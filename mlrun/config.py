@@ -564,7 +564,7 @@ class Config:
             )
         return resources
 
-    def resolve_debouncing_period_for_non_terminal_state_run_without_resource(self):
+    def resolve_runs_monitoring_missing_runtime_resources_debouncing_interval(self):
         return (
             float(self.runs_monitoring_missing_runtime_resources_debouncing_interval)
             if self.runs_monitoring_missing_runtime_resources_debouncing_interval

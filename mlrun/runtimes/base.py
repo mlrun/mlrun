@@ -1357,7 +1357,7 @@ class BaseRuntimeHandler(ABC):
                 return
             last_update_str = run.get("status", {}).get("last_update")
             debounce_period = (
-                config.resolve_debouncing_period_for_non_terminal_state_run_without_resource()
+                config.resolve_runs_monitoring_missing_runtime_resources_debouncing_interval()
             )
             if last_update_str is None:
                 logger.info(

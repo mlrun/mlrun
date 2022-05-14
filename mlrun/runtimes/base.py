@@ -1266,11 +1266,12 @@ class BaseRuntimeHandler(ABC):
         else:
             runtime_resources = self._list_pods(namespace, label_selector)
         project_run_uid_map = self._list_runs_for_monitoring(db, db_session)
-        resolved_runtime_resources = {}
+        # project -> uid -> {"name": <runtime-resource-name>}
+        run_runtime_resources_map = {}
         for runtime_resource in runtime_resources:
             project, uid, name = self._resolve_runtime_resource_run(runtime_resource)
-            resolved_runtime_resources.setdefault(project, {})
-            resolved_runtime_resources.get(project).update({uid: {"name": name}})
+            run_runtime_resources_map.setdefault(project, {})
+            run_runtime_resources_map.get(project).update({uid: {"name": name}})
             try:
                 self._monitor_runtime_resource(
                     db,
@@ -1279,6 +1280,9 @@ class BaseRuntimeHandler(ABC):
                     runtime_resource,
                     runtime_resource_is_crd,
                     namespace,
+                    project,
+                    uid,
+                    name,
                 )
             except Exception as exc:
                 logger.warning(
@@ -1292,14 +1296,26 @@ class BaseRuntimeHandler(ABC):
         for project, runs in project_run_uid_map.items():
             if runs:
                 for run_uid, run in runs.items():
-                    self._ensure_run_not_stuck_on_non_terminal_state(
-                        db,
-                        db_session,
-                        project,
-                        run_uid,
-                        run,
-                        resolved_runtime_resources,
-                    )
+                    try:
+                        if not run:
+                            run = db.read_run(db_session, run_uid, project)
+                        self._ensure_run_not_stuck_on_non_terminal_state(
+                            db,
+                            db_session,
+                            project,
+                            run_uid,
+                            run,
+                            run_runtime_resources_map,
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed monitoring run. Continuing",
+                            run_uid=run_uid,
+                            run=run,
+                            project=project,
+                            exc=str(exc),
+                            traceback=traceback.format_exc(),
+                        )
 
     def _ensure_run_not_stuck_on_non_terminal_state(
         self,
@@ -1308,35 +1324,24 @@ class BaseRuntimeHandler(ABC):
         project: str,
         run_uid: str,
         run: dict = None,
-        resolved_runtime_resources: dict = None,
+        run_runtime_resources_map: dict = None,
     ):
         """
-        Assuring that a run does not become trapped in a non-terminal state as a result of not finding
+        Ensuring that a run does not become trapped in a non-terminal state as a result of not finding
         corresponding k8s resource.
         This can occur when a node is evicted or preempted, causing the resources to be removed from the resource
         listing when the final state recorded in the database is non-terminal.
         This will have a significant impact on scheduled jobs, since they will not be created until the
-        previous run reaches a terminal state
+        previous run reaches a terminal state (because of concurrency limit)
         """
-        if not run:
-            try:
-                run = db.read_run(db_session, run_uid, project)
-            except mlrun.errors.MLRunNotFoundError:
-                logger.warning(
-                    "Run not found, got deleted by another process",
-                    project=project,
-                    uid=run_uid,
-                )
-                return
         now = now_date()
         db_run_state = run.get("status", {}).get("state")
         if not db_run_state:
             # can't do any verification due to no run_state updated
             return
         if db_run_state not in RunStates.terminal_states():
-            if (
-                resolved_runtime_resources
-                and run_uid in resolved_runtime_resources.get(project, {})
+            if run_runtime_resources_map and run_uid in run_runtime_resources_map.get(
+                project, {}
             ):
                 # if found resource there is no need to continue
                 return
@@ -1346,7 +1351,7 @@ class BaseRuntimeHandler(ABC):
             )
             if last_update_str is not None:
                 last_update = datetime.fromisoformat(last_update_str)
-                run_state = RunStates.gone
+                run_state = RunStates.absent
             else:
                 last_update = now
                 run_state = db_run_state
@@ -1360,8 +1365,9 @@ class BaseRuntimeHandler(ABC):
                     debounce_period=debounce_period,
                 )
             if last_update > now - timedelta(seconds=debounce_period):
-                # we are setting non-terminal states to runs before the run is actually applied to k8s, that is
-                # why we want to give a grace period in case that is the situation and the resource hasn't been applied
+                # we are setting non-terminal states to runs before the run is actually applied to k8s, meaning there is
+                # a timeframe where the run exists and no runtime resources exist and it's ok, therefore we're applying
+                # a debounce period before setting the state to absent
                 logger.warning(
                     "Monitoring did not discover a runtime resource that corresponded to a run in a "
                     "non-terminal state. but record has recently updated. Debouncing",

@@ -238,8 +238,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 "runs_monitoring_interval", 0
             )
 
-            config.runs_monitoring_missing_runtime_resources_debouncing_interval = test_case.get(
-                "debouncing_interval", None
+            config.runs_monitoring_missing_runtime_resources_debouncing_interval = (
+                test_case.get("debouncing_interval", None)
             )
 
             list_namespaced_pods_calls = test_case.get(

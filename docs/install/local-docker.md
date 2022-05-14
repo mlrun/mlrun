@@ -18,10 +18,9 @@ In both cases you need to set the `SHARED_DIR` environment variable to point to 
 for example `export SHARED_DIR=~/mlrun-data` (or use `set SHARED_DIR=c:\mlrun-data` in windows), make sure the directory exists.
 
 It is recommended to set the `HOST_IP` variable with your computer IP address (required for Nuclio dashboard). 
-you can check your IP address using the `ip addr` command on Linux or `ifconfig` in Mac or `ipconfig` in Windows
-(select an address which does not change dynamically, for example the `vEthernet` interface in Windows).
-
 You can select a specific MLRun version with the `TAG` variable and Nuclio version with the `NUCLIO_TAG` variable.
+
+Add the `-d` flag to `docker-compose` for running in detached mode (in the background).
 
 ## Use MLRun with your own client
 
@@ -34,15 +33,25 @@ Download the {Download}`compose.yaml<./compose.yaml>` file to the working dir an
    ```
 ````
 
+````{tabbed} Linux/Mac
 ```sh
 export SHARED_DIR=~/mlrun-data
 export HOST_IP=<your host IP address>
 docker-compose -f compose.yaml up
 ``` 
 
+Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands, it is recomended to select an address which does not change dynamically (for example the IP of the bridge interface).
+````
 
-> - In Windows use `set` instead of `export`, and specify a valid windows path (such as `c:\mlrun-data`).
-> - Add the `-d` flag to `docker-compose` for running in detached mode (run in the background).
+````{tabbed} Windows
+```sh
+set SHARED_DIR=c:\mlrun-data
+set HOST_IP=<your host IP address>
+docker-compose -f compose.yaml up
+``` 
+
+Your `HOST_IP` address can be found using the `ipconfig` shell command, it is recomended to select an address which does not change dynamically (for example the IP of the `vEthernet` interface).
+````
 
 This will create 3 services:
 1. MLRun API (in `http://localhost:8080`)
@@ -57,19 +66,32 @@ After installing MLRun service, set your client environment to work with the ser
 For the quickest experience with MLRun you can deploy MLRun with a pre integrated Jupyter server loaded with various ready-to-use MLRun examples.
 
 Download the {Download}`compose.with-jupyter.yaml<./compose.with-jupyter.yaml>` file to the working dir and type:
-````{toggle} view compose.with-jupyter.yaml
+````{toggle} show compose.with-jupyter.yaml
    ```{literalinclude} ./compose.with-jupyter.yaml
    :language: yaml
    ```
 ````
 
+````{tabbed} Linux/Mac
 ```sh
 export SHARED_DIR=~/mlrun-data
 export HOST_IP=<your host IP address>
 docker-compose -f compose.with-jupyter.yaml up
+```
+
+Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands, it is recomended to select an address which does not change dynamically (for example the IP of the bridge interface). 
+````
+
+````{tabbed} Windows
+```sh
+set SHARED_DIR=c:\mlrun-data
+set HOST_IP=<your host IP address>
+docker-compose -f compose.with-jupyter.yaml up
 ``` 
 
-> - In Windows use `set` instead of `export`, and specify a valid windows path (such as `c:\mlrun-data`).
+Your `HOST_IP` address can be found using the `ipconfig` shell command, it is recomended to select an address which does not change dynamically (for example the IP of the `vEthernet` interface).
+````
+
 > - Add the `-d` flag to `docker-compose` for running in detached mode (run in the background).
 
 This creates 4 services:

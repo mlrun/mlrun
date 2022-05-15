@@ -31,12 +31,12 @@ the API handling, data preparation/enrichment, model serving, ensembles, driving
 
 It's easy to start using MLRun: 
 1. Install MLRun using one of:
-   - [Installing MLRun on a Kubernetes Cluster](https://docs.mlrun.org/en/latest/install/kubernetes)
-   - [Install MLRun locally using Docker](https://docs.mlrun.org/en/latest/install/local-docker)
+   - [Installing MLRun on a Kubernetes Cluster](https://docs.mlrun.org/en/latest/install/kubernetes.html)
+   - [Install MLRun locally using Docker](https://docs.mlrun.org/en/latest/install/local-docker.html)
    - Or by [Using the iguazio platform](https://www.iguazio.com/docs/latest-release/)
 2. Set up your client environment to work with the service, by one of: 
       - Setting the MLRun path env variable to `MLRUN_DBPATH=http://localhost:8080` 
-      - Using [`.env` files](https://docs.mlrun.org/en/latest/install/remote)
+      - Using [`.env` files](https://docs.mlrun.org/en/latest/install/remote.html)
       - Using an [MLRun Jupyter image](https://docs.mlrun.org/en/latest/install/local-docker.html#use-mlrun-with-mlrun-jupyter-image)
 3. Continue by using the Quick start guide, watching the [Tutorial on Youtube](https://www.youtube.com/embed/O6g1pJJ609U), and using the [MLRun Katakoda Scenarios](https://www.katacoda.com/mlrun) for hands-on tutorials<br>.
    Also, read more in the MLRun documentation, including:

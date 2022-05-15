@@ -103,4 +103,5 @@ Table Of Contents
    <!-- web-apps -->
    cli
    examples
+   Glossary
   

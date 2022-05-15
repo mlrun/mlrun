@@ -29,8 +29,8 @@ the API handling, data preparation/enrichment, model serving, ensembles, driving
 
 ## Get started
 
-Start by: 
-1. Installing MLRun using one of:
+It's easy to start using MLRun: 
+1. Install MLRun using one of:
    - [Installing MLRun on a Kubernetes Cluster](https://docs.mlrun.org/en/latest/install/kubernetes)
    - [Install MLRun locally using Docker](https://docs.mlrun.org/en/latest/install/local-docker)
    - Or by [Using the iguazio platform](https://www.iguazio.com/docs/latest-release/)

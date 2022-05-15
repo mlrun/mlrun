@@ -18,16 +18,7 @@ To learn more, see:
 
 - [MLRun Katakoda Scenarios](https://www.katacoda.com/mlrun)
 
-- 
-
-
-<iframe width="560" height="315"
-src="https://www.youtube.com/embed/O6g1pJJ609U" 
-frameborder="0" 
-allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" 
-allowfullscreen></iframe>
-
-
+- <iframe width="560" height="315" src="https://www.youtube.com/embed/O6g1pJJ609U" title="Faster deployment with MLRun" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 - [MLRun documentation](https://https://docs.mlrun.org/en/latest/index.html), including:
    - [What is MLRun?](https://docs.mlrun.org/en/latest/architecture.html)

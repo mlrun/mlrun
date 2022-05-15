@@ -132,6 +132,10 @@ default_config = {
         "preemption_mode": "prevent",
     },
     "httpdb": {
+        "clusterization": {
+            # one of chief/worker
+            "role": "chief",
+        },
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
         "dsn": "sqlite:///db/mlrun.db?check_same_thread=false",

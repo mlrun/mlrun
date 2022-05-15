@@ -43,7 +43,7 @@ It's easy to start using MLRun:
 1. Install MLRun using one of [over Kubernetes Cluster](https://docs.mlrun.org/en/latest/install/kubernetes.html) or [locally using Docker](https://docs.mlrun.org/en/latest/install/local-docker.html).<br>
    Alternatively, you can [Use the managed MLRun service](https://www.iguazio.com/docs/latest-release/).
 2. [Set up your client environment](https://docs.mlrun.org/en/latest/install/remote.html) to work with the service. 
-3. Use the [Quick Start tutorial](https://docs.mlrun.org/en/latest/quick-start/quick-start.html) to develop and deploy machine learning applications to production.<b>
+3. Use the [Quick Start tutorial](https://docs.mlrun.org/en/latest/quick-start/quick-start.html) to develop and deploy machine learning applications to production.<br>
 For hands-on learning, try the [MLRun Katakoda Scenarios](https://www.katacoda.com/mlrun). And you can watch the [Tutorial on Youtube](https://www.youtube.com/embed/O6g1pJJ609U) to see the flow in action.
 
 ## MLRun documentation

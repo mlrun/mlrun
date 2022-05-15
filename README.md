@@ -29,28 +29,25 @@ the API handling, data preparation/enrichment, model serving, ensembles, driving
 
 ## Get started
 
-Start by 
+Start by: 
 1. Installing MLRun using one of:
-   - [Installing MLRun on a Kubernetes Cluster](https://docs/install/kubernetes)
-   - [Install MLRun locally using Docker](https://docs/install/local-docker)
+   - [Installing MLRun on a Kubernetes Cluster](https://docs.mlrun.org/en/latest/install/kubernetes)
+   - [Install MLRun locally using Docker](https://docs.mlrun.org/en/latest/install/local-docker)
    - Or by [Using the iguazio platform](https://www.iguazio.com/docs/latest-release/)
-2. Set up your client environment to work with the service, by 
-      - Setting the MLRun path env variable to `MLRUN_DBPATH=http://localhost:8080` or 
-      - Using [`.env` files](https://docs.mlrun.org/en/latest/install/remote).
+2. Set up your client environment to work with the service, by one of: 
+      - Setting the MLRun path env variable to `MLRUN_DBPATH=http://localhost:8080` 
+      - Using [`.env` files](https://docs.mlrun.org/en/latest/install/remote)
       - Using an [MLRun Jupyter image](https://docs.mlrun.org/en/latest/install/local-docker.html#use-mlrun-with-mlrun-jupyter-image)
-
-3. Continue by using the Quick start guide. <br>.
-   In addition, learn about MLRun in the 
-   - [MLRun Katakoda Scenarios](https://www.katacoda.com/mlrun)
-   - [Tutorial on Youtube](https://www.youtube.com/embed/O6g1pJJ609U)
-   - [MLRun documentation](https://docs.mlrun.org/en/latest/index.html), including:
-      - [What is MLRun?](https://docs.mlrun.org/en/latest/architecture.html)
-      - [Quick-Start Guide](https://docs.mlrun.org/en/latest/quick-start.html)
+3. Continue by using the Quick start guide, watching the [Tutorial on Youtube](https://www.youtube.com/embed/O6g1pJJ609U), and using the [MLRun Katakoda Scenarios](https://www.katacoda.com/mlrun) for hands-on tutorials<br>.
+   Also, read more in the MLRun documentation, including:
+      - [What is MLRun?](https://docs.mlrun.org/en/latest/index.html)
+      - [Quick-Start Guide](https://docs.mlrun.org/en/latest/quick-start/quick-start.html)
       - [Tutorials and examples](https://docs.mlrun.org/en/latest/howto/index.html)
       - [Installation and setup guide](https://docs.mlrun.org/en/latest/install.html)
       - [Projects](https://docs.mlrun.org/en/latest/projects/project.html)
       - [MLRun serverless functions](https://docs.mlrun.org/en/latest/concepts/functions-concepts.html)
-      - [Data stores and feature store](https://docs.mlrun.org/en/latest/concepts/data-feature-store.html)
+      - [Data stores and data items](https://docs.mlrun.org/en/latest/concepts/data-feature-store.html)
+      - [Feature store](https://docs.mlrun.org/en/latest/feature-store/feature-store.html)
       - [Runs, functions, and workflows](https://docs.mlrun.org/en/latest/concepts/runs-experiments-workflows.html)
       - [Artifacts and models](https://docs.mlrun.org/en/latest/store/artifacts.html)
       - [Deployment and monitoring](https://docs.mlrun.org/en/latest/concepts/deployment-monitoring.html)

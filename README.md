@@ -16,28 +16,28 @@ MLRun offers a convenient abstraction layer to a wide variety of technology stac
 
 To learn more, see:
 
-[MLRun Katakoda Scenarios](https://www.katacoda.com/mlrun)
+- [MLRun Katakoda Scenarios](https://www.katacoda.com/mlrun)
 
-<iframe width="560" height="315"  src="https://www.youtube.com/embed/O6g1pJJ609U" frameborder="0" allowfullscreen></iframe>
+- [Faster development to production](https://www.youtube.com/embed/O6g1pJJ609U)
 
-[MLRun documentation](https://https://docs.mlrun.org/en/latest/index.html), including:
-- [What is MLRun?](https://docs.mlrun.org/en/latest/architecture.html)
-- [Quick-Start Guide](https://docs.mlrun.org/en/latest/quick-start.html)
-- [Tutorials and examples](https://docs.mlrun.org/en/latest/howto/index.html)
-- [Installation and setup guide](https://docs.mlrun.org/en/latest/install.html)
-- [Projects](https://docs.mlrun.org/en/latest/projects/project.html)
-- [MLRun serverless functions](https://docs.mlrun.org/en/latest/concepts/functions-concepts.html)
-- [Data stores and feature store](https://docs.mlrun.org/en/latest/concepts/data-feature-store.html)
-- [Runs, functions, and workflows](https://docs.mlrun.org/en/latest/concepts/runs-experiments-workflows.html)
-- [Artifacts and models](https://docs.mlrun.org/en/latest/store/artifacts.html)
-- [Deployment and monitoring](https://docs.mlrun.org/en/latest/concepts/deployment-monitoring.html)
-- Feature store
-   - [Data ingestion](https://docs.mlrun.org/en/latest/feature-store/feature-store-data-ingestion.html)
-   - [Data retrieval](https://docs.mlrun.org/en/latest/feature-store/feature-store-data-retrieval.html)
-   - [Tutorials](https://docs.mlrun.org/en/latest/feature-store/feature-store-tutorials.html)
-- [Creating and using functions](https://docs.mlrun.org/en/latest/runtimes/functions.html)
-- [Run, track, and compare jobs](https://docs.mlrun.org/en/latest/runtimes/run-track-compare-jobs.html)
-- [Real-time serving pipelines (graphs)](https://docs.mlrun.org/en/latest/serving/serving-graph.html)
-- [Model serving pipelines](https://docs.mlrun.org/en/latest/serving/build-graph-model-serving.html)
-- [CI/CD, rolling upgrades, git](https://docs.mlrun.org/en/latest/model_monitoring/ci-cd-rolling-upgrades-git.html)
-- [API](https://docs.mlrun.org/en/latest/api/index.html)
+- [MLRun documentation](https://https://docs.mlrun.org/en/latest/index.html), including:
+   - [What is MLRun?](https://docs.mlrun.org/en/latest/architecture.html)
+   - [Quick-Start Guide](https://docs.mlrun.org/en/latest/quick-start.html)
+   - [Tutorials and examples](https://docs.mlrun.org/en/latest/howto/index.html)
+   - [Installation and setup guide](https://docs.mlrun.org/en/latest/install.html)
+   - [Projects](https://docs.mlrun.org/en/latest/projects/project.html)
+   - [MLRun serverless functions](https://docs.mlrun.org/en/latest/concepts/functions-concepts.html)
+   - [Data stores and feature store](https://docs.mlrun.org/en/latest/concepts/data-feature-store.html)
+   - [Runs, functions, and workflows](https://docs.mlrun.org/en/latest/concepts/runs-experiments-workflows.html)
+   - [Artifacts and models](https://docs.mlrun.org/en/latest/store/artifacts.html)
+   - [Deployment and monitoring](https://docs.mlrun.org/en/latest/concepts/deployment-monitoring.html)
+   - Feature store
+      - [Data ingestion](https://docs.mlrun.org/en/latest/feature-store/feature-store-data-ingestion.html)
+      - [Data retrieval](https://docs.mlrun.org/en/latest/feature-store/feature-store-data-retrieval.html)
+      - [Tutorials](https://docs.mlrun.org/en/latest/feature-store/feature-store-tutorials.html)
+   - [Creating and using functions](https://docs.mlrun.org/en/latest/runtimes/functions.html)
+   - [Run, track, and compare jobs](https://docs.mlrun.org/en/latest/runtimes/run-track-compare-jobs.html)
+   - [Real-time serving pipelines (graphs)](https://docs.mlrun.org/en/latest/serving/serving-graph.html)
+   - [Model serving pipelines](https://docs.mlrun.org/en/latest/serving/build-graph-model-serving.html)
+   - [CI/CD, rolling upgrades, git](https://docs.mlrun.org/en/latest/model_monitoring/ci-cd-rolling-upgrades-git.html)
+   - [API](https://docs.mlrun.org/en/latest/api/index.html)

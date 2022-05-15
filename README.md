@@ -38,7 +38,7 @@ It's easy to start using MLRun:
       - Setting the MLRun path env variable to `MLRUN_DBPATH=http://localhost:8080` 
       - Using [`.env` files](https://docs.mlrun.org/en/latest/install/remote.html)
       - Using an [MLRun Jupyter image](https://docs.mlrun.org/en/latest/install/local-docker.html#use-mlrun-with-mlrun-jupyter-image)
-3. Continue by using the Quick start guide, watching the [Tutorial on Youtube](https://www.youtube.com/embed/O6g1pJJ609U), and using the [MLRun Katakoda Scenarios](https://www.katacoda.com/mlrun) for hands-on tutorials<br>.
+3. Continue by using the Quick start guide, watching the [Tutorial on Youtube](https://www.youtube.com/embed/O6g1pJJ609U), and using the [MLRun Katakoda Scenarios](https://www.katacoda.com/mlrun) for hands-on tutorials.<br>
    Also, read more in the MLRun documentation, including:
       - [What is MLRun?](https://docs.mlrun.org/en/latest/index.html)
       - [Quick-Start Guide](https://docs.mlrun.org/en/latest/quick-start/quick-start.html)

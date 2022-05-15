@@ -12,6 +12,19 @@
 MLRun is an open-source MLOps framework that offers an integrative approach to managing your machine-learning pipelines from early development through model development to full pipeline deployment in production.
 MLRun offers a convenient abstraction layer to a wide variety of technology stacks while empowering data engineers and data scientists to define the feature and models.
 
+## MLRun - The Open Source MLOps Orchestration
+
+MLRun enables production pipeline design using a modular strategy, where the different parts contribute to a continuous, automated, and far simpler path from research and development to scalable production pipelines, without refactoring code, adding glue logic, or spending significant efforts on data and ML engineering.
+
+MLRun uses Serverless Function technology: write the code once, using your preferred development environment and simple “local” semantics, and then run it as-is on different platforms and at scale. MLRun automates the build process, execution, data movement, scaling, versioning, parameterization, outputs tracking, CI/CD integration, deployment to production, monitoring, and more.
+
+Those easily developed data or ML “functions” can then be published or loaded from a marketplace and used later to form offline or real-time production pipelines with minimal engineering efforts.
+
+<p align="center"><img src="_static/images/mlrun-flow.png" alt="mlrun-flow" width="600"/></p><br>
+
+Data preparation, model development, model and application delivery, and end to end monitoring are tightly connected: they cannot be managed in silos. This is where MLRun MLOps orchestration comes in. ML, data, and DevOps/MLOps teams collaborate using the same set of tools, practices, APIs, metadata, and version control.
+
+**MLRun simplifies & accelerates the time to production.**
 
 ## Architecture 
 

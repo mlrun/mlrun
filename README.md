@@ -63,9 +63,9 @@ Read more in the MLRun documentation, including:
    - [Artifacts and models](https://docs.mlrun.org/en/latest/store/artifacts.html)
    - [Deployment and monitoring](https://docs.mlrun.org/en/latest/concepts/deployment-monitoring.html)
 - Working with data
-      - [Data ingestion](https://docs.mlrun.org/en/latest/feature-store/feature-store-data-ingestion.html)
-      - [Data retrieval](https://docs.mlrun.org/en/latest/feature-store/feature-store-data-retrieval.html)
-      - [Tutorials](https://docs.mlrun.org/en/latest/feature-store/feature-store-tutorials.html)
+   - [Data ingestion](https://docs.mlrun.org/en/latest/feature-store/feature-store-data-ingestion.html)
+   - [Data retrieval](https://docs.mlrun.org/en/latest/feature-store/feature-store-data-retrieval.html)
+   - [Tutorials](https://docs.mlrun.org/en/latest/feature-store/feature-store-tutorials.html)
 - Develop Functions and models
    - [Creating and using functions](https://docs.mlrun.org/en/latest/runtimes/functions.html)
    - [Run, track, and compare jobs](https://docs.mlrun.org/en/latest/runtimes/run-track-compare-jobs.html)

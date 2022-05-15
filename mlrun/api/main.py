@@ -186,7 +186,8 @@ async def move_api_to_online():
     # periodic functions should only run on the chief instance
     if (
         get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
-        and config.httpdb.clusterization.role == "chief"
+        and config.httpdb.clusterization.role
+        == mlrun.api.schemas.ClusterizationRole.chief
     ):
         _start_periodic_cleanup()
         _start_periodic_runs_monitoring()

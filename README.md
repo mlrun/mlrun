@@ -12,7 +12,15 @@
 MLRun is an open-source MLOps framework that offers an integrative approach to managing your machine-learning pipelines from early development through model development to full pipeline deployment in production.
 MLRun offers a convenient abstraction layer to a wide variety of technology stacks while empowering data engineers and data scientists to define the feature and models.
 
-See the [MLRun documentation](https://https://docs.mlrun.org/en/latest/index.html), including:
+![pipeline](../docs/_static/images/pipeline.png)
+
+To learn more, see:
+
+[MLRun Katakoda Scenarios](https://www.katacoda.com/mlrun)
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/O6g1pJJ609U" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
+[MLRun documentation](https://https://docs.mlrun.org/en/latest/index.html), including:
 - [What is MLRun?](https://docs.mlrun.org/en/latest/architecture.html)
 - [Quick-Start Guide](https://docs.mlrun.org/en/latest/quick-start.html)
 - [Tutorials and examples](https://docs.mlrun.org/en/latest/howto/index.html)

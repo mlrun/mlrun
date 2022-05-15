@@ -191,7 +191,8 @@ spark.stop()
 
 ## Spark over S3 - full flow example
 
-For Spark to work with S3, it requires several properties to be set. Spark over S3 can be executed both remotely and locally. The following example writes a
+For Spark to work with S3, it requires several properties to be set. Spark over S3 can be executed both remotely and locally, as long as access credentials to the S3 
+objects are available to it. The following example writes a
 feature set to S3 in the parquet format in a remote k8s job:
 
 One-time setup:

@@ -44,7 +44,6 @@ from ...utils import (
 from ..base import RunError
 from ..kubejob import KubejobRuntime
 from ..pod import KubeResourceSpec
-from ..utils import generate_resources
 
 _service_account = "sparkapp"
 _sparkjob_template = {
@@ -231,18 +230,19 @@ class AbstractSparkRuntime(KubejobRuntime):
         sj = new_function(kind=cls.kind, name="spark-default-image-deploy-temp")
         sj.spec.build.image = cls._get_default_deployed_mlrun_image_name(with_gpu)
 
-        sj.with_executor_requests(cpu=1, mem="512m", gpus=1 if with_gpu else None)
-        sj.with_driver_requests(cpu=1, mem="512m", gpus=1 if with_gpu else None)
+        # setting required resources
+        sj.with_executor_requests(cpu=1, mem="512m")
+        sj.with_driver_requests(cpu=1, mem="512m")
 
         sj.deploy()
         get_run_db().delete_function(name=sj.metadata.name)
 
     def _is_using_gpu(self):
         _, driver_gpu = self._get_gpu_type_and_quantity(
-            resources=self.spec.driver_resources["requests"]
+            resources=self.spec.driver_resources["limits"]
         )
         _, executor_gpu = self._get_gpu_type_and_quantity(
-            resources=self.spec.executor_resources["requests"]
+            resources=self.spec.executor_resources["limits"]
         )
         return bool(driver_gpu or executor_gpu)
 
@@ -470,7 +470,7 @@ with ctx:
                     str,
                 )
             gpu_type, gpu_quantity = self._get_gpu_type_and_quantity(
-                resources=self.spec.executor_resources["requests"]
+                resources=self.spec.executor_resources["limits"]
             )
             if gpu_type:
                 update_in(job, "spec.executor.gpu.name", gpu_type)
@@ -499,7 +499,7 @@ with ctx:
                     str,
                 )
             gpu_type, gpu_quantity = self._get_gpu_type_and_quantity(
-                resources=self.spec.driver_resources["requests"]
+                resources=self.spec.driver_resources["limits"]
             )
             if gpu_type:
                 update_in(job, "spec.driver.gpu.name", gpu_type)
@@ -652,41 +652,27 @@ with ctx:
             )
         super().with_node_selection(node_name, node_selector, affinity, tolerations)
 
-    def with_executor_requests(
-        self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"
-    ):
+    def with_executor_requests(self, mem=None, cpu=None):
         """set executor pod required cpu/memory/gpu resources"""
-        resources = self._verify_spark_job_requests(
-            "executor_resources", mem, cpu, gpus, gpu_type
-        )
-        update_in(
-            self.spec.executor_resources,
-            "requests",
-            resources,
+        self.spec._verify_and_set_requests("executor_resources", mem, cpu)
+
+    def with_executor_limits(self, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
+        """set executor pod limits"""
+        # in spark operator there is only use of mem passed through requests,
+        # limits is set to the same value so passing mem=None
+        self.spec._verify_and_set_limits(
+            "executor_resources", None, cpu, gpus, gpu_type
         )
 
-    def with_executor_limits(self, cpu=None):
-        """set executor pod cpu limits"""
-        resources = self._verify_spark_job_limits("executor_resources", cpu)
-        update_in(self.spec.executor_resources, "limits", resources)
-
-    def with_driver_requests(
-        self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"
-    ):
+    def with_driver_requests(self, mem=None, cpu=None):
         """set driver pod required cpu/memory/gpu resources"""
-        resources = self._verify_spark_job_requests(
-            "driver_resources", mem, cpu, gpus, gpu_type
-        )
-        update_in(
-            self.spec.driver_resources,
-            "requests",
-            resources,
-        )
+        self.spec._verify_and_set_requests("driver_resources", mem, cpu)
 
-    def with_driver_limits(self, cpu=None):
+    def with_driver_limits(self, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
         """set driver pod cpu limits"""
-        resources = self._verify_spark_job_limits("driver_resources", cpu)
-        update_in(self.spec.driver_resources, "limits", resources)
+        # in spark operator there is only use of mem passed through requests,
+        # limits is set to the same value so passing mem=None
+        self.spec._verify_and_set_limits("driver_resources", None, cpu, gpus, gpu_type)
 
     def with_restart_policy(
         self,
@@ -744,48 +730,6 @@ with ctx:
     @spec.setter
     def spec(self, spec):
         raise NotImplementedError()
-
-    @staticmethod
-    def _verify_spark_job_limits(
-        resources_field_name,
-        cpu=None,
-    ):
-        if cpu:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.limits.cpu",
-                cpu,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        return generate_resources(cpu=str(cpu))
-
-    @staticmethod
-    def _verify_spark_job_requests(
-        resources_field_name,
-        mem=None,
-        cpu=None,
-        gpus=None,
-        gpu_type="nvidia.com/gpu",
-    ):
-        if mem:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.limits.memory",
-                mem,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        if cpu:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.limits.cpu",
-                cpu,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
-        if gpus:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.limits.gpus",
-                gpus,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        return generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type)
 
 
 class SparkRuntimeHandler(BaseRuntimeHandler):

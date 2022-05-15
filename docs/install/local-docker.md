@@ -92,8 +92,6 @@ docker-compose -f compose.with-jupyter.yaml up
 Your `HOST_IP` address can be found using the `ipconfig` shell command, it is recomended to select an address which does not change dynamically (for example the IP of the `vEthernet` interface).
 ````
 
-> - Add the `-d` flag to `docker-compose` for running in detached mode (run in the background).
-
 This creates 4 services:
 1. Jupyter lab (in `http://localhost:8888`)
 1. MLRun API (in `http://localhost:8080`), running on the Jupyter container

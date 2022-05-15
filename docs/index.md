@@ -1,7 +1,7 @@
 (architecture)=
 # What is MLRun? <!-- omit in toc -->
 - [The challenge](#the-challenge)
-- [Why MLRun?](#why-mlrun)
+- [MLRun - The Open Source MLOps Orchestration](#why-mlrun)
 - [Architecture](#architecture)
 - [Basic components](#basic-components)
 
@@ -46,8 +46,6 @@ collaborate using the same set of tools, practices, APIs, metadata, and version 
 <b>MLRun simplifies & accelerates the time to production.</b>
 
 ## Architecture 
-
-![pipeline](./_static/images/pipeline.png)
 
 <img src="_static/images/pipeline.png" alt="pipeline"/>
 

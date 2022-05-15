@@ -656,21 +656,23 @@ with ctx:
         """set executor pod required cpu/memory/gpu resources"""
         self.spec._verify_and_set_requests("executor_resources", mem, cpu)
 
-    def with_executor_limits(
-        self, cpu=None, mem=None, gpus=None, gpu_type="nvidia.com/gpu"
-    ):
+    def with_executor_limits(self, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
         """set executor pod limits"""
-        self.spec._verify_and_set_limits("executor_resources", mem, cpu, gpus, gpu_type)
+        # in spark operator there is only use of mem passed through requests,
+        # limits is set to the same value so passing mem=None
+        self.spec._verify_and_set_limits(
+            "executor_resources", None, cpu, gpus, gpu_type
+        )
 
     def with_driver_requests(self, mem=None, cpu=None):
         """set driver pod required cpu/memory/gpu resources"""
         self.spec._verify_and_set_requests("driver_resources", mem, cpu)
 
-    def with_driver_limits(
-        self, cpu=None, mem=None, gpus=None, gpu_type="nvidia.com/gpu"
-    ):
+    def with_driver_limits(self, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
         """set driver pod cpu limits"""
-        self.spec._verify_and_set_limits("driver_resources", mem, cpu, gpus, gpu_type)
+        # in spark operator there is only use of mem passed through requests,
+        # limits is set to the same value so passing mem=None
+        self.spec._verify_and_set_limits("driver_resources", None, cpu, gpus, gpu_type)
 
     def with_restart_policy(
         self,

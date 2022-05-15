@@ -7,12 +7,9 @@
 
 <p align="left"><img src="docs/_static/images/MLRun-logo.png" alt="MLRun logo" width="150"/></p>
 
-*The Open-Source MLOps Orchestration Framework*
 
-MLRun is an open-source MLOps framework that offers an integrative approach to managing your machine-learning pipelines from early development through model development to full pipeline deployment in production.
-MLRun offers a convenient abstraction layer to a wide variety of technology stacks while empowering data engineers and data scientists to define the feature and models.
 
-## MLRun - The Open Source MLOps Orchestration
+## MLRun - The Open Source MLOps Orchestration Framework
 
 MLRun enables production pipeline design using a modular strategy, where the different parts contribute to a continuous, automated, and far simpler path from research and development to scalable production pipelines, without refactoring code, adding glue logic, or spending significant efforts on data and ML engineering.
 
@@ -43,34 +40,41 @@ the API handling, data preparation/enrichment, [model serving](https://docs.mlru
 ## Get started
 
 It's easy to start using MLRun: 
-1. Install MLRun using one of:
-   - [Installing MLRun on a Kubernetes Cluster](https://docs.mlrun.org/en/latest/install/kubernetes.html)
-   - [Install MLRun locally using Docker](https://docs.mlrun.org/en/latest/install/local-docker.html)
-   - Or by [Using the iguazio platform](https://www.iguazio.com/docs/latest-release/)
-2. Set up your client environment to work with the service, by one of: 
-      - Setting the MLRun path env variable to `MLRUN_DBPATH=http://localhost:8080` 
-      - Using [`.env` files](https://docs.mlrun.org/en/latest/install/remote.html)
-      - Using an [MLRun Jupyter image](https://docs.mlrun.org/en/latest/install/local-docker.html#use-mlrun-with-mlrun-jupyter-image)
-3. Continue by using the Quick start guide, watching the [Tutorial on Youtube](https://www.youtube.com/embed/O6g1pJJ609U), and using the [MLRun Katakoda Scenarios](https://www.katacoda.com/mlrun) for hands-on tutorials.<br>
-   Also, read more in the MLRun documentation, including:
-      - [What is MLRun?](https://docs.mlrun.org/en/latest/index.html)
-      - [Quick-Start Guide](https://docs.mlrun.org/en/latest/quick-start/quick-start.html)
-      - [Tutorials and examples](https://docs.mlrun.org/en/latest/howto/index.html)
-      - [Installation and setup guide](https://docs.mlrun.org/en/latest/install.html)
-      - [Projects](https://docs.mlrun.org/en/latest/projects/project.html)
-      - [MLRun serverless functions](https://docs.mlrun.org/en/latest/concepts/functions-concepts.html)
-      - [Data stores and data items](https://docs.mlrun.org/en/latest/concepts/data-feature-store.html)
-      - [Feature store](https://docs.mlrun.org/en/latest/feature-store/feature-store.html)
-      - [Runs, functions, and workflows](https://docs.mlrun.org/en/latest/concepts/runs-experiments-workflows.html)
-      - [Artifacts and models](https://docs.mlrun.org/en/latest/store/artifacts.html)
-      - [Deployment and monitoring](https://docs.mlrun.org/en/latest/concepts/deployment-monitoring.html)
-      - Feature store
-         - [Data ingestion](https://docs.mlrun.org/en/latest/feature-store/feature-store-data-ingestion.html)
-         - [Data retrieval](https://docs.mlrun.org/en/latest/feature-store/feature-store-data-retrieval.html)
-         - [Tutorials](https://docs.mlrun.org/en/latest/feature-store/feature-store-tutorials.html)
-      - [Creating and using functions](https://docs.mlrun.org/en/latest/runtimes/functions.html)
-      - [Run, track, and compare jobs](https://docs.mlrun.org/en/latest/runtimes/run-track-compare-jobs.html)
-      - [Real-time serving pipelines (graphs)](https://docs.mlrun.org/en/latest/serving/serving-graph.html)
-      - [Model serving pipelines](https://docs.mlrun.org/en/latest/serving/build-graph-model-serving.html)
-      - [CI/CD, rolling upgrades, git](https://docs.mlrun.org/en/latest/model_monitoring/ci-cd-rolling-upgrades-git.html)
-      - [API](https://docs.mlrun.org/en/latest/api/index.html)
+1. Install MLRun using one of [over Kubernetes Cluster](https://docs.mlrun.org/en/latest/install/kubernetes.html) or [locally using Docker](https://docs.mlrun.org/en/latest/install/local-docker.html).<br>
+   Alternatively, you can [Use the managed MLRun service](https://www.iguazio.com/docs/latest-release/).
+2. Set up your client environment to work with the service. See [Setting a remote environment](https://docs.mlrun.org/en/latest/install/remote.html).
+3. Use the [Quick Start tutorial](https://docs.mlrun.org/en/latest/quick-start/quick-start.html) to develop and deploy machine learning applications to production.,br.
+For hands-on learning, try the [MLRun Katakoda Scenarios](https://www.katacoda.com/mlrun). And you can watch the [Tutorial on Youtube](https://www.youtube.com/embed/O6g1pJJ609U) to see the flow in action.
+
+
+## MLRun documentation
+
+Read more in the MLRun documentation, including:
+- MLRun basics
+   - [What is MLRun?](https://docs.mlrun.org/en/latest/index.html)
+   - [Quick-Start Guide](https://docs.mlrun.org/en/latest/quick-start/quick-start.html)
+   - [Tutorials and examples](https://docs.mlrun.org/en/latest/howto/index.html)
+   - [Installation and setup guide](https://docs.mlrun.org/en/latest/install.html)
+- Concepts
+   - [Projects](https://docs.mlrun.org/en/latest/projects/project.html)
+   - [MLRun serverless functions](https://docs.mlrun.org/en/latest/concepts/functions-concepts.html)
+   - [Data stores and data items](https://docs.mlrun.org/en/latest/concepts/data-feature-store.html)
+   - [Feature store](https://docs.mlrun.org/en/latest/feature-store/feature-store.html)
+   - [Runs, functions, and workflows](https://docs.mlrun.org/en/latest/concepts/runs-experiments-workflows.html)
+   - [Artifacts and models](https://docs.mlrun.org/en/latest/store/artifacts.html)
+   - [Deployment and monitoring](https://docs.mlrun.org/en/latest/concepts/deployment-monitoring.html)
+- Working with data
+      - [Data ingestion](https://docs.mlrun.org/en/latest/feature-store/feature-store-data-ingestion.html)
+      - [Data retrieval](https://docs.mlrun.org/en/latest/feature-store/feature-store-data-retrieval.html)
+      - [Tutorials](https://docs.mlrun.org/en/latest/feature-store/feature-store-tutorials.html)
+- Develop Functions and models
+   - [Creating and using functions](https://docs.mlrun.org/en/latest/runtimes/functions.html)
+   - [Run, track, and compare jobs](https://docs.mlrun.org/en/latest/runtimes/run-track-compare-jobs.html)
+- Deploy ML applications
+   - [Real-time serving pipelines (graphs)](https://docs.mlrun.org/en/latest/serving/serving-graph.html)
+   - [Model serving pipelines](https://docs.mlrun.org/en/latest/serving/build-graph-model-serving.html)
+   - [CI/CD, rolling upgrades, git](https://docs.mlrun.org/en/latest/model_monitoring/ci-cd-rolling-upgrades-git.html)
+- References
+   - [API](https://docs.mlrun.org/en/latest/api/index.html)
+   - [CLI](https://docs.mlrun.org/en/latest/cli.html)
+   - [Glossary](https://docs.mlrun.org/en/latest/glossary.html)

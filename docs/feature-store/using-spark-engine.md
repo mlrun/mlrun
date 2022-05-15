@@ -169,7 +169,7 @@ fstore.ingest(feature_set, source, run_config=config)
 
 ## Spark dataframe ingestion example
 
-The following code executes data ingestion from a spark dataframe that is running locally. (Spark dataframe Ingestion cannot be executed remotely.)
+The following code executes local data ingestion from a spark dataframe (Spark dataframe Ingestion cannot be executed remotely.)
 The specified dataframe should be associated with `spark_context`. 
 
 ```

@@ -20,7 +20,7 @@ MLRun uses Serverless Function technology: write the code once, using your prefe
 
 Those easily developed data or ML “functions” can then be published or loaded from a marketplace and used later to form offline or real-time production pipelines with minimal engineering efforts.
 
-<p align="center"><img src="_static/images/mlrun-flow.png" alt="mlrun-flow" width="600"/></p><br>
+<p align="center"><img src="./docs/_static/images/mlrun-flow.png" alt="mlrun-flow" width="600"/></p><br>
 
 Data preparation, model development, model and application delivery, and end to end monitoring are tightly connected: they cannot be managed in silos. This is where MLRun MLOps orchestration comes in. ML, data, and DevOps/MLOps teams collaborate using the same set of tools, practices, APIs, metadata, and version control.
 

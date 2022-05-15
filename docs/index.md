@@ -49,8 +49,6 @@ collaborate using the same set of tools, practices, APIs, metadata, and version 
 
 ![pipeline](./_static/images/pipeline.png)
 
-<img src="_static/images/pipeline.png" alt="pipeline"/>
-
 <br><br>
 MLRun is composed of the following layers:
 

@@ -232,9 +232,7 @@ class AbstractSparkRuntime(KubejobRuntime):
 
         # setting required resources
         sj.with_executor_requests(cpu=1, mem="512m")
-        sj.with_executor_limits(cpu=1, mem="512m", gpus=1 if with_gpu else None)
         sj.with_driver_requests(cpu=1, mem="512m")
-        sj.with_driver_limits(cpu=1, mem="512m", gpus=1 if with_gpu else None)
 
         sj.deploy()
         get_run_db().delete_function(name=sj.metadata.name)

@@ -60,4 +60,4 @@
    <!-- web-apps -->
    cli
    <!-- examples -->
-   Glossary
+   glossary

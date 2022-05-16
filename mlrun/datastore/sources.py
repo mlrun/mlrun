@@ -19,6 +19,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Union
 
 import v3io
+from google.cloud.bigquery_storage_v1 import BigQueryReadClient
 from nuclio import KafkaTrigger
 from nuclio.config import split_path
 
@@ -393,7 +394,10 @@ class BigQuerySource(BaseSourceDriver):
             self._rows_iterator = query_job.result(page_size=chunksize)
             dtypes = schema_to_dtypes(self._rows_iterator.schema)
             if chunksize:
-                return self._rows_iterator.to_dataframe_iterable(dtypes=dtypes)
+                # passing bqstorage_client greatly improves performance
+                return self._rows_iterator.to_dataframe_iterable(
+                    bqstorage_client=BigQueryReadClient(), dtypes=dtypes
+                )
             else:
                 return self._rows_iterator.to_dataframe(dtypes=dtypes)
         elif table:
@@ -405,7 +409,10 @@ class BigQuerySource(BaseSourceDriver):
             )
             dtypes = schema_to_dtypes(rows.schema)
             if chunksize:
-                return rows.to_dataframe_iterable(dtypes=dtypes)
+                # passing bqstorage_client greatly improves performance
+                return rows.to_dataframe_iterable(
+                    bqstorage_client=BigQueryReadClient(), dtypes=dtypes
+                )
             else:
                 return rows.to_dataframe(dtypes=dtypes)
         else:

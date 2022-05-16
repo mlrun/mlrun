@@ -1,23 +1,14 @@
 # Installation and setup guide <!-- omit in toc -->
 
 This guide outlines the steps for installing and running MLRun. 
-Once MLRun is installed you can access it remotely from your IDE (PyCharm or VSCode), read [**how to setup your IDE environment**](./install/remote.md). 
-
 
 ## Overview
 
-MLrun has two parts: the client and the server. The client is installed by a simple `pip install` command.
-There are two options to deploy the server side:
-- [Docker (local installation)](install-local-docker-reg): Use this option to run your code locally on your laptop.
-```{admonition} Note
-Docker does not include Nuclio and therefore cannot be used to deploy serving functions.
-```
-- [Kubernetes (full installation)](install-kubernetes): Use this option to run MLRun jobs at scale on a kubernetes cluster.
+- Install MLRun [locally using Docker](https://docs.mlrun.org/en/latest/install/local-docker.html) or [over Kubernetes Cluster](https://docs.mlrun.org/en/latest/install/kubernetes.html). Alternatively, you can use the enterprise version: [Iguazio's managed MLRun service](https://www.iguazio.com/docs/latest-release/).
+- [Set up your client environment](https://docs.mlrun.org/en/latest/install/remote.html) if you are working remotely with the MLRun service. 
+- Follow the [Quick Start tutorial](./docs.mlrun.org/en/latest/quick-start/quick-start.html) and [Additional Tutorials and Examples](./docs.mlrun.org/en/latest/howto/index.html) to learn how to use MLRun to develop and deploy machine learning applications to production.
 
-The enterprise version of MLrun is deployed in an Iguazio cluster.
-
-[Setting a remote environment](https://docs.mlrun.org/en/latest/install/remote.html) describes the configuration so that you can write your code on a local machine while running your functions on a remote cluster..
-
+For hands-on learning, try the [MLRun Katakoda Scenarios](https://www.katacoda.com/mlrun). And you can watch the [Tutorial on Youtube](https://www.youtube.com/embed/O6g1pJJ609U) to see the flow in action.
 
 **Installation options:**
 ```{toctree}

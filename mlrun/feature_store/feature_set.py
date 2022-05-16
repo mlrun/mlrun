@@ -27,6 +27,7 @@ from ..datastore.targets import (
     TargetTypes,
     default_target_names,
     get_offline_target,
+    get_online_target,
     get_target_driver,
     update_targets_run_id_for_ingest,
     validate_target_list,
@@ -348,6 +349,10 @@ class FeatureSet(ModelObj):
     def get_target_path(self, name=None):
         """get the url/path for an offline or specified data target"""
         target = get_offline_target(self, name=name)
+
+        if not target and name:
+            target = get_online_target(self, name)
+
         if target:
             return target.get_path().get_absolute_path()
 
@@ -429,6 +434,9 @@ class FeatureSet(ModelObj):
         targets: List[DataTargetBase],
         overwrite: bool = None,
     ):
+        if not targets:
+            return
+
         ingestion_target_names = [t.name for t in targets]
 
         status_targets = {}
@@ -585,7 +593,7 @@ class FeatureSet(ModelObj):
 
             myset.add_aggregation("ask", ["sum", "max"], "1h", "10m", name="asks")
 
-        :param column:     name of column/field aggregate. Do not name columns starting with either `t_` or `aggr_`.
+        :param column:     name of column/field aggregate. Do not name columns starting with either `_` or `aggr_`.
                            They are reserved for internal use, and the data does not ingest correctly.
                            When using the pandas engine, do not use spaces (` `) or periods (`.`) in the column names;
                            they cause errors in the ingestion.

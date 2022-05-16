@@ -3,7 +3,7 @@
 # Real-time serving pipelines (graphs)
 
 MLRun graphs enable building and running DAGs (directed acyclic graph). Graphs are composed of individual steps. 
-The first graph element accepts an `Event` object, transform/process the event and pass the result to the next steps
+The first graph element accepts an `Event` object, transforms/processes the event and passes the result to the next steps
 in the graph. The final result can be written out to some destination (file, DB, stream, etc.) or returned back to the caller
 (one of the graph steps can be marked with `.respond()`). 
 
@@ -13,7 +13,8 @@ classes/functions. A graph can have data processing steps, model ensembles, mode
 
 ![serving graph high level](../_static/images/serving-graph-high-level.png)
   
-Different steps can run on the same local function, or run on a remote function. You can call existing functions from the graph and reuse them from other graphs, as well as scale up and down different components individually.
+Different steps can run on the same local function, or run on a remote function. You can call existing functions from the graph and reuse 
+them from other graphs, as well as scale up and down the different components individually.
 
 Graphs can run inside your IDE or Notebook for test and simulation. Serving graphs are built on 
 top of [Nuclio](https://github.com/nuclio/nuclio) (real-time serverless engine), MLRun Jobs, 

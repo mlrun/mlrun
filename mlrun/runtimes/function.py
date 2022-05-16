@@ -79,6 +79,26 @@ def validate_nuclio_version_compatibility(*min_versions):
     return False
 
 
+def is_nuclio_version_in_range(min_version: str, max_version: str) -> bool:
+    """
+    Return whether the Nuclio version is in the range, inclusive for min, exclusive for max - [min, max)
+    """
+    try:
+        parsed_min_version = semver.VersionInfo.parse(min_version)
+        parsed_max_version = semver.VersionInfo.parse(max_version)
+        nuclio_version = mlrun.runtimes.utils.resolve_nuclio_version()
+        parsed_current_version = semver.VersionInfo.parse(nuclio_version)
+    except ValueError:
+        logger.warning(
+            "Unable to parse nuclio version, assuming in range",
+            nuclio_version=nuclio_version,
+            min_version=min_version,
+            max_version=max_version,
+        )
+        return True
+    return parsed_min_version <= parsed_current_version < parsed_max_version
+
+
 def min_nuclio_versions(*versions):
     def decorator(function):
         def wrapper(*args, **kwargs):
@@ -144,6 +164,7 @@ class NuclioSpec(KubeResourceSpec):
         workdir=None,
         image_pull_secret=None,
         tolerations=None,
+        preemption_mode=None,
     ):
 
         super().__init__(
@@ -171,6 +192,7 @@ class NuclioSpec(KubeResourceSpec):
             workdir=workdir,
             image_pull_secret=image_pull_secret,
             tolerations=tolerations,
+            preemption_mode=preemption_mode,
         )
 
         self.base_spec = base_spec or {}
@@ -638,6 +660,26 @@ class RemoteRuntime(KubeResource):
             )
         super().with_node_selection(node_name, node_selector, affinity, tolerations)
 
+    @min_nuclio_versions("1.8.6")
+    def with_preemption_mode(self, mode):
+        """
+        Preemption mode controls whether pods can be scheduled on preemptible nodes.
+        Tolerations, node selector, and affinity are populated on preemptible nodes corresponding to the function spec.
+
+        The supported modes are:
+
+        * **allow** - The function can be scheduled on preemptible nodes
+        * **constrain** - The function can only run on preemptible nodes
+        * **prevent** - The function cannot be scheduled on preemptible nodes
+        * **none** - No preemptible configuration will be applied on the function
+
+        The default preemption mode is configurable in mlrun.mlconf.function_defaults.preemption_mode,
+        by default it's set to **prevent**
+
+        :param mode: allow | constrain | prevent | none defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
+        """
+        super().with_preemption_mode(mode=mode)
+
     @min_nuclio_versions("1.6.18")
     def with_priority_class(self, name: typing.Optional[str] = None):
         """k8s priority class"""
@@ -703,7 +745,9 @@ class RemoteRuntime(KubeResource):
         if mlconf.namespace:
             runtime_env["MLRUN_NAMESPACE"] = mlconf.namespace
         if self.metadata.credentials.access_key:
-            runtime_env["MLRUN_AUTH_SESSION"] = self.metadata.credentials.access_key
+            runtime_env[
+                mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
+            ] = self.metadata.credentials.access_key
         return runtime_env
 
     def _get_nuclio_config_spec_env(self):
@@ -1108,6 +1152,31 @@ def compile_function_config(
         function.add_secrets_config_to_spec()
 
     env_dict, external_source_env_dict = function._get_nuclio_config_spec_env()
+    nuclio_runtime = (
+        function.spec.nuclio_runtime or mlrun.config.config.default_nuclio_runtime
+    )
+    if is_nuclio_version_in_range("0.0.0", "1.6.0") and nuclio_runtime in [
+        "python:3.7",
+        "python:3.8",
+    ]:
+        nuclio_runtime_set_from_spec = nuclio_runtime == function.spec.nuclio_runtime
+        if nuclio_runtime_set_from_spec:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Nuclio version does not support the configured runtime: {nuclio_runtime}"
+            )
+        else:
+            # our default is python:3.7, simply set it to python:3.6 to keep supporting envs with old Nuclio
+            nuclio_runtime = "python:3.6"
+
+    # In nuclio 1.6.0<=v<1.8.0 python 3.7 and 3.8 runtime default behavior was to not decode event strings
+    # Our code is counting on the strings to be decoded, so add the needed env var for those versions
+    if (
+        nuclio_runtime in ["python:3.7", "python:3.8", "python"]
+        and is_nuclio_version_in_range("1.6.0", "1.8.0")
+        and "NUCLIO_PYTHON_DECODE_EVENT_STRINGS" not in env_dict
+    ):
+        env_dict["NUCLIO_PYTHON_DECODE_EVENT_STRINGS"] = "true"
+
     nuclio_spec = nuclio.ConfigSpec(
         env=env_dict,
         external_source_env=external_source_env_dict,
@@ -1123,8 +1192,7 @@ def compile_function_config(
             nuclio_spec, function, builder_env, project, auth_info=auth_info
         )
 
-    runtime = function.spec.nuclio_runtime or mlrun.config.config.default_nuclio_runtime
-    nuclio_spec.set_config("spec.runtime", runtime)
+    nuclio_spec.set_config("spec.runtime", nuclio_runtime)
 
     # In Nuclio >= 1.6.x default serviceType has changed to "ClusterIP".
     nuclio_spec.set_config(
@@ -1142,6 +1210,11 @@ def compile_function_config(
         nuclio_spec.set_config(
             "spec.build.functionSourceCode", function.spec.build.functionSourceCode
         )
+    # the corresponding attribute for build.secret in nuclio is imagePullSecrets, attached link for reference
+    # https://github.com/nuclio/nuclio/blob/e4af2a000dc52ee17337e75181ecb2652b9bf4e5/pkg/processor/build/builder.go#L1073
+    if function.spec.build.secret:
+        nuclio_spec.set_config("spec.imagePullSecrets", function.spec.build.secret)
+
     # don't send node selections if nuclio is not compatible
     if validate_nuclio_version_compatibility("1.5.20", "1.6.10"):
         if function.spec.node_selector:
@@ -1150,7 +1223,8 @@ def compile_function_config(
             nuclio_spec.set_config("spec.nodeName", function.spec.node_name)
         if function.spec.affinity:
             nuclio_spec.set_config(
-                "spec.affinity", function.spec._get_sanitized_attribute("affinity")
+                "spec.affinity",
+                mlrun.runtimes.pod.get_sanitized_attribute(function.spec, "affinity"),
             )
 
     # don't send tolerations if nuclio is not compatible
@@ -1158,7 +1232,16 @@ def compile_function_config(
         if function.spec.tolerations:
             nuclio_spec.set_config(
                 "spec.tolerations",
-                function.spec._get_sanitized_attribute("tolerations"),
+                mlrun.runtimes.pod.get_sanitized_attribute(
+                    function.spec, "tolerations"
+                ),
+            )
+    # don't send preemption_mode if nuclio is not compatible
+    if validate_nuclio_version_compatibility("1.8.6"):
+        if function.spec.preemption_mode:
+            nuclio_spec.set_config(
+                "spec.PreemptionMode",
+                function.spec.preemption_mode,
             )
 
     # don't send default or any priority class name if nuclio is not compatible
@@ -1328,7 +1411,7 @@ def _compile_nuclio_archive_config(
 ):
     secrets = {}
     if project and get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
-        secrets = get_k8s_helper.get_project_secret_data(project)
+        secrets = get_k8s_helper().get_project_secret_data(project)
 
     def get_secret(key):
         return builder_env.get(key) or secrets.get(key, "")

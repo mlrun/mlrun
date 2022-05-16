@@ -36,7 +36,7 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
     @staticmethod
     def _generate_credentials_secret_key(source, key=""):
         full_key = source + secret_name_separator + key
-        return Secrets().generate_client_secret_key(
+        return Secrets().generate_client_project_secret_key(
             SecretsClientType.marketplace, full_key
         )
 
@@ -58,7 +58,7 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
             self._generate_credentials_secret_key(source_name, key)
             for key in source_credentials
         ]
-        Secrets().delete_secrets(
+        Secrets().delete_project_secrets(
             self._internal_project_name,
             SecretProviderName.kubernetes,
             secrets_to_delete,
@@ -75,7 +75,7 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
             self._generate_credentials_secret_key(source_name, key): value
             for key, value in credentials.items()
         }
-        Secrets().store_secrets(
+        Secrets().store_project_secrets(
             self._internal_project_name,
             mlrun.api.schemas.SecretsData(
                 provider=SecretProviderName.kubernetes, secrets=adjusted_credentials
@@ -90,7 +90,7 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
         secret_prefix = self._generate_credentials_secret_key(source_name)
         secrets = (
             Secrets()
-            .list_secrets(
+            .list_project_secrets(
                 self._internal_project_name,
                 SecretProviderName.kubernetes,
                 allow_secrets_from_k8s=True,

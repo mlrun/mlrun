@@ -267,7 +267,7 @@ def test_store_artifact_restoring_multiple_tags(db: DBInterface, db_session: Ses
         == {}
     )
     expected_tags = [artifact_1_tag, artifact_2_tag]
-    tags = [artifact["tag"] for artifact in artifacts]
+    tags = [artifact["metadata"]["tag"] for artifact in artifacts]
     assert (
         deepdiff.DeepDiff(
             expected_tags,
@@ -278,10 +278,10 @@ def test_store_artifact_restoring_multiple_tags(db: DBInterface, db_session: Ses
     )
     artifact = db.read_artifact(db_session, artifact_key, tag=artifact_1_tag)
     assert artifact["metadata"]["uid"] == artifact_1_uid
-    assert artifact["tag"] == artifact_1_tag
+    assert artifact["metadata"]["tag"] == artifact_1_tag
     artifact = db.read_artifact(db_session, artifact_key, tag=artifact_2_tag)
     assert artifact["metadata"]["uid"] == artifact_2_uid
-    assert artifact["tag"] == artifact_2_tag
+    assert artifact["metadata"]["tag"] == artifact_2_tag
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
@@ -443,8 +443,8 @@ def _generate_artifact_with_iterations(
             key, kind=kind.value if iter != 0 else "link", uid=uid
         )
         if iter == 0:
-            artifact_body["link_iteration"] = best_iter
-        artifact_body["iter"] = iter
+            artifact_body["spec"]["link_iteration"] = best_iter
+        artifact_body["spec"]["iter"] = iter
         db.store_artifact(
             db_session,
             key,
@@ -490,7 +490,7 @@ def test_list_artifacts_best_iter(db: DBInterface, db_session: Session):
 
     # Add non-hyper-param artifact. Single object with iter 0, not pointing at anything
     artifact_body = _generate_artifact(artifact_no_link_key, artifact_no_link_uid)
-    artifact_body["iter"] = 0
+    artifact_body["spec"]["iter"] = 0
     db.store_artifact(
         db_session, artifact_no_link_key, artifact_body, artifact_no_link_uid, iter=0
     )
@@ -499,7 +499,7 @@ def test_list_artifacts_best_iter(db: DBInterface, db_session: Session):
     assert len(results) == num_iters * 2 + 1
 
     results = db.list_artifacts(db_session, name=artifact_1_key, best_iteration=True)
-    assert len(results) == 1 and results[0]["iter"] == best_iter_1
+    assert len(results) == 1 and results[0]["spec"]["iter"] == best_iter_1
 
     expected_iters = {
         artifact_1_key: best_iter_1,
@@ -512,13 +512,13 @@ def test_list_artifacts_best_iter(db: DBInterface, db_session: Session):
         artifact_name = artifact["metadata"]["name"]
         assert (
             artifact_name in expected_iters
-            and expected_iters[artifact_name] == artifact["iter"]
+            and expected_iters[artifact_name] == artifact["spec"]["iter"]
         )
 
     results = db.list_artifacts(
         db_session, best_iteration=True, category=ArtifactCategories.model
     )
-    assert len(results) == 1 and results[0]["iter"] == best_iter_1
+    assert len(results) == 1 and results[0]["spec"]["iter"] == best_iter_1
 
     # Should get only object-2 (which is of dataset type) and the link artifact
     results = db.list_artifacts(db_session, category=ArtifactCategories.dataset)
@@ -701,13 +701,13 @@ def test_data_migration_fix_artifact_tags_duplications(
     [(dbs[0], dbs[0])],
     indirect=["data_migration_db", "db_session"],
 )
-def test_data_migration_fix_datasets_large_previews(
+def test_data_migration_fix_legacy_datasets_large_previews(
     data_migration_db: DBInterface,
     db_session: Session,
 ):
     artifact_with_valid_preview_key = "artifact-with-valid-preview-key"
     artifact_with_valid_preview_uid = "artifact-with-valid-preview-uid"
-    artifact_with_valid_preview = mlrun.artifacts.DatasetArtifact(
+    artifact_with_valid_preview = mlrun.artifacts.dataset.LegacyDatasetArtifact(
         artifact_with_valid_preview_key,
         df=pandas.DataFrame(
             [{"A": 10, "B": 100}, {"A": 11, "B": 110}, {"A": 12, "B": 120}]
@@ -722,7 +722,7 @@ def test_data_migration_fix_datasets_large_previews(
 
     artifact_with_invalid_preview_key = "artifact-with-invalid-preview-key"
     artifact_with_invalid_preview_uid = "artifact-with-invalid-preview-uid"
-    artifact_with_invalid_preview = mlrun.artifacts.DatasetArtifact(
+    artifact_with_invalid_preview = mlrun.artifacts.dataset.LegacyDatasetArtifact(
         artifact_with_invalid_preview_key,
         df=pandas.DataFrame(
             numpy.random.randint(
@@ -792,9 +792,111 @@ def test_data_migration_fix_datasets_large_previews(
     )
 
 
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "data_migration_db,db_session",
+    [(dbs[0], dbs[0])],
+    indirect=["data_migration_db", "db_session"],
+)
+def test_data_migration_fix_datasets_large_previews(
+    data_migration_db: DBInterface,
+    db_session: Session,
+):
+    artifact_with_valid_preview_key = "artifact-with-valid-preview-key"
+    artifact_with_valid_preview_uid = "artifact-with-valid-preview-uid"
+    artifact_with_valid_preview = mlrun.artifacts.dataset.DatasetArtifact(
+        artifact_with_valid_preview_key,
+        df=pandas.DataFrame(
+            [{"A": 10, "B": 100}, {"A": 11, "B": 110}, {"A": 12, "B": 120}]
+        ),
+    )
+    data_migration_db._store_artifact(
+        db_session,
+        artifact_with_valid_preview_key,
+        artifact_with_valid_preview.to_dict(),
+        artifact_with_valid_preview_uid,
+    )
+
+    artifact_with_invalid_preview_key = "artifact-with-invalid-preview-key"
+    artifact_with_invalid_preview_uid = "artifact-with-invalid-preview-uid"
+    artifact_with_invalid_preview = mlrun.artifacts.dataset.DatasetArtifact(
+        artifact_with_invalid_preview_key,
+        df=pandas.DataFrame(
+            numpy.random.randint(
+                0, 10, size=(10, mlrun.artifacts.dataset.max_preview_columns * 3)
+            )
+        ),
+        ignore_preview_limits=True,
+    )
+    data_migration_db._store_artifact(
+        db_session,
+        artifact_with_invalid_preview_key,
+        artifact_with_invalid_preview.to_dict(),
+        artifact_with_invalid_preview_uid,
+    )
+
+    # perform the migration
+    mlrun.api.initial_data._fix_datasets_large_previews(data_migration_db, db_session)
+
+    artifact_with_valid_preview_after_migration = data_migration_db.read_artifact(
+        db_session, artifact_with_valid_preview_key, artifact_with_valid_preview_uid
+    )
+    assert (
+        deepdiff.DeepDiff(
+            artifact_with_valid_preview_after_migration,
+            artifact_with_valid_preview.to_dict(),
+            ignore_order=True,
+            exclude_paths=[
+                "root['metadata']['updated']",
+                "root['metadata']['tag']",
+                "root['spec']['db_key']",
+            ],
+        )
+        == {}
+    )
+
+    artifact_with_invalid_preview_after_migration = data_migration_db.read_artifact(
+        db_session, artifact_with_invalid_preview_key, artifact_with_invalid_preview_uid
+    )
+    assert (
+        deepdiff.DeepDiff(
+            artifact_with_invalid_preview_after_migration,
+            artifact_with_invalid_preview.to_dict(),
+            ignore_order=True,
+            exclude_paths=[
+                "root['metadata']['updated']",
+                "root['spec']['header']",
+                "root['spec']['stats']",
+                "root['spec']['schema']",
+                "root['spec']['preview']",
+                "root['metadata']['tag']",
+                "root['spec']['db_key']",
+            ],
+        )
+        == {}
+    )
+    assert (
+        len(artifact_with_invalid_preview_after_migration["spec"]["header"])
+        == mlrun.artifacts.dataset.max_preview_columns
+    )
+    assert (
+        len(artifact_with_invalid_preview_after_migration["spec"]["stats"])
+        == mlrun.artifacts.dataset.max_preview_columns - 1
+    )
+    assert (
+        len(artifact_with_invalid_preview_after_migration["spec"]["preview"][0])
+        == mlrun.artifacts.dataset.max_preview_columns
+    )
+    assert (
+        len(artifact_with_invalid_preview_after_migration["spec"]["schema"]["fields"])
+        == mlrun.artifacts.dataset.max_preview_columns + 1
+    )
+
+
 def _generate_artifact(name, uid=None, kind=None):
     artifact = {
         "metadata": {"name": name},
+        "spec": {"src_path": "/some/path"},
         "kind": kind,
         "status": {"bla": "blabla"},
     }

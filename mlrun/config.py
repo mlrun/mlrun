@@ -51,7 +51,7 @@ default_config = {
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     "nuclio_dashboard_url": "",
     "nuclio_version": "",
-    "default_nuclio_runtime": "python:3.6",
+    "default_nuclio_runtime": "python:3.7",
     "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
     "ui_url": "",  # remote/external mlrun UI url (for hyperlinks) (This is deprecated in favor of the ui block)
     "remote_host": "",
@@ -89,6 +89,9 @@ default_config = {
     "runtimes_cleanup_interval": "300",
     # runs monitoring interval in seconds
     "runs_monitoring_interval": "30",
+    # runs monitoring debouncing interval in seconds for run with non-terminal state without corresponding k8s resource
+    # by default the interval will be - (runs_monitoring_interval * 2 ), if set will override the default
+    "runs_monitoring_missing_runtime_resources_debouncing_interval": None,
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them
     "runtime_resources_deletion_grace_period": "14400",
@@ -129,6 +132,10 @@ default_config = {
         "preemption_mode": "prevent",
     },
     "httpdb": {
+        "clusterization": {
+            # one of chief/worker
+            "role": "chief",
+        },
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
         "dsn": "sqlite:///db/mlrun.db?check_same_thread=false",
@@ -160,8 +167,9 @@ default_config = {
                 "use_rotation": True,
                 "rotation_limit": 3,
             },
-            "connections_pool_size": 20,
-            "connections_pool_max_overflow": 50,
+            # None will set this to be equal to the httpdb.max_workers
+            "connections_pool_size": None,
+            "connections_pool_max_overflow": None,
         },
         "jobs": {
             # whether to allow to run local runtimes in the API - configurable to allow the scheduler testing to work
@@ -288,13 +296,14 @@ default_config = {
             # unless user asks for a specific list of secrets.
             "auto_add_project_secrets": True,
             "project_secret_name": "mlrun-project-secrets-{project}",
+            "auth_secret_name": "mlrun-auth-secrets.{hashed_access_key}",
             "env_variable_prefix": "MLRUN_K8S_SECRET__",
         },
     },
     "feature_store": {
         "data_prefixes": {
-            "default": "v3io:///projects/{project}/FeatureStore/{name}/{run_id}/{kind}",
-            "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{run_id}/{kind}",
+            "default": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
+            "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
@@ -506,14 +515,14 @@ class Config:
         if config.kfp_url:
             return config.kfp_url
         igz_version = self.get_parsed_igz_version()
-        if namespace is None:
-            if not config.namespace:
-                raise mlrun.errors.MLRunNotFoundError(
-                    "For KubeFlow Pipelines to function, a namespace must be configured"
-                )
-            namespace = config.namespace
         # TODO: When Iguazio 3.4 will deprecate we can remove this line
         if igz_version and igz_version <= semver.VersionInfo.parse("3.6.0-b1"):
+            if namespace is None:
+                if not config.namespace:
+                    raise mlrun.errors.MLRunNotFoundError(
+                        "For KubeFlow Pipelines to function, a namespace must be configured"
+                    )
+                namespace = config.namespace
             # When instead of host we provided namespace we tackled this issue
             # https://github.com/canonical/bundle-kubeflow/issues/412
             # TODO: When we'll move to kfp 1.4.0 (server side) it should be resolved
@@ -543,14 +552,28 @@ class Config:
 
         return auto_mount_params
 
-    def get_default_function_pod_resources(self):
+    def get_default_function_pod_resources(
+        self, with_gpu_requests=False, with_gpu_limits=False
+    ):
         resources = {}
         resource_requirements = ["requests", "limits"]
         for requirement in resource_requirements:
+            with_gpu = (
+                with_gpu_requests if requirement == "requests" else with_gpu_limits
+            )
             resources[
                 requirement
-            ] = self.get_default_function_pod_requirement_resources(requirement)
+            ] = self.get_default_function_pod_requirement_resources(
+                requirement, with_gpu
+            )
         return resources
+
+    def resolve_runs_monitoring_missing_runtime_resources_debouncing_interval(self):
+        return (
+            float(self.runs_monitoring_missing_runtime_resources_debouncing_interval)
+            if self.runs_monitoring_missing_runtime_resources_debouncing_interval
+            else float(config.runs_monitoring_interval) * 2.0
+        )
 
     @staticmethod
     def get_default_function_pod_requirement_resources(

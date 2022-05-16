@@ -60,6 +60,7 @@ class RunStates(object):
     pending = "pending"
     unknown = "unknown"
     aborted = "aborted"
+    absent = "absent"
 
     @staticmethod
     def all():
@@ -71,6 +72,7 @@ class RunStates(object):
             RunStates.pending,
             RunStates.unknown,
             RunStates.aborted,
+            RunStates.absent,
         ]
 
     @staticmethod
@@ -79,6 +81,7 @@ class RunStates(object):
             RunStates.completed,
             RunStates.error,
             RunStates.aborted,
+            RunStates.absent,
         ]
 
     @staticmethod
@@ -201,3 +204,8 @@ class NuclioIngressAddTemplatedIngressModes:
     always = "always"
     never = "never"
     on_cluster_ip = "onClusterIP"
+
+
+class FunctionEnvironmentVariables:
+    _env_prefix = "MLRUN_"
+    auth_session = f"{_env_prefix}AUTH_SESSION"

@@ -59,14 +59,21 @@ class TestAutoMount:
         rundb_mock.assert_no_mount_or_creds_configured()
 
     def test_fill_credentials(self, rundb_mock):
-        os.environ["MLRUN_AUTH_SESSION"] = "some-access-key"
+        os.environ[
+            mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
+        ] = "some-access-key"
 
         runtime = self._generate_runtime()
         self._execute_run(runtime)
         assert (
-            runtime.metadata.credentials.access_key == os.environ["MLRUN_AUTH_SESSION"]
+            runtime.metadata.credentials.access_key
+            == os.environ[
+                mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
+            ]
         )
-        del os.environ["MLRUN_AUTH_SESSION"]
+        del os.environ[
+            mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
+        ]
 
     def test_auto_mount_invalid_value(self):
         # When invalid value is used, we explode

@@ -19,7 +19,6 @@ from datetime import datetime
 from typing import Dict, List, Optional, Union
 
 import v3io
-from google.cloud.bigquery_storage_v1 import BigQueryReadClient
 from nuclio import KafkaTrigger
 from nuclio.config import split_path
 
@@ -373,6 +372,7 @@ class BigQuerySource(BaseSourceDriver):
 
     def to_dataframe(self):
         from google.cloud import bigquery
+        from google.cloud.bigquery_storage_v1 import BigQueryReadClient
 
         def schema_to_dtypes(schema):
             from mlrun.data_types.data_types import gbq_to_pandas_dtype

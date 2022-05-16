@@ -311,6 +311,7 @@ def enrich_function_object(
         else:
             f.spec.build.source = project.spec.source
             f.spec.build.load_source_on_run = project.spec.load_source_on_run
+            f.spec.workdir = project.spec.workdir or project.spec.subpath
             f.verify_base_image()
 
     if project.spec.default_requirements:

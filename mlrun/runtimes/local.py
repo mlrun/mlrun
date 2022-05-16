@@ -252,7 +252,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         execution._current_workdir = workdir
         execution._old_workdir = None
 
-        if self.spec.build.source:
+        if self.spec.build.source and not hasattr(self, "_is_run_local"):
             target_dir = extract_source(
                 self.spec.build.source,
                 self.spec.clone_target_dir,

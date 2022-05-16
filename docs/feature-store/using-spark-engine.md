@@ -299,16 +299,13 @@ source = SnowflakeSource(
     warehouse="compute_wh",
 )
 
-fstore.ingest(feature_set, source, spark_context=True)
+fstore.ingest(feature_set, source, spark_context=spark)
 ```
 
 ## Spark ingestion from Azure example
 
 Spark ingestion from Azure can be executed both remotely and locally. The following code executes remote data ingestion from Azure.
 
-``
-import mlrun
-import mlrun.feature_store as fs
 ```
 # Initialize the MLRun project object
 project_name = "spark-azure-test"
@@ -337,3 +334,7 @@ target = ParquetTarget(partitioned = True, time_partitioning_granularity="month"
 feature_set.set_targets(targets=[target],with_defaults=False)
 
 fstore.ingest(feature_set, source, run_config=run_config, spark_context=spark_service_name)
+
+import mlrun
+import mlrun.feature_store as fs
+```

@@ -1,10 +1,10 @@
 # Install MLRun locally using Docker
 
-ou can install and use MLRun and Nuclio locally on your computer. This does not include all the services and elastic 
+You can install and use MLRun and Nuclio locally on your computer. This does not include all the services and elastic 
 scaling capabilities, which you can get with the Kubernetes based deployment, but it is much simpler to start with.
 
 ```{admonition} Note
-- Using Docker is limited to local, Nuclio, and Serving runtimes and local pipelines.
+Using Docker is limited to local, Nuclio, and Serving runtimes and local pipelines.
 ```
 
 Use [`docker compose`](https://docs.docker.com/compose/) to install MLRun. It deploys the MLRun service,
@@ -40,7 +40,7 @@ export HOST_IP=<your host IP address>
 docker-compose -f compose.yaml up
 ``` 
 
-Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands, it is recomended to select an address which does not change dynamically (for example the IP of the bridge interface).
+Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands. It is recomended to select an address that does not change dynamically (for example the IP of the bridge interface).
 ````
 
 ````{tabbed} Windows
@@ -53,10 +53,10 @@ docker-compose -f compose.yaml up
 Your `HOST_IP` address can be found using the `ipconfig` shell command, it is recomended to select an address which does not change dynamically (for example the IP of the `vEthernet` interface).
 ````
 
-This will create 3 services:
-1. MLRun API (in `http://localhost:8080`)
-2. MLRun UI (in `http://localhost:8060`)
-3. Nuclio Dashboard/controller (in `http://localhost:8070`)
+This creates 3 services:
+- MLRun API (in `http://localhost:8080`)
+- MLRun UI (in `http://localhost:8060`)
+- Nuclio Dashboard/controller (in `http://localhost:8070`)
 
 After installing MLRun service, set your client environment to work with the service, by setting the MLRun path env variable to 
 `MLRUN_DBPATH=http://localhost:8080` or using `.env` files (see [setting client environment](./remote.md)).
@@ -79,7 +79,7 @@ export HOST_IP=<your host IP address>
 docker-compose -f compose.with-jupyter.yaml up
 ```
 
-Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands, it is recomended to select an address which does not change dynamically (for example the IP of the bridge interface). 
+Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands. It is recomended to select an address that does not change dynamically (for example the IP of the bridge interface). 
 ````
 
 ````{tabbed} Windows
@@ -93,12 +93,12 @@ Your `HOST_IP` address can be found using the `ipconfig` shell command, it is re
 ````
 
 This creates 4 services:
-1. Jupyter lab (in `http://localhost:8888`)
-1. MLRun API (in `http://localhost:8080`), running on the Jupyter container
-2. MLRun UI (in `http://localhost:8060`)
-3. Nuclio Dashboard/controller (in `http://localhost:8070`)
+- Jupyter lab (in `http://localhost:8888`)
+- MLRun API (in `http://localhost:8080`), running on the Jupyter container
+- MLRun UI (in `http://localhost:8060`)
+- Nuclio Dashboard/controller (in `http://localhost:8070`)
 
-After the installation, access the Jupyter server (in [http://localhost:8888](http://localhost:8888)) and run through the `quick-start` tutorial and `demos`.
+After the installation, access the Jupyter server (in [http://localhost:8888](http://localhost:8888)) and run through the [`quick-start` tutorial](./quick-start/quick-start.html) and `demos`.
 You can see the projects, tasks, and artifacts in MLRun UI (in [http://localhost:8060](http://localhost:8060))
 
 The Jupyter environment is pre-configured to work with the local MLRun and Nuclio services. 

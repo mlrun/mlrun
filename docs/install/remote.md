@@ -1,18 +1,19 @@
 # Setting a remote environment <!-- omit in toc -->
 
-MLRun allows you to use your code on a local machine while running your functions on a remote cluster. This tutorial explains how you can set this up.
+You can write your code on a local machine while running your functions on a remote cluster. This tutorial explains how you can set this up.
 
 **In this section**
 - [Prerequisites](#prerequisites)
 - [Configure remote environment](#configure-remote-environment)
   - [Set environment variables](#set-environment-variables)
+  - [Set environment variables in a terminal](#set-environment-variables-in-a-terminal)
 - [IDE configuration](#ide-configuration)
 - [Remote environment from PyCharm](#remote-environment-from-pycharm)
 - [Remote environment from VSCode](#remote-environment-from-vscode)
   - [Create environment file](#create-environment-file)
   - [Create Python debug configuration](#create-python-debug-configuration)
   - [Set environment file in debug configuration](#set-environment-file-in-debug-configuration)
-- [Set environment variables in a terminal](#set-environment-variables-in-a-terminal)
+
 
 <a id="prerequisites"></a>
 ## Prerequisites
@@ -27,10 +28,10 @@ Before you begin, ensure that the following prerequisites are met:
     pip install mlrun==<version>
     ```
 
-    If you already installed a previous version of MLRun, you should first uninstall it by running:
+    If you already installed a previous version of MLRun, upgrade it by running:
 
     ```sh
-    pip uninstall -y mlrun
+    pip install mlrun==<version> -u
     ```
 
 2. Ensure that you have remote access to your MLRun service (i.e., to the service URL on the remote Kubernetes cluster).
@@ -41,10 +42,10 @@ Before you begin, ensure that the following prerequisites are met:
 
 Set environment variables to define your MLRun configuration. As a minimum requirement:
 
-1. Set `MLRUN_DBPATH` to the URL of the remote MLRun database/API service; replace the `<...>` placeholders to identify your remote target:
+1. Set `MLRUN_DBPATH` to the URL of the remote MLRun database/API service:
 
     ```ini
-    MLRUN_DBPATH=<API endpoint of the MLRun APIs service endpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
+    MLRUN_DBPATH=<URL endpoint of the MLRun APIs service endpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
     ```
     
 2. To store the artifacts on the remote server, you need to set the `MLRUN_ARTIFACT_PATH` to the desired root folder of your 
@@ -64,7 +65,7 @@ artifact. You can use template values in the artifact path. The supported values
     MLRUN_ARTIFACT_PATH=/User/artifacts/{{project}}/{{run.uid}}
     ```
 
-3. If the remote service is on an instance of the Iguazio MLOps Platform (**"the platform"**), set the following environment variables as well; replace the `<...>` placeholders with the information for your specific platform cluster:
+3. If the remote service is on an instance of the Iguazio MLOps Platform (**"the platform"**), set the following environment variables as well:
 
     ```ini
     V3IO_USERNAME=<username of a platform user with access to the MLRun service>
@@ -76,7 +77,7 @@ artifact. You can use template values in the artifact path. The supported values
 
 ## IDE configuration
 
-## Remote environment from PyCharm
+### Remote environment from PyCharm
 
 You can use PyCharm with MLRun remote by changing the environment variables configuration.
 
@@ -92,11 +93,11 @@ You can use PyCharm with MLRun remote by changing the environment variables conf
 
     ![Environment variables](../_static/images/pycharm/remote-pycharm-environment_variables.png)
 
-## Remote environment from VSCode
+### Remote environment from VSCode
 
-### Create environment file
+#### Create environment file
 
-Create an environment file called `mlrun.env` in your workspace folder. Copy-paste the configuration below; replace the `<...>` placeholders to identify your remote target:
+Create an environment file called `mlrun.env` in your workspace folder. Copy-paste the configuration below:
 
 ``` ini
 # Remote URL to mlrun service
@@ -111,7 +112,9 @@ V3IO_API=<API endpoint of the webapi service endpoint; e.g., "https://default-te
 V3IO_ACCESS_KEY=<platform access key>
 ```
 
-> **Note**: Make sure that you add `.env` to your `.gitignore` file. The environment file contains sensitive information that you should not store in your source control.
+```{admonition} Note
+Make sure that you add `.env` to your `.gitignore` file. The environment file contains sensitive information that you should not store in your source control.
+```
 
 ### Create Python debug configuration
 
@@ -119,20 +122,22 @@ Create a [debug configuration in VSCode](https://code.visualstudio.com/docs/pyth
 
 To initialize debug configurations, first select the Run view in the sidebar:
 
-![Run icon](../_static/images/vscode/debug-icon.png)
+<img src="../_static/images/vscode/debug-icon.png" alt="run-icon" width="200" />
 
 If you don't yet have any configurations defined, you'll see a button to Run and Debug, as well as a link to create a configuration (launch.json) file:
 
-![Debug toolbar settings command](../_static/images/vscode/debug-start.png)
+<img src="../_static/images/vscode/debug-start.png" alt="debug-toolbar" width="400" />
 
-To generate a `launch.json` file with Python configurations, do the following steps:
+To generate a `launch.json` file with Python configurations:
 
 1. Click the **create a launch.json file** link (circled in the image above) or use the **Run** > **Open configurations** menu command.
 
 2. A configuration menu opens from the Command Palette. Select the type of debug configuration you want for the opened file. For now, in the **Select a debug configuration** menu that appears, select **Python File**.
 ![Debug configurations menu](../_static/images/vscode/debug-configurations.png)
 
-   > **Note** Starting a debugging session through the Debug Panel, **F5** or **Run > Start Debugging**, when no configuration exists will also bring up the debug configuration menu, but will not create a launch.json file.
+```{admonition} Note
+Starting a debugging session through the Debug Panel, **F5** or **Run > Start Debugging**, when no configuration exists also brings up the debug configuration menu, but does not create a launch.json file.
+```
 
 3. The Python extension then creates and opens a `launch.json` file that contains a pre-defined configuration based on what you previously selected, in this case **Python File**. You can modify configurations (to add arguments, for example), and also add custom configurations.
 

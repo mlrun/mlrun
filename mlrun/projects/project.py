@@ -291,7 +291,7 @@ def get_or_create_project(
         return project
 
     except mlrun.errors.MLRunNotFoundError:
-        spec_path = path.join(context, subpath, "project.yaml")
+        spec_path = path.join(context, subpath or "", "project.yaml")
         if url or path.isfile(spec_path):
             # load project from archive or local project.yaml
             project = load_project(
@@ -2620,4 +2620,6 @@ def _init_function_from_obj_legacy(func, project, name=None):
 
 
 def _has_module(handler, kind):
+    if not handler:
+        return False
     return (kind in RuntimeKinds.nuclio_runtimes() and ":" in handler) or "." in handler

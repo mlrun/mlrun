@@ -247,7 +247,6 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         run = project.run_function("myjob", local=True)
         assert run.state() == "completed"
         assert run.output("tag")
-        return
 
         # build and run job on the cluster
         project.build_function("myjob")

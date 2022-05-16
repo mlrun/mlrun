@@ -196,3 +196,68 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         mlrun.deploy_function(fn)
         resp = fn.invoke("")
         assert "tag=" in resp.decode()
+
+    def test_job_project(self):
+        project_name = "git-proj-job1"
+        project = mlrun.new_project(project_name, user_project=True)
+        project.set_source(f"{git_uri}#main", True)  # , workdir="gtst")
+        project.set_function(
+            name="myjob",
+            handler="rootfn.job_handler",
+            image="mlrun/mlrun",
+            kind="job",
+            with_repo=True,
+        )
+
+        run = project.run_function("myjob")
+        assert run.state() == "completed"
+        assert run.output("tag")
+        self._delete_test_project(project_name)
+
+    def test_nuclio_project(self):
+        project_name = "git-proj-nuc"
+        project = mlrun.new_project(project_name, user_project=True)
+        project.set_source(f"{git_uri}#main")
+        project.set_function(
+            name="mynuclio",
+            handler="rootfn:nuclio_handler",
+            image="mlrun/mlrun",
+            kind="nuclio",
+            with_repo=True,
+        )
+
+        deployment = project.deploy_function("mynuclio")
+        resp = deployment.function.invoke("")
+        assert "tag=" in resp.decode()
+        self._delete_test_project(project_name)
+
+    def test_project_subdir(self):
+        project_name = "git-proj2"
+
+        # load project into a tmp dir, look for the project.yaml in the subpath
+        project = mlrun.load_project(
+            tempfile.mkdtemp(),
+            f"{git_uri}#main",
+            project_name,
+            user_project=True,
+            subpath="subdir",
+        )
+
+        # run job locally (from cloned source)
+        run = project.run_function("myjob", local=True)
+        assert run.state() == "completed"
+        assert run.output("tag")
+        return
+
+        # build and run job on the cluster
+        project.build_function("myjob")
+        run = project.run_function("myjob")
+        assert run.state() == "completed"
+        assert run.output("tag")
+
+        # deploy Nuclio function and invoke
+        deployment = project.deploy_function("mynuclio")
+        resp = deployment.function.invoke("")
+        assert "tag=" in resp.decode()
+
+        self._delete_test_project(project_name)

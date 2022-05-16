@@ -15,7 +15,7 @@ MLRun enables production pipeline design using a modular strategy, where the dif
 
 MLRun uses **Serverless Function** technology: write the code once, using your preferred development environment and simple “local” semantics, and then run it as-is on different platforms and at scale. MLRun automates the build process, execution, data movement, scaling, versioning, parameterization, outputs tracking, CI/CD integration, deployment to production, monitoring, and more.
 
-Those easily developed data or ML “functions” can then be published or loaded from a marketplace and used later to form offline or real-time production pipelines with minimal engineering efforts.
+Those easily developed data or ML “functions” can then be published or loaded from a [marketplace](https://www.mlrun.org/marketplace/) and used later to form offline or real-time production pipelines with minimal engineering efforts.
 
 <p align="center"><img src="./docs/_static/images/mlrun-flow.png" alt="mlrun-flow" width="600"/></p><br>
 

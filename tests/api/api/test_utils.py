@@ -854,7 +854,6 @@ def test_generate_function_and_task_from_submit_run_body_imported_function_proje
 
 def test_get_obj_path(db: Session, client: TestClient):
     cases = [
-        {"path": "/local/path", "expected_path": "/local/path"},
         {
             "path": "/local/path",
             "schema": "v3io",
@@ -883,11 +882,6 @@ def test_get_obj_path(db: Session, client: TestClient):
         {
             "path": "/home/jovyan/data/my/path",
             "data_volume": "/home/jovyan/data",
-            "expected_path": "/home/jovyan/data/my/path",
-        },
-        {
-            "path": "/home/jovyan/data/my/path",
-            "data_volume": "/home/jovyan/data",
             "real_path": "/root",
             "expected_path": "/root/my/path",
         },
@@ -906,25 +900,40 @@ def test_get_obj_path(db: Session, client: TestClient):
         {
             "path": "/home/jovyan/data/my/path",
             "data_volume": "/home/jovyan/data",
-            "real_path": "/root",
+            "real_path": "/root/",
             "expected_path": "/root/my/path",
+        },
+        {"path": "/local/path", "expect_error": True},
+        {
+            "path": "/home/jovyan/data/my/path",
+            "data_volume": "/home/jovyan/data",
+            "expect_error": True,
         },
     ]
     for case in cases:
+        logger.info("Testing case", case=case)
         old_real_path = mlrun.mlconf.httpdb.real_path
         old_data_volume = mlrun.mlconf.httpdb.data_volume
         if case.get("real_path"):
             mlrun.mlconf.httpdb.real_path = case["real_path"]
         if case.get("data_volume"):
             mlrun.mlconf.httpdb.data_volume = case["data_volume"]
-        result_path = mlrun.api.api.utils.get_obj_path(
-            case.get("schema"), case.get("path"), case.get("user")
-        )
-        assert result_path == case["expected_path"]
-        if case.get("real_path"):
-            mlrun.mlconf.httpdb.real_path = old_real_path
-        if case.get("data_volume"):
-            mlrun.mlconf.httpdb.data_volume = old_data_volume
+        if case.get("expect_error"):
+            with pytest.raises(
+                mlrun.errors.MLRunAccessDeniedError, match="Unauthorized path"
+            ):
+                mlrun.api.api.utils.get_obj_path(
+                    case.get("schema"), case.get("path"), case.get("user")
+                )
+        else:
+            result_path = mlrun.api.api.utils.get_obj_path(
+                case.get("schema"), case.get("path"), case.get("user")
+            )
+            assert result_path == case["expected_path"]
+            if case.get("real_path"):
+                mlrun.mlconf.httpdb.real_path = old_real_path
+            if case.get("data_volume"):
+                mlrun.mlconf.httpdb.data_volume = old_data_volume
 
 
 def _mock_import_function(monkeypatch):

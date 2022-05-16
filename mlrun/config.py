@@ -519,6 +519,7 @@ class Config:
             # When instead of host we provided namespace we tackled this issue
             # https://github.com/canonical/bundle-kubeflow/issues/412
             # TODO: When we'll move to kfp 1.4.0 (server side) it should be resolved
+            # extra comment
             return f"http://ml-pipeline.{namespace}.svc.cluster.local:8888"
         return None
 

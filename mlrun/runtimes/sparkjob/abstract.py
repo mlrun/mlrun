@@ -307,7 +307,13 @@ class AbstractSparkRuntime(KubejobRuntime):
 
     def _validate(self, runobj: RunObject):
         # validating length limit for sparkjob's function name
-        verify_field_regex("run.metadata.name", runobj.metadata.name, sparkjob_name)
+        try:
+            verify_field_regex("run.metadata.name", runobj.metadata.name, sparkjob_name)
+
+        except mlrun.errors.MLRunInvalidArgumentError as e:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Job name '{runobj.metadata.name}' is not valid. The job name must be not longer than 29 characters."
+            )
 
         # validating existence of required fields
         if "requests" not in self.spec.executor_resources:

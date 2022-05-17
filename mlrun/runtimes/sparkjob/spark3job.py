@@ -41,6 +41,8 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         "executor_volume_mounts",
         "driver_java_options",
         "executor_java_options",
+        "driver_cores",
+        "executor_cores",
     ]
 
     def __init__(
@@ -95,6 +97,8 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         executor_volume_mounts=None,
         driver_java_options=None,
         executor_java_options=None,
+        driver_cores=None,
+        executor_cores=None,
     ):
 
         super().__init__(
@@ -152,6 +156,8 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         self.executor_volume_mounts = executor_volume_mounts or {}
         self.driver_java_options = driver_java_options
         self.executor_java_options = executor_java_options
+        self.driver_cores = driver_cores
+        self.executor_cores = executor_cores
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(
@@ -296,9 +302,18 @@ class Spark3Runtime(AbstractSparkRuntime):
         verify_and_update_in(
             job,
             "spec.driver.cores",
-            1,  # Must be set due to CRD validations. Will be overridden by coreRequest
+            self.spec.driver_cores or 1,
             int,
         )
+        # By default we set this to 1 in the parent class. Here we override the value if requested.
+        if self.spec.executor_cores:
+            verify_and_update_in(
+                job,
+                "spec.executor.cores",
+                self.spec.executor_cores,
+                int,
+            )
+
         if "requests" in self.spec.driver_resources:
             if "cpu" in self.spec.driver_resources["requests"]:
                 verify_and_update_in(
@@ -661,3 +676,25 @@ class Spark3Runtime(AbstractSparkRuntime):
             self._with_monitoring(
                 exporter_jar="/spark/jars/jmx_prometheus_javaagent-0.16.1.jar",
             )
+
+    def with_cores(self, executor_cores: int = None, driver_cores: int = None):
+        """
+        Allows to configure spark.executor.cores and spark.driver.cores parameters. The values must be integers, and
+        default to 1 if not specified.
+
+        :param executor_cores: Number of cores to use for executor
+        :param driver_cores:   Number of cores to use for driver
+        """
+        if executor_cores:
+            if not isinstance(executor_cores, int) or executor_cores < 1:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"executor_cores must be an integer greater than or equal to 1. Got: {executor_cores}"
+                )
+            self.spec.executor_cores = executor_cores
+
+        if driver_cores:
+            if not isinstance(driver_cores, int) or driver_cores < 1:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"driver_cores must be an integer greater than or equal to 1. Got: {driver_cores}"
+                )
+            self.spec.driver_cores = driver_cores

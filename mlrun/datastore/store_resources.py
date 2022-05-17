@@ -160,7 +160,7 @@ def get_store_resource(uri, db=None, secrets=None, project=None):
             link_iteration = (
                 resource.get("link_iteration", 0)
                 if is_legacy_artifact(resource)
-                else resource["metadata"].get("link_iteration", 0)
+                else resource["spec"].get("link_iteration", 0)
             )
 
             resource = db.read_artifact(

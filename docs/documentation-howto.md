@@ -29,7 +29,7 @@ Ask @yaronha to add you to the project if you don't have access.
 
 The master file is `docs/index.rst`
 
-##Language (usage) guidelines
+## Language (usage) guidelines
 
 **One idea per sentence**<br>
 Don’t join multiple ideas with commas. 

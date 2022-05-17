@@ -310,7 +310,7 @@ class AbstractSparkRuntime(KubejobRuntime):
         try:
             verify_field_regex("run.metadata.name", runobj.metadata.name, sparkjob_name)
 
-        except mlrun.errors.MLRunInvalidArgumentError as e:
+        except mlrun.errors.MLRunInvalidArgumentError:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Job name '{runobj.metadata.name}' is not valid. The job name must be not longer than 29 characters."
             )

@@ -69,7 +69,7 @@ has different traits with respect to what secrets can be passed and how they're 
 these parameters to make sure secrets are not compromised and that their secrecy is maintained.
 
 Generally speaking, the [Inline](#inline), [environment](#environment) and [file](#file) providers do not guarantee 
-confidentiality of the secret values handled by them and should only be used for development and demo purposes. 
+confidentiality of the secret values handled by them, and should only be used for development and demo purposes. 
 The [Kubernetes](#kubernetes) and [Azure Vault](#azure-vault) providers are secure and should be used for any 
 other use-case.
 

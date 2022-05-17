@@ -1,7 +1,7 @@
 # Creating a custom model serving class
 
 Model serving classes implement the full model serving functionality which include
-loading models, pre- and post-processing, prediction, explainability and model monitoring.
+loading models, pre- and post-processing, prediction, explainability, and model monitoring.
 
 Model serving classes must inherit from `mlrun.serving.V2ModelServer`, and at the minimum 
 implement the `load()` (download the model file(s) and load the model into memory) 
@@ -93,7 +93,7 @@ And it should return the specified response object.
 
 ## explain() method
 
-The explain method provides a hook for model explainability and is accessed using the `/explain` operation.
+The explain method provides a hook for model explainability, and is accessed using the `/explain` operation.
 
 ## pre/post and validate hooks
 

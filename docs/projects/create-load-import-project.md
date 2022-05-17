@@ -22,7 +22,7 @@ Projects can also be loaded and workflows/pipelines can be executed using the CL
 
 To define a new project from scratch, use {py:meth}`~mlrun.projects.new_project`. You must specify a `name`, 
 location for the `context` directory (e.g. `./`) and other optional parameters (see below).
-The `context` dir holds the configuration, code and workflow files. File paths in the project are relative to the context root.
+The `context` dir holds the configuration, code, and workflow files. File paths in the project are relative to the context root.
 
 ```python
     # create a project with local and marketplace functions

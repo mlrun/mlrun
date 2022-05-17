@@ -78,7 +78,7 @@ As an ML developer or data scientist, you typically want to write code in your p
 When you determine that the code is ready, you or someone else need to transfer the code to an automated ML workflow (for example, using [Kubeflow Pipelines](https://www.kubeflow.org/docs/pipelines/pipelines-quickstart/)).
 This pipeline should be secure and include capabilities such as logging and monitoring, as well as allow adjustments to relevant components and easy redeployment.
 
-However, the implementation is challenging: various environments ("runtimes") use different configurations, parameters and data sources.
+However, the implementation is challenging: various environments ("runtimes") use different configurations, parameters, and data sources.
 In addition, multiple frameworks and platforms are used to focus on different stages of the development life cycle.
 This leads to constant development and DevOps/MLOps work.
 
@@ -294,7 +294,7 @@ def xgb_train(context,
                       artifact_path=context.artifact_subpath('models'))
 ```
 
-The example training function can be executed locally with parameters and the run results and artifacts can be logged automatically into a database by using a single command, as demonstrated in the following example; the example sets the function's `eta` parameter:
+The example training function can be executed locally with parameters, and the run results and artifacts can be logged automatically into a database by using a single command, as demonstrated in the following example; the example sets the function's `eta` parameter:
 ```python
 train_run = run_local(handler=xgb_train, pramas={'eta': 0.3})
 ```
@@ -378,7 +378,7 @@ MLRun supports this by using two mechanisms:
 1. Clustering &mdash; run the code on a distributed processing engine (such as Dask, Spark, or Horovod).
 2. Load-balancing/partitioning &mdash; split (partition) the work across multiple workers.
 
-MLRun functions and tasks can accept hyperparameters or parameter lists, deploy many parallel workers and partition the work among the deployed workers.
+MLRun functions and tasks can accept hyperparameters or parameter lists, deploy many parallel workers, and partition the work among the deployed workers.
 The parallelism implementation is left to the runtime.
 Each runtime may have its own method of concurrent tasks execution.
 For example, the Nuclio serverless engine manages many micro threads in the same process, which can run multiple tasks in parallel.
@@ -541,7 +541,7 @@ def kfpipeline():
 <a id="db-operations"></a>
 ### Viewing Run Data and Performing Database Operations
 
-When you configure an MLRun database, the results, parameters and input and output artifacts of each run are recorded in the database.
+When you configure an MLRun database, the results, parameters, and input and output artifacts of each run are recorded in the database.
 You can view the results and perform operations on the database by using either of the following methods:
 
 - Using [the MLRun dashboard](#mlrun-ui)

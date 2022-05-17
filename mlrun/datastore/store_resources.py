@@ -16,7 +16,11 @@
 
 import mlrun
 from mlrun.config import config
-from mlrun.utils.helpers import parse_artifact_uri, parse_versioned_object_uri
+from mlrun.utils.helpers import (
+    is_legacy_artifact,
+    parse_artifact_uri,
+    parse_versioned_object_uri,
+)
 
 from ..platforms.iguazio import parse_v3io_path
 from ..utils import DB_SCHEMA, StorePrefix
@@ -153,10 +157,16 @@ def get_store_resource(uri, db=None, secrets=None, project=None):
         )
         if resource.get("kind", "") == "link":
             # todo: support other link types (not just iter, move this to the db/api layer
+            link_iteration = (
+                resource.get("link_iteration", 0)
+                if is_legacy_artifact(resource)
+                else resource["metadata"].get("link_iteration", 0)
+            )
+
             resource = db.read_artifact(
                 key,
                 tag=tag,
-                iter=resource.get("link_iteration", 0),
+                iter=link_iteration,
                 project=project,
             )
         if resource:

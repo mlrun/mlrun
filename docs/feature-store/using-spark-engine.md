@@ -292,8 +292,8 @@ source = SnowflakeSource(
     "customer_sf",
     query="select * from customer limit 100000",
     url="<url>",
-    user="nnnnnn",
-    password="nnnnnn",
+    user="<user>",
+    password="<password>",
     database="SNOWFLAKE_SAMPLE_DATA",
     schema="TPCH_SF1",
     warehouse="compute_wh",
@@ -307,6 +307,8 @@ fstore.ingest(feature_set, source, spark_context=spark)
 Spark ingestion from Azure can be executed both remotely and locally. The following code executes remote data ingestion from Azure.
 
 ```
+import mlrun
+
 # Initialize the MLRun project object
 project_name = "spark-azure-test"
 project = mlrun.get_or_create_project(project_name, context="./")
@@ -319,7 +321,7 @@ from mlrun.datastore.targets import ParquetTarget
 from mlrun import code_to_function
 import mlrun.feature_store as fstore
 
-feature_set = fs.FeatureSet("rides7", entities=[fs.Entity("ride_id")], engine="spark", timestamp_key="key")
+feature_set = fstore.FeatureSet("rides7", entities=[fstore.Entity("ride_id")], engine="spark", timestamp_key="key")
 
 source = CSVSource("rides", path="wasbs://warroom@mlrunwarroom.blob.core.windows.net/ny_taxi_train_subset_ride_id.csv")
 
@@ -334,7 +336,4 @@ target = ParquetTarget(partitioned = True, time_partitioning_granularity="month"
 feature_set.set_targets(targets=[target],with_defaults=False)
 
 fstore.ingest(feature_set, source, run_config=run_config, spark_context=spark_service_name)
-
-import mlrun
-import mlrun.feature_store as fs
 ```

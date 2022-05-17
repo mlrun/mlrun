@@ -120,12 +120,18 @@ open_archive_function = mlrun.import_function("hub://open_archive")
 # use mount_v3io() for iguazio volumes
 open_archive_function.apply(mount_v3io())
 ```
-You can specify the v3io path to use for the volume (`remote`), the volume mount path (`volume_mounts`), and security credentials, for example: `mlrun.platforms.mount_v3io(name='v3io', remote='', mount_path='', access_key='', user='', secret=None, volume_mounts=None)`. See full details in [mount_v3io](../api/mlrun.platforms.html#mlrun.platforms.mount_v3io).
+
+You can specify a list of the v3io path to use and how they map inside the container (using volume_mounts). For example: 
+```
+mlrun.mount_v3io(name='data',access_key='XYZ123..',volume_mounts=[mlrun.VolumeMount("/data", "projects/proj1/data")])
+```
+
+See full details in [mount_v3io](../api/mlrun.platforms.html#mlrun.platforms.mount_v3io).
+
 
 Alternatively, using a PVC volume:
 ```
-# use or mount_pvc() for k8s PVC volumes
-open_archive_function.apply(mount_pvc())
+mount_pvc(pvc_name="data-claim", volume_name="data", volume_mount_path="/data")
 ```
 
 See full details in [mount_pvc](../api/mlrun.platforms.html#mlrun.platforms.mount_pvc).
@@ -191,8 +197,7 @@ This example illustrates a function that cannot be scheduled on preemptible node
 ```
 import mlrun
 import os
-fn = mlrun.import_function("hub://xgb_trainer")
-fn.spec.build.base_image = "mlrun/ml-models-gpu"
+train_fn = mlrun.code_to_function('training', kind='job',handler='my_training_function') train_fn.with_preemption_mode(mode="prevent") train_fn.run(inputs={"dataset" :my_data})
 
 # Don't allow the function to run on Spot nodes
 fn.with_preemption_mode(mode="prevent")
@@ -202,8 +207,7 @@ task_params = {"model_type": "classifier",
                "CLASS_booster": "gbtree",
                "FIT_verbose": 0,
                "label_column": "labels"}
- 
-   
+    
 train_run = fn.run(params = task_params, 
                    inputs={"dataset"  : 'https://s3.wasabisys.com/iguazio/data/function-marketplace-data/xgb_trainer/classifier-data.csv',
                            "models_dest": os.getcwd() + "/"+"models"})
@@ -216,8 +220,7 @@ Alternatively, you can specify the preemption using `with_priority_class` and `f
 ```
 import mlrun
 import os
-fn = mlrun.import_function("hub://xgb_trainer")
-fn.spec.build.base_image = "mlrun/ml-models-gpu"
+train_fn = mlrun.code_to_function('training',kind='job',handler='my_training_function') train_fn.with_preemption_mode(mode="prevent") train_fn.run(inputs={"dataset" :my_data})
 
 fn.with_priority_class(name="default-priority")
 fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle":"non-preemptible"})
@@ -275,18 +278,8 @@ For example:
 ```
 import mlrun
 import os
-fn = mlrun.import_function("hub://xgb_trainer")
-fn.spec.build.base_image = "mlrun/ml-models-gpu"
+train_fn = mlrun.code_to_function('training',kind='job',handler='my_training_function') train_fn.with_preemption_mode(mode="prevent") train_fn.run(inputs={"dataset" :my_data})
 
-# Increase function limits beyond default values, and require GPUs
-fn.with_limits(mem="16G", cpu="4", gpus="2")
-task_params = {"model_type": "classifier",
-               "CLASS_tree_method": "hist",
-               "CLASS_objective": "binary:logistic",
-               "CLASS_booster": "gbtree",
-               "FIT_verbose": 0,
-               "label_column": "labels"}
-               
 # Add priority
 func.with_priority_class(name={value})
  
@@ -336,18 +329,8 @@ For example:
 ```
 import mlrun
 import os
-fn = mlrun.import_function("hub://xgb_trainer")
-fn.spec.build.base_image = "mlrun/ml-models-gpu"
-
-# Increase function limits beyond default values, and require GPUs
-fn.with_limits(mem="16G", cpu="4", gpus="2")
-task_params = {"model_type": "classifier",
-               "CLASS_tree_method": "hist",
-               "CLASS_objective": "binary:logistic",
-               "CLASS_booster": "gbtree",
-               "FIT_verbose": 0,
-               "label_column": "labels"}
-               
+train_fn = mlrun.code_to_function('training',kind='job',handler='my_training_function') train_fn.with_preemption_mode(mode="prevent") train_fn.run(inputs={"dataset" :my_data})
+            
 # Add node selection
 func.with_node_selection(node_selector={name})
  

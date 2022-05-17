@@ -8,7 +8,7 @@ MLRun supports:
 - Real-time functions for: serving, APIs, and stream processing (based on the high-performance Nuclio engine).
 - Batch functions (based on Kubernetes jobs, Spark, Dask, Horovod, etc.)
 
-Function objects are all inclusive (code, spec, API, and metadata definitions), which allows placing them in a shared and versioned function marketplace. This means that different members of the team can produce or consume functions. Each function is versioned and stored in the MLRun database with a unique hash code and gets a new hash code upon changes. There is also an open public marketplace that stores many pre-developed functions for use in your projects.
+Function objects are all inclusive (code, spec, API, and metadata definitions), which allows placing them in a shared and versioned function marketplace. This means that different members of the team can produce or consume functions. Each function is versioned and stored in the MLRun database with a unique hash code, and gets a new hash code upon changes. There is also an open public marketplace that stores many pre-developed functions for use in your projects.
 
 MLRun also has an open [public marketplace](https://www.mlrun.org/marketplace/functions/) that stores many pre-developed functions for
 use in your projects. 

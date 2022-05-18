@@ -84,6 +84,10 @@ Usage:
       (note that MLRUN_DBPATH and V3IO_xxx vars are not written to the project secrets)
    - `function.set_envs()` set the pod environment variables from key/value dict or .env file
 
+```{admonition}Note
+The V3IO API is determined automatically. If you want to connect to a different V3IO service, set the service in the variable `V3IO_API=<API endpoint of the webapi service endpoint; e.g., "https://default-tenant.app.mycluster.iguazio.com:8444">`
+```
+
 ```
 # set the env vars from a file and also return the results as a dict (e.g. for using in a function)
 env_dict = mlrun.set_env_from_file(env_path, return_dict=True)

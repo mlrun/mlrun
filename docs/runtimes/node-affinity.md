@@ -58,8 +58,10 @@ Configure the limits assigned to a function by using `with_limits`. For example:
 ```
 import mlrun
 import os
-fn = mlrun.import_function("hub://xgb_trainer")
-fn.spec.build.base_image = "mlrun/ml-models-gpu"
+train_fn = mlrun.code_to_function('training', 
+                            kind='job', 
+                            handler='my_training_function') 
+train_fn.run(inputs={"dataset" :my_data})
 
 # Increase function limits beyond default values, and require GPUs
 fn.with_limits(mem="16G", cpu="4", gpus="2")
@@ -127,7 +129,6 @@ mlrun.mount_v3io(name='data',access_key='XYZ123..',volume_mounts=[mlrun.VolumeMo
 ```
 
 See full details in [mount_v3io](../api/mlrun.platforms.html#mlrun.platforms.mount_v3io).
-
 
 Alternatively, using a PVC volume:
 ```
@@ -197,20 +198,13 @@ This example illustrates a function that cannot be scheduled on preemptible node
 ```
 import mlrun
 import os
-train_fn = mlrun.code_to_function('training', kind='job',handler='my_training_function') train_fn.with_preemption_mode(mode="prevent") train_fn.run(inputs={"dataset" :my_data})
 
-# Don't allow the function to run on Spot nodes
-fn.with_preemption_mode(mode="prevent")
-task_params = {"model_type": "classifier",
-               "CLASS_tree_method": "hist",
-               "CLASS_objective": "binary:logistic",
-               "CLASS_booster": "gbtree",
-               "FIT_verbose": 0,
-               "label_column": "labels"}
-    
-train_run = fn.run(params = task_params, 
-                   inputs={"dataset"  : 'https://s3.wasabisys.com/iguazio/data/function-marketplace-data/xgb_trainer/classifier-data.csv',
-                           "models_dest": os.getcwd() + "/"+"models"})
+train_fn = mlrun.code_to_function('training', 
+                            kind='job', 
+                            handler='my_training_function') 
+train_fn.with_preemption_mode(mode="prevent") 
+train_fn.run(inputs={"dataset" :my_data})
+   
 ```
 
 See [`with_preemption_mode`](../api/mlrun.runtimes.html#RemoteRuntime.with_preemption_mode).
@@ -220,22 +214,15 @@ Alternatively, you can specify the preemption using `with_priority_class` and `f
 ```
 import mlrun
 import os
-train_fn = mlrun.code_to_function('training',kind='job',handler='my_training_function') train_fn.with_preemption_mode(mode="prevent") train_fn.run(inputs={"dataset" :my_data})
+train_fn = mlrun.code_to_function('training', 
+                            kind='job', 
+                            handler='my_training_function') 
+train_fn.with_preemption_mode(mode="prevent") 
+train_fn.run(inputs={"dataset" :my_data})
 
 fn.with_priority_class(name="default-priority")
 fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle":"non-preemptible"})
 
-task_params = {"model_type": "classifier",
-               "CLASS_tree_method": "hist",
-               "CLASS_objective": "binary:logistic",
-               "CLASS_booster": "gbtree",
-               "FIT_verbose": 0,
-               "label_column": "labels"}
- 
-   
-train_run = fn.run(params = task_params, 
-                   inputs={"dataset"  : 'https://s3.wasabisys.com/iguazio/data/function-marketplace-data/xgb_trainer/classifier-data.csv',
-                           "models_dest": os.getcwd() + "/"+"models"})
 ```
                            
 See [`with_node_selection`](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.with_node_selection).
@@ -278,15 +265,12 @@ For example:
 ```
 import mlrun
 import os
-train_fn = mlrun.code_to_function('training',kind='job',handler='my_training_function') train_fn.with_preemption_mode(mode="prevent") train_fn.run(inputs={"dataset" :my_data})
-
-# Add priority
-func.with_priority_class(name={value})
+train_fn = mlrun.code_to_function('training', 
+                            kind='job', 
+                            handler='my_training_function') 
+train_fn.with_priority_class(name={value})
+train_fn.run(inputs={"dataset" :my_data})
  
-   
-train_run = fn.run(params = task_params, 
-                   inputs={"dataset"  : 'https://s3.wasabisys.com/iguazio/data/function-marketplace-data/xgb_trainer/classifier-data.csv',
-                           "models_dest": os.getcwd() + "/"+"models"})
 ```
 
 
@@ -329,16 +313,15 @@ For example:
 ```
 import mlrun
 import os
-train_fn = mlrun.code_to_function('training',kind='job',handler='my_training_function') train_fn.with_preemption_mode(mode="prevent") train_fn.run(inputs={"dataset" :my_data})
+train_fn = mlrun.code_to_function('training', 
+                            kind='job', 
+                            handler='my_training_function') 
+train_fn.with_preemption_mode(mode="prevent") 
+train_fn.run(inputs={"dataset" :my_data})
+
             
 # Add node selection
 func.with_node_selection(node_selector={name})
- 
-   
-train_run = fn.run(params = task_params, 
-                   inputs={"dataset"  : 'https://s3.wasabisys.com/iguazio/data/function-marketplace-data/xgb_trainer/classifier-data.csv',
-                           "models_dest": os.getcwd() + "/"+"models"})
 ```
-
 
 See [`with_node_selection`](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.with_node_selection).

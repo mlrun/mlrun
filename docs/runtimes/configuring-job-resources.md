@@ -5,20 +5,6 @@ logical function object. These are used during the function deployment.
 
 Configuration of job resources is relevant for all supported cloud platforms.
 
-<!--
-  ## Function!!!!!! Resources: limit and request CPU, GPU, and Memory  
-
-  You can configure how much of each resource a function needs. Kubernetes uses this information when placing a pod on a node. The memory and 
-  CPU configurations that you specify in the service are applied to each replica. Limits and requests are supported for all services.
-
-  Service limit!
-
-  When creating a new function, set the **Memory** and **CPU** in the **Common Parameters** tab, under **Resources** .
-
-  Modify the Memory, CPU, GPU for an ML function by pressing **ML functions**, then press **<img src="../_static/images/kebab-menu.png" width="25"/>** 
-  of the function, and select **Edit** and scroll to the **Resources** section.
--->
-
 **In this section**
 - [Replicas](#replicas)
 - [CPU, GPU, and memory limits for user jobs](#cpu-gpu-and-memory-limits-for-user-jobs)

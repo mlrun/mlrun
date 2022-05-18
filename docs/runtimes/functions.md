@@ -35,7 +35,7 @@ using-functions
 mlrun_code_annotations
 code-archive
 mlrun_jobs
-node-affinity
+cfg-job-resources
 function-storage
 load-from-marketplace
 ```

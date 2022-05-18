@@ -15,6 +15,7 @@ import re
 import typing
 from subprocess import run
 
+import mlrun.runtimes
 from mlrun.config import config
 
 from ..model import RunObject
@@ -189,6 +190,8 @@ class RemoteSparkRuntime(KubejobRuntime):
 
 
 class RemoteSparkRuntimeHandler(KubeRuntimeHandler):
+    kind = "remote-spark"
+
     @staticmethod
     def _are_resources_coupled_to_run_object() -> bool:
         return True

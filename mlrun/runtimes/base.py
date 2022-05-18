@@ -1119,6 +1119,7 @@ def is_local(url):
 
 class BaseRuntimeHandler(ABC):
     # setting here to allow tests to override
+    kind = "base"
     wait_for_deletion_interval = 10
 
     @staticmethod
@@ -1298,14 +1299,17 @@ class BaseRuntimeHandler(ABC):
                     try:
                         if not run:
                             run = db.read_run(db_session, run_uid, project)
-                        self._ensure_run_not_stuck_on_non_terminal_state(
-                            db,
-                            db_session,
-                            project,
-                            run_uid,
-                            run,
-                            run_runtime_resources_map,
-                        )
+                        if self.kind == run.get("metadata", {}).get("labels", {}).get(
+                            "kind", ""
+                        ):
+                            self._ensure_run_not_stuck_on_non_terminal_state(
+                                db,
+                                db_session,
+                                project,
+                                run_uid,
+                                run,
+                                run_runtime_resources_map,
+                            )
                     except Exception as exc:
                         logger.warning(
                             "Failed ensuring run not stuck. Continuing",

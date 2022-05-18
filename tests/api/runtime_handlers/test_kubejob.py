@@ -17,7 +17,8 @@ from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
     def custom_setup(self):
-        self.runtime_handler = get_runtime_handler(RuntimeKinds.job)
+        self.kind = self._get_class_name()
+        self.runtime_handler = get_runtime_handler(self._get_class_name())
         self.runtime_handler.wait_for_deletion_interval = 0
 
         job_labels = {

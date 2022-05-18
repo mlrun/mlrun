@@ -85,7 +85,7 @@ Usage:
    - `function.set_envs()` set the pod environment variables from key/value dict or .env file
 
 ```{admonition} Note
-The V3IO API is determined automatically. If you want to connect to a different V3IO service, set the service in the variable `V3IO_API=<API endpoint of the webapi service endpoint; e.g., "https://default-tenant.app.mycluster.iguazio.com:8444">`
+The V3IO API is determined automatically. If you want to connect to a different V3IO service, set the service in the variable,br. `V3IO_API=<API endpoint of the webapi service endpoint; e.g., "https://default-tenant.app.mycluster.iguazio.com:8444">`
 ```
 
 ```

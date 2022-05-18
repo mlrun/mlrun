@@ -1349,7 +1349,7 @@ class BaseRuntimeHandler(ABC):
                 db_run_state=db_run_state,
                 now=now,
             )
-            run.setdefault("status", {})["state"] = RunStates.absent
+            run.setdefault("status", {})["state"] = RunStates.error
             run.setdefault("status", {})["last_update"] = now.isoformat()
             db.store_run(db_session, run, run_uid, project)
             return
@@ -1382,7 +1382,7 @@ class BaseRuntimeHandler(ABC):
             ):
                 # we are setting non-terminal states to runs before the run is actually applied to k8s, meaning there is
                 # a timeframe where the run exists and no runtime resources exist and it's ok, therefore we're applying
-                # a debounce period before setting the state to absent
+                # a debounce period before setting the state to error
                 logger.warning(
                     "Monitoring did not discover a runtime resource that corresponded to a run in a "
                     "non-terminal state. but record has recently updated. Debouncing",
@@ -1395,9 +1395,9 @@ class BaseRuntimeHandler(ABC):
                 )
             else:
                 logger.info(
-                    "Updating run state", run_uid=run_uid, run_state=RunStates.absent
+                    "Updating run state", run_uid=run_uid, run_state=RunStates.error
                 )
-                run.setdefault("status", {})["state"] = RunStates.absent
+                run.setdefault("status", {})["state"] = RunStates.error
                 run.setdefault("status", {})["last_update"] = now.isoformat()
                 db.store_run(db_session, run, run_uid, project)
 

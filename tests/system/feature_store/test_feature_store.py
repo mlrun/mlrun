@@ -2529,9 +2529,7 @@ class TestFeatureStore(TestMLRunSystem):
             "fs-new.department_Marketing",
         ]
 
-        my_fv = fs.FeatureVector(
-            fv_name, features, description="my feature vector"
-        )
+        my_fv = fs.FeatureVector(fv_name, features, description="my feature vector")
         my_fv.save()
         train_dataset = fs.get_offline_features(
             fv_name,

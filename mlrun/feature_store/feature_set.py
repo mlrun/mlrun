@@ -599,7 +599,7 @@ class FeatureSet(ModelObj):
                            they cause errors in the ingestion.
         :param operations: aggregation operations, e.g. ['sum', 'std']
         :param windows:    time windows, can be a single window, e.g. '1h', '1d',
-                            or a list of same unit windows e.g ['1h', '6h']
+                            or a list of same unit windows e.g. ['1h', '6h']
                             windows are transformed to fixed windows or
                             sliding windows depending whether period parameter
                             provided.
@@ -617,7 +617,7 @@ class FeatureSet(ModelObj):
                               to a specific window. It is processed only once
                               (when the query processes the window to which the record belongs).
         :param period:     optional, sliding window granularity, e.g. '20s' '10m'  '3h' '7d'
-        :param name:       optional, aggregation name/prefix. Must be unique per feature set.If not passed,
+        :param name:       optional, aggregation name/prefix. Must be unique per feature set. If not passed,
                             the column will be used as name.
         :param step_name: optional, graph step name
         :param state_name: *Deprecated* - use step_name instead

@@ -526,7 +526,7 @@ class HTTPRunDB(RunDBInterface):
         :param labels: List runs that have a specific label assigned. Currently only a single label filter can be
             applied, otherwise result will be empty.
         :param state: List only runs whose state is specified.
-        :param sort: Whether to sort the result according to their start time. Otherwise results will be
+        :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
         :param last: Deprecated - currently not used.
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.

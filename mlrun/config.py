@@ -431,7 +431,7 @@ class Config:
     ):
         """
         decodes and loads the config attribute to expected type
-        :param attribute_path: the path in the default_config e.g preemptible_nodes.node_selector
+        :param attribute_path: the path in the default_config e.g. preemptible_nodes.node_selector
         :param expected_type: the object type valid values are : `dict`, `list` etc...
         :return: the expected type instance
         """
@@ -581,8 +581,8 @@ class Config:
     ):
         """
         :param requirement: kubernetes requirement resource one of the following : requests, limits
-        :param with_gpu: whether to return requirement resources with nvidia.com/gpu field (e.g you cannot specify GPU
-         requests without specifying GPU limits) https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
+        :param with_gpu: whether to return requirement resources with nvidia.com/gpu field (e.g. you cannot specify
+         GPU requests without specifying GPU limits) https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
         :return: a dict containing the defaults resources (cpu, memory, nvidia.com/gpu)
         """
         resources: dict = copy.deepcopy(config.default_function_pod_resources.to_dict())

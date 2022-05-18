@@ -1573,7 +1573,7 @@ class MlrunProject(ModelObj):
     def with_secrets(self, kind, source, prefix=""):
         """register a secrets source (file, env or dict)
 
-        read secrets from a source provider to be used in workflows,example::
+        read secrets from a source provider to be used in workflows, example::
 
             proj.with_secrets('file', 'file.txt')
             proj.with_secrets('inline', {'key': 'val'})
@@ -2185,7 +2185,7 @@ class MlrunProject(ModelObj):
         :param labels: List runs that have a specific label assigned. Currently only a single label filter can be
             applied, otherwise result will be empty.
         :param state: List only runs whose state is specified.
-        :param sort: Whether to sort the result according to their start time. Otherwise results will be
+        :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
         :param last: Deprecated - currently not used.
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.

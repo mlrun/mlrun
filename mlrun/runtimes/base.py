@@ -1119,6 +1119,7 @@ def is_local(url):
 
 class BaseRuntimeHandler(ABC):
     # setting here to allow tests to override
+    kind = "base"
     wait_for_deletion_interval = 10
 
     @staticmethod
@@ -1298,14 +1299,17 @@ class BaseRuntimeHandler(ABC):
                     try:
                         if not run:
                             run = db.read_run(db_session, run_uid, project)
-                        self._ensure_run_not_stuck_on_non_terminal_state(
-                            db,
-                            db_session,
-                            project,
-                            run_uid,
-                            run,
-                            run_runtime_resources_map,
-                        )
+                        if self.kind == run.get("metadata", {}).get("labels", {}).get(
+                            "kind", ""
+                        ):
+                            self._ensure_run_not_stuck_on_non_terminal_state(
+                                db,
+                                db_session,
+                                project,
+                                run_uid,
+                                run,
+                                run_runtime_resources_map,
+                            )
                     except Exception as exc:
                         logger.warning(
                             "Failed ensuring run not stuck. Continuing",
@@ -1345,7 +1349,7 @@ class BaseRuntimeHandler(ABC):
                 db_run_state=db_run_state,
                 now=now,
             )
-            run.setdefault("status", {})["state"] = RunStates.absent
+            run.setdefault("status", {})["state"] = RunStates.error
             run.setdefault("status", {})["last_update"] = now.isoformat()
             db.store_run(db_session, run, run_uid, project)
             return
@@ -1378,7 +1382,7 @@ class BaseRuntimeHandler(ABC):
             ):
                 # we are setting non-terminal states to runs before the run is actually applied to k8s, meaning there is
                 # a timeframe where the run exists and no runtime resources exist and it's ok, therefore we're applying
-                # a debounce period before setting the state to absent
+                # a debounce period before setting the state to error
                 logger.warning(
                     "Monitoring did not discover a runtime resource that corresponded to a run in a "
                     "non-terminal state. but record has recently updated. Debouncing",
@@ -1391,9 +1395,9 @@ class BaseRuntimeHandler(ABC):
                 )
             else:
                 logger.info(
-                    "Updating run state", run_uid=run_uid, run_state=RunStates.absent
+                    "Updating run state", run_uid=run_uid, run_state=RunStates.error
                 )
-                run.setdefault("status", {})["state"] = RunStates.absent
+                run.setdefault("status", {})["state"] = RunStates.error
                 run.setdefault("status", {})["last_update"] = now.isoformat()
                 db.store_run(db_session, run, run_uid, project)
 

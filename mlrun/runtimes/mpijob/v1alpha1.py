@@ -151,6 +151,8 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
 
 
 class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
+    kind = "mpijob"
+
     def _resolve_crd_object_status_info(
         self, db: DBInterface, db_session: Session, crd_object
     ) -> typing.Tuple[bool, typing.Optional[datetime], typing.Optional[str]]:

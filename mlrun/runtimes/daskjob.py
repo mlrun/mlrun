@@ -630,6 +630,7 @@ def get_obj_status(selector=[], namespace=None):
 
 
 class DaskRuntimeHandler(BaseRuntimeHandler):
+    kind = "dask"
 
     # Dask runtime resources are per function (and not per run).
     # It means that monitoring runtime resources state doesn't say anything about the run state.

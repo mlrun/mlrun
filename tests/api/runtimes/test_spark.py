@@ -63,8 +63,6 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         expected_executor_volume_mounts: typing.Optional[list] = None,
         expected_driver_java_options=None,
         expected_executor_java_options=None,
-        expected_driver_resources: dict = None,
-        expected_executor_resources: dict = None,
         expected_cores: dict = None,
     ):
         if assert_create_custom_object_called:
@@ -84,13 +82,6 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         self._assert_java_options(
             body, expected_driver_java_options, expected_executor_java_options
         )
-
-        if expected_driver_resources:
-            self._assert_resources(body["spec"]["driver"], expected_driver_resources)
-        if expected_executor_resources:
-            self._assert_resources(
-                body["spec"]["executor"], expected_executor_resources
-            )
 
         if expected_cores:
             self._assert_cores(body["spec"], expected_cores)
@@ -145,51 +136,6 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
         self.execute_function(runtime)
         self._assert_custom_object_creation_config()
-
-    def test_run_without_required_resources(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
-    ):
-        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
-            set_resources=False
-        )
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
-            self.execute_function(runtime)
-        assert exc.value.args[0] == "Sparkjob must contain executor requests"
-
-    def test_run_with_limits_and_requests(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
-    ):
-        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
-            set_resources=False
-        )
-
-        expected_executor = {
-            "requests": {"cpu": "1", "mem": "1G"},
-            "limits": {"cpu": "2", "gpu_type": "nvidia.com/gpu", "gpus": 1},
-        }
-        expected_driver = {
-            "requests": {"cpu": "2", "mem": "512m"},
-            "limits": {"cpu": "3", "gpu_type": "nvidia.com/gpu", "gpus": 1},
-        }
-
-        runtime.with_executor_requests(cpu="1", mem="1G")
-        runtime.with_executor_limits(cpu="2", gpus=1)
-
-        runtime.with_driver_requests(cpu="2", mem="512m")
-        runtime.with_driver_limits(cpu="3", gpus=1)
-
-        expected_cores = {
-            "executor": 8,
-            "driver": 2,
-        }
-        runtime.with_cores(expected_cores["executor"], expected_cores["driver"])
-
-        self.execute_function(runtime)
-        self._assert_custom_object_creation_config(
-            expected_driver_resources=expected_driver,
-            expected_executor_resources=expected_executor,
-            expected_cores=expected_cores,
-        )
 
     def test_run_with_host_path_volume(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient

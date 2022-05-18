@@ -29,7 +29,6 @@ See more details in [Dask](../runtimes/dask-overview), [MPIJob and Horovod](../r
 When you create a pod in an MLRun job or Nuclio function, the pod has default CPU and memory limits. When the job runs, it can consume 
 resources up to the limits defined. The default limits are set at the service level. You can change the default limit for the service, and 
 also overwrite the default when creating a job, or a function. 
-<!-- The default values are: -->
 
 See more about [Kubernetes Resource Management for Pods and Containers](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/).
 

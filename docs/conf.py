@@ -36,7 +36,7 @@ project = "mlrun"
 copyright = "2022, Iguazio"
 author = "Iguazio"
 
-master_doc = "index"
+master_doc = "contents"
 
 # The short X.Y version
 version = current_version()
@@ -59,6 +59,7 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx_copybutton",
     "sphinx_togglebutton",
+    "sphinx_panels",
 ]
 
 # Add any paths that contain templates here, relative to this directory.

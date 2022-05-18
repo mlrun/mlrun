@@ -15,7 +15,6 @@ import re
 import typing
 from subprocess import run
 
-import mlrun.runtimes
 from mlrun.config import config
 
 from ..model import RunObject

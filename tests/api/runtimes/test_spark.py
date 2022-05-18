@@ -316,7 +316,8 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         else:
             runtime.with_cores(executor_cores=executor_cores, driver_cores=driver_cores)
 
-        expected_cores = {"executor": executor_cores or 1, "driver": driver_cores}
+        # By default, if not specified otherwise, the cores are set to 1
+        expected_cores = {"executor": executor_cores or 1, "driver": driver_cores or 1}
 
         self.execute_function(runtime)
         self._assert_custom_object_creation_config(expected_cores=expected_cores)

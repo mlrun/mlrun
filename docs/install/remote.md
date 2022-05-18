@@ -53,7 +53,6 @@ Set environment variables to define your MLRun configuration. As a minimum requi
 
     ```ini
     V3IO_USERNAME=<username of a platform user with access to the MLRun service>
-    V3IO_API=<API endpoint of the webapi service endpoint; e.g., "https://default-tenant.app.mycluster.iguazio.com:8444">
     V3IO_ACCESS_KEY=<platform access key>
     ```
 
@@ -72,7 +71,6 @@ Example env file:
 ```
 # this is an env file
 V3IO_USERNAME=admin
-V3IO_API=https://webapi.default-tenant.app.xxx.iguazio-cd1.com
 V3IO_ACCESS_KEY=MYKEY123
 MLRUN_DBPATH=https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com
 AWS_ACCESS_KEY_ID=XXXX
@@ -140,7 +138,6 @@ MLRUN_ARTIFACT_PATH=<remote path; e.g., "/User/artifacts/{{run.project}}">
 # Iguazio platform username
 V3IO_USERNAME=<username of a platform user with access to the MLRun service>
 # V3IO data access API URL (copy from the services screen)
-V3IO_API=<API endpoint of the webapi service endpoint; e.g., "https://default-tenant.app.mycluster.iguazio.com:8444">
 # Iguazio V3IO data layer credentials (copy from your user settings)
 V3IO_ACCESS_KEY=<platform access key>
 ```

@@ -112,7 +112,7 @@ def get_offline_features(
     for time alignment you can use the verb "floor" e.g. "now -1d floor 1H" will align the time to the last hour
     (the floor string is passed to pandas.Timestamp.floor(), can use D, H, T, S for day, hour, min, sec alignment).
 
-    example::
+    examples_1::
 
         features = [
             "stock-quotes.bid",
@@ -127,6 +127,35 @@ def get_offline_features(
         print(resp.to_dataframe())
         print(vector.get_stats_table())
         resp.to_parquet("./out.parquet")
+
+    examples_2::
+
+        names = ['A', 'B', 'C', 'D', 'E']
+        ages = [33, 4, 76, 90, 24]
+        department = ['IT', 'RD', 'RD', 'Marketing', 'IT']
+        data = pd.DataFrame({'name': names, 'age': ages, 'department': department}, index=[0,1,2,3,4])
+        one_hot_encoder_mapping = {
+            "department": list(data["department"].unique()),
+        }
+        data_set = fstore.FeatureSet("fs-new",
+                                     entities=[fstore.Entity("id")],
+                                     description="feature set")
+        data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
+        data_set.set_targets()
+        data_set.plot(rankdir="LR", with_targets=True)
+        df = fstore.ingest(data_set, data,
+                           infer_options=fstore.InferOptions.default())
+
+        fv_name = 'new-fv'
+        features = ['fs-new.name', 'fs-new.age', 'fs-new.department_RD', 'fs-new.department_IT',
+                    'fs-new.department_Marketing']
+        transactions_fv = fstore.FeatureVector(fv_name,
+                                               features,
+                                               description='my feature vector')
+        transactions_fv.save()
+        train_dataset = fstore.get_offline_features(fv_name, target=ParquetTarget(),
+                                                    filter="age>6 and department_RD==1")
+        print(train_dataset.to_dataframe()).head(3))
 
     :param feature_vector: feature vector uri or FeatureVector object. passing feature vector obj requires update
                             permissions

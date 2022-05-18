@@ -58,7 +58,7 @@ class DaskFeatureMerger(BaseMerger):
 
         # filter joined data frame
         if filter:
-            self._result_df = self._result_df.query(filter).compute()
+            self._result_df = self._result_df.query(filter)
 
         self._result_df = self._result_df.drop(
             columns=self._drop_columns, errors="ignore"

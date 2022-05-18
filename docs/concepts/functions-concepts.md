@@ -23,7 +23,6 @@ use in your projects.
 functions-overview
 ../runtimes/distributed
 nuclio-real-time-functions
-../runtimes/node-affinity
 ```
 
 See also [Creating and using functions](../runtimes/functions).

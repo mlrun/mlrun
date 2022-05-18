@@ -56,26 +56,11 @@ When creating a job or a function, overwrite the default **Memory**, **CPU**, or
 Configure the limits assigned to a function by using `with_limits`. For example:
 
 ```
-import mlrun
-import os
-train_fn = mlrun.code_to_function('training', 
-                            kind='job', 
-                            handler='my_training_function') 
-train_fn.run(inputs={"dataset" :my_data})
-
-# Increase function limits beyond default values, and require GPUs
-fn.with_limits(mem="16G", cpu="4", gpus="2")
-task_params = {"model_type": "classifier",
-               "CLASS_tree_method": "hist",
-               "CLASS_objective": "binary:logistic",
-               "CLASS_booster": "gbtree",
-               "FIT_verbose": 0,
-               "label_column": "labels"}
- 
-   
-train_run = fn.run(params = task_params, 
-                   inputs={"dataset"  : 'https://s3.wasabisys.com/iguazio/data/function-marketplace-data/xgb_trainer/classifier-data.csv',
-                           "models_dest": os.getcwd() + "/"+"models"})
+training_function = mlrun.code_to_function("training.py", name="training", handler="train", 
+                                                                       kind="mpijob", image="mlrun/ml-models-gpu")
+training_function.spec.replicas = 2
+training_function.with_requests(cpu=2)
+training_function.gpus(1)
 ```
 
 ```{admonition} Note

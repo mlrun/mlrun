@@ -679,11 +679,20 @@ class Spark3Runtime(AbstractSparkRuntime):
 
     def with_cores(self, executor_cores: int = None, driver_cores: int = None):
         """
-        Allows to configure spark.executor.cores and spark.driver.cores parameters. The values must be integers, and
-        default to 1 if not specified.
+        Allows to configure spark.executor.cores and spark.driver.cores parameters. The values must be integers
+        greater than or equal to 1. If a parameter is not specified, it defaults to 1.
 
-        :param executor_cores: Number of cores to use for executor
-        :param driver_cores:   Number of cores to use for driver
+        Spark operator has multiple options to control the number of cores available to the executor and driver.
+        The .coreLimit and .coreRequest parameters can be set for both executor and driver,
+        but they only controls the k8s properties of the pods created to run driver/executor.
+        Spark itself uses the spec.[executor|driver].cores parameter to set the parallelism of tasks and cores
+        assigned to each task within the pod. This function sets the .cores parameters for the job executed.
+
+        See https://github.com/GoogleCloudPlatform/spark-on-k8s-operator/issues/581 for a discussion about those
+        parameters and their meaning in Spark operator.
+
+        :param executor_cores: Number of cores to use for executor (spark.executor.cores)
+        :param driver_cores:   Number of cores to use for driver (spark.driver.cores)
         """
         if executor_cores:
             if not isinstance(executor_cores, int) or executor_cores < 1:

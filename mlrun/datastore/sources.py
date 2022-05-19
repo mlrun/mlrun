@@ -503,7 +503,7 @@ class SnowflakeSource(BaseSourceDriver):
 
         if not snowflake_password:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "SNOWFLAKE_PASSWORD is required"
+                "No password provided. Set password using the SNOWFLAKE_PASSWORD project secret or environment variable."
             )
 
         return snowflake_password

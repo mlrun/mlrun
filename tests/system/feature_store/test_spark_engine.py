@@ -560,7 +560,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
 
     def test_write_empty_dataframe_overwrite_false(self):
-        name = "test_write_empty_dataframe"
+        name = "test_write_empty_dataframe_overwrite_false"
 
         path = "v3io:///bigdata/test_write_empty_dataframe_overwrite_false.parquet"
         fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)

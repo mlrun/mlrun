@@ -17,8 +17,8 @@ consume functions. Each function is versioned and stored in the MLRun database w
 and gets a new hash code upon changes.
 
 MLRun supports:
-- [multiple types of runtimes](../concepts/functions-overview).
-- Configuring the function resources (replicas, CPU/GPU/memory limits, volumes, Spot vs. On-demand nodes, pod priority, node affinity). See details in [Managing job resources](node-affinity). 
+- [Multiple types of runtimes](../concepts/functions-overview).
+- Configuring the function resources (replicas, CPU/GPU/memory limits, volumes, Spot vs. On-demand nodes, pod priority, node affinity). See details in [Managing job resources](configuring-job-resources). 
 - Iterative tasks for automatic and distributed execution of many tasks with variable parameters (hyperparams). See [Hyperparam and iterative jobs](../hyper-params).
 - Horizontal scaling of functions across multiple containers. See [Distributed and Parallel Jobs](./distributed.md).
 
@@ -35,7 +35,7 @@ using-functions
 mlrun_code_annotations
 code-archive
 mlrun_jobs
-cfg-job-resources
+configuring-job-resources
 function-storage
 load-from-marketplace
 ```

@@ -201,6 +201,8 @@ class ParquetSource(BaseSourceDriver):
          start_filter & end_filter
     :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
          cause the job to run every 30 minutes
+    :parameter start_time: filters out data before this time
+    :parameter end_time: filters out data after this time
     :parameter attributes: additional parameters to pass to storey.
     """
 
@@ -290,7 +292,7 @@ class BigQuerySource(BaseSourceDriver):
          source = BigQuerySource("bq2", table="the-psf.pypi.downloads20210328", gcp_project="my_project")
 
 
-    :parameter name:  source name
+    :parameter name: source name
     :parameter table: table name/path, cannot be used together with query
     :parameter query: sql query string
     :parameter materialization_dataset: for query with spark, The target dataset for the materialized view.
@@ -301,7 +303,9 @@ class BigQuerySource(BaseSourceDriver):
     :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
     :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
          cause the job to run every 30 minutes
-    :parameter gcp_project:  google cloud project name
+    :parameter start_time: filters out data before this time
+    :parameter end_time: filters out data after this time
+    :parameter gcp_project: google cloud project name
     :parameter spark_options: additional spart read options
     """
 
@@ -457,6 +461,39 @@ class BigQuerySource(BaseSourceDriver):
 
 
 class SnowflakeSource(BaseSourceDriver):
+    """
+    Reads Snowflake query results as input source for a flow.
+
+    The Snowflake cluster's password must be provided using the SNOWFLAKE_PASSWORD environment variable or secret.
+    See https://docs.mlrun.org/en/latest/store/datastore.html#storage-credentials-and-parameters for how to set secrets.
+
+    example::
+
+         source = SnowflakeSource(
+            "sf",
+            query="..",
+            url="...",
+            user="...",
+            database="...",
+            schema="...",
+            warehouse="...",
+        )
+
+    :parameter name: source name
+    :parameter key_field: the column to be used as the key for events. Can be a list of keys.
+    :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
+    :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
+         cause the job to run every 30 minutes
+    :parameter start_time: filters out data before this time
+    :parameter end_time: filters out data after this time
+    :parameter query: sql query string
+    :parameter url: URL of the snowflake cluster
+    :parameter user: snowflake user
+    :parameter database: snowflake database
+    :parameter schema: snowflake schema
+    :parameter warehouse: snowflake warehouse
+    """
+
     kind = "snowflake"
     support_spark = True
     support_storey = False

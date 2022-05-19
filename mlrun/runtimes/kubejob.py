@@ -385,6 +385,8 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
 
 
 class KubeRuntimeHandler(BaseRuntimeHandler):
+    kind = "job"
+
     @staticmethod
     def _expect_pods_without_uid() -> bool:
         """

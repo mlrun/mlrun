@@ -14,17 +14,18 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         that the client successfully parses them and raise the right error class
         """
         # log_and_raise - mlrun code uses log_and_raise (common) which raises fastapi.HTTPException because we're
-        # sending a get files request for a path that does not exists
+        # sending a store artifact request with an invalid json body
         # This is practically verifies that log_and_raise puts the kwargs under the details.reason
         with pytest.raises(
-            mlrun.errors.MLRunNotFoundError,
-            match=rf"404 Client Error: Not Found for url: http:\/\/(.*)\/{mlrun.get_run_db().get_api_path_prefix()}"
-            r"\/files\?path=file%3A%2F%2F%2Fpath%2Fdoes%2F"
-            r"not%2Fexist: details: {'reason': {'path': 'file:\/\/\/path\/does\/not\/exist', 'err': \"\[Errno 2] No suc"
-            r"h file or directory: '\/path\/does\/not\/exist'\"}}",
+            mlrun.errors.MLRunBadRequestError,
+            match=rf"400 Client Error: Bad Request for url: http:\/\/(.*)\/"
+            rf"{mlrun.get_run_db().get_api_path_prefix()}\/artifact\/some-project\/some-uid\/some-key: details: "
+            "{'reason': {'reason': 'bad JSON body'}}",
         ):
             mlrun.get_run_db().api_call(
-                "GET", "files", params={"path": "file:///path/does/not/exist"}
+                "POST",
+                "artifact/some-project/some-uid/some-key",
+                body="not a valid json",
             )
 
         # mlrun exception - mlrun code raises an mlrun exception because we're creating a project with invalid name

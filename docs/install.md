@@ -1,7 +1,16 @@
 # Installation and setup guide <!-- omit in toc -->
 
 This guide outlines the steps for installing and running MLRun. 
-Once MLRun is installed you can access it remotely from your IDE (PyCharm or VSCode), read [**how to setup your IDE environment**](./howto/remote.md). 
+Once MLRun is installed you can access it remotely from your IDE (PyCharm or VSCode), read [**how to setup your IDE environment**](./install/remote.md). 
+
+**Installation options:**
+```{toctree}
+:maxdepth: 1
+
+install/remote
+install/local-docker
+install/kubernetes
+```
 
 <a id="MLRun-client-backward-compatibility"></a>
 ## MLRun client backward compatibility  
@@ -16,12 +25,3 @@ Starting from MLRun 0.10.0, the MLRun client and images are compatible with mino
 ```
 
 See also [Images and their usage in MLRun](./runtimes/images.html#mlrun-images-and-how-to-build-them).
-
-**Installation options:**
-```{toctree}
-:maxdepth: 1
-
-install-kubernetes
-install-local-docker-reg
-howto/remote
-```

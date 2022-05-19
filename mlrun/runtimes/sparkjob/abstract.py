@@ -789,6 +789,8 @@ with ctx:
 
 
 class SparkRuntimeHandler(BaseRuntimeHandler):
+    kind = "spark"
+
     def _resolve_crd_object_status_info(
         self, db: DBInterface, db_session: Session, crd_object
     ) -> Tuple[bool, Optional[datetime], Optional[str]]:

@@ -472,7 +472,6 @@ class SnowflakeSource(BaseSourceDriver):
         query: str = None,
         url: str = None,
         user: str = None,
-        password: str = None,
         database: str = None,
         schema: str = None,
         warehouse: str = None,
@@ -481,7 +480,6 @@ class SnowflakeSource(BaseSourceDriver):
             "query": query,
             "url": url,
             "user": user,
-            "password": password,
             "database": database,
             "schema": schema,
             "warehouse": warehouse,
@@ -497,13 +495,26 @@ class SnowflakeSource(BaseSourceDriver):
             end_time=end_time,
         )
 
+    def _get_password(self):
+        key = "SNOWFLAKE_PASSWORD"
+        snowflake_password = os.getenv(key) or os.getenv(
+            SecretsStore.k8s_env_variable_name_for_secret(key)
+        )
+
+        if not snowflake_password:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "SNOWFLAKE_PASSWORD is required"
+            )
+
+        return snowflake_password
+
     def get_spark_options(self):
         return {
             "format": "net.snowflake.spark.snowflake",
             "query": self.attributes.get("query"),
             "sfURL": self.attributes.get("url"),
             "sfUser": self.attributes.get("user"),
-            "sfPassword": self.attributes.get("password"),
+            "sfPassword": self._get_password(),
             "sfDatabase": self.attributes.get("database"),
             "sfSchema": self.attributes.get("schema"),
             "sfWarehouse": self.attributes.get("warehouse"),

@@ -12,7 +12,7 @@ podTemplate(
     label: podLabel,
     containers: [
         containerTemplate(name: 'jnlp', image: 'jenkins/jnlp-slave:4.0.1-1', workingDir: workDir, resourceRequestCpu: '2000m', resourceLimitCpu: '2000m', resourceRequestMemory: '2048Mi', resourceLimitMemory: '2048Mi'),
-        containerTemplate(name: 'base-build', image: 'iguazioci/alpine-base-build:ae7e534841e68675d15f4bd98f07197aed5591af', workingDir: workDir, resourceRequestCpu: '2000m', resourceLimitCpu: '2000m', resourceRequestMemory: '2048Mi', resourceLimitMemory: '4192Mi', ttyEnabled: true, command: 'cat'),
+        containerTemplate(name: 'base-build', image: 'iguazioci/alpine-base-build:ae7e534841e68675d15f4bd98f07197aed5591af', workingDir: workDir, resourceRequestCpu: '4000m', resourceLimitCpu: '4000m', resourceRequestMemory: '5048Mi', resourceLimitMemory: '5048Mi', ttyEnabled: true, command: 'cat'),
         containerTemplate(name: 'python37', image: 'python:3.7-stretch', workingDir: workDir, ttyEnabled: true, command: 'cat'),
     ],
     volumes: [

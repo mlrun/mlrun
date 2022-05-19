@@ -16,7 +16,7 @@ import typing
 from subprocess import run
 
 from mlrun.config import config
-
+from mlrun.k8s_utils import K8sHelper, get_k8s_helper
 from ..model import RunObject
 from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
 from .kubejob import KubejobRuntime, KubeRuntimeHandler
@@ -129,8 +129,8 @@ class RemoteSparkRuntime(KubejobRuntime):
 
     def with_spark_service(self, spark_service, provider=RemoteSparkProviders.iguazio):
         """Attach spark service to function"""
-        print('hi')
         self.spec.provider = provider
+        print(get_k8s_helper().get_pod_status(spark_service))
         if provider == RemoteSparkProviders.iguazio:
             self.spec.env.append(
                 {"name": "MLRUN_SPARK_CLIENT_IGZ_SPARK", "value": "true"}

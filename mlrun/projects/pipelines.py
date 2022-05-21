@@ -313,8 +313,8 @@ def enrich_function_object(
     src = f.spec.build.source
     if src and src in [".", "./"]:
         if not project.spec.source and not project.spec.mountdir:
-            raise ValueError(
-                "project source must be specified when cloning context to a function"
+            logger.warning(
+                "project.spec.source should be specified when function is using code from project context"
             )
 
         if project.spec.mountdir:

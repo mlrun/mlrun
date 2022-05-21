@@ -152,6 +152,16 @@ def get_current_project(silent=False):
     return pipeline_context.project
 
 
+def force_run_local(force=None):
+    """Force runs to work locally (instead of on the k8s cluster)
+
+    :param force: True will force local runs, None will auto determine the mode based on the k8s existence
+    :return: actual mode
+    """
+    pipeline_context._force_run_local = force
+    return pipeline_context.is_run_local()
+
+
 def get_sample_path(subpath=""):
     """
     return the url of a sample dataset or model

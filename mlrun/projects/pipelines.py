@@ -33,7 +33,7 @@ from ..runtimes.pod import AutoMountType
 
 
 def get_workflow_engine(engine_kind, local=False):
-    if local:
+    if pipeline_context.is_run_local(local):
         if engine_kind == "kfp":
             logger.warning(
                 "running kubeflow pipeline locally, note some ops may not run locally!"
@@ -183,6 +183,16 @@ class _PipelineContext:
         self.workflow_id = None
         self.workflow_artifact_path = None
         self.runs_map = {}
+        self._force_run_local = None
+
+    def is_run_local(self, local=None):
+        force_run_local = self._force_run_local
+        if force_run_local is None:
+            force_run_local = False if mlrun.mlconf.namespace else True
+        if self.workflow:
+            force_run_local = force_run_local or self.workflow.run_local
+
+        return local or force_run_local
 
     def set(self, project, workflow=None):
         self.project = project
@@ -300,7 +310,7 @@ def enrich_function_object(
     setattr(f, "_enriched", True)
     src = f.spec.build.source
     if src and src in [".", "./"]:
-        if not project.spec.source:
+        if not project.spec.source and not project.spec.mountdir:
             raise ValueError(
                 "project source must be specified when cloning context to a function"
             )

@@ -130,8 +130,7 @@ def run_function(
         )
     else:
         project = project_object or pipeline_context.project
-        if pipeline_context.workflow:
-            local = local or pipeline_context.workflow.run_local
+        local = pipeline_context.is_run_local(local)
         task.metadata.labels = task.metadata.labels or labels or {}
         if pipeline_context.workflow_id:
             task.metadata.labels["workflow"] = pipeline_context.workflow_id

@@ -1890,7 +1890,7 @@ class MlrunProject(ModelObj):
         :param include_files: glob filter string for selecting files to include in the zip archive
         """
         project_file_path = filepath
-        archive_code = filepath and filepath.endswith(".zip")
+        archive_code = filepath and str(filepath).endswith(".zip")
         if not filepath or archive_code:
             project_file_path = path.join(
                 self.spec.context, self.spec.subpath or "", "project.yaml"

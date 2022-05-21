@@ -9,10 +9,14 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from mlrun import mlconf
+from mlrun import mlconf, new_function
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.db import SQLDB
-from mlrun.runtimes.function import NuclioStatus, deploy_nuclio_function
+from mlrun.runtimes.function import (
+    NuclioStatus,
+    compile_function_config,
+    deploy_nuclio_function,
+)
 
 from .assets.serving_child_functions import *  # noqa
 
@@ -287,3 +291,11 @@ class TestServingRuntime(TestNuclioRuntime):
         self._assert_deploy_spec_has_secrets_config(
             expected_secret_sources=self._generate_expected_secret_sources()
         )
+
+    def test_empty_function(self):
+        function = new_function("serving", kind="serving", image="mlrun/mlrun")
+        function.set_topology("flow")
+
+        _, _, config = compile_function_config(function)
+        # verify the code is filled with the mlrun wrapper
+        assert config["spec"]["build"]["functionSourceCode"]

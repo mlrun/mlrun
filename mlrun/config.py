@@ -118,6 +118,8 @@ default_config = {
     "default_tensorboard_logs_path": "/User/.tensorboard/{{project}}",
     # ";" separated list of notebook cell tag names to ignore e.g. "ignore-this;ignore-that"
     "ignored_notebook_tags": "",
+    # when set it will force the local=True in run_function(), set to "auto" will run local if there is no k8s
+    "force_run_local": "auto",
     "function_defaults": {
         "image_by_kind": {
             "job": "mlrun/mlrun",
@@ -683,6 +685,11 @@ class Config:
     @iguazio_api_url.setter
     def iguazio_api_url(self, value):
         self._iguazio_api_url = value
+
+    def is_api_running_on_k8s(self):
+        # determine if the API service is attached to K8s cluster
+        # when there is a cluster the .namespace is set
+        return True if mlrun.mlconf.namespace else False
 
 
 # Global configuration

@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import getpass
-from os import environ, path
+from os import environ, makedirs, path
 
+import mlrun
 from mlrun import code_to_function, new_task, run_local
 from tests.conftest import examples_path, out_path, tag_test, verify_state
 
@@ -104,3 +105,21 @@ def test_run_local_from_func():
     fn = code_to_function(filename=nb_path, kind="job").export(nbyml_path)
     result = fn.run(spec, workdir=out_path, local=True)
     verify_state(result)
+
+
+def test_force_run_local():
+    spec = tag_test(base_spec, "test_force_run_local")
+    spec.spec.handler = "training"
+    nb_path = f"{examples_path}/mlrun_jobs.ipynb"
+    fn = code_to_function(name="mlrun-job", filename=nb_path, kind="job")
+
+    old_force = mlrun.mlconf.force_run_local
+    mlrun.mlconf.force_run_local = True
+
+    makedirs(out_path, exist_ok=True)
+    result = mlrun.run_function(fn, base_task=spec, workdir=out_path)
+    print(result.to_yaml())
+    verify_state(result)
+    assert not result.metadata.labels["kind"]
+
+    mlrun.mlconf.force_run_local = old_force

@@ -47,7 +47,7 @@ def run_function(
     labels: dict = None,
     base_task: mlrun.model.RunTemplate = None,
     watch: bool = True,
-    local: bool = False,
+    local: bool = None,
     verbose: bool = None,
     selector: str = None,
     project_object=None,

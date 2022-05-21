@@ -185,13 +185,16 @@ class _PipelineContext:
         self.runs_map = {}
 
     def is_run_local(self, local=None):
+        if local is not None:
+            # if the user specified an explicit value in local we use it
+            return local
         force_run_local = mlrun.mlconf.force_run_local
         if force_run_local is None or force_run_local == "auto":
-            force_run_local = False if mlrun.mlconf.namespace else True
+            force_run_local = not mlrun.mlconf.is_api_running_on_k8s()
         if self.workflow:
             force_run_local = force_run_local or self.workflow.run_local
 
-        return local or force_run_local
+        return force_run_local
 
     def set(self, project, workflow=None):
         self.project = project

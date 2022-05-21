@@ -1726,7 +1726,7 @@ class MlrunProject(ModelObj):
         dirty=False,
         ttl=None,
         engine=None,
-        local=False,
+        local=None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1941,7 +1941,7 @@ class MlrunProject(ModelObj):
         labels: dict = None,
         base_task: mlrun.model.RunTemplate = None,
         watch: bool = True,
-        local: bool = False,
+        local: bool = None,
         verbose: bool = None,
         selector: str = None,
         auto_build: bool = None,

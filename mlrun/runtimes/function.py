@@ -16,6 +16,7 @@ import asyncio
 import json
 import typing
 import warnings
+from base64 import b64encode
 from datetime import datetime
 from time import sleep
 from urllib.parse import urlparse
@@ -1268,6 +1269,7 @@ def compile_function_config(
         function.spec.base_spec
         or function.spec.build.functionSourceCode
         or function.spec.build.source
+        or function.kind == mlrun.runtimes.RuntimeKinds.serving  # serving can be empty
     ):
         config = function.spec.base_spec
         if not config:
@@ -1297,6 +1299,21 @@ def compile_function_config(
         name = get_fullname(function.metadata.name, project, tag)
         function.status.nuclio_name = name
         update_in(config, "metadata.name", name)
+
+        if (
+            function.kind == mlrun.runtimes.RuntimeKinds.serving
+            and not function.spec.build.source
+            and not get_in(config, "spec.build.functionSourceCode")
+        ):
+            # if the serving function does not have source code, add the mlrun wrapper
+            body = nuclio.build.mlrun_footer.format(
+                mlrun.runtimes.serving.serving_subkind
+            )
+            update_in(
+                config,
+                "spec.build.functionSourceCode",
+                b64encode(body.encode("utf-8")).decode("utf-8"),
+            )
     else:
         # todo: should be deprecated (only work via MLRun service)
         # this may also be called in case of using single file code_to_function(embed_code=False)

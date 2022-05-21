@@ -350,6 +350,9 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("preemptible_nodes_tolerations")
                 or config.preemptible_nodes.tolerations
             )
+            config.force_run_local = config.force_run_local or server_cfg.get(
+                "force_run_local"
+            )
 
         except Exception as exc:
             logger.warning(

@@ -152,12 +152,14 @@ def get_current_project(silent=False):
     return pipeline_context.project
 
 
-def force_run_local(force=None):
+def force_run_local(force=True):
     """Force runs to work locally (instead of on the k8s cluster)
 
-    :param force: True will force local runs, None will auto determine the mode based on the k8s existence
+    :param force: True will force local runs, None/"auto" will auto determine the mode based on the k8s existence
     :return: actual mode
     """
+    if force and force == "auto":
+        force = None
     pipeline_context._force_run_local = force
     return pipeline_context.is_run_local()
 

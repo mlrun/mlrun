@@ -183,7 +183,7 @@ class _PipelineContext:
         self.workflow_id = None
         self.workflow_artifact_path = None
         self.runs_map = {}
-        self._force_run_local = None
+        self._force_run_local = False
 
     def is_run_local(self, local=None):
         force_run_local = self._force_run_local

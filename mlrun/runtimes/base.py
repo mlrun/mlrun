@@ -959,7 +959,7 @@ class BaseRuntime(ModelObj):
         This function eliminates the need to build container images every time we edit the code
 
         :param from_file:   blank for current notebook, or path to .py/.ipynb file
-        :param body:        will use the body as the function code, use "" to add mlrun wrappers only (in serving)
+        :param body:        will use the body as the function code
         :param with_doc:    update the document of the function parameters
 
         :return: function object
@@ -969,9 +969,7 @@ class BaseRuntime(ModelObj):
                 "must provide either body or from_file argument. not both"
             )
 
-        if (body is None and not from_file) or (
-            from_file and from_file.endswith(".ipynb")
-        ):
+        if (not body and not from_file) or (from_file and from_file.endswith(".ipynb")):
             from nuclio import build_file
 
             _, _, body = build_file(from_file, name=self.metadata.name)

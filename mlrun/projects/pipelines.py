@@ -183,11 +183,10 @@ class _PipelineContext:
         self.workflow_id = None
         self.workflow_artifact_path = None
         self.runs_map = {}
-        self._force_run_local = False
 
     def is_run_local(self, local=None):
-        force_run_local = self._force_run_local
-        if force_run_local is None:
+        force_run_local = mlrun.mlconf.force_run_local
+        if force_run_local is None or force_run_local == "auto":
             force_run_local = False if mlrun.mlconf.namespace else True
         if self.workflow:
             force_run_local = force_run_local or self.workflow.run_local

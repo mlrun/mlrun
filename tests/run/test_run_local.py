@@ -113,8 +113,8 @@ def test_force_run_local():
     nb_path = f"{examples_path}/mlrun_jobs.ipynb"
     fn = code_to_function(name="mlrun-job", filename=nb_path, kind="job")
 
-    old_force = mlrun.pipeline_context._force_run_local
-    mlrun.force_run_local(True)
+    old_force = mlrun.mlconf.force_run_local
+    mlrun.mlconf.force_run_local = True
 
     makedirs(out_path, exist_ok=True)
     result = mlrun.run_function(fn, base_task=spec, workdir=out_path)
@@ -122,4 +122,4 @@ def test_force_run_local():
     verify_state(result)
     assert not result.metadata.labels["kind"]
 
-    mlrun.force_run_local(old_force)
+    mlrun.mlconf.force_run_local = old_force

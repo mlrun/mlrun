@@ -118,6 +118,8 @@ default_config = {
     "default_tensorboard_logs_path": "/User/.tensorboard/{{project}}",
     # ";" separated list of notebook cell tag names to ignore e.g. "ignore-this;ignore-that"
     "ignored_notebook_tags": "",
+    # when set it will force the local=True in run_function(), set to "auto" will run local if there is no k8s
+    "force_run_local": "",
     "function_defaults": {
         "image_by_kind": {
             "job": "mlrun/mlrun",

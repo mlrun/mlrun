@@ -2489,6 +2489,45 @@ class TestFeatureStore(TestMLRunSystem):
         for key in res.to_dataframe().to_dict().keys():
             assert key in expected
 
+    @pytest.mark.parametrize(
+        "start_time, end_time, is_through_init, should_succeed",
+        [
+            (None, None, None, True),
+            ("2021-05-25T10:30:29.592Z", "2021-05-25T10:30:29.592Z", False, True),
+            ("2021-05-25T10:30:29.592", "2021-05-25T10:30:29.592", False, True),
+            ("2021-05-25T10:30:29.abc", "2021-05-25T10:30:29.592", False, False),
+            ("2021-05-25T10:30:29.592Z", "2021-05-25T10:30:29.592Z", True, True),
+            ("2021-05-25T10:30:29.592", "2021-05-25T10:30:29.592", True, True),
+            ("2021-05-25T10:30:29.abc", "2021-05-25T10:30:29.592", True, False),
+        ],
+    )
+    def test_parquet_source_with_iso_start_or_end_time(
+        self, start_time, end_time, is_through_init, should_succeed
+    ):
+        def actual_test(start_time, end_time, is_through_init):
+            trades.to_parquet(path="v3io:///bigdata/trades1.parquet")
+            fset = fs.FeatureSet(
+                "parsrc", entities=[Entity("ticker")], timestamp_key="time"
+            )
+            init_start_time = start_time if is_through_init else None
+            init_end_time = end_time if is_through_init else None
+            source = ParquetSource(
+                "srcpar",
+                path="v3io:///bigdata/trades1.parquet",
+                start_time=init_start_time,
+                end_time=init_end_time,
+            )
+            if not is_through_init:
+                source.start_time = start_time
+                source.end_time = end_time
+            fs.ingest(fset, source, overwrite=True)
+
+        if should_succeed:
+            actual_test(start_time, end_time, is_through_init)
+        else:
+            with pytest.raises(ValueError, match=r".*Invalid isoformat string:.*"):
+                actual_test(start_time, end_time, is_through_init)
+
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)

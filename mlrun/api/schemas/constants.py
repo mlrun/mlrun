@@ -147,3 +147,8 @@ class APIStates:
     migrations_failed = "migrations_failed"
     migrations_completed = "migrations_completed"
     offline = "offline"
+
+
+class ClusterizationRole:
+    chief = "chief"
+    worker = "worker"

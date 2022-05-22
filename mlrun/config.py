@@ -89,6 +89,9 @@ default_config = {
     "runtimes_cleanup_interval": "300",
     # runs monitoring interval in seconds
     "runs_monitoring_interval": "30",
+    # runs monitoring debouncing interval in seconds for run with non-terminal state without corresponding k8s resource
+    # by default the interval will be - (runs_monitoring_interval * 2 ), if set will override the default
+    "runs_monitoring_missing_runtime_resources_debouncing_interval": None,
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them
     "runtime_resources_deletion_grace_period": "14400",
@@ -115,6 +118,8 @@ default_config = {
     "default_tensorboard_logs_path": "/User/.tensorboard/{{project}}",
     # ";" separated list of notebook cell tag names to ignore e.g. "ignore-this;ignore-that"
     "ignored_notebook_tags": "",
+    # when set it will force the local=True in run_function(), set to "auto" will run local if there is no k8s
+    "force_run_local": "auto",
     "function_defaults": {
         "image_by_kind": {
             "job": "mlrun/mlrun",
@@ -129,6 +134,10 @@ default_config = {
         "preemption_mode": "prevent",
     },
     "httpdb": {
+        "clusterization": {
+            # one of chief/worker
+            "role": "chief",
+        },
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
         "dsn": "sqlite:///db/mlrun.db?check_same_thread=false",
@@ -424,7 +433,7 @@ class Config:
     ):
         """
         decodes and loads the config attribute to expected type
-        :param attribute_path: the path in the default_config e.g preemptible_nodes.node_selector
+        :param attribute_path: the path in the default_config e.g. preemptible_nodes.node_selector
         :param expected_type: the object type valid values are : `dict`, `list` etc...
         :return: the expected type instance
         """
@@ -561,14 +570,21 @@ class Config:
             )
         return resources
 
+    def resolve_runs_monitoring_missing_runtime_resources_debouncing_interval(self):
+        return (
+            float(self.runs_monitoring_missing_runtime_resources_debouncing_interval)
+            if self.runs_monitoring_missing_runtime_resources_debouncing_interval
+            else float(config.runs_monitoring_interval) * 2.0
+        )
+
     @staticmethod
     def get_default_function_pod_requirement_resources(
         requirement: str, with_gpu: bool = True
     ):
         """
         :param requirement: kubernetes requirement resource one of the following : requests, limits
-        :param with_gpu: whether to return requirement resources with nvidia.com/gpu field (e.g you cannot specify GPU
-         requests without specifying GPU limits) https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
+        :param with_gpu: whether to return requirement resources with nvidia.com/gpu field (e.g. you cannot specify
+         GPU requests without specifying GPU limits) https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
         :return: a dict containing the defaults resources (cpu, memory, nvidia.com/gpu)
         """
         resources: dict = copy.deepcopy(config.default_function_pod_resources.to_dict())
@@ -680,6 +696,11 @@ class Config:
     @iguazio_api_url.setter
     def iguazio_api_url(self, value):
         self._iguazio_api_url = value
+
+    def is_api_running_on_k8s(self):
+        # determine if the API service is attached to K8s cluster
+        # when there is a cluster the .namespace is set
+        return True if mlrun.mlconf.namespace else False
 
 
 # Global configuration

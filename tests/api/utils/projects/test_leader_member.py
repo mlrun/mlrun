@@ -87,7 +87,7 @@ def test_projects_sync_mid_deletion(
     The sync starts after the project was removed from followers, but before it was removed from the leader, meaning the
     sync will recognize the project is missing in the followers, and create it in them, so finally after the delete
     process ends, the project exists in the followers, and not in the leader, on the next sync, the project will be
-    created back in the leader causing the the project to practically not being deleted.
+    created back in the leader causing the project to practically not being deleted.
     """
     project_name = "project-name"
     project_description = "some description"

@@ -108,7 +108,6 @@ pipeline {
                MLRUN_DBPATH='https://mlrun-api.default-tenant.app.us-sales-341.iguazio-cd1.com'
                V3IO_ACCESS_KEY=credentials('V3IO_ACCESS_KEY')
                V3IO_USERNAME='xingsheng'
-               V3IO_API="https://default-tenant.app.us-sales-341.iguazio-cd1.com:8444"
             }
             agent {
                 docker {
@@ -152,8 +151,6 @@ void auditTools() {
    '''
 }
 ```
-After the Jenkins pipeline is complete, you will be able to see the MLRun job in the Iguazio Platform GUI like the screenshot below:
-
-<img src="../_static/images/mlrun-job-monitoring.png" alt="mlrun-job-monitoring" width="800"/><br>
+After the Jenkins pipeline is complete, you can see the MLRun job in the MLRun UI
 
 See the full example in [**https://github.com/mlrun/project-demo**](https://github.com/mlrun/project-demo)

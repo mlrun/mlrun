@@ -15,6 +15,7 @@ import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
+import tests.api.api.utils
 import tests.api.conftest
 from mlrun.api.api.utils import (
     _generate_function_and_task_from_submit_run_body,
@@ -27,20 +28,22 @@ from mlrun.utils import logger
 # Want to use k8s_secrets_mock for all tests in this module. It is needed since
 # _generate_function_and_task_from_submit_run_body looks for project secrets for secret-account validation.
 pytestmark = pytest.mark.usefixtures("k8s_secrets_mock")
+PROJECT = "some-project"
 
 
 def test_generate_function_and_task_from_submit_run_body_body_override_values(
     db: Session, client: TestClient
 ):
     task_name = "task_name"
-    task_project = "task-project"
+    tests.api.api.utils.create_project(client, PROJECT)
+
     project, function_name, function_tag, original_function = _mock_original_function(
         client
     )
     submit_job_body = {
         "task": {
             "spec": {"function": f"{project}/{function_name}:{function_tag}"},
-            "metadata": {"name": task_name, "project": task_project},
+            "metadata": {"name": task_name, "project": PROJECT},
         },
         "function": {
             "metadata": {"credentials": {"access_key": "some-access-key-override"}},
@@ -260,7 +263,8 @@ def test_generate_function_and_task_from_submit_run_with_preemptible_nodes_and_t
 ):
     k8s_api = kubernetes.client.ApiClient()
     task_name = "task_name"
-    task_project = "task-project"
+    tests.api.api.utils.create_project(client, PROJECT)
+
     project, function_name, function_tag, original_function = _mock_original_function(
         client
     )
@@ -271,7 +275,7 @@ def test_generate_function_and_task_from_submit_run_with_preemptible_nodes_and_t
     submit_job_body = {
         "task": {
             "spec": {"function": f"{project}/{function_name}:{function_tag}"},
-            "metadata": {"name": task_name, "project": task_project},
+            "metadata": {"name": task_name, "project": PROJECT},
         },
         "function": {"spec": {"preemption_mode": "prevent"}},
     }
@@ -307,7 +311,7 @@ def test_generate_function_and_task_from_submit_run_with_preemptible_nodes_and_t
     submit_job_body = {
         "task": {
             "spec": {"function": f"{project}/{function_name}:{function_tag}"},
-            "metadata": {"name": task_name, "project": task_project},
+            "metadata": {"name": task_name, "project": PROJECT},
         },
         "function": {"spec": {"preemption_mode": "constrain"}},
     }
@@ -334,14 +338,15 @@ def test_generate_function_and_task_from_submit_run_body_keep_resources(
     db: Session, client: TestClient
 ):
     task_name = "task_name"
-    task_project = "task-project"
+    tests.api.api.utils.create_project(client, PROJECT)
+
     project, function_name, function_tag, original_function = _mock_original_function(
         client
     )
     submit_job_body = {
         "task": {
             "spec": {"function": f"{project}/{function_name}:{function_tag}"},
-            "metadata": {"name": task_name, "project": task_project},
+            "metadata": {"name": task_name, "project": PROJECT},
         },
         "function": {"spec": {"resources": {"limits": {}, "requests": {}}}},
     }
@@ -349,7 +354,7 @@ def test_generate_function_and_task_from_submit_run_body_keep_resources(
         db, mlrun.api.schemas.AuthInfo(), submit_job_body
     )
     assert parsed_function_object.metadata.name == function_name
-    assert parsed_function_object.metadata.project == project
+    assert parsed_function_object.metadata.project == PROJECT
     assert parsed_function_object.metadata.tag == function_tag
     assert (
         DeepDiff(
@@ -373,7 +378,8 @@ def test_generate_function_and_task_from_submit_run_body_keep_credentials(
     db: Session, client: TestClient
 ):
     task_name = "task_name"
-    task_project = "task-project"
+    tests.api.api.utils.create_project(client, PROJECT)
+
     access_key = "original-function-access-key"
     project, function_name, function_tag, original_function = _mock_original_function(
         client, access_key
@@ -381,7 +387,7 @@ def test_generate_function_and_task_from_submit_run_body_keep_credentials(
     submit_job_body = {
         "task": {
             "spec": {"function": f"{project}/{function_name}:{function_tag}"},
-            "metadata": {"name": task_name, "project": task_project},
+            "metadata": {"name": task_name, "project": PROJECT},
         },
         "function": {"metadata": {"credentials": None}},
     }
@@ -397,6 +403,8 @@ def test_generate_function_and_task_from_submit_run_body_keep_credentials(
 def test_ensure_function_has_auth_set(
     db: Session, client: TestClient, k8s_secrets_mock: tests.api.conftest.K8sSecretsMock
 ):
+    tests.api.api.utils.create_project(client, PROJECT)
+
     mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
     )
@@ -551,6 +559,8 @@ def test_ensure_function_has_auth_set(
 def test_mask_v3io_access_key_env_var(
     db: Session, client: TestClient, k8s_secrets_mock: tests.api.conftest.K8sSecretsMock
 ):
+    tests.api.api.utils.create_project(client, PROJECT)
+
     logger.info("Mask function without access key, nothing should be changed")
     _, _, _, original_function_dict = _generate_original_function()
     original_function = mlrun.new_function(runtime=original_function_dict)
@@ -740,6 +750,7 @@ def test_mask_v3io_volume_credentials(
         no_name_volume_mount = k8s_api_client.sanitize_for_serialization(
             no_name_volume_mount
         )
+    tests.api.api.utils.create_project(client, PROJECT)
 
     logger.info("Mask function without v3io volume, nothing should be changed")
     _, _, _, original_function_dict = _generate_original_function(
@@ -837,19 +848,20 @@ def test_generate_function_and_task_from_submit_run_body_imported_function_proje
     db: Session, client: TestClient, monkeypatch
 ):
     task_name = "task_name"
-    task_project = "task-project"
+    tests.api.api.utils.create_project(client, PROJECT)
+
     _mock_import_function(monkeypatch)
     submit_job_body = {
         "task": {
             "spec": {"function": "hub://gen_class_data"},
-            "metadata": {"name": task_name, "project": task_project},
+            "metadata": {"name": task_name, "project": PROJECT},
         },
         "function": {"spec": {"resources": {"limits": {}, "requests": {}}}},
     }
     parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
         db, mlrun.api.schemas.AuthInfo(), submit_job_body
     )
-    assert parsed_function_object.metadata.project == task_project
+    assert parsed_function_object.metadata.project == PROJECT
 
 
 def test_get_obj_path(db: Session, client: TestClient):

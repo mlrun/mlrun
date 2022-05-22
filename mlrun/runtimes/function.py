@@ -1312,7 +1312,7 @@ def compile_function_config(
             update_in(
                 config,
                 "spec.handler",
-                "mlrun.serving.serving_wrapper:v2_serving_handler",
+                "mlrun.serving.serving_wrapper:handler",
             )
     else:
         # todo: should be deprecated (only work via MLRun service)

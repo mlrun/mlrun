@@ -6,7 +6,6 @@ import sqlalchemy.orm
 import mlrun.api.db.session
 import mlrun.api.schemas
 import mlrun.utils.singleton
-# from mlrun.utils import logger
 
 
 class Member(abc.ABC):

@@ -93,6 +93,37 @@ def get_default_prefix_for_source(kind):
     return get_default_prefix_for_target(kind)
 
 
+def validate_target_paths_for_engine(targets, engine):
+    """Validating that target paths are suitable for the required engine.
+        validate for single file targets only (parquet and csv).
+
+        spark:
+            cannot be a single file path (e.g - ends with .csv or .pq)
+
+        storey:
+            if csv - must be a single file.
+            if parquet - in case of partitioned it must be a directory,
+                         else can be both single file or directory
+    """
+    for base_target in targets:
+        if base_target.kind == TargetTypes.parquet or base_target.kind == TargetTypes.csv:
+            target = get_target_driver(base_target)
+            is_single_file = hasattr(target, "is_single_file") and target.is_single_file()
+            if engine == "spark" and is_single_file:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"spark targets must be directories, got path:'{target.path}'"
+                )
+            elif not engine or engine == "storey":
+                if target.kind == TargetTypes.csv and not is_single_file:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"csv target for storey engine must be a single file, got path:'{target.path}'"
+                    )
+                elif target.kind == TargetTypes.parquet and target.partitioned and is_single_file:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"partitioned parquet target for storey engine must be a directory, got path:'{target.path}'"
+                    )
+
+
 def validate_target_list(targets):
     """Check that no target overrides another target in the list (name/path)"""
 

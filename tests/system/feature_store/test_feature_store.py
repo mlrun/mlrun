@@ -373,27 +373,27 @@ class TestFeatureStore(TestMLRunSystem):
             assert df is not None
 
     @pytest.mark.parametrize(
-        "target_path, final_path",
+        "should_succeed, engine, is_parquet, is_partitioned, target_path",
         [
-            (
-                "v3io:///bigdata/csvtest/csvname.csv",
-                "v3io:///bigdata/csvtest/{run_id}/csvname.csv",
-            ),
-            (
-                "v3io:///bigdata/csvtest/csvname",
-                "v3io:///bigdata/csvtest/csvname/{run_id}/",
-            ),
-            (
-                "v3io:///bigdata/csvtest/csvname/",
-                "v3io:///bigdata/csvtest/csvname/{run_id}/",
-            ),
-            (
-                "v3io:///bigdata/csvtest/csvname/{run_id}",
-                "v3io:///bigdata/csvtest/csvname/{run_id}/",
-            ),
+            # spark - csv - fail for single file
+            (True, "spark", False, None, "v3io:///bigdata/dif-eng/csv"),
+            (False, "spark", False, None, "v3io:///bigdata/dif-eng/file.csv"),
+            # spark - parquet - fail for single file
+            (True, "spark", True, True, "v3io:///bigdata/dif-eng/pq"),
+            (False, "spark", True, True, "v3io:///bigdata/dif-eng/file.pq"),
+            (True, "spark", True, False, "v3io:///bigdata/dif-eng/pq"),
+            (False, "spark", True, False, "v3io:///bigdata/dif-eng/file.pq"),
+            # storey - csv - fail for directory
+            (True, "storey", False, None, "v3io:///bigdata/dif-eng/file.csv"),
+            (False, "storey", False, None, "v3io:///bigdata/dif-eng/csv"),
+            # storey - parquet - fail for single file on partitioned
+            (True, "storey", True, False, "v3io:///bigdata/dif-eng/pq"),
+            (True, "storey", True, False, "v3io:///bigdata/dif-eng/file.pq"),
+            (True, "storey", True, True, "v3io:///bigdata/dif-eng/pq"),
+            (False, "storey", True, True, "v3io:///bigdata/dif-eng/file.pq"),
         ],
     )
-    def test_csv_path(self, target_path, final_path):
+    def test_different_paths_for_ingest_on_different_engines(self, should_succeed, engine, is_parquet, is_partitioned, target_path):
         df = pd.DataFrame(
             {
                 "key": ["key1", "key2"],
@@ -407,12 +407,13 @@ class TestFeatureStore(TestMLRunSystem):
                 ],
             }
         )
-        fset = FeatureSet("csvnamefs", entities=[Entity("key")])
-        target = CSVTarget(name="csvtar", path=target_path)
-        fs.ingest(fset, source=df, targets=[target])
-
-        expected = final_path.format(run_id=fset.status.targets[0].run_id)
-        assert fset.get_target_path("csvtar") == expected
+        fset = FeatureSet("fsname", entities=[Entity("key")], engine=engine)
+        target = ParquetTarget(name="tar", path=target_path, partitioned=is_partitioned) if is_parquet else CSVTarget(name="tar", path=target_path)
+        if should_succeed:
+            fs.ingest(fset, source=df, targets=[target])
+        else:
+            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+                fs.ingest(fset, source=df, targets=[target])
 
     def test_nosql_no_path(self):
         df = pd.DataFrame(

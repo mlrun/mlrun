@@ -30,7 +30,8 @@ from ..datastore.targets import (
     get_default_targets,
     get_target_driver,
     kind_to_driver,
-    validate_target_list, validate_target_paths_for_engine,
+    validate_target_list,
+    validate_target_paths_for_engine,
 )
 from ..db import RunDBError
 from ..model import DataSource, DataTargetBase

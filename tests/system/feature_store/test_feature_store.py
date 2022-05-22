@@ -393,7 +393,9 @@ class TestFeatureStore(TestMLRunSystem):
             (False, "storey", True, True, "v3io:///bigdata/dif-eng/file.pq"),
         ],
     )
-    def test_different_paths_for_ingest_on_different_engines(self, should_succeed, engine, is_parquet, is_partitioned, target_path):
+    def test_different_paths_for_ingest_on_different_engines(
+        self, should_succeed, engine, is_parquet, is_partitioned, target_path
+    ):
         df = pd.DataFrame(
             {
                 "key": ["key1", "key2"],
@@ -408,7 +410,11 @@ class TestFeatureStore(TestMLRunSystem):
             }
         )
         fset = FeatureSet("fsname", entities=[Entity("key")], engine=engine)
-        target = ParquetTarget(name="tar", path=target_path, partitioned=is_partitioned) if is_parquet else CSVTarget(name="tar", path=target_path)
+        target = (
+            ParquetTarget(name="tar", path=target_path, partitioned=is_partitioned)
+            if is_parquet
+            else CSVTarget(name="tar", path=target_path)
+        )
         if should_succeed:
             fs.ingest(fset, source=df, targets=[target])
         else:

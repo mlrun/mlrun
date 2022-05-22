@@ -29,22 +29,9 @@ class Member(abc.ABC):
             format_=mlrun.api.schemas.ProjectsFormat.name_only,
             leader_session=auth_info.session,
         )
-        if name in project_names.projects:
-            return False
-        raise mlrun.errors.MLRunNotFoundError(f"Project {name} does not exist")
-        # logger.info(
-        #     "Ensure project called, but project does not exist. Creating", name=name
-        # )
-        # project = mlrun.api.schemas.Project(
-        #     metadata=mlrun.api.schemas.ProjectMetadata(name=name),
-        # )
-        # self.create_project(
-        #     db_session,
-        #     project,
-        #     leader_session=auth_info.session,
-        #     wait_for_completion=wait_for_completion,
-        # )
-        # return True
+        if name not in project_names.projects:
+            raise mlrun.errors.MLRunNotFoundError(f"Project {name} does not exist")
+        return False
 
     @abc.abstractmethod
     def create_project(

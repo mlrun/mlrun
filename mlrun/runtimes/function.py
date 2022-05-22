@@ -1311,8 +1311,8 @@ def compile_function_config(
             )
             update_in(
                 config,
-                "spec.build.functionSourceCode",
-                b64encode(body.encode("utf-8")).decode("utf-8"),
+                "spec.handler",
+                "mlrun.serving.serving_wrapper:v2_serving_handler",
             )
     else:
         # todo: should be deprecated (only work via MLRun service)

@@ -111,17 +111,15 @@ def validate_target_paths_for_engine(targets, engine):
             or base_target.kind == TargetTypes.csv
         ):
             target = get_target_driver(base_target)
-            is_single_file = (
-                hasattr(target, "is_single_file") and target.is_single_file()
-            )
+            is_single_file = target.is_single_file()
             if engine == "spark" and is_single_file:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"spark targets must be directories, got path:'{target.path}'"
+                    f"spark CSV/Parquet targets must be directories, got path:'{target.path}'"
                 )
             elif not engine or engine == "storey":
                 if target.kind == TargetTypes.csv and not is_single_file:
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"csv target for storey engine must be a single file, got path:'{target.path}'"
+                        f"CSV target for storey engine must be a single file, got path:'{target.path}'"
                     )
                 elif (
                     target.kind == TargetTypes.parquet
@@ -129,7 +127,7 @@ def validate_target_paths_for_engine(targets, engine):
                     and is_single_file
                 ):
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"partitioned parquet target for storey engine must be a directory, got path:'{target.path}'"
+                        f"partitioned Parquet target for storey engine must be a directory, got path:'{target.path}'"
                     )
 
 

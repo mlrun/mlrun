@@ -16,7 +16,6 @@ import asyncio
 import json
 import typing
 import warnings
-from base64 import b64encode
 from datetime import datetime
 from time import sleep
 from urllib.parse import urlparse

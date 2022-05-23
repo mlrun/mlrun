@@ -489,7 +489,8 @@ class K8sHelper:
     def is_service_exist(self, name, namespace=None, is_release_name: bool = True):
         items = self.list_services(namespace=namespace)
         for item in items:
-            if is_release_name and 'meta.helm.sh/release-name' in item.metadata.annotations:
+            if is_release_name and item.metadata.annotations is not None and\
+                    'meta.helm.sh/release-name' in item.metadata.annotations:
                 if name == item.metadata.annotations['meta.helm.sh/release-name']:
                     return True
             else:

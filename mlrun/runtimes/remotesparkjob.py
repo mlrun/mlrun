@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 import re
 import typing
 from subprocess import run
@@ -21,6 +22,7 @@ from ..model import RunObject
 from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
 from .kubejob import KubejobRuntime, KubeRuntimeHandler
 from .pod import KubeResourceSpec
+from mlrun.errors import MLRunInvalidArgumentError
 
 
 class RemoteSparkSpec(KubeResourceSpec):
@@ -129,8 +131,10 @@ class RemoteSparkRuntime(KubejobRuntime):
 
     def with_spark_service(self, spark_service, provider=RemoteSparkProviders.iguazio):
         """Attach spark service to function"""
+        # check for existence of spark_services
+        if not get_k8s_helper().is_service_exist():
+            raise MLRunInvalidArgumentError(f"spark service named {spark_service} doesn't exist")
         self.spec.provider = provider
-        print(get_k8s_helper().get_pod_status(spark_service))
         if provider == RemoteSparkProviders.iguazio:
             self.spec.env.append(
                 {"name": "MLRUN_SPARK_CLIENT_IGZ_SPARK", "value": "true"}

@@ -132,9 +132,7 @@ class RemoteSparkRuntime(KubejobRuntime):
     def with_spark_service(self, spark_service, provider=RemoteSparkProviders.iguazio):
         """Attach spark service to function"""
         # check for existence of spark_services
-        print(1)
-        if not get_k8s_helper().is_service_exist():
-            print(2)
+        if not get_k8s_helper().is_service_exist(name=spark_service):
             raise MLRunInvalidArgumentError(f"spark service named {spark_service} doesn't exist")
         self.spec.provider = provider
         if provider == RemoteSparkProviders.iguazio:

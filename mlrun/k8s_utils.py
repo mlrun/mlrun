@@ -490,7 +490,6 @@ class K8sHelper:
         items = self.list_services(namespace=namespace)
         for item in items:
             if is_release_name and 'meta.helm.sh/release-name' in item.metadata.annotations:
-                print(12)
                 if name == item.metadata.annotations['meta.helm.sh/release-name']:
                     return True
             else:

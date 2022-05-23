@@ -9,9 +9,8 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from mlrun import mlconf, new_function
 import tests.api.api.utils
-from mlrun import mlconf
+from mlrun import mlconf, new_function
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.db import SQLDB
 from mlrun.runtimes.function import (

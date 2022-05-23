@@ -481,6 +481,7 @@ def ingest(
             mlrun_context=mlrun_context,
             namespace=namespace,
             overwrite=overwrite,
+            return_df=user_return_df,
         )
 
     if isinstance(source, str):
@@ -727,6 +728,7 @@ def _ingest_with_spark(
     mlrun_context=None,
     namespace=None,
     overwrite=None,
+    return_df=True,
 ):
     created_spark_context = False
     try:
@@ -838,7 +840,9 @@ def _ingest_with_spark(
             spark.stop()
             # We shouldn't return a dataframe that depends on a stopped context
             return
-    return df
+
+    if return_df:
+        return df
 
 
 def _post_ingestion(context, featureset, spark=None):

@@ -315,6 +315,9 @@ def test_list_functions(create_server):
     db: HTTPRunDB = server.conn
 
     proj = "p4"
+    proj_obj = mlrun.new_project(proj)
+    db.create_project(proj_obj)
+
     count = 5
     for i in range(count):
         name = f"func{i}"

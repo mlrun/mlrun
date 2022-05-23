@@ -298,4 +298,4 @@ class TestServingRuntime(TestNuclioRuntime):
 
         _, _, config = compile_function_config(function)
         # verify the code is filled with the mlrun wrapper
-        assert config["spec"]["build"]["functionSourceCode"]
+        assert config["spec"]["handler"].startswith("mlrun.serving")

@@ -511,6 +511,8 @@ class ProjectSpec(ModelObj):
                 if url:
                     self._source = url
 
+        if self._source in [".", "./"]:
+            return path.abspath(self.context)
         return self._source
 
     @source.setter
@@ -808,6 +810,8 @@ class MlrunProject(ModelObj):
         self.spec.load_source_on_run = pull_at_runtime
         self.spec.source = source or self.spec.source
         self.spec.workdir = workdir or self.spec.workdir
+        # reset function objects (to recalculate build attributes)
+        self.sync_functions()
 
     def get_artifact_uri(
         self, key: str, category: str = "artifact", tag: str = None
@@ -1450,7 +1454,7 @@ class MlrunProject(ModelObj):
         return self.get_function(key, sync)
 
     def get_function(
-        self, key, sync=False, enrich=False, ignore_cache=False
+        self, key, sync=True, enrich=False, ignore_cache=False
     ) -> mlrun.runtimes.BaseRuntime:
         """get function object by name
 
@@ -1464,7 +1468,7 @@ class MlrunProject(ModelObj):
         if key in self.spec._function_objects and not sync and not ignore_cache:
             function = self.spec._function_objects[key]
         elif key in self.spec._function_definitions and not ignore_cache:
-            self.sync_functions()
+            self.sync_functions([key])
             function = self.spec._function_objects[key]
         else:
             function = get_db_function(self, key)
@@ -1550,9 +1554,10 @@ class MlrunProject(ModelObj):
         if self._initialized and not always:
             return self.spec._function_objects
 
-        funcs = {}
+        funcs = self.spec._function_objects
         if not names:
             names = self.spec._function_definitions.keys()
+            funcs = {}
         origin = add_code_metadata(self.spec.context)
         for name in names:
             f = self.spec._function_definitions.get(name)

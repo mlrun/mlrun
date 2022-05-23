@@ -2493,6 +2493,7 @@ class TestFeatureStore(TestMLRunSystem):
         "start_time, end_time, is_through_init, should_succeed",
         [
             (None, None, None, True),
+            (datetime(2021, 5, 25, 10, 30, 29, 592000), None, None, True),
             ("2021-05-25T10:30:29.592Z", "2021-05-25T10:30:29.592Z", False, True),
             ("2021-05-25T10:30:29.592", "2021-05-25T10:30:29.592", False, True),
             ("2021-05-25T10:30:29.abc", "2021-05-25T10:30:29.592", False, False),
@@ -2505,6 +2506,7 @@ class TestFeatureStore(TestMLRunSystem):
         self, start_time, end_time, is_through_init, should_succeed
     ):
         def actual_test(start_time, end_time, is_through_init):
+            actual = datetime(2021, 5, 25, 10, 30, 29, 592000)
             trades.to_parquet(path="v3io:///bigdata/trades1.parquet")
             fset = fs.FeatureSet(
                 "parsrc", entities=[Entity("ticker")], timestamp_key="time"
@@ -2520,6 +2522,11 @@ class TestFeatureStore(TestMLRunSystem):
             if not is_through_init:
                 source.start_time = start_time
                 source.end_time = end_time
+
+            if source.start_time:
+                assert source.start_time == actual
+            if source.end_time:
+                assert source.end_time == actual
             fs.ingest(fset, source, overwrite=True)
 
         if should_succeed:

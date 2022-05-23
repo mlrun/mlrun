@@ -187,7 +187,8 @@ def test_log(create_server):
     server: Server = create_server()
     db = server.conn
     prj, uid, body = "p19", "3920", b"log data"
-    mlrun.get_or_create_project(prj, context="./")
+    proj_obj = mlrun.new_project(prj)
+    db.create_project(proj_obj)
 
     db.store_run({"metadata": {"name": "run-name"}, "asd": "asd"}, uid, prj)
     db.store_log(uid, prj, body)
@@ -200,7 +201,8 @@ def test_run(create_server):
     server: Server = create_server()
     db = server.conn
     prj, uid = "p18", "3i920"
-    mlrun.get_or_create_project(prj, context="./")
+    proj_obj = mlrun.new_project(prj)
+    db.create_project(proj_obj)
 
     run_as_dict = RunObject().to_dict()
     run_as_dict["metadata"].update({"name": "run-name", "algorithm": "svm", "C": 3})
@@ -233,7 +235,8 @@ def test_runs(create_server):
     server: Server = create_server()
     db = server.conn
     prj = "p180"
-    mlrun.get_or_create_project(prj, context="./")
+    proj_obj = mlrun.new_project(prj)
+    db.create_project(proj_obj)
 
     runs = db.list_runs()
     assert not runs, "found runs in new db"
@@ -295,7 +298,8 @@ def test_set_get_function(create_server):
 
     func, name, proj = {"x": 1, "y": 2}, "f1", "p2"
     tag = uuid4().hex
-    mlrun.get_or_create_project(proj, context="./")
+    proj_obj = mlrun.new_project(proj)
+    db.create_project(proj_obj)
 
     db.store_function(func, name, proj, tag=tag)
     db_func = db.get_function(name, proj, tag=tag)
@@ -399,7 +403,8 @@ def test_feature_sets(create_server):
     db: HTTPRunDB = server.conn
 
     project = "newproj"
-    mlrun.get_or_create_project(project, context="./")
+    proj_obj = mlrun.new_project(project)
+    db.create_project(proj_obj)
 
     count = 5
     for i in range(count):
@@ -487,7 +492,8 @@ def test_feature_vectors(create_server):
     db: HTTPRunDB = server.conn
 
     project = "newproj"
-    mlrun.get_or_create_project(project, context="./")
+    proj_obj = mlrun.new_project(project)
+    db.create_project(proj_obj)
 
     count = 5
     for i in range(count):

@@ -1,5 +1,6 @@
 import os
 import pathlib
+import zipfile
 
 import deepdiff
 import inflection
@@ -246,3 +247,24 @@ def test_get_artifact_uri():
     assert uri == "store://artifacts/arti/x"
     uri = project.get_artifact_uri("y", category="model", tag="prod")
     assert uri == "store://models/arti/y:prod"
+
+
+def test_export_to_zip():
+    project_dir_path = pathlib.Path(tests.conftest.results) / "zip-project"
+    project = mlrun.new_project("tozip", context=str(project_dir_path / "code"))
+    project.set_function("hub://describe", "desc")
+    with (project_dir_path / "code" / "f.py").open("w") as f:
+        f.write("print(1)\n")
+
+    zip_path = str(project_dir_path / "proj.zip")
+    project.export(zip_path)
+
+    assert os.path.isfile(str(project_dir_path / "code" / "project.yaml"))
+    assert os.path.isfile(zip_path)
+
+    zipf = zipfile.ZipFile(zip_path, "r")
+    assert set(zipf.namelist()) == set(["./", "f.py", "project.yaml"])
+
+    # check upload to (remote) DataItem
+    project.export("memory://x.zip")
+    assert mlrun.get_dataitem("memory://x.zip").stat().size

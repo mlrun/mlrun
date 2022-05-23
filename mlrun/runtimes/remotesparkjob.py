@@ -18,7 +18,7 @@ from subprocess import run
 
 from mlrun.config import config
 from mlrun.errors import MLRunInvalidArgumentError
-from mlrun.k8s_utils import K8sHelper, get_k8s_helper
+from mlrun.k8s_utils import get_k8s_helper
 
 from ..model import RunObject
 from ..platforms.iguazio import mount_v3io_extended, mount_v3iod

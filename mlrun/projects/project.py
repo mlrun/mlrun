@@ -1558,9 +1558,10 @@ class MlrunProject(ModelObj):
         if self._initialized and not always:
             return self.spec._function_objects
 
-        funcs = {}
+        funcs = self.spec._function_objects
         if not names:
             names = self.spec._function_definitions.keys()
+            funcs = {}
         origin = add_code_metadata(self.spec.context)
         for name in names:
             f = self.spec._function_definitions.get(name)

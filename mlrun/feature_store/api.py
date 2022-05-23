@@ -327,6 +327,7 @@ def ingest(
                                     False for scheduled ingest - does not delete the target)
 
     """
+    user_return_df = return_df
     if featureset:
         if isinstance(featureset, str):
             # need to strip store prefix from the uri
@@ -528,7 +529,8 @@ def ingest(
 
     _post_ingestion(mlrun_context, featureset, spark_context)
 
-    return df
+    if user_return_df:
+        return df
 
 
 def preview(

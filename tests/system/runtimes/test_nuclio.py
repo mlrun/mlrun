@@ -15,8 +15,8 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
 
     @staticmethod
     def _skip_set_environment():
-        # Skip to make sure project ensured in Nuclio function deployment flow
-        return True
+        # Project ensured does not create the project if it does not exist, therefore we need to build it beforehand
+        return False
 
     def test_deploy_function_without_project(self):
         code_path = str(self.assets_path / "nuclio_function.py")

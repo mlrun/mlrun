@@ -324,7 +324,11 @@ def test_list_functions(create_server):
         func = {"fid": i}
         tag = uuid4().hex
         db.store_function(func, name, proj, tag=tag)
-    db.store_function({}, "f2", "p7", tag=uuid4().hex)
+    proj_p7 = "p7"
+    proj_p7_obj = mlrun.new_project(proj_p7)
+    db.create_project(proj_p7_obj)
+
+    db.store_function({}, "f2", proj_p7, tag=uuid4().hex)
 
     functions = db.list_functions(project=proj)
     for function in functions:

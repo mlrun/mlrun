@@ -17,12 +17,13 @@ import typing
 from subprocess import run
 
 from mlrun.config import config
+from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.k8s_utils import K8sHelper, get_k8s_helper
+
 from ..model import RunObject
 from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
 from .kubejob import KubejobRuntime, KubeRuntimeHandler
 from .pod import KubeResourceSpec
-from mlrun.errors import MLRunInvalidArgumentError
 
 
 class RemoteSparkSpec(KubeResourceSpec):
@@ -133,7 +134,9 @@ class RemoteSparkRuntime(KubejobRuntime):
         """Attach spark service to function"""
         # check for existence of spark_services
         if not get_k8s_helper().is_service_exist(name=spark_service):
-            raise MLRunInvalidArgumentError(f"spark service named {spark_service} doesn't exist")
+            raise MLRunInvalidArgumentError(
+                f"spark service named {spark_service} doesn't exist"
+            )
         self.spec.provider = provider
         if provider == RemoteSparkProviders.iguazio:
             self.spec.env.append(

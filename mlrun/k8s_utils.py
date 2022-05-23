@@ -285,12 +285,12 @@ class K8sHelper:
         results = {}
         for p in pods:
             if (
-                    (kind not in ["spark", "mpijob"])
-                    or (p.metadata.labels.get("spark-role", "") == "driver")
-                    # v1alpha1
-                    or (p.metadata.labels.get("mpi_role_type", "") == "launcher")
-                    # v1
-                    or (p.metadata.labels.get("mpi-job-role", "") == "launcher")
+                (kind not in ["spark", "mpijob"])
+                or (p.metadata.labels.get("spark-role", "") == "driver")
+                # v1alpha1
+                or (p.metadata.labels.get("mpi_role_type", "") == "launcher")
+                # v1
+                or (p.metadata.labels.get("mpi-job-role", "") == "launcher")
             ):
                 results[p.metadata.name] = p.status.phase
 
@@ -314,7 +314,7 @@ class K8sHelper:
             raise exc
 
     def get_project_vault_secret_name(
-            self, project, service_account_name, namespace=""
+        self, project, service_account_name, namespace=""
     ):
         namespace = self.resolve_namespace(namespace)
 
@@ -373,12 +373,12 @@ class K8sHelper:
         return secret_name
 
     def store_secrets(
-            self,
-            secret_name,
-            secrets,
-            namespace="",
-            type_=SecretTypes.opaque,
-            labels: typing.Optional[dict] = None,
+        self,
+        secret_name,
+        secrets,
+        namespace="",
+        type_=SecretTypes.opaque,
+        labels: typing.Optional[dict] = None,
     ):
         namespace = self.resolve_namespace(namespace)
         try:
@@ -484,14 +484,21 @@ class K8sHelper:
             logger.error(f"failed to list services: {exc}")
             raise exc
 
-        return [service for service in services.items if not states or service.status.phase in states]
+        return [
+            service
+            for service in services.items
+            if not states or service.status.phase in states
+        ]
 
     def is_service_exist(self, name, namespace=None, is_release_name: bool = True):
         items = self.list_services(namespace=namespace)
         for item in items:
-            if is_release_name and item.metadata.annotations is not None and\
-                    'meta.helm.sh/release-name' in item.metadata.annotations:
-                if name == item.metadata.annotations['meta.helm.sh/release-name']:
+            if (
+                is_release_name
+                and item.metadata.annotations is not None
+                and "meta.helm.sh/release-name" in item.metadata.annotations
+            ):
+                if name == item.metadata.annotations["meta.helm.sh/release-name"]:
                     return True
             else:
                 if name == item.metadata.name:
@@ -502,16 +509,16 @@ class K8sHelper:
 
 class BasePod:
     def __init__(
-            self,
-            task_name="",
-            image=None,
-            command=None,
-            args=None,
-            namespace="",
-            kind="job",
-            project=None,
-            default_pod_spec_attributes=None,
-            resources=None,
+        self,
+        task_name="",
+        image=None,
+        command=None,
+        args=None,
+        namespace="",
+        kind="job",
+        project=None,
+        default_pod_spec_attributes=None,
+        resources=None,
     ):
         self.namespace = namespace
         self.name = ""
@@ -548,7 +555,7 @@ class BasePod:
         self._init_container = container
 
     def set_init_container(
-            self, image, command=None, args=None, env=None, image_pull_policy="IfNotPresent"
+        self, image, command=None, args=None, env=None, image_pull_policy="IfNotPresent"
     ):
         if isinstance(env, dict):
             env = [client.V1EnvVar(name=k, value=v) for k, v in env.items()]
@@ -582,7 +589,7 @@ class BasePod:
         )
 
     def mount_v3io(
-            self, name="v3io", remote="~/", mount_path="/User", access_key="", user=""
+        self, name="v3io", remote="~/", mount_path="/User", access_key="", user=""
     ):
         self.add_volume(
             v3io_to_vol(name, remote, access_key, user),
@@ -682,7 +689,7 @@ def verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = N
 
 
 def generate_preemptible_node_selector_requirements(
-        node_selector_operator: str,
+    node_selector_operator: str,
 ) -> typing.List[kubernetes.client.V1NodeSelectorRequirement]:
     """
     Generate node selector requirements based on the pre-configured node selector of the preemptible nodes.
@@ -693,8 +700,8 @@ def generate_preemptible_node_selector_requirements(
     """
     match_expressions = []
     for (
-            node_selector_key,
-            node_selector_value,
+        node_selector_key,
+        node_selector_value,
     ) in mlconfig.get_preemptible_node_selector().items():
         match_expressions.append(
             kubernetes.client.V1NodeSelectorRequirement(
@@ -768,7 +775,7 @@ def generate_preemptible_tolerations() -> typing.List[kubernetes.client.V1Tolera
                 value=toleration.get("value", None),
                 operator=toleration.get("operator", None),
                 toleration_seconds=toleration.get("toleration_seconds", None)
-                                   or toleration.get("tolerationSeconds", None),
+                or toleration.get("tolerationSeconds", None),
             )
         )
     return toleration_objects

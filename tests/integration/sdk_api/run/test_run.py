@@ -5,6 +5,8 @@ import tests.integration.sdk_api.base
 class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):
     def test_ctx_creation_creates_run_with_project(self):
         ctx_name = "some-context"
+        mlrun.get_or_create_project(mlrun.mlconf.default_project, "./")
+
         mlrun.get_or_create_ctx(ctx_name)
         runs = mlrun.get_run_db().list_runs(
             name=ctx_name, project=mlrun.mlconf.default_project
@@ -14,6 +16,8 @@ class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):
 
     def test_ctx_state_change(self):
         ctx_name = "some-context"
+        mlrun.get_or_create_project(mlrun.mlconf.default_project, "./")
+
         ctx = mlrun.get_or_create_ctx(ctx_name)
         runs = mlrun.get_run_db().list_runs(
             name=ctx_name, project=mlrun.mlconf.default_project

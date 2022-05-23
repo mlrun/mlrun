@@ -1302,13 +1302,10 @@ def compile_function_config(
 
         if (
             function.kind == mlrun.runtimes.RuntimeKinds.serving
-            and not function.spec.build.source
+            and not function.spec.function_handler
             and not get_in(config, "spec.build.functionSourceCode")
         ):
             # if the serving function does not have source code, add the mlrun wrapper
-            body = nuclio.build.mlrun_footer.format(
-                mlrun.runtimes.serving.serving_subkind
-            )
             update_in(
                 config,
                 "spec.handler",

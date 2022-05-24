@@ -35,7 +35,7 @@ MLRUN_DOCKER_REGISTRY ?=
 # disable caching)
 MLRUN_NO_CACHE ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
-MLRUN_PYTHON_VERSION ?= 3.7.11
+MLRUN_PYTHON_VERSION ?= 3.7.13
 MLRUN_PIP_VERSION ?= 22.0.0
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:

@@ -588,24 +588,23 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             engine="spark",
         )
 
-        output_path = "v3io:///bigdata/test_write_empty_dataframe_overwrite_false/"
-        targets = [
-            ParquetTarget(
-                name="pq",
-                path=output_path,
-                partitioned=False,
-            ),
-        ]
-
+        target = ParquetTarget(
+            name="pq",
+            path="v3io:///bigdata/test_write_empty_dataframe_overwrite_false/",
+            partitioned=False,
+        )
+        target.get_target_path()
         fs.ingest(
             feature_set,
             source,
             run_config=fs.RunConfig(local=False),
-            targets=targets,
+            targets=[
+                target,
+            ],
             overwrite=False,
             spark_context=self.spark_service,
         )
 
         # check that no files were written
         with pytest.raises(FileNotFoundError):
-            pd.read_parquet(output_path)
+            pd.read_parquet(target.get_target_path())

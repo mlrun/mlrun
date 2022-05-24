@@ -18,7 +18,8 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         This test verifies it's working
         """
         project_name = "runs-project"
-        mlrun.new_project(project_name)
+        project = mlrun.new_project(project_name)
+        project.save()
         uid = "some-uid"
         run_body_path = str(self.assets_path / "big-run.json")
         with open(run_body_path) as run_body_file:
@@ -31,6 +32,8 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         projects = ["run-project-1", "run-project-2", "run-project-3"]
         run_names = ["run-name-1", "run-name-2", "run-name-3"]
         for project in projects:
+            project_obj = mlrun.new_project(project)
+            project_obj.save()
             for name in run_names:
                 for suffix in ["first", "second", "third"]:
                     uid = f"{name}-uid-{suffix}"

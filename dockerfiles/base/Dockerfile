@@ -2,6 +2,14 @@ ARG MLRUN_PYTHON_VERSION=3.7.13
 
 FROM quay.io/mlrun/python:${MLRUN_PYTHON_VERSION}-slim
 
+RUN apt-get update && \
+    apt-get -s dist-upgrade | \
+    grep "^Inst" | \
+    grep -i securi | \
+    awk -F " " {'print $2'} | \
+    xargs apt-get install -y --no-install-recommends && \
+    rm -rf /var/lib/apt/lists/*
+
 # need to be redeclared since used in the from
 ARG MLRUN_PYTHON_VERSION
 ENV PIP_NO_CACHE_DIR=1

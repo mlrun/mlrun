@@ -1,5 +1,13 @@
 FROM jupyter/scipy-notebook:python-3.8.8
 
+RUN apt-get update && \
+    apt-get -s dist-upgrade | \
+    grep "^Inst" | \
+    grep -i securi | \
+    awk -F " " {'print $2'} | \
+    xargs apt-get install -y --no-install-recommends && \
+    rm -rf /var/lib/apt/lists/*
+
 USER root
 RUN apt-get update && apt-get install --no-install-recommends -y \
   graphviz \

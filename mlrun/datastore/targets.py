@@ -93,7 +93,7 @@ def get_default_prefix_for_source(kind):
     return get_default_prefix_for_target(kind)
 
 
-def validate_target_paths_for_engine(targets, engine):
+def validate_target_paths_for_engine(targets, engine, source):
     """Validating that target paths are suitable for the required engine.
     validate for single file targets only (parquet and csv).
 
@@ -116,6 +116,17 @@ def validate_target_paths_for_engine(targets, engine):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"spark CSV/Parquet targets must be directories, got path:'{target.path}'"
                 )
+            elif engine == "pandas":
+                if source.attributes.get("chunksize"):
+                    if is_single_file:
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            "pandas CSV/Parquet targets must be a directory "
+                            f"for a chunked source, got path:'{target.path}'"
+                        )
+                elif not is_single_file:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"pandas CSV/Parquet targets must be a single file, got path:'{target.path}'"
+                    )
             elif not engine or engine == "storey":
                 if target.kind == TargetTypes.csv and not is_single_file:
                     raise mlrun.errors.MLRunInvalidArgumentError(

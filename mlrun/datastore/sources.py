@@ -257,14 +257,9 @@ class ParquetSource(BaseSourceDriver):
 
     @staticmethod
     def _convert_to_datetime(time: str):
-        try:
-            return datetime.fromisoformat(time)
-        except ValueError as error:
-            # check if java's iso format if so remove the Z from the end and try again
-            if time.endswith("Z"):
-                return datetime.fromisoformat(time[:-1])
-            else:
-                raise error
+        if time.endswith("Z"):
+            return datetime.fromisoformat(time[:-1])
+        return datetime.fromisoformat(time)
 
     def to_step(
         self,

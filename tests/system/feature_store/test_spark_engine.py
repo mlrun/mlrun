@@ -593,7 +593,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             path="v3io:///bigdata/test_write_empty_dataframe_overwrite_false/",
             partitioned=False,
         )
-        target.get_target_path()
+
         fs.ingest(
             feature_set,
             source,

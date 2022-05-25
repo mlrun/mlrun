@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 import mlrun
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.iguazio
+import tests.api.api.utils
 from mlrun.api.schemas import AuthInfo
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config as mlconf
@@ -15,12 +16,15 @@ from tests.api.conftest import K8sSecretsMock
 
 
 def test_submit_job_failure_function_not_found(db: Session, client: TestClient) -> None:
+    project = "project-name"
+    tests.api.api.utils.create_project(client, project)
+
     function_reference = (
         "cat-and-dog-servers/aggregate@b145b6d958a7b4d84f12821a06459e31ea422308"
     )
     body = {
         "task": {
-            "metadata": {"name": "task-name", "project": "project-name"},
+            "metadata": {"name": "task-name", "project": project},
             "spec": {"function": function_reference},
         },
     }
@@ -102,8 +106,9 @@ def test_submit_job_auto_mount(
     mlconf.storage.auto_mount_params = (
         f"api={api_url},user=invalid-user,access_key=invalid-access-key"
     )
-
     project = "my-proj1"
+    tests.api.api.utils.create_project(client, project)
+
     function_name = "test-function"
     function_tag = "latest"
     function = mlrun.new_function(
@@ -134,6 +139,8 @@ def test_submit_job_ensure_function_has_auth_set(
 ) -> None:
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
     project = "my-proj1"
+    tests.api.api.utils.create_project(client, project)
+
     function = mlrun.new_function(
         name="test-function",
         project=project,
@@ -161,6 +168,8 @@ def test_submit_job_service_accounts(
     db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock: K8sSecretsMock
 ):
     project = "my-proj1"
+    tests.api.api.utils.create_project(client, project)
+
     # must set the default project since new_function creates the function object and ignores the project parameter.
     # Instead, the function always gets the default project name. This may be a bug, need to check.
     mlconf.default_project = project

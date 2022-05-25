@@ -1268,6 +1268,7 @@ def compile_function_config(
         function.spec.base_spec
         or function.spec.build.functionSourceCode
         or function.spec.build.source
+        or function.kind == mlrun.runtimes.RuntimeKinds.serving  # serving can be empty
     ):
         config = function.spec.base_spec
         if not config:
@@ -1297,6 +1298,18 @@ def compile_function_config(
         name = get_fullname(function.metadata.name, project, tag)
         function.status.nuclio_name = name
         update_in(config, "metadata.name", name)
+
+        if (
+            function.kind == mlrun.runtimes.RuntimeKinds.serving
+            and not function.spec.function_handler
+            and not get_in(config, "spec.build.functionSourceCode")
+        ):
+            # if the serving function does not have source code, add the mlrun wrapper
+            update_in(
+                config,
+                "spec.handler",
+                "mlrun.serving.serving_wrapper:handler",
+            )
     else:
         # todo: should be deprecated (only work via MLRun service)
         # this may also be called in case of using single file code_to_function(embed_code=False)

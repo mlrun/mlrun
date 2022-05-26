@@ -753,7 +753,7 @@ class KafkaSource(OnlineSource):
         return func
 
 
-class MongoDbSource(BaseSourceDriver):
+class MongoDBSource(BaseSourceDriver):
     """
     Reads Google BigQuery query results as input source for a flow.
 
@@ -845,8 +845,7 @@ class MongoDbSource(BaseSourceDriver):
                 batch = next(self.my_collection_iter)
                 decode_batch = bson.decode_all(batch)
                 curr_df = pd.DataFrame(decode_batch)
-                # curr_df.drop(['_id'], axis=1, inplace=True)
-                df['_id'] = str(df['_id'])
+                df['_id'] = df['_id'].astype(str)
                 return curr_df
 
         query = self.attributes.get("query")
@@ -862,8 +861,7 @@ class MongoDbSource(BaseSourceDriver):
                 return MongoDbiter(my_collection, chunksize, query)
             else:
                 df = pd.DataFrame(list(my_collection.find(query)))
-                df['_id'] = str(df['_id'])
-                # df.drop(['_id'], axis=1, inplace=True)
+                df['_id'] = df['_id'].astype(str)
                 return df
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -885,5 +883,5 @@ source_kind_to_driver = {
     CustomSource.kind: CustomSource,
     BigQuerySource.kind: BigQuerySource,
     SnowflakeSource.kind: SnowflakeSource,
-    MongoDbSource.kind: MongoDbSource,
+    MongoDBSource.kind: MongoDBSource,
 }

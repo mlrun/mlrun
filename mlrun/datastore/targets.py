@@ -104,6 +104,10 @@ def validate_target_paths_for_engine(targets, engine, source):
         if csv - must be a single file.
         if parquet - in case of partitioned it must be a directory,
                      else can be both single file or directory
+
+    pandas:
+        if suorce contains chunksize attribute - path must be a directory
+        else - path must be a single file
     """
     for base_target in targets:
         if (

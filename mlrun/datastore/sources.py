@@ -257,8 +257,8 @@ class ParquetSource(BaseSourceDriver):
 
     @staticmethod
     def _convert_to_datetime(time: str):
-        if time.__contains__("Z"):
-            return datetime.fromisoformat(time.replace("Z", ""))
+        if time.endswith("Z"):
+            return datetime.fromisoformat(time.replace("Z", "+00:00"))
         return datetime.fromisoformat(time)
 
     def to_step(

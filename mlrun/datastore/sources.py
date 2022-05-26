@@ -30,6 +30,9 @@ from ..model import DataSource
 from ..platforms.iguazio import parse_v3io_path
 from ..utils import get_class
 from .utils import store_path_to_spark
+from pymongo import MongoClient
+import bson
+import pandas as pd
 
 
 def get_source_from_dict(source):
@@ -120,14 +123,14 @@ class CSVSource(BaseSourceDriver):
     support_spark = True
 
     def __init__(
-        self,
-        name: str = "",
-        path: str = None,
-        attributes: Dict[str, str] = None,
-        key_field: str = None,
-        time_field: str = None,
-        schedule: str = None,
-        parse_dates: Optional[Union[List[int], List[str]]] = None,
+            self,
+            name: str = "",
+            path: str = None,
+            attributes: Dict[str, str] = None,
+            key_field: str = None,
+            time_field: str = None,
+            schedule: str = None,
+            parse_dates: Optional[Union[List[int], List[str]]] = None,
     ):
         super().__init__(name, path, attributes, key_field, time_field, schedule)
         self._parse_dates = parse_dates
@@ -163,9 +166,9 @@ class CSVSource(BaseSourceDriver):
         df = session.read.load(**self.get_spark_options())
         for col_name, col_type in df.dtypes:
             if (
-                col_name == self.time_field
-                or self._parse_dates
-                and col_name in self._parse_dates
+                    col_name == self.time_field
+                    or self._parse_dates
+                    and col_name in self._parse_dates
             ):
                 df = df.withColumn(col_name, funcs.col(col_name).cast("timestamp"))
         if named_view:
@@ -209,15 +212,15 @@ class ParquetSource(BaseSourceDriver):
     support_spark = True
 
     def __init__(
-        self,
-        name: str = "",
-        path: str = None,
-        attributes: Dict[str, str] = None,
-        key_field: str = None,
-        time_field: str = None,
-        schedule: str = None,
-        start_time: Optional[Union[datetime, str]] = None,
-        end_time: Optional[Union[datetime, str]] = None,
+            self,
+            name: str = "",
+            path: str = None,
+            attributes: Dict[str, str] = None,
+            key_field: str = None,
+            time_field: str = None,
+            schedule: str = None,
+            start_time: Optional[Union[datetime, str]] = None,
+            end_time: Optional[Union[datetime, str]] = None,
     ):
 
         if isinstance(start_time, str):
@@ -238,12 +241,12 @@ class ParquetSource(BaseSourceDriver):
         )
 
     def to_step(
-        self,
-        key_field=None,
-        time_field=None,
-        start_time=None,
-        end_time=None,
-        context=None,
+            self,
+            key_field=None,
+            time_field=None,
+            start_time=None,
+            end_time=None,
+            context=None,
     ):
         import storey
 
@@ -310,20 +313,20 @@ class BigQuerySource(BaseSourceDriver):
     support_spark = True
 
     def __init__(
-        self,
-        name: str = "",
-        table: str = None,
-        max_results_for_table: int = None,
-        query: str = None,
-        materialization_dataset: str = None,
-        chunksize: int = None,
-        key_field: str = None,
-        time_field: str = None,
-        schedule: str = None,
-        start_time=None,
-        end_time=None,
-        gcp_project: str = None,
-        spark_options: dict = None,
+            self,
+            name: str = "",
+            table: str = None,
+            max_results_for_table: int = None,
+            query: str = None,
+            materialization_dataset: str = None,
+            chunksize: int = None,
+            key_field: str = None,
+            time_field: str = None,
+            schedule: str = None,
+            start_time=None,
+            end_time=None,
+            gcp_project: str = None,
+            spark_options: dict = None,
     ):
         if query and table:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -455,20 +458,20 @@ class SnowflakeSource(BaseSourceDriver):
     support_storey = False
 
     def __init__(
-        self,
-        name: str = "",
-        key_field: str = None,
-        time_field: str = None,
-        schedule: str = None,
-        start_time=None,
-        end_time=None,
-        query: str = None,
-        url: str = None,
-        user: str = None,
-        password: str = None,
-        database: str = None,
-        schema: str = None,
-        warehouse: str = None,
+            self,
+            name: str = "",
+            key_field: str = None,
+            time_field: str = None,
+            schedule: str = None,
+            start_time=None,
+            end_time=None,
+            query: str = None,
+            url: str = None,
+            user: str = None,
+            password: str = None,
+            database: str = None,
+            schema: str = None,
+            warehouse: str = None,
     ):
         attrs = {
             "query": query,
@@ -510,11 +513,11 @@ class CustomSource(BaseSourceDriver):
     support_spark = False
 
     def __init__(
-        self,
-        class_name: str = None,
-        name: str = "",
-        schedule: str = None,
-        **attributes,
+            self,
+            class_name: str = None,
+            name: str = "",
+            schedule: str = None,
+            **attributes,
     ):
         attributes = attributes or {}
         attributes["class_name"] = class_name
@@ -539,7 +542,7 @@ class DataFrameSource:
     support_storey = True
 
     def __init__(
-        self, df, key_field=None, time_field=None, context=None, iterator=False
+            self, df, key_field=None, time_field=None, context=None, iterator=False
     ):
         self._df = df
         if isinstance(key_field, str):
@@ -583,13 +586,13 @@ class OnlineSource(BaseSourceDriver):
     kind = ""
 
     def __init__(
-        self,
-        name: str = None,
-        path: str = None,
-        attributes: Dict[str, str] = None,
-        key_field: str = None,
-        time_field: str = None,
-        workers: int = None,
+            self,
+            name: str = None,
+            path: str = None,
+            attributes: Dict[str, str] = None,
+            key_field: str = None,
+            time_field: str = None,
+            workers: int = None,
     ):
         super().__init__(name, path, attributes, key_field, time_field)
         self.online = True
@@ -637,14 +640,14 @@ class StreamSource(OnlineSource):
     kind = "v3ioStream"
 
     def __init__(
-        self,
-        name="stream",
-        group="serving",
-        seek_to="earliest",
-        shards=1,
-        retention_in_hours=24,
-        extra_attributes: dict = None,
-        **kwargs,
+            self,
+            name="stream",
+            group="serving",
+            seek_to="earliest",
+            shards=1,
+            retention_in_hours=24,
+            extra_attributes: dict = None,
+            **kwargs,
     ):
         """
         Sets stream source for the flow. If stream doesn't exist it will create it
@@ -694,15 +697,15 @@ class KafkaSource(OnlineSource):
     kind = "kafka"
 
     def __init__(
-        self,
-        brokers="localhost:9092",
-        topics="topic",
-        group="serving",
-        initial_offset="earliest",
-        partitions=None,
-        sasl_user=None,
-        sasl_pass=None,
-        **kwargs,
+            self,
+            brokers="localhost:9092",
+            topics="topic",
+            group="serving",
+            initial_offset="earliest",
+            partitions=None,
+            sasl_user=None,
+            sasl_pass=None,
+            **kwargs,
     ):
         """Sets kafka source for the flow
 
@@ -750,6 +753,125 @@ class KafkaSource(OnlineSource):
         return func
 
 
+class MongoDbSource(BaseSourceDriver):
+    """
+    Reads Google BigQuery query results as input source for a flow.
+
+    example::
+
+         # use sql query
+         query_string = "SELECT * FROM `the-psf.pypi.downloads20210328` LIMIT 5000"
+         source = BigQuerySource("bq1", query=query_string,
+                                 gcp_project="my_project",
+                                 materialization_dataset="dataviews")
+
+         # read a table
+         source = BigQuerySource("bq2", table="the-psf.pypi.downloads20210328", gcp_project="my_project")
+
+
+    :parameter name:  source name
+    :parameter table: table name/path, cannot be used together with query
+    :parameter query: sql query string
+    :parameter materialization_dataset: for query with spark, The target dataset for the materialized view.
+                                        This dataset should be in same location as the view or the queried tables.
+                                        must be set to a dataset where the GCP user has table creation permission
+    :parameter chunksize: number of rows per chunk (default large single chunk)
+    :parameter key_field: the column to be used as the key for events. Can be a list of keys.
+    :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
+    :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
+         cause the job to run every 30 minutes
+    :parameter gcp_project:  google cloud project name
+    :parameter spark_options: additional spart read options
+    """
+
+    kind = "mongodb"
+    support_storey = False
+    support_spark = False
+
+    def __init__(
+            self,
+            name: str = "",
+            max_results_for_table: int = None,
+            query: dict = None,
+            chunksize: int = None,
+            key_field: str = None,
+            time_field: str = None,
+            schedule: str = None,
+            start_time=None,
+            end_time=None,
+            db_name: str = None,
+            connection_string: str = None,
+            collection_name: str = None,
+            spark_options: dict = None,
+    ):
+        key = "MONGO_CONNECTION_STRING"
+        connection_string = connection_string or os.getenv(key)
+        if connection_string is None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"cannot specify without connection_string arg or secret {key}"
+            )
+        else:
+            mongodb_client = MongoClient(connection_string)
+        attrs = {
+            "query": query,
+            "collection_name": collection_name,
+            "db_name": db_name,
+            "max_results": max_results_for_table,
+            "chunksize": chunksize,
+            "mongodb_client": mongodb_client,
+            "spark_options": spark_options,
+        }
+        attrs = {key: value for key, value in attrs.items() if value is not None}
+        super().__init__(
+            name,
+            attributes=attrs,
+            key_field=key_field,
+            time_field=time_field,
+            schedule=schedule,
+            start_time=start_time,
+            end_time=end_time,
+        )
+
+    def to_dataframe(self):
+
+        class MongoDbiter:
+            def __init__(self, collection, iter_chunksize, iter_query):
+                self.my_collection_iter = collection.find_raw_batches(iter_query, batch_size=iter_chunksize)
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                batch = next(self.my_collection_iter)
+                decode_batch = bson.decode_all(batch)
+                curr_df = pd.DataFrame(decode_batch)
+                curr_df.drop(['_id'], axis=1, inplace=True)
+                return curr_df
+
+        query = self.attributes.get("query")
+        db_name = self.attributes.get("db_name")
+        mongodb_client = self.attributes.get("mongodb_client")
+        collection_name = self.attributes.get("collection_name")
+        chunksize = self.attributes.get("chunksize")
+        if collection_name and db_name:
+            my_db = mongodb_client[db_name]
+            my_collection = my_db[collection_name]
+
+            if chunksize:
+                return MongoDbiter(my_collection, chunksize, query)
+            else:
+                df = pd.DataFrame(list(my_collection.find(query)))
+                df.drop(['_id'], axis=1, inplace=True)
+                return df
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "collection_name and db_name args must be specified"
+            )
+
+    def is_iterator(self):
+        return True if self.attributes.get("chunksize") else False
+
+
 # map of sources (exclude DF source which is not serializable)
 source_kind_to_driver = {
     "": BaseSourceDriver,
@@ -761,4 +883,5 @@ source_kind_to_driver = {
     CustomSource.kind: CustomSource,
     BigQuerySource.kind: BigQuerySource,
     SnowflakeSource.kind: SnowflakeSource,
+    MongoDbSource.kind: MongoDbSource,
 }

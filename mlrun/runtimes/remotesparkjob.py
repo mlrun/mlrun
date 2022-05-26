@@ -134,7 +134,8 @@ class RemoteSparkRuntime(KubejobRuntime):
         # check for existence of spark_services
         if not get_k8s_helper().is_service_exist(name=spark_service):
             raise MLRunInvalidArgumentError(
-                f"spark service named {spark_service} doesn't exist"
+                f"The spark service provided {spark_service} does not exist. "
+                f"Please notice the name should be given as it is shown in the Iguazio UI."
             )
         self.spec.provider = provider
         if provider == RemoteSparkProviders.iguazio:

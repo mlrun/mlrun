@@ -497,12 +497,11 @@ class K8sHelper:
                 is_release_name
                 and item.metadata.annotations is not None
                 and "meta.helm.sh/release-name" in item.metadata.annotations
-            ):
-                if name == item.metadata.annotations["meta.helm.sh/release-name"]:
-                    return True
-            else:
-                if name == item.metadata.name:
-                    return True
+                and name == item.metadata.annotations["meta.helm.sh/release-name"]
+            ):  # "meta.helm.sh/release-name" is the name that shown in the Iguazio UI
+                return True
+            elif not is_release_name and name == item.metadata.name:
+                return True
 
         return False
 

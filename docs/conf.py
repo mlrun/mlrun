@@ -135,9 +135,7 @@ myst_url_schemes = ("http", "https", "mailto")
 myst_heading_anchors = 2
 panels_add_bootstrap_css = False
 myst_all_links_external = True
-myst_substitutions = {
-  "version": version
-}
+myst_substitutions = {"version": version}
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True

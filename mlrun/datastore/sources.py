@@ -846,6 +846,7 @@ class MongoDbSource(BaseSourceDriver):
                 decode_batch = bson.decode_all(batch)
                 curr_df = pd.DataFrame(decode_batch)
                 # curr_df.drop(['_id'], axis=1, inplace=True)
+                df['_id'] = str(df['_id'])
                 return curr_df
 
         query = self.attributes.get("query")
@@ -861,6 +862,7 @@ class MongoDbSource(BaseSourceDriver):
                 return MongoDbiter(my_collection, chunksize, query)
             else:
                 df = pd.DataFrame(list(my_collection.find(query)))
+                df['_id'] = str(df['_id'])
                 # df.drop(['_id'], axis=1, inplace=True)
                 return df
         else:

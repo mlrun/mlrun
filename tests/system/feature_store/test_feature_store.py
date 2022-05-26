@@ -110,7 +110,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         self._logger.info(f"stocks spec: {stocks_set.to_yaml()}")
         assert (
-            stocks_set.spec.features["name"].description == "some name"
+                stocks_set.spec.features["name"].description == "some name"
         ), "description was not set"
         assert len(df) == len(stocks), "dataframe size doesnt match"
         assert stocks_set.status.stats["exchange"], "stats not created"
@@ -168,10 +168,10 @@ class TestFeatureStore(TestMLRunSystem):
             features
         ), "unexpected num of requested features"
         assert (
-            len(vector.status.features) == features_size
+                len(vector.status.features) == features_size
         ), "unexpected num of returned features"
         assert (
-            len(vector.status.stats) == features_size
+                len(vector.status.stats) == features_size
         ), "unexpected num of feature stats"
         assert vector.status.label_column == "xx", "unexpected label_column name"
 
@@ -197,7 +197,7 @@ class TestFeatureStore(TestMLRunSystem):
             # check that passing a dict (without list) works
             resp = svc.get({"ticker": "GOOG"})
             assert (
-                resp[0]["name"] == "Alphabet Inc" and resp[0]["exchange"] == "NASDAQ"
+                    resp[0]["name"] == "Alphabet Inc" and resp[0]["exchange"] == "NASDAQ"
             ), "unexpected online result"
 
             try:
@@ -215,11 +215,11 @@ class TestFeatureStore(TestMLRunSystem):
             resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
             resp = svc.get([{"ticker": "AAPL"}])
             assert (
-                resp[0]["name"] == "Apple Inc" and resp[0]["exchange"] == "NASDAQ"
+                    resp[0]["name"] == "Apple Inc" and resp[0]["exchange"] == "NASDAQ"
             ), "unexpected online result"
             resp2 = svc.get([{"ticker": "AAPL"}], as_list=True)
             assert (
-                len(resp2[0]) == features_size - 1
+                    len(resp2[0]) == features_size - 1
             ), "unexpected online vector size"  # -1 label
 
     def test_ingest_and_query(self):
@@ -238,7 +238,7 @@ class TestFeatureStore(TestMLRunSystem):
             "stocks.*",
         ]
         features_size = (
-            len(features) + 1 + 1
+                len(features) + 1 + 1
         )  # (*) returns 2 features, label adds 1 feature
 
         # test fetch with the pandas merger engine
@@ -292,7 +292,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert default_df.index.name is None, "index column is not of default type"
         assert "time" not in default_df.columns, "'time' column shouldn't be present"
         assert (
-            "ticker" not in default_df.columns
+                "ticker" not in default_df.columns
         ), "'ticker' column shouldn't be present"
 
         # with_indexes = False, entity_timestamp_column = "time"
@@ -305,10 +305,10 @@ class TestFeatureStore(TestMLRunSystem):
         assert df_no_time.index.name is None, "index column is not of default type"
         assert "time" not in df_no_time.columns, "'time' column should not be present"
         assert (
-            "ticker" not in df_no_time.columns
+                "ticker" not in df_no_time.columns
         ), "'ticker' column shouldn't be present"
         assert (
-            "another_time" in df_no_time.columns
+                "another_time" in df_no_time.columns
         ), "'another_time' column should be present"
 
         # with_indexes = False, entity_timestamp_column = "invalid" - should return the timestamp column
@@ -320,11 +320,11 @@ class TestFeatureStore(TestMLRunSystem):
         ), "index column is not of default type"
         assert df_with_time.index.name is None, "index column is not of default type"
         assert (
-            "ticker" not in df_with_time.columns
+                "ticker" not in df_with_time.columns
         ), "'ticker' column shouldn't be present"
         assert "time" in df_with_time.columns, "'time' column should be present"
         assert (
-            "another_time" not in df_with_time.columns
+                "another_time" not in df_with_time.columns
         ), "'another_time' column should not be present"
 
         vector.spec.with_indexes = True
@@ -342,13 +342,13 @@ class TestFeatureStore(TestMLRunSystem):
             (f"v3io:///bigdata/{project_name}/gof_wt.parquet", False),  # single file
             (f"v3io:///bigdata/{project_name}/gof_wt/", False),  # directory
             (
-                f"v3io:///bigdata/{project_name}/{{run_id}}/gof_wt.parquet",
-                True,
+                    f"v3io:///bigdata/{project_name}/{{run_id}}/gof_wt.parquet",
+                    True,
             ),  # with run_id
         ],
     )
     def test_different_target_paths_for_get_offline_features(
-        self, target_path, should_raise_error
+            self, target_path, should_raise_error
     ):
         stocks = pd.DataFrame(
             {
@@ -376,20 +376,20 @@ class TestFeatureStore(TestMLRunSystem):
         "target_path, final_path",
         [
             (
-                "v3io:///bigdata/csvtest/csvname.csv",
-                "v3io:///bigdata/csvtest/{run_id}/csvname.csv",
+                    "v3io:///bigdata/csvtest/csvname.csv",
+                    "v3io:///bigdata/csvtest/{run_id}/csvname.csv",
             ),
             (
-                "v3io:///bigdata/csvtest/csvname",
-                "v3io:///bigdata/csvtest/csvname/{run_id}/",
+                    "v3io:///bigdata/csvtest/csvname",
+                    "v3io:///bigdata/csvtest/csvname/{run_id}/",
             ),
             (
-                "v3io:///bigdata/csvtest/csvname/",
-                "v3io:///bigdata/csvtest/csvname/{run_id}/",
+                    "v3io:///bigdata/csvtest/csvname/",
+                    "v3io:///bigdata/csvtest/csvname/{run_id}/",
             ),
             (
-                "v3io:///bigdata/csvtest/csvname/{run_id}",
-                "v3io:///bigdata/csvtest/csvname/{run_id}/",
+                    "v3io:///bigdata/csvtest/csvname/{run_id}",
+                    "v3io:///bigdata/csvtest/csvname/{run_id}/",
             ),
         ],
     )
@@ -436,11 +436,11 @@ class TestFeatureStore(TestMLRunSystem):
         fs.ingest(fset, df, infer_options=fs.InferOptions.default(), **ingest_kw)
 
         assert fset.status.targets[
-            0
-        ].get_path().get_absolute_path() == fset.get_target_path("parquet")
+                   0
+               ].get_path().get_absolute_path() == fset.get_target_path("parquet")
         assert fset.status.targets[
-            1
-        ].get_path().get_absolute_path() == fset.get_target_path("nosql")
+                   1
+               ].get_path().get_absolute_path() == fset.get_target_path("nosql")
 
     def test_feature_set_db(self):
         name = "stocks_test"
@@ -695,7 +695,7 @@ class TestFeatureStore(TestMLRunSystem):
     @pytest.mark.parametrize("partition_cols", [None, ["department"]])
     @pytest.mark.parametrize("time_partitioning_granularity", [None, "day"])
     def test_ingest_partitioned_by_key_and_time(
-        self, key_bucketing_number, partition_cols, time_partitioning_granularity
+            self, key_bucketing_number, partition_cols, time_partitioning_granularity
     ):
         name = f"measurements_{uuid.uuid4()}"
         key = "patient_id"
@@ -749,12 +749,12 @@ class TestFeatureStore(TestMLRunSystem):
             expected_partitions = [f"hash{key_bucketing_number}_key"]
         expected_partitions += partition_cols or []
         if all(
-            value is None
-            for value in [
-                key_bucketing_number,
-                partition_cols,
-                time_partitioning_granularity,
-            ]
+                value is None
+                for value in [
+                    key_bucketing_number,
+                    partition_cols,
+                    time_partitioning_granularity,
+                ]
         ):
             time_partitioning_granularity = "hour"
         if time_partitioning_granularity:
@@ -1364,7 +1364,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         vector = fs.FeatureVector("my-vec", features)
         with fs.get_online_feature_service(
-            vector, fixed_window_type=fixed_window_type
+                vector, fixed_window_type=fixed_window_type
         ) as svc:
             resp = svc.get([{"first_name": "moshe"}])
             if fixed_window_type == FixedWindowType.CurrentOpenWindow:
@@ -1680,8 +1680,8 @@ class TestFeatureStore(TestMLRunSystem):
         csv_df = pd.read_csv(csv_path)
         assert (
             df1.set_index(keys="name")
-            .sort_index()
-            .equals(csv_df.set_index(keys="name").sort_index())
+                .sort_index()
+                .equals(csv_df.set_index(keys="name").sort_index())
         )
 
         parquet_path = fset.get_target_path(name="parquet")
@@ -1698,8 +1698,8 @@ class TestFeatureStore(TestMLRunSystem):
         csv_df = pd.read_csv(csv_path)
         assert (
             df1.set_index(keys="name")
-            .sort_index()
-            .equals(csv_df.set_index(keys="name").sort_index())
+                .sort_index()
+                .equals(csv_df.set_index(keys="name").sort_index())
         )
 
         parquet_path = fset.get_target_path(name="parquet")
@@ -1728,8 +1728,8 @@ class TestFeatureStore(TestMLRunSystem):
 
         assert (
             df1.set_index(keys="name")
-            .sort_index()
-            .equals(off1.to_dataframe().sort_index())
+                .sort_index()
+                .equals(off1.to_dataframe().sort_index())
         )
         assert df1.set_index(keys="name").sort_index().equals(dfout1.sort_index())
 
@@ -1739,8 +1739,8 @@ class TestFeatureStore(TestMLRunSystem):
         dfout2 = pd.read_parquet(target.get_target_path())
         assert (
             df2.set_index(keys="name")
-            .sort_index()
-            .equals(off2.to_dataframe().sort_index())
+                .sort_index()
+                .equals(off2.to_dataframe().sort_index())
         )
         assert df2.set_index(keys="name").sort_index().equals(dfout2.sort_index())
 
@@ -1853,7 +1853,7 @@ class TestFeatureStore(TestMLRunSystem):
             if config.v3io_api:
                 api = config.v3io_api
                 if "//" in api:
-                    api = api[api.find("//") + 2 :]
+                    api = api[api.find("//") + 2:]
                 if ":" in api:
                     api = api[: api.find(":")]
             return api
@@ -2305,9 +2305,8 @@ class TestFeatureStore(TestMLRunSystem):
         # create vector and online service with imputing policy
         vector = fs.FeatureVector("vectori", features)
         with fs.get_online_feature_service(
-            vector, impute_policy={"*": "$max", "data_avg_1h": "$mean", "data2": 4}
+                vector, impute_policy={"*": "$max", "data_avg_1h": "$mean", "data2": 4}
         ) as svc:
-
             print(svc.vector.status.to_yaml())
 
             resp = svc.get([{"name": "ab"}])
@@ -2423,7 +2422,7 @@ class TestFeatureStore(TestMLRunSystem):
         ],
     )
     def test_deploy_ingestion_service_with_different_targets(
-        self, targets, feature_set_targets, expected_target_names
+            self, targets, feature_set_targets, expected_target_names
     ):
         fset_name = "dis-set"
         fset = FeatureSet(f"{fset_name}", entities=[Entity("ticker")])
@@ -2490,38 +2489,51 @@ class TestFeatureStore(TestMLRunSystem):
             assert key in expected
 
     @pytest.mark.parametrize(
-        "start_time, end_time, is_through_init, should_succeed",
+        "time_for_source, is_through_init, should_succeed, time_delta",
         [
-            (None, None, None, True),
-            (datetime(2021, 5, 25, 10, 30, 29, 592000), None, None, True),
-            ("2021-05-25T10:30:29.592Z", "2021-05-25T10:30:29.592Z", False, True),
-            ("2021-05-25T10:30:29.592", "2021-05-25T10:30:29.592", False, True),
-            ("2021-05-25T10:30:29.abc", "2021-05-25T10:30:29.592", False, False),
-            ("2021-05-25T10:30:29.592Z", "2021-05-25T10:30:29.592Z", True, True),
-            ("2021-05-25T10:30:29.592", "2021-05-25T10:30:29.592", True, True),
-            ("2021-05-25T10:30:29.abc", "2021-05-25T10:30:29.592", True, False),
+            (None, None, True, None),
+            (datetime(2021, 5, 25, 10, 30, 29, 592000), False, True, None),
+            (datetime(2021, 5, 25, 10, 30, 29, 592000), True, True, None),
+            (datetime(2021, 5, 25, 10, 30, 29, 592000, timezone.utc), False, True, 0),
+            (datetime(2021, 5, 25, 10, 30, 29, 592000, timezone.utc), True, True, 0),
+            ("2021-05-25T10:30:29.592Z", False, True, None),
+            ("2021-05-25T10:30:29.592Z", True, True, None),
+            ("2021-05-25T10:30:29.592", False, True, None),
+            ("2021-05-25T10:30:29.592", True, True, None),
+            ("2021-05-25T10:30:29.abc", False, False, None),
+            ("2021-05-25T10:30:29.abc", True, False, None),
+            ("2021-05-25T10:30:29.592Z+00:00", False, True, 0),
+            ("2021-05-25T10:30:29.592Z+00:00", True, True, 0),
+            ("2021-05-25T10:30:29.592+00:00", False, True, 0),
+            ("2021-05-25T10:30:29.592+00:00", True, True, 0),
+            ("2021-05-25T10:30:29.592Z+02:00", False, True, timedelta(seconds=7200)),
+            ("2021-05-25T10:30:29.592Z+02:00", True, True, timedelta(seconds=7200)),
+            ("2021-05-25T10:30:29.592+02:00", False, True, timedelta(hours=2)),
+            ("2021-05-25T10:30:29.592+02:00", True, True, timedelta(hours=2)),
         ],
     )
     def test_parquet_source_with_iso_start_or_end_time(
-        self, start_time, end_time, is_through_init, should_succeed
+            self, time_for_source, is_through_init, should_succeed, time_delta
     ):
-        def actual_test(start_time, end_time, is_through_init):
-            actual = datetime(2021, 5, 25, 10, 30, 29, 592000)
+        def actual_test(time_for_source, is_through_init, time_delta):
+            if time_delta is None:
+                tzinfo = None
+            else:
+                tzinfo = timezone.utc if time_delta == 0 else timezone(time_delta)
+            actual = datetime(2021, 5, 25, 10, 30, 29, 592000, tzinfo)
             trades.to_parquet(path="v3io:///bigdata/trades1.parquet")
             fset = fs.FeatureSet(
                 "parsrc", entities=[Entity("ticker")], timestamp_key="time"
             )
-            init_start_time = start_time if is_through_init else None
-            init_end_time = end_time if is_through_init else None
             source = ParquetSource(
                 "srcpar",
                 path="v3io:///bigdata/trades1.parquet",
-                start_time=init_start_time,
-                end_time=init_end_time,
+                start_time=time_for_source if is_through_init else None,
+                end_time=time_for_source if is_through_init else None,
             )
             if not is_through_init:
-                source.start_time = start_time
-                source.end_time = end_time
+                source.start_time = time_for_source
+                source.end_time = time_for_source
 
             if source.start_time:
                 assert source.start_time == actual
@@ -2530,10 +2542,10 @@ class TestFeatureStore(TestMLRunSystem):
             fs.ingest(fset, source, overwrite=True)
 
         if should_succeed:
-            actual_test(start_time, end_time, is_through_init)
+            actual_test(time_for_source, is_through_init, time_delta)
         else:
             with pytest.raises(ValueError, match=r".*Invalid isoformat string:.*"):
-                actual_test(start_time, end_time, is_through_init)
+                actual_test(time_for_source, is_through_init, time_delta)
 
 
 def verify_purge(fset, targets):
@@ -2573,7 +2585,7 @@ def verify_target_list_fail(targets, with_defaults=None):
 
 
 def verify_ingest(
-    base_data, keys, infer=False, targets=None, infer_options=fs.InferOptions.default()
+        base_data, keys, infer=False, targets=None, infer_options=fs.InferOptions.default()
 ):
     if isinstance(keys, str):
         keys = [keys]
@@ -2595,7 +2607,7 @@ def verify_ingest(
 
 
 def prepare_feature_set(
-    name: str, entity: str, data: pd.DataFrame, timestamp_key=None, targets=None
+        name: str, entity: str, data: pd.DataFrame, timestamp_key=None, targets=None
 ):
     df_source = mlrun.datastore.sources.DataFrameSource(data, entity, timestamp_key)
 

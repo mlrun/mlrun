@@ -26,8 +26,8 @@ Add the `-d` flag to `docker-compose` for running in detached mode (in the backg
 
 The following commands install MLRun + Nuclio for work with your own IDE or notebook. 
 
-Download the {Download}`compose.yaml<./compose.yaml>` file to the working dir and type:
-````{toggle} view compose.yaml
+**{Download}`[Download here]<./compose.yaml>`** the `compose.yaml` file, save it to the working dir and type:
+````{dropdown} show the compose.yaml file
    ```{literalinclude} ./compose.yaml
    :language: yaml
    ```
@@ -35,8 +35,8 @@ Download the {Download}`compose.yaml<./compose.yaml>` file to the working dir an
 
 ````{tabbed} Linux/Mac
 ```sh
-export SHARED_DIR=~/mlrun-data
 export HOST_IP=<your host IP address>
+export SHARED_DIR=~/mlrun-data
 docker-compose -f compose.yaml up
 ``` 
 
@@ -45,8 +45,8 @@ Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands. 
 
 ````{tabbed} Windows
 ```sh
-set SHARED_DIR=c:\mlrun-data
 set HOST_IP=<your host IP address>
+set SHARED_DIR=c:\mlrun-data
 docker-compose -f compose.yaml up
 ``` 
 
@@ -54,9 +54,9 @@ Your `HOST_IP` address can be found using the `ipconfig` shell command, it is re
 ````
 
 This creates 3 services:
-- MLRun API (in `http://localhost:8080`)
-- MLRun UI (in `http://localhost:8060`)
-- Nuclio Dashboard/controller (in `http://localhost:8070`)
+- MLRun API (in [http://localhost:8080](http://localhost:8080))
+- MLRun UI (in [http://localhost:8060](http://localhost:8060))
+- Nuclio Dashboard/controller (in [http://localhost:8070](http://localhost:8070))
 
 After installing MLRun service, set your client environment to work with the service, by setting the MLRun path env variable to 
 `MLRUN_DBPATH=http://localhost:8080` or using `.env` files (see [setting client environment](./remote.md)).
@@ -65,8 +65,8 @@ After installing MLRun service, set your client environment to work with the ser
 
 For the quickest experience with MLRun you can deploy MLRun with a pre integrated Jupyter server loaded with various ready-to-use MLRun examples.
 
-Download the {Download}`compose.with-jupyter.yaml<./compose.with-jupyter.yaml>` file to the working dir and type:
-````{toggle} show compose.with-jupyter.yaml
+**{Download}`[Download here]<./compose.with-jupyter.yaml>`** the `compose.with-jupyter.yaml` file, save it to the working dir and type:
+````{toggle} show the compose.with-jupyter.yaml file
    ```{literalinclude} ./compose.with-jupyter.yaml
    :language: yaml
    ```
@@ -74,8 +74,8 @@ Download the {Download}`compose.with-jupyter.yaml<./compose.with-jupyter.yaml>` 
 
 ````{tabbed} Linux/Mac
 ```sh
-export SHARED_DIR=~/mlrun-data
 export HOST_IP=<your host IP address>
+export SHARED_DIR=~/mlrun-data
 docker-compose -f compose.with-jupyter.yaml up
 ```
 
@@ -84,8 +84,8 @@ Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands. 
 
 ````{tabbed} Windows
 ```sh
-set SHARED_DIR=c:\mlrun-data
 set HOST_IP=<your host IP address>
+set SHARED_DIR=c:\mlrun-data
 docker-compose -f compose.with-jupyter.yaml up
 ``` 
 
@@ -93,10 +93,10 @@ Your `HOST_IP` address can be found using the `ipconfig` shell command, it is re
 ````
 
 This creates 4 services:
-- Jupyter lab (in `http://localhost:8888`)
-- MLRun API (in `http://localhost:8080`), running on the Jupyter container
-- MLRun UI (in `http://localhost:8060`)
-- Nuclio Dashboard/controller (in `http://localhost:8070`)
+- Jupyter lab (in [http://localhost:8888](http://localhost:8888))
+- MLRun API (in [http://localhost:8080](http://localhost:8080)), running on the Jupyter container
+- MLRun UI (in [http://localhost:8060](http://localhost:8060))
+- Nuclio Dashboard/controller (in [http://localhost:8070](http://localhost:8070))
 
 After the installation, access the Jupyter server (in [http://localhost:8888](http://localhost:8888)) and run through the [`quick-start` tutorial](./quick-start/quick-start.html) and `demos`.
 You can see the projects, tasks, and artifacts in MLRun UI (in [http://localhost:8060](http://localhost:8060))

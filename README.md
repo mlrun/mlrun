@@ -40,7 +40,7 @@ the API handling, data preparation/enrichment, [model serving](https://docs.mlru
 ## Get started
 
 It's easy to start using MLRun: 
-1. Install MLRun [locally using Docker](https://docs.mlrun.org/en/latest/install/local-docker.html) or [over Kubernetes Cluster](https://docs.mlrun.org/en/latest/install/kubernetes.html). Alternatively, you can use [Iguazio's managed MLRun service](https://www.iguazio.com/docs/latest-release/)
+1. Install the MLRun service [locally using Docker](https://docs.mlrun.org/en/latest/install/local-docker.html) or [over Kubernetes Cluster](https://docs.mlrun.org/en/latest/install/kubernetes.html). Alternatively, you can use [Iguazio's managed MLRun service](https://www.iguazio.com/docs/latest-release/)
 2. [Set up your client environment](https://docs.mlrun.org/en/latest/install/remote.html) to work with the service. 
 3. Follow the [Quick Start tutorial](./docs.mlrun.org/en/latest/quick-start/quick-start.html) and [Additional Tutorials and Examples](./docs.mlrun.org/en/latest/howto/index.html) to learn how to use MLRun to develop and deploy machine learning applications to production.<br>
 

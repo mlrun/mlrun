@@ -8,7 +8,6 @@ from storey import MapClass
 from mlrun.serving.server import get_event_time
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import get_in
-import re
 
 
 class FeaturesetValidator(StepToDict, MapClass):
@@ -56,11 +55,11 @@ class MapValues(StepToDict, MapClass):
     """Map column values to new values"""
 
     def __init__(
-            self,
-            mapping: Dict[str, Dict[str, Any]],
-            with_original_features: bool = False,
-            suffix: str = "mapped",
-            **kwargs,
+        self,
+        mapping: Dict[str, Dict[str, Any]],
+        with_original_features: bool = False,
+        suffix: str = "mapped",
+        **kwargs,
     ):
         """Map column values to new values
 
@@ -117,11 +116,11 @@ class MapValues(StepToDict, MapClass):
 
 class Imputer(StepToDict, MapClass):
     def __init__(
-            self,
-            method: str = "avg",
-            default_value=None,
-            mapping: Dict[str, Dict[str, Any]] = None,
-            **kwargs,
+        self,
+        method: str = "avg",
+        default_value=None,
+        mapping: Dict[str, Dict[str, Any]] = None,
+        **kwargs,
     ):
         """Replace None values with default values
 
@@ -167,15 +166,12 @@ class OneHotEncoder(StepToDict, MapClass):
         encoding = self.mapping.get(feature, [])
 
         if encoding:
-            # replace(" " and "-") -> "_"
-            sanitized_category = lambda cat: re.sub("[ -]", "_", cat)
-
             one_hot_encoding = {
-                f"{feature}_{sanitized_category(category)}": 0
+                f"{feature}_{self._prepare_category(category)}": 0
                 for category in encoding
             }
             if value in encoding:
-                one_hot_encoding[f"{feature}_{sanitized_category(value)}"] = 1
+                one_hot_encoding[f"{feature}_{self._prepare_category(value)}"] = 1
             else:
                 print(f"Warning, {value} is not a known value by the encoding")
             return one_hot_encoding
@@ -188,15 +184,19 @@ class OneHotEncoder(StepToDict, MapClass):
             encoded_values.update(self._encode(feature, val))
         return encoded_values
 
+    def _prepare_category(self, f_name: str):
+        """replace (" " and "-") -> "_" """
+        return "_".join(("_".join(f_name.split())).split("-"))
+
 
 class DateExtractor(StepToDict, MapClass):
     """Date Extractor allows you to extract a date-time component"""
 
     def __init__(
-            self,
-            parts: Union[Dict[str, str], List[str]],
-            timestamp_col: str = None,
-            **kwargs,
+        self,
+        parts: Union[Dict[str, str], List[str]],
+        timestamp_col: str = None,
+        **kwargs,
     ):
         """Date Extractor extract a date-time component into new columns
 
@@ -281,12 +281,12 @@ class SetEventMetadata(MapClass):
     """Set the event metadata (id, key, timestamp) from the event body"""
 
     def __init__(
-            self,
-            id_path: str = None,
-            key_path: str = None,
-            time_path: str = None,
-            random_id: bool = None,
-            **kwargs,
+        self,
+        id_path: str = None,
+        key_path: str = None,
+        time_path: str = None,
+        random_id: bool = None,
+        **kwargs,
     ):
         """Set the event metadata (id, key, timestamp) from the event body
 

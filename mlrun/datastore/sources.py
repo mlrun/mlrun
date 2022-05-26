@@ -845,7 +845,7 @@ class MongoDbSource(BaseSourceDriver):
                 batch = next(self.my_collection_iter)
                 decode_batch = bson.decode_all(batch)
                 curr_df = pd.DataFrame(decode_batch)
-                curr_df.drop(['_id'], axis=1, inplace=True)
+                # curr_df.drop(['_id'], axis=1, inplace=True)
                 return curr_df
 
         query = self.attributes.get("query")
@@ -861,7 +861,7 @@ class MongoDbSource(BaseSourceDriver):
                 return MongoDbiter(my_collection, chunksize, query)
             else:
                 df = pd.DataFrame(list(my_collection.find(query)))
-                df.drop(['_id'], axis=1, inplace=True)
+                # df.drop(['_id'], axis=1, inplace=True)
                 return df
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(

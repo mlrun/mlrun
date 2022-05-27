@@ -16,6 +16,7 @@ import asyncio
 import json
 import typing
 import warnings
+from base64 import b64encode
 from datetime import datetime
 from time import sleep
 from urllib.parse import urlparse
@@ -445,40 +446,6 @@ class RemoteRuntime(KubeResource):
         update_in(config, "spec.image", image)
         update_in(config, "spec.build.codeEntryType", "image")
         self.spec.base_spec = config
-
-    def serving(
-        self,
-        models: dict = None,
-        model_class="",
-        protocol="",
-        image="",
-        endpoint="",
-        explainer=False,
-        workers=8,
-        canary=None,
-    ):
-        warnings.warn(
-            'This method is deprecated and will be removed in 0.10.0. Use the "serving" runtime instead',
-            # TODO: remove in 0.10.0
-            DeprecationWarning,
-        )
-
-        if models:
-            for k, v in models.items():
-                self.set_env(f"SERVING_MODEL_{k}", v)
-
-        if protocol:
-            self.set_env("TRANSPORT_PROTOCOL", protocol)
-        if model_class:
-            self.set_env("MODEL_CLASS", model_class)
-        self.set_env("ENABLE_EXPLAINER", str(explainer))
-        self.with_http(workers, host=endpoint, canary=canary)
-        self.spec.function_kind = "serving"
-
-        if image:
-            self.from_image(image)
-
-        return self
 
     def add_v3io_stream_trigger(
         self,
@@ -1299,17 +1266,26 @@ def compile_function_config(
         function.status.nuclio_name = name
         update_in(config, "metadata.name", name)
 
-        if (
-            function.kind == mlrun.runtimes.RuntimeKinds.serving
-            and not function.spec.function_handler
-            and not get_in(config, "spec.build.functionSourceCode")
+        if function.kind == mlrun.runtimes.RuntimeKinds.serving and not get_in(
+            config, "spec.build.functionSourceCode"
         ):
-            # if the serving function does not have source code, add the mlrun wrapper
-            update_in(
-                config,
-                "spec.handler",
-                "mlrun.serving.serving_wrapper:handler",
-            )
+            if not function.spec.build.source:
+                # set the source to the mlrun serving wrapper
+                body = nuclio.build.mlrun_footer.format(
+                    mlrun.runtimes.serving.serving_subkind
+                )
+                update_in(
+                    config,
+                    "spec.build.functionSourceCode",
+                    b64encode(body.encode("utf-8")).decode("utf-8"),
+                )
+            elif not function.spec.function_handler:
+                # point the nuclio function handler to mlrun serving wrapper handlers
+                update_in(
+                    config,
+                    "spec.handler",
+                    "mlrun.serving.serving_wrapper:handler",
+                )
     else:
         # todo: should be deprecated (only work via MLRun service)
         # this may also be called in case of using single file code_to_function(embed_code=False)

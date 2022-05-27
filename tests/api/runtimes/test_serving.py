@@ -295,9 +295,18 @@ class TestServingRuntime(TestNuclioRuntime):
         )
 
     def test_empty_function(self):
+        # test simple function (no source)
         function = new_function("serving", kind="serving", image="mlrun/mlrun")
         function.set_topology("flow")
-
         _, _, config = compile_function_config(function)
-        # verify the code is filled with the mlrun wrapper
+        # verify the code is filled with the mlrun serving wrapper
+        assert config["spec"]["build"]["functionSourceCode"]
+
+        # test function built from source repo (set the handler)
+        function = new_function(
+            "serving", kind="serving", image="mlrun/mlrun", source="git://x/y#z"
+        )
+        function.set_topology("flow")
+        _, _, config = compile_function_config(function, builder_env={})
+        # verify the handler points to mlrun serving wrapper handler
         assert config["spec"]["handler"].startswith("mlrun.serving")

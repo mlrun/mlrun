@@ -15,7 +15,6 @@
 import asyncio
 import json
 import typing
-import warnings
 from base64 import b64encode
 from datetime import datetime
 from time import sleep
@@ -421,19 +420,6 @@ class RemoteRuntime(KubeResource):
                 worker_timeout
             ) * 1000
         self.add_trigger(trigger_name or "http", trigger)
-        return self
-
-    def add_model(self, name, model_path, **kw):
-        warnings.warn(
-            'This method is deprecated and will be removed in 0.10.0. Use the "serving" runtime instead',
-            # TODO: remove in 0.10.0
-            DeprecationWarning,
-        )
-        if model_path.startswith("v3io://"):
-            model = "/User/" + "/".join(model_path.split("/")[5:])
-        else:
-            model = model_path
-        self.set_env(f"SERVING_MODEL_{name}", model)
         return self
 
     def from_image(self, image):

@@ -37,16 +37,18 @@ The following commands install MLRun + Nuclio for work with your own IDE or note
 ```sh
 export HOST_IP=<your host IP address>
 export SHARED_DIR=~/mlrun-data
+mkdir $SHARED_DIR -p
 docker-compose -f compose.yaml up
 ``` 
 
 Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands. It is recomended to select an address that does not change dynamically (for example the IP of the bridge interface).
 ````
 
-````{tabbed} Windows
+````{tabbed} Windows (cmd)
 ```sh
 set HOST_IP=<your host IP address>
 set SHARED_DIR=c:\mlrun-data
+mkdir %SHARED_DIR%
 docker-compose -f compose.yaml up
 ``` 
 
@@ -76,16 +78,18 @@ For the quickest experience with MLRun you can deploy MLRun with a pre integrate
 ```sh
 export HOST_IP=<your host IP address>
 export SHARED_DIR=~/mlrun-data
+mkdir $SHARED_DIR -p
 docker-compose -f compose.with-jupyter.yaml up
 ```
 
 Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands. It is recomended to select an address that does not change dynamically (for example the IP of the bridge interface). 
 ````
 
-````{tabbed} Windows
+````{tabbed} Windows (cmd)
 ```sh
 set HOST_IP=<your host IP address>
 set SHARED_DIR=c:\mlrun-data
+mkdir %SHARED_DIR%
 docker-compose -f compose.with-jupyter.yaml up
 ``` 
 

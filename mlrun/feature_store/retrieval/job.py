@@ -79,9 +79,16 @@ class RemoteVectorResponse:
             raise mlrun.errors.MLRunTaskNotReady("feature vector dataset is not ready")
         self.vector.reload()
 
-    def to_dataframe(self):
-        """return result as dataframe"""
-        return mlrun.get_dataitem(self.target_uri).as_df()
+    def to_dataframe(self, columns=None, df_module=None, **kwargs):
+        """return result as a dataframe object (generated from the dataitem).
+
+        :param columns:   optional, list of columns to select
+        :param df_module: optional, py module used to create the DataFrame (e.g. pd, dd, cudf, ..)
+        :param kwargs:    extended DataItem.as_df() args
+        """
+        return mlrun.get_dataitem(self.target_uri).as_df(
+            columns=columns, df_module=df_module, **kwargs
+        )
 
     @property
     def target_uri(self):

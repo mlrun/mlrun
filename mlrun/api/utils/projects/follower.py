@@ -92,22 +92,6 @@ class Member(
         logger.info("Shutting down projects leader")
         self._stop_periodic_sync()
 
-    def ensure_project(
-        self,
-        db_session: sqlalchemy.orm.Session,
-        name: str,
-        wait_for_completion: bool = True,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
-    ) -> bool:
-        is_project_created = super().ensure_project(
-            db_session, name, wait_for_completion, auth_info
-        )
-        if is_project_created:
-            mlrun.api.utils.auth.verifier.AuthVerifier().add_allowed_project_for_owner(
-                name, auth_info,
-            )
-        return is_project_created
-
     def create_project(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -209,7 +193,10 @@ class Member(
             )
         else:
             return self._leader_client.delete_project(
-                auth_info.session, name, deletion_strategy, wait_for_completion,
+                auth_info.session,
+                name,
+                deletion_strategy,
+                wait_for_completion,
             )
         return False
 
@@ -224,7 +211,9 @@ class Member(
         return self._projects[name]
 
     def get_project_owner(
-        self, db_session: sqlalchemy.orm.Session, name: str,
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
     ) -> mlrun.api.schemas.ProjectOwner:
         return self._leader_client.get_project_owner(self._sync_session, name)
 

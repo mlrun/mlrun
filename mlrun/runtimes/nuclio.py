@@ -80,9 +80,9 @@ def nuclio_jobs_handler(context, event):
     if secret_list:
         ctx._secrets_manager.add_source("env", secret_list)
 
-    args = get_func_arg(fhandler, RunTemplate.from_dict(ctx.to_dict()), ctx)
+    kwargs = get_func_arg(fhandler, RunTemplate.from_dict(ctx.to_dict()), ctx, True)
     try:
-        val = fhandler(*args)
+        val = fhandler(**kwargs)
         if val:
             ctx.log_result("return", val)
     except Exception as exc:

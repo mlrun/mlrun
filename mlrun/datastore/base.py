@@ -162,6 +162,11 @@ class DataStore:
                             f"feature not supported for python version {sys.version_info}"
                         )
 
+                    if time_column is None:
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            "When providing start_time or end_time, must provide time_column"
+                        )
+
                     from storey.utils import find_filters, find_partitions
 
                     filters = []
@@ -364,12 +369,16 @@ class DataItem:
         return self._local_path
 
     def as_df(
-        self, columns=None, df_module=None, format="", **kwargs,
+        self,
+        columns=None,
+        df_module=None,
+        format="",
+        **kwargs,
     ):
         """return a dataframe object (generated from the dataitem).
 
         :param columns:   optional, list of columns to select
-        :param df_module: optional, dataframe class (e.g. pd, dd, cudf, ..)
+        :param df_module: optional, py module used to create the DataFrame (e.g. pd, dd, cudf, ..)
         :param format:    file format, if not specified it will be deducted from the suffix
         """
         return self._store.as_df(

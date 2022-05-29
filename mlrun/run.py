@@ -14,6 +14,7 @@
 
 import importlib.util as imputil
 import json
+import os
 import pathlib
 import socket
 import tempfile
@@ -118,6 +119,7 @@ def run_local(
     inputs: dict = None,
     artifact_path: str = "",
     mode: str = None,
+    allow_empty_resources=None,
 ):
     """Run a task on function/code (.py, .ipynb or .yaml) locally,
 
@@ -159,22 +161,26 @@ def run_local(
         function_name = function_name or pathlib.Path(command).stem
 
     meta = BaseMetadata(function_name, project=project, tag=tag)
-    command, runtime = _load_func_code(command, workdir, secrets=secrets, name=name)
+    command, runtime = load_func_code(command, workdir, secrets=secrets, name=name)
 
     if runtime:
-        handler = handler or get_in(runtime, "spec.default_handler", "")
-        meta = BaseMetadata.from_dict(runtime["metadata"])
+        handler = handler or runtime.spec.default_handler or ""
+        meta = runtime.metadata.copy()
         meta.project = project or meta.project
         meta.tag = tag or meta.tag
 
-    fn = new_function(meta.name, command=command, args=args, mode=mode)
+    # if the handler has module prefix force "local" (vs "handler") runtime
+    kind = "local" if isinstance(handler, str) and "." in handler else ""
+    fn = new_function(meta.name, command=command, args=args, mode=mode, kind=kind)
     fn.metadata = meta
+    setattr(fn, "_is_run_local", True)
     if workdir:
         fn.spec.workdir = str(workdir)
+    fn.spec.allow_empty_resources = allow_empty_resources
     if runtime:
         # copy the code/base-spec to the local function (for the UI and code logging)
-        fn.spec.description = get_in(runtime, "spec.description")
-        fn.spec.build = get_in(runtime, "spec.build", {})
+        fn.spec.description = runtime.spec.description
+        fn.spec.build = runtime.spec.build
     return fn.run(
         task,
         name=name,
@@ -185,7 +191,7 @@ def run_local(
     )
 
 
-def function_to_module(code="", workdir=None, secrets=None):
+def function_to_module(code="", workdir=None, secrets=None, silent=False):
     """Load code, notebook or mlrun function as .py module
     this function can import a local/remote py file or notebook
     or load an mlrun function object as a module, you can use this
@@ -212,13 +218,17 @@ def function_to_module(code="", workdir=None, secrets=None):
                     OR function object
     :param workdir: code workdir
     :param secrets: secrets needed to access the URL (e.g.s3, v3io, ..)
+    :param silent:  do not raise on errors
 
     :returns: python module
     """
-    command, runtime = _load_func_code(code, workdir, secrets=secrets)
+    command, _ = load_func_code(code, workdir, secrets=secrets)
     if not command:
+        if silent:
+            return None
         raise ValueError("nothing to run, specify command or function")
 
+    command = os.path.join(workdir or "", command)
     path = Path(command)
     mod_name = path.name
     if path.suffix:
@@ -232,25 +242,26 @@ def function_to_module(code="", workdir=None, secrets=None):
     return mod
 
 
-def _load_func_code(command="", workdir=None, secrets=None, name="name"):
+def load_func_code(command="", workdir=None, secrets=None, name="name"):
     is_obj = hasattr(command, "to_dict")
     suffix = "" if is_obj else Path(command).suffix
     runtime = None
     if is_obj or suffix == ".yaml":
         is_remote = False
         if is_obj:
-            runtime = command.to_dict()
+            runtime = command
         else:
             is_remote = "://" in command
             data = get_object(command, secrets)
             runtime = yaml.load(data, Loader=yaml.FullLoader)
+            runtime = new_function(runtime=runtime)
 
-        command = get_in(runtime, "spec.command", "")
-        code = get_in(runtime, "spec.build.functionSourceCode")
-        origin_filename = get_in(runtime, "spec.build.origin_filename")
-        kind = get_in(runtime, "kind", "")
+        command = runtime.spec.command or ""
+        code = runtime.spec.build.functionSourceCode
+        origin_filename = runtime.spec.build.origin_filename
+        kind = runtime.kind or ""
         if kind in RuntimeKinds.nuclio_runtimes():
-            code = get_in(runtime, "spec.base_spec.spec.build.functionSourceCode", code)
+            code = get_in(runtime.spec.base_spec, "spec.build.functionSourceCode", code)
         if code:
             if (
                 origin_filename
@@ -270,12 +281,12 @@ def _load_func_code(command="", workdir=None, secrets=None, name="name"):
                     temp_file.write(code)
 
         elif command and not is_remote:
-            command = path.join(workdir or "", command)
-            if not path.isfile(command):
-                raise OSError(f"command file {command} not found")
+            file_path = path.join(workdir or "", command)
+            if not path.isfile(file_path):
+                raise OSError(f"command file {file_path} not found")
 
         else:
-            raise RuntimeError(f"cannot run, command={command}")
+            logger.warn("run command, file or code were not specified")
 
     elif command == "":
         pass
@@ -597,17 +608,20 @@ def new_function(
     if mode:
         runner.spec.mode = mode
     if source:
-        if not hasattr(runner, "with_source_archive"):
-            raise ValueError(
-                f"source archive option is not supported for {kind} runtime"
+        runner.spec.build.source = source
+    if handler:
+        if kind == RuntimeKinds.serving:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "cannot set the handler for serving runtime"
             )
-        runner.with_source_archive(source)
+        elif kind in RuntimeKinds.nuclio_runtimes():
+            runner.spec.function_handler = handler
+        else:
+            runner.spec.default_handler = handler
+
     if requirements:
         runner.with_requirements(requirements)
-    if handler:
-        runner.spec.default_handler = handler
-        if kind.startswith("nuclio"):
-            runner.spec.function_handler = handler
+    runner.verify_base_image()
     return runner
 
 
@@ -664,7 +678,7 @@ def code_to_function(
     Easiest way to construct a runtime type object. Provides the most often
     used configuration options for all runtimes as parameters.
 
-    Instantiated runtimes are considered "functions" in mlrun, but they are
+    Instantiated runtimes are considered 'functions' in mlrun, but they are
     anything from nuclio functions to generic kubernetes pods to spark jobs.
     Functions are meant to be focused, and as such limited in scope and size.
     Typically a function can be expressed in a single python module with
@@ -672,7 +686,7 @@ def code_to_function(
     The returned runtime object can be further configured if more
     customization is required.
 
-    One of the most important parameters is "kind". This is what is used to
+    One of the most important parameters is 'kind'. This is what is used to
     specify the chosen runtimes. The options are:
 
     - local: execute a local python or shell script
@@ -688,51 +702,53 @@ def code_to_function(
     https://docs.mlrun.org/en/latest/runtimes/functions.html#function-runtimes
 
     :param name:         function name, typically best to use hyphen-case
-    :param project:      project used to namespace the function, defaults to "default"
-    :param tag:          function tag to track multiple versions of the same function, defaults to "latest"
+    :param project:      project used to namespace the function, defaults to 'default'
+    :param tag:          function tag to track multiple versions of the same function, defaults to 'latest'
     :param filename:     path to .py/.ipynb file, defaults to current jupyter notebook
     :param handler:      The default function handler to call for the job or nuclio function, in batch functions
                          (job, mpijob, ..) the handler can also be specified in the `.run()` command, when not specified
                          the entire file will be executed (as main).
-                         for nuclio functions the handler is in the form of module:function, defaults to "main:handler"
+                         for nuclio functions the handler is in the form of module:function, defaults to 'main:handler'
     :param kind:         function runtime type string - nuclio, job, etc. (see docstring for all options)
     :param image:        base docker image to use for building the function container, defaults to None
-    :param code_output:  specify "." to generate python module from the current jupyter notebook
+    :param code_output:  specify '.' to generate python module from the current jupyter notebook
     :param embed_code:   indicates whether or not to inject the code directly into the function runtime spec,
                          defaults to True
-    :param description:  short function description, defaults to ""
+    :param description:  short function description, defaults to ''
     :param requirements: list of python packages or pip requirements file path, defaults to None
     :param categories:   list of categories for mlrun function marketplace, defaults to None
     :param labels:       immutable name/value pairs to tag the function with useful metadata, defaults to None
     :param with_doc:     indicates whether to document the function parameters, defaults to True
-    :param ignored_tags: notebook cells to ignore when converting notebooks to py code (separated by ";")
+    :param ignored_tags: notebook cells to ignore when converting notebooks to py code (separated by ';')
 
     :return:
-           pre-configured function object from a mlrun runtime class
+        pre-configured function object from a mlrun runtime class
 
     example::
+
         import mlrun
 
         # create job function object from notebook code and add doc/metadata
-        fn = mlrun.code_to_function('file_utils', kind='job',
-                                    handler='open_archive', image='mlrun/mlrun',
+        fn = mlrun.code_to_function("file_utils", kind="job",
+                                    handler="open_archive", image="mlrun/mlrun",
                                     description = "this function opens a zip archive into a local/mounted folder",
-                                    categories = ['fileutils'],
-                                    labels = {'author': 'me'})
+                                    categories = ["fileutils"],
+                                    labels = {"author": "me"})
 
     example::
+
         import mlrun
         from pathlib import Path
 
         # create file
-        Path('mover.py').touch()
+        Path("mover.py").touch()
 
         # create nuclio function object from python module call mover.py
-        fn = mlrun.code_to_function('nuclio-mover', kind='nuclio',
-                                    filename='mover.py', image='python:3.7',
+        fn = mlrun.code_to_function("nuclio-mover", kind="nuclio",
+                                    filename="mover.py", image="python:3.7",
                                     description = "this function moves files from one system to another",
                                     requirements = ["pandas"],
-                                    labels = {'author': 'me'})
+                                    labels = {"author": "me"})
 
     """
     filebase, _ = path.splitext(path.basename(filename))
@@ -863,6 +879,7 @@ def code_to_function(
     build.secret = get_in(spec, "spec.build.secret")
     if requirements:
         r.with_requirements(requirements)
+    r.verify_base_image()
 
     if r.kind != "local":
         r.spec.env = get_in(spec, "spec.env")
@@ -896,6 +913,7 @@ def run_pipeline(
 
     :param pipeline:   KFP pipeline function or path to .yaml/.zip pipeline file
     :param arguments:  pipeline arguments
+    :param project:    name of project
     :param experiment: experiment name
     :param run:        optional, run name
     :param namespace:  Kubernetes namespace (if not using default)
@@ -922,7 +940,7 @@ def run_pipeline(
     arguments = arguments or {}
 
     if remote or url:
-        mldb = get_run_db(url)
+        mldb = mlrun.db.get_run_db(url)
         if mldb.kind != "http":
             raise ValueError(
                 "run pipeline require access to remote api-service"
@@ -995,7 +1013,7 @@ def wait_for_pipeline_completion(
     )
 
     if remote:
-        mldb = get_run_db()
+        mldb = mlrun.db.get_run_db()
 
         def get_pipeline_if_completed(run_id, namespace=namespace):
             resp = mldb.get_pipeline(run_id, namespace=namespace, project=project)
@@ -1075,7 +1093,7 @@ def get_pipeline(
     """
     namespace = namespace or mlconf.namespace
     if remote:
-        mldb = get_run_db()
+        mldb = mlrun.db.get_run_db()
         if mldb.kind != "http":
             raise ValueError(
                 "get pipeline require access to remote api-service"
@@ -1129,7 +1147,7 @@ def list_pipelines(
     """
     if full:
         format_ = mlrun.api.schemas.PipelinesFormat.full
-    run_db = get_run_db()
+    run_db = mlrun.db.get_run_db()
     pipelines = run_db.list_pipelines(
         project, namespace, sort_by, page_token, filter_, format_, page_size
     )

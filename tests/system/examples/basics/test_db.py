@@ -57,7 +57,12 @@ class TestDB(TestMLRunSystem):
         for artifact_key in ["chart", "html_result", "model", "mydf"]:
             artifact_exists = False
             for artifact in artifacts:
-                if artifact["key"] == artifact_key:
+                if artifact["metadata"]["key"] == artifact_key:
                     artifact_exists = True
                     break
             assert artifact_exists
+
+        # Verify that ArtifactList methods process result properly
+        result_keys = artifacts.to_df().to_dict(orient="list")["key"]
+        for artifact_key in ["chart", "html_result", "model", "mydf"]:
+            assert artifact_key in result_keys

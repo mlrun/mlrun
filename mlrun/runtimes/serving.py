@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import os
 from copy import deepcopy
 from typing import List, Union
 
@@ -33,7 +34,7 @@ from ..serving.states import (
     new_remote_endpoint,
     params_to_step,
 )
-from ..utils import get_caller_globals, logger
+from ..utils import get_caller_globals, logger, set_paths
 from .function import NuclioSpec, RemoteRuntime
 from .function_reference import FunctionReference
 
@@ -75,6 +76,20 @@ def new_v2_model_server(
 
 
 class ServingSpec(NuclioSpec):
+    _dict_fields = NuclioSpec._dict_fields + [
+        "graph",
+        "load_mode",
+        "graph_initializer",
+        "function_refs",
+        "parameters",
+        "models",
+        "default_content_type",
+        "error_stream",
+        "default_class",
+        "secret_sources",
+        "track_models",
+    ]
+
     def __init__(
         self,
         command=None,
@@ -119,6 +134,8 @@ class ServingSpec(NuclioSpec):
         pythonpath=None,
         workdir=None,
         image_pull_secret=None,
+        tolerations=None,
+        preemption_mode=None,
     ):
 
         super().__init__(
@@ -153,6 +170,8 @@ class ServingSpec(NuclioSpec):
             pythonpath=pythonpath,
             workdir=workdir,
             image_pull_secret=image_pull_secret,
+            tolerations=tolerations,
+            preemption_mode=preemption_mode,
         )
 
         self.models = models or {}
@@ -202,7 +221,12 @@ class ServingRuntime(RemoteRuntime):
         self._spec = self._verify_dict(spec, "spec", ServingSpec)
 
     def set_topology(
-        self, topology=None, class_name=None, engine=None, exist_ok=False, **class_args,
+        self,
+        topology=None,
+        class_name=None,
+        engine=None,
+        exist_ok=False,
+        **class_args,
     ) -> Union[RootFlowStep, RouterStep]:
         """set the serving graph topology (router/flow) and root class or params
 
@@ -286,13 +310,13 @@ class ServingRuntime(RemoteRuntime):
 
     def add_model(
         self,
-        key,
-        model_path=None,
-        class_name=None,
-        model_url=None,
-        handler=None,
-        router_step=None,
-        child_function=None,
+        key: str,
+        model_path: str = None,
+        class_name: str = None,
+        model_url: str = None,
+        handler: str = None,
+        router_step: str = None,
+        child_function: str = None,
         **class_args,
     ):
         """add ml model and/or route to the function.
@@ -408,11 +432,12 @@ class ServingRuntime(RemoteRuntime):
                 group = stream.options.get("group", "serving")
 
                 child_function = self._spec.function_refs[function_name]
+                trigger_args = stream.trigger_args or {}
                 child_function.function_object.add_v3io_stream_trigger(
-                    stream.path, group=group, shards=stream.shards
+                    stream.path, group=group, shards=stream.shards, **trigger_args
                 )
 
-    def _deploy_function_refs(self):
+    def _deploy_function_refs(self, builder_env: dict = None):
         """set metadata and deploy child functions"""
         for function_ref in self._spec.function_refs.values():
             logger.info(f"deploy child function {function_ref.name} ...")
@@ -427,6 +452,7 @@ class ServingRuntime(RemoteRuntime):
             function_object.metadata.labels[
                 "mlrun/parent-function"
             ] = self.metadata.name
+            function_object._is_child_function = True
             if not function_object.spec.graph:
                 # copy the current graph only if the child doesnt have a graph of his own
                 function_object.set_env("SERVING_CURRENT_FUNCTION", function_ref.name)
@@ -434,7 +460,7 @@ class ServingRuntime(RemoteRuntime):
 
             function_object.verbose = self.verbose
             function_object.spec.secret_sources = self.spec.secret_sources
-            function_object.deploy()
+            function_object.deploy(builder_env=builder_env)
 
     def remove_states(self, keys: list):
         """remove one, multiple, or all states/models from the spec (blank list for all)"""
@@ -501,6 +527,7 @@ class ServingRuntime(RemoteRuntime):
         tag="",
         verbose=False,
         auth_info: mlrun.api.schemas.AuthInfo = None,
+        builder_env: dict = None,
     ):
         """deploy model serving function to a local/remote cluster
 
@@ -510,6 +537,7 @@ class ServingRuntime(RemoteRuntime):
         :param verbose:   verbose logging
         :param auth_info: The auth info to use to communicate with the Nuclio dashboard, required only when providing
                           dashboard
+        :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         """
         load_mode = self.spec.load_mode
         if load_mode and load_mode not in ["sync", "async"]:
@@ -517,10 +545,20 @@ class ServingRuntime(RemoteRuntime):
         if not self.spec.graph:
             raise ValueError("nothing to deploy, .spec.graph is none, use .add_model()")
 
-        if self.spec.graph.kind != StepKinds.router:
+        if self.spec.graph.kind != StepKinds.router and not getattr(
+            self, "_is_child_function", None
+        ):
             # initialize or create required streams/queues
             self.spec.graph.check_and_process_graph()
             self.spec.graph.init_queues()
+            functions_in_steps = self.spec.graph.list_child_functions()
+            child_functions = list(self._spec.function_refs.keys())
+            for function in functions_in_steps:
+                if function not in child_functions:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"function {function} is used in steps and is not defined, "
+                        "use the .add_child_function() to specify child function attributes"
+                    )
 
         # Handle secret processing before handling child functions, since secrets are transferred to them
         if self.spec.secret_sources:
@@ -535,7 +573,9 @@ class ServingRuntime(RemoteRuntime):
             self._deploy_function_refs()
             logger.info(f"deploy root function {self.metadata.name} ...")
 
-        return super().deploy(dashboard, project, tag, verbose, auth_info)
+        return super().deploy(
+            dashboard, project, tag, verbose, auth_info, builder_env=builder_env
+        )
 
     def _get_runtime_env(self):
         env = super()._get_runtime_env()
@@ -562,15 +602,36 @@ class ServingRuntime(RemoteRuntime):
         return env
 
     def to_mock_server(
-        self, namespace=None, current_function="*", track_models=False, **kwargs
+        self,
+        namespace=None,
+        current_function="*",
+        track_models=False,
+        workdir=None,
+        **kwargs,
     ) -> GraphServer:
         """create mock server object for local testing/emulation
 
-        :param namespace: classes search namespace, use globals() for current notebook
+        :param namespace: one or list of namespaces/modules to search the steps classes/functions in
         :param log_level: log level (error | info | debug)
         :param current_function: specify if you want to simulate a child function, * for all functions
         :param track_models: allow model tracking (disabled by default in the mock server)
+        :param workdir:   working directory to locate the source code (if not the current one)
         """
+
+        # set the namespaces/modules to look for the steps code in
+        namespace = namespace or []
+        if not isinstance(namespace, list):
+            namespace = [namespace]
+        module = mlrun.run.function_to_module(self, silent=True, workdir=workdir)
+        if module:
+            namespace.append(module)
+        namespace.append(get_caller_globals())
+
+        if workdir:
+            old_workdir = os.getcwd()
+            workdir = os.path.realpath(workdir)
+            set_paths(workdir)
+            os.chdir(workdir)
 
         server = create_graph_server(
             parameters=self.spec.parameters,
@@ -587,9 +648,31 @@ class ServingRuntime(RemoteRuntime):
         )
         server.init_states(
             context=None,
-            namespace=namespace or get_caller_globals(),
+            namespace=namespace,
             logger=logger,
             is_mock=True,
         )
-        server.init_object(namespace or get_caller_globals())
+
+        if workdir:
+            os.chdir(old_workdir)
+
+        server.init_object(namespace)
         return server
+
+    def plot(self, filename=None, format=None, source=None, **kw):
+        """plot/save graph using graphviz
+
+        example::
+
+            serving_fn = mlrun.new_function("serving", image="mlrun/mlrun", kind="serving")
+            serving_fn.add_model('my-classifier',model_path=model_path,
+                                  class_name='mlrun.frameworks.sklearn.SklearnModelServer')
+            serving_fn.plot(rankdir="LR")
+
+        :param filename:  target filepath for the image (None for the notebook)
+        :param format:    The output format used for rendering (``'pdf'``, ``'png'``, etc.)
+        :param source:    source step to add to the graph
+        :param kw:        kwargs passed to graphviz, e.g. rankdir="LR" (see: https://graphviz.org/doc/info/attrs.html)
+        :return: graphviz graph object
+        """
+        return self.spec.graph.plot(filename, format=format, source=source, **kw)

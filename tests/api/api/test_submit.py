@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 import mlrun
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.iguazio
+import tests.api.api.utils
 from mlrun.api.schemas import AuthInfo
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config as mlconf
@@ -15,16 +16,19 @@ from tests.api.conftest import K8sSecretsMock
 
 
 def test_submit_job_failure_function_not_found(db: Session, client: TestClient) -> None:
+    project = "project-name"
+    tests.api.api.utils.create_project(client, project)
+
     function_reference = (
         "cat-and-dog-servers/aggregate@b145b6d958a7b4d84f12821a06459e31ea422308"
     )
     body = {
         "task": {
-            "metadata": {"name": "task-name", "project": "project-name"},
+            "metadata": {"name": "task-name", "project": project},
             "spec": {"function": function_reference},
         },
     }
-    resp = client.post("/api/submit_job", json=body)
+    resp = client.post("submit_job", json=body)
     assert resp.status_code == HTTPStatus.NOT_FOUND.value
     assert f"Function not found {function_reference}" in resp.json()["detail"]["reason"]
 
@@ -63,8 +67,8 @@ def pod_create_mock():
     authenticate_request_orig_function = (
         mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request
     )
-    mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request = unittest.mock.Mock(
-        return_value=auth_info_mock
+    mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request = (
+        unittest.mock.Mock(return_value=auth_info_mock)
     )
 
     yield get_k8s().create_pod
@@ -94,7 +98,7 @@ def _create_submit_job_body(function, project):
 
 
 def test_submit_job_auto_mount(
-    db: Session, client: TestClient, pod_create_mock
+    db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock
 ) -> None:
     mlconf.storage.auto_mount_type = "v3io_credentials"
     api_url = "https://api/url"
@@ -102,8 +106,9 @@ def test_submit_job_auto_mount(
     mlconf.storage.auto_mount_params = (
         f"api={api_url},user=invalid-user,access_key=invalid-access-key"
     )
-
     project = "my-proj1"
+    tests.api.api.utils.create_project(client, project)
+
     function_name = "test-function"
     function_tag = "latest"
     function = mlrun.new_function(
@@ -115,21 +120,27 @@ def test_submit_job_auto_mount(
     )
     submit_job_body = _create_submit_job_body(function, project)
 
-    resp = client.post("/api/submit_job", json=submit_job_body)
+    resp = client.post("submit_job", json=submit_job_body)
     assert resp
+    secret_name = k8s_secrets_mock.get_auth_secret_name(username, access_key)
     expected_env_vars = {
         "V3IO_API": api_url,
         "V3IO_USERNAME": username,
-        "V3IO_ACCESS_KEY": access_key,
+        "V3IO_ACCESS_KEY": (
+            secret_name,
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
+        ),
     }
     _assert_pod_env_vars(pod_create_mock, expected_env_vars)
 
 
 def test_submit_job_ensure_function_has_auth_set(
-    db: Session, client: TestClient, pod_create_mock
+    db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock
 ) -> None:
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
     project = "my-proj1"
+    tests.api.api.utils.create_project(client, project)
+
     function = mlrun.new_function(
         name="test-function",
         project=project,
@@ -140,11 +151,15 @@ def test_submit_job_ensure_function_has_auth_set(
     access_key = "some-access-key"
     function.metadata.credentials.access_key = access_key
     submit_job_body = _create_submit_job_body(function, project)
-    resp = client.post("/api/submit_job", json=submit_job_body)
+    resp = client.post("submit_job", json=submit_job_body)
     assert resp
 
+    secret_name = k8s_secrets_mock.get_auth_secret_name(username, access_key)
     expected_env_vars = {
-        "MLRUN_AUTH_SESSION": access_key,
+        mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session: (
+            secret_name,
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
+        ),
     }
     _assert_pod_env_vars(pod_create_mock, expected_env_vars)
 
@@ -153,6 +168,8 @@ def test_submit_job_service_accounts(
     db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock: K8sSecretsMock
 ):
     project = "my-proj1"
+    tests.api.api.utils.create_project(client, project)
+
     # must set the default project since new_function creates the function object and ignores the project parameter.
     # Instead, the function always gets the default project name. This may be a bug, need to check.
     mlconf.default_project = project
@@ -171,7 +188,7 @@ def test_submit_job_service_accounts(
     )
     submit_job_body = _create_submit_job_body(function, project)
 
-    resp = client.post("/api/submit_job", json=submit_job_body)
+    resp = client.post("submit_job", json=submit_job_body)
     assert resp
     _assert_pod_service_account(pod_create_mock, "sa1")
 
@@ -179,7 +196,7 @@ def test_submit_job_service_accounts(
     function.spec.service_account = "sa2"
     submit_job_body = _create_submit_job_body(function, project)
 
-    resp = client.post("/api/submit_job", json=submit_job_body)
+    resp = client.post("submit_job", json=submit_job_body)
     assert resp
     _assert_pod_service_account(pod_create_mock, "sa2")
 
@@ -187,13 +204,13 @@ def test_submit_job_service_accounts(
     pod_create_mock.reset_mock()
     function.spec.service_account = "sa3"
     submit_job_body = _create_submit_job_body(function, project)
-    resp = client.post("/api/submit_job", json=submit_job_body)
+    resp = client.post("submit_job", json=submit_job_body)
     assert resp.status_code == HTTPStatus.BAD_REQUEST.value
 
     # Validate that without setting the secrets, any SA is allowed
     k8s_secrets_mock.delete_project_secrets(project, None)
     pod_create_mock.reset_mock()
-    resp = client.post("/api/submit_job", json=submit_job_body)
+    resp = client.post("submit_job", json=submit_job_body)
     assert resp
     _assert_pod_service_account(pod_create_mock, "sa3")
 
@@ -202,12 +219,18 @@ def _assert_pod_env_vars(pod_create_mock, expected_env_vars):
     pod_create_mock.assert_called_once()
     args, _ = pod_create_mock.call_args
     pod_env = args[0].spec.containers[0].env
-    pod_env_dict = {
-        mlrun.runtimes.utils.get_item_name(
-            env_item
-        ): mlrun.runtimes.utils.get_item_name(env_item, "value")
-        for env_item in pod_env
-    }
+    pod_env_dict = {}
+    for env_item in pod_env:
+        name = mlrun.runtimes.utils.get_item_name(env_item)
+        value = mlrun.runtimes.utils.get_item_name(env_item, "value")
+        value_from = mlrun.runtimes.utils.get_item_name(env_item, "value_from")
+        if value:
+            pod_env_dict[name] = value
+        else:
+            pod_env_dict[name] = (
+                value_from.secret_key_ref.name,
+                value_from.secret_key_ref.key,
+            )
     for key, value in expected_env_vars.items():
         assert pod_env_dict[key] == value
 

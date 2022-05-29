@@ -30,7 +30,12 @@ class DBInterface(ABC):
 
     @abstractmethod
     def store_log(
-        self, session, uid, project="", body=None, append=False,
+        self,
+        session,
+        uid,
+        project="",
+        body=None,
+        append=False,
     ):
         pass
 
@@ -40,7 +45,12 @@ class DBInterface(ABC):
 
     @abstractmethod
     def store_run(
-        self, session, struct, uid, project="", iter=0,
+        self,
+        session,
+        struct,
+        uid,
+        project="",
+        iter=0,
     ):
         pass
 
@@ -60,7 +70,7 @@ class DBInterface(ABC):
         uid=None,
         project="",
         labels=None,
-        state="",
+        states=None,
         sort=True,
         last=0,
         iter=False,
@@ -68,6 +78,11 @@ class DBInterface(ABC):
         start_time_to=None,
         last_update_time_from=None,
         last_update_time_to=None,
+        partition_by: schemas.RunPartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
+        max_partitions: int = 0,
     ):
         pass
 
@@ -81,7 +96,14 @@ class DBInterface(ABC):
 
     @abstractmethod
     def store_artifact(
-        self, session, key, artifact, uid, iter=None, tag="", project="",
+        self,
+        session,
+        key,
+        artifact,
+        uid,
+        iter=None,
+        tag="",
+        project="",
     ):
         pass
 
@@ -125,7 +147,13 @@ class DBInterface(ABC):
 
     @abstractmethod
     def store_function(
-        self, session, function, name, project="", tag="", versioned=False,
+        self,
+        session,
+        function,
+        name,
+        project="",
+        tag="",
+        versioned=False,
     ) -> str:
         pass
 
@@ -272,7 +300,11 @@ class DBInterface(ABC):
 
     @abstractmethod
     def create_feature_set(
-        self, session, project, feature_set: schemas.FeatureSet, versioned=True,
+        self,
+        session,
+        project,
+        feature_set: schemas.FeatureSet,
+        versioned=True,
     ) -> str:
         pass
 
@@ -332,14 +364,16 @@ class DBInterface(ABC):
         labels: List[str] = None,
         partition_by: schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
-        partition_sort: schemas.SortField = None,
+        partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureSetsOutput:
         pass
 
     @abstractmethod
     def list_feature_sets_tags(
-        self, session, project: str,
+        self,
+        session,
+        project: str,
     ) -> List[Tuple[str, str, str]]:
         """
         :return: a list of Tuple of (project, feature_set.name, tag)
@@ -365,7 +399,11 @@ class DBInterface(ABC):
 
     @abstractmethod
     def create_feature_vector(
-        self, session, project, feature_vector: schemas.FeatureVector, versioned=True,
+        self,
+        session,
+        project,
+        feature_vector: schemas.FeatureVector,
+        versioned=True,
     ) -> str:
         pass
 
@@ -393,7 +431,9 @@ class DBInterface(ABC):
 
     @abstractmethod
     def list_feature_vectors_tags(
-        self, session, project: str,
+        self,
+        session,
+        project: str,
     ) -> List[Tuple[str, str, str]]:
         """
         :return: a list of Tuple of (project, feature_vector.name, tag)
@@ -429,7 +469,12 @@ class DBInterface(ABC):
 
     @abstractmethod
     def delete_feature_vector(
-        self, session, project, name, tag=None, uid=None,
+        self,
+        session,
+        project,
+        name,
+        tag=None,
+        uid=None,
     ):
         pass
 

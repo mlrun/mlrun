@@ -1,15 +1,14 @@
 from enum import Enum
-from typing import Dict, List, Union
+from typing import Dict, List
 
 import mlrun
 
-# All trackable values types:
-TrackableType = Union[str, bool, float, int]
+from ..._common import TrackableType
 
 
 class LoggerMode(Enum):
     """
-    The logger's mode, can be training or validation.
+    The logger's mode, can be training or evaluation.
     """
 
     TRAINING = "Training"

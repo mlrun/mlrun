@@ -1,5 +1,4 @@
 import subprocess
-import sys
 
 import click
 
@@ -17,18 +16,17 @@ class PackageTester:
         s3_import = "import mlrun.datastore.s3"
         azure_blob_storage_import = "import mlrun.datastore.azure_blob"
         azure_key_vault_import = "import mlrun.utils.azure_vault"
+        google_cloud_bigquery_import = (
+            "from mlrun.datastore.sources import BigQuerySource"
+        )
         google_cloud_storage_import = "import mlrun.datastore.google_cloud_storage"
 
         self._extras_tests_data = {
             "": {"import_test_command": f"{basic_import}"},
-            "[api]": {
-                "import_test_command": f"{basic_import}; {api_import}",
-                "python_3.6_compatible": False,
-            },
+            "[api]": {"import_test_command": f"{basic_import}; {api_import}"},
             "[complete-api]": {
                 "import_test_command": f"{basic_import}; {api_import}; {s3_import}; "
                 + f"{azure_blob_storage_import}; {azure_key_vault_import}",
-                "python_3.6_compatible": False,
             },
             "[s3]": {"import_test_command": f"{basic_import}; {s3_import}"},
             "[azure-blob-storage]": {
@@ -36,6 +34,10 @@ class PackageTester:
             },
             "[azure-key-vault]": {
                 "import_test_command": f"{basic_import}; {azure_key_vault_import}"
+            },
+            # TODO: this won't actually fail if the requirement is missing
+            "[google-cloud-bigquery]": {
+                "import_test_command": f"{basic_import}; {google_cloud_bigquery_import}"
             },
             "[google-cloud-storage]": {
                 "import_test_command": f"{basic_import}; {google_cloud_storage_import}"
@@ -47,16 +49,12 @@ class PackageTester:
         }
 
     def run(self):
-        self._logger.info("Running package tests",)
+        self._logger.info(
+            "Running package tests",
+        )
 
         results = {}
         for extra, extra_tests_data in self._extras_tests_data.items():
-            if (
-                sys.version_info[0] == 3
-                and sys.version_info[1] == 6
-                and not extra_tests_data.get("python_3.6_compatible", True)
-            ):
-                continue
             self._create_venv()
             self._install_extra(extra)
             results[extra] = {
@@ -95,13 +93,15 @@ class PackageTester:
 
     def _test_extra_imports(self, extra):
         self._logger.debug(
-            "Testing extra imports", extra=extra,
+            "Testing extra imports",
+            extra=extra,
         )
         test_command = (
             f"python -c '{self._extras_tests_data[extra]['import_test_command']}'"
         )
         self._run_command(
-            test_command, run_in_venv=True,
+            test_command,
+            run_in_venv=True,
         )
         if "api" not in extra:
             # When api is not in the extra it's an extra purposed for the client usage
@@ -115,33 +115,47 @@ class PackageTester:
 
     def _test_requirements_conflicts(self, extra):
         self._logger.debug(
-            "Testing requirements conflicts", extra=extra,
+            "Testing requirements conflicts",
+            extra=extra,
         )
         self._run_command(
-            "pip install pipdeptree", run_in_venv=True,
+            "pip install pipdeptree",
+            run_in_venv=True,
         )
         self._run_command(
-            "pipdeptree --warn fail", run_in_venv=True,
+            "pipdeptree --warn fail",
+            run_in_venv=True,
         )
 
     def _create_venv(self):
-        self._logger.debug("Creating venv",)
-        self._run_command("python -m venv test-venv",)
+        self._logger.debug(
+            "Creating venv",
+        )
+        self._run_command(
+            "python -m venv test-venv",
+        )
 
     def _clean_venv(self):
-        self._logger.debug("Cleaning venv",)
-        self._run_command("rm -rf test-venv",)
+        self._logger.debug(
+            "Cleaning venv",
+        )
+        self._run_command(
+            "rm -rf test-venv",
+        )
 
     def _install_extra(self, extra):
         self._logger.debug(
-            "Installing extra", extra=extra,
+            "Installing extra",
+            extra=extra,
         )
         self._run_command(
-            "python -m pip install --upgrade pip~=21.2.0", run_in_venv=True,
+            "python -m pip install --upgrade pip~=22.0.0",
+            run_in_venv=True,
         )
 
         self._run_command(
-            f"pip install '.{extra}'", run_in_venv=True,
+            f"pip install '.{extra}'",
+            run_in_venv=True,
         )
 
     def _run_command(self, command, run_in_venv=False, env=None):

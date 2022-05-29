@@ -1,5 +1,6 @@
 import os
 import pathlib
+import zipfile
 
 import deepdiff
 import inflection
@@ -70,24 +71,44 @@ def test_create_project_from_file_with_legacy_structure():
     assert project.spec.artifact_path == artifact_path
     # assert accessible from the project as well
     assert project.artifact_path == artifact_path
-    assert deepdiff.DeepDiff(params, project.spec.params, ignore_order=True,) == {}
+    assert (
+        deepdiff.DeepDiff(
+            params,
+            project.spec.params,
+            ignore_order=True,
+        )
+        == {}
+    )
     # assert accessible from the project as well
-    assert deepdiff.DeepDiff(params, project.params, ignore_order=True,) == {}
     assert (
         deepdiff.DeepDiff(
-            legacy_project.functions, project.functions, ignore_order=True,
+            params,
+            project.params,
+            ignore_order=True,
         )
         == {}
     )
     assert (
         deepdiff.DeepDiff(
-            legacy_project.workflows, project.workflows, ignore_order=True,
+            legacy_project.functions,
+            project.functions,
+            ignore_order=True,
         )
         == {}
     )
     assert (
         deepdiff.DeepDiff(
-            legacy_project.artifacts, project.artifacts, ignore_order=True,
+            legacy_project.workflows,
+            project.workflows,
+            ignore_order=True,
+        )
+        == {}
+    )
+    assert (
+        deepdiff.DeepDiff(
+            legacy_project.artifacts,
+            project.artifacts,
+            ignore_order=True,
         )
         == {}
     )
@@ -183,3 +204,67 @@ def _assert_project_function_objects(project, expected_function_objects):
             )
             == {}
         )
+
+
+def test_set_func_requirements():
+    project = mlrun.projects.MlrunProject("newproj", default_requirements=["pandas"])
+    project.set_function("hub://describe", "desc1", requirements=["x"])
+    assert project.get_function("desc1", enrich=True).spec.build.commands == [
+        "python -m pip install x",
+        "python -m pip install pandas",
+    ]
+
+    fn = mlrun.import_function("hub://describe")
+    project.set_function(fn, "desc2", requirements=["y"])
+    assert project.get_function("desc2", enrich=True).spec.build.commands == [
+        "python -m pip install y",
+        "python -m pip install pandas",
+    ]
+
+
+def test_function_run_cli():
+    # run function stored in the project spec
+    project_dir_path = pathlib.Path(tests.conftest.results) / "project-run-func"
+    function_path = pathlib.Path(__file__).parent / "assets" / "handler.py"
+    project = mlrun.new_project("run-cli", str(project_dir_path))
+    project.set_function(
+        str(function_path),
+        "my-func",
+        image="mlrun/mlrun",
+        handler="myhandler",
+    )
+    project.export()
+
+    args = "-f my-func --local --dump -p x=3".split()
+    out = tests.conftest.exec_mlrun(args, str(project_dir_path))
+    assert out.find("state: completed") != -1, out
+    assert out.find("y: 6") != -1, out  # = x * 2
+
+
+def test_get_artifact_uri():
+    project = mlrun.new_project("arti")
+    uri = project.get_artifact_uri("x")
+    assert uri == "store://artifacts/arti/x"
+    uri = project.get_artifact_uri("y", category="model", tag="prod")
+    assert uri == "store://models/arti/y:prod"
+
+
+def test_export_to_zip():
+    project_dir_path = pathlib.Path(tests.conftest.results) / "zip-project"
+    project = mlrun.new_project("tozip", context=str(project_dir_path / "code"))
+    project.set_function("hub://describe", "desc")
+    with (project_dir_path / "code" / "f.py").open("w") as f:
+        f.write("print(1)\n")
+
+    zip_path = str(project_dir_path / "proj.zip")
+    project.export(zip_path)
+
+    assert os.path.isfile(str(project_dir_path / "code" / "project.yaml"))
+    assert os.path.isfile(zip_path)
+
+    zipf = zipfile.ZipFile(zip_path, "r")
+    assert set(zipf.namelist()) == set(["./", "f.py", "project.yaml"])
+
+    # check upload to (remote) DataItem
+    project.export("memory://x.zip")
+    assert mlrun.get_dataitem("memory://x.zip").stat().size

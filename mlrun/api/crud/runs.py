@@ -1,3 +1,5 @@
+import typing
+
 import sqlalchemy.orm
 
 import mlrun.api.schemas
@@ -13,7 +15,9 @@ import mlrun.utils.singleton
 from mlrun.utils import logger
 
 
-class Runs(metaclass=mlrun.utils.singleton.Singleton,):
+class Runs(
+    metaclass=mlrun.utils.singleton.Singleton,
+):
     def store_run(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -25,7 +29,11 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
         project = project or mlrun.mlconf.default_project
         logger.info("Storing run", data=data)
         mlrun.api.utils.singletons.db.get_db().store_run(
-            db_session, data, uid, project, iter=iter,
+            db_session,
+            data,
+            uid,
+            project,
+            iter=iter,
         )
 
     def update_run(
@@ -90,7 +98,7 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
         uid=None,
         project: str = mlrun.mlconf.default_project,
         labels=None,
-        state=None,
+        states: typing.Optional[typing.List[str]] = None,
         sort=True,
         last=0,
         iter=False,
@@ -98,22 +106,32 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
         start_time_to=None,
         last_update_time_from=None,
         last_update_time_to=None,
+        partition_by: mlrun.api.schemas.RunPartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: mlrun.api.schemas.SortField = None,
+        partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
+        max_partitions: int = 0,
     ):
         project = project or mlrun.mlconf.default_project
         return mlrun.api.utils.singletons.db.get_db().list_runs(
             db_session,
-            name=name,
-            uid=uid,
-            project=project,
-            labels=labels,
-            state=state,
-            sort=sort,
-            last=last,
-            iter=iter,
-            start_time_from=start_time_from,
-            start_time_to=start_time_to,
-            last_update_time_from=last_update_time_from,
-            last_update_time_to=last_update_time_to,
+            name,
+            uid,
+            project,
+            labels,
+            states,
+            sort,
+            last,
+            iter,
+            start_time_from,
+            start_time_to,
+            last_update_time_from,
+            last_update_time_to,
+            partition_by,
+            rows_per_partition,
+            partition_sort_by,
+            partition_order,
+            max_partitions,
         )
 
     def delete_run(

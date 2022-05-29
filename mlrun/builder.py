@@ -19,6 +19,8 @@ from base64 import b64decode, b64encode
 from os import path
 from urllib.parse import urlparse
 
+from kubernetes import client
+
 import mlrun.api.schemas
 import mlrun.errors
 import mlrun.runtimes.utils
@@ -27,6 +29,8 @@ from .config import config
 from .datastore import store_manager
 from .k8s_utils import BasePod, get_k8s_helper
 from .utils import enrich_image_url, get_parsed_docker_registry, logger, normalize_name
+
+IMAGE_NAME_ENRICH_REGISTRY_PREFIX = "."
 
 
 def make_dockerfile(
@@ -75,7 +79,14 @@ def make_kaniko_pod(
     name="",
     verbose=False,
     builder_env=None,
+    runtime_spec=None,
 ):
+    extra_runtime_spec = {}
+    # set kaniko's spec attributes from the runtime spec
+    for attribute in get_kaniko_spec_attributes_from_runtime():
+        attr_value = getattr(runtime_spec, attribute, None)
+        if attr_value:
+            extra_runtime_spec[attribute] = attr_value
 
     if not dockertext and not dockerfile:
         raise ValueError("docker file or text must be specified")
@@ -84,18 +95,37 @@ def make_kaniko_pod(
         dockerfile = "/empty/Dockerfile"
 
     args = ["--dockerfile", dockerfile, "--context", context, "--destination", dest]
-    if not secret_name:
-        args.append("--insecure")
-        args.append("--insecure-pull")
+    for value, flag in [
+        (config.httpdb.builder.insecure_pull_registry_mode, "--insecure-pull"),
+        (config.httpdb.builder.insecure_push_registry_mode, "--insecure"),
+    ]:
+        if value == "disabled":
+            continue
+        if value == "enabled" or (value == "auto" and not secret_name):
+            args.append(flag)
     if verbose:
         args += ["--verbosity", "debug"]
 
+    # While requests mainly affect scheduling, setting a limit may prevent Kaniko
+    # from finishing successfully (destructive), since we're not allowing to override the default
+    # specifically for the Kaniko pod, we're setting only the requests
+    # we cannot specify gpu requests without specifying gpu limits, so we set requests without gpu field
+    default_requests = config.get_default_function_pod_requirement_resources(
+        "requests", with_gpu=False
+    )
+    resources = {
+        "requests": mlrun.runtimes.utils.generate_resources(
+            mem=default_requests.get("memory"), cpu=default_requests.get("cpu")
+        )
+    }
     kpod = BasePod(
         name or "mlrun-build",
         config.httpdb.builder.kaniko_image,
         args=args,
         kind="build",
         project=project,
+        default_pod_spec_attributes=extra_runtime_spec,
+        resources=resources,
     )
     kpod.env = builder_env
 
@@ -182,11 +212,13 @@ def build_image(
     extra=None,
     verbose=False,
     builder_env=None,
+    client_version=None,
+    runtime_spec=None,
 ):
-
+    builder_env = builder_env or {}
     if registry:
         dest = "/".join([registry, dest])
-    elif dest.startswith("."):
+    elif dest.startswith(IMAGE_NAME_ENRICH_REGISTRY_PREFIX):
         dest = dest[1:]
         registry, _ = get_parsed_docker_registry()
         secret_name = secret_name or config.httpdb.builder.docker_registry_secret
@@ -208,7 +240,9 @@ def build_image(
 
     if with_mlrun:
         commands = commands or []
-        mlrun_command = resolve_mlrun_install_command(mlrun_version_specifier)
+        mlrun_command = resolve_mlrun_install_command(
+            mlrun_version_specifier, client_version
+        )
         if mlrun_command not in commands:
             commands.append(mlrun_command)
 
@@ -224,21 +258,27 @@ def build_image(
         if source
         else None
     )
+    access_key = builder_env.get(
+        "V3IO_ACCESS_KEY", auth_info.data_session or auth_info.access_key
+    )
+    username = builder_env.get("V3IO_USERNAME", auth_info.username)
 
+    builder_env = _generate_builder_env(project, builder_env)
+
+    parsed_url = urlparse(source)
     if inline_code:
         context = "/empty"
     elif source and "://" in source and not v3io:
-        context = source
-    elif source:
-        parsed_url = urlparse(source)
-        if v3io:
-            source = parsed_url.path
-        elif source.startswith("git://"):
+        if source.startswith("git://"):
             # if the user provided branch (w/o refs/..) we add the "refs/.."
             fragment = parsed_url.fragment or ""
             if not fragment.startswith("refs/"):
                 source = source.replace("#" + fragment, f"#refs/heads/{fragment}")
-        to_mount = True
+        context = source
+    elif source:
+        if v3io:
+            source = parsed_url.path
+            to_mount = True
         if source.endswith(".tar.gz"):
             source, src_dir = path.split(source)
     else:
@@ -264,14 +304,15 @@ def build_image(
         name=name,
         verbose=verbose,
         builder_env=builder_env,
+        runtime_spec=runtime_spec,
     )
 
     if to_mount:
         kpod.mount_v3io(
             remote=source,
             mount_path="/context",
-            access_key=auth_info.data_session or auth_info.access_key,
-            user=auth_info.username,
+            access_key=access_key,
+            user=username,
         )
 
     k8s = get_k8s_helper()
@@ -285,15 +326,35 @@ def build_image(
         return f"build:{pod}"
 
 
-def resolve_mlrun_install_command(mlrun_version_specifier=None):
+def get_kaniko_spec_attributes_from_runtime():
+    """get the names of Kaniko spec attributes that are defined for runtime but should also be applied to kaniko"""
+    return [
+        "node_name",
+        "node_selector",
+        "affinity",
+        "tolerations",
+        "priority_class_name",
+    ]
+
+
+def resolve_mlrun_install_command(mlrun_version_specifier=None, client_version=None):
+    unstable_versions = ["unstable", "0.0.0+unstable"]
+    unstable_mlrun_version_specifier = (
+        f"{config.package_path}[complete] @ git+"
+        f"https://github.com/mlrun/mlrun@development"
+    )
     if not mlrun_version_specifier:
         if config.httpdb.builder.mlrun_version_specifier:
             mlrun_version_specifier = config.httpdb.builder.mlrun_version_specifier
-        elif config.version in ["unstable", "0.0.0+unstable"]:
-            mlrun_version_specifier = (
-                f"{config.package_path}[complete] @ git+"
-                f"https://github.com/mlrun/mlrun@development"
-            )
+        elif client_version:
+            if client_version not in unstable_versions:
+                mlrun_version_specifier = (
+                    f"{config.package_path}[complete]=={client_version}"
+                )
+            else:
+                mlrun_version_specifier = unstable_mlrun_version_specifier
+        elif config.version in unstable_versions:
+            mlrun_version_specifier = unstable_mlrun_version_specifier
         else:
             mlrun_version_specifier = (
                 f"{config.package_path}[complete]=={config.version}"
@@ -304,16 +365,17 @@ def resolve_mlrun_install_command(mlrun_version_specifier=None):
 def build_runtime(
     auth_info: mlrun.api.schemas.AuthInfo,
     runtime,
-    with_mlrun,
-    mlrun_version_specifier,
-    skip_deployed,
+    with_mlrun=True,
+    mlrun_version_specifier=None,
+    skip_deployed=False,
     interactive=False,
     builder_env=None,
+    client_version=None,
 ):
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
     project = runtime.metadata.project
-    if skip_deployed and runtime.is_deployed:
+    if skip_deployed and runtime.is_deployed():
         runtime.status.state = mlrun.api.schemas.FunctionState.ready
         return True
     if build.base_image:
@@ -331,9 +393,9 @@ def build_runtime(
             if build.base_image:
                 runtime.spec.image = build.base_image
             elif runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict():
-                runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[
-                    runtime.kind
-                ]
+                runtime.spec.image = (
+                    mlrun.mlconf.function_defaults.image_by_kind.to_dict()[runtime.kind]
+                )
         if not runtime.spec.image:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "The deployment was not successful because no image was specified or there are missing build parameters"
@@ -342,9 +404,7 @@ def build_runtime(
         runtime.status.state = mlrun.api.schemas.FunctionState.ready
         return True
 
-    build.image = build.image or mlrun.runtimes.utils.generate_function_image_name(
-        runtime
-    )
+    build.image = mlrun.runtimes.utils.resolve_function_image_name(runtime, build.image)
     runtime.status.state = ""
 
     inline = None  # noqa: F841
@@ -357,7 +417,9 @@ def build_runtime(
     logger.info(f"building image ({build.image})")
 
     name = normalize_name(f"mlrun-build-{runtime.metadata.name}")
-    base_image = enrich_image_url(build.base_image or config.default_base_image)
+    base_image = enrich_image_url(
+        build.base_image or config.default_base_image, client_version
+    )
 
     status = build_image(
         auth_info,
@@ -376,6 +438,8 @@ def build_runtime(
         extra=build.extra,
         verbose=runtime.verbose,
         builder_env=builder_env,
+        client_version=client_version,
+        runtime_spec=runtime.spec,
     )
     runtime.status.build_pod = None
     if status == "skipped":
@@ -397,3 +461,21 @@ def build_runtime(
     runtime.spec.image = local + build.image
     runtime.status.state = mlrun.api.schemas.FunctionState.ready
     return True
+
+
+def _generate_builder_env(project, builder_env):
+    k8s = get_k8s_helper()
+    secret_name = k8s.get_project_secret_name(project)
+    existing_secret_keys = k8s.get_project_secret_keys(project, filter_internal=True)
+
+    # generate env list from builder env and project secrets
+    env = []
+    for key in existing_secret_keys:
+        if key not in builder_env:
+            value_from = client.V1EnvVarSource(
+                secret_key_ref=client.V1SecretKeySelector(name=secret_name, key=key)
+            )
+            env.append(client.V1EnvVar(name=key, value_from=value_from))
+    for key, value in builder_env.items():
+        env.append(client.V1EnvVar(name=key, value=value))
+    return env

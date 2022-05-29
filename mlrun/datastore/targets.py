@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import sys
+import random
+import time
 import typing
 import warnings
 from collections import Counter
@@ -23,7 +24,7 @@ import pandas as pd
 import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
-from mlrun.model import DataTarget, DataTargetBase
+from mlrun.model import DataTarget, DataTargetBase, TargetPathObject
 from mlrun.utils import now_date
 from mlrun.utils.v3io_clients import get_frames_client
 
@@ -55,6 +56,10 @@ class TargetTypes:
         ]
 
 
+def generate_target_run_id():
+    return f"{round(time.time() * 1000)}_{random.randint(0, 999)}"
+
+
 def default_target_names():
     targets = mlrun.mlconf.feature_store.default_targets
     return [target.strip() for target in targets.split(",")]
@@ -67,12 +72,78 @@ def get_default_targets():
     ]
 
 
+def update_targets_run_id_for_ingest(overwrite, targets, targets_in_status):
+    run_id = generate_target_run_id()
+    for target in targets:
+        if overwrite or not (target.name in targets_in_status.keys()):
+            target.run_id = run_id
+        else:
+            target.run_id = targets_in_status[target.name].run_id
+
+
 def get_default_prefix_for_target(kind):
     data_prefixes = mlrun.mlconf.feature_store.data_prefixes
     data_prefix = getattr(data_prefixes, kind, None)
     if not data_prefix:
         data_prefix = data_prefixes.default
     return data_prefix
+
+
+def get_default_prefix_for_source(kind):
+    return get_default_prefix_for_target(kind)
+
+
+def validate_target_paths_for_engine(targets, engine, source):
+    """Validating that target paths are suitable for the required engine.
+    validate for single file targets only (parquet and csv).
+
+    spark:
+        cannot be a single file path (e.g - ends with .csv or .pq)
+
+    storey:
+        if csv - must be a single file.
+        if parquet - in case of partitioned it must be a directory,
+                     else can be both single file or directory
+
+    pandas:
+        if suorce contains chunksize attribute - path must be a directory
+        else - path must be a single file
+    """
+    for base_target in targets:
+        if (
+            base_target.kind == TargetTypes.parquet
+            or base_target.kind == TargetTypes.csv
+        ):
+            target = get_target_driver(base_target)
+            is_single_file = target.is_single_file()
+            if engine == "spark" and is_single_file:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"spark CSV/Parquet targets must be directories, got path:'{target.path}'"
+                )
+            elif engine == "pandas":
+                if source.attributes.get("chunksize"):
+                    if is_single_file:
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            "pandas CSV/Parquet targets must be a directory "
+                            f"for a chunked source, got path:'{target.path}'"
+                        )
+                elif not is_single_file:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"pandas CSV/Parquet targets must be a single file, got path:'{target.path}'"
+                    )
+            elif not engine or engine == "storey":
+                if target.kind == TargetTypes.csv and not is_single_file:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"CSV target for storey engine must be a single file, got path:'{target.path}'"
+                    )
+                elif (
+                    target.kind == TargetTypes.parquet
+                    and target.partitioned
+                    and is_single_file
+                ):
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"partitioned Parquet target for storey engine must be a directory, got path:'{target.path}'"
+                    )
 
 
 def validate_target_list(targets):
@@ -215,7 +286,7 @@ offline_lookup_order = [TargetTypes.parquet, TargetTypes.csv]
 online_lookup_order = [TargetTypes.nosql]
 
 
-def get_offline_target(featureset, start_time=None, name=None):
+def get_offline_target(featureset, name=None):
     """return an optimal offline feature set target"""
     # todo: take status, start_time and lookup order into account
     offline_targets = [
@@ -239,10 +310,12 @@ def get_offline_target(featureset, start_time=None, name=None):
     return None
 
 
-def get_online_target(resource):
+def get_online_target(resource, name=None):
     """return an optimal online feature set target"""
     # todo: take lookup order into account
     for target in resource.status.targets:
+        if name and target.name != name:
+            continue
         driver = kind_to_driver[target.kind]
         if driver.is_online:
             return get_target_driver(target, resource)
@@ -284,6 +357,20 @@ class BaseStoreTarget(DataTargetBase):
         flush_after_seconds: typing.Optional[int] = None,
         storage_options: typing.Dict[str, str] = None,
     ):
+        super().__init__(
+            self.kind,
+            name,
+            path,
+            attributes,
+            after_step,
+            partitioned,
+            key_bucketing_number,
+            partition_cols,
+            time_partitioning_granularity,
+            max_events,
+            flush_after_seconds,
+            after_state,
+        )
         if after_state:
             warnings.warn(
                 "The after_state parameter is deprecated. Use after_step instead",
@@ -310,7 +397,7 @@ class BaseStoreTarget(DataTargetBase):
         self._secrets = {}
 
     def _get_store(self):
-        store, _ = mlrun.store_manager.get_or_create_store(self._target_path)
+        store, _ = mlrun.store_manager.get_or_create_store(self.get_target_path())
         return store
 
     def _get_column_list(self, features, timestamp_key, key_columns, with_type=False):
@@ -346,7 +433,12 @@ class BaseStoreTarget(DataTargetBase):
         return result
 
     def write_dataframe(
-        self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs,
+        self,
+        df,
+        key_column=None,
+        timestamp_key=None,
+        chunk_id=0,
+        **kwargs,
     ) -> typing.Optional[int]:
         if hasattr(df, "rdd"):
             options = self.get_spark_options(key_column, timestamp_key)
@@ -442,27 +534,47 @@ class BaseStoreTarget(DataTargetBase):
         driver.storage_options = spec.storage_options
 
         driver._resource = resource
+        driver.run_id = spec.run_id
         return driver
 
     def get_table_object(self):
         """get storey Table object"""
         return None
 
+    def get_target_path(self):
+        path_object = self._target_path_object
+        return path_object.get_absolute_path() if path_object else None
+
+    def get_target_templated_path(self):
+        path_object = self._target_path_object
+        return path_object.get_templated_path() if path_object else None
+
     @property
-    def _target_path(self):
+    def _target_path_object(self):
         """return the actual/computed target path"""
-        return self.path or _get_target_path(self, self._resource)
+        is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
+        return self.get_path() or (
+            TargetPathObject(
+                _get_target_path(self, self._resource, self.run_id is not None),
+                self.run_id,
+                is_single_file,
+            )
+            if self._resource
+            else None
+        )
 
     def update_resource_status(self, status="", producer=None, size=None):
         """update the data target status"""
         self._target = self._target or DataTarget(
-            self.kind, self.name, self._target_path
+            self.kind, self.name, self.get_target_templated_path()
         )
         target = self._target
+        target.run_id = self.run_id
         target.status = status or target.status or "created"
         target.updated = now_date().isoformat()
         target.size = size
         target.producer = producer or target.producer
+
         self._resource.status.update_target(target)
         return target
 
@@ -489,7 +601,7 @@ class BaseStoreTarget(DataTargetBase):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def purge(self):
-        self._get_store().rm(self._target_path, recursive=True)
+        self._get_store().rm(self.get_target_path(), recursive=True)
 
     def as_df(
         self,
@@ -499,19 +611,24 @@ class BaseStoreTarget(DataTargetBase):
         start_time=None,
         end_time=None,
         time_column=None,
+        **kwargs,
     ):
         """return the target data as dataframe"""
-        return mlrun.get_dataitem(self._target_path).as_df(
+        return mlrun.get_dataitem(self.get_target_path()).as_df(
             columns=columns,
             df_module=df_module,
             start_time=start_time,
             end_time=end_time,
             time_column=time_column,
+            **kwargs,
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         # options used in spark.read.load(**options)
         raise NotImplementedError()
+
+    def prepare_spark_df(self, df):
+        return df
 
     def get_dask_options(self):
         raise NotImplementedError()
@@ -618,6 +735,9 @@ class ParquetTarget(BaseStoreTarget):
             df.to_parquet(target_path, partition_cols=partition_cols, **kwargs)
         else:
             with fs.open(target_path, "wb") as fp:
+                # In order to save the DataFrame in parquet format, all of the column names must be strings:
+                df.columns = [str(column) for column in df.columns.tolist()]
+                # Save to parquet:
                 df.to_parquet(fp, **kwargs)
 
     def add_writer_state(
@@ -677,8 +797,8 @@ class ParquetTarget(BaseStoreTarget):
 
         if (
             not self.partitioned
-            and not self._target_path.endswith(".parquet")
-            and not self._target_path.endswith(".pq")
+            and not self.get_target_path().endswith(".parquet")
+            and not self.get_target_path().endswith(".pq")
         ):
             partition_cols = []
 
@@ -700,7 +820,7 @@ class ParquetTarget(BaseStoreTarget):
             after=after,
             graph_shape="cylinder",
             class_name="storey.ParquetTarget",
-            path=self._target_path,
+            path=self.get_target_path(),
             columns=column_list,
             index_cols=tuple_key_columns,
             partition_cols=partition_cols,
@@ -727,7 +847,7 @@ class ParquetTarget(BaseStoreTarget):
                     if unit == time_partitioning_granularity:
                         break
         result = {
-            "path": store_path_to_spark(self._target_path),
+            "path": store_path_to_spark(self.get_target_path()),
             "format": "parquet",
         }
         for partition_col in self.partition_cols or []:
@@ -747,15 +867,17 @@ class ParquetTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
+        **kwargs,
     ):
         """return the target data as dataframe"""
-        return mlrun.get_dataitem(self._target_path).as_df(
+        return mlrun.get_dataitem(self.get_target_path()).as_df(
             columns=columns,
             df_module=df_module,
             format="parquet",
             start_time=start_time,
             end_time=end_time,
             time_column=time_column,
+            **kwargs,
         )
 
     def is_single_file(self):
@@ -773,13 +895,7 @@ class CSVTarget(BaseStoreTarget):
 
     @staticmethod
     def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
-        mode = "wb"
-        # We generally prefer to open in a binary mode so that different encodings could be used, but pandas had a bug
-        # with such files until version 1.2.0, in this version they dropped support for python 3.6.
-        # So only for python 3.6 we're using text mode which might prevent some features
-        if sys.version_info[0] == 3 and sys.version_info[1] == 6:
-            mode = "wt"
-        with fs.open(target_path, mode) as fp:
+        with fs.open(target_path, "wb") as fp:
             df.to_csv(fp, **kwargs)
 
     def add_writer_state(
@@ -812,7 +928,7 @@ class CSVTarget(BaseStoreTarget):
             after=after,
             graph_shape="cylinder",
             class_name="storey.CSVTarget",
-            path=self._target_path,
+            path=self.get_target_path(),
             columns=column_list,
             header=True,
             index_cols=key_columns,
@@ -822,10 +938,22 @@ class CSVTarget(BaseStoreTarget):
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         return {
-            "path": store_path_to_spark(self._target_path),
+            "path": store_path_to_spark(self.get_target_path()),
             "format": "csv",
             "header": "true",
         }
+
+    def prepare_spark_df(self, df):
+        import pyspark.sql.functions as funcs
+
+        for col_name, col_type in df.dtypes:
+            if col_type == "timestamp":
+                # df.write.csv saves timestamps with millisecond precision, but we want microsecond precision
+                # for compatibility with storey.
+                df = df.withColumn(
+                    col_name, funcs.date_format(col_name, "yyyy-MM-dd HH:mm:ss.SSSSSS")
+                )
+        return df
 
     def as_df(
         self,
@@ -835,10 +963,18 @@ class CSVTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
+        **kwargs,
     ):
-        df = super().as_df(columns=columns, df_module=df_module, entities=entities)
+        df = super().as_df(
+            columns=columns, df_module=df_module, entities=entities, **kwargs
+        )
         df.set_index(keys=entities, inplace=True)
         return df
+
+    def is_single_file(self):
+        if self.path:
+            return self.path.endswith(".csv")
+        return True
 
 
 class NoSqlTarget(BaseStoreTarget):
@@ -853,7 +989,7 @@ class NoSqlTarget(BaseStoreTarget):
         from storey import Table, V3ioDriver
 
         # TODO use options/cred
-        endpoint, uri = parse_v3io_path(self._target_path)
+        endpoint, uri = parse_v3io_path(self.get_target_path())
         return Table(
             uri,
             V3ioDriver(webapi=endpoint),
@@ -910,7 +1046,7 @@ class NoSqlTarget(BaseStoreTarget):
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         spark_options = {
-            "path": store_path_to_spark(self._target_path),
+            "path": store_path_to_spark(self.get_target_path()),
             "format": "io.iguaz.v3io.spark.sql.kv",
         }
         if isinstance(key_column, list) and len(key_column) >= 1:
@@ -930,8 +1066,17 @@ class NoSqlTarget(BaseStoreTarget):
     def get_dask_options(self):
         return {"format": "csv"}
 
-    def as_df(self, columns=None, df_module=None):
+    def as_df(self, columns=None, df_module=None, **kwargs):
         raise NotImplementedError()
+
+    def prepare_spark_df(self, df):
+        import pyspark.sql.functions as funcs
+
+        for col_name, col_type in df.dtypes:
+            if col_type.startswith("decimal("):
+                # V3IO does not support this level of precision
+                df = df.withColumn(col_name, funcs.col(col_name).cast("double"))
+        return df
 
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
@@ -939,13 +1084,14 @@ class NoSqlTarget(BaseStoreTarget):
         if hasattr(df, "rdd"):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
+            df = self.prepare_spark_df(df)
             df.write.mode("overwrite").save(**options)
         else:
             access_key = self._secrets.get(
                 "V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY")
             )
 
-            _, path_with_container = parse_v3io_path(self._target_path)
+            _, path_with_container = parse_v3io_path(self.get_target_path())
             container, path = split_path(path_with_container)
 
             frames_client = get_frames_client(
@@ -986,7 +1132,7 @@ class StreamTarget(BaseStoreTarget):
         from storey import V3ioDriver
 
         key_columns = list(key_columns.keys())
-        endpoint, uri = parse_v3io_path(self._target_path)
+        endpoint, uri = parse_v3io_path(self.get_target_path())
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
@@ -1002,7 +1148,7 @@ class StreamTarget(BaseStoreTarget):
             **self.attributes,
         )
 
-    def as_df(self, columns=None, df_module=None):
+    def as_df(self, columns=None, df_module=None, **kwargs):
         raise NotImplementedError()
 
 
@@ -1035,7 +1181,7 @@ class TSDBTarget(BaseStoreTarget):
         featureset_status=None,
     ):
         key_columns = list(key_columns.keys())
-        endpoint, uri = parse_v3io_path(self._target_path)
+        endpoint, uri = parse_v3io_path(self.get_target_path())
         if not timestamp_key:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "feature set timestamp_key must be specified for TSDBTarget writer"
@@ -1057,7 +1203,7 @@ class TSDBTarget(BaseStoreTarget):
             **self.attributes,
         )
 
-    def as_df(self, columns=None, df_module=None):
+    def as_df(self, columns=None, df_module=None, **kwargs):
         raise NotImplementedError()
 
     def write_dataframe(
@@ -1073,11 +1219,13 @@ class TSDBTarget(BaseStoreTarget):
                 key_column = [key_column]
             new_index.extend(key_column)
 
-        _, path_with_container = parse_v3io_path(self._target_path)
+        _, path_with_container = parse_v3io_path(self.get_target_path())
         container, path = split_path(path_with_container)
 
         frames_client = get_frames_client(
-            token=access_key, address=config.v3io_framesd, container=container,
+            token=access_key,
+            address=config.v3io_framesd,
+            container=container,
         )
 
         frames_client.write(
@@ -1144,11 +1292,12 @@ class CustomTarget(BaseStoreTarget):
 
 
 class DFTarget(BaseStoreTarget):
+    kind = TargetTypes.dataframe
     support_storey = True
 
-    def __init__(self):
-        self.name = "dataframe"
+    def __init__(self, *args, name="dataframe", **kwargs):
         self._df = None
+        super().__init__(*args, name=name, **kwargs)
 
     def set_df(self, df):
         self._df = df
@@ -1195,6 +1344,7 @@ class DFTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
+        **kwargs,
     ):
         return self._df
 
@@ -1210,7 +1360,7 @@ kind_to_driver = {
 }
 
 
-def _get_target_path(driver, resource):
+def _get_target_path(driver, resource, run_id_mode=False):
     """return the default target path given the resource and target kind"""
     kind = driver.kind
     suffix = driver.suffix
@@ -1226,18 +1376,21 @@ def _get_target_path(driver, resource):
         else "vectors"
     )
     name = resource.metadata.name
-    version = resource.metadata.tag
     project = resource.metadata.project or mlrun.mlconf.default_project
     data_prefix = get_default_prefix_for_target(kind).format(
-        project=project, kind=kind, name=name
+        project=project,
+        kind=kind,
+        name=name,
     )
     # todo: handle ver tag changes, may need to copy files?
-    name = f"{name}-{version or 'latest'}"
+    if not run_id_mode:
+        version = resource.metadata.tag
+        name = f"{name}-{version or 'latest'}"
     return f"{data_prefix}/{kind_prefix}/{name}{suffix}"
 
 
 def generate_path_with_chunk(target, chunk_id):
-    prefix, suffix = os.path.splitext(target._target_path)
+    prefix, suffix = os.path.splitext(target.get_target_path())
     if chunk_id and not target.partitioned and not target.time_partitioning_granularity:
         return f"{prefix}/{chunk_id:0>4}{suffix}"
-    return target._target_path
+    return target.get_target_path()

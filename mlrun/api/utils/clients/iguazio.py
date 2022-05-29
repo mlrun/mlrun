@@ -60,12 +60,17 @@ class Client(
     def __init__(self) -> None:
         super().__init__()
         http_adapter = requests.adapters.HTTPAdapter(
-            max_retries=urllib3.util.retry.Retry(total=3, backoff_factor=1)
+            max_retries=urllib3.util.retry.Retry(total=3, backoff_factor=1),
+            pool_maxsize=int(mlrun.mlconf.httpdb.max_workers),
         )
         self._session = requests.Session()
         self._session.mount("http://", http_adapter)
         self._api_url = mlrun.mlconf.iguazio_api_url
-        self._wait_for_job_completion_retry_interval = 5
+        # The job is expected to be completed in less than 5 seconds. If 10 seconds have passed and the job
+        # has not been completed, increase the interval to retry every 5 seconds
+        self._wait_for_job_completion_retry_interval = mlrun.utils.create_step_backoff(
+            [[1, 10], [5, None]]
+        )
         self._wait_for_project_terminal_state_retry_interval = 5
 
     def try_get_grafana_service_url(self, session: str) -> typing.Optional[str]:
@@ -161,7 +166,10 @@ class Client(
         return self._create_project_in_iguazio(session, body, wait_for_completion)
 
     def update_project(
-        self, session: str, name: str, project: mlrun.api.schemas.Project,
+        self,
+        session: str,
+        name: str,
+        project: mlrun.api.schemas.Project,
     ):
         logger.debug("Updating project in Iguazio", name=name, project=project)
         body = self._transform_mlrun_project_to_iguazio_project(project)
@@ -215,7 +223,10 @@ class Client(
             return True
 
     def list_projects(
-        self, session: str, updated_after: typing.Optional[datetime.datetime] = None,
+        self,
+        session: str,
+        updated_after: typing.Optional[datetime.datetime] = None,
+        page_size: typing.Optional[int] = None,
     ) -> typing.Tuple[
         typing.List[mlrun.api.schemas.Project], typing.Optional[datetime.datetime]
     ]:
@@ -223,6 +234,12 @@ class Client(
         if updated_after is not None:
             time_string = updated_after.isoformat().split("+")[0]
             params = {"filter[updated_at]": f"[$gt]{time_string}Z"}
+        if page_size is None:
+            page_size = (
+                mlrun.mlconf.httpdb.projects.iguazio_list_projects_default_page_size
+            )
+        if page_size is not None:
+            params["page[size]"] = int(page_size)
 
         params["include"] = "owner"
         response = self._send_request_to_api(
@@ -241,11 +258,17 @@ class Client(
         latest_updated_at = self._find_latest_updated_at(response_body)
         return projects, latest_updated_at
 
-    def get_project(self, session: str, name: str,) -> mlrun.api.schemas.Project:
+    def get_project(
+        self,
+        session: str,
+        name: str,
+    ) -> mlrun.api.schemas.Project:
         return self._get_project_from_iguazio(session, name)
 
     def get_project_owner(
-        self, session: str, name: str,
+        self,
+        session: str,
+        name: str,
     ) -> mlrun.api.schemas.ProjectOwner:
         response = self._get_project_from_iguazio_without_parsing(
             session, name, include_owner_session=True
@@ -528,12 +551,16 @@ class Client(
                 "description"
             ]
         if iguazio_project["attributes"].get("labels"):
-            mlrun_project.metadata.labels = Client._transform_iguazio_labels_to_mlrun_labels(
-                iguazio_project["attributes"]["labels"]
+            mlrun_project.metadata.labels = (
+                Client._transform_iguazio_labels_to_mlrun_labels(
+                    iguazio_project["attributes"]["labels"]
+                )
             )
         if iguazio_project["attributes"].get("annotations"):
-            mlrun_project.metadata.annotations = Client._transform_iguazio_labels_to_mlrun_labels(
-                iguazio_project["attributes"]["annotations"]
+            mlrun_project.metadata.annotations = (
+                Client._transform_iguazio_labels_to_mlrun_labels(
+                    iguazio_project["attributes"]["annotations"]
+                )
             )
         if iguazio_project["attributes"].get("owner_username"):
             mlrun_project.spec.owner = iguazio_project["attributes"]["owner_username"]

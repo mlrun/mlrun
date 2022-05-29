@@ -22,15 +22,18 @@ current_migration_background_task_name = None
         http.HTTPStatus.ACCEPTED.value: {"model": mlrun.api.schemas.BackgroundTask},
     },
 )
-def start_migration(
-    background_tasks: fastapi.BackgroundTasks, response: fastapi.Response,
+def trigger_migrations(
+    background_tasks: fastapi.BackgroundTasks,
+    response: fastapi.Response,
 ):
     # we didn't yet decide who should have permissions to such actions, therefore no authorization at the moment
     # note in api.py we do declare to use the authenticate_request dependency - meaning we do have authentication
     global current_migration_background_task_name
     if mlrun.mlconf.httpdb.state == mlrun.api.schemas.APIStates.migrations_in_progress:
-        background_task = mlrun.api.utils.background_tasks.Handler().get_background_task(
-            current_migration_background_task_name
+        background_task = (
+            mlrun.api.utils.background_tasks.Handler().get_background_task(
+                current_migration_background_task_name
+            )
         )
         response.status_code = http.HTTPStatus.ACCEPTED.value
         return background_task
@@ -44,7 +47,8 @@ def start_migration(
         return fastapi.Response(status_code=http.HTTPStatus.OK.value)
     logger.info("Starting the migration process")
     background_task = mlrun.api.utils.background_tasks.Handler().create_background_task(
-        background_tasks, _perform_migration,
+        background_tasks,
+        _perform_migration,
     )
     current_migration_background_task_name = background_task.metadata.name
     response.status_code = http.HTTPStatus.ACCEPTED.value

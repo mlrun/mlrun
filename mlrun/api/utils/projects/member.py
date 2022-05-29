@@ -6,7 +6,6 @@ import sqlalchemy.orm
 import mlrun.api.db.session
 import mlrun.api.schemas
 import mlrun.utils.singleton
-from mlrun.utils import logger
 
 
 class Member(abc.ABC):
@@ -24,27 +23,14 @@ class Member(abc.ABC):
         name: str,
         wait_for_completion: bool = True,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
-    ) -> bool:
+    ):
         project_names = self.list_projects(
             db_session,
             format_=mlrun.api.schemas.ProjectsFormat.name_only,
             leader_session=auth_info.session,
         )
-        if name in project_names.projects:
-            return False
-        logger.info(
-            "Ensure project called, but project does not exist. Creating", name=name
-        )
-        project = mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=name),
-        )
-        self.create_project(
-            db_session,
-            project,
-            leader_session=auth_info.session,
-            wait_for_completion=wait_for_completion,
-        )
-        return True
+        if name not in project_names.projects:
+            raise mlrun.errors.MLRunNotFoundError(f"Project {name} does not exist")
 
     @abc.abstractmethod
     def create_project(
@@ -141,6 +127,8 @@ class Member(abc.ABC):
 
     @abc.abstractmethod
     def get_project_owner(
-        self, db_session: sqlalchemy.orm.Session, name: str,
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
     ) -> mlrun.api.schemas.ProjectOwner:
         pass

@@ -28,7 +28,7 @@ from ..datastore.store_resources import ResourceCache
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
 from ..serving.server import MockEvent, create_graph_server
-from ..utils import logger
+from ..utils import logger, normalize_name
 
 
 def init_featureset_graph(
@@ -123,9 +123,14 @@ def featureset_initializer(server):
     context = server.context
     cache = server.resource_cache
     featureset, source, targets, _, _ = context_to_ingestion_params(context)
+
     graph = featureset.spec.graph.copy()
     _add_data_steps(
-        graph, cache, featureset, targets=targets, source=source,
+        graph,
+        cache,
+        featureset,
+        targets=targets,
+        source=source,
     )
     featureset.save()
     server.graph = graph
@@ -194,15 +199,11 @@ def _add_data_steps(
 
 
 def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service=None):
-    name = name or f"{featureset.metadata.name}_ingest"
+    name = normalize_name(name or f"{featureset.metadata.name}-ingest-job")
     use_spark = featureset.spec.engine == "spark"
-    if use_spark and not run_config.local and not spark_service:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "Remote spark ingestion requires the spark service name to be provided"
-        )
+    spark_runtimes = [RuntimeKinds.remotespark, RuntimeKinds.spark]
 
     default_kind = RuntimeKinds.remotespark if use_spark else RuntimeKinds.job
-    spark_runtimes = [RuntimeKinds.remotespark]  # may support spark operator in future
 
     if not run_config.function:
         function_ref = featureset.spec.function.copy()
@@ -212,6 +213,10 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
             function_ref.code = (function_ref.code or "") + _default_job_handler
         run_config.function = function_ref
         run_config.handler = "handler"
+    elif run_config.function.kind == RuntimeKinds.spark and spark_service is not None:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Spark operator jobs do not support standalone spark submission"
+        )
 
     image = None if use_spark else mlrun.mlconf.feature_store.default_job_image
     function = run_config.to_function(default_kind, image)
@@ -226,8 +231,13 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
     if not use_spark and not function.spec.image:
         raise mlrun.errors.MLRunInvalidArgumentError("function image must be specified")
 
-    if use_spark and not run_config.local:
-        function.with_spark_service(spark_service=spark_service)
+    if use_spark and function.kind == RuntimeKinds.remotespark and not run_config.local:
+        if not spark_service:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Remote spark ingestion requires the spark service name to be provided"
+            )
+        else:
+            function.with_spark_service(spark_service=spark_service)
 
     task = mlrun.new_task(
         name=name,

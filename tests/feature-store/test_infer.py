@@ -2,13 +2,14 @@ import unittest.mock
 
 import deepdiff
 import pandas as pd
+import pytest
 
 import mlrun
 import mlrun.feature_store as fs
 from mlrun.data_types import InferOptions
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.feature_store import Entity
-from mlrun.feature_store.api import infer_from_static_df
+from mlrun.feature_store.api import _infer_from_static_df
 from tests.conftest import tests_root_directory
 
 this_dir = f"{tests_root_directory}/feature-store/"
@@ -38,7 +39,7 @@ def test_infer_from_df():
     df = pd.read_csv(this_dir + "testdata.csv")
     df.set_index(key, inplace=True)
     featureset = fs.FeatureSet("testdata")
-    infer_from_static_df(df, featureset, options=InferOptions.all())
+    _infer_from_static_df(df, featureset, options=InferOptions.all())
     # print(featureset.to_yaml())
 
     # test entity infer
@@ -105,6 +106,15 @@ def test_backwards_compatibility_step_vs_state():
     )
 
 
+def test_target_no_time_column():
+    t = ParquetTarget(path="jhjhjhj")
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        t.as_df(
+            start_time=pd.Timestamp("2021-06-09 09:30:00"),
+            end_time=pd.Timestamp("2021-06-09 10:30:00"),
+        )
+
+
 def test_check_permissions():
     data = pd.DataFrame(
         {
@@ -165,3 +175,10 @@ def test_check_permissions():
         assert False
     except mlrun.errors.MLRunAccessDeniedError:
         pass
+
+
+def test_check_timestamp_key_is_entity():
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        fs.FeatureSet(
+            "imp1", entities=[Entity("time_stamp")], timestamp_key="time_stamp"
+        )

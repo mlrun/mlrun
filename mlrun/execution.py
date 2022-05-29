@@ -103,6 +103,9 @@ class MLClientCtx(object):
         self._parent = None
         self._handler = None
 
+        self._project_object = None
+        self._allow_empty_resources = None
+
     def __enter__(self):
         return self
 
@@ -174,9 +177,10 @@ class MLClientCtx(object):
             for child in self._children:
                 child.commit(completed=completed)
         results = [child.to_dict() for child in self._children]
-        summary = mlrun.runtimes.utils.results_to_iter(results, None, self)
+        summary, df = mlrun.runtimes.utils.results_to_iter(results, None, self)
         task = results[best_run - 1] if best_run else None
         self.log_iteration_results(best_run, summary, task)
+        mlrun.runtimes.utils.log_iter_artifacts(self, df, summary[0])
 
     def mark_as_best(self):
         """mark a child as the best iteration result, see .get_child_context()"""
@@ -194,7 +198,7 @@ class MLClientCtx(object):
             feature_vector = context.get_store_resource("store://feature-vectors/default/myvec")
             dataset = context.get_store_resource("store://artifacts/default/mydata")
 
-        :param uri:    store resource uri/path, store://<type>/<project>/<name>:<version>
+        :param url:    store resource uri/path, store://<type>/<project>/<name>:<version>
                        types: artifacts | feature-sets | feature-vectors
         """
         return get_store_resource(url, db=self._rundb, secrets=self._secrets_manager)
@@ -276,6 +280,9 @@ class MLClientCtx(object):
                         self._hyper_param_options
                     )
             self._outputs = spec.get("outputs", self._outputs)
+            self._allow_empty_resources = spec.get(
+                "allow_empty_resources", self._allow_empty_resources
+            )
             self.artifact_path = spec.get(run_keys.output_path, self.artifact_path)
             self._in_path = spec.get(run_keys.input_path, self._in_path)
             inputs = spec.get(run_keys.inputs)
@@ -310,11 +317,11 @@ class MLClientCtx(object):
     @property
     def tag(self):
         """run tag (uid or workflow id if exists)"""
-        return self._labels.get("workflow", self._uid)
+        return self._labels.get("workflow") or self._uid
 
     @property
     def iteration(self):
-        """child iteration index, for hyper parameters """
+        """child iteration index, for hyper parameters"""
         return self._iteration
 
     @property
@@ -431,6 +438,26 @@ class MLClientCtx(object):
             return default
         return self._parameters[key]
 
+    def _load_project_object(self):
+        if not self._project_object:
+            if not self._project:
+                self.logger.warning("get_project_param called without a project name")
+                return None
+            if not self._rundb:
+                self.logger.warning(
+                    "cannot retrieve project parameters - MLRun DB is not accessible"
+                )
+                return None
+            self._project_object = self._rundb.get_project(self._project)
+        return self._project_object
+
+    def get_project_param(self, key: str, default=None):
+        """get a parameter from the run's project's parameters"""
+        if not self._load_project_object():
+            return default
+
+        return self._project_object.get_param(key, default)
+
     def get_secret(self, key: str):
         """get a key based secret e.g. DB password from the context
         secrets can be specified when invoking a run through vault, files, env, ..
@@ -450,7 +477,12 @@ class MLClientCtx(object):
             url = key
         if self.in_path and not (url.startswith("/") or "://" in url):
             url = os.path.join(self._in_path, url)
-        obj = self._data_stores.object(url, key, project=self._project)
+        obj = self._data_stores.object(
+            url,
+            key,
+            project=self._project,
+            allow_empty_resources=self._allow_empty_resources,
+        )
         self._inputs[key] = obj
         return obj
 
@@ -507,16 +539,19 @@ class MLClientCtx(object):
             self._results["best_iteration"] = best
             for k, v in get_in(task, ["status", "results"], {}).items():
                 self._results[k] = v
-            for a in get_in(task, ["status", run_keys.artifacts], []):
-                self._artifacts_manager.artifacts[a["key"]] = a
+            for artifact in get_in(task, ["status", run_keys.artifacts], []):
+                self._artifacts_manager.artifacts[
+                    artifact["metadata"]["key"]
+                ] = artifact
                 self._artifacts_manager.link_artifact(
                     self.project,
                     self.name,
                     self.tag,
-                    a["key"],
+                    artifact["metadata"]["key"],
                     self.iteration,
-                    a["target_path"],
+                    artifact["spec"]["target_path"],
                     link_iteration=best,
+                    db_key=artifact["spec"]["db_key"],
                 )
 
         if summary is not None:
@@ -581,6 +616,7 @@ class MLClientCtx(object):
         :param src_path:      deprecated, use local_path
         :param upload:        upload to datastore (default is True)
         :param labels:        a set of key/value labels to tag the artifact with
+        :param format:        optional, format to use (e.g. csv, parquet, ..)
         :param db_key:        the key to use in the artifact DB table, by default
                               its run name + '_' + key
                               db_key=False will not register it in the artifacts table
@@ -782,7 +818,7 @@ class MLClientCtx(object):
         return item
 
     def get_cached_artifact(self, key):
-        """return an a logged artifact from cache (for potential updates)"""
+        """return an logged artifact from cache (for potential updates)"""
         return self._artifacts_manager.artifacts[key]
 
     def update_artifact(self, artifact_object):

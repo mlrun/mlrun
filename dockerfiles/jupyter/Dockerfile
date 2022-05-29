@@ -1,6 +1,14 @@
 FROM jupyter/scipy-notebook:python-3.8.8
 
 USER root
+RUN apt-get update && \
+    apt-get -s dist-upgrade | \
+    grep "^Inst" | \
+    grep -i securi | \
+    awk -F " " {'print $2'} | \
+    xargs apt-get install -y --no-install-recommends && \
+    rm -rf /var/lib/apt/lists/*
+
 RUN apt-get update && apt-get install --no-install-recommends -y \
   graphviz \
  && rm -rf /var/lib/apt/lists/*
@@ -8,17 +16,20 @@ USER $NB_UID
 
 ENV PIP_NO_CACHE_DIR=1
 
-RUN python -m pip install --upgrade pip~=21.2.0
+ARG MLRUN_PIP_VERSION=22.0.0
+RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 WORKDIR $HOME
 
 COPY --chown=$NB_UID:$NB_GID ./README.md $HOME
-COPY --chown=$NB_UID:$NB_GID ./examples/mlrun_basics.ipynb $HOME
-COPY --chown=$NB_UID:$NB_GID ./docs/quick-start.ipynb $HOME
+COPY --chown=$NB_UID:$NB_GID ./docs/quick-start $HOME/quick-start
 COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/mlrun-quick-start $HOME/_static/images/mlrun-quick-start
+COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlrun.env $HOME
+COPY --chown=$NB_UID:$NB_GID ./docs/tutorial $HOME/tutorial
+COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/tutorial $HOME/_static/images/tutorial
 
 ARG MLRUN_CACHE_DATE=initial
-RUN git clone --branch hackathon https://github.com/mlrun/demos.git $HOME/demos
+RUN git clone --branch 0.10.x https://github.com/mlrun/demos.git $HOME/demos
 RUN git clone --branch master https://github.com/mlrun/functions.git $HOME/functions
 
 RUN mkdir data
@@ -41,7 +52,7 @@ ENV MLRUN_ARTIFACT_PATH=$HOME/data \
     MLRUN_HTTPDB__DATA_VOLUME=$HOME/data \
     MLRUN_HTTPDB__DSN='sqlite:////home/jovyan/data/mlrun.db?check_same_thread=false' \
     MLRUN_HTTPDB__LOGS_PATH=$HOME/data/logs \
-    MLRUN_PVC_MOUNT=nfsvol:/home/jovyan/data
+    MLRUN_ENV_FILE=$HOME/mlrun.env
 
 # run the mlrun db (api) and the notebook in parallel
 CMD python -m mlrun db & MLRUN_DBPATH=http://localhost:8080 start-notebook.sh \

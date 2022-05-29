@@ -12,7 +12,7 @@ podTemplate(
     label: podLabel,
     containers: [
         containerTemplate(name: 'jnlp', image: 'jenkins/jnlp-slave:4.0.1-1', workingDir: workDir, resourceRequestCpu: '2000m', resourceLimitCpu: '2000m', resourceRequestMemory: '2048Mi', resourceLimitMemory: '2048Mi'),
-        containerTemplate(name: 'base-build', image: 'iguazioci/alpine-base-build:ae7e534841e68675d15f4bd98f07197aed5591af', workingDir: workDir, ttyEnabled: true, command: 'cat'),
+        containerTemplate(name: 'base-build', image: 'iguazioci/alpine-base-build:ae7e534841e68675d15f4bd98f07197aed5591af', workingDir: workDir, resourceRequestCpu: '4000m', resourceLimitCpu: '4000m', resourceRequestMemory: '5048Mi', resourceLimitMemory: '5048Mi', ttyEnabled: true, command: 'cat'),
         containerTemplate(name: 'python37', image: 'python:3.7-stretch', workingDir: workDir, ttyEnabled: true, command: 'cat'),
     ],
     volumes: [
@@ -49,30 +49,16 @@ podTemplate(
                     }
                     dockerx.images_push_multi_registries(["${gitProject}/ml-base:${dockerTag}"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
 
-                    stage("build ${gitProject}/base-legacy in dood") {
-                        println(common.shellc("MLRUN_VERSION=${dockerTag} make base-legacy"))
-                    }
-                    dockerx.images_push_multi_registries(["${gitProject}/ml-base:${dockerTag}-py36"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
-
                     stage("build ${gitProject}/models in dood") {
                         println(common.shellc("MLRUN_VERSION=${dockerTag} make models"))
                     }
                     dockerx.images_push_multi_registries(["${gitProject}/ml-models:${dockerTag}"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
-
-                    stage("build ${gitProject}/models-legacy in dood") {
-                        println(common.shellc("MLRUN_VERSION=${dockerTag} make models-legacy"))
-                    }
-                    dockerx.images_push_multi_registries(["${gitProject}/ml-models:${dockerTag}-py36"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
 
                     stage("build ${gitProject}/models-gpu in dood") {
                         println(common.shellc("MLRUN_VERSION=${dockerTag} make models-gpu"))
                     }
                     dockerx.images_push_multi_registries(["${gitProject}/ml-models-gpu:${dockerTag}"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
 
-                    stage("build ${gitProject}/models-gpu-legacy in dood") {
-                        println(common.shellc("MLRUN_VERSION=${dockerTag} make models-gpu-legacy"))
-                    }
-                    dockerx.images_push_multi_registries(["${gitProject}/ml-models-gpu:${dockerTag}-py36"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
                 }
 
                 container('jnlp') {

@@ -3,10 +3,18 @@ import os
 import traceback
 from distutils.util import strtobool
 from http import HTTPStatus
-from typing import List
+from typing import List, Optional
 
 import v3io
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    Header,
+    Query,
+    Request,
+    Response,
+)
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -17,8 +25,8 @@ import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
 import mlrun.api.utils.singletons.project_member
 from mlrun.api.api import deps
-from mlrun.api.api.utils import get_run_db_instance, log_and_raise
-from mlrun.api.crud.secrets import Secrets
+from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
+from mlrun.api.crud.secrets import Secrets, SecretsClientType
 from mlrun.api.schemas import SecretProviderName, SecretsData
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
@@ -135,7 +143,9 @@ def list_functions(
     if project is None:
         project = config.default_project
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-        project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
+        project,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
     )
     functions = mlrun.api.crud.Functions().list_functions(
         db_session, project, name, tag, labels
@@ -160,6 +170,9 @@ async def build_function(
     request: Request,
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
+    client_version: Optional[str] = Header(
+        None, alias=mlrun.api.schemas.HeaderNames.client_version
+    ),
 ):
     data = None
     try:
@@ -198,6 +211,7 @@ async def build_function(
         skip_deployed,
         mlrun_version_specifier,
         data.get("builder_env"),
+        client_version,
     )
     return {
         "data": fn.to_dict(),
@@ -212,6 +226,9 @@ async def start_function(
     background_tasks: BackgroundTasks,
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
+    client_version: Optional[str] = Header(
+        None, alias=mlrun.api.schemas.HeaderNames.client_version
+    ),
 ):
     # TODO: ensure project here !!! for background task
     data = None
@@ -239,6 +256,7 @@ async def start_function(
         _start_function,
         function,
         auth_info,
+        client_version,
     )
 
     return background_task
@@ -301,7 +319,8 @@ def build_status(
             name,
             project,
             tag,
-            last_log_timestamp=last_log_timestamp,
+            # Workaround since when passing 0.0 to nuclio current timestamp is used and no logs are returned
+            last_log_timestamp=last_log_timestamp or 1.0,
             verbose=verbose,
             auth_info=auth_info,
         )
@@ -331,7 +350,12 @@ def build_status(
             # the DB with intermediate or unusable versions, only successfully deployed versions
             versioned = True
         mlrun.api.crud.Functions().store_function(
-            db_session, fn, name, project, tag, versioned=versioned,
+            db_session,
+            fn,
+            name,
+            project,
+            tag,
+            versioned=versioned,
         )
         return Response(
             content=text,
@@ -364,6 +388,24 @@ def build_status(
             },
         )
 
+    # read from log file
+    terminal_states = ["failed", "error", "ready"]
+    log_file = log_path(project, f"build_{name}__{tag or 'latest'}")
+    if state in terminal_states and log_file.exists():
+        with log_file.open("rb") as fp:
+            fp.seek(offset)
+            out = fp.read()
+        return Response(
+            content=out,
+            media_type="text/plain",
+            headers={
+                "x-mlrun-function-status": state,
+                "function_status": state,
+                "function_image": image,
+                "builder_pod": pod,
+            },
+        )
+
     logger.info(f"get pod {pod} status")
     state = get_k8s().get_pod_status(pod)
     logger.info(f"pod state={state}")
@@ -375,10 +417,16 @@ def build_status(
         logger.error(f"build {state}, watch the build pod logs: {pod}")
         state = mlrun.api.schemas.FunctionState.error
 
-    if logs and state != "pending":
+    if (logs and state != "pending") or state in terminal_states:
         resp = get_k8s().logs(pod)
-        if resp:
-            out = resp.encode()[offset:]
+        if state in terminal_states:
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+            with log_file.open("wb") as fp:
+                fp.write(resp.encode())
+
+        if resp and logs:
+            # begin from the offset number and then encode
+            out = resp[offset:].encode()
 
     update_in(fn, "status.state", state)
     if state == mlrun.api.schemas.FunctionState.ready:
@@ -388,7 +436,12 @@ def build_status(
     if state == mlrun.api.schemas.FunctionState.ready:
         versioned = True
     mlrun.api.crud.Functions().store_function(
-        db_session, fn, name, project, tag, versioned=versioned,
+        db_session,
+        fn,
+        name,
+        project,
+        tag,
+        versioned=versioned,
     )
 
     return Response(
@@ -411,6 +464,7 @@ def _build_function(
     skip_deployed=False,
     mlrun_version_specifier=None,
     builder_env=None,
+    client_version=None,
 ):
     fn = None
     ready = None
@@ -426,6 +480,7 @@ def _build_function(
         if fn.kind in RuntimeKinds.nuclio_runtimes():
             mlrun.api.api.utils.ensure_function_has_auth_set(fn, auth_info)
             mlrun.api.api.utils.process_function_service_account(fn)
+            mlrun.api.api.utils.mask_sensitive_data(fn, auth_info)
 
             if fn.kind == RuntimeKinds.serving:
                 # Handle model monitoring
@@ -454,10 +509,23 @@ def _build_function(
                         traceback=traceback.format_exc(),
                     )
 
-            deploy_nuclio_function(fn, auth_info=auth_info)
+            deploy_nuclio_function(
+                fn,
+                auth_info=auth_info,
+                client_version=client_version,
+                builder_env=builder_env,
+            )
             # deploy only start the process, the get status API is used to check readiness
             ready = False
         else:
+            log_file = log_path(
+                fn.metadata.project,
+                f"build_{fn.metadata.name}__{fn.metadata.tag or 'latest'}",
+            )
+            if log_file.exists() and not (skip_deployed and fn.is_deployed()):
+                # delete old build log file if exist and build is not skipped
+                os.remove(str(log_file))
+
             ready = build_runtime(
                 auth_info,
                 fn,
@@ -465,6 +533,7 @@ def _build_function(
                 mlrun_version_specifier,
                 skip_deployed,
                 builder_env=builder_env,
+                client_version=client_version,
             )
         fn.save(versioned=True)
         logger.info("Fn:\n %s", fn.to_yaml())
@@ -495,7 +564,9 @@ def _parse_start_function_body(db_session, data):
     return new_function(runtime=runtime)
 
 
-def _start_function(function, auth_info: mlrun.api.schemas.AuthInfo):
+def _start_function(
+    function, auth_info: mlrun.api.schemas.AuthInfo, client_version: str = None
+):
     db_session = mlrun.api.db.session.create_session()
     try:
         resource = runtime_resources_map.get(function.kind)
@@ -509,8 +580,9 @@ def _start_function(function, auth_info: mlrun.api.schemas.AuthInfo):
             function.set_db_connection(run_db)
             mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)
             mlrun.api.api.utils.process_function_service_account(function)
+            mlrun.api.api.utils.mask_sensitive_data(function, auth_info)
             #  resp = resource["start"](fn)  # TODO: handle resp?
-            resource["start"](function)
+            resource["start"](function, client_version=client_version)
             function.save(versioned=False)
             logger.info("Fn:\n %s", function.to_yaml())
         except Exception as err:
@@ -626,14 +698,19 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
     )
 
     provider = SecretProviderName.kubernetes
-    secret_value = Secrets().get_secret(
-        project_name, provider, secret_key, allow_secrets_from_k8s=True,
+    secret_value = Secrets().get_project_secret(
+        project_name,
+        provider,
+        secret_key,
+        allow_secrets_from_k8s=True,
     )
     user_provided_key = secret_value is not None
-    internal_key_name = Secrets().generate_model_monitoring_secret_key(secret_key)
+    internal_key_name = Secrets().generate_client_project_secret_key(
+        SecretsClientType.model_monitoring, secret_key
+    )
 
     if not user_provided_key:
-        secret_value = Secrets().get_secret(
+        secret_value = Secrets().get_project_secret(
             project_name,
             provider,
             internal_key_name,
@@ -660,11 +737,11 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
             )
 
     secrets = SecretsData(provider=provider, secrets={internal_key_name: secret_value})
-    Secrets().store_secrets(project_name, secrets, allow_internal_secrets=True)
+    Secrets().store_project_secrets(project_name, secrets, allow_internal_secrets=True)
     if user_provided_key:
         logger.info(
             "Deleting user-provided access-key - replaced with an internal secret"
         )
-        Secrets().delete_secret(project_name, provider, secret_key)
+        Secrets().delete_project_secret(project_name, provider, secret_key)
 
     return secret_value

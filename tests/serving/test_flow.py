@@ -1,3 +1,5 @@
+import pathlib
+
 import pytest
 
 import mlrun
@@ -314,3 +316,38 @@ def test_to_dict():
         "class_name": "mlrun.serving.v2_serving.V2ModelServer",
         "name": "ms",
     }, "unexpected serialization"
+
+
+def test_module_load():
+    # test that the functions and classes are imported automatically from the function code
+    function_path = str(pathlib.Path(__file__).parent / "assets" / "myfunc.py")
+
+    def check_function(name, fn):
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="s1", class_name="Mycls").to(name="s2", handler="myhand")
+
+        server = fn.to_mock_server()
+        resp = server.test(body=5)
+        # result should be 5 * 2 * 2 = 20
+        assert resp == 20, f"got unexpected result {resp} with {name}"
+
+    check_function(
+        "code_to_function",
+        mlrun.code_to_function("test1", filename=function_path, kind="serving"),
+    )
+    check_function(
+        "new_function",
+        mlrun.new_function("test2", command=function_path, kind="serving"),
+    )
+
+
+def test_missing_functions():
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    graph.to(name="s1", class_name="Echo").to(
+        name="s2", class_name="Echo", function="child_func"
+    )
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match=r"function child_func*"
+    ):
+        function.deploy()

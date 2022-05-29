@@ -80,7 +80,7 @@ class FileRunDB(RunDBInterface):
                 if offset:
                     fp.seek(offset)
                 if not size:
-                    size = 2 ** 18
+                    size = 2**18
                 return "", fp.read(size)
         return "", None
 
@@ -128,11 +128,20 @@ class FileRunDB(RunDBInterface):
         sort=True,
         last=1000,
         iter=False,
-        start_time_from=None,
-        start_time_to=None,
-        last_update_time_from=None,
-        last_update_time_to=None,
+        start_time_from: datetime = None,
+        start_time_to: datetime = None,
+        last_update_time_from: datetime = None,
+        last_update_time_to: datetime = None,
+        partition_by: Union[schemas.RunPartitionByField, str] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Union[schemas.SortField, str] = None,
+        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
+        max_partitions: int = 0,
     ):
+        if partition_by is not None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Runs partitioning not supported"
+            )
         labels = [] if labels is None else labels
         filepath = self._filepath(run_logs, project)
         results = RunList()
@@ -145,7 +154,10 @@ class FileRunDB(RunDBInterface):
                 and match_value_options(state, run, "status.state")
                 and match_value(uid, run, "metadata.uid")
                 and match_times(
-                    start_time_from, start_time_to, run, "status.start_time",
+                    start_time_from,
+                    start_time_to,
+                    run,
+                    "status.start_time",
                 )
                 and match_times(
                     last_update_time_from,
@@ -367,7 +379,9 @@ class FileRunDB(RunDBInterface):
         labels = labels or []
         logger.info(f"reading functions in {project} name/mask: {name} tag: {tag} ...")
         filepath = path.join(
-            self.dirpath, functions_dir, project or config.default_project,
+            self.dirpath,
+            functions_dir,
+            project or config.default_project,
         )
         filepath += "/"
 
@@ -390,7 +404,7 @@ class FileRunDB(RunDBInterface):
                 target_dict = functions_with_tag_filename
 
                 tag_name = file_name
-                # Heuristic - if tag length if bigger than 20 it's probably a hash key
+                # Heuristic - if tag length is bigger than 20 it's probably a hash key
                 if len(tag_name) > 20:  # hash vs tags
                     tag_name = ""
                     target_dict = functions_with_hash_key_filename
@@ -472,7 +486,9 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def store_project(
-        self, name: str, project: mlrun.api.schemas.Project,
+        self,
+        name: str,
+        project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -485,7 +501,8 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def create_project(
-        self, project: mlrun.api.schemas.Project,
+        self,
+        project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -563,7 +580,11 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def list_entities(
-        self, project: str, name: str = None, tag: str = None, labels: List[str] = None,
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: List[str] = None,
     ):
         raise NotImplementedError()
 
@@ -589,7 +610,13 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def patch_feature_set(
-        self, name, feature_set, project="", tag=None, uid=None, patch_mode="replace",
+        self,
+        name,
+        feature_set,
+        project="",
+        tag=None,
+        uid=None,
+        patch_mode="replace",
     ):
         raise NotImplementedError()
 
@@ -619,7 +646,13 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def store_feature_vector(
-        self, feature_vector, name=None, project="", tag=None, uid=None, versioned=True,
+        self,
+        feature_vector,
+        name=None,
+        project="",
+        tag=None,
+        uid=None,
+        versioned=True,
     ):
         raise NotImplementedError()
 

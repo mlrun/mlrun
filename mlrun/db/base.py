@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import warnings
 from abc import ABC, abstractmethod
 from typing import List, Optional, Union
@@ -66,6 +67,15 @@ class RunDBInterface(ABC):
         sort=True,
         last=0,
         iter=False,
+        start_time_from: datetime.datetime = None,
+        start_time_to: datetime.datetime = None,
+        last_update_time_from: datetime.datetime = None,
+        last_update_time_to: datetime.datetime = None,
+        partition_by: Union[schemas.RunPartitionByField, str] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Union[schemas.SortField, str] = None,
+        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
+        max_partitions: int = 0,
     ):
         pass
 
@@ -141,7 +151,11 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_project(self, name: str, project: schemas.Project,) -> schemas.Project:
+    def store_project(
+        self,
+        name: str,
+        project: schemas.Project,
+    ) -> schemas.Project:
         pass
 
     @abstractmethod
@@ -154,7 +168,10 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def create_project(self, project: schemas.Project,) -> schemas.Project:
+    def create_project(
+        self,
+        project: schemas.Project,
+    ) -> schemas.Project:
         pass
 
     @abstractmethod
@@ -200,7 +217,11 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def list_entities(
-        self, project: str, name: str = None, tag: str = None, labels: List[str] = None,
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: List[str] = None,
     ) -> schemas.EntitiesOutput:
         pass
 

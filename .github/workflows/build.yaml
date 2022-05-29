@@ -31,13 +31,10 @@ jobs:
         - mlrun
         - api
         - base
-        - base-legacy
         - models
-        - models-legacy
         - test
-# The GPU images are too big (~24GB) GH action runner has only 14GB
+# The GPU image is too big (~24GB) GH action runner has only 14GB
 #        - models-gpu
-#        - models-gpu-legacy
     steps:
     - uses: actions/checkout@v2
     - name: Install curl and jq

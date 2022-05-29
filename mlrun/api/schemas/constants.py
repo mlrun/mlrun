@@ -77,6 +77,7 @@ class HeaderNames:
     deletion_strategy = f"{headers_prefix}deletion-strategy"
     secret_store_token = f"{headers_prefix}secret-store-token"
     pipeline_arguments = f"{headers_prefix}pipeline-arguments"
+    client_version = f"{headers_prefix}client-version"
 
 
 class FeatureStorePartitionByField(str, Enum):
@@ -91,9 +92,34 @@ class FeatureStorePartitionByField(str, Enum):
             )
 
 
-# For now, we only support sorting by updated field
+class RunPartitionByField(str, Enum):
+    name = "name"  # Supported for runs objects
+
+    def to_partition_by_db_field(self, db_cls):
+        if self.value == RunPartitionByField.name:
+            return db_cls.name
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unknown group by field: {self.value}"
+            )
+
+
 class SortField(str, Enum):
+    created = "created"
     updated = "updated"
+
+    def to_db_field(self, db_cls):
+        if self.value == SortField.created:
+            # not doing type check to prevent import that will cause a cycle
+            if db_cls.__name__ == "Run":
+                return db_cls.start_time
+            return db_cls.created
+        elif self.value == SortField.updated:
+            return db_cls.updated
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unknown sort by field: {self.value}"
+            )
 
 
 class OrderType(str, Enum):
@@ -121,3 +147,8 @@ class APIStates:
     migrations_failed = "migrations_failed"
     migrations_completed = "migrations_completed"
     offline = "offline"
+
+
+class ClusterizationRole:
+    chief = "chief"
+    worker = "worker"

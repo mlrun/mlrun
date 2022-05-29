@@ -11,7 +11,9 @@ import mlrun.errors
 import mlrun.utils.singleton
 
 
-class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
+class FeatureStore(
+    metaclass=mlrun.utils.singleton.Singleton,
+):
     def create_feature_set(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -19,7 +21,12 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         feature_set: mlrun.api.schemas.FeatureSet,
         versioned: bool = True,
     ) -> str:
-        return self._create_object(db_session, project, feature_set, versioned,)
+        return self._create_object(
+            db_session,
+            project,
+            feature_set,
+            versioned,
+        )
 
     def store_feature_set(
         self,
@@ -32,7 +39,13 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         versioned: bool = True,
     ) -> str:
         return self._store_object(
-            db_session, project, name, feature_set, tag, uid, versioned,
+            db_session,
+            project,
+            name,
+            feature_set,
+            tag,
+            uid,
+            versioned,
         )
 
     def patch_feature_set(
@@ -69,7 +82,9 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         )
 
     def list_feature_sets_tags(
-        self, db_session: sqlalchemy.orm.Session, project: str,
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: str,
     ) -> typing.List[typing.Tuple[str, str, str]]:
         """
         :return: a list of Tuple of (project, feature_set.name, tag)
@@ -90,7 +105,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         labels: typing.List[str] = None,
         partition_by: mlrun.api.schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
-        partition_sort: mlrun.api.schemas.SortField = None,
+        partition_sort_by: mlrun.api.schemas.SortField = None,
         partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
     ) -> mlrun.api.schemas.FeatureSetsOutput:
         project = project or mlrun.mlconf.default_project
@@ -105,7 +120,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
             labels,
             partition_by,
             rows_per_partition,
-            partition_sort,
+            partition_sort_by,
             partition_order,
         )
 
@@ -118,7 +133,12 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         uid: typing.Optional[str] = None,
     ):
         self._delete_object(
-            db_session, mlrun.api.schemas.FeatureSet, project, name, tag, uid,
+            db_session,
+            mlrun.api.schemas.FeatureSet,
+            project,
+            name,
+            tag,
+            uid,
         )
 
     def list_features(
@@ -132,7 +152,12 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
     ) -> mlrun.api.schemas.FeaturesOutput:
         project = project or mlrun.mlconf.default_project
         return mlrun.api.utils.singletons.db.get_db().list_features(
-            db_session, project, name, tag, entities, labels,
+            db_session,
+            project,
+            name,
+            tag,
+            entities,
+            labels,
         )
 
     def list_entities(
@@ -145,7 +170,11 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
     ) -> mlrun.api.schemas.EntitiesOutput:
         project = project or mlrun.mlconf.default_project
         return mlrun.api.utils.singletons.db.get_db().list_entities(
-            db_session, project, name, tag, labels,
+            db_session,
+            project,
+            name,
+            tag,
+            labels,
         )
 
     def create_feature_vector(
@@ -168,7 +197,13 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         versioned: bool = True,
     ) -> str:
         return self._store_object(
-            db_session, project, name, feature_vector, tag, uid, versioned,
+            db_session,
+            project,
+            name,
+            feature_vector,
+            tag,
+            uid,
+            versioned,
         )
 
     def patch_feature_vector(
@@ -201,11 +236,18 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         uid: typing.Optional[str] = None,
     ) -> mlrun.api.schemas.FeatureVector:
         return self._get_object(
-            db_session, mlrun.api.schemas.FeatureVector, project, name, tag, uid,
+            db_session,
+            mlrun.api.schemas.FeatureVector,
+            project,
+            name,
+            tag,
+            uid,
         )
 
     def list_feature_vectors_tags(
-        self, db_session: sqlalchemy.orm.Session, project: str,
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: str,
     ) -> typing.List[typing.Tuple[str, str, str]]:
         """
         :return: a list of Tuple of (project, feature_vector.name, tag)
@@ -224,7 +266,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         labels: typing.List[str] = None,
         partition_by: mlrun.api.schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
-        partition_sort: mlrun.api.schemas.SortField = None,
+        partition_sort_by: mlrun.api.schemas.SortField = None,
         partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
     ) -> mlrun.api.schemas.FeatureVectorsOutput:
         project = project or mlrun.mlconf.default_project
@@ -237,7 +279,7 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
             labels,
             partition_by,
             rows_per_partition,
-            partition_sort,
+            partition_sort_by,
             partition_order,
         )
 
@@ -250,7 +292,12 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         uid: typing.Optional[str] = None,
     ):
         self._delete_object(
-            db_session, mlrun.api.schemas.FeatureVector, project, name, tag, uid,
+            db_session,
+            mlrun.api.schemas.FeatureVector,
+            project,
+            name,
+            tag,
+            uid,
         )
 
     def _create_object(
@@ -295,11 +342,23 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
         )
         if isinstance(object_, mlrun.api.schemas.FeatureSet):
             return mlrun.api.utils.singletons.db.get_db().store_feature_set(
-                db_session, project, name, object_, tag, uid, versioned,
+                db_session,
+                project,
+                name,
+                object_,
+                tag,
+                uid,
+                versioned,
             )
         elif isinstance(object_, mlrun.api.schemas.FeatureVector):
             return mlrun.api.utils.singletons.db.get_db().store_feature_vector(
-                db_session, project, name, object_, tag, uid, versioned,
+                db_session,
+                project,
+                name,
+                object_,
+                tag,
+                uid,
+                versioned,
             )
         else:
             raise NotImplementedError(
@@ -319,15 +378,32 @@ class FeatureStore(metaclass=mlrun.utils.singleton.Singleton,):
     ) -> str:
         project = project or mlrun.mlconf.default_project
         self._validate_identity_for_object_patch(
-            object_schema.__class__.__name__, object_patch, project, name, tag, uid,
+            object_schema.__class__.__name__,
+            object_patch,
+            project,
+            name,
+            tag,
+            uid,
         )
         if object_schema.__name__ == mlrun.api.schemas.FeatureSet.__name__:
             return mlrun.api.utils.singletons.db.get_db().patch_feature_set(
-                db_session, project, name, object_patch, tag, uid, patch_mode,
+                db_session,
+                project,
+                name,
+                object_patch,
+                tag,
+                uid,
+                patch_mode,
             )
         elif object_schema.__name__ == mlrun.api.schemas.FeatureVector.__name__:
             return mlrun.api.utils.singletons.db.get_db().patch_feature_vector(
-                db_session, project, name, object_patch, tag, uid, patch_mode,
+                db_session,
+                project,
+                name,
+                object_patch,
+                tag,
+                uid,
+                patch_mode,
             )
         else:
             raise NotImplementedError(

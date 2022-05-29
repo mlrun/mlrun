@@ -9,6 +9,7 @@ import pymysql
 import mlrun
 import mlrun.api.schemas
 import tests.conftest
+from mlrun.db.httpdb import HTTPRunDB
 from mlrun.utils import create_logger, retry_until_successful
 
 logger = create_logger(level="debug", name="test-integration")
@@ -33,8 +34,8 @@ class TestMLRunIntegration:
         self._logger.info(
             f"Setting up test {self.__class__.__name__}::{method.__name__}"
         )
-        self.db_container_id = self._run_db()
-        self.api_container_id, api_url = self._run_api()
+        self._run_db()
+        api_url = self._run_api()
         self._test_env = {}
         self._old_env = {}
         self._setup_env({"MLRUN_DBPATH": api_url})
@@ -73,6 +74,10 @@ class TestMLRunIntegration:
             / "assets"
         )
 
+    @property
+    def base_url(self):
+        return mlrun.config.config.dbpath + "/api/v1/"
+
     def _setup_env(self, env: dict):
         self._logger.debug("Setting up test environment")
         self._test_env.update(env)
@@ -99,16 +104,19 @@ class TestMLRunIntegration:
     def _run_db(self):
         self._logger.debug("Starting DataBase")
         self._run_command(
-            "make", args=["run-test-db"], cwd=TestMLRunIntegration.root_path,
+            "make",
+            args=["run-test-db"],
+            cwd=TestMLRunIntegration.root_path,
         )
-        output = self._run_command("docker", args=["ps", "--last", "1", "-q"],)
-        container_id = output.strip()
+        output = self._run_command(
+            "docker",
+            args=["ps", "--last", "1", "-q"],
+        )
+        self.db_container_id = output.strip()
 
-        self._logger.debug("Started DataBase", container_id=container_id)
+        self._logger.debug("Started DataBase", container_id=self.db_container_id)
 
         self._ensure_database_liveness(timeout=self.db_liveness_timeout)
-
-        return container_id
 
     def _run_api(self):
         self._logger.debug("Starting API")
@@ -120,19 +128,24 @@ class TestMLRunIntegration:
             ),
             cwd=TestMLRunIntegration.root_path,
         )
-        output = self._run_command("docker", args=["ps", "--last", "1", "-q"],)
-        container_id = output.strip()
+        output = self._run_command(
+            "docker",
+            args=["ps", "--last", "1", "-q"],
+        )
+        self.api_container_id = output.strip()
         # retrieve container bind port + host
-        output = self._run_command("docker", args=["port", container_id, "8080"])
+        output = self._run_command(
+            "docker", args=["port", self.api_container_id, "8080"]
+        )
         # usually the output is something like '0.0.0.0:49154\n' but sometimes (in GH actions) it's something like
         # '0.0.0.0:49154\n:::49154\n' for some reason, so just taking the first line
         host = output.splitlines()[0]
         url = f"http://{host}"
         self._check_api_is_healthy(url)
         self._logger.info(
-            "Successfully started API", url=url, container_id=container_id
+            "Successfully started API", url=url, container_id=self.api_container_id
         )
-        return container_id, url
+        return url
 
     def _remove_api(self):
         if self.api_container_id:
@@ -154,7 +167,8 @@ class TestMLRunIntegration:
                 "docker", args=["rm", "--force", self.db_container_id]
             )
             self._logger.debug(
-                "Removed Database container", out=out,
+                "Removed Database container",
+                out=out,
             )
 
     def _ensure_database_liveness(self, retry_interval=2, timeout=30):
@@ -180,7 +194,7 @@ class TestMLRunIntegration:
 
     @staticmethod
     def _check_api_is_healthy(url):
-        health_url = f"{url}/api/healthz"
+        health_url = f"{url}/{HTTPRunDB.get_api_path_prefix()}/healthz"
         timeout = 30
         if not tests.conftest.wait_for_server(health_url, timeout):
             raise RuntimeError(f"API did not start after {timeout} sec")

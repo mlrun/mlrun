@@ -5,15 +5,19 @@ from tensorflow import keras
 
 import mlrun
 
+from .callbacks import MLRunLoggingCallback, TensorboardLoggingCallback
 from .mlrun_interface import TFKerasMLRunInterface
 from .model_handler import TFKerasModelHandler
 from .model_server import TFKerasModelServer
 
 
 def apply_mlrun(
-    model: keras.Model,
+    model: keras.Model = None,
     model_name: str = None,
+    tag: str = "",
     model_path: str = None,
+    model_format: str = TFKerasModelHandler.ModelFormats.SAVED_MODEL,
+    save_traces: bool = False,
     modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
     custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
     custom_objects_directory: str = None,
@@ -23,26 +27,37 @@ def apply_mlrun(
     mlrun_callback_kwargs: Dict[str, Any] = None,
     tensorboard_callback_kwargs: Dict[str, Any] = None,
     use_horovod: bool = None,
-) -> keras.Model:
+    **kwargs
+) -> TFKerasModelHandler:
     """
-    Wrap the given model with MLRun model, saving the model's attributes and methods while giving it mlrun's additional
-    features.
+    Wrap the given model with MLRun's interface providing it with mlrun's additional features.
 
-    :param model:                       The model to wrap.
+    :param model:                       The model to wrap. Can be loaded from the model path given as well.
     :param model_name:                  The model name to use for storing the model artifact. If not given, the
                                         tf.keras.Model.name will be used.
+    :param tag:                         The model's tag to log with.
     :param model_path:                  The model's store object path. Mandatory for evaluation (to know which model to
-                                        update).
+                                        update). If model is not provided, it will be loaded from this path.
+    :param model_format:                The format to use for saving and loading the model. Should be passed as a
+                                        member of the class 'ModelFormats'. Defaulted to 'ModelFormats.SAVED_MODEL'.
+    :param save_traces:                 Whether or not to use functions saving (only available for the 'SavedModel'
+                                        format) for loading the model later without the custom objects dictionary. Only
+                                        from tensorflow version >= 2.4.0. Using this setting will increase the model
+                                        saving size.
     :param modules_map:                 A dictionary of all the modules required for loading the model. Each key is a
                                         path to a module and its value is the object name to import from it. All the
                                         modules will be imported globally. If multiple objects needed to be imported
                                         from the same module a list can be given. The map can be passed as a path to a
                                         json file as well. For example:
-                                        {
-                                            "module1": None,  # => import module1
-                                            "module2": ["func1", "func2"],  # => from module2 import func1, func2
-                                            "module3.sub_module": "func3",  # => from module3.sub_module import func3
-                                        }
+
+                                        .. code-block:: python
+
+                                            {
+                                                "module1": None,  # import module1
+                                                "module2": ["func1", "func2"],  # from module2 import func1, func2
+                                                "module3.sub_module": "func3",  # from module3.sub_module import func3
+                                            }
+
                                         If the model path given is of a store object, the modules map will be read from
                                         the logged modules map artifact of the model.
     :param custom_objects_map:          A dictionary of all the custom objects required for loading the model. Each key
@@ -50,10 +65,14 @@ def apply_mlrun(
                                         from it. If multiple objects needed to be imported from the same py file a list
                                         can be given. The map can be passed as a path to a json file as well. For
                                         example:
-                                        {
-                                            "/.../custom_optimizer.py": "optimizer",
-                                            "/.../custom_layers.py": ["layer1", "layer2"]
-                                        }
+
+                                        .. code-block:: python
+
+                                            {
+                                                "/.../custom_optimizer.py": "optimizer",
+                                                "/.../custom_layers.py": ["layer1", "layer2"]
+                                            }
+
                                         All the paths will be accessed from the given 'custom_objects_directory',
                                         meaning each py file will be read from 'custom_objects_directory/<MAP VALUE>'.
                                         If the model path given is of a store object, the custom objects map will be
@@ -95,8 +114,30 @@ def apply_mlrun(
             context.labels.get("kind", "") == "mpijob" if context is not None else False
         )
 
+    # Create a model handler:
+    model_handler_kwargs = (
+        kwargs.pop("model_handler_kwargs") if "model_handler_kwargs" in kwargs else {}
+    )
+    handler = TFKerasModelHandler(
+        model_name=model_name,
+        model_path=model_path,
+        model=model,
+        model_format=model_format,
+        save_traces=save_traces,
+        context=context,
+        modules_map=modules_map,
+        custom_objects_map=custom_objects_map,
+        custom_objects_directory=custom_objects_directory,
+        **model_handler_kwargs
+    )
+
+    # Load the model if it was not provided:
+    if model is None:
+        handler.load()
+        model = handler.model
+
     # Add MLRun's interface to the model:
-    TFKerasMLRunInterface.add_interface(model=model)
+    TFKerasMLRunInterface.add_interface(obj=model)
 
     # Initialize horovod if needed:
     if use_horovod is True:
@@ -111,19 +152,23 @@ def apply_mlrun(
         tensorboard_callback_kwargs = (
             {} if tensorboard_callback_kwargs is None else tensorboard_callback_kwargs
         )
-        # Add the additional parameters to Tensorboard's callback kwargs dictionary:
-        tensorboard_callback_kwargs["tensorboard_directory"] = tensorboard_directory
-        # Add the additional parameters to MLRun's callback kwargs dictionary:
-        mlrun_callback_kwargs["model_name"] = model_name
-        mlrun_callback_kwargs["model_path"] = model_path
-        mlrun_callback_kwargs["modules_map"] = modules_map
-        mlrun_callback_kwargs["custom_objects_map"] = custom_objects_map
-        mlrun_callback_kwargs["custom_objects_directory"] = custom_objects_directory
         # Add the logging callbacks with the provided parameters:
-        model.auto_log(
-            context=context,
-            mlrun_callback_kwargs=mlrun_callback_kwargs,
-            tensorboard_callback_kwargs=tensorboard_callback_kwargs,
+        model.add_logging_callback(
+            logging_callback=MLRunLoggingCallback(
+                context=context,
+                model_handler=handler,
+                log_model_tag=tag,
+                auto_log=auto_log,
+                **mlrun_callback_kwargs
+            )
+        )
+        model.add_logging_callback(
+            logging_callback=TensorboardLoggingCallback(
+                context=context,
+                tensorboard_directory=tensorboard_directory,
+                auto_log=auto_log,
+                **tensorboard_callback_kwargs
+            )
         )
 
-    return model
+    return handler

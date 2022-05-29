@@ -291,6 +291,12 @@ class RunDBMock:
         assert deepdiff.DeepDiff(function_spec["volumes"], expected_volumes) == {}
         assert deepdiff.DeepDiff(function_spec["volume_mounts"], expected_mounts) == {}
 
+    def verify_authorization(
+        self,
+        authorization_verification_input: mlrun.api.schemas.AuthorizationVerificationInput,
+    ):
+        pass
+
 
 @pytest.fixture()
 def rundb_mock() -> RunDBMock:
@@ -298,6 +304,7 @@ def rundb_mock() -> RunDBMock:
 
     orig_get_run_db = mlrun.db.get_run_db
     mlrun.db.get_run_db = unittest.mock.Mock(return_value=mock_object)
+    mlrun.get_run_db = unittest.mock.Mock(return_value=mock_object)
 
     orig_use_remote_api = BaseRuntime._use_remote_api
     orig_get_db = BaseRuntime._get_db

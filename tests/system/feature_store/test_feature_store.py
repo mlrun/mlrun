@@ -2489,42 +2489,6 @@ class TestFeatureStore(TestMLRunSystem):
         for key in res.to_dataframe().to_dict().keys():
             assert key in expected
 
-    def test_columns_with_illegal_characters(self):
-        df = pd.DataFrame(
-            {
-                "ticker": ["GOOG", "MSFT"],
-                "bid (accepted)": [720.50, 51.95],
-                "ask": [720.93, 51.96],
-                "with space": [True, False],
-            }
-        )
-
-        fset = fs.FeatureSet(
-            "myset",
-            entities=[fs.Entity("ticker")],
-        )
-
-        result_df = fs.ingest(fset, df)
-        assert list(result_df.columns) == ["bid_accepted", "ask", "with_space"]
-
-    def test_columns_with_illegal_characters_error(self):
-        df = pd.DataFrame(
-            {
-                "ticker": ["GOOG", "MSFT"],
-                "bid (accepted)": [720.50, 51.95],
-                "bid_accepted": [720.93, 51.96],
-                "with space": [True, False],
-            }
-        )
-
-        fset = fs.FeatureSet(
-            "myset",
-            entities=[fs.Entity("ticker")],
-        )
-
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-            fs.ingest(fset, df)
-
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)

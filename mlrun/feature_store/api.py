@@ -327,6 +327,24 @@ def ingest(
                                     False for scheduled ingest - does not delete the target)
 
     """
+    if isinstance(source, pd.DataFrame):
+        rename_mapping = {}
+        column_set = set(source.columns)
+        for column in source.columns:
+            rename_to = column.replace(" ", "_").replace("(", "").replace(")", "")
+            if rename_to != column:
+                if rename_to in column_set:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f'column "{column}" cannot be renamed to "{rename_to}" because such a column already exists'
+                    )
+                rename_mapping[column] = rename_to
+                column_set.add(rename_to)
+        if rename_mapping:
+            logger.warn(
+                f"the following dataframe columns have been renamed due to unsupported characters: {rename_mapping}"
+            )
+            source = source.rename(rename_mapping, axis=1)
+
     if featureset:
         if isinstance(featureset, str):
             # need to strip store prefix from the uri

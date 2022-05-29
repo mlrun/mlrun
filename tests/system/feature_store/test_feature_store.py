@@ -2511,7 +2511,7 @@ class TestFeatureStore(TestMLRunSystem):
     def test_parquet_source_with_iso_start_or_end_time(
         self, time_for_source, is_through_init, should_succeed, time_delta
     ):
-        def actual_test(time_for_source, is_through_init, time_delta):
+        def _test_parquet_source_with_iso_start_or_end_time(time_for_source, is_through_init, time_delta):
             if time_delta is None:
                 tzinfo = None
             else:
@@ -2538,10 +2538,10 @@ class TestFeatureStore(TestMLRunSystem):
             fs.ingest(fset, source, overwrite=True)
 
         if should_succeed:
-            actual_test(time_for_source, is_through_init, time_delta)
+            _test_parquet_source_with_iso_start_or_end_time(time_for_source, is_through_init, time_delta)
         else:
             with pytest.raises(ValueError, match=r".*Invalid isoformat string:.*"):
-                actual_test(time_for_source, is_through_init, time_delta)
+                _test_parquet_source_with_iso_start_or_end_time(time_for_source, is_through_init, time_delta)
 
 
 def verify_purge(fset, targets):

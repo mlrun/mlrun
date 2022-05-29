@@ -658,3 +658,21 @@ class ServingRuntime(RemoteRuntime):
 
         server.init_object(namespace)
         return server
+
+    def plot(self, filename=None, format=None, source=None, **kw):
+        """plot/save graph using graphviz
+
+        example::
+
+            serving_fn = mlrun.new_function("serving", image="mlrun/mlrun", kind="serving")
+            serving_fn.add_model('my-classifier',model_path=model_path,
+                                  class_name='mlrun.frameworks.sklearn.SklearnModelServer')
+            serving_fn.plot(rankdir="LR")
+
+        :param filename:  target filepath for the image (None for the notebook)
+        :param format:    The output format used for rendering (``'pdf'``, ``'png'``, etc.)
+        :param source:    source step to add to the graph
+        :param kw:        kwargs passed to graphviz, e.g. rankdir="LR" (see: https://graphviz.org/doc/info/attrs.html)
+        :return: graphviz graph object
+        """
+        return self.spec.graph.plot(filename, format=format, source=source, **kw)

@@ -317,6 +317,7 @@ def rundb_mock() -> RunDBMock:
 
     # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing
     mlrun.db.get_run_db = orig_get_run_db
+    mlrun.get_run_db = orig_get_run_db
     BaseRuntime._use_remote_api = orig_use_remote_api
     BaseRuntime._get_db = orig_get_db
     config.dbpath = orig_db_path

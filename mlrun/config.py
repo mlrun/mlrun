@@ -304,8 +304,8 @@ default_config = {
     },
     "feature_store": {
         "data_prefixes": {
-            "default": "v3io:///projects/{project}/FeatureStore/{name}/{run_uuid}/{kind}",
-            "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{run_uuid}/{kind}",
+            "default": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
+            "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",

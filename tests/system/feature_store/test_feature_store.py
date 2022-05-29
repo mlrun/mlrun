@@ -2523,14 +2523,14 @@ class TestFeatureStore(TestMLRunSystem):
     def test_targets_on_feature_set_publish(self):
 
         base_target_path = "v3io:///bigdata/system-test-project/publish_parquet_"
-        target_path_template = base_target_path + "{name}/{run_uuid}"
+        target_path_template = base_target_path + "{name}/{run_id}/"
         name = "targets-publish-test"
         tag = f"tag-{time.time()}"
         fset = fs.FeatureSet(name, entities=[fs.Entity("ticker")], engine="pandas")
 
         def validate_target_path(target):
-            assert target.get_path().absolute_path() == target_path_template.format(
-                name=target.name, run_uuid=target.run_uuid
+            assert target.get_path().get_absolute_path() == target_path_template.format(
+                name=target.name, run_id=target.run_id
             )
 
         def validate_targets(feature_set, expected_targets_names: set):
@@ -2543,10 +2543,10 @@ class TestFeatureStore(TestMLRunSystem):
                 expected_targets_names.remove(t.name)
                 expected_run_id = name_to_run_id.get(t.name[0])
                 if not expected_run_id:
-                    assert t.run_uuid is not None
-                    name_to_run_id[t.name[0]] = t.run_uuid
+                    assert t.run_id is not None
+                    name_to_run_id[t.name[0]] = t.run_id
                 else:
-                    assert expected_run_id == t.run_uuid
+                    assert expected_run_id == t.run_id
 
         other_targets = [
             ParquetTarget(name="o1", path=f"{base_target_path}o1/"),
@@ -2567,27 +2567,27 @@ class TestFeatureStore(TestMLRunSystem):
         # ingest on feature set's targets
         fs.ingest(fset, quotes)
 
-        # check both kind of targets are save under status (with different run_uuid)
+        # check both kind of targets are save under status (with different run_id)
         validate_targets(fset, {"o1", "o2", "t1", "t2"})
 
         # validate same run uuid when overwrite=False
-        run_uuid_before = [t.run_uuid for t in fset.status.targets if t.name == "t1"]
+        run_id_before = [t.run_id for t in fset.status.targets if t.name == "t1"]
         fs.ingest(fset, quotes, overwrite=False)
-        assert run_uuid_before == [
-            t.run_uuid for t in fset.status.targets if t.name == "t1"
+        assert run_id_before == [
+            t.run_id for t in fset.status.targets if t.name == "t1"
         ]
-        assert run_uuid_before == [
-            t.run_uuid for t in fset.status.targets if t.name == "t2"
+        assert run_id_before == [
+            t.run_id for t in fset.status.targets if t.name == "t2"
         ]
         validate_targets(fset, {"o1", "o2", "t1", "t2"})
 
         # validate different run uuid
         fs.ingest(fset, quotes, overwrite=True)
-        assert run_uuid_before != [
-            t.run_uuid for t in fset.status.targets if t.name == "t1"
+        assert run_id_before != [
+            t.run_id for t in fset.status.targets if t.name == "t1"
         ]
-        assert run_uuid_before != [
-            t.run_uuid for t in fset.status.targets if t.name == "t2"
+        assert run_id_before != [
+            t.run_id for t in fset.status.targets if t.name == "t2"
         ]
         validate_targets(fset, {"o1", "o2", "t1", "t2"})
 

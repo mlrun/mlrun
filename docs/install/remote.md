@@ -60,7 +60,16 @@ Set environment variables to define your MLRun configuration. As a minimum requi
     any page, and select **Access Keys** from the menu. In the **Access Keys** window, either copy an existing access key or create a new 
     key and copy it. Alternatively, you can get the access key by checking the value of the `V3IO_ACCESS_KEY` environment variable in a web-
     shell or Jupyter Notebook service.
-    
+
+
+You can also set the environment using MLRun SDK, for example:
+
+```python
+# Use local service
+mlrun.set_environment("http://localhost:8080", artifact_path="./")
+# Use remote service
+mlrun.set_environment("<remote-service-url>", access_key="xyz", username="joe")
+```
 
 ### Load the configuration and credential environmental variables from file
 

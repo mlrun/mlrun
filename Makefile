@@ -122,7 +122,7 @@ endif
 	echo $(MLRUN_OLD_VERSION_ESCAPED)
 	find . \( ! -regex '.*/\..*' \) -a \( -iname \*.md -o -iname \*.txt -o -iname \*.yaml -o -iname \*.yml \)  \
 	-type f -print0 | xargs -0 sed -i '' -e 's/:$(MLRUN_OLD_VERSION_ESCAPED)/:$(MLRUN_NEW_VERSION)/g'
-	find ./docs/install/*.yaml -type f -print0 | xargs -0 sed -i 's/{TAG:-.*}/{TAG:-$(MLRUN_NEW_VERSION)}/g'
+	find ./docs/install/*.yaml -type f -print0 | xargs -0 sed -i '' -e 's/{TAG:-.*}/{TAG:-$(MLRUN_NEW_VERSION)}/g'
 
 .PHONY: update-version-file
 update-version-file: ## Update the version file

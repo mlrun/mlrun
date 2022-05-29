@@ -100,7 +100,11 @@ def clone_git(url, context, secrets=None, clone=True):
     commit_id = None
     if url_obj.fragment:
         refs = url_obj.fragment
-        # if user passed commit id as stated in https://github.com/GoogleContainerTools/kaniko#kaniko-build-contexts
+        # the intended format for submitting commit id is
+        # git:/github.com/acme/myproject.git#refs/heads/mybranch#desired-commit-id> or
+        # git:/github.com/acme/myproject.git#mybranch#desired-commit-id>.
+        # we updated this format to comply to kaniko conventions.
+        # For further details, see https://github.com/GoogleContainerTools/kaniko#kaniko-build-contexts.
         if "#" in refs:
             try:
                 refs, commit_id = refs.split("#")

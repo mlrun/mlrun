@@ -97,14 +97,27 @@ def clone_git(url, context, secrets=None, clone=True):
         clone_path = f"https://{host}{url_obj.path}"
 
     branch = None
+    commit_id = None
     if url_obj.fragment:
         refs = url_obj.fragment
+        # if user passed commit id as stated in https://github.com/GoogleContainerTools/kaniko#kaniko-build-contexts
+        if "#" in refs:
+            try:
+                refs, commit_id = refs.split("#")
+            except ValueError:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Unable to resolve commit id from {url},"
+                    f" expecting url format as following: "
+                    f"git://github.com/acme/myproject.git#refs/heads/mybranch#<desired-commit-id>"
+                )
         if refs.startswith("refs/"):
             branch = refs[refs.rfind("/") + 1 :]
         else:
-            url = url.replace("#" + refs, f"#refs/heads/{refs}")
+            url = url.replace("#" + "refs", f"#refs/heads/{refs}")
 
     repo = Repo.clone_from(clone_path, context, single_branch=True, b=branch)
+    if commit_id:
+        repo.git.checkout(commit_id)
     return url, repo
 
 

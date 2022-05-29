@@ -586,7 +586,14 @@ class RouterStep(TaskStep):
         yield from self._routes.keys()
 
     def plot(self, filename=None, format=None, source=None, **kw):
-        """plot/save a graphviz plot"""
+        """plot/save graph using graphviz
+
+        :param filename:  target filepath for the image (None for the notebook)
+        :param format:    The output format used for rendering (``'pdf'``, ``'png'``, etc.)
+        :param source:    source step to add to the graph
+        :param kw:        kwargs passed to graphviz, e.g. rankdir="LR" (see: https://graphviz.org/doc/info/attrs.html)
+        :return: graphviz graph object
+        """
         return _generate_graphviz(
             self, _add_graphviz_router, filename, format, source=source, **kw
         )
@@ -1153,7 +1160,15 @@ class FlowStep(BaseStep):
             return self._controller.await_termination()
 
     def plot(self, filename=None, format=None, source=None, targets=None, **kw):
-        """plot/save graph using graphviz"""
+        """plot/save graph using graphviz
+
+        :param filename:  target filepath for the image (None for the notebook)
+        :param format:    The output format used for rendering (``'pdf'``, ``'png'``, etc.)
+        :param source:    source step to add to the graph
+        :param targets:   list of target steps to add to the graph
+        :param kw:        kwargs passed to graphviz, e.g. rankdir="LR" (see: https://graphviz.org/doc/info/attrs.html)
+        :return: graphviz graph object
+        """
         return _generate_graphviz(
             self,
             _add_graphviz_flow,

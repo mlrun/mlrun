@@ -31,6 +31,7 @@ from ..datastore.targets import (
     get_target_driver,
     kind_to_driver,
     validate_target_list,
+    validate_target_paths_for_engine,
 )
 from ..db import RunDBError
 from ..model import DataSource, DataTargetBase
@@ -422,6 +423,8 @@ def ingest(
 
     targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
     targets_to_ingest = copy.deepcopy(targets_to_ingest)
+
+    validate_target_paths_for_engine(targets_to_ingest, featureset.spec.engine, source)
 
     if overwrite is None:
         if isinstance(source, BaseSourceDriver) and source.schedule:

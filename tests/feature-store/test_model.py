@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from datetime import timezone, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -90,6 +90,7 @@ def test_different_target_path_scenarios_for_run_id(
         assert mlrun.model.RUN_ID_PLACE_HOLDER not in tp_obj.get_absolute_path()
         assert tp_obj.get_absolute_path() == expected_path
 
+
 @pytest.mark.parametrize(
     "time_for_source, is_through_init, should_succeed, time_delta",
     [
@@ -113,7 +114,9 @@ def test_different_target_path_scenarios_for_run_id(
 def test_parquet_source_with_iso_start_or_end_time(
     time_for_source, is_through_init, should_succeed, time_delta
 ):
-    def _test_parquet_source_with_iso_start_or_end_time(time_for_source, is_through_init, time_delta):
+    def _test_parquet_source_with_iso_start_or_end_time(
+        time_for_source, is_through_init, time_delta
+    ):
         if time_delta is None:
             tzinfo = None
         else:
@@ -135,7 +138,11 @@ def test_parquet_source_with_iso_start_or_end_time(
             assert source.end_time == actual
 
     if should_succeed:
-        _test_parquet_source_with_iso_start_or_end_time(time_for_source, is_through_init, time_delta)
+        _test_parquet_source_with_iso_start_or_end_time(
+            time_for_source, is_through_init, time_delta
+        )
     else:
         with pytest.raises(ValueError, match=r".*Invalid isoformat string:.*"):
-            _test_parquet_source_with_iso_start_or_end_time(time_for_source, is_through_init, time_delta)
+            _test_parquet_source_with_iso_start_or_end_time(
+                time_for_source, is_through_init, time_delta
+            )

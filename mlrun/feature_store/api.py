@@ -819,7 +819,11 @@ def _ingest_with_spark(
             if overwrite:
                 df_to_write.write.mode("overwrite").save(**spark_options)
             else:
-                df_to_write.write.mode("append").save(**spark_options)
+                # appending an empty dataframe may cause an empty file to be created (e.g. when writing to parquet)
+                # we would like to avoid that
+                df_to_write.persist()
+                if len(df_to_write) > 0:
+                    df_to_write.write.mode("append").save(**spark_options)
             target.set_resource(featureset)
             target.update_resource_status("ready")
 

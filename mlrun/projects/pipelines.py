@@ -135,7 +135,7 @@ class FunctionsDict:
 
     def load_or_set_function(self, key, default=None) -> mlrun.runtimes.BaseRuntime:
         try:
-            function = self.project.get_function(key)
+            function = self.project.get_function(key, sync=False)
         except Exception as e:
             if not default:
                 raise e

@@ -16,7 +16,6 @@ import asyncio
 import json
 import typing
 import warnings
-from base64 import b64encode
 from datetime import datetime
 from time import sleep
 from urllib.parse import urlparse
@@ -1302,17 +1301,14 @@ def compile_function_config(
 
         if (
             function.kind == mlrun.runtimes.RuntimeKinds.serving
-            and not function.spec.build.source
+            and not function.spec.function_handler
             and not get_in(config, "spec.build.functionSourceCode")
         ):
             # if the serving function does not have source code, add the mlrun wrapper
-            body = nuclio.build.mlrun_footer.format(
-                mlrun.runtimes.serving.serving_subkind
-            )
             update_in(
                 config,
-                "spec.build.functionSourceCode",
-                b64encode(body.encode("utf-8")).decode("utf-8"),
+                "spec.handler",
+                "mlrun.serving.serving_wrapper:handler",
             )
     else:
         # todo: should be deprecated (only work via MLRun service)

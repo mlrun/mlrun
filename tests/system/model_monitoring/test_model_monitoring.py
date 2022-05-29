@@ -1,12 +1,15 @@
 import json
 import os
 import string
+from datetime import datetime, timedelta, timezone
 from random import choice, randint, uniform
 from time import monotonic, sleep
 from typing import Optional
 
+import fsspec
 import pandas as pd
 import pytest
+import v3iofs
 from sklearn.datasets import load_iris
 
 import mlrun
@@ -21,6 +24,7 @@ from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
 from mlrun.runtimes import BaseRuntime
 from mlrun.utils.model_monitoring import EndpointType
+from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
 
 
@@ -188,7 +192,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         serving_fn.add_model(
             model_name,
             model_path=project.get_artifact_uri(
-                key=f"{model_name}:latest", category="model"
+                key=model_name, category="model", tag="latest"
             ),
         )
 
@@ -221,22 +225,32 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         total = sum((m[1] for m in predictions_per_second.values))
         assert total > 0
 
-    @pytest.mark.timeout(200)
+    @pytest.mark.timeout(300)
     def test_model_monitoring_voting_ensemble(self):
-        simulation_time = 20  # 20 seconds
+        simulation_time = 120  # 120 seconds to allow tsdb batching
         project = mlrun.get_run_db().get_project(self.project_name)
         project.set_model_monitoring_credentials(os.environ.get("V3IO_ACCESS_KEY"))
 
         iris = load_iris()
+        columns = [
+            "sepal_length_cm",
+            "sepal_width_cm",
+            "petal_length_cm",
+            "petal_width_cm",
+        ]
+
+        label_column = "label"
+
         train_set = pd.DataFrame(
             iris["data"],
-            columns=[
-                "sepal_length_cm",
-                "sepal_width_cm",
-                "petal_length_cm",
-                "petal_width_cm",
-            ],
+            columns=columns,
         )
+
+        train_set[label_column] = iris["target"]
+
+        path = "v3io:///bigdata/bla.parquet"
+        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        train_set.to_parquet(path=path, filesystem=fsys)
 
         # Deploy Model Servers
         # Use the following code to deploy a model server in the Iguazio instance.
@@ -251,48 +265,69 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         )
         serving_fn.set_tracking()
 
-        model_names = [
-            "sklearn_RandomForestClassifier",
-            "sklearn_LogisticRegression",
-            "sklearn_AdaBoostClassifier",
-        ]
+        model_names = {
+            "sklearn_RandomForestClassifier": "sklearn.ensemble.RandomForestClassifier",
+            "sklearn_LogisticRegression": "sklearn.linear_model.LogisticRegression",
+            "sklearn_AdaBoostClassifier": "sklearn.ensemble.AdaBoostClassifier",
+        }
 
-        for name in model_names:
-            # Log the model through the projects API so that it is available through the feature store API
-            project.log_model(
-                name,
-                model_dir=os.path.relpath(self.assets_path),
-                model_file="model.pkl",
-                training_set=train_set,
-                artifact_path=f"v3io:///projects/{project.metadata.name}",
+        # import the training function from the marketplace (hub://)
+        train = mlrun.import_function("hub://sklearn_classifier")
+
+        for name, pkg in model_names.items():
+
+            # run the function and specify input dataset path and some parameters (algorithm and label column name)
+            train_run = train.run(
+                name=name,
+                inputs={"dataset": path},
+                params={"model_pkg_class": pkg, "label_column": label_column},
+                artifact_path=f"v3io:///projects/{name}/artifacts",
             )
+
             # Add the model to the serving function's routing spec
-            serving_fn.add_model(
-                name,
-                model_path=project.get_artifact_uri(
-                    key=f"{name}:latest", category="model"
-                ),
-            )
+            serving_fn.add_model(name, model_path=train_run.outputs["model"])
 
         # Enable model monitoring
         serving_fn.deploy()
 
         # checking that stream processing and batch monitoring were successfully deployed
         mlrun.get_run_db().get_schedule(self.project_name, "model-monitoring-batch")
-        metadta = BaseMetadata(
-            name="model-monitoring-stream", project=self.project_name, tag=""
+
+        base_runtime = BaseRuntime(
+            BaseMetadata(
+                name="model-monitoring-stream", project=self.project_name, tag=""
+            )
         )
-        mlrun.get_run_db().get_builder_status(BaseRuntime(metadata=metadta))
+        stat = mlrun.get_run_db().get_builder_status(base_runtime)
+
+        assert base_runtime.status.state == "ready", stat
 
         iris_data = iris["data"].tolist()
 
         t_end = monotonic() + simulation_time
+        start_time = datetime.now(timezone.utc)
+        data_sent = 0
         while monotonic() < t_end:
             data_point = choice(iris_data)
             serving_fn.invoke(
                 "v2/models/VotingEnsemble/infer", json.dumps({"inputs": [data_point]})
             )
             sleep(uniform(0.2, 1.7))
+            data_sent += 1
+
+        # sleep to allow TSDB to be written (10/m)
+        sleep(20)
+
+        mlrun.get_run_db().invoke_schedule(self.project_name, "model-monitoring-batch")
+        # it can take ~1 minute for the batch pod to finish running
+        sleep(75)
+
+        tsdb_path = f"/pipelines/{self.project_name}/model-endpoints/events/"
+        client = get_frames_client(
+            token=os.environ.get("V3IO_ACCESS_KEY"),
+            address=os.environ.get("V3IO_FRAMESD"),
+            container="users",
+        )
 
         # checking top level methods
         top_level_endpoints = mlrun.get_run_db().list_model_endpoints(
@@ -313,6 +348,65 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         assert len(endpoints_children_list.endpoints) == len(model_names)
         for child in endpoints_children_list.endpoints:
             assert child.status.endpoint_type == EndpointType.LEAF_EP
+
+        endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)
+
+        for endpoint in endpoints_list.endpoints:
+            data = client.read(
+                backend="tsdb",
+                table=tsdb_path,
+                filter=f"endpoint_id=='{endpoint.metadata.uid}'",
+            )
+            assert data.empty is False
+
+            if endpoint.status.endpoint_type == EndpointType.LEAF_EP:
+                assert (
+                    datetime.fromisoformat(endpoint.status.first_request) >= start_time
+                )
+                assert datetime.fromisoformat(
+                    endpoint.status.last_request
+                ) <= start_time + timedelta(0, simulation_time)
+                assert endpoint.status.drift_status == "NO_DRIFT"
+                endpoint_with_details = mlrun.get_run_db().get_model_endpoint(
+                    self.project_name, endpoint.metadata.uid, feature_analysis=True
+                )
+                drift_measures = endpoint_with_details.status.drift_measures
+                measures = [
+                    "tvd_sum",
+                    "tvd_mean",
+                    "hellinger_sum",
+                    "hellinger_mean",
+                    "kld_sum",
+                    "kld_mean",
+                ]
+                stuff_for_each_column = ["tvd", "hellinger", "kld"]
+                # feature analysis (details dashboard)
+                for feature in columns:
+                    assert feature in drift_measures
+                    calcs = drift_measures[feature]
+                    for calc in stuff_for_each_column:
+                        assert calc in calcs
+                        assert type(calcs[calc]) == float
+                expected = endpoint_with_details.status.feature_stats
+                for feature in columns:
+                    assert feature in expected
+                    assert (
+                        expected[feature]["min"]
+                        <= expected[feature]["mean"]
+                        <= expected[feature]["max"]
+                    )
+                actual = endpoint_with_details.status.current_stats
+                for feature in columns:
+                    assert feature in actual
+                    assert (
+                        actual[feature]["min"]
+                        <= actual[feature]["mean"]
+                        <= actual[feature]["max"]
+                    )
+                # overall dritf analysis (details dashboard)
+                for measure in measures:
+                    assert measure in drift_measures
+                    assert type(drift_measures[measure]) == float
 
     @staticmethod
     def _get_auth_info() -> mlrun.api.schemas.AuthInfo:

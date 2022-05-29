@@ -33,10 +33,10 @@ def current_version():
 # -- Project information -----------------------------------------------------
 
 project = "mlrun"
-copyright = "2021, Iguazio"
+copyright = "2022, Iguazio"
 author = "Iguazio"
 
-master_doc = "index"
+master_doc = "contents"
 
 # The short X.Y version
 version = current_version()
@@ -59,6 +59,7 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx_copybutton",
     "sphinx_togglebutton",
+    "sphinx_panels",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -96,6 +97,7 @@ html_favicon = "./favicon.ico"
 extra_navbar = "<p>Your HTML</p>"
 jupyter_execute_notebooks = "off"
 html_sourcelink_suffix = ""
+autoclass_content = "both"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

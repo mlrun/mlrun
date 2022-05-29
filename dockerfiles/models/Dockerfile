@@ -24,7 +24,7 @@ RUN python -m pip install torch==1.7.0+cpu torchvision==0.8.1+cpu \
     -f https://download.pytorch.org/whl/torch_stable.html
 
 ARG TENSORFLOW_VERSION=2.4.1
-# Not using intel-tensorflow (unlike py36 image) cause they have only 2.4.0 and we need 2.4.1
+# Not using intel-tensorflow cause they have only 2.4.0 and we need 2.4.1
 RUN python -m pip install -U tensorflow~=${TENSORFLOW_VERSION} mxnet
 
 ARG HOROVOD_VERSION=0.22.1

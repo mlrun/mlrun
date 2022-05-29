@@ -43,23 +43,28 @@ def test_grafana_proxy_model_endpoints_check_connection(
     db: Session, client: TestClient
 ):
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
-    mlrun.api.utils.clients.iguazio.Client().verify_request_session = unittest.mock.Mock(
-        return_value=(
-            mlrun.api.schemas.AuthInfo(
-                username=None,
-                session="some-session",
-                data_session="some-session",
-                user_id=None,
-                user_group_ids=[],
+    mlrun.api.utils.clients.iguazio.Client().verify_request_session = (
+        unittest.mock.Mock(
+            return_value=(
+                mlrun.api.schemas.AuthInfo(
+                    username=None,
+                    session="some-session",
+                    data_session="some-session",
+                    user_id=None,
+                    user_group_ids=[],
+                )
             )
         )
     )
-    response = client.get(url="/api/grafana-proxy/model-endpoints",)
+    response = client.get(
+        url="grafana-proxy/model-endpoints",
+    )
     assert response.status_code == 200
 
 
 @pytest.mark.skipif(
-    _is_env_params_dont_exist(), reason=_build_skip_message(),
+    _is_env_params_dont_exist(),
+    reason=_build_skip_message(),
 )
 def test_grafana_list_endpoints(db: Session, client: TestClient):
     endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
@@ -70,7 +75,7 @@ def test_grafana_list_endpoints(db: Session, client: TestClient):
         )
 
     response = client.post(
-        url="/api/grafana-proxy/model-endpoints/query",
+        url="grafana-proxy/model-endpoints/query",
         headers={"X-V3io-Session-Key": _get_access_key()},
         json={
             "targets": [
@@ -102,7 +107,8 @@ def test_grafana_list_endpoints(db: Session, client: TestClient):
 
 
 @pytest.mark.skipif(
-    _is_env_params_dont_exist(), reason=_build_skip_message(),
+    _is_env_params_dont_exist(),
+    reason=_build_skip_message(),
 )
 def test_grafana_individual_feature_analysis(db: Session, client: TestClient):
     endpoint_data = {
@@ -135,7 +141,7 @@ def test_grafana_individual_feature_analysis(db: Session, client: TestClient):
     )
 
     response = client.post(
-        url="/api/grafana-proxy/model-endpoints/query",
+        url="grafana-proxy/model-endpoints/query",
         headers={"X-V3io-Session-Key": _get_access_key()},
         json={
             "targets": [
@@ -157,7 +163,8 @@ def test_grafana_individual_feature_analysis(db: Session, client: TestClient):
 
 
 @pytest.mark.skipif(
-    _is_env_params_dont_exist(), reason=_build_skip_message(),
+    _is_env_params_dont_exist(),
+    reason=_build_skip_message(),
 )
 def test_grafana_individual_feature_analysis_missing_field_doesnt_fail(
     db: Session, client: TestClient
@@ -191,7 +198,7 @@ def test_grafana_individual_feature_analysis_missing_field_doesnt_fail(
     )
 
     response = client.post(
-        url="/api/grafana-proxy/model-endpoints/query",
+        url="grafana-proxy/model-endpoints/query",
         headers={"X-V3io-Session-Key": _get_access_key()},
         json={
             "targets": [
@@ -218,7 +225,8 @@ def test_grafana_individual_feature_analysis_missing_field_doesnt_fail(
 
 
 @pytest.mark.skipif(
-    _is_env_params_dont_exist(), reason=_build_skip_message(),
+    _is_env_params_dont_exist(),
+    reason=_build_skip_message(),
 )
 def test_grafana_overall_feature_analysis(db: Session, client: TestClient):
     endpoint_data = {
@@ -250,7 +258,7 @@ def test_grafana_overall_feature_analysis(db: Session, client: TestClient):
     )
 
     response = client.post(
-        url="/api/grafana-proxy/model-endpoints/query",
+        url="grafana-proxy/model-endpoints/query",
         headers={"X-V3io-Session-Key": _get_access_key()},
         json={
             "targets": [
@@ -372,14 +380,17 @@ def cleanup_endpoints(db: Session, client: TestClient):
         try:
             # Cleanup TSDB
             frames.delete(
-                backend="tsdb", table=tsdb_path, if_missing=fpb2.IGNORE,
+                backend="tsdb",
+                table=tsdb_path,
+                if_missing=fpb2.IGNORE,
             )
         except CreateError:
             pass
 
 
 @pytest.mark.skipif(
-    _is_env_params_dont_exist(), reason=_build_skip_message(),
+    _is_env_params_dont_exist(),
+    reason=_build_skip_message(),
 )
 def test_grafana_incoming_features(db: Session, client: TestClient):
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
@@ -388,7 +399,9 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
     _, container, path = parse_model_endpoint_store_prefix(path)
 
     frames = get_frames_client(
-        token=_get_access_key(), container=container, address=config.v3io_framesd,
+        token=_get_access_key(),
+        container=container,
+        address=config.v3io_framesd,
     )
 
     frames.create(backend="tsdb", table=path, rate="10/m", if_exists=1)
@@ -428,7 +441,7 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
 
     for endpoint in endpoints:
         response = client.post(
-            url="/api/grafana-proxy/model-endpoints/query",
+            url="grafana-proxy/model-endpoints/query",
             headers={"X-V3io-Session-Key": _get_access_key()},
             json={
                 "targets": [

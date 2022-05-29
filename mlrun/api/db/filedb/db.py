@@ -14,7 +14,12 @@ class FileDB(DBInterface):
         self.db.connect()
 
     def store_log(
-        self, session, uid, project="", body=None, append=False,
+        self,
+        session,
+        uid,
+        project="",
+        body=None,
+        append=False,
     ):
         return self._transform_run_db_error(
             self.db.store_log, uid, project, body, append
@@ -24,7 +29,12 @@ class FileDB(DBInterface):
         return self._transform_run_db_error(self.db.get_log, uid, project, offset, size)
 
     def store_run(
-        self, session, struct, uid, project="", iter=0,
+        self,
+        session,
+        struct,
+        uid,
+        project="",
+        iter=0,
     ):
         return self._transform_run_db_error(
             self.db.store_run, struct, uid, project, iter
@@ -45,7 +55,7 @@ class FileDB(DBInterface):
         uid=None,
         project="",
         labels=None,
-        state="",
+        states=None,
         sort=True,
         last=0,
         iter=False,
@@ -53,6 +63,11 @@ class FileDB(DBInterface):
         start_time_to=None,
         last_update_time_from=None,
         last_update_time_to=None,
+        partition_by: schemas.RunPartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
+        max_partitions: int = 0,
     ):
         return self._transform_run_db_error(
             self.db.list_runs,
@@ -60,7 +75,7 @@ class FileDB(DBInterface):
             uid,
             project,
             labels,
-            state,
+            states[0] if states else "",
             sort,
             last,
             iter,
@@ -68,6 +83,11 @@ class FileDB(DBInterface):
             start_time_to,
             last_update_time_from,
             last_update_time_to,
+            partition_by,
+            rows_per_partition,
+            partition_sort_by,
+            partition_order,
+            max_partitions,
         )
 
     def del_run(self, session, uid, project="", iter=0):
@@ -79,7 +99,14 @@ class FileDB(DBInterface):
         )
 
     def store_artifact(
-        self, session, key, artifact, uid, iter=None, tag="", project="",
+        self,
+        session,
+        key,
+        artifact,
+        uid,
+        iter=None,
+        tag="",
+        project="",
     ):
         return self._transform_run_db_error(
             self.db.store_artifact, key, artifact, uid, iter, tag, project
@@ -117,7 +144,13 @@ class FileDB(DBInterface):
         )
 
     def store_function(
-        self, session, function, name, project="", tag="", versioned=False,
+        self,
+        session,
+        function,
+        name,
+        project="",
+        tag="",
+        versioned=False,
     ) -> str:
         return self._transform_run_db_error(
             self.db.store_function, function, name, project, tag, versioned
@@ -167,7 +200,7 @@ class FileDB(DBInterface):
         )
 
     async def get_project_resources_counters(
-        self, session
+        self,
     ) -> Tuple[
         Dict[str, int],
         Dict[str, int],
@@ -207,7 +240,11 @@ class FileDB(DBInterface):
         raise NotImplementedError()
 
     def create_feature_set(
-        self, session, project, feature_set: schemas.FeatureSet, versioned=True,
+        self,
+        session,
+        project,
+        feature_set: schemas.FeatureSet,
+        versioned=True,
     ) -> str:
         raise NotImplementedError()
 
@@ -262,13 +299,15 @@ class FileDB(DBInterface):
         labels: List[str] = None,
         partition_by: schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
-        partition_sort: schemas.SortField = None,
+        partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureSetsOutput:
         raise NotImplementedError()
 
     def list_feature_sets_tags(
-        self, session, project: str,
+        self,
+        session,
+        project: str,
     ):
         raise NotImplementedError()
 
@@ -288,7 +327,11 @@ class FileDB(DBInterface):
         raise NotImplementedError()
 
     def create_feature_vector(
-        self, session, project, feature_vector: schemas.FeatureVector, versioned=True,
+        self,
+        session,
+        project,
+        feature_vector: schemas.FeatureVector,
+        versioned=True,
     ) -> str:
         raise NotImplementedError()
 
@@ -313,7 +356,9 @@ class FileDB(DBInterface):
         raise NotImplementedError()
 
     def list_feature_vectors_tags(
-        self, session, project: str,
+        self,
+        session,
+        project: str,
     ):
         raise NotImplementedError()
 

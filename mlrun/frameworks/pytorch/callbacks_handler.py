@@ -5,11 +5,7 @@ from torch.nn import Module
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
-from mlrun.frameworks.pytorch.callbacks.callback import (
-    Callback,
-    MetricFunctionType,
-    MetricValueType,
-)
+from .callbacks import Callback, MetricFunctionType, MetricValueType
 
 
 class _CallbackInterface:
@@ -361,7 +357,11 @@ class CallbacksHandler:
             y_true=y_true,
         )
 
-    def on_inference_begin(self, x, callbacks: List[str] = None,) -> bool:
+    def on_inference_begin(
+        self,
+        x,
+        callbacks: List[str] = None,
+    ) -> bool:
         """
         Call the 'on_inference_begin' method of every callback in the callbacks list. If the list is 'None' (not given),
         all callbacks will be called.
@@ -378,7 +378,10 @@ class CallbacksHandler:
         )
 
     def on_inference_end(
-        self, y_pred: Tensor, y_true: Tensor, callbacks: List[str] = None,
+        self,
+        y_pred: Tensor,
+        y_true: Tensor,
+        callbacks: List[str] = None,
     ) -> bool:
         """
         Call the 'on_inference_end' method of every callback in the callbacks list. If the list is 'None' (not given),

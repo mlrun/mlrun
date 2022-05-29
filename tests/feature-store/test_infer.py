@@ -2,6 +2,7 @@ import unittest.mock
 
 import deepdiff
 import pandas as pd
+import pytest
 
 import mlrun
 import mlrun.feature_store as fs
@@ -83,7 +84,7 @@ def test_infer_from_df():
 
 def test_backwards_compatibility_step_vs_state():
     quotes_set = fs.FeatureSet("post-aggregation", entities=[fs.Entity("ticker")])
-    agg_step = quotes_set.add_aggregation("asks", "ask", ["sum", "max"], "1h", "10m")
+    agg_step = quotes_set.add_aggregation("ask", ["sum", "max"], "1h", "10m")
     agg_step.to("MyMap", "somemap1", field="multi1", multiplier=3)
     quotes_set.set_targets(
         targets=[ParquetTarget("parquet1", after_state="somemap1")],
@@ -103,6 +104,15 @@ def test_backwards_compatibility_step_vs_state():
     assert (
         deepdiff.DeepDiff(from_dict_feature_set.to_dict(), quotes_set.to_dict()) == {}
     )
+
+
+def test_target_no_time_column():
+    t = ParquetTarget(path="jhjhjhj")
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        t.as_df(
+            start_time=pd.Timestamp("2021-06-09 09:30:00"),
+            end_time=pd.Timestamp("2021-06-09 10:30:00"),
+        )
 
 
 def test_check_permissions():
@@ -165,3 +175,10 @@ def test_check_permissions():
         assert False
     except mlrun.errors.MLRunAccessDeniedError:
         pass
+
+
+def test_check_timestamp_key_is_entity():
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        fs.FeatureSet(
+            "imp1", entities=[Entity("time_stamp")], timestamp_key="time_stamp"
+        )

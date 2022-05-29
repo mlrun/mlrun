@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG CUDA_VER=11.0
+ARG CUDA_VER=11.2
 
 FROM nvidia/cuda:${CUDA_VER}-cudnn8-devel-ubuntu18.04
 
@@ -45,11 +45,12 @@ RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86
     echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
     echo "conda activate base" >> ~/.bashrc
 
+ARG MLRUN_PIP_VERSION=22.0.0
 RUN conda config --add channels conda-forge && \
     conda update -n base -c defaults conda && \
     conda install -n base \
         python=3.7 \
-        pip~=21.2.0 \
+        pip~=${MLRUN_PIP_VERSION} \
     && conda clean -aqy
 
 RUN conda install -n base cmake cython \

@@ -6,7 +6,8 @@ import onnxoptimizer
 
 import mlrun
 from mlrun.artifacts import Artifact
-from mlrun.frameworks._common import ModelHandler
+
+from .._common import ModelHandler
 
 
 class ONNXModelHandler(ModelHandler):
@@ -15,33 +16,42 @@ class ONNXModelHandler(ModelHandler):
     """
 
     # Framework name:
-    _FRAMEWORK_NAME = "onnx"
+    FRAMEWORK_NAME = "onnx"
 
     def __init__(
         self,
-        model_name: str,
-        model_path: str = None,
         model: onnx.ModelProto = None,
+        model_path: str = None,
+        model_name: str = None,
         context: mlrun.MLClientCtx = None,
+        **kwargs,
     ):
         """
         Initialize the handler. The model can be set here so it won't require loading. Notice that if the model path
         given is of a previously logged model (store model object path), all of the other configurations will be loaded
         automatically as they were logged with the model, hence they are optional.
 
-        :param model_name: The model name for saving and logging the model.
+        :param model:      Model to handle or None in case a loading parameters were supplied.
         :param model_path: Path to the model's directory to load it from. The onnx file must start with the given model
                            name and the directory must contain the onnx file. The model path can be also passed as a
                            model object path in the following format:
                            'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'.
-        :param model:      Model to handle or None in case a loading parameters were supplied.
+        :param model_name: The model name for saving and logging the model:
+                           * Mandatory for loading the model from a local path.
+                           * If given a logged model (store model path) it will be read from the artifact.
+                           * If given a loaded model object and the model name is None, the name will be set to the
+                             model's object name / class.
         :param context:    MLRun context to work with for logging the model.
 
         :raise MLRunInvalidArgumentError: There was no model or model directory supplied.
         """
         # Setup the base handler class:
         super(ONNXModelHandler, self).__init__(
-            model_name=model_name, model_path=model_path, model=model, context=context,
+            model=model,
+            model_path=model_path,
+            model_name=model_name,
+            context=context,
+            **kwargs,
         )
 
     # TODO: output_path won't work well with logging artifacts. Need to look into changing the logic of 'log_artifact'.
@@ -55,7 +65,7 @@ class ONNXModelHandler(ModelHandler):
         :param output_path: The full path to the directory to save the handled model at. If not given, the context
                             stored will be used to save the model in the defaulted artifacts location.
 
-        :return The saved model artifacts dictionary if context is available and None otherwise.
+        :return The saved model additional artifacts (if needed) dictionary if context is available and None otherwise.
         """
         super(ONNXModelHandler, self).save(output_path=output_path)
 
@@ -108,21 +118,6 @@ class ONNXModelHandler(ModelHandler):
         :return: The current handled ONNX model as there is nothing to convert.
         """
         return self._model
-
-    def _collect_files_from_store_object(self):
-        """
-        If the model path given is of a store object, collect the needed model files into this handler for later loading
-        the model.
-        """
-        # Get the artifact and model file along with its extra data:
-        (
-            self._model_file,
-            self._model_artifact,
-            self._extra_data,
-        ) = mlrun.artifacts.get_model(self._model_path)
-
-        # Continue collecting from abstract class:
-        super(ONNXModelHandler, self)._collect_files_from_store_object()
 
     def _collect_files_from_local_path(self):
         """

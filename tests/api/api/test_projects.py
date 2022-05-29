@@ -23,6 +23,7 @@ import mlrun.api.utils.singletons.scheduler
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
 import mlrun.errors
+import tests.api.conftest
 from mlrun.api.db.sqldb.models import (
     Artifact,
     Entity,
@@ -64,12 +65,12 @@ def test_create_project_failure_already_exists(
     )
 
     # create
-    response = client.post("/api/projects", json=project_1.dict())
+    response = client.post("projects", json=project_1.dict())
     assert response.status_code == HTTPStatus.CREATED.value
     _assert_project_response(project_1, response)
 
     # create again
-    response = client.post("/api/projects", json=project_1.dict())
+    response = client.post("projects", json=project_1.dict())
     assert response.status_code == HTTPStatus.CONFLICT.value
 
 
@@ -81,29 +82,40 @@ def test_get_non_existing_project(
     not found - which "ruined" the `mlrun.get_or_create_project` logic - so adding a specific test to verify it works
     """
     project = "does-not-exist"
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions = unittest.mock.Mock(
-        side_effect=mlrun.errors.MLRunUnauthorizedError("bla")
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions = (
+        unittest.mock.Mock(side_effect=mlrun.errors.MLRunUnauthorizedError("bla"))
     )
-    response = client.get(f"/api/projects/{project}")
+    response = client.get(f"projects/{project}")
     assert response.status_code == HTTPStatus.NOT_FOUND.value
 
 
 def test_delete_project_with_resources(
-    db: Session, client: TestClient, project_member_mode: str
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
+    # need to set this to False, otherwise impl will try to delete k8s resources, and will need many more
+    # mocks to overcome this.
+    k8s_secrets_mock.set_is_running_in_k8s_cluster(False)
     project_to_keep = "project-to-keep"
     project_to_remove = "project-to-remove"
-    _create_resources_of_all_kinds(db, project_to_keep)
-    _create_resources_of_all_kinds(db, project_to_remove)
+    _create_resources_of_all_kinds(db, k8s_secrets_mock, project_to_keep)
+    _create_resources_of_all_kinds(db, k8s_secrets_mock, project_to_remove)
+
     (
         project_to_keep_table_name_records_count_map_before_project_removal,
         project_to_keep_object_records_count_map_before_project_removal,
-    ) = _assert_resources_in_project(db, project_member_mode, project_to_keep)
-    _assert_resources_in_project(db, project_member_mode, project_to_remove)
+    ) = _assert_resources_in_project(
+        db, k8s_secrets_mock, project_member_mode, project_to_keep
+    )
+    _assert_resources_in_project(
+        db, k8s_secrets_mock, project_member_mode, project_to_remove
+    )
 
     # deletion strategy - check - should fail because there are resources
     response = client.delete(
-        f"/api/projects/{project_to_remove}",
+        f"projects/{project_to_remove}",
         headers={
             mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check
         },
@@ -112,7 +124,7 @@ def test_delete_project_with_resources(
 
     # deletion strategy - restricted - should fail because there are resources
     response = client.delete(
-        f"/api/projects/{project_to_remove}",
+        f"projects/{project_to_remove}",
         headers={
             mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted
         },
@@ -121,7 +133,7 @@ def test_delete_project_with_resources(
 
     # deletion strategy - cascading - should succeed and remove all related resources
     response = client.delete(
-        f"/api/projects/{project_to_remove}",
+        f"projects/{project_to_remove}",
         headers={
             mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading
         },
@@ -131,9 +143,15 @@ def test_delete_project_with_resources(
     (
         project_to_keep_table_name_records_count_map_after_project_removal,
         project_to_keep_object_records_count_map_after_project_removal,
-    ) = _assert_resources_in_project(db, project_member_mode, project_to_keep)
+    ) = _assert_resources_in_project(
+        db, k8s_secrets_mock, project_member_mode, project_to_keep
+    )
     _assert_resources_in_project(
-        db, project_member_mode, project_to_remove, assert_no_resources=True
+        db,
+        k8s_secrets_mock,
+        project_member_mode,
+        project_to_remove,
+        assert_no_resources=True,
     )
     assert (
         deepdiff.DeepDiff(
@@ -154,7 +172,7 @@ def test_delete_project_with_resources(
 
     # deletion strategy - check - should succeed cause no project
     response = client.delete(
-        f"/api/projects/{project_to_remove}",
+        f"projects/{project_to_remove}",
         headers={
             mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check
         },
@@ -163,7 +181,7 @@ def test_delete_project_with_resources(
 
     # deletion strategy - restricted - should succeed cause no project
     response = client.delete(
-        f"/api/projects/{project_to_remove}",
+        f"projects/{project_to_remove}",
         headers={
             mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted
         },
@@ -179,7 +197,7 @@ def test_list_and_get_project_summaries(
     empty_project = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=empty_project_name),
     )
-    response = client.post("/api/projects", json=empty_project.dict())
+    response = client.post("projects", json=empty_project.dict())
     assert response.status_code == HTTPStatus.CREATED.value
 
     # create project with resources
@@ -187,7 +205,7 @@ def test_list_and_get_project_summaries(
     project = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
     )
-    response = client.post("/api/projects", json=project.dict())
+    response = client.post("projects", json=project.dict())
     assert response.status_code == HTTPStatus.CREATED.value
 
     # create files for the project
@@ -206,7 +224,7 @@ def test_list_and_get_project_summaries(
         client, project_name, models_count, mlrun.artifacts.model.ModelArtifact.kind
     )
 
-    # create dataset artifacts for the project to make sure we're not mistakenly count them
+    # create dataset artifacts for the project to make sure we're not mistakenly counting them
     _create_artifacts(
         client, project_name, 7, mlrun.artifacts.dataset.DatasetArtifact.kind
     )
@@ -220,7 +238,7 @@ def test_list_and_get_project_summaries(
         mlrun.runtimes.constants.RunStates.running,
     )
 
-    # create completed runs for the project to make sure we're not mistakenly count them
+    # create completed runs for the project to make sure we're not mistakenly counting them
     _create_runs(client, project_name, 2, mlrun.runtimes.constants.RunStates.completed)
 
     # create failed runs for the project for less than 24 hours ago
@@ -245,7 +263,7 @@ def test_list_and_get_project_summaries(
         one_hour_ago,
     )
 
-    # create failed runs for the project for more than 24 hours ago to make sure we're not mistakenly count them
+    # create failed runs for the project for more than 24 hours ago to make sure we're not mistakenly counting them
     two_days_ago = datetime.datetime.now() - datetime.timedelta(hours=48)
     _create_runs(
         client, project_name, 3, mlrun.runtimes.constants.RunStates.error, two_days_ago
@@ -254,14 +272,18 @@ def test_list_and_get_project_summaries(
     # create schedules for the project
     schedules_count = 3
     _create_schedules(
-        client, project_name, schedules_count,
+        client,
+        project_name,
+        schedules_count,
     )
 
     # mock pipelines for the project
-    running_pipelines_count = _mock_pipelines(project_name,)
+    running_pipelines_count = _mock_pipelines(
+        project_name,
+    )
 
     # list project summaries
-    response = client.get("/api/project-summaries")
+    response = client.get("project-summaries")
     project_summaries_output = mlrun.api.schemas.ProjectSummariesOutput(
         **response.json()
     )
@@ -283,7 +305,7 @@ def test_list_and_get_project_summaries(
             pytest.fail(f"Unexpected project summary returned: {project_summary}")
 
     # get project summary
-    response = client.get(f"/api/project-summaries/{project_name}")
+    response = client.get(f"project-summaries/{project_name}")
     project_summary = mlrun.api.schemas.ProjectSummary(**response.json())
     _assert_project_summary(
         project_summary,
@@ -297,8 +319,117 @@ def test_list_and_get_project_summaries(
     )
 
 
-def test_delete_project_deletion_strategy_check(
+def test_list_project_summaries_different_installation_modes(
     db: Session, client: TestClient, project_member_mode: str
+) -> None:
+    """
+    The list project summaries endpoint is used in our projects screen and tend to break in different installation modes
+    """
+    # create empty project
+    empty_project_name = "empty-project"
+    empty_project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=empty_project_name),
+    )
+    response = client.post("projects", json=empty_project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+
+    mlrun.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
+        return_value=(0, None, [])
+    )
+    # Enterprise installation configuration post 3.4.0
+    mlrun.mlconf.igz_version = "3.6.0-b26.20210904121245"
+    mlrun.mlconf.kfp_url = "https://somekfp-url.com"
+    mlrun.mlconf.namespace = "default-tenant"
+
+    response = client.get("project-summaries")
+    assert response.status_code == HTTPStatus.OK.value
+    project_summaries_output = mlrun.api.schemas.ProjectSummariesOutput(
+        **response.json()
+    )
+    _assert_project_summary(
+        # accessing the zero index as there's only one project
+        project_summaries_output.project_summaries[0],
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    )
+
+    # Enterprise installation configuration pre 3.4.0
+    mlrun.mlconf.igz_version = "3.2.0-b26.20210904121245"
+    mlrun.mlconf.kfp_url = ""
+    mlrun.mlconf.namespace = "default-tenant"
+
+    response = client.get("project-summaries")
+    assert response.status_code == HTTPStatus.OK.value
+    project_summaries_output = mlrun.api.schemas.ProjectSummariesOutput(
+        **response.json()
+    )
+    _assert_project_summary(
+        # accessing the zero index as there's only one project
+        project_summaries_output.project_summaries[0],
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    )
+
+    # Kubernetes installation configuration (mlrun-kit)
+    mlrun.mlconf.igz_version = ""
+    mlrun.mlconf.kfp_url = ""
+    mlrun.mlconf.namespace = "mlrun"
+
+    response = client.get("project-summaries")
+    assert response.status_code == HTTPStatus.OK.value
+    project_summaries_output = mlrun.api.schemas.ProjectSummariesOutput(
+        **response.json()
+    )
+    _assert_project_summary(
+        # accessing the zero index as there's only one project
+        project_summaries_output.project_summaries[0],
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    )
+
+    # Docker installation configuration
+    mlrun.mlconf.igz_version = ""
+    mlrun.mlconf.kfp_url = ""
+    mlrun.mlconf.namespace = ""
+
+    response = client.get("project-summaries")
+    assert response.status_code == HTTPStatus.OK.value
+    project_summaries_output = mlrun.api.schemas.ProjectSummariesOutput(
+        **response.json()
+    )
+    _assert_project_summary(
+        # accessing the zero index as there's only one project
+        project_summaries_output.project_summaries[0],
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    )
+
+
+def test_delete_project_deletion_strategy_check(
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
     project = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name="project-name"),
@@ -306,13 +437,13 @@ def test_delete_project_deletion_strategy_check(
     )
 
     # create
-    response = client.post("/api/projects", json=project.dict())
+    response = client.post("projects", json=project.dict())
     assert response.status_code == HTTPStatus.CREATED.value
     _assert_project_response(project, response)
 
     # deletion strategy - check - should succeed because there are no resources
     response = client.delete(
-        f"/api/projects/{project.metadata.name}",
+        f"projects/{project.metadata.name}",
         headers={
             mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check
         },
@@ -320,7 +451,7 @@ def test_delete_project_deletion_strategy_check(
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
     # ensure project not deleted
-    response = client.get(f"/api/projects/{project.metadata.name}")
+    response = client.get(f"projects/{project.metadata.name}")
     assert response.status_code == HTTPStatus.OK.value
     _assert_project_response(project, response)
 
@@ -328,18 +459,137 @@ def test_delete_project_deletion_strategy_check(
     function_name = "function-name"
     function = {"metadata": {"name": function_name}}
     response = client.post(
-        f"/api/func/{project.metadata.name}/{function_name}", json=function
+        f"func/{project.metadata.name}/{function_name}", json=function
     )
     assert response.status_code == HTTPStatus.OK.value
 
     # deletion strategy - check - should fail because there are resources
     response = client.delete(
-        f"/api/projects/{project.metadata.name}",
+        f"projects/{project.metadata.name}",
         headers={
             mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check
         },
     )
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
+
+
+def test_delete_project_not_deleting_versioned_objects_multiple_times(
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+) -> None:
+
+    # need to set this to False, otherwise impl will try to delete k8s resources, and will need many more
+    # mocks to overcome this.
+    k8s_secrets_mock.set_is_running_in_k8s_cluster(False)
+    project_name = "project-name"
+    _create_resources_of_all_kinds(db, k8s_secrets_mock, project_name)
+
+    response = client.get("funcs", params={"project": project_name})
+    assert response.status_code == HTTPStatus.OK.value
+    distinct_function_names = {
+        function["metadata"]["name"] for function in response.json()["funcs"]
+    }
+    # ensure there are indeed several versions of the same function name
+    assert len(distinct_function_names) < len(response.json()["funcs"])
+
+    response = client.get("artifacts", params={"project": project_name, "tag": "*"})
+    assert response.status_code == HTTPStatus.OK.value
+    # ensure there are indeed several versions of the same artifact key
+    distinct_artifact_keys = {
+        (artifact["db_key"], artifact["iter"])
+        for artifact in response.json()["artifacts"]
+    }
+    assert len(distinct_artifact_keys) < len(response.json()["artifacts"])
+
+    response = client.get(
+        f"projects/{project_name}/feature-sets",
+    )
+    assert response.status_code == HTTPStatus.OK.value
+    distinct_feature_set_names = {
+        feature_set["metadata"]["name"]
+        for feature_set in response.json()["feature_sets"]
+    }
+    # ensure there are indeed several versions of the same feature_set name
+    assert len(distinct_feature_set_names) < len(response.json()["feature_sets"])
+
+    response = client.get(
+        f"projects/{project_name}/feature-vectors",
+    )
+    assert response.status_code == HTTPStatus.OK.value
+    distinct_feature_vector_names = {
+        feature_vector["metadata"]["name"]
+        for feature_vector in response.json()["feature_vectors"]
+    }
+    # ensure there are indeed several versions of the same feature_vector name
+    assert len(distinct_feature_vector_names) < len(response.json()["feature_vectors"])
+
+    mlrun.api.utils.singletons.db.get_db().delete_function = unittest.mock.Mock()
+    mlrun.api.utils.singletons.db.get_db().del_artifact = unittest.mock.Mock()
+    mlrun.api.utils.singletons.db.get_db().delete_feature_set = unittest.mock.Mock()
+    mlrun.api.utils.singletons.db.get_db().delete_feature_vector = unittest.mock.Mock()
+    # deletion strategy - check - should fail because there are resources
+    response = client.delete(
+        f"projects/{project_name}",
+        headers={
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading
+        },
+    )
+    assert response.status_code == HTTPStatus.NO_CONTENT.value
+
+    assert mlrun.api.utils.singletons.db.get_db().delete_function.call_count == len(
+        distinct_function_names
+    )
+    assert mlrun.api.utils.singletons.db.get_db().del_artifact.call_count == len(
+        distinct_artifact_keys
+    )
+    assert mlrun.api.utils.singletons.db.get_db().delete_feature_set.call_count == len(
+        distinct_feature_set_names
+    )
+    assert (
+        mlrun.api.utils.singletons.db.get_db().delete_feature_vector.call_count
+        == len(distinct_feature_vector_names)
+    )
+
+
+def test_delete_project_deletion_strategy_check_external_resource(
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+) -> None:
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.api.schemas.ProjectSpec(),
+    )
+
+    # create
+    response = client.post("projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+    _assert_project_response(project, response)
+
+    # Set a project secret
+    k8s_secrets_mock.store_project_secrets("project-name", {"secret": "value"})
+
+    # deletion strategy - check - should fail because there's a project secret
+    response = client.delete(
+        f"projects/{project.metadata.name}",
+        headers={
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted
+        },
+    )
+    assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
+    assert "project secrets" in response.text
+
+    k8s_secrets_mock.delete_project_secrets("project-name", None)
+    response = client.delete(
+        f"projects/{project.metadata.name}",
+        headers={
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted
+        },
+    )
+    assert response
 
 
 # leader format is only relevant to follower mode
@@ -362,7 +612,7 @@ def test_list_projects_leader_format(
 
     # list in leader format
     response = client.get(
-        "/api/projects",
+        "projects",
         params={"format": mlrun.api.schemas.ProjectsFormat.leader},
         headers={
             mlrun.api.schemas.HeaderNames.projects_role: mlrun.mlconf.httpdb.projects.leader
@@ -372,14 +622,25 @@ def test_list_projects_leader_format(
         project["data"]["metadata"]["name"] for project in response.json()["projects"]
     ]
     assert (
-        deepdiff.DeepDiff(project_names, returned_project_names, ignore_order=True,)
+        deepdiff.DeepDiff(
+            project_names,
+            returned_project_names,
+            ignore_order=True,
+        )
         == {}
     )
 
 
 def test_projects_crud(
-    db: Session, client: TestClient, project_member_mode: str
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
+    # need to set this to False, otherwise impl will try to delete k8s resources, and will need many more
+    # mocks to overcome this.
+    k8s_secrets_mock.set_is_running_in_k8s_cluster(False)
+
     name1 = f"prj-{uuid4().hex}"
     project_1 = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=name1),
@@ -389,12 +650,12 @@ def test_projects_crud(
     )
 
     # create
-    response = client.post("/api/projects", json=project_1.dict())
+    response = client.post("projects", json=project_1.dict())
     assert response.status_code == HTTPStatus.CREATED.value
     _assert_project_response(project_1, response)
 
     # read
-    response = client.get(f"/api/projects/{name1}")
+    response = client.get(f"projects/{name1}")
     _assert_project_response(project_1, response)
 
     # patch
@@ -404,7 +665,7 @@ def test_projects_crud(
             "desired_state": mlrun.api.schemas.ProjectState.archived,
         }
     }
-    response = client.patch(f"/api/projects/{name1}", json=project_patch)
+    response = client.patch(f"projects/{name1}", json=project_patch)
     assert response.status_code == HTTPStatus.OK.value
     _assert_project_response(
         project_1, response, extra_exclude={"spec": {"description", "desired_state"}}
@@ -426,7 +687,7 @@ def test_projects_crud(
     )
 
     # store
-    response = client.put(f"/api/projects/{name2}", json=project_2.dict())
+    response = client.put(f"projects/{name2}", json=project_2.dict())
     assert response.status_code == HTTPStatus.OK.value
     _assert_project_response(project_2, response)
 
@@ -447,7 +708,7 @@ def test_projects_crud(
 
     # list - full
     response = client.get(
-        "/api/projects", params={"format": mlrun.api.schemas.ProjectsFormat.full}
+        "projects", params={"format": mlrun.api.schemas.ProjectsFormat.full}
     )
     projects_output = mlrun.api.schemas.ProjectsOutput(**response.json())
     expected = [project_1, project_2]
@@ -466,7 +727,7 @@ def test_projects_crud(
     labels_1 = copy.deepcopy(labels_2)
     labels_1.update({"another-label": "another-label-value"})
     project_patch = {"metadata": {"labels": labels_1}}
-    response = client.patch(f"/api/projects/{name1}", json=project_patch)
+    response = client.patch(f"projects/{name1}", json=project_patch)
     assert response.status_code == HTTPStatus.OK.value
     _assert_project_response(
         project_1,
@@ -478,7 +739,9 @@ def test_projects_crud(
     )
     assert (
         deepdiff.DeepDiff(
-            response.json()["metadata"]["labels"], labels_1, ignore_order=True,
+            response.json()["metadata"]["labels"],
+            labels_1,
+            ignore_order=True,
         )
         == {}
     )
@@ -501,12 +764,12 @@ def test_projects_crud(
     # add function to project 1
     function_name = "function-name"
     function = {"metadata": {"name": function_name}}
-    response = client.post(f"/api/func/{name1}/{function_name}", json=function)
+    response = client.post(f"func/{name1}/{function_name}", json=function)
     assert response.status_code == HTTPStatus.OK.value
 
     # delete - restricted strategy, will fail because function exists
     response = client.delete(
-        f"/api/projects/{name1}",
+        f"projects/{name1}",
         headers={
             mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted
         },
@@ -515,7 +778,7 @@ def test_projects_crud(
 
     # delete - cascading strategy, will succeed and delete function
     response = client.delete(
-        f"/api/projects/{name1}",
+        f"projects/{name1}",
         headers={
             mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading
         },
@@ -523,14 +786,18 @@ def test_projects_crud(
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
     # ensure function is gone
-    response = client.get(f"/api/func/{name1}/{function_name}")
+    response = client.get(f"func/{name1}/{function_name}")
     assert response.status_code == HTTPStatus.NOT_FOUND.value
 
     # list
     _list_project_names_and_assert(client, [name2])
 
 
-def _create_resources_of_all_kinds(db_session: Session, project: str):
+def _create_resources_of_all_kinds(
+    db_session: Session,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+    project: str,
+):
     db = mlrun.api.utils.singletons.db.get_db()
     # add labels to project
     project_schema = mlrun.api.schemas.Project(
@@ -551,20 +818,24 @@ def _create_resources_of_all_kinds(db_session: Session, project: str):
     function = {
         "bla": "blabla",
         "metadata": {"labels": labels},
+        "spec": {"asd": "asdasd"},
         "status": {"bla": "blabla"},
     }
     function_names = ["function_name_1", "function_name_2", "function_name_3"]
     function_tags = ["some_tag", "some_tag2", "some_tag3"]
     for function_name in function_names:
         for function_tag in function_tags:
-            db.store_function(
-                db_session,
-                function,
-                function_name,
-                project,
-                tag=function_tag,
-                versioned=True,
-            )
+            # change spec a bit so different (un-tagged) versions will be created
+            for index in range(3):
+                function["spec"]["index"] = index
+                db.store_function(
+                    db_session,
+                    function,
+                    function_name,
+                    project,
+                    tag=function_tag,
+                    versioned=True,
+                )
 
     # Create several artifacts with several tags
     artifact = {
@@ -579,6 +850,9 @@ def _create_resources_of_all_kinds(db_session: Session, project: str):
         for artifact_uid in artifact_uids:
             for artifact_tag in artifact_tags:
                 for artifact_iter in range(3):
+                    artifact["iter"] = artifact_iter
+                    artifact["tag"] = artifact_tag
+                    artifact["uid"] = artifact_uid
                     db.store_artifact(
                         db_session,
                         artifact_key,
@@ -592,7 +866,7 @@ def _create_resources_of_all_kinds(db_session: Session, project: str):
     # Create several runs
     run = {
         "bla": "blabla",
-        "metadata": {"labels": labels},
+        "metadata": {"name": "run-name", "labels": labels},
         "status": {"bla": "blabla"},
     }
     run_uids = ["some_uid", "some_uid2", "some_uid3"]
@@ -625,9 +899,13 @@ def _create_resources_of_all_kinds(db_session: Session, project: str):
             labels,
         )
 
+    # Create several feature sets with several tags
+    labels = {
+        "owner": "nobody",
+    }
     feature_set = mlrun.api.schemas.FeatureSet(
         metadata=mlrun.api.schemas.ObjectMetadata(
-            name="dummy", tag="latest", labels={"owner": "nobody"}
+            name="dummy", tag="latest", labels=labels
         ),
         spec=mlrun.api.schemas.FeatureSetSpec(
             entities=[
@@ -643,20 +921,44 @@ def _create_resources_of_all_kinds(db_session: Session, project: str):
         ),
         status={},
     )
-    db.create_feature_set(db_session, project, feature_set)
+    feature_set_names = ["feature_set_1", "feature_set_2", "feature_set_3"]
+    feature_set_tags = ["some_tag", "some_tag2", "some_tag3"]
+    for feature_set_name in feature_set_names:
+        for feature_set_tag in feature_set_tags:
+            # change spec a bit so different (un-tagged) versions will be created
+            for index in range(3):
+                feature_set.metadata.name = feature_set_name
+                feature_set.metadata.tag = feature_set_tag
+                feature_set.spec.index = index
+                db.store_feature_set(db_session, project, feature_set_name, feature_set)
 
     feature_vector = mlrun.api.schemas.FeatureVector(
         metadata=mlrun.api.schemas.ObjectMetadata(
-            name="dummy", tag="latest", labels={"owner": "somebody"}
+            name="dummy", tag="latest", labels=labels
         ),
         spec=mlrun.api.schemas.ObjectSpec(),
         status=mlrun.api.schemas.ObjectStatus(state="created"),
     )
-    db.create_feature_vector(db_session, project, feature_vector)
+    feature_vector_names = ["feature_vector_1", "feature_vector_2", "feature_vector_3"]
+    feature_vector_tags = ["some_tag", "some_tag2", "some_tag3"]
+    for feature_vector_name in feature_vector_names:
+        for feature_vector_tag in feature_vector_tags:
+            # change spec a bit so different (un-tagged) versions will be created
+            for index in range(3):
+                feature_vector.metadata.name = feature_vector_name
+                feature_vector.metadata.tag = feature_vector_tag
+                feature_vector.spec.index = index
+                db.store_feature_vector(
+                    db_session, project, feature_vector_name, feature_vector
+                )
+
+    secrets = {f"secret_{i}": "a secret" for i in range(5)}
+    k8s_secrets_mock.store_project_secrets(project, secrets)
 
 
 def _assert_resources_in_project(
     db_session: Session,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
     project_member_mode: str,
     project: str,
     assert_no_resources: bool = False,
@@ -665,6 +967,12 @@ def _assert_resources_in_project(
         "Logs": _assert_logs_in_project(project, assert_no_resources),
         "Schedules": _assert_schedules_in_project(project, assert_no_resources),
     }
+
+    secrets = (
+        {} if assert_no_resources else {f"secret_{i}": "a secret" for i in range(5)}
+    )
+    assert k8s_secrets_mock.get_project_secret_data(project) == secrets
+
     return (
         _assert_db_resources_in_project(
             db_session, project_member_mode, project, assert_no_resources
@@ -674,7 +982,8 @@ def _assert_resources_in_project(
 
 
 def _assert_schedules_in_project(
-    project: str, assert_no_resources: bool = False,
+    project: str,
+    assert_no_resources: bool = False,
 ) -> int:
     number_of_schedules = len(
         mlrun.api.utils.singletons.scheduler.get_scheduler()._list_schedules_from_scheduler(
@@ -688,7 +997,10 @@ def _assert_schedules_in_project(
     return number_of_schedules
 
 
-def _assert_logs_in_project(project: str, assert_no_resources: bool = False,) -> int:
+def _assert_logs_in_project(
+    project: str,
+    assert_no_resources: bool = False,
+) -> int:
     logs_path = mlrun.api.api.utils.project_logs_path(project)
     number_of_log_files = 0
     if logs_path.exists():
@@ -835,10 +1147,15 @@ def _list_project_names_and_assert(
     params = params or {}
     params["format"] = mlrun.api.schemas.ProjectsFormat.name_only
     # list - names only - filter by state
-    response = client.get("/api/projects", params=params,)
+    response = client.get(
+        "projects",
+        params=params,
+    )
     assert (
         deepdiff.DeepDiff(
-            expected_names, response.json()["projects"], ignore_order=True,
+            expected_names,
+            response.json()["projects"],
+            ignore_order=True,
         )
         == {}
     )
@@ -898,9 +1215,10 @@ def _create_artifacts(client: TestClient, project_name, artifacts_count, kind):
             artifact = {
                 "kind": kind,
                 "metadata": {"key": key, "project": project_name},
+                "spec": {"src_path": "/some/local/path"},
             }
             response = client.post(
-                f"/api/artifact/{project_name}/{uid}/{key}", json=artifact
+                f"artifact/{project_name}/{uid}/{key}", json=artifact
             )
             assert response.status_code == HTTPStatus.OK.value, response.json()
 
@@ -917,7 +1235,7 @@ def _create_feature_sets(client: TestClient, project_name, feature_sets_count):
                 "status": {},
             }
             response = client.post(
-                f"/api/projects/{project_name}/feature-sets", json=feature_set
+                f"projects/{project_name}/feature-sets", json=feature_set
             )
             assert response.status_code == HTTPStatus.OK.value, response.json()
 
@@ -933,7 +1251,7 @@ def _create_functions(client: TestClient, project_name, functions_count):
                 "spec": {"some_field": str(uuid4())},
             }
             response = client.post(
-                f"/api/func/{project_name}/{function_name}",
+                f"func/{project_name}/{function_name}",
                 json=function,
                 params={"versioned": True},
             )
@@ -962,7 +1280,7 @@ def _create_runs(
                 }
             if start_time:
                 run.setdefault("status", {})["start_time"] = start_time.isoformat()
-            response = client.post(f"/api/run/{project_name}/{run_uid}", json=run)
+            response = client.post(f"run/{project_name}/{run_uid}", json=run)
             assert response.status_code == HTTPStatus.OK.value, response.json()
 
 
@@ -976,12 +1294,13 @@ def _create_schedules(client: TestClient, project_name, schedules_count):
             cron_trigger=mlrun.api.schemas.ScheduleCronTrigger(year=1999),
         )
         response = client.post(
-            f"/api/projects/{project_name}/schedules", json=schedule.dict()
+            f"projects/{project_name}/schedules", json=schedule.dict()
         )
         assert response.status_code == HTTPStatus.CREATED.value, response.json()
 
 
 def _mock_pipelines(project_name):
+    mlrun.mlconf.kfp_url = "http://some-random-url:8888"
     status_count_map = {
         mlrun.run.RunStatuses.running: 4,
         mlrun.run.RunStatuses.succeeded: 3,

@@ -19,6 +19,7 @@ import traceback
 from enum import Enum
 from io import BytesIO
 
+import numpy
 from numpy.core.fromnumeric import mean
 
 import mlrun
@@ -616,7 +617,7 @@ class VotingEnsemble(BaseModelRouter):
         List
             The model's predictions
         """
-        if type(response) == list:
+        if isinstance(response, (list, numpy.ndarray)):
             return response
         try:
             self.format_response_with_col_name_flag = True
@@ -812,7 +813,13 @@ class EnrichmentModelRouter(ModelRouter):
         :param kwargs:        extra arguments
         """
         super().__init__(
-            context, name, routes, protocol, url_prefix, health_prefix, **kwargs,
+            context,
+            name,
+            routes,
+            protocol,
+            url_prefix,
+            health_prefix,
+            **kwargs,
         )
 
         self.feature_vector_uri = feature_vector_uri
@@ -823,7 +830,8 @@ class EnrichmentModelRouter(ModelRouter):
     def post_init(self, mode="sync"):
         super().post_init(mode)
         self._feature_service = mlrun.feature_store.get_online_feature_service(
-            feature_vector=self.feature_vector_uri, impute_policy=self.impute_policy,
+            feature_vector=self.feature_vector_uri,
+            impute_policy=self.impute_policy,
         )
 
     def preprocess(self, event):
@@ -965,7 +973,8 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
     def post_init(self, mode="sync"):
         super().post_init(mode)
         self._feature_service = mlrun.feature_store.get_online_feature_service(
-            feature_vector=self.feature_vector_uri, impute_policy=self.impute_policy,
+            feature_vector=self.feature_vector_uri,
+            impute_policy=self.impute_policy,
         )
 
     def preprocess(self, event):

@@ -1,6 +1,7 @@
 import os
 
 import pytest
+import requests
 import v3io
 from v3io.dataplane import RaiseForStatus
 
@@ -11,25 +12,6 @@ import tests.system.base
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
     project_name = "does-not-exist-3"
-
-    @staticmethod
-    def _skip_set_environment():
-        # Skip to make sure project ensured in Nuclio function deployment flow
-        return True
-
-    def test_deploy_function_without_project(self):
-        code_path = str(self.assets_path / "nuclio_function.py")
-
-        self._logger.debug("Creating nuclio function")
-        function = mlrun.code_to_function(
-            name="simple-function",
-            kind="nuclio",
-            project=self.project_name,
-            filename=code_path,
-        )
-
-        self._logger.debug("Deploying nuclio function")
-        function.deploy()
 
     def test_deploy_function_with_error_handler(self):
         code_path = str(self.assets_path / "function-with-catcher.py")
@@ -52,6 +34,40 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
 
         self._logger.debug("Deploying nuclio function")
         function.deploy()
+
+    # Nuclio sometimes passes b'' instead of None due to dirty memory
+    def test_workaround_for_nuclio_bug(self):
+        code_path = str(self.assets_path / "nuclio_function_to_print_type.py")
+
+        self._logger.debug("Creating nuclio function")
+        function = mlrun.code_to_function(
+            name="nuclio-bug-workaround-test-function",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+
+        graph = function.set_topology("flow", engine="sync")
+        graph.add_step(name="type", class_name="Type")
+
+        self._logger.debug("Deploying nuclio function")
+        url = function.deploy()
+
+        for _ in range(10):
+            resp = requests.get(url)
+            assert resp.status_code == 200
+            assert resp.text == "NoneType"
+
+        for _ in range(10):
+            resp = requests.post(url, data="abc")
+            assert resp.status_code == 200
+            assert resp.text == "bytes"
+
+        for _ in range(10):
+            resp = requests.get(url)
+            assert resp.status_code == 200
+            assert resp.text == "NoneType"
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
@@ -128,7 +144,9 @@ class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
         fn = self._deploy_function(2)
 
         hyper_param_options = mlrun.model.HyperParamOptions(
-            parallel_runs=4, selector="max.accuracy", max_errors=1,
+            parallel_runs=4,
+            selector="max.accuracy",
+            max_errors=1,
         )
 
         p1 = [4, 2, 5, 8, 9, 6, 1, 11, 1, 1, 2, 1, 1]

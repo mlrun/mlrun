@@ -13,6 +13,7 @@
 # limitations under the License.
 import inspect
 import json
+import os
 import socket
 
 from ..db import get_or_set_dburl
@@ -74,9 +75,14 @@ def nuclio_jobs_handler(context, event):
         host=socket.gethostname(),
     )
 
-    args = get_func_arg(fhandler, RunTemplate.from_dict(ctx.to_dict()), ctx)
+    # Inject project secrets from env. variables to the context
+    secret_list = os.environ.get("MLRUN_PROJECT_SECRETS_LIST")
+    if secret_list:
+        ctx._secrets_manager.add_source("env", secret_list)
+
+    kwargs = get_func_arg(fhandler, RunTemplate.from_dict(ctx.to_dict()), ctx, True)
     try:
-        val = fhandler(*args)
+        val = fhandler(**kwargs)
         if val:
             ctx.log_result("return", val)
     except Exception as exc:

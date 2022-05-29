@@ -6,6 +6,7 @@ Create Date: 2021-09-30 10:55:51.956636
 
 """
 import sqlalchemy as sa
+import sqlalchemy.dialects.mysql
 from alembic import op
 
 from mlrun.api.utils.db.sql_collation import SQLCollationUtil
@@ -38,7 +39,7 @@ def upgrade():
             nullable=True,
         ),
         sa.Column("updated", sa.TIMESTAMP(), nullable=True),
-        sa.Column("body", sa.BLOB(), nullable=True),
+        sa.Column("body", sqlalchemy.dialects.mysql.MEDIUMBLOB(), nullable=True),
         sa.PrimaryKeyConstraint("id", name="_artifacts_pk"),
         sa.UniqueConstraint("uid", "project", "key", name="_artifacts_uc"),
     )
@@ -118,7 +119,7 @@ def upgrade():
             sa.String(length=255, collation=SQLCollationUtil.collation()),
             nullable=True,
         ),
-        sa.Column("body", sa.BLOB(), nullable=True),
+        sa.Column("body", sqlalchemy.dialects.mysql.MEDIUMBLOB(), nullable=True),
         sa.Column("updated", sa.TIMESTAMP(), nullable=True),
         sa.PrimaryKeyConstraint("id", name="_functions_pk"),
         sa.UniqueConstraint("name", "project", "uid", name="_functions_uc"),
@@ -136,7 +137,7 @@ def upgrade():
             sa.String(length=255, collation=SQLCollationUtil.collation()),
             nullable=True,
         ),
-        sa.Column("body", sa.BLOB(), nullable=True),
+        sa.Column("body", sqlalchemy.dialects.mysql.MEDIUMBLOB(), nullable=True),
         sa.PrimaryKeyConstraint("id", name="_logs_pk"),
     )
     op.create_table(
@@ -177,7 +178,7 @@ def upgrade():
             sa.String(length=255, collation=SQLCollationUtil.collation()),
             nullable=True,
         ),
-        sa.Column("spec", sa.BLOB(), nullable=True),
+        sa.Column("spec", sqlalchemy.dialects.mysql.MEDIUMBLOB(), nullable=True),
         sa.Column("created", sa.TIMESTAMP(), nullable=True),
         sa.Column(
             "state",
@@ -206,7 +207,7 @@ def upgrade():
             sa.String(length=255, collation=SQLCollationUtil.collation()),
             nullable=True,
         ),
-        sa.Column("body", sa.BLOB(), nullable=True),
+        sa.Column("body", sqlalchemy.dialects.mysql.MEDIUMBLOB(), nullable=True),
         sa.Column("start_time", sa.TIMESTAMP(), nullable=True),
         sa.PrimaryKeyConstraint("id", name="_runs_pk"),
         sa.UniqueConstraint("uid", "project", "iteration", name="_runs_uc"),
@@ -250,7 +251,7 @@ def upgrade():
             sa.String(length=255, collation=SQLCollationUtil.collation()),
             nullable=True,
         ),
-        sa.Column("struct", sa.BLOB(), nullable=True),
+        sa.Column("struct", sqlalchemy.dialects.mysql.MEDIUMBLOB(), nullable=True),
         sa.Column("concurrency_limit", sa.Integer(), nullable=False),
         sa.PrimaryKeyConstraint("id", name="_schedules_v2_pk"),
         sa.UniqueConstraint("project", "name", name="_schedules_v2_uc"),

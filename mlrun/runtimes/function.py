@@ -15,9 +15,10 @@
 import asyncio
 import json
 import typing
+import warnings
 from datetime import datetime
-from os import getenv
 from time import sleep
+from urllib.parse import urlparse
 
 import nuclio
 import requests
@@ -78,6 +79,26 @@ def validate_nuclio_version_compatibility(*min_versions):
     return False
 
 
+def is_nuclio_version_in_range(min_version: str, max_version: str) -> bool:
+    """
+    Return whether the Nuclio version is in the range, inclusive for min, exclusive for max - [min, max)
+    """
+    try:
+        parsed_min_version = semver.VersionInfo.parse(min_version)
+        parsed_max_version = semver.VersionInfo.parse(max_version)
+        nuclio_version = mlrun.runtimes.utils.resolve_nuclio_version()
+        parsed_current_version = semver.VersionInfo.parse(nuclio_version)
+    except ValueError:
+        logger.warning(
+            "Unable to parse nuclio version, assuming in range",
+            nuclio_version=nuclio_version,
+            min_version=min_version,
+            max_version=max_version,
+        )
+        return True
+    return parsed_min_version <= parsed_current_version < parsed_max_version
+
+
 def min_nuclio_versions(*versions):
     def decorator(function):
         def wrapper(*args, **kwargs):
@@ -96,6 +117,19 @@ def min_nuclio_versions(*versions):
 
 
 class NuclioSpec(KubeResourceSpec):
+    _dict_fields = KubeResourceSpec._dict_fields + [
+        "min_replicas",
+        "max_replicas",
+        "config",
+        "base_spec",
+        "no_cache",
+        "source",
+        "function_kind",
+        "readiness_timeout",
+        "function_handler",
+        "nuclio_runtime",
+    ]
+
     def __init__(
         self,
         command=None,
@@ -129,6 +163,8 @@ class NuclioSpec(KubeResourceSpec):
         pythonpath=None,
         workdir=None,
         image_pull_secret=None,
+        tolerations=None,
+        preemption_mode=None,
     ):
 
         super().__init__(
@@ -155,15 +191,17 @@ class NuclioSpec(KubeResourceSpec):
             pythonpath=pythonpath,
             workdir=workdir,
             image_pull_secret=image_pull_secret,
+            tolerations=tolerations,
+            preemption_mode=preemption_mode,
         )
 
-        self.base_spec = base_spec or ""
+        self.base_spec = base_spec or {}
         self.function_kind = function_kind
         self.source = source or ""
         self.config = config or {}
-        self.function_handler = ""
+        self.function_handler = None
+        self.nuclio_runtime = None
         self.no_cache = no_cache
-        self.replicas = replicas
         self.readiness_timeout = readiness_timeout
 
         # TODO: we would prefer to default to 0, but invoking a scaled to zero function requires to either add the
@@ -186,8 +224,8 @@ class NuclioSpec(KubeResourceSpec):
                 {"volume": self._volumes[volume_name], "volumeMount": volume_mount}
             )
 
-        volumes_without_volume_mounts = volume_with_volume_mounts_names.symmetric_difference(
-            self._volumes.keys()
+        volumes_without_volume_mounts = (
+            volume_with_volume_mounts_names.symmetric_difference(self._volumes.keys())
         )
         if volumes_without_volume_mounts:
             raise ValueError(
@@ -249,119 +287,66 @@ class RemoteRuntime(KubeResource):
         raise Exception("deprecated, use .apply(mount_v3io())")
 
     def add_trigger(self, name, spec):
+        """add a nuclio trigger object/dict
+
+        :param name: trigger name
+        :param spec: trigger object or dict
+        """
         if hasattr(spec, "to_dict"):
             spec = spec.to_dict()
+        spec["name"] = name
         self.spec.config[f"spec.triggers.{name}"] = spec
         return self
 
     def with_source_archive(
-        self, source, handler="", runtime="", secrets=None,
+        self,
+        source,
+        workdir=None,
+        handler=None,
+        runtime="",
     ):
         """Load nuclio function from remote source
-        :param source: a full path to the nuclio function source (code entry) to load the function from
-        :param handler: a path to the function's handler, including path inside archive/git repo
-        :param runtime: (optional) the runtime of the function (defaults to python:3.7)
-        :param secrets: a dictionary of secrets to be used to fetch the function from the source.
-               (can also be passed using env vars). options:
-               ["V3IO_ACCESS_KEY",
-               "GIT_USERNAME",
-               "GIT_PASSWORD",
-               "AWS_ACCESS_KEY_ID",
-               "AWS_SECRET_ACCESS_KEY",
-               "AWS_SESSION_TOKEN"]
 
-        Examples::
-            git:
-                ("git://github.com/org/repo#my-branch",
-                 handler="path/inside/repo#main:handler",
-                 secrets={"GIT_PASSWORD": "my-access-token"})
-            s3:
-                ("s3://my-bucket/path/in/bucket/my-functions-archive",
-                 handler="path/inside/functions/archive#main:Handler",
-                 runtime="golang",
-                 secrets={"AWS_ACCESS_KEY_ID": "some-id", "AWS_SECRET_ACCESS_KEY": "some-secret"})
+                Note: remote source may require credentials, those can be stored in the project secrets or passed
+                in the function.deploy() using the builder_env dict, see the required credentials per source:
+                v3io - "V3IO_ACCESS_KEY".
+                git - "GIT_USERNAME", "GIT_PASSWORD".
+                AWS S3 - "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" or "AWS_SESSION_TOKEN".
+
+                :param source: a full path to the nuclio function source (code entry) to load the function from
+                :param handler: a path to the function's handler, including path inside archive/git repo
+                :param workdir: working dir  relative to the archive root (e.g. 'subdir')
+                :param runtime: (optional) the runtime of the function (defaults to python:3.7)
+
+                Examples::
+                    git:
+                        fn.with_source_archive("git://github.com/org/repo#my-branch",
+                          handler="main:handler",
+                          workdir="path/inside/repo")
+                    s3:
+                        fn.spec.nuclio_runtime = "golang"
+                        fn.with_source_archive("s3://my-bucket/path/in/bucket/my-functions-archive",
+                          handler="my_func:Handler",
+                          workdir="path/inside/functions/archive",
+                          runtime="golang")
+        )
         """
-        code_entry_type = self._resolve_code_entry_type(source)
-        if code_entry_type == "":
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Couldn't resolve code entry type from source"
-            )
-
-        code_entry_attributes = {}
-
-        # resolve work_dir and handler
-        work_dir, handler = self._resolve_work_dir_and_handler(handler)
-        if work_dir != "":
-            code_entry_attributes["workDir"] = work_dir
-
-        if secrets is None:
-            secrets = {}
-
-        # set default runtime if not specified otherwise
-        if runtime == "":
-            runtime = mlrun.config.config.default_nuclio_runtime
-
-        # archive
-        if code_entry_type == "archive":
-            if source.startswith("v3io"):
-                source = f"http{source[len('v3io'):]}"
-
-            v3io_access_key = secrets.get(
-                "V3IO_ACCESS_KEY", getenv("V3IO_ACCESS_KEY", "")
-            )
-            if v3io_access_key:
-                code_entry_attributes["headers"] = {
-                    "headers": {"X-V3io-Session-Key": v3io_access_key}
-                }
-
-        # s3
-        if code_entry_type == "s3":
-            bucket, item_key = parse_s3_bucket_and_key(source)
-
-            code_entry_attributes["s3Bucket"] = bucket
-            code_entry_attributes["s3ItemKey"] = item_key
-
-            code_entry_attributes["s3AccessKeyId"] = secrets.get(
-                "AWS_ACCESS_KEY_ID", getenv("AWS_ACCESS_KEY_ID", "")
-            )
-            code_entry_attributes["s3SecretAccessKey"] = secrets.get(
-                "AWS_SECRET_ACCESS_KEY", getenv("AWS_SECRET_ACCESS_KEY", "")
-            )
-            code_entry_attributes["s3SessionToken"] = secrets.get(
-                "AWS_SESSION_TOKEN", getenv("AWS_SESSION_TOKEN", "")
-            )
-
-        # git
-        if code_entry_type == "git":
-
-            # change git:// to https:// as nuclio expects it to be
-            if source.startswith("git://"):
-                source = source.replace("git://", "https://")
-
-            source, reference = self._resolve_git_reference_from_source(source)
-            if reference:
-                code_entry_attributes["reference"] = reference
-
-            code_entry_attributes["username"] = secrets.get("GIT_USERNAME", "")
-            code_entry_attributes["password"] = secrets.get(
-                "GIT_PASSWORD", getenv("GITHUB_TOKEN", "")
-            )
-
+        self.spec.build.source = source
         # update handler in function_handler
         self.spec.function_handler = handler
-
-        # populate spec with relevant fields
-        config = nuclio.config.new_config()
-        update_in(config, "spec.handler", handler)
-        update_in(config, "spec.runtime", runtime)
-        update_in(config, "spec.build.path", source)
-        update_in(config, "spec.build.codeEntryType", code_entry_type)
-        update_in(config, "spec.build.codeEntryAttributes", code_entry_attributes)
-        self.spec.base_spec = config
+        if workdir:
+            self.spec.workdir = workdir
+        if runtime:
+            self.spec.nuclio_runtime = runtime
 
         return self
 
     def with_v3io(self, local="", remote=""):
+        """Add v3io volume to the function
+
+        :param local: local path (mount path inside the function container)
+        :param remote: v3io path
+        """
         if local and remote:
             self.apply(mount_v3io(remote=remote, mount_path=local))
         else:
@@ -369,17 +354,80 @@ class RemoteRuntime(KubeResource):
         return self
 
     def with_http(
-        self, workers=8, port=0, host=None, paths=None, canary=None, secret=None
+        self,
+        workers=8,
+        port=0,
+        host=None,
+        paths=None,
+        canary=None,
+        secret=None,
+        worker_timeout: int = None,
+        gateway_timeout: int = None,
+        trigger_name=None,
+        annotations=None,
+        extra_attributes=None,
     ):
-        self.add_trigger(
-            "http",
-            nuclio.HttpTrigger(
-                workers, port=port, host=host, paths=paths, canary=canary, secret=secret
-            ),
+        """update/add nuclio HTTP trigger settings
+
+        Note: gateway timeout is the maximum request time before an error is returned, while the worker timeout
+        if the max time a request will wait for until it will start processing, gateway_timeout must be greater than
+        the worker_timeout.
+
+        :param workers:    number of worker processes (default=8)
+        :param port:       TCP port
+        :param host:       hostname
+        :param paths:      list of sub paths
+        :param canary:     k8s ingress canary (% traffic value between 0 to 100)
+        :param secret:     k8s secret name for SSL certificate
+        :param worker_timeout:  worker wait timeout in sec (how long a message should wait in the worker queue
+                                before an error is returned)
+        :param gateway_timeout: nginx ingress timeout in sec (request timeout, when will the gateway return an error)
+        :param trigger_name:    alternative nuclio trigger name
+        :param annotations:     key/value dict of ingress annotations
+        :param extra_attributes: key/value dict of extra nuclio trigger attributes
+        :return: function object (self)
+        """
+        annotations = annotations or {}
+        if worker_timeout:
+            gateway_timeout = gateway_timeout or (worker_timeout + 60)
+        if gateway_timeout:
+            if worker_timeout and worker_timeout >= gateway_timeout:
+                raise ValueError(
+                    "gateway timeout must be greater than the worker timeout"
+                )
+            annotations[
+                "nginx.ingress.kubernetes.io/proxy-connect-timeout"
+            ] = f"{gateway_timeout}"
+            annotations[
+                "nginx.ingress.kubernetes.io/proxy-read-timeout"
+            ] = f"{gateway_timeout}"
+            annotations[
+                "nginx.ingress.kubernetes.io/proxy-send-timeout"
+            ] = f"{gateway_timeout}"
+
+        trigger = nuclio.HttpTrigger(
+            workers,
+            port=port,
+            host=host,
+            paths=paths,
+            canary=canary,
+            secret=secret,
+            annotations=annotations,
+            extra_attributes=extra_attributes,
         )
+        if worker_timeout:
+            trigger._struct["workerAvailabilityTimeoutMilliseconds"] = (
+                worker_timeout
+            ) * 1000
+        self.add_trigger(trigger_name or "http", trigger)
         return self
 
     def add_model(self, name, model_path, **kw):
+        warnings.warn(
+            'This method is deprecated and will be removed in 0.10.0. Use the "serving" runtime instead',
+            # TODO: remove in 0.10.0
+            DeprecationWarning,
+        )
         if model_path.startswith("v3io://"):
             model = "/User/" + "/".join(model_path.split("/")[5:])
         else:
@@ -390,7 +438,9 @@ class RemoteRuntime(KubeResource):
     def from_image(self, image):
         config = nuclio.config.new_config()
         update_in(
-            config, "spec.handler", self.spec.function_handler or "main:handler",
+            config,
+            "spec.handler",
+            self.spec.function_handler or "main:handler",
         )
         update_in(config, "spec.image", image)
         update_in(config, "spec.build.codeEntryType", "image")
@@ -407,6 +457,11 @@ class RemoteRuntime(KubeResource):
         workers=8,
         canary=None,
     ):
+        warnings.warn(
+            'This method is deprecated and will be removed in 0.10.0. Use the "serving" runtime instead',
+            # TODO: remove in 0.10.0
+            DeprecationWarning,
+        )
 
         if models:
             for k, v in models.items():
@@ -426,14 +481,36 @@ class RemoteRuntime(KubeResource):
         return self
 
     def add_v3io_stream_trigger(
-        self, stream_path, name="stream", group="serving", seek_to="earliest", shards=1,
+        self,
+        stream_path,
+        name="stream",
+        group="serving",
+        seek_to="earliest",
+        shards=1,
+        extra_attributes=None,
+        ack_window_size=None,
+        **kwargs,
     ):
-        """add v3io stream trigger to the function"""
+        """add v3io stream trigger to the function
+
+        :param stream_path:    v3io stream path (e.g. 'v3io:///projects/myproj/stream1')
+        :param name:           trigger name
+        :param group:          consumer group
+        :param seek_to:        start seek from: "earliest", "latest", "time", "sequence"
+        :param shards:         number of shards (used to set number of replicas)
+        :param extra_attributes: key/value dict with extra trigger attributes
+        :param ack_window_size:  stream ack window size (the consumer group will be updated with the
+                                 event id - ack_window_size, on failure the events in the window will be retransmitted)
+        :param kwargs:         extra V3IOStreamTrigger class attributes
+        """
         endpoint = None
         if "://" in stream_path:
             endpoint, stream_path = parse_v3io_path(stream_path, suffix="")
         container, path = split_path(stream_path)
         shards = shards or 1
+        extra_attributes = extra_attributes or {}
+        if ack_window_size:
+            extra_attributes["ackWindowSize"] = ack_window_size
         self.add_trigger(
             name,
             V3IOStreamTrigger(
@@ -443,6 +520,9 @@ class RemoteRuntime(KubeResource):
                 consumerGroup=group,
                 seekTo=seek_to,
                 webapi=endpoint or "http://v3io-webapi:8081",
+                extra_attributes=extra_attributes,
+                readBatchSize=256,
+                **kwargs,
             ),
         )
         self.spec.min_replicas = shards
@@ -452,11 +532,8 @@ class RemoteRuntime(KubeResource):
         # For nuclio functions, we just add the project secrets as env variables. Since there's no MLRun code
         # to decode the secrets and special env variable names in the function, we just use the same env variable as
         # the key name (encode_key_names=False)
-        # If function_kind is mlrun then this is MLRun code (nuclio:mlrun), so we still encode key names.
-        encode_key_names = self.spec.function_kind == "mlrun"
-
         self._add_project_k8s_secrets_to_spec(
-            None, project=self.metadata.project, encode_key_names=encode_key_names
+            None, project=self.metadata.project, encode_key_names=False
         )
 
     def deploy(
@@ -466,7 +543,17 @@ class RemoteRuntime(KubeResource):
         tag="",
         verbose=False,
         auth_info: AuthInfo = None,
+        builder_env: dict = None,
     ):
+        """Deploy the nuclio function to the cluster
+
+        :param dashboard:  address of the nuclio dashboard service (keep blank for current cluster)
+        :param project:    project name
+        :param tag:        function tag
+        :param verbose:    set True for verbose logging
+        :param auth_info:  service AuthInfo
+        :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
+        """
         # todo: verify that the function name is normalized
 
         verbose = verbose or self.verbose
@@ -484,7 +571,7 @@ class RemoteRuntime(KubeResource):
             self.fill_credentials()
             db = self._get_db()
             logger.info("Starting remote function deploy")
-            data = db.remote_builder(self, False)
+            data = db.remote_builder(self, False, builder_env=builder_env)
             self.status = data["data"].get("status")
             self._wait_for_function_deployment(db, verbose=verbose)
 
@@ -503,10 +590,14 @@ class RemoteRuntime(KubeResource):
                 save_record = True
 
         else:
+            # todo: should be deprecated (only work via MLRun service)
             self.save(versioned=False)
             self._ensure_run_db()
             internal_invocation_urls, external_invocation_urls = deploy_nuclio_function(
-                self, dashboard=dashboard, watch=True, auth_info=auth_info,
+                self,
+                dashboard=dashboard,
+                watch=True,
+                auth_info=auth_info,
             )
             self.status.internal_invocation_urls = internal_invocation_urls
             self.status.external_invocation_urls = external_invocation_urls
@@ -560,11 +651,38 @@ class RemoteRuntime(KubeResource):
         node_name: typing.Optional[str] = None,
         node_selector: typing.Optional[typing.Dict[str, str]] = None,
         affinity: typing.Optional[client.V1Affinity] = None,
+        tolerations: typing.Optional[typing.List[client.V1Toleration]] = None,
     ):
-        super().with_node_selection(node_name, node_selector, affinity)
+        """k8s node selection attributes"""
+        if tolerations and not validate_nuclio_version_compatibility("1.7.5"):
+            raise mlrun.errors.MLRunIncompatibleVersionError(
+                "tolerations are only supported from nuclio version 1.7.5"
+            )
+        super().with_node_selection(node_name, node_selector, affinity, tolerations)
+
+    @min_nuclio_versions("1.8.6")
+    def with_preemption_mode(self, mode):
+        """
+        Preemption mode controls whether pods can be scheduled on preemptible nodes.
+        Tolerations, node selector, and affinity are populated on preemptible nodes corresponding to the function spec.
+
+        The supported modes are:
+
+        * **allow** - The function can be scheduled on preemptible nodes
+        * **constrain** - The function can only run on preemptible nodes
+        * **prevent** - The function cannot be scheduled on preemptible nodes
+        * **none** - No preemptible configuration will be applied on the function
+
+        The default preemption mode is configurable in mlrun.mlconf.function_defaults.preemption_mode,
+        by default it's set to **prevent**
+
+        :param mode: allow | constrain | prevent | none defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
+        """
+        super().with_preemption_mode(mode=mode)
 
     @min_nuclio_versions("1.6.18")
     def with_priority_class(self, name: typing.Optional[str] = None):
+        """k8s priority class"""
         super().with_priority_class(name)
 
     def _get_state(
@@ -617,49 +735,6 @@ class RemoteRuntime(KubeResource):
             raise ValueError("function or deploy process not found")
         return self.status.state, text, last_log_timestamp
 
-    @staticmethod
-    def _resolve_git_reference_from_source(source):
-        split_source = source.split("#")
-
-        # no reference was passed
-        if len(split_source) != 2:
-            return source
-
-        reference = split_source[1]
-        if reference.startswith("refs"):
-            return split_source, reference
-
-        return split_source[0], f"refs/heads/{reference}"
-
-    def _resolve_work_dir_and_handler(self, handler):
-        """
-        Resolves a nuclio function working dir and handler inside an archive/git repo
-        :param handler: a path describing working dir and handler of a nuclio function
-        :return: (working_dir, handler) tuple, as nuclio expects to get it
-
-        Example: ("a/b/c#main:Handler) -> ("a/b/c", "main:Handler")
-        """
-        if handler == "":
-            return "", self.spec.function_handler or "main:handler"
-
-        split_handler = handler.split("#")
-        if len(split_handler) == 1:
-            return "", handler
-
-        return "/".join(split_handler[:-1]), split_handler[-1]
-
-    @staticmethod
-    def _resolve_code_entry_type(source):
-        if source.startswith("s3://"):
-            return "s3"
-        if source.startswith("git://"):
-            return "git"
-
-        for archive_prefix in ["http://", "https://", "v3io://", "v3ios://"]:
-            if source.startswith(archive_prefix):
-                return "archive"
-        return ""
-
     def _get_runtime_env(self):
         # for runtime specific env var enrichment (before deploy)
         runtime_env = {
@@ -670,10 +745,12 @@ class RemoteRuntime(KubeResource):
         if mlconf.namespace:
             runtime_env["MLRUN_NAMESPACE"] = mlconf.namespace
         if self.metadata.credentials.access_key:
-            runtime_env["MLRUN_AUTH_SESSION"] = self.metadata.credentials.access_key
+            runtime_env[
+                mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
+            ] = self.metadata.credentials.access_key
         return runtime_env
 
-    def get_nuclio_config_spec_env(self):
+    def _get_nuclio_config_spec_env(self):
         env_dict = {}
         external_source_env_dict = {}
 
@@ -707,8 +784,9 @@ class RemoteRuntime(KubeResource):
         env=None,
         tag=None,
         verbose=None,
-        use_function_from_db=True,
+        use_function_from_db=None,
     ):
+        """return as a Kubeflow pipeline step (ContainerOp), recommended to use mlrun.deploy_function() instead"""
         models = {} if models is None else models
         function_name = self.metadata.name or "function"
         name = f"deploy_{function_name}"
@@ -716,7 +794,17 @@ class RemoteRuntime(KubeResource):
         if models and isinstance(models, dict):
             models = [{"key": k, "model_path": v} for k, v in models.items()]
 
-        if use_function_from_db:
+        # verify auto mount is applied (with the client credentials)
+        self.try_auto_mount_based_on_config()
+
+        # if the function spec contain KFP PipelineParams (futures) pass the full spec to the
+        # ContainerOp this way KFP will substitute the params with previous step outputs
+        func_has_pipeline_params = self.to_json().find("{{pipelineparam:op") > 0
+        if (
+            use_function_from_db
+            or use_function_from_db is None
+            and not func_has_pipeline_params
+        ):
             url = self.save(versioned=True, refresh=True)
         else:
             url = None
@@ -735,14 +823,28 @@ class RemoteRuntime(KubeResource):
 
     def invoke(
         self,
-        path,
-        body=None,
-        method=None,
-        headers=None,
-        dashboard="",
-        force_external_address=False,
+        path: str,
+        body: typing.Union[str, bytes, dict] = None,
+        method: str = None,
+        headers: dict = None,
+        dashboard: str = "",
+        force_external_address: bool = False,
         auth_info: AuthInfo = None,
     ):
+        """Invoke the remote (live) function and return the results
+
+        example::
+
+            function.invoke("/api", body={"inputs": x})
+
+        :param path:     request sub path (e.g. /images)
+        :param body:     request body (str, bytes or a dict for json requests)
+        :param method:   HTTP method (GET, PUT, ..)
+        :param headers:  key/value dict with http headers
+        :param dashboard: nuclio dashboard address
+        :param force_external_address:   use the external ingress URL
+        :param auth_info: service AuthInfo
+        """
         if not method:
             method = "POST" if body else "GET"
         if "://" not in path:
@@ -863,7 +965,11 @@ class RemoteRuntime(KubeResource):
                 self.store_run(task)
                 task.spec.secret_sources = secrets or []
                 resp = submit(session, url, task, semaphore, headers=headers)
-                runs.append(asyncio.ensure_future(resp,))
+                runs.append(
+                    asyncio.ensure_future(
+                        resp,
+                    )
+                )
 
             for result in asyncio.as_completed(runs):
                 status, resp, logs, task = await result
@@ -915,7 +1021,7 @@ class RemoteRuntime(KubeResource):
 
         # internal / external invocation urls is a nuclio >= 1.6.x feature
         # try to infer the invocation url from the internal and if not exists, use external.
-        # $$$$ we do not want to use the external invocation url (e.g.: ingress, nodePort, etc)
+        # $$$$ we do not want to use the external invocation url (e.g.: ingress, nodePort, etc.)
         if (
             not force_external_address
             and self.status.internal_invocation_urls
@@ -969,16 +1075,23 @@ def _fullname(project, name):
 def get_fullname(name, project, tag):
     if project:
         name = f"{project}-{name}"
-    if tag:
+    if tag and tag != "latest":
         name = f"{name}-{tag}"
     return name
 
 
 def deploy_nuclio_function(
-    function: RemoteRuntime, dashboard="", watch=False, auth_info: AuthInfo = None
+    function: RemoteRuntime,
+    dashboard="",
+    watch=False,
+    auth_info: AuthInfo = None,
+    client_version: str = None,
+    builder_env: dict = None,
 ):
     dashboard = dashboard or mlconf.nuclio_dashboard_url
-    function_name, project_name, function_config = compile_function_config(function)
+    function_name, project_name, function_config = compile_function_config(
+        function, client_version, builder_env or {}, auth_info=auth_info
+    )
 
     # if mode allows it, enrich function http trigger with an ingress
     enrich_function_with_ingress(
@@ -1021,63 +1134,142 @@ def resolve_function_http_trigger(function_spec):
         return trigger_config
 
 
-def compile_function_config(function: RemoteRuntime):
+def compile_function_config(
+    function: RemoteRuntime,
+    client_version: str = None,
+    builder_env=None,
+    auth_info=None,
+):
     labels = function.metadata.labels or {}
     labels.update({"mlrun/class": function.kind})
     for key, value in labels.items():
         function.set_config(f"metadata.labels.{key}", value)
 
-    # Add vault configurations to function's pod spec, if vault secret source was added.
+    # Add secret configurations to function's pod spec, if secret sources were added.
     # Needs to be here, since it adds env params, which are handled in the next lines.
-    function.add_secrets_config_to_spec()
+    # This only needs to run if we're running within k8s context. If running in Docker, for example, skip.
+    if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+        function.add_secrets_config_to_spec()
 
-    env_dict, external_source_env_dict = function.get_nuclio_config_spec_env()
-    spec = nuclio.ConfigSpec(
+    env_dict, external_source_env_dict = function._get_nuclio_config_spec_env()
+    nuclio_runtime = (
+        function.spec.nuclio_runtime or mlrun.config.config.default_nuclio_runtime
+    )
+    if is_nuclio_version_in_range("0.0.0", "1.6.0") and nuclio_runtime in [
+        "python:3.7",
+        "python:3.8",
+    ]:
+        nuclio_runtime_set_from_spec = nuclio_runtime == function.spec.nuclio_runtime
+        if nuclio_runtime_set_from_spec:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Nuclio version does not support the configured runtime: {nuclio_runtime}"
+            )
+        else:
+            # our default is python:3.7, simply set it to python:3.6 to keep supporting envs with old Nuclio
+            nuclio_runtime = "python:3.6"
+
+    # In nuclio 1.6.0<=v<1.8.0 python 3.7 and 3.8 runtime default behavior was to not decode event strings
+    # Our code is counting on the strings to be decoded, so add the needed env var for those versions
+    if (
+        nuclio_runtime in ["python:3.7", "python:3.8", "python"]
+        and is_nuclio_version_in_range("1.6.0", "1.8.0")
+        and "NUCLIO_PYTHON_DECODE_EVENT_STRINGS" not in env_dict
+    ):
+        env_dict["NUCLIO_PYTHON_DECODE_EVENT_STRINGS"] = "true"
+
+    nuclio_spec = nuclio.ConfigSpec(
         env=env_dict,
         external_source_env=external_source_env_dict,
         config=function.spec.config,
     )
-    spec.cmd = function.spec.build.commands or []
+    nuclio_spec.cmd = function.spec.build.commands or []
     project = function.metadata.project or "default"
     tag = function.metadata.tag
     handler = function.spec.function_handler
 
+    if function.spec.build.source:
+        _compile_nuclio_archive_config(
+            nuclio_spec, function, builder_env, project, auth_info=auth_info
+        )
+
+    nuclio_spec.set_config("spec.runtime", nuclio_runtime)
+
     # In Nuclio >= 1.6.x default serviceType has changed to "ClusterIP".
-    spec.set_config("spec.serviceType", mlconf.httpdb.nuclio.default_service_type)
+    nuclio_spec.set_config(
+        "spec.serviceType", mlconf.httpdb.nuclio.default_service_type
+    )
     if function.spec.readiness_timeout:
-        spec.set_config("spec.readinessTimeoutSeconds", function.spec.readiness_timeout)
+        nuclio_spec.set_config(
+            "spec.readinessTimeoutSeconds", function.spec.readiness_timeout
+        )
     if function.spec.resources:
-        spec.set_config("spec.resources", function.spec.resources)
+        nuclio_spec.set_config("spec.resources", function.spec.resources)
     if function.spec.no_cache:
-        spec.set_config("spec.build.noCache", True)
+        nuclio_spec.set_config("spec.build.noCache", True)
     if function.spec.build.functionSourceCode:
-        spec.set_config(
+        nuclio_spec.set_config(
             "spec.build.functionSourceCode", function.spec.build.functionSourceCode
         )
+    # the corresponding attribute for build.secret in nuclio is imagePullSecrets, attached link for reference
+    # https://github.com/nuclio/nuclio/blob/e4af2a000dc52ee17337e75181ecb2652b9bf4e5/pkg/processor/build/builder.go#L1073
+    if function.spec.build.secret:
+        nuclio_spec.set_config("spec.imagePullSecrets", function.spec.build.secret)
+
     # don't send node selections if nuclio is not compatible
     if validate_nuclio_version_compatibility("1.5.20", "1.6.10"):
         if function.spec.node_selector:
-            spec.set_config("spec.nodeSelector", function.spec.node_selector)
+            nuclio_spec.set_config("spec.nodeSelector", function.spec.node_selector)
         if function.spec.node_name:
-            spec.set_config("spec.nodeName", function.spec.node_name)
+            nuclio_spec.set_config("spec.nodeName", function.spec.node_name)
         if function.spec.affinity:
-            spec.set_config("spec.affinity", function.spec._get_sanitized_affinity())
+            nuclio_spec.set_config(
+                "spec.affinity",
+                mlrun.runtimes.pod.get_sanitized_attribute(function.spec, "affinity"),
+            )
+
+    # don't send tolerations if nuclio is not compatible
+    if validate_nuclio_version_compatibility("1.7.5"):
+        if function.spec.tolerations:
+            nuclio_spec.set_config(
+                "spec.tolerations",
+                mlrun.runtimes.pod.get_sanitized_attribute(
+                    function.spec, "tolerations"
+                ),
+            )
+    # don't send preemption_mode if nuclio is not compatible
+    if validate_nuclio_version_compatibility("1.8.6"):
+        if function.spec.preemption_mode:
+            nuclio_spec.set_config(
+                "spec.PreemptionMode",
+                function.spec.preemption_mode,
+            )
+
     # don't send default or any priority class name if nuclio is not compatible
     if (
         function.spec.priority_class_name
         and validate_nuclio_version_compatibility("1.6.18")
         and len(mlconf.get_valid_function_priority_class_names())
     ):
-        spec.set_config("spec.priorityClassName", function.spec.priority_class_name)
+        nuclio_spec.set_config(
+            "spec.priorityClassName", function.spec.priority_class_name
+        )
 
     if function.spec.replicas:
-        spec.set_config("spec.minReplicas", function.spec.replicas)
-        spec.set_config("spec.maxReplicas", function.spec.replicas)
+        nuclio_spec.set_config("spec.minReplicas", function.spec.replicas)
+        nuclio_spec.set_config("spec.maxReplicas", function.spec.replicas)
     else:
-        spec.set_config("spec.minReplicas", function.spec.min_replicas)
-        spec.set_config("spec.maxReplicas", function.spec.max_replicas)
+        nuclio_spec.set_config("spec.minReplicas", function.spec.min_replicas)
+        nuclio_spec.set_config("spec.maxReplicas", function.spec.max_replicas)
 
-    if function.spec.base_spec or function.spec.build.functionSourceCode:
+    if function.spec.service_account:
+        nuclio_spec.set_config("spec.serviceAccount", function.spec.service_account)
+
+    if (
+        function.spec.base_spec
+        or function.spec.build.functionSourceCode
+        or function.spec.build.source
+        or function.kind == mlrun.runtimes.RuntimeKinds.serving  # serving can be empty
+    ):
         config = function.spec.base_spec
         if not config:
             # if base_spec was not set (when not using code_to_function) and we have base64 code
@@ -1086,36 +1278,62 @@ def compile_function_config(function: RemoteRuntime):
             update_in(config, "spec.handler", handler or "main:handler")
 
         config = nuclio.config.extend_config(
-            config, spec, tag, function.spec.build.code_origin
+            config, nuclio_spec, tag, function.spec.build.code_origin
         )
         update_in(config, "metadata.name", function.metadata.name)
         update_in(config, "spec.volumes", function.spec.generate_nuclio_volumes())
-        base_image = get_in(config, "spec.build.baseImage") or function.spec.image
+        base_image = (
+            get_in(config, "spec.build.baseImage")
+            or function.spec.image
+            or function.spec.build.base_image
+        )
         if base_image:
-            update_in(config, "spec.build.baseImage", enrich_image_url(base_image))
+            update_in(
+                config,
+                "spec.build.baseImage",
+                enrich_image_url(base_image, client_version),
+            )
 
         logger.info("deploy started")
         name = get_fullname(function.metadata.name, project, tag)
         function.status.nuclio_name = name
         update_in(config, "metadata.name", name)
-    else:
 
+        if (
+            function.kind == mlrun.runtimes.RuntimeKinds.serving
+            and not function.spec.function_handler
+            and not get_in(config, "spec.build.functionSourceCode")
+        ):
+            # if the serving function does not have source code, add the mlrun wrapper
+            update_in(
+                config,
+                "spec.handler",
+                "mlrun.serving.serving_wrapper:handler",
+            )
+    else:
+        # todo: should be deprecated (only work via MLRun service)
+        # this may also be called in case of using single file code_to_function(embed_code=False)
+        # this option need to be removed or be limited to using remote files (this code runs in server)
         name, config, code = nuclio.build_file(
             function.spec.source,
             name=function.metadata.name,
             project=project,
             handler=handler,
             tag=tag,
-            spec=spec,
+            spec=nuclio_spec,
             kind=function.spec.function_kind,
             verbose=function.verbose,
         )
 
         update_in(config, "spec.volumes", function.spec.generate_nuclio_volumes())
-        if function.spec.image:
+        base_image = function.spec.image or function.spec.build.base_image
+        if base_image:
             update_in(
-                config, "spec.build.baseImage", enrich_image_url(function.spec.image)
+                config,
+                "spec.build.baseImage",
+                enrich_image_url(base_image, client_version),
             )
+
         name = get_fullname(name, project, tag)
         function.status.nuclio_name = name
 
@@ -1125,7 +1343,6 @@ def compile_function_config(function: RemoteRuntime):
 
 
 def enrich_function_with_ingress(config, mode, service_type):
-
     # do not enrich with an ingress
     if mode == NuclioIngressAddTemplatedIngressModes.never:
         return
@@ -1140,7 +1357,6 @@ def enrich_function_with_ingress(config, mode, service_type):
     # we would enrich it with an ingress
     http_trigger = resolve_function_http_trigger(config["spec"])
     if not http_trigger:
-
         # function has an HTTP trigger without an ingress
         # TODO: read from nuclio-api frontend-spec
         http_trigger = {
@@ -1197,3 +1413,140 @@ def get_nuclio_deploy_status(
 
     text = "\n".join(outputs) if outputs else ""
     return state, address, name, last_log_timestamp, text, function_status
+
+
+def _compile_nuclio_archive_config(
+    nuclio_spec,
+    function: RemoteRuntime,
+    builder_env,
+    project=None,
+    auth_info=None,
+):
+    secrets = {}
+    if project and get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+        secrets = get_k8s_helper().get_project_secret_data(project)
+
+    def get_secret(key):
+        return builder_env.get(key) or secrets.get(key, "")
+
+    source = function.spec.build.source
+    parsed_url = urlparse(source)
+    code_entry_type = ""
+    if source.startswith("s3://"):
+        code_entry_type = "s3"
+    if source.startswith("git://"):
+        code_entry_type = "git"
+    for archive_prefix in ["http://", "https://", "v3io://", "v3ios://"]:
+        if source.startswith(archive_prefix):
+            code_entry_type = "archive"
+
+    if code_entry_type == "":
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Couldn't resolve code entry type from source"
+        )
+
+    code_entry_attributes = {}
+
+    # resolve work_dir and handler
+    work_dir, handler = _resolve_work_dir_and_handler(function.spec.function_handler)
+    work_dir = function.spec.workdir or work_dir
+    if work_dir != "":
+        code_entry_attributes["workDir"] = work_dir
+
+    # archive
+    if code_entry_type == "archive":
+        v3io_access_key = builder_env.get("V3IO_ACCESS_KEY", "")
+        if source.startswith("v3io"):
+            if not parsed_url.netloc:
+                source = mlrun.mlconf.v3io_api + parsed_url.path
+            else:
+                source = f"http{source[len('v3io'):]}"
+            if auth_info and not v3io_access_key:
+                v3io_access_key = auth_info.data_session or auth_info.access_key
+
+        if v3io_access_key:
+            code_entry_attributes["headers"] = {"X-V3io-Session-Key": v3io_access_key}
+
+    # s3
+    if code_entry_type == "s3":
+        bucket, item_key = parse_s3_bucket_and_key(source)
+
+        code_entry_attributes["s3Bucket"] = bucket
+        code_entry_attributes["s3ItemKey"] = item_key
+
+        code_entry_attributes["s3AccessKeyId"] = get_secret("AWS_ACCESS_KEY_ID")
+        code_entry_attributes["s3SecretAccessKey"] = get_secret("AWS_SECRET_ACCESS_KEY")
+        code_entry_attributes["s3SessionToken"] = get_secret("AWS_SESSION_TOKEN")
+
+    # git
+    if code_entry_type == "git":
+
+        # change git:// to https:// as nuclio expects it to be
+        if source.startswith("git://"):
+            source = source.replace("git://", "https://")
+
+        source, reference, branch = _resolve_git_reference_from_source(source)
+        if not branch and not reference:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "git branch or refs must be specified in the source e.g.: "
+                "'git://<url>/org/repo.git#<branch-name or refs/heads/..>'"
+            )
+        if reference:
+            code_entry_attributes["reference"] = reference
+        if branch:
+            code_entry_attributes["branch"] = branch
+
+        password = get_secret("GIT_PASSWORD")
+        token = get_secret("GIT_TOKEN")
+        if token:
+            password = "x-oauth-basic"
+        code_entry_attributes["username"] = token or get_secret("GIT_USERNAME")
+        code_entry_attributes["password"] = password
+
+    # populate spec with relevant fields
+    nuclio_spec.set_config("spec.handler", handler)
+    nuclio_spec.set_config("spec.build.path", source)
+    nuclio_spec.set_config("spec.build.codeEntryType", code_entry_type)
+    nuclio_spec.set_config("spec.build.codeEntryAttributes", code_entry_attributes)
+
+
+def _resolve_git_reference_from_source(source):
+    # kaniko allow multiple "#" e.g. #refs/..#commit
+    split_source = source.split("#", 1)
+
+    # no reference was passed
+    if len(split_source) < 2:
+        return source, "", ""
+
+    reference = split_source[1]
+    if reference.startswith("refs/"):
+        return split_source[0], reference, ""
+
+    return split_source[0], "", reference
+
+
+def _resolve_work_dir_and_handler(handler):
+    """
+    Resolves a nuclio function working dir and handler inside an archive/git repo
+    :param handler: a path describing working dir and handler of a nuclio function
+    :return: (working_dir, handler) tuple, as nuclio expects to get it
+
+    Example: ("a/b/c#main:Handler") -> ("a/b/c", "main:Handler")
+    """
+
+    def extend_handler(base_handler):
+        # return default handler and module if not specified
+        if not base_handler:
+            return "main:handler"
+        if ":" not in base_handler:
+            base_handler = f"{base_handler}:handler"
+        return base_handler
+
+    if not handler:
+        return "", "main:handler"
+
+    split_handler = handler.split("#")
+    if len(split_handler) == 1:
+        return "", extend_handler(handler)
+
+    return split_handler[0], extend_handler(split_handler[1])

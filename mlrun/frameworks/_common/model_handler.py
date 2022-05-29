@@ -5,30 +5,28 @@ import shutil
 import sys
 import zipfile
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generic, List, TypeVar, Union
+from types import MethodType
+from typing import Any, Dict, Generic, List, Type, Union
 
 import numpy as np
 
 import mlrun
 from mlrun.artifacts import Artifact, ModelArtifact
 from mlrun.data_types import ValueType
+from mlrun.execution import MLClientCtx
 from mlrun.features import Feature
 
-# Generic type variables:
-Model = TypeVar("Model")  # For the model type in the handler.
-IOSample = TypeVar("IOSample")  # For reading an inout / output samples.
-
-# Extra data types:
-ExtraDataType = Union[str, bytes, Artifact, mlrun.DataItem]
+from .mlrun_interface import MLRunInterface
+from .utils import ExtraDataType, IOSampleType, ModelType, PathType
 
 
-class ModelHandler(ABC, Generic[Model, IOSample]):
+class ModelHandler(ABC, Generic[ModelType, IOSampleType]):
     """
     An abstract interface for handling a model of the supported frameworks.
     """
 
     # Framework name:
-    _FRAMEWORK_NAME = None  # type: str
+    FRAMEWORK_NAME = None  # type: str
 
     # Constant artifact names:
     _MODEL_FILE_ARTIFACT_NAME = "{}_model_file"
@@ -41,24 +39,29 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
 
     def __init__(
         self,
-        model_name: str,
-        model_path: str = None,
-        model: Model = None,
-        modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
-        custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
-        custom_objects_directory: str = None,
-        context: mlrun.MLClientCtx = None,
+        model: ModelType = None,
+        model_path: PathType = None,
+        model_name: str = None,
+        modules_map: Union[Dict[str, Union[None, str, List[str]]], PathType] = None,
+        custom_objects_map: Union[Dict[str, Union[str, List[str]]], PathType] = None,
+        custom_objects_directory: PathType = None,
+        context: MLClientCtx = None,
+        **kwargs,
     ):
         """
         Initialize the handler. The model can be set here so it won't require loading. Note you must provide at least
         one of 'model' and 'model_path'. If a model is not given, the files in the model path will be collected
         automatically to be ready for loading.
 
-        :param model_name:               The model name for saving and logging the model.
+        :param model:                    Model to handle or None in case a loading parameters were supplied.
         :param model_path:               Path to the directory with the model files. Can be passed as a model object
                                          path in the following format:
                                          'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'
-        :param model:                    Model to handle or None in case a loading parameters were supplied.
+        :param model_name:               The model name for saving and logging the model:
+                                         * Mandatory for loading the model from a local path.
+                                         * If given a logged model (store model path) it will be read from the artifact.
+                                         * If given a loaded model object and the model name is None, the name will be
+                                           set to the model's object name / class.
         :param modules_map:              A dictionary of all the modules required for loading the model. Each key
                                          is a path to a module and its value is the object name to import from it. All
                                          the modules will be imported globally. If multiple objects needed to be
@@ -104,6 +107,10 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
             custom_objects_directory=custom_objects_directory,
         )
 
+        # Set a default model name if needed - the class name of the given model:
+        if model_name is None and model is not None:
+            model_name = type(model).__name__
+
         # Store parameters:
         self._model_name = model_name
         self._model_path = model_path
@@ -120,20 +127,29 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         self._custom_objects = None  # type: Dict[str, Any]
 
         # Local path to the model's primary file:
-        self._model_file = None  # type: str
+        self._model_file = kwargs.get("model_file", None)  # type: str
 
         # If the model path is of a store model object, this will be the 'ModelArtifact' object.
-        self._model_artifact = None  # type: ModelArtifact
+        self._model_artifact = kwargs.get("model_artifact", None)  # type: ModelArtifact
 
         # If the model path is of a store model object, this will be the extra data as DataItems ready to be downloaded.
-        self._extra_data = {}  # type: Dict[str, mlrun.DataItem]
+        self._extra_data = kwargs.get(
+            "extra_data", {}
+        )  # type: Dict[str, ExtraDataType]
+
+        # If the model key is passed, override the default:
+        self._model_key = kwargs.get("model_key", "model")
 
         # Setup additional properties for logging the model into a ModelArtifact:
+        self._tag = ""
         self._inputs = None  # type: List[Feature]
         self._outputs = None  # type: List[Feature]
         self._labels = {}  # type: Dict[str, Union[str, int, float]]
         self._parameters = {}  # type: Dict[str, Union[str, int, float]]
-        self._committed_artifacts = {}  # type: Dict[str, Artifact]
+        self._registered_artifacts = {}  # type: Dict[str, Artifact]
+
+        # Set a flag to know if the user logged the model so its artifact is cached:
+        self._is_logged = False
 
         # Collect the relevant files of the model into the handler (only in case the model was not provided):
         if model is None:
@@ -149,7 +165,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         return self._model_name
 
     @property
-    def model(self) -> Model:
+    def model(self) -> ModelType:
         """
         Get the handled model. Will return None in case the model is not initialized.
 
@@ -165,6 +181,24 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         :return: The model file path.
         """
         return self._model_file
+
+    @property
+    def context(self) -> mlrun.MLClientCtx:
+        """
+        Get the handler's MLRun context.
+
+        :return: The handler's MLRun context.
+        """
+        return self._context
+
+    @property
+    def tag(self) -> str:
+        """
+        Get the model's tag.
+
+        :return: The model's tag.
+        """
+        return self._tag
 
     @property
     def inputs(self) -> Union[List[Feature], None]:
@@ -215,8 +249,8 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         :return: The artifacts registered to this model.
         """
         if committed_only:
-            return self._committed_artifacts
-        return {**self._extra_data, **self._committed_artifacts}
+            return self._registered_artifacts
+        return {**self._extra_data, **self._registered_artifacts}
 
     def set_model_name(self, model_name: str):
         """
@@ -228,7 +262,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         """
         self._model_name = model_name
 
-    def set_context(self, context: mlrun.MLClientCtx):
+    def set_context(self, context: MLClientCtx):
         """
         Set this handler MLRun context.
 
@@ -236,7 +270,17 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         """
         self._context = context
 
-    def set_inputs(self, from_sample: IOSample = None, features: List[Feature] = None):
+    def set_tag(self, tag: str):
+        """
+        Set the tag this model will be logged with.
+
+        :param tag: The model tag to set.
+        """
+        self._tag = tag
+
+    def set_inputs(
+        self, from_sample: IOSampleType = None, features: List[Feature] = None, **kwargs
+    ):
         """
         Read the inputs property of this model to be logged along with it. The inputs can be set directly by passing the
         input features or to be read by a given input sample.
@@ -260,7 +304,9 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
             else self._read_io_samples(samples=from_sample)
         )
 
-    def set_outputs(self, from_sample: IOSample = None, features: List[Feature] = None):
+    def set_outputs(
+        self, from_sample: IOSampleType = None, features: List[Feature] = None, **kwargs
+    ):
         """
         Read the outputs property of this model to be logged along with it. The outputs can be set directly by passing
         the output features or to be read by a given output sample.
@@ -284,43 +330,62 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
             else self._read_io_samples(samples=from_sample)
         )
 
-    def update_labels(
+    def set_labels(
         self,
-        to_update: Dict[str, Union[str, int, float]] = None,
+        to_add: Dict[str, Union[str, int, float]] = None,
         to_remove: List[str] = None,
     ):
         """
         Update the labels dictionary of this model artifact.
 
-        :param to_update: The labels to update.
+        :param to_add:    The labels to add.
         :param to_remove: A list of labels keys to remove.
         """
         # Update the labels:
-        self._labels = {**self._labels, **(to_update if to_update is not None else {})}
+        if to_add is not None:
+            self._labels.update(to_add)
 
         # Remove labels:
         if to_remove is not None:
             for label in to_remove:
                 self._labels.pop(label)
 
-    def update_parameters(
+    def set_parameters(
         self,
-        to_update: Dict[str, Union[str, int, float]] = None,
+        to_add: Dict[str, Union[str, int, float]] = None,
         to_remove: List[str] = None,
     ):
         """
         Update the parameters dictionary of this model artifact.
 
-        :param to_update: The parameters to update.
+        :param to_add:    The parameters to add.
         :param to_remove: A list of parameters keys to remove.
         """
         # Update the parameters:
-        self._parameters = {
-            **self._parameters,
-            **(to_update if to_update is not None else {}),
-        }
+        if to_add is not None:
+            self._parameters.update(to_add)
 
         # Remove parameters:
+        if to_remove is not None:
+            for label in to_remove:
+                self._parameters.pop(label)
+
+    def set_extra_data(
+        self,
+        to_add: Dict[str, ExtraDataType] = None,
+        to_remove: List[str] = None,
+    ):
+        """
+        Update the extra data dictionary of this model artifact.
+
+        :param to_add:    The extra data to add.
+        :param to_remove: A list of extra data keys to remove.
+        """
+        # Update the extra data:
+        if to_add is not None:
+            self._extra_data.update(to_add)
+
+        # Remove extra data:
         if to_remove is not None:
             for label in to_remove:
                 self._parameters.pop(label)
@@ -345,11 +410,11 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
             artifacts = {artifact.key: artifact for artifact in artifacts}
 
         # Register the artifacts:
-        self._committed_artifacts = {**self._committed_artifacts, **artifacts}
+        self._registered_artifacts = {**self._registered_artifacts, **artifacts}
 
     @abstractmethod
     def save(
-        self, output_path: str = None, **kwargs
+        self, output_path: PathType = None, **kwargs
     ) -> Union[Dict[str, Artifact], None]:
         """
         Save the handled model at the given output path.
@@ -408,23 +473,30 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
 
     def log(
         self,
+        tag: str = "",
         labels: Dict[str, Union[str, int, float]] = None,
         parameters: Dict[str, Union[str, int, float]] = None,
         inputs: List[Feature] = None,
         outputs: List[Feature] = None,
         metrics: Dict[str, Union[int, float]] = None,
         artifacts: Dict[str, Artifact] = None,
-        extra_data: Dict[str, Any] = None,
+        extra_data: Dict[str, ExtraDataType] = None,
+        **kwargs,
     ):
         """
-        Log the model held by this handler into the MLRun context provided.
+        Log the model held by this handler into the MLRun context provided. The stored values such as labels, parameters
+        and artifacts will be used and updated where tag, inputs and outputs will be overridden if given here.
 
-        :param labels:     Labels to log the model with.
-        :param parameters: Parameters to log with the model.
-        :param inputs:     A list of features this model expects to receive - the model's input ports.
-        :param outputs:    A list of features this model expects to return - the model's output ports.
+        :param tag:        Tag of a version to give to the logged model. Will override the stored tag in this handler.
+        :param labels:     Labels to log the model with. Will be joined to the labels set.
+        :param parameters: Parameters to log with the model. Will be joined to the parameters set.
+        :param inputs:     A list of features this model expects to receive - the model's input ports. If already set,
+                           will be overridden by the inputs given here.
+        :param outputs:    A list of features this model expects to return - the model's output ports. If already set,
+                           will be overridden by the outputs given here.
         :param metrics:    Metrics results to log with the model.
-        :param artifacts:  Artifacts to log the model with. Will be added to the extra data.
+        :param artifacts:  Artifacts to log the model with. Will be joined to the registered artifacts and added to the
+                           extra data.
         :param extra_data: Extra data to log with the model.
 
         :raise MLRunRuntimeError:         In case is no model in this handler.
@@ -457,30 +529,52 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         if outputs is not None:
             self.set_outputs(features=outputs)
 
+        # Update the tag:
+        if tag != "":
+            self.set_tag(tag=tag)
+
         # Update labels and parameters:
-        self.update_labels(to_update=labels)
-        self.update_parameters(to_update=parameters)
+        self.set_labels(to_add=labels)
+        self.set_parameters(to_add=parameters)
+
+        # Update the extra data:
+        self._extra_data = {
+            **self._extra_data,
+            **(model_artifacts if model_artifacts is not None else {}),
+            **self._registered_artifacts,
+            **(artifacts if artifacts is not None else {}),
+            **(extra_data if extra_data is not None else {}),
+            **modules_artifacts,
+            **custom_objects_artifacts,
+        }
+        self._registered_artifacts = {}
 
         # Log the model:
-        self._context.log_model(
-            self._model_name,
+        self._model_artifact = self._context.log_model(
+            key=self._model_key,
             db_key=self._model_name,
             model_file=self._model_file,
+            tag=self._tag,
             inputs=self._inputs,
             outputs=self._outputs,
-            framework=self._FRAMEWORK_NAME,
+            framework=self.FRAMEWORK_NAME,
             labels=self._labels,
             parameters=self._parameters,
             metrics=metrics,
             extra_data={
-                **(model_artifacts if model_artifacts is not None else {}),
-                **modules_artifacts,
-                **custom_objects_artifacts,
-                **self._committed_artifacts,
-                **(artifacts if artifacts is not None else {}),
-                **(extra_data if extra_data is not None else {}),
+                k: v
+                for k, v in self._extra_data.items()
+                if not isinstance(v, mlrun.DataItem)
             },
+            algorithm=kwargs.get("algorithm", None),
+            training_set=kwargs.get("sample_set", None),
+            label_column=kwargs.get("y_columns", None),
+            feature_vector=kwargs.get("feature_vector", None),
+            feature_weights=kwargs.get("feature_weights", None),
         )
+
+        # Mark the model is logged:
+        self._is_logged = True
 
     def update(
         self,
@@ -491,57 +585,91 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         metrics: Dict[str, Union[int, float]] = None,
         artifacts: Dict[str, Artifact] = None,
         extra_data: Dict[str, ExtraDataType] = None,
+        **kwargs,
     ):
         """
-        Log the model held by this handler into the MLRun context provided, updating the model's artifact properties in
-        the same model path provided.
+        Update the model held by this handler into the MLRun context provided, updating the model's artifact properties
+        in the same model path provided.
 
         :param labels:     Labels to update or add to the model.
         :param parameters: Parameters to update or add to the model.
-        :param inputs:     A list of features this model expects to receive - the model's input ports.
-        :param outputs:    A list of features this model expects to return - the model's output ports.
+        :param inputs:     A list of features this model expects to receive - the model's input ports. If already set,
+                           will be overridden by the inputs given here.
+        :param outputs:    A list of features this model expects to return - the model's output ports. If already set,
+                           will be overridden by the outputs given here.
         :param metrics:    Metrics results to log with the model.
-        :param artifacts:  Artifacts to update or add to the model. Will be added to the extra data.
+        :param artifacts:  Artifacts to update or add to the model. Will be joined to the registered artifacts and added
+                           to the extra data.
         :param extra_data: Extra data to update or add to the model.
 
         :raise MLRunInvalidArgumentError: In case a context is missing or the model path in this handler is missing or
                                           not of a store object.
         """
         # Validate model path:
-        if self._model_path is None:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Cannot update model if 'model_path' is not provided."
-            )
-        elif not mlrun.datastore.is_store_uri(self._model_path):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "To update a model artifact the 'model_path' must be a store object."
-            )
+        if self._model_artifact is None:
+            if self._model_path is None:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Cannot update model if 'model_path' is not provided or if the model was never logged with this "
+                    "handler."
+                )
+            elif not mlrun.datastore.is_store_uri(self._model_path):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "To update a model artifact the 'model_path' must be a store object."
+                )
 
         # Read inputs and outputs ports:
-        self.set_inputs(features=inputs)
-        self.set_outputs(features=outputs)
+        if inputs is not None:
+            self.set_inputs(features=inputs)
+        if outputs is not None:
+            self.set_outputs(features=outputs)
 
         # Update labels and parameters:
-        self.update_labels(to_update=labels)
-        self.update_parameters(to_update=parameters)
+        self.set_labels(to_add=labels)
+        self.set_parameters(to_add=parameters)
 
-        # Update the model:
-        mlrun.artifacts.update_model(
-            model_artifact=self._model_path,
+        # Update the extra data:
+        self._extra_data = {
+            **self._extra_data,
+            **self._registered_artifacts,
+            **(artifacts if artifacts is not None else {}),
+            **(extra_data if extra_data is not None else {}),
+        }
+        self._registered_artifacts = {}
+
+        # Get the model artifact. If the model was logged during this run, use the cached artifact, otherwise use the
+        # user's given model path:
+        model_artifact = (
+            self._context.get_cached_artifact(self._model_name)
+            if self._is_logged
+            else self._model_path
+        )
+
+        # Update the model artifact:
+        self._model_artifact = mlrun.artifacts.update_model(
+            model_artifact=model_artifact,
             labels=self._labels,
             parameters=self._parameters,
             inputs=self._inputs,
             outputs=self._outputs,
             metrics=metrics,
             extra_data={
-                **self._committed_artifacts,
-                **(artifacts if artifacts is None else {}),
-                **(extra_data if extra_data is None else {}),
+                k: v
+                for k, v in self._extra_data.items()
+                if not isinstance(v, mlrun.DataItem)
             },
+            feature_vector=kwargs.get("feature_vector", None),
+            feature_weights=kwargs.get("feature_weights", None),
+            store_object=not self._is_logged,  # If the model was not logged, store the updated model in the database.
         )
+        if self._is_logged:
+            self._context.update_artifact(
+                self._model_artifact
+            )  # Update the cached model to the database.
 
     @staticmethod
-    def convert_value_type_to_np_dtype(value_type: str) -> np.dtype:
+    def convert_value_type_to_np_dtype(
+        value_type: str,
+    ) -> np.dtype:  # TODO: Move to utils
         """
         Get the 'tensorflow.DType' equivalent to the given MLRun value type.
 
@@ -575,7 +703,9 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         )
 
     @staticmethod
-    def convert_np_dtype_to_value_type(np_dtype: Union[np.dtype, type, str]) -> str:
+    def convert_np_dtype_to_value_type(
+        np_dtype: Union[np.dtype, type, str]
+    ) -> str:  # TODO: Move to utils
         """
         Convert the given numpy data type to MLRun value type. It is better to use explicit bit namings (for example:
         instead of using 'np.double', use 'np.float64').
@@ -627,7 +757,6 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
             f"MLRun value type is not supporting the given numpy data type: '{np_dtype}'."
         )
 
-    @abstractmethod
     def _collect_files_from_store_object(self):
         """
         If the model path given is of a store object, collect the needed model files into this handler for later loading
@@ -638,8 +767,8 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
             self.set_inputs(features=list(self._model_artifact.inputs))
         if len(self._model_artifact.outputs) > 0:
             self.set_outputs(features=list(self._model_artifact.outputs))
-        self.update_labels(to_update=self._model_artifact.labels)
-        self.update_parameters(to_update=self._model_artifact.parameters)
+        self.set_labels(to_add=self._model_artifact.labels)
+        self.set_parameters(to_add=self._model_artifact.parameters)
 
         # Read the modules:
         if self._get_modules_map_artifact_name() in self._extra_data:
@@ -729,8 +858,29 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
 
         # Collect by the path's type:
         if mlrun.datastore.is_store_uri(self._model_path):
+            # Check if the model object was already downloaded:
+            if (
+                self._model_file is None
+                and self._model_artifact is None
+                and self._extra_data == {}
+            ):
+                # Get the artifact and model file along with its extra data:
+                (
+                    self._model_file,
+                    self._model_artifact,
+                    self._extra_data,
+                ) = mlrun.artifacts.get_model(self._model_path)
+            # Check if the model name was not provided:
+            if self._model_name is None:
+                self._model_name = self._model_artifact.db_key
+            # Continue to collect the files from the store object each framework requires:
             self._collect_files_from_store_object()
         else:
+            if self._model_name is None:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "The model name must be provided in the handler's initialization in order to collect the required "
+                    "model files from a local path."
+                )
             self._collect_files_from_local_path()
 
     def _import_modules(self):
@@ -890,7 +1040,8 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         return artifacts
 
     def _read_io_samples(
-        self, samples: Union[IOSample, List[IOSample]],
+        self,
+        samples: Union[IOSampleType, List[IOSampleType]],
     ) -> List[Feature]:
         """
         Read the given inputs / output sample to / from the model into a list of MLRun Features (ports) to log in
@@ -906,7 +1057,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
 
         return [self._read_sample(sample=sample) for sample in samples]
 
-    def _read_sample(self, sample: IOSample) -> Feature:
+    def _read_sample(self, sample: IOSampleType) -> Feature:
         """
         Read the sample into a MLRun Feature. This abstract class is reading samples of 'numpy.ndarray'. For further
         types of samples, please inherit this method.
@@ -931,7 +1082,7 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
         )
 
     @staticmethod
-    def _validate_model_parameters(model_path: str, model: Model):
+    def _validate_model_parameters(model_path: str, model: ModelType):
         """
         Validate the given model parameters.
 
@@ -1116,3 +1267,67 @@ class ModelHandler(ABC, Generic[Model, IOSample]):
                 objects_imports[object_name] = getattr(module, object_name)
 
         return objects_imports
+
+
+def with_mlrun_interface(interface: Type[MLRunInterface]):
+    """
+    Decorator configure for decorating a ModelHandler method (expecting 'self' to be the first argument) to add the
+    given MLRun interface into the model before executing the method and remove it afterwards.
+
+    :param interface: The MLRun interface to add.
+
+    :return: The method decorator.
+    """
+
+    def decorator(model_handler_method: MethodType):
+        def wrapper(model_handler: ModelHandler, *args, **kwargs):
+            # Check if the interface is applied to the model inside the handler:
+            is_applied = interface.is_applied(obj=model_handler.model)
+            # If the interface is not applied, add it:
+            if not is_applied:
+                interface.add_interface(obj=model_handler.model)
+            # Call the method:
+            returned_value = model_handler_method(self=model_handler, *args, **kwargs)
+            # If the interface was not applied, remove it:
+            if not is_applied:
+                interface.remove_interface(obj=model_handler.model)
+            return returned_value
+
+        return wrapper
+
+    return decorator
+
+
+def without_mlrun_interface(interface: Type[MLRunInterface]):
+    """
+    Decorator configure for decorating a ModelHandler method (expecting 'self' to be the first argument) to remove the
+    given MLRun interface from the model before executing the method and restore it afterwards.
+
+    :param interface: The MLRun interface to remove.
+
+    :return: The method decorator.
+    """
+
+    def decorator(model_handler_method: MethodType):
+        def wrapper(model_handler: ModelHandler, *args, **kwargs):
+            # Check if the interface is applied to the model inside the handler:
+            is_applied = interface.is_applied(obj=model_handler.model)
+            # If the interface is applied, remove it:
+            restoration_information = None
+            if is_applied:
+                restoration_information = interface.remove_interface(
+                    obj=model_handler.model
+                )
+            # Call the method:
+            returned_value = model_handler_method(self=model_handler, *args, **kwargs)
+            # If the interface was applied, add it:
+            if is_applied:
+                interface.add_interface(
+                    obj=model_handler.model,
+                    restoration_information=restoration_information,
+                )
+            return returned_value
+
+        return wrapper
+
+    return decorator

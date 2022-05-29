@@ -1,6 +1,5 @@
 import asyncio
 import concurrent.futures
-import os
 import traceback
 import uuid
 
@@ -10,7 +9,9 @@ import uvicorn
 import uvicorn.protocols.utils
 from fastapi.exception_handlers import http_exception_handler
 
+import mlrun.api.schemas
 import mlrun.errors
+import mlrun.utils.version
 from mlrun.api.api.api import api_router
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.initial_data import init_data
@@ -30,19 +31,26 @@ from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes import RuntimeKinds, get_runtime_handler
 from mlrun.utils import logger
 
+API_PREFIX = "/api"
+BASE_VERSIONED_API_PREFIX = f"{API_PREFIX}/v1"
+
+
 app = fastapi.FastAPI(
     title="MLRun",
     description="Machine Learning automation and tracking",
     version=config.version,
     debug=config.httpdb.debug,
     # adding /api prefix
-    openapi_url="/api/openapi.json",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
+    openapi_url=f"{BASE_VERSIONED_API_PREFIX}/openapi.json",
+    docs_url=f"{BASE_VERSIONED_API_PREFIX}/docs",
+    redoc_url=f"{BASE_VERSIONED_API_PREFIX}/redoc",
     default_response_class=fastapi.responses.ORJSONResponse,
 )
-
-app.include_router(api_router, prefix="/api")
+app.include_router(api_router, prefix=BASE_VERSIONED_API_PREFIX)
+# This is for backward compatibility, that is why we still leave it here but not include it in the schema
+# so new users won't use the old un-versioned api
+# TODO: remove when 0.9.x versions are no longer relevant
+app.include_router(api_router, prefix=API_PREFIX, include_in_schema=False)
 
 
 @app.exception_handler(Exception)
@@ -142,36 +150,47 @@ async def log_request_response(request: fastapi.Request, call_next):
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info("configuration dump", dumped_config=config.dump_yaml())
+    logger.info(
+        "configuration dump",
+        dumped_config=config.dump_yaml(),
+        version=mlrun.utils.version.Version().get(),
+    )
     loop = asyncio.get_running_loop()
-    # Using python 3.8 default instead of 3.7 one - max(1, os.cpu_count()) * 5 cause it's causing to high memory
-    # consumption - https://bugs.python.org/issue35279
-    # TODO: remove when moving to python 3.8
-    max_workers = config.httpdb.max_workers or min(32, os.cpu_count() + 4)
     loop.set_default_executor(
-        concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+        concurrent.futures.ThreadPoolExecutor(
+            max_workers=int(config.httpdb.max_workers)
+        )
     )
 
-    await _initialize_singletons()
+    initialize_logs_dir()
+    initialize_db()
 
-    # periodic cleanup is not needed if we're not inside kubernetes cluster
-    if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
-        _start_periodic_cleanup()
-        _start_periodic_runs_monitoring()
+    if config.httpdb.state == mlrun.api.schemas.APIStates.online:
+        await move_api_to_online()
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    get_project_member().shutdown()
+    if get_project_member():
+        get_project_member().shutdown()
     cancel_all_periodic_functions()
-    await get_scheduler().stop()
+    if get_scheduler():
+        await get_scheduler().stop()
 
 
-async def _initialize_singletons():
-    initialize_logs_dir()
-    initialize_db()
+async def move_api_to_online():
+    logger.info("Moving api to online")
     initialize_project_member()
     await initialize_scheduler()
+    # runs cleanup/monitoring is not needed if we're not inside kubernetes cluster
+    # periodic functions should only run on the chief instance
+    if (
+        get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
+        and config.httpdb.clusterization.role
+        == mlrun.api.schemas.ClusterizationRole.chief
+    ):
+        _start_periodic_cleanup()
+        _start_periodic_runs_monitoring()
 
 
 def _start_periodic_cleanup():
@@ -224,6 +243,11 @@ def _cleanup_runtimes():
 
 def main():
     init_data()
+    logger.info(
+        "Starting API server",
+        port=config.httpdb.port,
+        debug=config.httpdb.debug,
+    )
     uvicorn.run(
         "mlrun.api.main:app",
         host="0.0.0.0",

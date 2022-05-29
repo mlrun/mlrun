@@ -13,6 +13,8 @@ from sqlalchemy import and_, distinct, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, aliased
 
+import mlrun
+import mlrun.api.db.session
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.errors
 from mlrun.api import schemas
@@ -46,20 +48,70 @@ from mlrun.config import config
 from mlrun.lists import ArtifactList, FunctionList, RunList
 from mlrun.model import RunObject
 from mlrun.utils import (
-    as_list,
     fill_function_hash,
     fill_object_hash,
     generate_artifact_uri,
     generate_object_uri,
     get_in,
+    is_legacy_artifact,
     logger,
-    match_times,
     update_in,
 )
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 unversioned_tagged_object_uid_prefix = "unversioned-"
+
+
+conflict_messages = [
+    "(sqlite3.IntegrityError) UNIQUE constraint failed",
+    "(pymysql.err.IntegrityError) (1062",
+    "(pymysql.err.IntegrityError) (1586",
+]
+
+
+def retry_on_conflict(function):
+    """
+    Most of our store_x functions starting from doing get, then if nothing is found creating the object otherwise
+    updating attributes on the existing object. On the SQL level this translates to either INSERT or UPDATE queries.
+    Sometimes we have a race condition in which two requests do the get, find nothing, create a new object, but only the
+    SQL query of the first one will succeed, the second will get a conflict error, in that case, a retry like we're
+    doing on the bottom most layer (like the one for the database is locked error) won't help, cause the object does not
+    hold a reference to the existing DB object, and therefore will always translate to an INSERT query, therefore, in
+    order to make it work, we need to do the get again, and in other words, call the whole store_x function again
+    This why we implemented this retry as a decorator that comes "around" the existing functions
+    """
+
+    def wrapper(*args, **kwargs):
+        def _try_function():
+            try:
+                return function(*args, **kwargs)
+            except Exception as exc:
+
+                if mlrun.utils.helpers.are_strings_in_exception_chain_messages(
+                    exc, conflict_messages
+                ):
+                    logger.warning("Got conflict error from DB. Retrying", err=str(exc))
+                    raise mlrun.errors.MLRunRuntimeError(
+                        "Got conflict error from DB"
+                    ) from exc
+                raise mlrun.errors.MLRunFatalFailureError(original_exception=exc)
+
+        if config.httpdb.db.conflict_retry_timeout:
+            interval = config.httpdb.db.conflict_retry_interval
+            if interval is None:
+                interval = mlrun.utils.create_step_backoff([[0.0001, 1], [3, None]])
+            return mlrun.utils.helpers.retry_until_successful(
+                interval,
+                config.httpdb.db.conflict_retry_timeout,
+                logger,
+                False,
+                _try_function,
+            )
+        else:
+            return function(*args, **kwargs)
+
+    return wrapper
 
 
 class SQLDB(DBInterface):
@@ -74,7 +126,12 @@ class SQLDB(DBInterface):
         pass
 
     def store_log(
-        self, session, uid, project="", body=b"", append=False,
+        self,
+        session,
+        uid,
+        project="",
+        body=b"",
+        append=False,
     ):
         raise NotImplementedError("DB should not be used for logs storage")
 
@@ -93,28 +150,43 @@ class SQLDB(DBInterface):
     def _list_logs(self, session: Session, project: str):
         return self._query(session, Log, project=project).all()
 
+    @retry_on_conflict
     def store_run(
-        self, session, run_data, uid, project="", iter=0,
+        self,
+        session,
+        run_data,
+        uid,
+        project="",
+        iter=0,
     ):
         logger.debug(
             "Storing run to db", project=project, uid=uid, iter=iter, run=run_data
         )
         run = self._get_run(session, uid, project, iter)
+        now = datetime.now(timezone.utc)
         if not run:
             run = Run(
+                name=run_data["metadata"]["name"],
                 uid=uid,
                 project=project,
                 iteration=iter,
                 state=run_state(run_data),
-                start_time=run_start_time(run_data) or datetime.now(timezone.utc),
+                start_time=run_start_time(run_data) or now,
             )
+        self._ensure_run_name_on_update(run, run_data)
         labels = run_labels(run_data)
-        new_state = run_state(run_data)
-        if new_state:
-            run.state = new_state
+        self._update_run_state(run, run_data)
         update_labels(run, labels)
+        # Note that this code basically allowing anyone to override the run's start time after it was already set
+        # This is done to enable the context initialization to set the start time to when the user's code actually
+        # started running, and not when the run record was initially created (happening when triggering the job)
+        # In the future we might want to limit who can actually do that
+        start_time = run_start_time(run_data) or SQLDB._add_utc_timezone(run.start_time)
+        run_data.setdefault("status", {})["start_time"] = start_time.isoformat()
+        run.start_time = start_time
+        self._update_run_updated_time(run, run_data, now=now)
         run.struct = run_data
-        self._upsert(session, run, ignore=True)
+        self._upsert(session, [run], ignore=True)
 
     def update_run(self, session, updates: dict, uid, project="", iter=0):
         project = project or config.default_project
@@ -125,19 +197,15 @@ class SQLDB(DBInterface):
         struct = run.struct
         for key, val in updates.items():
             update_in(struct, key, val)
-        run.struct = struct
-        new_state = run_state(struct)
-        if new_state:
-            run.state = new_state
+        self._ensure_run_name_on_update(run, struct)
+        self._update_run_state(run, struct)
         start_time = run_start_time(struct)
         if start_time:
             run.start_time = start_time
-        run.labels.clear()
-        for name, value in run_labels(struct).items():
-            lbl = Run.Label(name=name, value=value, parent=run.id)
-            run.labels.append(lbl)
-        session.merge(run)
-        session.commit()
+        update_labels(run, run_labels(struct))
+        self._update_run_updated_time(run, struct)
+        run.struct = struct
+        self._upsert(session, [run])
         self._delete_empty_labels(session, Run.Label)
 
     def read_run(self, session, uid, project=None, iter=0):
@@ -154,7 +222,7 @@ class SQLDB(DBInterface):
         uid=None,
         project=None,
         labels=None,
-        state=None,
+        states=None,
         sort=True,
         last=0,
         iter=False,
@@ -162,26 +230,54 @@ class SQLDB(DBInterface):
         start_time_to=None,
         last_update_time_from=None,
         last_update_time_to=None,
+        partition_by: schemas.RunPartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
+        max_partitions: int = 0,
     ):
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
-        if start_time_from:
+        if name is not None:
+            query = self._add_run_name_query(query, name)
+        if states is not None:
+            query = query.filter(Run.state.in_(states))
+        if start_time_from is not None:
             query = query.filter(Run.start_time >= start_time_from)
-        if start_time_to:
+        if start_time_to is not None:
             query = query.filter(Run.start_time <= start_time_to)
+        if last_update_time_from is not None:
+            query = query.filter(Run.updated >= last_update_time_from)
+        if last_update_time_to is not None:
+            query = query.filter(Run.updated <= last_update_time_to)
         if sort:
             query = query.order_by(Run.start_time.desc())
         if last:
+            if not sort:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Limiting the number of returned records without sorting will provide non-deterministic results"
+                )
             query = query.limit(last)
         if not iter:
             query = query.filter(Run.iteration == 0)
 
-        filtered_runs = self._post_query_runs_filter(
-            query, name, state, last_update_time_from, last_update_time_to
-        )
+        if partition_by:
+            self._assert_partition_by_parameters(
+                schemas.RunPartitionByField, partition_by, partition_sort_by
+            )
+            query = self._create_partitioned_query(
+                session,
+                query,
+                Run,
+                partition_by,
+                rows_per_partition,
+                partition_sort_by,
+                partition_order,
+                max_partitions,
+            )
 
         runs = RunList()
-        for run in filtered_runs:
+        for run in query:
             runs.append(run.struct)
 
         return runs
@@ -194,23 +290,112 @@ class SQLDB(DBInterface):
     def del_runs(
         self, session, name=None, project=None, labels=None, state=None, days_ago=0
     ):
-        # FIXME: Run has no `name`
         project = project or config.default_project
         query = self._find_runs(session, None, project, labels)
         if days_ago:
             since = datetime.now(timezone.utc) - timedelta(days=days_ago)
             query = query.filter(Run.start_time >= since)
-        filtered_runs = self._post_query_runs_filter(query, name, state)
-        for run in filtered_runs:  # Can not use query.delete with join
+        if name:
+            query = self._add_run_name_query(query, name)
+        if state:
+            query = query.filter(Run.state == state)
+        for run in query:  # Can not use query.delete with join
             session.delete(run)
         session.commit()
 
+    def _add_run_name_query(self, query, name):
+        exact_name = self._escape_characters_for_like_query(name)
+        if name.startswith("~"):
+            query = query.filter(Run.name.ilike(f"%{exact_name[1:]}%", escape="\\"))
+        else:
+            query = query.filter(Run.name == name)
+        return query
+
+    @staticmethod
+    def _ensure_run_name_on_update(run_record: Run, run_dict: dict):
+        body_name = run_dict["metadata"]["name"]
+        if body_name != run_record.name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Changing name for an existing run is invalid"
+            )
+
+    @staticmethod
+    def _update_run_updated_time(
+        run_record: Run, run_dict: dict, now: typing.Optional[datetime] = None
+    ):
+        if now is None:
+            now = datetime.now(timezone.utc)
+        run_record.updated = now
+        run_dict.setdefault("status", {})["last_update"] = now.isoformat()
+
+    @staticmethod
+    def _update_run_state(run_record: Run, run_dict: dict):
+        state = run_state(run_dict)
+        run_record.state = state
+        run_dict.setdefault("status", {})["state"] = state
+
+    @retry_on_conflict
     def store_artifact(
-        self, session, key, artifact, uid, iter=None, tag="", project="",
+        self,
+        session,
+        key,
+        artifact,
+        uid,
+        iter=None,
+        tag="",
+        project="",
     ):
         self._store_artifact(
-            session, key, artifact, uid, iter, tag, project,
+            session,
+            key,
+            artifact,
+            uid,
+            iter,
+            tag,
+            project,
         )
+
+    @staticmethod
+    def _process_artifact_dict_to_store(artifact, key, iter=None):
+        updated = artifact["metadata"].get("updated")
+        if not updated:
+            updated = artifact["metadata"]["updated"] = datetime.now(timezone.utc)
+        db_key = artifact["spec"].get("db_key")
+        if db_key and db_key != key:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Conflict between requested key and key in artifact body"
+            )
+        if not db_key:
+            artifact["spec"]["db_key"] = key
+        if iter:
+            key = f"{iter}-{key}"
+        labels = artifact["metadata"].get("labels", {})
+
+        # Ensure there is no "tag" field in the object, to avoid inconsistent situations between
+        # body and tag parameter provided.
+        artifact["metadata"].pop("tag", None)
+        return updated, key, labels
+
+    @staticmethod
+    def _process_legacy_artifact_dict_to_store(artifact, key, iter=None):
+        updated = artifact.get("updated")
+        if not updated:
+            updated = artifact["updated"] = datetime.now(timezone.utc)
+        db_key = artifact.get("db_key")
+        if db_key and db_key != key:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Conflict between requested key and key in artifact body"
+            )
+        if not db_key:
+            artifact["db_key"] = key
+        if iter:
+            key = f"{iter}-{key}"
+        labels = artifact.get("labels", {})
+
+        # Ensure there is no "tag" field in the object, to avoid inconsistent situations between
+        # body and tag parameter provided.
+        artifact.pop("tag", None)
+        return updated, key, labels
 
     def _store_artifact(
         self,
@@ -225,40 +410,39 @@ class SQLDB(DBInterface):
     ):
         project = project or config.default_project
         artifact = deepcopy(artifact)
-        updated = artifact.get("updated")
-        if not updated:
-            updated = artifact["updated"] = datetime.now(timezone.utc)
-        db_key = artifact.get("db_key")
-        if db_key and db_key != key:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Conflict between requested key and key in artifact body"
+        if is_legacy_artifact(artifact):
+            updated, key, labels = self._process_legacy_artifact_dict_to_store(
+                artifact, key, iter
             )
-        if not db_key:
-            artifact["db_key"] = key
-        if iter:
-            key = f"{iter}-{key}"
+        else:
+            updated, key, labels = self._process_artifact_dict_to_store(
+                artifact, key, iter
+            )
+
         art = self._get_artifact(session, uid, project, key)
-        labels = artifact.get("labels", {})
         if not art:
             art = Artifact(key=key, uid=uid, updated=updated, project=project)
         update_labels(art, labels)
 
-        # Ensure there is no "tag" field in the object, to avoid inconsistent situations between
-        # body and tag parameter provided.
-        artifact.pop("tag", None)
-
         art.struct = artifact
-        self._upsert(session, art)
+        self._upsert(session, [art])
         if tag_artifact:
             tag = tag or "latest"
             self.tag_artifacts(session, [art], project, tag)
+
+    @staticmethod
+    def _set_tag_in_artifact_struct(artifact, tag):
+        if is_legacy_artifact(artifact):
+            artifact["tag"] = tag
+        else:
+            artifact["metadata"]["tag"] = tag
 
     def _add_tags_to_artifact_struct(
         self, session, artifact_struct, artifact_id, tag=None
     ):
         artifacts = []
         if tag and tag != "*":
-            artifact_struct["tag"] = tag
+            self._set_tag_in_artifact_struct(artifact_struct, tag)
             artifacts.append(artifact_struct)
         else:
             tag_results = self._query(session, Artifact.Tag, obj_id=artifact_id).all()
@@ -266,7 +450,7 @@ class SQLDB(DBInterface):
                 return [artifact_struct]
             for tag_object in tag_results:
                 artifact_with_tag = artifact_struct.copy()
-                artifact_with_tag["tag"] = tag_object.name
+                self._set_tag_in_artifact_struct(artifact_with_tag, tag_object.name)
                 artifacts.append(artifact_with_tag)
         return artifacts
 
@@ -306,7 +490,7 @@ class SQLDB(DBInterface):
         artifact_struct = art.struct
         # We only set a tag in the object if the user asked specifically for this tag.
         if db_tag:
-            artifact_struct["tag"] = db_tag
+            self._set_tag_in_artifact_struct(artifact_struct, db_tag)
         return artifact_struct
 
     def list_artifacts(
@@ -355,7 +539,11 @@ class SQLDB(DBInterface):
             if best_iteration:
                 if has_iteration:
                     continue
-                link_iteration = artifact.struct.get("link_iteration")
+                if is_legacy_artifact(artifact.struct):
+                    link_iteration = artifact.struct.get("link_iteration")
+                else:
+                    link_iteration = artifact.struct["spec"].get("link_iteration")
+
                 if link_iteration:
                     linked_key = f"{link_iteration}-{artifact.key}"
                     linked_artifact = indexed_artifacts.get(linked_key)
@@ -383,6 +571,8 @@ class SQLDB(DBInterface):
 
     def del_artifact(self, session, key, tag="", project=""):
         project = project or config.default_project
+
+        # deleting tags and labels, because in sqlite the relationships aren't necessarily cascading
         self._delete_artifact_tags(session, project, key, tag, commit=False)
         self._delete_class_labels(
             session, Artifact, project=project, key=key, commit=False
@@ -416,11 +606,24 @@ class SQLDB(DBInterface):
         ids = "*"
         if tag and tag != "*":
             ids = self._resolve_tag(session, Artifact, project, tag)
-        for artifact in self._find_artifacts(session, project, ids, labels, name=name):
-            self.del_artifact(session, artifact.key, "", project)
+        distinct_keys = {
+            artifact.key
+            for artifact in self._find_artifacts(
+                session, project, ids, labels, name=name
+            )
+        }
+        for key in distinct_keys:
+            self.del_artifact(session, key, "", project)
 
+    @retry_on_conflict
     def store_function(
-        self, session, function, name, project="", tag="", versioned=False,
+        self,
+        session,
+        function,
+        name,
+        project="",
+        tag="",
+        versioned=False,
     ) -> str:
         logger.debug(
             "Storing function to DB",
@@ -460,12 +663,16 @@ class SQLDB(DBInterface):
             function.setdefault("metadata", {})["name"] = name
         fn = self._get_class_instance_by_uid(session, Function, name, project, uid)
         if not fn:
-            fn = Function(name=name, project=project, uid=uid,)
+            fn = Function(
+                name=name,
+                project=project,
+                uid=uid,
+            )
         fn.updated = updated
         labels = get_in(function, "metadata.labels", {})
         update_labels(fn, labels)
         fn.struct = function
-        self._upsert(session, fn)
+        self._upsert(session, [fn])
         self.tag_objects_v2(session, [fn], project, tag)
         return hash_key
 
@@ -492,8 +699,12 @@ class SQLDB(DBInterface):
         if obj:
             function = obj.struct
 
-            # If queried by hash key remove status
-            if hash_key:
+            # If queried by hash key and nuclio/serving function remove status
+            is_nuclio = (
+                function.get("kind", "")
+                in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
+            )
+            if hash_key and is_nuclio:
                 function["status"] = None
 
             # If connected to a tag add it to metadata
@@ -506,6 +717,8 @@ class SQLDB(DBInterface):
 
     def delete_function(self, session: Session, project: str, name: str):
         logger.debug("Removing function from db", project=project, name=name)
+
+        # deleting tags and labels, because in sqlite the relationships aren't necessarily cascading
         self._delete_function_tags(session, project, name, commit=False)
         self._delete_class_labels(
             session, Function, project=project, name=name, commit=False
@@ -513,11 +726,18 @@ class SQLDB(DBInterface):
         self._delete(session, Function, project=project, name=name)
 
     def _delete_functions(self, session: Session, project: str):
-        for function in self._list_project_functions(session, project):
-            self.delete_function(session, project, function.name)
+        for function_name in self._list_project_function_names(session, project):
+            self.delete_function(session, project, function_name)
 
-    def _list_project_functions(self, session: Session, project: str):
-        return self._query(session, Function, project=project).all()
+    def _list_project_function_names(
+        self, session: Session, project: str
+    ) -> typing.List[str]:
+        return [
+            name
+            for name, in self._query(
+                session, distinct(Function.name), project=project
+            ).all()
+        ]
 
     def _delete_resources_tags(self, session: Session, project: str):
         for tagged_class in _tagged:
@@ -628,7 +848,7 @@ class SQLDB(DBInterface):
             cron_trigger=cron_trigger,
             concurrency_limit=concurrency_limit,
         )
-        self._upsert(session, schedule)
+        self._upsert(session, [schedule])
 
     def update_schedule(
         self,
@@ -667,8 +887,7 @@ class SQLDB(DBInterface):
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
-        session.merge(schedule)
-        session.commit()
+        self._upsert(session, [schedule])
 
     def list_schedules(
         self,
@@ -686,7 +905,7 @@ class SQLDB(DBInterface):
         query = self._add_labels_filter(session, query, Schedule, labels)
 
         schedules = [
-            self._transform_schedule_model_to_scheme(db_schedule)
+            self._transform_schedule_record_to_scheme(db_schedule)
             for db_schedule in query
         ]
         return schedules
@@ -696,7 +915,7 @@ class SQLDB(DBInterface):
     ) -> schemas.ScheduleRecord:
         logger.debug("Getting schedule from db", project=project, name=name)
         schedule_record = self._get_schedule_record(session, project, name)
-        schedule = self._transform_schedule_model_to_scheme(schedule_record)
+        schedule = self._transform_schedule_record_to_scheme(schedule_record)
         return schedule
 
     def _get_schedule_record(
@@ -724,20 +943,45 @@ class SQLDB(DBInterface):
 
     def _delete_feature_sets(self, session: Session, project: str):
         logger.debug("Removing feature-sets from db", project=project)
-        for feature_set in self.list_feature_sets(session, project).feature_sets:
-            self.delete_feature_set(session, project, feature_set.metadata.name)
+        for feature_set_name in self._list_project_feature_set_names(session, project):
+            self.delete_feature_set(session, project, feature_set_name)
+
+    def _list_project_feature_set_names(
+        self, session: Session, project: str
+    ) -> typing.List[str]:
+        return [
+            name
+            for name, in self._query(
+                session, distinct(FeatureSet.name), project=project
+            ).all()
+        ]
 
     def _delete_feature_vectors(self, session: Session, project: str):
         logger.debug("Removing feature-vectors from db", project=project)
-        for feature_vector in self.list_feature_vectors(
+        for feature_vector_name in self._list_project_feature_vector_names(
             session, project
-        ).feature_vectors:
-            self.delete_feature_vector(session, project, feature_vector.metadata.name)
+        ):
+            self.delete_feature_vector(session, project, feature_vector_name)
+
+    def _list_project_feature_vector_names(
+        self, session: Session, project: str
+    ) -> typing.List[str]:
+        return [
+            name
+            for name, in self._query(
+                session, distinct(FeatureVector.name), project=project
+            ).all()
+        ]
 
     def tag_artifacts(self, session, artifacts, project: str, name: str):
         for artifact in artifacts:
             query = (
-                self._query(session, artifact.Tag, project=project, name=name,)
+                self._query(
+                    session,
+                    artifact.Tag,
+                    project=project,
+                    name=name,
+                )
                 .join(Artifact)
                 .filter(Artifact.key == artifact.key)
             )
@@ -745,9 +989,10 @@ class SQLDB(DBInterface):
             if not tag:
                 tag = artifact.Tag(project=project, name=name)
             tag.obj_id = artifact.id
-            self._upsert(session, tag, ignore=True)
+            self._upsert(session, [tag], ignore=True)
 
     def tag_objects_v2(self, session, objs, project: str, name: str):
+        tags = []
         for obj in objs:
             query = self._query(
                 session, obj.Tag, name=name, project=project, obj_name=obj.name
@@ -756,8 +1001,8 @@ class SQLDB(DBInterface):
             if not tag:
                 tag = obj.Tag(project=project, name=name, obj_name=obj.name)
             tag.obj_id = obj.id
-            session.add(tag)
-        session.commit()
+            tags.append(tag)
+        self._upsert(session, tags)
 
     def create_project(self, session: Session, project: schemas.Project):
         logger.debug("Creating project in DB", project=project)
@@ -774,8 +1019,9 @@ class SQLDB(DBInterface):
         )
         labels = project.metadata.labels or {}
         update_labels(project_record, labels)
-        self._upsert(session, project_record)
+        self._upsert(session, [project_record])
 
+    @retry_on_conflict
     def store_project(self, session: Session, name: str, project: schemas.Project):
         logger.debug("Storing project in DB", name=name, project=project)
         project_record = self._get_project_record(
@@ -853,7 +1099,7 @@ class SQLDB(DBInterface):
         return schemas.ProjectsOutput(projects=projects)
 
     async def get_project_resources_counters(
-        self, session
+        self,
     ) -> Tuple[
         Dict[str, int],
         Dict[str, int],
@@ -864,19 +1110,24 @@ class SQLDB(DBInterface):
     ]:
         results = await asyncio.gather(
             fastapi.concurrency.run_in_threadpool(
-                self._calculate_files_counters, session
+                mlrun.api.db.session.run_function_with_new_db_session,
+                self._calculate_files_counters,
             ),
             fastapi.concurrency.run_in_threadpool(
-                self._calculate_schedules_counters, session
+                mlrun.api.db.session.run_function_with_new_db_session,
+                self._calculate_schedules_counters,
             ),
             fastapi.concurrency.run_in_threadpool(
-                self._calculate_feature_sets_counters, session
+                mlrun.api.db.session.run_function_with_new_db_session,
+                self._calculate_feature_sets_counters,
             ),
             fastapi.concurrency.run_in_threadpool(
-                self._calculate_models_counters, session
+                mlrun.api.db.session.run_function_with_new_db_session,
+                self._calculate_models_counters,
             ),
             fastapi.concurrency.run_in_threadpool(
-                self._calculate_runs_counters, session
+                mlrun.api.db.session.run_function_with_new_db_session,
+                self._calculate_runs_counters,
             ),
         )
         (
@@ -884,7 +1135,10 @@ class SQLDB(DBInterface):
             project_to_schedule_count,
             project_to_feature_set_count,
             project_to_models_count,
-            (project_to_recent_failed_runs_count, project_to_running_runs_count,),
+            (
+                project_to_recent_failed_runs_count,
+                project_to_running_runs_count,
+            ),
         ) = results
         return (
             project_to_files_count,
@@ -961,48 +1215,36 @@ class SQLDB(DBInterface):
     def _calculate_runs_counters(
         self, session
     ) -> Tuple[Dict[str, int], Dict[str, int]]:
-        runs = self._find_runs(session, None, "*", None)
-        project_to_recent_failed_runs_count = collections.defaultdict(int)
-        project_to_running_runs_count = collections.defaultdict(int)
-        # we want to count unique run names, and not all occurrences of all runs, therefore we're keeping set of
-        # names and only count new names
-        project_to_recent_failed_run_names = collections.defaultdict(set)
-        project_to_running_run_names = collections.defaultdict(set)
-        runs = runs.all()
-        for run in runs:
-            run_json = run.struct
-            if self._is_run_matching_state(
-                run, run_json, mlrun.runtimes.constants.RunStates.non_terminal_states(),
-            ):
-                if (
-                    run_json.get("metadata", {}).get("name")
-                    and run_json["metadata"]["name"]
-                    not in project_to_running_run_names[run.project]
-                ):
-                    project_to_running_run_names[run.project].add(
-                        run_json["metadata"]["name"]
-                    )
-                    project_to_running_runs_count[run.project] += 1
-            if self._is_run_matching_state(
-                run,
-                run_json,
-                [
-                    mlrun.runtimes.constants.RunStates.error,
-                    mlrun.runtimes.constants.RunStates.aborted,
-                ],
-            ):
-                one_day_ago = datetime.now() - timedelta(hours=24)
-                if run.start_time and run.start_time >= one_day_ago:
-                    if (
-                        run_json.get("metadata", {}).get("name")
-                        and run_json["metadata"]["name"]
-                        not in project_to_recent_failed_run_names[run.project]
-                    ):
-                        project_to_recent_failed_run_names[run.project].add(
-                            run_json["metadata"]["name"]
-                        )
-                        project_to_recent_failed_runs_count[run.project] += 1
+        running_runs_count_per_project = (
+            session.query(Run.project, func.count(distinct(Run.name)))
+            .filter(
+                Run.state.in_(mlrun.runtimes.constants.RunStates.non_terminal_states())
+            )
+            .group_by(Run.project)
+            .all()
+        )
+        project_to_running_runs_count = {
+            result[0]: result[1] for result in running_runs_count_per_project
+        }
 
+        one_day_ago = datetime.now() - timedelta(hours=24)
+        recent_failed_runs_count_per_project = (
+            session.query(Run.project, func.count(distinct(Run.name)))
+            .filter(
+                Run.state.in_(
+                    [
+                        mlrun.runtimes.constants.RunStates.error,
+                        mlrun.runtimes.constants.RunStates.aborted,
+                    ]
+                )
+            )
+            .filter(Run.start_time >= one_day_ago)
+            .group_by(Run.project)
+            .all()
+        )
+        project_to_recent_failed_runs_count = {
+            result[0]: result[1] for result in recent_failed_runs_count_per_project
+        }
         return project_to_recent_failed_runs_count, project_to_running_runs_count
 
     async def generate_projects_summaries(
@@ -1048,7 +1290,7 @@ class SQLDB(DBInterface):
         project_record.state = project.status.state
         labels = project.metadata.labels or {}
         update_labels(project_record, labels)
-        self._upsert(session, project_record)
+        self._upsert(session, [project_record])
 
     def _patch_project_record_from_project(
         self,
@@ -1066,11 +1308,13 @@ class SQLDB(DBInterface):
         # If a bad kind value was passed, it will fail here (return 422 to caller)
         project = schemas.Project(**project_record_full_object)
         self.store_project(
-            session, name, project,
+            session,
+            name,
+            project,
         )
 
         project_record.full_object = project_record_full_object
-        self._upsert(session, project_record)
+        self._upsert(session, [project_record])
 
     def is_project_exists(self, session: Session, name: str, **kwargs):
         project_record = self._get_project_record(
@@ -1116,15 +1360,15 @@ class SQLDB(DBInterface):
         self._verify_empty_list_of_project_related_resources(
             name, schedules, "schedules"
         )
-        functions = self._list_project_functions(session, name)
+        functions = self._list_project_function_names(session, name)
         self._verify_empty_list_of_project_related_resources(
             name, functions, "functions"
         )
-        feature_sets = self.list_feature_sets(session, name).feature_sets
+        feature_sets = self._list_project_feature_set_names(session, name)
         self._verify_empty_list_of_project_related_resources(
             name, feature_sets, "feature_sets"
         )
-        feature_vectors = self.list_feature_vectors(session, name).feature_vectors
+        feature_vectors = self._list_project_feature_vector_names(session, name)
         self._verify_empty_list_of_project_related_resources(
             name, feature_vectors, "feature_vectors"
         )
@@ -1153,7 +1397,13 @@ class SQLDB(DBInterface):
             )
 
     def _get_record_by_name_tag_and_uid(
-        self, session, cls, project: str, name: str, tag: str = None, uid: str = None,
+        self,
+        session,
+        cls,
+        project: str,
+        name: str,
+        tag: str = None,
+        uid: str = None,
     ):
         query = self._query(session, cls, name=name, project=project)
         computed_tag = tag or "latest"
@@ -1170,7 +1420,12 @@ class SQLDB(DBInterface):
         return computed_tag, object_tag_uid, query.one_or_none()
 
     def _get_feature_set(
-        self, session, project: str, name: str, tag: str = None, uid: str = None,
+        self,
+        session,
+        project: str,
+        name: str,
+        tag: str = None,
+        uid: str = None,
     ):
         (
             computed_tag,
@@ -1190,7 +1445,12 @@ class SQLDB(DBInterface):
             return None
 
     def get_feature_set(
-        self, session, project: str, name: str, tag: str = None, uid: str = None,
+        self,
+        session,
+        project: str,
+        name: str,
+        tag: str = None,
+        uid: str = None,
     ) -> schemas.FeatureSet:
         feature_set = self._get_feature_set(session, project, name, tag, uid)
         if not feature_set:
@@ -1243,7 +1503,8 @@ class SQLDB(DBInterface):
         return schemas.FeatureSetDigestOutput(
             metadata=feature_set.metadata,
             spec=schemas.FeatureSetDigestSpec(
-                entities=feature_set.spec.entities, features=feature_set.spec.features,
+                entities=feature_set.spec.entities,
+                features=feature_set.spec.features,
             ),
         )
 
@@ -1389,34 +1650,85 @@ class SQLDB(DBInterface):
         return schemas.EntitiesOutput(entities=entities_results)
 
     @staticmethod
-    def _assert_partition_by_parameters(partition_by, sort):
+    def _assert_partition_by_parameters(partition_by_enum_cls, partition_by, sort):
         if sort is None:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "sort parameter must be provided when partition_by is used."
             )
         # For now, name is the only supported value. Remove once more fields are added.
-        if partition_by != schemas.FeatureStorePartitionByField.name:
+        if partition_by not in partition_by_enum_cls:
+            valid_enum_values = [
+                enum_value.value for enum_value in partition_by_enum_cls
+            ]
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"partition_by for feature-store objects must be 'name'. Value given: '{partition_by.value}'"
+                f"Invalid partition_by given: '{partition_by.value}'. Must be one of {valid_enum_values}"
             )
 
     @staticmethod
-    def _create_partitioned_query(session, query, cls, group_by, order, rows_per_group):
+    def _create_partitioned_query(
+        session,
+        query,
+        cls,
+        partition_by: typing.Union[
+            schemas.FeatureStorePartitionByField, schemas.RunPartitionByField
+        ],
+        rows_per_partition: int,
+        partition_sort_by: schemas.SortField,
+        partition_order: schemas.OrderType,
+        max_partitions: int = 0,
+    ):
+
+        partition_field = partition_by.to_partition_by_db_field(cls)
+        sort_by_field = partition_sort_by.to_db_field(cls)
+
         row_number_column = (
             func.row_number()
             .over(
-                partition_by=group_by.to_partition_by_db_field(cls),
-                order_by=order.to_order_by_predicate(cls.updated),
+                partition_by=partition_field,
+                order_by=partition_order.to_order_by_predicate(sort_by_field),
             )
             .label("row_number")
         )
+        if max_partitions > 0:
+            max_partition_value = (
+                func.max(sort_by_field)
+                .over(
+                    partition_by=partition_field,
+                )
+                .label("max_partition_value")
+            )
+            query = query.add_column(max_partition_value)
 
         # Need to generate a subquery so we can filter based on the row_number, since it
         # is a window function using over().
         subquery = query.add_column(row_number_column).subquery()
-        return session.query(aliased(cls, subquery)).filter(
-            subquery.c.row_number <= rows_per_group
+
+        if max_partitions == 0:
+            # If we don't query on max-partitions, we end here. Need to alias the subquery so that the ORM will
+            # be able to properly map it to objects.
+            result_query = session.query(aliased(cls, subquery)).filter(
+                subquery.c.row_number <= rows_per_partition
+            )
+            return result_query
+
+        # Otherwise no need for an alias, as this is an internal query and will be wrapped by another one where
+        # alias will apply. We just apply the filter here.
+        result_query = session.query(subquery).filter(
+            subquery.c.row_number <= rows_per_partition
         )
+
+        # We query on max-partitions, so need to do another sub-query and order per the latest updated time of
+        # a run in the partition.
+        partition_rank = (
+            func.dense_rank()
+            .over(order_by=subquery.c.max_partition_value.desc())
+            .label("partition_rank")
+        )
+        result_query = result_query.add_column(partition_rank).subquery()
+        result_query = session.query(aliased(cls, result_query)).filter(
+            result_query.c.partition_rank <= max_partitions
+        )
+        return result_query
 
     def list_feature_sets(
         self,
@@ -1430,7 +1742,7 @@ class SQLDB(DBInterface):
         labels: List[str] = None,
         partition_by: schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
-        partition_sort: schemas.SortField = None,
+        partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureSetsOutput:
         obj_id_tags = self._get_records_to_tags_map(
@@ -1454,14 +1766,17 @@ class SQLDB(DBInterface):
             query = self._add_labels_filter(session, query, FeatureSet, labels)
 
         if partition_by:
-            self._assert_partition_by_parameters(partition_by, partition_sort)
+            self._assert_partition_by_parameters(
+                schemas.FeatureStorePartitionByField, partition_by, partition_sort_by
+            )
             query = self._create_partitioned_query(
                 session,
                 query,
                 FeatureSet,
                 partition_by,
-                partition_order,
                 rows_per_partition,
+                partition_sort_by,
+                partition_order,
             )
 
         feature_sets = []
@@ -1477,7 +1792,9 @@ class SQLDB(DBInterface):
         return schemas.FeatureSetsOutput(feature_sets=feature_sets)
 
     def list_feature_sets_tags(
-        self, session, project: str,
+        self,
+        session,
+        project: str,
     ):
         query = (
             session.query(FeatureSet.name, FeatureSet.Tag.name)
@@ -1489,51 +1806,72 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _update_feature_set_features(
-        feature_set: FeatureSet, feature_dicts: List[dict], replace=False
+        feature_set: FeatureSet, feature_dicts: List[dict]
     ):
-        if replace:
-            feature_set.features = []
+        new_features = set(feature_dict["name"] for feature_dict in feature_dicts)
+        current_features = set(feature.name for feature in feature_set.features)
+
+        features_to_remove = current_features.difference(new_features)
+        features_to_add = new_features.difference(current_features)
+
+        feature_set.features = [
+            feature
+            for feature in feature_set.features
+            if feature.name not in features_to_remove
+        ]
 
         for feature_dict in feature_dicts:
-            labels = feature_dict.get("labels") or {}
-            feature = Feature(
-                name=feature_dict["name"],
-                value_type=feature_dict["value_type"],
-                labels=[],
-            )
-            update_labels(feature, labels)
-            feature_set.features.append(feature)
+            if feature_dict["name"] in features_to_add:
+                labels = feature_dict.get("labels") or {}
+                feature = Feature(
+                    name=feature_dict["name"],
+                    value_type=feature_dict["value_type"],
+                    labels=[],
+                )
+                update_labels(feature, labels)
+                feature_set.features.append(feature)
 
     @staticmethod
-    def _update_feature_set_entities(
-        feature_set: FeatureSet, entity_dicts: List[dict], replace=False
-    ):
-        if replace:
-            feature_set.entities = []
+    def _update_feature_set_entities(feature_set: FeatureSet, entity_dicts: List[dict]):
+        new_entities = set(entity_dict["name"] for entity_dict in entity_dicts)
+        current_entities = set(entity.name for entity in feature_set.entities)
+
+        entities_to_remove = current_entities.difference(new_entities)
+        entities_to_add = new_entities.difference(current_entities)
+
+        feature_set.entities = [
+            entity
+            for entity in feature_set.entities
+            if entity.name not in entities_to_remove
+        ]
 
         for entity_dict in entity_dicts:
-            labels = entity_dict.get("labels") or {}
-            entity = Entity(
-                name=entity_dict["name"],
-                value_type=entity_dict["value_type"],
-                labels=[],
-            )
-            update_labels(entity, labels)
-            feature_set.entities.append(entity)
+            if entity_dict["name"] in entities_to_add:
+                labels = entity_dict.get("labels") or {}
+                entity = Entity(
+                    name=entity_dict["name"],
+                    value_type=entity_dict["value_type"],
+                    labels=[],
+                )
+                update_labels(entity, labels)
+                feature_set.entities.append(entity)
 
     def _update_feature_set_spec(
-        self, feature_set: FeatureSet, new_feature_set_dict: dict, replace=True
+        self, feature_set: FeatureSet, new_feature_set_dict: dict
     ):
         feature_set_spec = new_feature_set_dict.get("spec")
         features = feature_set_spec.pop("features", [])
         entities = feature_set_spec.pop("entities", [])
 
-        self._update_feature_set_features(feature_set, features, replace)
-        self._update_feature_set_entities(feature_set, entities, replace)
+        self._update_feature_set_features(feature_set, features)
+        self._update_feature_set_entities(feature_set, entities)
 
     @staticmethod
     def _common_object_validate_and_perform_uid_change(
-        object_dict: dict, tag, versioned, existing_uid=None,
+        object_dict: dict,
+        tag,
+        versioned,
+        existing_uid=None,
     ):
         uid = fill_object_hash(object_dict, "uid", tag)
         if not versioned:
@@ -1549,7 +1887,9 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _update_db_record_from_object_dict(
-        db_object, common_object_dict: dict, uid,
+        db_object,
+        common_object_dict: dict,
+        uid,
     ):
         db_object.name = common_object_dict["metadata"]["name"]
         updated_datetime = datetime.now(timezone.utc)
@@ -1574,6 +1914,7 @@ class SQLDB(DBInterface):
         labels = common_object_dict["metadata"].pop("labels", {}) or {}
         update_labels(db_object, labels)
 
+    @retry_on_conflict
     def store_feature_set(
         self,
         session,
@@ -1618,13 +1959,18 @@ class SQLDB(DBInterface):
         self._update_db_record_from_object_dict(db_feature_set, feature_set_dict, uid)
 
         self._update_feature_set_spec(db_feature_set, feature_set_dict)
-        self._upsert(session, db_feature_set)
+        self._upsert(session, [db_feature_set])
         self.tag_objects_v2(session, [db_feature_set], project, tag)
 
         return uid
 
     def _validate_and_enrich_record_for_creation(
-        self, session, new_object, db_class, project, versioned,
+        self,
+        session,
+        new_object,
+        db_class,
+        project,
+        versioned,
     ):
         object_type = new_object.__class__.__name__
 
@@ -1651,7 +1997,11 @@ class SQLDB(DBInterface):
         return uid, new_object.metadata.tag, object_dict
 
     def create_feature_set(
-        self, session, project, feature_set: schemas.FeatureSet, versioned=True,
+        self,
+        session,
+        project,
+        feature_set: schemas.FeatureSet,
+        versioned=True,
     ) -> str:
         (uid, tag, feature_set_dict,) = self._validate_and_enrich_record_for_creation(
             session, feature_set, FeatureSet, project, versioned
@@ -1662,7 +2012,7 @@ class SQLDB(DBInterface):
         self._update_db_record_from_object_dict(db_feature_set, feature_set_dict, uid)
         self._update_feature_set_spec(db_feature_set, feature_set_dict)
 
-        self._upsert(session, db_feature_set)
+        self._upsert(session, [db_feature_set])
         self.tag_objects_v2(session, [db_feature_set], project, tag)
 
         return uid
@@ -1727,18 +2077,24 @@ class SQLDB(DBInterface):
             object_id = tag_record.obj_id
 
         if object_id:
-            self._delete(session, cls, id=object_id)
+            # deleting tags, because in sqlite the relationships aren't necessarily cascading
             self._delete(session, cls.Tag, obj_id=object_id)
+            self._delete(session, cls, id=object_id)
         else:
             # If we got here, neither tag nor uid were provided - delete all references by name.
-            self._delete(session, cls, project=project, name=name)
+            # deleting tags, because in sqlite the relationships aren't necessarily cascading
             self._delete(session, cls.Tag, project=project, obj_name=name)
+            self._delete(session, cls, project=project, name=name)
 
     def delete_feature_set(self, session, project, name, tag=None, uid=None):
         self._delete_feature_store_object(session, FeatureSet, project, name, tag, uid)
 
     def create_feature_vector(
-        self, session, project, feature_vector: schemas.FeatureVector, versioned=True,
+        self,
+        session,
+        project,
+        feature_vector: schemas.FeatureVector,
+        versioned=True,
     ) -> str:
         (
             uid,
@@ -1754,13 +2110,18 @@ class SQLDB(DBInterface):
             db_feature_vector, feature_vector_dict, uid
         )
 
-        self._upsert(session, db_feature_vector)
+        self._upsert(session, [db_feature_vector])
         self.tag_objects_v2(session, [db_feature_vector], project, tag)
 
         return uid
 
     def _get_feature_vector(
-        self, session, project: str, name: str, tag: str = None, uid: str = None,
+        self,
+        session,
+        project: str,
+        name: str,
+        tag: str = None,
+        uid: str = None,
     ):
         (
             computed_tag,
@@ -1823,14 +2184,17 @@ class SQLDB(DBInterface):
             query = self._add_labels_filter(session, query, FeatureVector, labels)
 
         if partition_by:
-            self._assert_partition_by_parameters(partition_by, partition_sort_by)
+            self._assert_partition_by_parameters(
+                schemas.FeatureStorePartitionByField, partition_by, partition_sort_by
+            )
             query = self._create_partitioned_query(
                 session,
                 query,
                 FeatureVector,
                 partition_by,
-                partition_order,
                 rows_per_partition,
+                partition_sort_by,
+                partition_order,
             )
 
         feature_vectors = []
@@ -1846,7 +2210,9 @@ class SQLDB(DBInterface):
         return schemas.FeatureVectorsOutput(feature_vectors=feature_vectors)
 
     def list_feature_vectors_tags(
-        self, session, project: str,
+        self,
+        session,
+        project: str,
     ):
         query = (
             session.query(FeatureVector.name, FeatureVector.Tag.name)
@@ -1856,6 +2222,7 @@ class SQLDB(DBInterface):
         )
         return [(project, row[0], row[1]) for row in query]
 
+    @retry_on_conflict
     def store_feature_vector(
         self,
         session,
@@ -1903,7 +2270,7 @@ class SQLDB(DBInterface):
             db_feature_vector, feature_vector_dict, uid
         )
 
-        self._upsert(session, db_feature_vector)
+        self._upsert(session, [db_feature_vector])
         self.tag_objects_v2(session, [db_feature_vector], project, tag)
 
         return uid
@@ -2037,30 +2404,46 @@ class SQLDB(DBInterface):
         session.query(cls).filter(cls.parent == NULL).delete()
         session.commit()
 
-    def _upsert(self, session, obj, ignore=False):
+    def _upsert(self, session, objects, ignore=False):
+        if not objects:
+            return
+        for object_ in objects:
+            session.add(object_)
+        self._commit(session, objects, ignore)
+
+    def _commit(self, session, objects, ignore=False):
         def _try_commit_obj():
             try:
-                session.add(obj)
                 session.commit()
             except SQLAlchemyError as err:
                 session.rollback()
-                cls = obj.__class__.__name__
+                cls = objects[0].__class__.__name__
                 if "database is locked" in str(err):
                     logger.warning(
                         "Database is locked. Retrying", cls=cls, err=str(err)
                     )
                     raise mlrun.errors.MLRunRuntimeError(
-                        "Failed adding resource, database is locked"
+                        "Failed committing changes, database is locked"
                     ) from err
-                logger.warning("Conflict adding resource to DB", cls=cls, err=str(err))
+                logger.warning("Failed committing changes to DB", cls=cls, err=str(err))
                 if not ignore:
+                    identifiers = ",".join(
+                        object_.get_identifier_string() for object_ in objects
+                    )
                     # We want to retry only when database is locked so for any other scenario escalate to fatal failure
                     try:
-                        raise mlrun.errors.MLRunConflictError(
-                            f"Conflict - {cls} already exists: {obj.get_identifier_string()}"
+                        if any([message in str(err) for message in conflict_messages]):
+                            raise mlrun.errors.MLRunConflictError(
+                                f"Conflict - {cls} already exists: {identifiers}"
+                            ) from err
+                        raise mlrun.errors.MLRunRuntimeError(
+                            f"Failed committing changes to DB. class={cls} objects={identifiers}"
                         ) from err
-                    except mlrun.errors.MLRunConflictError as exc:
-                        raise mlrun.utils.helpers.FatalFailureException(
+                    except (
+                        mlrun.errors.MLRunRuntimeError,
+                        mlrun.errors.MLRunConflictError,
+                    ) as exc:
+                        raise mlrun.errors.MLRunFatalFailureError(
                             original_exception=exc
                         )
 
@@ -2080,83 +2463,6 @@ class SQLDB(DBInterface):
         query = self._query(session, Run, uid=uid, project=project)
         return self._add_labels_filter(session, query, Run, labels)
 
-    def _post_query_runs_filter(
-        self,
-        query,
-        name=None,
-        state=None,
-        last_update_time_from=None,
-        last_update_time_to=None,
-    ):
-        """
-        This function is hacky and exists to cover on bugs we had with how we save our data in the DB
-        We're doing it the hacky way since:
-        1. SQLDB is about to be replaced
-        2. Schema + Data migration are complicated and as long we can avoid them, we prefer to (also because of 1)
-        name - the name is only saved in the json itself, therefore we can't use the SQL query filter and have to filter
-        it ourselves
-        state - the state is saved in a column, but, there was a bug in which the state was only getting updated in the
-        json itself, therefore, in field systems, most runs records will have an empty or not updated data in the state
-        column
-        """
-        if (
-            not name
-            and not state
-            and not last_update_time_from
-            and not last_update_time_to
-        ):
-            return query.all()
-
-        filtered_runs = []
-        for run in query:
-            run_json = run.struct
-            if name:
-                if not run_json or not isinstance(run_json, dict):
-                    continue
-
-                run_name = run_json.get("metadata", {}).get("name", "")
-                if name.startswith("~"):
-                    if name[1:].casefold() not in run_name.casefold():
-                        continue
-                elif name != run_name:
-                    continue
-            if state:
-                if not self._is_run_matching_state(run, run_json, state):
-                    continue
-            if last_update_time_from or last_update_time_to:
-                if not match_times(
-                    last_update_time_from,
-                    last_update_time_to,
-                    run_json,
-                    "status.last_update",
-                ):
-                    continue
-
-            filtered_runs.append(run)
-
-        return filtered_runs
-
-    def _is_run_matching_state(self, run, run_json, state):
-        requested_states = as_list(state)
-        record_state = run.state
-        json_state = None
-        if (
-            run_json
-            and isinstance(run_json, dict)
-            and run_json.get("status", {}).get("state")
-        ):
-            json_state = run_json.get("status", {}).get("state")
-        if not record_state and not json_state:
-            return False
-        # json_state has precedence over record state
-        if json_state:
-            if json_state in requested_states:
-                return True
-        else:
-            if record_state in requested_states:
-                return True
-        return False
-
     def _latest_uid_filter(self, session, query):
         # Create a sub query of latest uid (by updated) per (project,key)
         subq = (
@@ -2166,7 +2472,10 @@ class SQLDB(DBInterface):
                 Artifact.key,
                 func.max(Artifact.updated),
             )
-            .group_by(Artifact.project, Artifact.key.label("key"),)
+            .group_by(
+                Artifact.project,
+                Artifact.key.label("key"),
+            )
             .subquery("max_key")
         )
 
@@ -2180,6 +2489,12 @@ class SQLDB(DBInterface):
             ),
         )
 
+    @staticmethod
+    def _escape_characters_for_like_query(value: str) -> str:
+        return (
+            value.translate(value.maketrans({"_": r"\_", "%": r"\%"})) if value else ""
+        )
+
     def _add_artifact_name_and_iter_query(self, query, name=None, iter=None):
         if not name and not iter:
             return query
@@ -2187,9 +2502,7 @@ class SQLDB(DBInterface):
         # Escape special chars (_,%) since we still need to do a like query because of the iter.
         # Also limit length to len(str) + 3, assuming iter is < 100 (two iter digits + hyphen)
         # this helps filter the situations where we match a suffix by mistake due to the like query.
-        exact_name = (
-            name.translate(name.maketrans({"_": r"\_", "%": r"\%"})) if name else ""
-        )
+        exact_name = self._escape_characters_for_like_query(name)
 
         if name and name.startswith("~"):
             # Like query
@@ -2323,7 +2636,10 @@ class SQLDB(DBInterface):
                 link_artifacts.append(artifact)
 
         for link_artifact in link_artifacts:
-            link_iteration = link_artifact.struct.get("link_iteration")
+            if "spec" in link_artifact.struct:
+                link_iteration = link_artifact.struct["spec"].get("link_iteration")
+            else:
+                link_iteration = link_artifact.struct.get("link_iteration")
             if not link_iteration:
                 continue
             linked_key = f"{link_iteration}-{link_artifact.key}"
@@ -2336,7 +2652,7 @@ class SQLDB(DBInterface):
         query = self._query(session, Function, project=project)
         if name:
             query = query.filter(generate_query_predicate_for_name(Function.name, name))
-        if uids:
+        if uids is not None:
             query = query.filter(Function.uid.in_(uids))
 
         labels = label_set(labels)
@@ -2414,25 +2730,28 @@ class SQLDB(DBInterface):
         if commit:
             session.commit()
 
-    @staticmethod
-    def _transform_schedule_model_to_scheme(
-        db_schedule: Schedule,
+    def _transform_schedule_record_to_scheme(
+        self,
+        schedule_record: Schedule,
     ) -> schemas.ScheduleRecord:
-        schedule = schemas.ScheduleRecord.from_orm(db_schedule)
-        SQLDB._add_utc_timezone(schedule, "creation_time")
+        schedule = schemas.ScheduleRecord.from_orm(schedule_record)
+        schedule.creation_time = self._add_utc_timezone(schedule.creation_time)
         return schedule
 
     @staticmethod
-    def _add_utc_timezone(obj, attribute_name):
+    def _add_utc_timezone(time_value: typing.Optional[datetime]):
         """
         sqlalchemy losing timezone information with sqlite so we're returning it
         https://stackoverflow.com/questions/6991457/sqlalchemy-losing-timezone-information-with-sqlite
         """
-        setattr(obj, attribute_name, pytz.utc.localize(getattr(obj, attribute_name)))
+        if time_value.tzinfo is None:
+            return pytz.utc.localize(time_value)
+        return time_value
 
     @staticmethod
     def _transform_feature_set_model_to_schema(
-        feature_set_record: FeatureSet, tag=None,
+        feature_set_record: FeatureSet,
+        tag=None,
     ) -> schemas.FeatureSet:
         feature_set_full_dict = feature_set_record.full_object
         feature_set_resp = schemas.FeatureSet(**feature_set_full_dict)
@@ -2442,7 +2761,8 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _transform_feature_vector_model_to_schema(
-        feature_vector_record: FeatureVector, tag=None,
+        feature_vector_record: FeatureVector,
+        tag=None,
     ) -> schemas.FeatureVector:
         feature_vector_full_dict = feature_vector_record.full_object
         feature_vector_resp = schemas.FeatureVector(**feature_vector_full_dict)
@@ -2458,13 +2778,16 @@ class SQLDB(DBInterface):
         if not project_record.full_object:
             project = schemas.Project(
                 metadata=schemas.ProjectMetadata(
-                    name=project_record.name, created=project_record.created,
+                    name=project_record.name,
+                    created=project_record.created,
                 ),
                 spec=schemas.ProjectSpec(
                     description=project_record.description,
                     source=project_record.source,
                 ),
-                status=schemas.ObjectStatus(state=project_record.state,),
+                status=schemas.ObjectStatus(
+                    state=project_record.state,
+                ),
             )
             self.store_project(session, project_record.name, project)
             return project
@@ -2479,6 +2802,7 @@ class SQLDB(DBInterface):
 
         if move_from == move_to:
             # It's just modifying the same object - update and exit.
+            # using merge since primary key is changing
             session.merge(moved_object)
             session.commit()
             return
@@ -2504,9 +2828,11 @@ class SQLDB(DBInterface):
 
         for source_record in query:
             source_record.index = source_record.index + modifier
+            # using merge since primary key is changing
             session.merge(source_record)
 
         if move_to:
+            # using merge since primary key is changing
             session.merge(moved_object)
         else:
             session.delete(moved_object)
@@ -2600,8 +2926,12 @@ class SQLDB(DBInterface):
             session, source_record, move_to=order, move_from=None
         )
 
+    @retry_on_conflict
     def store_marketplace_source(
-        self, session, name, ordered_source: schemas.IndexedMarketplaceSource,
+        self,
+        session,
+        name,
+        ordered_source: schemas.IndexedMarketplaceSource,
     ):
         logger.debug(
             "Storing marketplace source in DB", index=ordered_source.index, name=name
@@ -2693,9 +3023,10 @@ class SQLDB(DBInterface):
 
     def create_data_version(self, session, version):
         logger.debug(
-            "Creating data version in DB", version=version,
+            "Creating data version in DB",
+            version=version,
         )
 
         now = datetime.now(timezone.utc)
         data_version_record = DataVersion(version=version, created=now)
-        self._upsert(session, data_version_record)
+        self._upsert(session, [data_version_record])

@@ -13,7 +13,8 @@ from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 
 import mlrun
-from mlrun.frameworks.pytorch.callbacks import (
+
+from .callbacks import (
     Callback,
     HyperparametersKeys,
     MetricFunctionType,
@@ -21,7 +22,7 @@ from mlrun.frameworks.pytorch.callbacks import (
     MLRunLoggingCallback,
     TensorboardLoggingCallback,
 )
-from mlrun.frameworks.pytorch.callbacks_handler import CallbacksHandler
+from .callbacks_handler import CallbacksHandler
 
 
 class PyTorchMLRunInterface:
@@ -342,7 +343,7 @@ class PyTorchMLRunInterface:
         Run prediction on the given data. Batched data can be predicted as well.
 
         :param inputs:     The inputs to infer through the model and get its predictions. Expecting a torch.Tensor or a
-                           list of torch.Tensors.
+                           list of torch.Tensors to match each input layer.
         :param use_cuda:   Whether or not to use cuda. Only relevant if cuda is available. Defaulted to True.
         :param batch_size: Batch size to use for prediction. If equals to -1, the entire inputs will be inferred at once
                            (batch size will be equal to the amount of inputs). Defaulted to -1.
@@ -356,23 +357,25 @@ class PyTorchMLRunInterface:
         # Set model to evaluate mode:
         self._model.eval()
 
+        # Wrap in a list if given as a single Tensor:
+        if not isinstance(inputs, list):
+            inputs = [inputs]
+
         # Initialize a data loader for the given inputs:
         data_loader = DataLoader(
-            TensorDataset(torch.stack(inputs) if isinstance(inputs, list) else inputs),
+            TensorDataset(*inputs),
             batch_size=batch_size if batch_size != -1 else len(inputs),
         )
 
         # Start the inference:
         with torch.no_grad():
             predictions = None  # type: Tensor
-            for data in data_loader:
-                # Read the batched input:
-                x = data[0]
+            for x in data_loader:
                 # Move the input tensor to cuda if needed:
                 if use_cuda and torch.cuda.is_available():
                     x = self._tensor_to_cuda(tensor=x)
                 # Get the model's prediction:
-                y = self._model(x)
+                y = self._model(*x)
                 # Store the predictions one by one:
                 if predictions is None:
                     predictions = y
@@ -786,7 +789,10 @@ class PyTorchMLRunInterface:
 
                 # End of batch callbacks:
                 if not self._callbacks_handler.on_validation_batch_end(
-                    batch=batch, x=x, y_pred=y_pred, y_true=y_true,
+                    batch=batch,
+                    x=x,
+                    y_pred=y_pred,
+                    y_true=y_true,
                 ):
                     break
 

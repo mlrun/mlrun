@@ -167,31 +167,31 @@ class V2ModelServer(StepToDict):
     def get_model(self, suffix=""):
         """get the model file(s) and metadata from model store
 
-    the method returns a path to the model file and the extra data (dict of dataitem objects)
-    it also loads the model metadata into the self.model_spec attribute, allowing direct access
-    to all the model metadata attributes.
+        the method returns a path to the model file and the extra data (dict of dataitem objects)
+        it also loads the model metadata into the self.model_spec attribute, allowing direct access
+        to all the model metadata attributes.
 
-    get_model is usually used in the model .load() method to init the model
-    Examples
-    --------
-    ::
+        get_model is usually used in the model .load() method to init the model
+        Examples
+        --------
+        ::
 
-        def load(self):
-            model_file, extra_data = self.get_model(suffix='.pkl')
-            self.model = load(open(model_file, "rb"))
-            categories = extra_data['categories'].as_df()
+            def load(self):
+                model_file, extra_data = self.get_model(suffix='.pkl')
+                self.model = load(open(model_file, "rb"))
+                categories = extra_data['categories'].as_df()
 
-    Parameters
-    ----------
-    suffix : str
-        optional, model file suffix (when the model_path is a directory)
+        Parameters
+        ----------
+        suffix : str
+            optional, model file suffix (when the model_path is a directory)
 
-    Returns
-    -------
-    str
-        (local) model file
-    dict
-        extra dataitems dictionary
+        Returns
+        -------
+        str
+            (local) model file
+        dict
+            extra dataitems dictionary
 
         """
         model_file, self.model_spec, extra_dataitems = mlrun.artifacts.get_model(
@@ -210,7 +210,7 @@ class V2ModelServer(StepToDict):
     def _check_readiness(self, event):
         if self.ready:
             return
-        if not event.trigger or event.trigger == "http":
+        if not event.trigger or event.trigger.kind in ["http", ""]:
             raise RuntimeError(f"model {self.name} is not ready yet")
         self.context.logger.info(f"waiting for model {self.name} to load")
         for i in range(50):  # wait up to 4.5 minutes
@@ -277,8 +277,8 @@ class V2ModelServer(StepToDict):
                 "outputs": [],
             }
             if self.model_spec:
-                event_body["inputs"] = self.model_spec.inputs
-                event_body["outputs"] = self.model_spec.outputs
+                event_body["inputs"] = self.model_spec.inputs.to_dict()
+                event_body["outputs"] = self.model_spec.outputs.to_dict()
             event.body = _update_result_body(
                 self._result_path, original_body, event_body
             )
@@ -314,9 +314,33 @@ class V2ModelServer(StepToDict):
 
         response = self.postprocess(response)
         if self._model_logger:
-            self._model_logger.push(start, request, response, op)
+            inputs, outputs = self.logged_results(request, response, op)
+            if inputs is None and outputs is None:
+                self._model_logger.push(start, request, response, op)
+            else:
+                track_request = {"id": event_id, "inputs": inputs or []}
+                track_response = {"outputs": outputs or []}
+                self._model_logger.push(start, track_request, track_response, op)
         event.body = _update_result_body(self._result_path, original_body, response)
         return event
+
+    def logged_results(self, request: dict, response: dict, op: str):
+        """hook for controlling which results are tracked by the model monitoring
+
+        this hook allows controlling which input/output data is logged by the model monitoring
+        allow filtering out columns or adding custom values, can also be used to monitor derived metrics
+        for example in image classification calculate and track the RGB values vs the image bitmap
+
+        the request["inputs"] holds a list of input values/arrays, the response["outputs"] holds a list of
+        corresponding output values/arrays (the schema of the input/output fields is stored in the model object),
+        this method should return lists of alternative inputs and outputs which will be monitored
+
+        :param request:   predict/explain request, see model serving docs for details
+        :param response:  result from the model predict/explain (after postprocess())
+        :param op:        operation (predict/infer or explain)
+        :returns: the input and output lists to track
+        """
+        return None, None
 
     def validate(self, request, operation):
         """validate the event body (after preprocess)"""

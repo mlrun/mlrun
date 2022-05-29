@@ -9,9 +9,12 @@ import mlrun.api.utils.singletons.project_member
 import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
+from mlrun.api.schemas.artifact import ArtifactsFormat
 
 
-class Artifacts(metaclass=mlrun.utils.singleton.Singleton,):
+class Artifacts(
+    metaclass=mlrun.utils.singleton.Singleton,
+):
     def store_artifact(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -23,8 +26,23 @@ class Artifacts(metaclass=mlrun.utils.singleton.Singleton,):
         project: str = mlrun.mlconf.default_project,
     ):
         project = project or mlrun.mlconf.default_project
+        # In case project is an empty string the setdefault won't catch it
+        if not data.setdefault("project", project):
+            data["project"] = project
+
+        if data["project"] != project:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Artifact with conflicting project name - {data['project']} while request project : {project}."
+                f"key={key}, uid={uid}, data={data}"
+            )
         mlrun.api.utils.singletons.db.get_db().store_artifact(
-            db_session, key, data, uid, iter, tag, project,
+            db_session,
+            key,
+            data,
+            uid,
+            iter,
+            tag,
+            project,
         )
 
     def get_artifact(
@@ -34,11 +52,19 @@ class Artifacts(metaclass=mlrun.utils.singleton.Singleton,):
         tag: str = "latest",
         iter: int = 0,
         project: str = mlrun.mlconf.default_project,
+        format_: ArtifactsFormat = ArtifactsFormat.legacy,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
-        return mlrun.api.utils.singletons.db.get_db().read_artifact(
-            db_session, key, tag, iter, project,
+        artifact = mlrun.api.utils.singletons.db.get_db().read_artifact(
+            db_session,
+            key,
+            tag,
+            iter,
+            project,
         )
+        if format_ == ArtifactsFormat.legacy:
+            return _transform_artifact_struct_to_legacy_format(artifact)
+        return artifact
 
     def list_artifacts(
         self,
@@ -53,6 +79,7 @@ class Artifacts(metaclass=mlrun.utils.singleton.Singleton,):
         category: typing.Optional[mlrun.api.schemas.ArtifactCategories] = None,
         iter: typing.Optional[int] = None,
         best_iteration: bool = False,
+        format_: ArtifactsFormat = ArtifactsFormat.legacy,
     ) -> typing.List:
         project = project or mlrun.mlconf.default_project
         if labels is None:
@@ -70,7 +97,12 @@ class Artifacts(metaclass=mlrun.utils.singleton.Singleton,):
             iter,
             best_iteration,
         )
-        return artifacts
+        if format_ != ArtifactsFormat.legacy:
+            return artifacts
+        return [
+            _transform_artifact_struct_to_legacy_format(artifact)
+            for artifact in artifacts
+        ]
 
     def delete_artifact(
         self,
@@ -97,3 +129,16 @@ class Artifacts(metaclass=mlrun.utils.singleton.Singleton,):
         mlrun.api.utils.singletons.db.get_db().del_artifacts(
             db_session, name, project, tag, labels
         )
+
+
+def _transform_artifact_struct_to_legacy_format(artifact):
+    # Check if this is already in legacy format
+    if "metadata" not in artifact:
+        return artifact
+
+    # Simply flatten the dictionary
+    legacy_artifact = {"kind": artifact["kind"]}
+    for section in ["metadata", "spec", "status"]:
+        for key, value in artifact[section].items():
+            legacy_artifact[key] = value
+    return legacy_artifact

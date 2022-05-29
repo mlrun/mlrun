@@ -534,6 +534,7 @@ class RouterStep(TaskStep):
         :param class_name: class name to build the route step from (when route is not provided)
         :param class_args: class init arguments
         :param handler:    class handler to invoke on run/event
+        :param function:   function this step should run in
         """
 
         if not route and not class_name:
@@ -600,6 +601,7 @@ class QueueStep(BaseStep):
         "path",
         "shards",
         "retention_in_hours",
+        "trigger_args",
         "options",
     ]
 
@@ -610,6 +612,7 @@ class QueueStep(BaseStep):
         after: list = None,
         shards: int = None,
         retention_in_hours: int = None,
+        trigger_args: dict = None,
         **options,
     ):
         super().__init__(name, after)
@@ -617,6 +620,7 @@ class QueueStep(BaseStep):
         self.shards = shards
         self.retention_in_hours = retention_in_hours
         self.options = options
+        self.trigger_args = trigger_args
         self._stream = None
         self._async_object = None
 
@@ -1072,6 +1076,18 @@ class FlowStep(BaseStep):
             if step.kind == StepKinds.queue:
                 step.init_object(self.context, None)
 
+    def list_child_functions(self):
+        """return a list of child function names referred to in the steps"""
+        functions = []
+        for step in self.get_children():
+            if (
+                hasattr(step, "function")
+                and step.function
+                and step.function not in functions
+            ):
+                functions.append(step.function)
+        return functions
+
     def is_empty(self):
         """is the graph empty (no child steps)"""
         return len(self.steps) == 0
@@ -1189,7 +1205,10 @@ def _add_graphviz_router(graph, step, source=None, **kwargs):
 
 
 def _add_graphviz_flow(
-    graph, step, source=None, targets=None,
+    graph,
+    step,
+    source=None,
+    targets=None,
 ):
     start_steps, default_final_step, responders = step.check_and_process_graph(
         allow_empty=True
@@ -1226,7 +1245,13 @@ def _add_graphviz_flow(
 
 
 def _generate_graphviz(
-    step, renderer, filename=None, format=None, source=None, targets=None, **kw,
+    step,
+    renderer,
+    filename=None,
+    format=None,
+    source=None,
+    targets=None,
+    **kw,
 ):
     try:
         from graphviz import Digraph
@@ -1381,7 +1406,9 @@ def _init_async_objects(context, steps):
                         endpoint, stream_path = parse_v3io_path(step.path)
                         stream_path = stream_path.strip("/")
                     step._async_object = storey.StreamTarget(
-                        storey.V3ioDriver(endpoint), stream_path
+                        storey.V3ioDriver(endpoint),
+                        stream_path,
+                        context=context,
                     )
                 else:
                     step._async_object = storey.Map(lambda x: x)

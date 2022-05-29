@@ -162,9 +162,9 @@ def nuclio_serving_handler(context, event):
 
     # check if valid route & model
     try:
-        if hasattr(event, "trigger") and event.trigger.kind != "http":
+        if hasattr(event, "trigger") and event.trigger.kind not in ["http", ""]:
             # non http triggers (i.e. stream) are directed to the first model
-            # todo: take model name and action from json is specified
+            # todo: take model name and action from json if specified
             model_name = next(iter(context.models))
             route = "predict"
         else:
@@ -174,7 +174,11 @@ def nuclio_serving_handler(context, event):
         actions = "|".join(context.router.keys())
         models = "|".join(context.models.keys())
         body = f"Got path: {event.path} \n Path must be <model-name>/<action> \nactions: {actions} \nmodels: {models}"
-        return context.Response(body=body, content_type="text/plain", status_code=404,)
+        return context.Response(
+            body=body,
+            content_type="text/plain",
+            status_code=404,
+        )
 
     return route(context, model_name, event)
 

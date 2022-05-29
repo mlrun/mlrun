@@ -14,15 +14,17 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
-
     - name: Delete previous unstable release
       if: github.event_name == 'push'
-      uses: dev-drprasad/delete-tag-and-release@v0.1.3
+      uses: dev-drprasad/delete-tag-and-release@v0.2.0
       with:
         delete_release: true # default: false
         tag_name: unstable # tag name to delete
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Checkout code
+      uses: actions/checkout@v2
 
     - name: Create new unstable release
       id: create_unstable_release
@@ -39,3 +41,7 @@ jobs:
           - Updated at ${{ github.event.head_commit.timestamp}}
         draft: false
         prerelease: false
+
+
+
+

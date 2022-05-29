@@ -27,3 +27,8 @@ class ArtifactCategories(str, enum.Enum):
                 ],
                 True,
             )
+
+
+class ArtifactsFormat(str, enum.Enum):
+    full = "full"
+    legacy = "legacy"

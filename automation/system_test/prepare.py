@@ -139,12 +139,14 @@ class SystemTestPreparer:
         try:
             if local:
                 stdout, stderr, exit_status = self._run_command_locally(
-                    command, args, workdir, stdin, live, suppress_errors
+                    command, args, workdir, stdin, live
                 )
             else:
                 stdout, stderr, exit_status = self._run_command_remotely(
-                    command, args, workdir, stdin, live, suppress_errors
+                    command, args, workdir, stdin, live
                 )
+            if exit_status != 0 and not suppress_errors:
+                raise RuntimeError(f"Command failed with exit status: {exit_status}")
         except (paramiko.SSHException, RuntimeError) as exc:
             self._logger.error(
                 f"Failed running command {log_command_location}",
@@ -172,7 +174,6 @@ class SystemTestPreparer:
         workdir: str = None,
         stdin: str = None,
         live: bool = True,
-        suppress_errors: bool = False,
     ) -> (str, str, int):
         workdir = workdir or self.Constants.workdir
         stdout, stderr, exit_status = "", "", 0
@@ -201,8 +202,6 @@ class SystemTestPreparer:
         stderr = stderr_stream.read()
 
         exit_status = stdout_stream.channel.recv_exit_status()
-        if exit_status != 0 and not suppress_errors:
-            raise RuntimeError(f"Command failed with exit status: {exit_status}")
 
         return stdout, stderr, exit_status
 
@@ -213,7 +212,6 @@ class SystemTestPreparer:
         workdir: str = None,
         stdin: str = None,
         live: bool = True,
-        suppress_errors: bool = False,
     ) -> (str, str, int):
         stdout, stderr, exit_status = "", "", 0
         if workdir:
@@ -243,8 +241,6 @@ class SystemTestPreparer:
         stderr = process.stderr.read()
 
         exit_status = process.wait()
-        if exit_status != 0 and not suppress_errors:
-            raise RuntimeError(f"Command failed with exit status: {exit_status}")
 
         return stdout, stderr, exit_status
 
@@ -291,13 +287,17 @@ class SystemTestPreparer:
     def _prepare_test_env(self):
 
         self._run_command(
-            "mkdir", args=["-p", str(self.Constants.workdir)],
+            "mkdir",
+            args=["-p", str(self.Constants.workdir)],
         )
         contents = yaml.safe_dump(self._env_config)
         filepath = str(self.Constants.system_tests_env_yaml)
         self._logger.debug("Populating system tests env.yml", filepath=filepath)
         self._run_command(
-            "cat > ", args=[filepath], stdin=contents, local=True,
+            "cat > ",
+            args=[filepath],
+            stdin=contents,
+            local=True,
         )
 
     def _override_mlrun_api_env(self):
@@ -311,7 +311,8 @@ class SystemTestPreparer:
             # Disable the scheduler minimum allowed interval to allow fast tests (default minimum is 10 minutes, which
             # will make our tests really long)
             "MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL": "0 Seconds",
-            # Enabling it in system tests until we enable it by default in config
+            # to allow batch_function to have parquet files sooner
+            "MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS": "100",
         }
         if self._override_image_registry:
             data["MLRUN_IMAGES_REGISTRY"] = f"{self._override_image_registry}"
@@ -329,7 +330,8 @@ class SystemTestPreparer:
         )
 
         self._run_command(
-            "kubectl", args=["apply", "-f", manifest_file_name],
+            "kubectl",
+            args=["apply", "-f", manifest_file_name],
         )
 
     def _download_provctl(self):

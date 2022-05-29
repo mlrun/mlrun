@@ -10,12 +10,10 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.utils.tensorboard.summary import hparams
 
 import mlrun
-from mlrun.frameworks._dl_common.loggers import TensorboardLogger, TrackableType
-from mlrun.frameworks.pytorch.callbacks.logging_callback import (
-    LoggingCallback,
-    MetricFunctionType,
-    MetricValueType,
-)
+
+from ..._common import TrackableType
+from ..._dl_common.loggers import TensorboardLogger
+from .logging_callback import LoggingCallback, MetricFunctionType, MetricValueType
 
 
 class _MLRunSummaryWriter(SummaryWriter):
@@ -111,7 +109,8 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
         :param input_sample: An input sample for writing the model.
         """
         self._summary_writer.add_graph(
-            model=model, input_to_model=input_sample,
+            model=model,
+            input_to_model=input_sample,
         )
 
     def write_parameters_table_to_tensorboard(self):
@@ -161,7 +160,9 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
         :param step: The iteration / epoch the text belongs to.
         """
         self._summary_writer.add_text(
-            tag=tag, text_string=text, global_step=step,
+            tag=tag,
+            text_string=text,
+            global_step=step,
         )
 
     def _write_scalar_to_tensorboard(self, name: str, value: float, step: int):
@@ -173,7 +174,9 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
         :param step:  The iteration / epoch the value belongs to.
         """
         self._summary_writer.add_scalar(
-            tag=name, scalar_value=value, global_step=step,
+            tag=name,
+            scalar_value=value,
+            global_step=step,
         )
 
     def _write_weight_histogram_to_tensorboard(
@@ -187,7 +190,9 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
         :param step:   The iteration / epoch the weight's histogram state belongs to.
         """
         self._summary_writer.add_histogram(
-            tag=name, values=weight, global_step=step,
+            tag=name,
+            values=weight,
+            global_step=step,
         )
 
     def _write_weight_image_to_tensorboard(

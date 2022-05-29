@@ -24,6 +24,9 @@ import pandas as pd
 from kubernetes import client
 
 import mlrun
+import mlrun.builder
+import mlrun.utils.regex
+from mlrun.api.utils.clients import nuclio
 from mlrun.db import get_run_db
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
 from mlrun.k8s_utils import get_k8s_helper
@@ -31,7 +34,7 @@ from mlrun.runtimes.constants import MPIJobCRDVersions
 
 from ..artifacts import TableArtifact
 from ..config import config
-from ..utils import get_in, helpers, logger
+from ..utils import get_in, helpers, logger, verify_field_regex
 from .generators import selector
 
 
@@ -57,6 +60,7 @@ global_context = _ContextStore()
 
 
 cached_mpijob_crd_version = None
+cached_nuclio_version = None
 
 
 # resolve mpijob runtime according to the mpi-operator's supported crd-version
@@ -114,6 +118,29 @@ def resolve_spark_operator_version():
         return int(regex.findall(config.spark_operator_version)[0])
     except Exception:
         raise ValueError("Failed to resolve spark operator's version")
+
+
+# if nuclio version specified on mlrun config set it likewise,
+# if not specified, get it from nuclio api client
+# since this is a heavy operation (sending requests to API), and it's unlikely that the version
+# will change - cache it (this means if we upgrade nuclio, we need to restart mlrun to re-fetch the new version)
+def resolve_nuclio_version():
+    global cached_nuclio_version
+
+    if not cached_nuclio_version:
+
+        # config override everything
+        nuclio_version = config.nuclio_version
+        if not nuclio_version and config.nuclio_dashboard_url:
+            try:
+                nuclio_client = nuclio.Client()
+                nuclio_version = nuclio_client.get_dashboard_version()
+            except Exception as exc:
+                logger.warning("Failed to resolve nuclio version", exc=str(exc))
+
+        cached_nuclio_version = nuclio_version
+
+    return cached_nuclio_version
 
 
 def calc_hash(func, tag=""):
@@ -241,7 +268,7 @@ def results_to_iter(results, runspec, execution):
     header = df.columns.values.tolist()
     summary = [header] + df.values.tolist()
     if not runspec:
-        return summary
+        return summary, df
 
     criteria = runspec.spec.hyper_param_options.selector
     item, id = selector(results, criteria)
@@ -254,6 +281,19 @@ def results_to_iter(results, runspec, execution):
     task = results[item] if id and results else None
     execution.log_iteration_results(id, summary, task)
 
+    log_iter_artifacts(execution, df, header)
+
+    if failed:
+        execution.set_state(
+            error=f"{failed} of {len(results)} tasks failed, check logs in db for details",
+            commit=False,
+        )
+    elif running == 0:
+        execution.set_state("completed", commit=False)
+    execution.commit()
+
+
+def log_iter_artifacts(execution, df, header):
     csv_buffer = StringIO()
     df.to_csv(csv_buffer, index=False, line_terminator="\n", encoding="utf-8")
     try:
@@ -273,33 +313,62 @@ def results_to_iter(results, runspec, execution):
             body=gen_pcp_plot(df, index_col="iter"),
             local_path="parallel_coordinates.html",
         )
-    except Exception:
-        pass
-
-    if failed:
-        execution.set_state(
-            error=f"{failed} of {len(results)} tasks failed, check logs in db for details",
-            commit=False,
-        )
-    elif running == 0:
-        execution.set_state("completed", commit=False)
-    execution.commit()
+    except Exception as exc:
+        logger.warning(f"failed to log iter artifacts, {exc}")
 
 
-def generate_function_image_name(function) -> str:
+def resolve_function_image_name(function, image: typing.Optional[str] = None) -> str:
     project = function.metadata.project or config.default_project
+    name = function.metadata.name
     tag = function.metadata.tag or "latest"
+    if image:
+        image_name_prefix = resolve_function_target_image_name_prefix(project, name)
+        registries_to_enforce_prefix = (
+            resolve_function_target_image_registries_to_enforce_prefix()
+        )
+        for registry in registries_to_enforce_prefix:
+            if image.startswith(registry):
+                prefix_with_registry = f"{registry}{image_name_prefix}"
+                if not image.startswith(prefix_with_registry):
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Configured registry enforces image name to start with this prefix: {image_name_prefix}"
+                    )
+        return image
+    return generate_function_image_name(project, name, tag)
+
+
+def generate_function_image_name(project: str, name: str, tag: str) -> str:
     _, repository = helpers.get_parsed_docker_registry()
     repository = helpers.get_docker_repository_or_default(repository)
     return fill_function_image_name_template(
-        ".", repository, project, function.metadata.name, tag
+        mlrun.builder.IMAGE_NAME_ENRICH_REGISTRY_PREFIX, repository, project, name, tag
     )
 
 
 def fill_function_image_name_template(
-    registry: str, repository: str, project: str, name: str, tag: str,
+    registry: str,
+    repository: str,
+    project: str,
+    name: str,
+    tag: str,
 ) -> str:
-    return f"{registry}{repository}/func-{project}-{name}:{tag}"
+    image_name_prefix = resolve_function_target_image_name_prefix(project, name)
+    return f"{registry}{repository}/{image_name_prefix}:{tag}"
+
+
+def resolve_function_target_image_name_prefix(project: str, name: str):
+    return config.httpdb.builder.function_target_image_name_prefix_template.format(
+        project=project, name=name
+    )
+
+
+def resolve_function_target_image_registries_to_enforce_prefix():
+    registry, repository = helpers.get_parsed_docker_registry()
+    repository = helpers.get_docker_repository_or_default(repository)
+    return [
+        f"{mlrun.builder.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}{repository}/",
+        f"{registry}/{repository}/",
+    ]
 
 
 def set_named_item(obj, item):
@@ -307,6 +376,13 @@ def set_named_item(obj, item):
         obj[item["name"]] = item
     else:
         obj[item.name] = item
+
+
+def set_item_attribute(item, attribute, value):
+    if isinstance(item, dict):
+        item[attribute] = value
+    else:
+        setattr(item, attribute, value)
 
 
 def get_item_name(item, attr="name"):
@@ -382,6 +458,76 @@ def get_resource_labels(function, run=None, scrape_metrics=None):
     return labels
 
 
+def verify_limits(
+    resources_field_name,
+    mem=None,
+    cpu=None,
+    gpus=None,
+    gpu_type="nvidia.com/gpu",
+):
+    if mem:
+        verify_field_regex(
+            f"function.spec.{resources_field_name}.limits.memory",
+            mem,
+            mlrun.utils.regex.k8s_resource_quantity_regex,
+        )
+    if cpu:
+        verify_field_regex(
+            f"function.spec.{resources_field_name}.limits.cpu",
+            cpu,
+            mlrun.utils.regex.k8s_resource_quantity_regex,
+        )
+    # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
+    if gpus:
+        verify_field_regex(
+            f"function.spec.{resources_field_name}.limits.gpus",
+            gpus,
+            mlrun.utils.regex.k8s_resource_quantity_regex,
+        )
+    return generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type)
+
+
+def verify_requests(
+    resources_field_name,
+    mem=None,
+    cpu=None,
+):
+    if mem:
+        verify_field_regex(
+            f"function.spec.{resources_field_name}.requests.memory",
+            mem,
+            mlrun.utils.regex.k8s_resource_quantity_regex,
+        )
+    if cpu:
+        verify_field_regex(
+            f"function.spec.{resources_field_name}.requests.cpu",
+            cpu,
+            mlrun.utils.regex.k8s_resource_quantity_regex,
+        )
+    return generate_resources(mem=mem, cpu=cpu)
+
+
+def get_gpu_from_resource_requirement(requirement: dict):
+    """
+    Because there could be different types of gpu types, and we don't know all the gpu types possible,
+    we want to get the gpu type and its value, we can figure out the type by knowing what resource types are static
+    and the possible number of resources.
+    Kubernetes support 3 types of resources, two of which their name doesn't change : cpu, memory.
+    :param requirement: requirement resource ( limits / requests ) which contain the resources.
+    """
+    if not requirement:
+        return None, None
+
+    if len(requirement) > 3:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Unable to resolve the gpu type because there are more than 3 resources"
+        )
+    for resource, value in requirement.items():
+        if resource not in ["cpu", "memory"]:
+            return resource, value
+    return None, None
+
+
 def generate_resources(mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
     """get pod cpu/memory/gpu resources dict"""
     resources = {}
@@ -438,18 +584,8 @@ class k8s_resource:
     def del_object(self, name, namespace=None):
         pass
 
-    def list_objects(self, namespace=None, selector=[], states=None):
-        return []
-
     def get_pods(self, name, namespace=None, master=False):
         return {}
-
-    def clean_objects(self, namespace=None, selector=[], states=None):
-        if not selector and not states:
-            raise ValueError("labels selector or states list must be specified")
-        items = self.list_objects(namespace, selector, states)
-        for item in items:
-            self.del_object(item.metadata.name, item.metadata.namespace)
 
 
 def enrich_function_from_dict(function, function_dict):
@@ -466,6 +602,8 @@ def enrich_function_from_dict(function, function_dict):
         "affinity",
         "priority_class_name",
         "credentials",
+        "tolerations",
+        "preemption_mode",
     ]:
         if attribute == "credentials":
             override_value = getattr(override_function.metadata, attribute, None)
@@ -478,7 +616,8 @@ def enrich_function_from_dict(function, function_dict):
                         function.set_env(env_dict["name"], env_dict["value"])
                     else:
                         function.set_env(
-                            env_dict["name"], value_from=env_dict["valueFrom"],
+                            env_dict["name"],
+                            value_from=env_dict["valueFrom"],
                         )
             elif attribute == "volumes":
                 function.spec.update_vols_and_mounts(override_value, [])

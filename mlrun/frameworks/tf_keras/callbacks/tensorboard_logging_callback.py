@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Callable, Dict, List, Union
 
 import tensorflow as tf
+from packaging import version
 from tensorboard.plugins.hparams import api as hp_api
 from tensorboard.plugins.hparams import api_pb2 as hp_api_pb2
 from tensorboard.plugins.hparams import summary as hp_summary
@@ -10,8 +11,10 @@ from tensorflow.keras import Model
 from tensorflow.python.ops import summary_ops_v2
 
 import mlrun
-from mlrun.frameworks._dl_common.loggers import TensorboardLogger, TrackableType
-from mlrun.frameworks.tf_keras.callbacks.logging_callback import LoggingCallback
+
+from ..._common import TrackableType
+from ..._dl_common.loggers import TensorboardLogger
+from .logging_callback import LoggingCallback
 
 
 class _TFKerasTensorboardLogger(TensorboardLogger):
@@ -68,10 +71,11 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
         :param model: The model to write to tensorboard.
         """
         with self._file_writer.as_default():
-            if tf.__version__ == "2.4.1":
+            # Log the model's graph according to tensorflow's version:
+            if version.parse(tf.__version__) < version.parse("2.5.0"):
                 with summary_ops_v2.always_record_summaries():
                     summary_ops_v2.keras_model(name=model.name, data=model, step=0)
-            elif tf.__version__ == "2.5.0":
+            else:
                 from tensorflow.python.keras.callbacks import keras_model_summary
 
                 with summary_ops_v2.record_if(True):
@@ -160,7 +164,9 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
         """
         with self._file_writer.as_default():
             tf.summary.text(
-                name=tag, data=text, step=step,
+                name=tag,
+                data=text,
+                step=step,
             )
 
     def _write_scalar_to_tensorboard(self, name: str, value: float, step: int):
@@ -173,7 +179,9 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
         """
         with self._file_writer.as_default():
             tf.summary.scalar(
-                name=name, data=value, step=step,
+                name=name,
+                data=value,
+                step=step,
             )
 
     def _write_weight_histogram_to_tensorboard(
@@ -188,7 +196,9 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
         """
         with self._file_writer.as_default():
             tf.summary.histogram(
-                name=name, data=weight, step=step,
+                name=name,
+                data=weight,
+                step=step,
             )
 
     def _write_weight_image_to_tensorboard(

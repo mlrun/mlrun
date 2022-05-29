@@ -3,6 +3,7 @@ import os
 import traceback
 from typing import Any, Dict, List, Optional
 
+import v3io_frames
 from nuclio.utils import DeployError
 from sqlalchemy.orm import Session
 from v3io.dataplane import RaiseForStatus
@@ -14,7 +15,7 @@ import mlrun.api.utils.singletons.k8s
 import mlrun.datastore.store_resources
 from mlrun.api.api.endpoints.functions import _build_function
 from mlrun.api.api.utils import _submit_run, get_run_db_instance
-from mlrun.api.crud.secrets import Secrets
+from mlrun.api.crud.secrets import Secrets, SecretsClientType
 from mlrun.api.schemas import (
     Features,
     Metric,
@@ -133,7 +134,9 @@ class ModelEndpoints:
         logger.info("Updating model endpoint", endpoint_id=model_endpoint.metadata.uid)
 
         self.write_endpoint_to_kv(
-            access_key=access_key, endpoint=model_endpoint, update=True,
+            access_key=access_key,
+            endpoint=model_endpoint,
+            update=True,
         )
 
         logger.info("Model endpoint updated", endpoint_id=model_endpoint.metadata.uid)
@@ -150,7 +153,7 @@ class ModelEndpoints:
         """
         Deletes the KV record of a given model endpoint, project and endpoint_id are used for lookup
 
-        :param auth_info: The required auth information for doing the deletion
+        :param auth_info: The auth info of the request
         :param project: The name of the project
         :param endpoint_id: The id of the endpoint
         :param access_key: access key with permission to delete
@@ -199,7 +202,7 @@ class ModelEndpoints:
         and depends on the 'start' and 'end' parameters. By default, when the metrics parameter is None, no metrics are
         added to the output of this function.
 
-        :param access_key: V3IO access key for managing user permissions
+        :param auth_info: The auth info of the request
         :param project: The name of the project
         :param model: The name of the model to filter by
         :param function: The name of the function to filter by
@@ -240,7 +243,11 @@ class ModelEndpoints:
                 table_path=path,
                 access_key=auth_info.data_session,
                 filter_expression=self.build_kv_cursor_filter_expression(
-                    project, function, model, labels, top_level,
+                    project,
+                    function,
+                    model,
+                    labels,
+                    top_level,
                 ),
                 attribute_names=["endpoint_id"],
                 raise_for_status=RaiseForStatus.never,
@@ -277,7 +284,7 @@ class ModelEndpoints:
         """
         Returns a ModelEndpoint object with additional metrics and feature related data.
 
-        :param auth_info: The required auth information for doing the deletion
+        :param auth_info: The auth info of the request
         :param project: The name of the project
         :param endpoint_id: The id of the model endpoint
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
@@ -288,7 +295,8 @@ class ModelEndpoints:
         """
         access_key = self.get_access_key(auth_info)
         logger.info(
-            "Getting model endpoint record from kv", endpoint_id=endpoint_id,
+            "Getting model endpoint record from kv",
+            endpoint_id=endpoint_id,
         )
 
         client = get_v3io_client(endpoint=config.v3io_api)
@@ -497,30 +505,50 @@ class ModelEndpoints:
         _, container, path = parse_model_endpoint_store_prefix(path)
 
         client = get_frames_client(
-            token=access_key, address=config.v3io_framesd, container=container,
+            token=access_key,
+            address=config.v3io_framesd,
+            container=container,
         )
 
-        data = client.read(
-            backend="tsdb",
-            table=path,
-            columns=["endpoint_id", *metrics],
-            filter=f"endpoint_id=='{endpoint_id}'",
-            start=start,
-            end=end,
-        )
-
-        data_dict = data.to_dict()
         metrics_mapping = {}
-        for metric in metrics:
-            metric_data = data_dict.get(metric)
-            if metric_data is None:
-                continue
 
-            values = [
-                (str(timestamp), value) for timestamp, value in metric_data.items()
-            ]
-            metrics_mapping[metric] = Metric(name=metric, values=values)
+        try:
+            data = client.read(
+                backend="tsdb",
+                table=path,
+                columns=["endpoint_id", *metrics],
+                filter=f"endpoint_id=='{endpoint_id}'",
+                start=start,
+                end=end,
+            )
+
+            data_dict = data.to_dict()
+            for metric in metrics:
+                metric_data = data_dict.get(metric)
+                if metric_data is None:
+                    continue
+
+                values = [
+                    (str(timestamp), value) for timestamp, value in metric_data.items()
+                ]
+                metrics_mapping[metric] = Metric(name=metric, values=values)
+        except v3io_frames.errors.ReadError:
+            logger.warn(f"failed to read tsdb for endpoint {endpoint_id}")
         return metrics_mapping
+
+    def verify_project_has_no_model_endpoints(self, project_name: str):
+        auth_info = mlrun.api.schemas.AuthInfo(
+            data_session=os.getenv("V3IO_ACCESS_KEY")
+        )
+
+        if not config.igz_version or not config.v3io_api:
+            return
+
+        endpoints = self.list_endpoints(auth_info, project_name)
+        if endpoints.endpoints:
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                f"Project {project_name} can not be deleted since related resources found: model endpoints"
+            )
 
     def delete_model_endpoints_resources(self, project_name: str):
         auth_info = mlrun.api.schemas.AuthInfo(
@@ -536,7 +564,10 @@ class ModelEndpoints:
         endpoints = self.list_endpoints(auth_info, project_name)
         for endpoint in endpoints.endpoints:
             self.delete_endpoint_record(
-                auth_info, endpoint.metadata.project, endpoint.metadata.uid, access_key,
+                auth_info,
+                endpoint.metadata.project,
+                endpoint.metadata.uid,
+                access_key,
             )
 
         v3io = get_v3io_client(endpoint=config.v3io_api, access_key=access_key)
@@ -549,7 +580,9 @@ class ModelEndpoints:
         _, container, path = parse_model_endpoint_store_prefix(path)
 
         frames = get_frames_client(
-            token=access_key, container=container, address=config.v3io_framesd,
+            token=access_key,
+            container=container,
+            address=config.v3io_framesd,
         )
         try:
             all_records = v3io.kv.new_cursor(
@@ -584,7 +617,9 @@ class ModelEndpoints:
         # Cleanup TSDB
         try:
             frames.delete(
-                backend="tsdb", table=path, if_missing=frames_pb2.IGNORE,
+                backend="tsdb",
+                table=path,
+                if_missing=frames_pb2.IGNORE,
             )
         except CreateError:
             # frames might raise an exception if schema file does not exist.
@@ -618,27 +653,9 @@ class ModelEndpoints:
                 f"Deploying model monitoring stream processing function [{project}]"
             )
 
-        fn = get_model_monitoring_stream_processing_function(project)
-        fn.metadata.project = project
-        stream_path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind="stream"
+        fn = get_model_monitoring_stream_processing_function(
+            project, model_monitoring_access_key, db_session
         )
-
-        fn.add_v3io_stream_trigger(
-            stream_path=stream_path, name="monitoring_stream_trigger"
-        )
-
-        fn.set_env_from_secret(
-            "MODEL_MONITORING_ACCESS_KEY",
-            mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
-            Secrets().generate_model_monitoring_secret_key(
-                "MODEL_MONITORING_ACCESS_KEY"
-            ),
-        )
-        fn.metadata.credentials.access_key = model_monitoring_access_key
-        fn.set_env("MODEL_MONITORING_PARAMETERS", json.dumps({"project": project}))
-
-        fn.apply(mlrun.mount_v3io())
 
         _build_function(db_session=db_session, auth_info=auto_info, function=fn)
 
@@ -677,8 +694,8 @@ class ModelEndpoints:
         fn.set_env_from_secret(
             "MODEL_MONITORING_ACCESS_KEY",
             mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
-            Secrets().generate_model_monitoring_secret_key(
-                "MODEL_MONITORING_ACCESS_KEY"
+            Secrets().generate_client_project_secret_key(
+                SecretsClientType.model_monitoring, "MODEL_MONITORING_ACCESS_KEY"
             ),
         )
 

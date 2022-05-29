@@ -38,8 +38,7 @@ def get_http_adapter(retries, backoff_factor):
 
 
 class RemoteStep(storey.SendToHttp):
-    """class for calling remote endpoints
-    """
+    """class for calling remote endpoints"""
 
     def __init__(
         self,
@@ -52,6 +51,7 @@ class RemoteStep(storey.SendToHttp):
         return_json: bool = True,
         input_path: str = None,
         result_path: str = None,
+        max_in_flight=None,
         retries=None,
         backoff_factor=None,
         timeout=None,
@@ -66,8 +66,8 @@ class RemoteStep(storey.SendToHttp):
         example pipeline::
 
             flow = function.set_topology("flow", engine="async")
-            flow.to(name="step1", handler="func1")\
-                .to(RemoteStep(name="remote_echo", url="https://myservice/path", method="POST"))\
+            flow.to(name="step1", handler="func1")
+                .to(RemoteStep(name="remote_echo", url="https://myservice/path", method="POST"))
                 .to(name="laststep", handler="func2").respond()
 
 
@@ -86,7 +86,7 @@ class RemoteStep(storey.SendToHttp):
                             event: {"x": 5} , result_path="resp" means the returned response will be written
                             to event["y"] resulting in {"x": 5, "resp": <result>}
         :param retries:     number of retries (in exponential backoff)
-        :param backoff_factor: A backoff factor in secounds to apply between attempts after the second try
+        :param backoff_factor: A backoff factor in seconds to apply between attempts after the second try
         :param timeout:     How long to wait for the server to send data before giving up, float in seconds
         """
         # init retry args for storey
@@ -96,6 +96,7 @@ class RemoteStep(storey.SendToHttp):
             None,
             input_path=input_path,
             result_path=result_path,
+            max_in_flight=max_in_flight,
             retries=retries,
             backoff_factor=backoff_factor,
             **kwargs,
@@ -214,7 +215,9 @@ class RemoteStep(storey.SendToHttp):
                 url = url + "/" + striped_path
             if striped_path:
                 headers[event_path_key] = event.path
-        headers[event_id_key] = event.id
+
+        if event.id:
+            headers[event_id_key] = event.id
 
         if method == "GET":
             body = None
@@ -236,8 +239,7 @@ class RemoteStep(storey.SendToHttp):
 
 
 class BatchHttpRequests(_ConcurrentJobExecution):
-    """class for calling remote endpoints in parallel
-    """
+    """class for calling remote endpoints in parallel"""
 
     def __init__(
         self,
@@ -296,7 +298,7 @@ class BatchHttpRequests(_ConcurrentJobExecution):
                             event: {"x": 5} , result_path="resp" means the returned response will be written
                             to event["y"] resulting in {"x": 5, "resp": <result>}
         :param retries:     number of retries (in exponential backoff)
-        :param backoff_factor: A backoff factor in secounds to apply between attempts after the second try
+        :param backoff_factor: A backoff factor in seconds to apply between attempts after the second try
         :param timeout:     How long to wait for the server to send data before giving up, float in seconds
         """
         if url and url_expression:

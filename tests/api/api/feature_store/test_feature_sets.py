@@ -4,6 +4,8 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import tests.api.api.utils
+
 from .base import (
     _assert_diff_as_expected_except_for_specific_metadata,
     _list_and_assert_objects,
@@ -66,7 +68,7 @@ def _feature_set_create_and_assert(
     client: TestClient, project, feature_set, versioned=True
 ):
     response = client.post(
-        f"/api/projects/{project}/feature-sets?versioned={versioned}", json=feature_set
+        f"projects/{project}/feature-sets?versioned={versioned}", json=feature_set
     )
     assert response.status_code == HTTPStatus.OK.value
     return response.json()
@@ -76,7 +78,7 @@ def _store_and_assert_feature_set(
     client: TestClient, project, name, reference, feature_set, versioned=True
 ):
     response = client.put(
-        f"/api/projects/{project}/feature-sets/{name}/references/{reference}?versioned={versioned}",
+        f"projects/{project}/feature-sets/{name}/references/{reference}?versioned={versioned}",
         json=feature_set,
     )
     assert response
@@ -95,6 +97,7 @@ def _assert_extra_fields_exist(json_response):
 
 def test_feature_set_put_with_tag(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_set1"
     tag = "my_tag1"
@@ -111,6 +114,7 @@ def test_feature_set_put_with_tag(db: Session, client: TestClient) -> None:
 
 def test_feature_set_create_without_tag(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
@@ -122,13 +126,14 @@ def test_feature_set_create_without_tag(db: Session, client: TestClient) -> None
 
 def test_feature_set_create_with_extra_fields(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
     _feature_set_create_and_assert(client, project_name, feature_set)
 
     response = client.get(
-        f"/api/projects/{project_name}/feature-sets/{name}/references/latest"
+        f"projects/{project_name}/feature-sets/{name}/references/latest"
     )
     assert response.status_code == HTTPStatus.OK.value
     json_response = response.json()
@@ -146,13 +151,14 @@ def test_feature_set_create_with_extra_fields(db: Session, client: TestClient) -
 
 def test_feature_set_create_and_list(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
     _feature_set_create_and_assert(client, project_name, feature_set)
 
     response = client.get(
-        f"/api/projects/{project_name}/feature-sets/{name}/references/latest"
+        f"projects/{project_name}/feature-sets/{name}/references/latest"
     )
     assert response.status_code == HTTPStatus.OK.value
 
@@ -194,6 +200,8 @@ def test_feature_set_create_and_list(db: Session, client: TestClient) -> None:
 
 def test_feature_set_list_partition_by(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     count = 5
     for i in range(count):
         name = f"feature_set_{i}"
@@ -212,6 +220,7 @@ def test_feature_set_list_partition_by(db: Session, client: TestClient) -> None:
 
 def test_feature_set_patch(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
@@ -274,6 +283,7 @@ def test_feature_set_patch(db: Session, client: TestClient) -> None:
 
 def test_feature_set_get_by_reference(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
@@ -284,13 +294,13 @@ def test_feature_set_get_by_reference(db: Session, client: TestClient) -> None:
     uid = added_feature_set["metadata"]["uid"]
 
     response = client.get(
-        f"/api/projects/{project_name}/feature-sets/{name}/references/latest"
+        f"projects/{project_name}/feature-sets/{name}/references/latest"
     )
     assert response.status_code == HTTPStatus.OK.value
     assert response.json()["metadata"]["uid"] == uid
 
     response = client.get(
-        f"/api/projects/{project_name}/feature-sets/{name}/references/{uid}"
+        f"projects/{project_name}/feature-sets/{name}/references/{uid}"
     )
     assert response.status_code == HTTPStatus.OK.value
     assert response.json()["metadata"]["name"] == name
@@ -298,6 +308,8 @@ def test_feature_set_get_by_reference(db: Session, client: TestClient) -> None:
 
 def test_feature_set_delete(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     count = 5
     for i in range(count):
         name = f"feature_set_{i}"
@@ -308,19 +320,20 @@ def test_feature_set_delete(db: Session, client: TestClient) -> None:
 
     # Delete the last fs
     response = client.delete(
-        f"/api/projects/{project_name}/feature-sets/feature_set_{count-1}"
+        f"projects/{project_name}/feature-sets/feature_set_{count-1}"
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
     _list_and_assert_objects(client, "feature_sets", project_name, None, count - 1)
 
     # Delete the first fs
-    response = client.delete(f"/api/projects/{project_name}/feature-sets/feature_set_0")
+    response = client.delete(f"projects/{project_name}/feature-sets/feature_set_0")
     assert response.status_code == HTTPStatus.NO_CONTENT.value
     _list_and_assert_objects(client, "feature_sets", project_name, None, count - 2)
 
 
 def test_feature_set_delete_version(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_set"
     feature_set = _generate_feature_set(name)
@@ -347,7 +360,7 @@ def test_feature_set_delete_version(db: Session, client: TestClient) -> None:
         delete_by_tag = not delete_by_tag
 
         response = client.delete(
-            f"/api/projects/{project_name}/feature-sets/{name}/references/{reference}"
+            f"projects/{project_name}/feature-sets/{name}/references/{reference}"
         )
         assert response.status_code == HTTPStatus.NO_CONTENT.value
         objects_left = objects_left - 1
@@ -362,7 +375,7 @@ def test_feature_set_delete_version(db: Session, client: TestClient) -> None:
         )
 
     # Now delete by name
-    response = client.delete(f"/api/projects/{project_name}/feature-sets/{name}")
+    response = client.delete(f"projects/{project_name}/feature-sets/{name}")
     assert response.status_code == HTTPStatus.NO_CONTENT.value
     _list_and_assert_objects(client, "feature_sets", project_name, f"name={name}", 0)
 
@@ -371,13 +384,15 @@ def test_feature_set_create_failure_already_exists(
     db: Session, client: TestClient
 ) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
 
     _feature_set_create_and_assert(client, project_name, feature_set, versioned=True)
 
     response = client.post(
-        f"/api/projects/{project_name}/feature-sets?versioned=True", json=feature_set
+        f"projects/{project_name}/feature-sets?versioned=True", json=feature_set
     )
     assert response.status_code == HTTPStatus.CONFLICT.value
 
@@ -390,7 +405,7 @@ def test_feature_set_create_failure_already_exists(
     assert added_feature_set["metadata"]["uid"] is None
 
     response = client.post(
-        f"/api/projects/{project_name}/feature-sets?versioned=False", json=feature_set
+        f"projects/{project_name}/feature-sets?versioned=False", json=feature_set
     )
     assert response.status_code == HTTPStatus.CONFLICT.value
 
@@ -399,6 +414,8 @@ def test_feature_set_multiple_creates_and_patches(
     db: Session, client: TestClient
 ) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     count = 5
     for i in range(count):
         name = f"fs_{i}"
@@ -410,7 +427,7 @@ def test_feature_set_multiple_creates_and_patches(
     }
 
     response = client.patch(
-        f"/api/projects/{project_name}/feature-sets/{name}/references/latest",
+        f"projects/{project_name}/feature-sets/{name}/references/latest",
         json=feature_set_patch,
     )
     assert response.status_code == HTTPStatus.OK.value
@@ -428,6 +445,8 @@ def test_feature_set_multiple_creates_and_patches(
 
 def test_feature_set_store(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
 
@@ -466,7 +485,7 @@ def test_feature_set_store(db: Session, client: TestClient) -> None:
     # Do the same, but reference the object by its uid - this should fail the request
     feature_set["metadata"]["new_metadata"] = "something else"
     response = client.put(
-        f"/api/projects/{project_name}/feature-sets/{name}/references/{modified_uid}",
+        f"projects/{project_name}/feature-sets/{name}/references/{modified_uid}",
         json=feature_set,
     )
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
@@ -474,6 +493,8 @@ def test_feature_set_store(db: Session, client: TestClient) -> None:
 
 def test_feature_set_tagging_with_re_store(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
 
@@ -513,6 +534,8 @@ def test_feature_set_tagging_with_re_store(db: Session, client: TestClient) -> N
 
 def test_list_feature_sets_tags(db: Session, client: TestClient) -> None:
     project_name = "some-project"
+    tests.api.api.utils.create_project(client, project_name)
+
     name = "feature_set-1"
     name_2 = "feature_set-2"
     feature_set_1 = _generate_feature_set(name)
@@ -525,12 +548,17 @@ def test_list_feature_sets_tags(db: Session, client: TestClient) -> None:
                 client, project_name, feature_set["metadata"]["name"], tag, feature_set
             )
     _list_tags_and_assert(
-        client, "feature_sets", project_name, tags,
+        client,
+        "feature_sets",
+        project_name,
+        tags,
     )
 
 
 def test_feature_set_create_without_labels(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
 
@@ -552,13 +580,13 @@ def test_feature_set_project_name_mismatch_failure(
     db: Session, client: TestClient
 ) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
     feature_set["metadata"]["project"] = "booboo"
     # Calling POST with a different project name in object metadata should fail
-    response = client.post(
-        f"/api/projects/{project_name}/feature-sets", json=feature_set
-    )
+    response = client.post(f"projects/{project_name}/feature-sets", json=feature_set)
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
 
     # When POSTing without project name, project name should be implanted in the response
@@ -571,7 +599,7 @@ def test_feature_set_project_name_mismatch_failure(
     feature_set["metadata"]["project"] = "woohoo"
     # Calling PUT with a different project name in object metadata should fail
     response = client.put(
-        f"/api/projects/{project_name}/feature-sets/{name}/references/latest",
+        f"projects/{project_name}/feature-sets/{name}/references/latest",
         json=feature_set,
     )
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
@@ -579,17 +607,18 @@ def test_feature_set_project_name_mismatch_failure(
 
 def test_feature_set_wrong_kind_failure(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
     feature_set["kind"] = "wrong"
-    response = client.post(
-        f"/api/projects/{project_name}/feature-sets", json=feature_set
-    )
+    response = client.post(f"projects/{project_name}/feature-sets", json=feature_set)
     assert response.status_code != HTTPStatus.OK.value
 
 
 def test_entities_list(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_set"
     count = 5
@@ -636,6 +665,7 @@ def test_entities_list(db: Session, client: TestClient) -> None:
 
 def test_features_list(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
@@ -678,6 +708,8 @@ def test_no_feature_leftovers_when_storing_feature_sets(
     db: Session, client: TestClient
 ) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     count = 5
     name = "feature_set"
     # Make sure no leftover features remain in the DB after doing multi-store on the same object
@@ -701,7 +733,7 @@ def test_no_feature_leftovers_when_storing_feature_sets(
             client, "features", project_name, None, len(feature_set["spec"]["features"])
         )
 
-    response = client.delete(f"/api/projects/{project_name}/feature-sets/{name}")
+    response = client.delete(f"projects/{project_name}/feature-sets/{name}")
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
     # When working on a versioned object, features will be multiplied, since they belong to different versions
@@ -722,6 +754,7 @@ def test_no_feature_leftovers_when_storing_feature_sets(
 
 def test_unversioned_feature_set_actions(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_set_1"
     feature_set = _generate_feature_set(name)
@@ -768,6 +801,7 @@ def test_unversioned_feature_set_actions(db: Session, client: TestClient) -> Non
 
 def test_feature_set_name_exact_and_fuzzy_list(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
 
     name = "FeatureSET123"
     feature_set = _generate_feature_set(name)
@@ -787,6 +821,7 @@ def test_feature_set_name_exact_and_fuzzy_list(db: Session, client: TestClient) 
 
 def test_multi_label_query(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
 
     total_objects = 5
     for i in range(total_objects):

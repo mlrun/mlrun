@@ -11,9 +11,10 @@ import mlrun.api.utils.singletons.project_member
 from mlrun.api import schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
+from mlrun.api.schemas.artifact import ArtifactsFormat
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
-from mlrun.utils import logger
+from mlrun.utils import is_legacy_artifact, logger
 
 router = APIRouter()
 
@@ -71,14 +72,19 @@ def list_artifact_tags(
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-        project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
+        project,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
     )
     tag_tuples = get_db().list_artifact_tags(db_session, project)
     artifact_key_to_tag = {tag_tuple[1]: tag_tuple[2] for tag_tuple in tag_tuples}
     allowed_artifact_keys = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         list(artifact_key_to_tag.keys()),
-        lambda artifact_key: (project, artifact_key,),
+        lambda artifact_key: (
+            project,
+            artifact_key,
+        ),
         auth_info,
     )
     tags = [
@@ -98,10 +104,13 @@ def get_artifact(
     key: str,
     tag: str = "latest",
     iter: int = 0,
+    format_: ArtifactsFormat = Query(ArtifactsFormat.legacy, alias="format"),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    data = mlrun.api.crud.Artifacts().get_artifact(db_session, key, tag, iter, project)
+    data = mlrun.api.crud.Artifacts().get_artifact(
+        db_session, key, tag, iter, project, format_
+    )
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         project,
@@ -144,13 +153,16 @@ def list_artifacts(
     labels: List[str] = Query([], alias="label"),
     iter: int = Query(None, ge=0),
     best_iteration: bool = Query(False, alias="best-iteration"),
+    format_: ArtifactsFormat = Query(ArtifactsFormat.legacy, alias="format"),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     if project is None:
         project = config.default_project
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-        project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
+        project,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
     )
 
     artifacts = mlrun.api.crud.Artifacts().list_artifacts(
@@ -163,14 +175,13 @@ def list_artifacts(
         category=category,
         iter=iter,
         best_iteration=best_iteration,
+        format_=format_,
     )
+
     artifacts = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         artifacts,
-        lambda artifact: (
-            artifact.get("project", mlrun.mlconf.default_project),
-            artifact["db_key"],
-        ),
+        _artifact_project_and_resource_name_extractor,
         auth_info,
     )
     return {
@@ -193,9 +204,20 @@ def delete_artifacts(
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         artifacts,
-        lambda artifact: (artifact["project"], artifact["db_key"]),
+        _artifact_project_and_resource_name_extractor,
         mlrun.api.schemas.AuthorizationAction.delete,
         auth_info,
     )
     mlrun.api.crud.Artifacts().delete_artifacts(db_session, project, name, tag, labels)
     return {}
+
+
+# Extract project and resource name from legacy artifact structure as well as from new format
+def _artifact_project_and_resource_name_extractor(artifact):
+    if is_legacy_artifact(artifact):
+        return artifact.get("project", mlrun.mlconf.default_project), artifact["db_key"]
+    else:
+        return (
+            artifact.get("metadata").get("project", mlrun.mlconf.default_project),
+            artifact.get("spec")["db_key"],
+        )

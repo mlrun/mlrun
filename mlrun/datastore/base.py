@@ -20,7 +20,6 @@ import dask.dataframe as dd
 import fsspec
 import orjson
 import pandas as pd
-import pyarrow.parquet as pq
 import requests
 import urllib3
 
@@ -163,25 +162,16 @@ class DataStore:
                             f"feature not supported for python version {sys.version_info}"
                         )
 
-                    from storey.utils import find_filters
+                    if time_column is None:
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            "When providing start_time or end_time, must provide time_column"
+                        )
 
-                    dataset = pq.ParquetDataset(url, filesystem=fs)
-                    if dataset.partitions:
-                        partitions = dataset.partitions.partition_names
-                        time_attributes = [
-                            "year",
-                            "month",
-                            "day",
-                            "hour",
-                            "minute",
-                            "second",
-                        ]
-                        partitions_time_attributes = [
-                            j for j in time_attributes if j in partitions
-                        ]
-                    else:
-                        partitions_time_attributes = []
+                    from storey.utils import find_filters, find_partitions
+
                     filters = []
+                    partitions_time_attributes = find_partitions(url, fs)
+
                     find_filters(
                         partitions_time_attributes,
                         start_time,
@@ -190,6 +180,7 @@ class DataStore:
                         time_column,
                     )
                     kwargs["filters"] = filters
+
                 return df_module.read_parquet(*args, **kwargs)
 
         elif url.endswith(".json") or format == "json":
@@ -378,12 +369,16 @@ class DataItem:
         return self._local_path
 
     def as_df(
-        self, columns=None, df_module=None, format="", **kwargs,
+        self,
+        columns=None,
+        df_module=None,
+        format="",
+        **kwargs,
     ):
         """return a dataframe object (generated from the dataitem).
 
         :param columns:   optional, list of columns to select
-        :param df_module: optional, dataframe class (e.g. pd, dd, cudf, ..)
+        :param df_module: optional, py module used to create the DataFrame (e.g. pd, dd, cudf, ..)
         :param format:    file format, if not specified it will be deducted from the suffix
         """
         return self._store.as_df(

@@ -219,12 +219,22 @@ def _delete_runtime_resources(
         else:
             computed_label_selector = permissions_label_selector
         mlrun.api.crud.RuntimeResources().delete_runtime_resources(
-            db_session, kind, object_id, computed_label_selector, force, grace_period,
+            db_session,
+            kind,
+            object_id,
+            computed_label_selector,
+            force,
+            grace_period,
         )
     if is_non_project_runtime_resource_exists:
         # delete one more time, without adding the allowed projects selector
         mlrun.api.crud.RuntimeResources().delete_runtime_resources(
-            db_session, kind, object_id, label_selector, force, grace_period,
+            db_session,
+            kind,
+            object_id,
+            label_selector,
+            force,
+            grace_period,
         )
     if return_body:
         filtered_projects = copy.deepcopy(allowed_projects)
@@ -261,7 +271,9 @@ def _list_runtime_resources(
         project, auth_info, label_selector, kind_filter, object_id
     )
     return mlrun.api.crud.RuntimeResources().filter_and_format_grouped_by_project_runtime_resources_output(
-        grouped_by_project_runtime_resources_output, allowed_projects, group_by,
+        grouped_by_project_runtime_resources_output,
+        allowed_projects,
+        group_by,
     )
 
 
@@ -277,15 +289,19 @@ def _get_runtime_resources_allowed_projects(
 ]:
     if project != "*":
         mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
+            project,
+            mlrun.api.schemas.AuthorizationAction.read,
+            auth_info,
         )
     grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput
-    grouped_by_project_runtime_resources_output = mlrun.api.crud.RuntimeResources().list_runtime_resources(
-        project,
-        kind,
-        object_id,
-        label_selector,
-        mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
+    grouped_by_project_runtime_resources_output = (
+        mlrun.api.crud.RuntimeResources().list_runtime_resources(
+            project,
+            kind,
+            object_id,
+            label_selector,
+            mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
+        )
     )
     projects = []
     is_non_project_runtime_resource_exists = False
@@ -300,7 +316,10 @@ def _get_runtime_resources_allowed_projects(
     allowed_projects = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.runtime_resource,
         projects,
-        lambda project: (project, "",),
+        lambda project: (
+            project,
+            "",
+        ),
         auth_info,
         action=action,
     )
@@ -311,5 +330,7 @@ def _get_runtime_resources_allowed_projects(
     )
 
 
-def _generate_label_selector_for_allowed_projects(allowed_projects: typing.List[str],):
+def _generate_label_selector_for_allowed_projects(
+    allowed_projects: typing.List[str],
+):
     return f"mlrun/project in ({', '.join(allowed_projects)})"

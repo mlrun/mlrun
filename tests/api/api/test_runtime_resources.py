@@ -34,11 +34,15 @@ def test_list_runtimes_resources_opa_filtering(
     )
 
     _mock_opa_filter_and_assert_list_response(
-        client, grouped_by_project_runtime_resources_output, [project_3],
+        client,
+        grouped_by_project_runtime_resources_output,
+        [project_3],
     )
 
     _mock_opa_filter_and_assert_list_response(
-        client, grouped_by_project_runtime_resources_output, [project_2],
+        client,
+        grouped_by_project_runtime_resources_output,
+        [project_2],
     )
 
 
@@ -64,7 +68,7 @@ def test_list_runtimes_resources_group_by_job(
         side_effect=lambda _, resources, *args, **kwargs: resources
     )
     response = client.get(
-        "/api/projects/*/runtime-resources",
+        "projects/*/runtime-resources",
         params={"group-by": mlrun.api.schemas.ListRuntimeResourcesGroupByField.job},
     )
     body = response.json()
@@ -86,7 +90,14 @@ def test_list_runtimes_resources_group_by_job(
             ][mlrun.runtimes.RuntimeKinds.mpijob].dict()
         },
     }
-    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+    assert (
+        deepdiff.DeepDiff(
+            body,
+            expected_body,
+            ignore_order=True,
+        )
+        == {}
+    )
 
 
 def test_list_runtimes_resources_no_group_by(
@@ -110,7 +121,9 @@ def test_list_runtimes_resources_no_group_by(
     mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
         side_effect=lambda _, resources, *args, **kwargs: resources
     )
-    response = client.get("/api/projects/*/runtime-resources",)
+    response = client.get(
+        "projects/*/runtime-resources",
+    )
     body = response.json()
     expected_body = [
         mlrun.api.schemas.KindRuntimeResources(
@@ -147,7 +160,14 @@ def test_list_runtimes_resources_no_group_by(
             ),
         ).dict(),
     ]
-    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+    assert (
+        deepdiff.DeepDiff(
+            body,
+            expected_body,
+            ignore_order=True,
+        )
+        == {}
+    )
 
 
 def test_list_runtime_resources_no_resources(
@@ -160,17 +180,19 @@ def test_list_runtime_resources_no_resources(
     mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
         return_value=[]
     )
-    response = client.get("/api/projects/*/runtime-resources",)
+    response = client.get(
+        "projects/*/runtime-resources",
+    )
     body = response.json()
     assert body == []
     response = client.get(
-        "/api/projects/*/runtime-resources",
+        "projects/*/runtime-resources",
         params={"group-by": mlrun.api.schemas.ListRuntimeResourcesGroupByField.job},
     )
     body = response.json()
     assert body == {}
     response = client.get(
-        "/api/projects/*/runtime-resources",
+        "projects/*/runtime-resources",
         params={"group-by": mlrun.api.schemas.ListRuntimeResourcesGroupByField.project},
     )
     body = response.json()
@@ -178,20 +200,27 @@ def test_list_runtime_resources_no_resources(
 
     # with kind filter
     response = client.get(
-        "/api/projects/*/runtime-resources",
+        "projects/*/runtime-resources",
         params={"kind": mlrun.runtimes.RuntimeKinds.job},
     )
     body = response.json()
     assert body == []
 
     # legacy endpoint
-    response = client.get(f"/api/runtimes/{mlrun.runtimes.RuntimeKinds.job}")
+    response = client.get(f"runtimes/{mlrun.runtimes.RuntimeKinds.job}")
     body = response.json()
     expected_body = mlrun.api.schemas.KindRuntimeResources(
         kind=mlrun.runtimes.RuntimeKinds.job,
         resources=mlrun.api.schemas.RuntimeResources(),
     ).dict()
-    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+    assert (
+        deepdiff.DeepDiff(
+            body,
+            expected_body,
+            ignore_order=True,
+        )
+        == {}
+    )
 
 
 def test_list_runtime_resources_filter_by_kind(
@@ -220,7 +249,7 @@ def test_list_runtime_resources_filter_by_kind(
         side_effect=lambda _, resources, *args, **kwargs: resources
     )
     response = client.get(
-        "/api/projects/*/runtime-resources",
+        "projects/*/runtime-resources",
         params={"kind": mlrun.runtimes.RuntimeKinds.job},
     )
     body = response.json()
@@ -237,13 +266,27 @@ def test_list_runtime_resources_filter_by_kind(
         ),
     ).dict()
     expected_body = [expected_runtime_resources]
-    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+    assert (
+        deepdiff.DeepDiff(
+            body,
+            expected_body,
+            ignore_order=True,
+        )
+        == {}
+    )
 
     # test legacy endpoint
-    response = client.get(f"/api/runtimes/{mlrun.runtimes.RuntimeKinds.job}")
+    response = client.get(f"runtimes/{mlrun.runtimes.RuntimeKinds.job}")
     body = response.json()
     expected_body = expected_runtime_resources
-    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+    assert (
+        deepdiff.DeepDiff(
+            body,
+            expected_body,
+            ignore_order=True,
+        )
+        == {}
+    )
 
 
 def test_delete_runtime_resources_nothing_allowed(
@@ -309,15 +352,28 @@ def test_delete_runtime_resources_opa_filtering(
     _mock_runtime_handlers_delete_resources(
         mlrun.runtimes.RuntimeKinds.runtime_with_handlers(), allowed_projects
     )
-    response = client.delete("/api/projects/*/runtime-resources",)
-    body = response.json()
-    expected_body = _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
-        allowed_projects, grouped_by_project_runtime_resources_output
+    response = client.delete(
+        "projects/*/runtime-resources",
     )
-    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+    body = response.json()
+    expected_body = (
+        _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
+            allowed_projects, grouped_by_project_runtime_resources_output
+        )
+    )
+    assert (
+        deepdiff.DeepDiff(
+            body,
+            expected_body,
+            ignore_order=True,
+        )
+        == {}
+    )
 
     # legacy endpoint
-    response = client.delete("/api/runtimes",)
+    response = client.delete(
+        "runtimes",
+    )
     assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
 
@@ -344,15 +400,28 @@ def test_delete_runtime_resources_with_legacy_builder_pod_opa_filtering(
     _mock_runtime_handlers_delete_resources(
         mlrun.runtimes.RuntimeKinds.runtime_with_handlers(), allowed_projects
     )
-    response = client.delete("/api/projects/*/runtime-resources",)
-    body = response.json()
-    expected_body = _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
-        [""], grouped_by_project_runtime_resources_output
+    response = client.delete(
+        "projects/*/runtime-resources",
     )
-    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+    body = response.json()
+    expected_body = (
+        _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
+            [""], grouped_by_project_runtime_resources_output
+        )
+    )
+    assert (
+        deepdiff.DeepDiff(
+            body,
+            expected_body,
+            ignore_order=True,
+        )
+        == {}
+    )
 
     # legacy endpoint
-    response = client.delete("/api/runtimes",)
+    response = client.delete(
+        "runtimes",
+    )
     assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
 
@@ -371,8 +440,10 @@ def test_delete_runtime_resources_with_kind(
     ) = _generate_grouped_by_project_runtime_resources_output()
 
     kind = mlrun.runtimes.RuntimeKinds.job
-    grouped_by_project_runtime_resources_output = _filter_kind_from_grouped_by_project_runtime_resources_output(
-        kind, grouped_by_project_runtime_resources_output
+    grouped_by_project_runtime_resources_output = (
+        _filter_kind_from_grouped_by_project_runtime_resources_output(
+            kind, grouped_by_project_runtime_resources_output
+        )
     )
     mlrun.api.crud.RuntimeResources().list_runtime_resources = unittest.mock.Mock(
         return_value=grouped_by_project_runtime_resources_output
@@ -384,16 +455,26 @@ def test_delete_runtime_resources_with_kind(
     )
     _mock_runtime_handlers_delete_resources([kind], allowed_projects)
     response = client.delete(
-        "/api/projects/*/runtime-resources", params={"kind": kind},
+        "projects/*/runtime-resources",
+        params={"kind": kind},
     )
     body = response.json()
     expected_body = _filter_allowed_projects_and_kind_from_grouped_by_project_runtime_resources_output(
         allowed_projects, kind, grouped_by_project_runtime_resources_output
     )
-    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+    assert (
+        deepdiff.DeepDiff(
+            body,
+            expected_body,
+            ignore_order=True,
+        )
+        == {}
+    )
 
     # legacy endpoint
-    response = client.delete(f"/api/runtimes/{kind}",)
+    response = client.delete(
+        f"runtimes/{kind}",
+    )
     assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
 
@@ -430,22 +511,32 @@ def test_delete_runtime_resources_with_object_id(
     )
     _mock_runtime_handlers_delete_resources([kind], [project_1])
     response = client.delete(
-        "/api/projects/*/runtime-resources",
+        "projects/*/runtime-resources",
         params={"kind": kind, "object-id": object_id},
     )
     body = response.json()
     expected_body = _filter_allowed_projects_and_kind_from_grouped_by_project_runtime_resources_output(
         [project_1], kind, grouped_by_project_runtime_resources_output, structured=False
     )
-    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+    assert (
+        deepdiff.DeepDiff(
+            body,
+            expected_body,
+            ignore_order=True,
+        )
+        == {}
+    )
 
     # legacy endpoint
-    response = client.delete(f"/api/runtimes/{kind}/{object_id}",)
+    response = client.delete(
+        f"runtimes/{kind}/{object_id}",
+    )
     assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
 
 def _mock_runtime_handlers_delete_resources(
-    kinds: typing.List[str], allowed_projects: typing.List[str],
+    kinds: typing.List[str],
+    allowed_projects: typing.List[str],
 ):
     def _assert_delete_resources_label_selector(
         db,
@@ -470,19 +561,25 @@ def _mock_runtime_handlers_delete_resources(
 
 
 def _assert_empty_responses_in_delete_endpoints(client: fastapi.testclient.TestClient):
-    response = client.delete("/api/projects/*/runtime-resources",)
+    response = client.delete(
+        "projects/*/runtime-resources",
+    )
     body = response.json()
     assert body == {}
 
     # legacy endpoints
-    response = client.delete("/api/runtimes",)
-    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
-
-    response = client.delete(f"/api/runtimes/{mlrun.runtimes.RuntimeKinds.job}",)
+    response = client.delete(
+        "runtimes",
+    )
     assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
     response = client.delete(
-        f"/api/runtimes/{mlrun.runtimes.RuntimeKinds.job}/some-id",
+        f"runtimes/{mlrun.runtimes.RuntimeKinds.job}",
+    )
+    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
+
+    response = client.delete(
+        f"runtimes/{mlrun.runtimes.RuntimeKinds.job}/some-id",
     )
     assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
@@ -636,14 +733,23 @@ def _mock_opa_filter_and_assert_list_response(
         return_value=opa_filter_response
     )
     response = client.get(
-        "/api/projects/*/runtime-resources",
+        "projects/*/runtime-resources",
         params={"group-by": mlrun.api.schemas.ListRuntimeResourcesGroupByField.project},
     )
     body = response.json()
-    expected_body = _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
-        opa_filter_response, grouped_by_project_runtime_resources_output
+    expected_body = (
+        _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
+            opa_filter_response, grouped_by_project_runtime_resources_output
+        )
     )
-    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+    assert (
+        deepdiff.DeepDiff(
+            body,
+            expected_body,
+            ignore_order=True,
+        )
+        == {}
+    )
 
 
 def _filter_allowed_projects_and_kind_from_grouped_by_project_runtime_resources_output(
@@ -652,8 +758,10 @@ def _filter_allowed_projects_and_kind_from_grouped_by_project_runtime_resources_
     grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
     structured: bool = False,
 ):
-    filtered_output = _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
-        allowed_projects, grouped_by_project_runtime_resources_output, structured
+    filtered_output = (
+        _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
+            allowed_projects, grouped_by_project_runtime_resources_output, structured
+        )
     )
     return _filter_kind_from_grouped_by_project_runtime_resources_output(
         filter_kind, filtered_output

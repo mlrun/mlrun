@@ -1292,11 +1292,12 @@ class CustomTarget(BaseStoreTarget):
 
 
 class DFTarget(BaseStoreTarget):
+    kind = TargetTypes.dataframe
     support_storey = True
 
-    def __init__(self):
-        self.name = "dataframe"
+    def __init__(self, *args, name="dataframe", **kwargs):
         self._df = None
+        super().__init__(*args, name=name, **kwargs)
 
     def set_df(self, df):
         self._df = df

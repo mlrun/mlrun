@@ -271,6 +271,26 @@ def get_online_feature_service(
     return service
 
 
+def _rename_source_dataframe_columns(df):
+    rename_mapping = {}
+    column_set = set(df.columns)
+    for column in df.columns:
+        rename_to = column.replace(" ", "_").replace("(", "").replace(")", "")
+        if rename_to != column:
+            if rename_to in column_set:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f'column "{column}" cannot be renamed to "{rename_to}" because such a column already exists'
+                )
+            rename_mapping[column] = rename_to
+            column_set.add(rename_to)
+    if rename_mapping:
+        logger.warn(
+            f"the following dataframe columns have been renamed due to unsupported characters: {rename_mapping}"
+        )
+        df = df.rename(rename_mapping, axis=1)
+    return df
+
+
 def ingest(
     featureset: Union[FeatureSet, str] = None,
     source=None,
@@ -328,6 +348,9 @@ def ingest(
                                     False for scheduled ingest - does not delete the target)
 
     """
+    if isinstance(source, pd.DataFrame):
+        source = _rename_source_dataframe_columns(source)
+
     if featureset:
         if isinstance(featureset, str):
             # need to strip store prefix from the uri

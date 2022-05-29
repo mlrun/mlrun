@@ -2488,61 +2488,6 @@ class TestFeatureStore(TestMLRunSystem):
         for key in res.to_dataframe().to_dict().keys():
             assert key in expected
 
-    @pytest.mark.parametrize(
-        "time_for_source, is_through_init, should_succeed, time_delta",
-        [
-            (None, None, True, None),
-            (datetime(2021, 5, 25, 10, 30, 29, 592000), False, True, None),
-            (datetime(2021, 5, 25, 10, 30, 29, 592000), True, True, None),
-            (datetime(2021, 5, 25, 10, 30, 29, 592000, timezone.utc), False, True, 0),
-            (datetime(2021, 5, 25, 10, 30, 29, 592000, timezone.utc), True, True, 0),
-            ("2021-05-25T10:30:29.abc", False, False, None),
-            ("2021-05-25T10:30:29.abc", True, False, None),
-            ("2021-05-25T10:30:29.592", False, True, None),
-            ("2021-05-25T10:30:29.592", True, True, None),
-            ("2021-05-25T10:30:29.592Z", False, True, 0),
-            ("2021-05-25T10:30:29.592Z", True, True, 0),
-            ("2021-05-25T10:30:29.592+00:00", False, True, 0),
-            ("2021-05-25T10:30:29.592+00:00", True, True, 0),
-            ("2021-05-25T10:30:29.592+02:00", False, True, timedelta(hours=2)),
-            ("2021-05-25T10:30:29.592+02:00", True, True, timedelta(hours=2)),
-        ],
-    )
-    def test_parquet_source_with_iso_start_or_end_time(
-        self, time_for_source, is_through_init, should_succeed, time_delta
-    ):
-        def _test_parquet_source_with_iso_start_or_end_time(time_for_source, is_through_init, time_delta):
-            if time_delta is None:
-                tzinfo = None
-            else:
-                tzinfo = timezone.utc if time_delta == 0 else timezone(time_delta)
-            actual = datetime(2021, 5, 25, 10, 30, 29, 592000, tzinfo)
-            trades.to_parquet(path="v3io:///bigdata/trades1.parquet")
-            fset = fs.FeatureSet(
-                "parsrc", entities=[Entity("ticker")], timestamp_key="time"
-            )
-            source = ParquetSource(
-                "srcpar",
-                path="v3io:///bigdata/trades1.parquet",
-                start_time=time_for_source if is_through_init else None,
-                end_time=time_for_source if is_through_init else None,
-            )
-            if not is_through_init:
-                source.start_time = time_for_source
-                source.end_time = time_for_source
-
-            if source.start_time:
-                assert source.start_time == actual
-            if source.end_time:
-                assert source.end_time == actual
-            fs.ingest(fset, source, overwrite=True)
-
-        if should_succeed:
-            _test_parquet_source_with_iso_start_or_end_time(time_for_source, is_through_init, time_delta)
-        else:
-            with pytest.raises(ValueError, match=r".*Invalid isoformat string:.*"):
-                _test_parquet_source_with_iso_start_or_end_time(time_for_source, is_through_init, time_delta)
-
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)

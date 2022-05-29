@@ -117,7 +117,7 @@ def clone_git(url, context, secrets=None, clone=True):
         if refs.startswith("refs/"):
             branch = refs[refs.rfind("/") + 1 :]
         else:
-            url = url.replace("#" + "refs", f"#refs/heads/{refs}")
+            url = url.replace("#" + refs, f"#refs/heads/{refs}")
 
     repo = Repo.clone_from(clone_path, context, single_branch=True, b=branch)
     if commit_id:

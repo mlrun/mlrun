@@ -101,8 +101,8 @@ def clone_git(url, context, secrets=None, clone=True):
     if url_obj.fragment:
         refs = url_obj.fragment
         # the intended format for submitting commit id is
-        # git:/github.com/acme/myproject.git#refs/heads/mybranch#desired-commit-id> or
-        # git:/github.com/acme/myproject.git#mybranch#desired-commit-id>.
+        # git:/github.com/example/myproject.git#refs/heads/mybranch#desired-commit-id> or
+        # git:/github.com/example/myproject.git#mybranch#desired-commit-id>.
         # we updated this format to comply to kaniko conventions.
         # For further details, see https://github.com/GoogleContainerTools/kaniko#kaniko-build-contexts.
         if "#" in refs:
@@ -112,7 +112,8 @@ def clone_git(url, context, secrets=None, clone=True):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Unable to resolve commit id from {url},"
                     f" expecting url format as following: "
-                    f"git://github.com/acme/myproject.git#refs/heads/mybranch#<desired-commit-id>"
+                    f"git://github.com/acme/myproject.git#refs/heads/mybranch#<desired-commit-id> or"
+                    f"git:/github.com/example/myproject.git#mybranch#desired-commit-id>"
                 )
         if refs.startswith("refs/"):
             branch = refs[refs.rfind("/") + 1 :]

@@ -2307,7 +2307,6 @@ class TestFeatureStore(TestMLRunSystem):
         with fs.get_online_feature_service(
             vector, impute_policy={"*": "$max", "data_avg_1h": "$mean", "data2": 4}
         ) as svc:
-
             print(svc.vector.status.to_yaml())
 
             resp = svc.get([{"name": "ab"}])

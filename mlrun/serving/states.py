@@ -903,6 +903,7 @@ class FlowStep(BaseStep):
         yield from self._steps.keys()
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+        """initialize graph objects and classes"""
         self.context = context
         self.check_and_process_graph()
 

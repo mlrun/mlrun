@@ -112,7 +112,7 @@ def clone_git(url, context, secrets=None, clone=True):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Unable to resolve commit id from {url},"
                     f" expecting url format as following: "
-                    f"git://github.com/acme/myproject.git#refs/heads/mybranch#<desired-commit-id> or"
+                    f"git://github.com/example/myproject.git#refs/heads/mybranch#<desired-commit-id> or"
                     f"git:/github.com/example/myproject.git#mybranch#desired-commit-id>"
                 )
         if refs.startswith("refs/"):

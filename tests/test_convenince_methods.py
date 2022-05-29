@@ -25,8 +25,12 @@ def test_set_environment_cred():
 
     if old_key:
         os.environ["V3IO_ACCESS_KEY"] = old_key
+    else:
+        del os.environ["V3IO_ACCESS_KEY"]
     if old_user:
         os.environ["V3IO_USERNAME"] = old_user
+    else:
+        del os.environ["V3IO_USERNAME"]
 
 
 def test_env_from_file():

@@ -218,10 +218,8 @@ with warnings.catch_warnings():
 
         id = Column(Integer, primary_key=True)
         uid = Column(String(255, collation=SQLCollationUtil.collation()))
+        name = Column(String(255, collation=SQLCollationUtil.collation()))
         project = Column(String(255, collation=SQLCollationUtil.collation()))
-        name = Column(
-            String(255, collation=SQLCollationUtil.collation()), default="no-name"
-        )
         created = Column(
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
             default=datetime.now(timezone.utc),

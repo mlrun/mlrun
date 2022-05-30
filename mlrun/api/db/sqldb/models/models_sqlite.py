@@ -209,6 +209,17 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.uid}/{self.iteration}"
 
+    class BackgroundTask(Base, BaseModel):
+        __tablename__ = "background_task"
+
+        id = Column(Integer, primary_key=True)
+        uid = Column(String(255, collation=SQLCollationUtil.collation()))
+        name = Column(String(255, collation=SQLCollationUtil.collation()))
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        creation_time = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        update_time = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        state = Column(String(255, collation=SQLCollationUtil.collation()))
+
     class Schedule(Base, BaseModel):
         __tablename__ = "schedules_v2"
         __table_args__ = (UniqueConstraint("project", "name", name="_schedules_v2_uc"),)

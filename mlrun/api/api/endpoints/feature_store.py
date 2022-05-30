@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from http import HTTPStatus
 from typing import List, Optional
 
@@ -394,6 +395,70 @@ def ingest_feature_set(
     result_feature_set = schemas.FeatureSet(**feature_set.to_dict())
     return schemas.FeatureSetIngestOutput(
         feature_set=result_feature_set, run_object=run_params.to_dict()
+    )
+
+
+@router.post(
+    "/projects/{project}/feature-sets/{name}/references/{reference}/publish",
+    response_model=schemas.FeatureSetPublishOutput,
+)
+def publish_feature_set(
+    project: str,
+    name: str,
+    reference: str,
+    feature_set: schemas.FeatureSet,
+    versioned: bool = True,
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: Session = Depends(deps.get_db_session),
+):
+    mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
+        db_session, project, auth_info=auth_info
+    )
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
+        project,
+        name,
+        mlrun.api.schemas.AuthorizationAction.store,
+        auth_info,
+    )
+    tag, uid = parse_reference(reference)
+
+    exist_feature_set = mlrun.api.crud.FeatureStore().get_feature_set(
+        db_session,
+        project,
+        feature_set.metadata.name,
+        tag,
+        uid,
+    )
+    if feature_set.metadata.publish_time:
+        raise mlrun.errors.MLRunBadRequestError(
+            f"Feature set was already published (published on: {feature_set.metadata.publish_time})."
+        )
+
+    if exist_feature_set:
+        raise mlrun.errors.MLRunBadRequestError(
+            f"Cannot publish tag: '{tag}', tag already exists."
+        )
+
+    feature_set.metadata.tag = tag
+    feature_set.metadata.publish_time = datetime.now(timezone.utc)
+
+    uid = mlrun.api.crud.FeatureStore().store_feature_set(
+        db_session,
+        project,
+        name,
+        feature_set,
+        tag,
+        uid,
+        versioned,
+    )
+
+    return mlrun.api.crud.FeatureStore().get_feature_set(
+        db_session,
+        project,
+        feature_set.metadata.name,
+        tag,
+        uid,
     )
 
 

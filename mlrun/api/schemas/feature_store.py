@@ -160,3 +160,7 @@ class FeatureSetIngestInput(BaseModel):
 class FeatureSetIngestOutput(BaseModel):
     feature_set: FeatureSet
     run_object: dict
+
+
+class FeatureSetPublishOutput(BaseModel):
+    feature_set: FeatureSet

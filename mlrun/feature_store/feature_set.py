@@ -11,10 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import copy
-import datetime
 import warnings
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Dict, List, Optional, Union
 
 import pandas as pd
@@ -834,20 +832,18 @@ class FeatureSet(ModelObj):
                 f"Feature set was already published (published on: {self.get_publish_time})."
             )
 
-        if self._get_feature_set_for_tag(tag):
-            raise MLRunBadRequestError(
-                f"Cannot publish tag: '{tag}', tag already exists."
-            )
+        db = self._get_run_db()
 
-        published_feature_set = copy.deepcopy(self)
+        as_dict = self.to_dict()
+        as_dict["spec"]["features"] = as_dict["spec"].get(
+            "features", []
+        )  # bypass DB bug
 
-        published_feature_set.metadata.tag = tag
-        published_feature_set.metadata.publish_time = datetime.now(timezone.utc)
-        published_feature_set.save(tag)
+        resp = db.publish_feature_set(as_dict, tag=tag)
 
         self.status.targets = []
 
-        return published_feature_set
+        return resp
         # in case of use of read only publish set
         # return PublishedFeatureSet(published_feature_set)
 
@@ -910,6 +906,7 @@ class FeatureSet(ModelObj):
 #         self.__dict__['_spec'] = PublishedFeatureSetSpec(feature_set.spec)
 #         self.__dict__['_metadata'] = PublishedFeatureSetMetaData(feature_set.metadata)
 #         self.__dict__['_status'] = PublishedFeatureSetStatus(feature_set.status, ["state"])
+
 
 class SparkAggregateByKey(StepToDict):
     def __init__(

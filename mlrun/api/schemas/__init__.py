@@ -41,6 +41,7 @@ from .feature_store import (
     FeatureSetDigestSpec,
     FeatureSetIngestInput,
     FeatureSetIngestOutput,
+    FeatureSetPublishOutput,
     FeatureSetRecord,
     FeatureSetsOutput,
     FeatureSetSpec,

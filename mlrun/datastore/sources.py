@@ -222,12 +222,6 @@ class ParquetSource(BaseSourceDriver):
         end_time: Optional[Union[datetime, str]] = None,
     ):
 
-        if isinstance(start_time, str):
-            start_time = datetime.fromisoformat(start_time)
-
-        if isinstance(end_time, str):
-            end_time = datetime.fromisoformat(end_time)
-
         super().__init__(
             name,
             path,
@@ -238,6 +232,34 @@ class ParquetSource(BaseSourceDriver):
             start_time,
             end_time,
         )
+
+    @property
+    def start_time(self):
+        return self._start_time
+
+    @start_time.setter
+    def start_time(self, start_time):
+        if isinstance(start_time, str):
+            self._start_time = self._convert_to_datetime(start_time)
+        else:
+            self._start_time = start_time
+
+    @property
+    def end_time(self):
+        return self._end_time
+
+    @end_time.setter
+    def end_time(self, end_time):
+        if isinstance(end_time, str):
+            self._end_time = self._convert_to_datetime(end_time)
+        else:
+            self._end_time = end_time
+
+    @staticmethod
+    def _convert_to_datetime(time: str):
+        if time.endswith("Z"):
+            return datetime.fromisoformat(time.replace("Z", "+00:00"))
+        return datetime.fromisoformat(time)
 
     def to_step(
         self,

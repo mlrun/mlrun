@@ -14,8 +14,10 @@ import mlrun.feature_store as fs
 from mlrun import store_manager
 from mlrun.datastore.sources import CSVSource, ParquetSource
 from mlrun.datastore.targets import CSVTarget, NoSqlTarget, ParquetTarget
+from mlrun.feature_store import FeatureSet
 from mlrun.features import Entity
 from tests.system.base import TestMLRunSystem
+from tests.system.feature_store.data_sample import stocks
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -608,3 +610,37 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         # check that no files were written
         with pytest.raises(FileNotFoundError):
             pd.read_parquet(target.get_target_path())
+
+    @pytest.mark.parametrize(
+        "should_succeed, engine, is_parquet, is_partitioned, target_path",
+        [
+            # spark - csv - fail for single file
+            (True, False, None, "v3io:///bigdata/dif-eng/csv"),
+            (False, False, None, "v3io:///bigdata/dif-eng/file.csv"),
+            # spark - parquet - fail for single file
+            (True, True, True, "v3io:///bigdata/dif-eng/pq"),
+            (False, True, True, "v3io:///bigdata/dif-eng/file.pq"),
+            (True, True, False, "v3io:///bigdata/dif-eng/pq"),
+            (False, True, False, "v3io:///bigdata/dif-eng/file.pq"),
+        ],
+    )
+    def test_different_paths_for_ingest_on_spark_engines(
+        self, should_succeed, is_parquet, is_partitioned, target_path
+    ):
+        fset = FeatureSet("fsname", entities=[Entity("ticker")], engine="spark")
+        target = (
+            ParquetTarget(name="tar", path=target_path, partitioned=is_partitioned)
+            if is_parquet
+            else CSVTarget(name="tar", path=target_path)
+        )
+        if should_succeed:
+            fs.ingest(fset, source=stocks, targets=[target])
+            if fset.get_target_path().endswith(fset.status.targets[0].run_id + "/"):
+                store, _ = mlrun.store_manager.get_or_create_store(
+                    fset.get_target_path()
+                )
+                v3io = store.get_filesystem(False)
+                assert v3io.isdir(fset.get_target_path())
+        else:
+            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+                fs.ingest(fset, source=stocks, targets=[target])

@@ -6,6 +6,7 @@ import uuid
 
 import fastapi
 import fastapi.concurrency
+import sqlalchemy.orm
 
 import mlrun.api.schemas
 import mlrun.api.utils.singletons.project_member
@@ -23,6 +24,7 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
 
     def create_project_background_task(
         self,
+        db_session: sqlalchemy.orm.Session,
         project: str,
         background_tasks: fastapi.BackgroundTasks,
         function,
@@ -42,6 +44,7 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
 
     def create_background_task(
         self,
+        db_session: sqlalchemy.orm.Session,
         background_tasks: fastapi.BackgroundTasks,
         function,
         *args,

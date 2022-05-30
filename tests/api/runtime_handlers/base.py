@@ -32,6 +32,7 @@ class TestRuntimeHandlerBase:
 
         self.project = "test-project"
         self.run_uid = "test_run_uid"
+        self.kind = "job"
 
         mlrun.mlconf.mpijob_crd_version = mlrun.runtimes.constants.MPIJobCRDVersions.v1
         self.custom_setup()
@@ -51,6 +52,9 @@ class TestRuntimeHandlerBase:
                 "project": self.project,
                 "name": "some-run-name",
                 "uid": self.run_uid,
+                "labels": {
+                    "kind": self.kind,
+                },
             },
         }
         mlrun.api.crud.Runs().store_run(
@@ -254,9 +258,10 @@ class TestRuntimeHandlerBase:
                 "pod", pod_dict, resources, "pod_resources", group_by_field_extractor
             )
         for index, service in enumerate(expected_services):
+            service_dict = service.to_dict()
             self._assert_resource_in_response_resources(
                 "service",
-                service,
+                service_dict,
                 resources,
                 "service_resources",
                 group_by_field_extractor,

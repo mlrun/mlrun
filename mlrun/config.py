@@ -70,7 +70,7 @@ default_config = {
     "igz_version": "",  # the version of the iguazio system the API is running on
     "iguazio_api_url": "",  # the url to iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
-    "spark_app_image_tag": "",  # image tag to use for spark opeartor app runtime
+    "spark_app_image_tag": "",  # image tag to use for spark operator app runtime
     "spark_history_server_path": "",  # spark logs directory for spark history server
     "spark_operator_version": "spark-2",  # the version of the spark operator in use
     "builder_alpine_image": "alpine:3.13.1",  # builder alpine image (as kaniko's initContainer)
@@ -89,6 +89,9 @@ default_config = {
     "runtimes_cleanup_interval": "300",
     # runs monitoring interval in seconds
     "runs_monitoring_interval": "30",
+    # runs monitoring debouncing interval in seconds for run with non-terminal state without corresponding k8s resource
+    # by default the interval will be - (runs_monitoring_interval * 2 ), if set will override the default
+    "runs_monitoring_missing_runtime_resources_debouncing_interval": None,
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them
     "runtime_resources_deletion_grace_period": "14400",
@@ -115,6 +118,8 @@ default_config = {
     "default_tensorboard_logs_path": "/User/.tensorboard/{{project}}",
     # ";" separated list of notebook cell tag names to ignore e.g. "ignore-this;ignore-that"
     "ignored_notebook_tags": "",
+    # when set it will force the local=True in run_function(), set to "auto" will run local if there is no k8s
+    "force_run_local": "auto",
     "function_defaults": {
         "image_by_kind": {
             "job": "mlrun/mlrun",
@@ -123,9 +128,16 @@ default_config = {
             "remote": "mlrun/mlrun",
             "dask": "mlrun/ml-base",
             "mpijob": "mlrun/ml-models",
-        }
+        },
+        # see enrich_function_preemption_spec for more info,
+        # and mlrun.api.schemas.functionPreemptionModes for available options
+        "preemption_mode": "prevent",
     },
     "httpdb": {
+        "clusterization": {
+            # one of chief/worker
+            "role": "chief",
+        },
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
         "dsn": "sqlite:///db/mlrun.db?check_same_thread=false",
@@ -138,7 +150,7 @@ default_config = {
         "data_volume": "",
         "real_path": "",
         "db_type": "sqldb",
-        "max_workers": "",
+        "max_workers": 64,
         # See mlrun.api.schemas.APIStates for options
         "state": "online",
         "db": {
@@ -157,8 +169,9 @@ default_config = {
                 "use_rotation": True,
                 "rotation_limit": 3,
             },
-            "connections_pool_size": 20,
-            "connections_pool_max_overflow": 50,
+            # None will set this to be equal to the httpdb.max_workers
+            "connections_pool_size": None,
+            "connections_pool_max_overflow": None,
         },
         "jobs": {
             # whether to allow to run local runtimes in the API - configurable to allow the scheduler testing to work
@@ -238,7 +251,7 @@ default_config = {
             # pip install <requirement_specifier>, e.g. mlrun==0.5.4, mlrun~=0.5,
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
             "mlrun_version_specifier": "",
-            "kaniko_image": "gcr.io/kaniko-project/executor:v1.6.0",  # kaniko builder image
+            "kaniko_image": "gcr.io/kaniko-project/executor:v1.8.0",  # kaniko builder image
             "kaniko_init_container_image": "alpine:3.13.1",
             # additional docker build args in json encoded base64 format
             "build_args": "",
@@ -285,6 +298,7 @@ default_config = {
             # unless user asks for a specific list of secrets.
             "auto_add_project_secrets": True,
             "project_secret_name": "mlrun-project-secrets-{project}",
+            "auth_secret_name": "mlrun-auth-secrets.{hashed_access_key}",
             "env_variable_prefix": "MLRUN_K8S_SECRET__",
         },
     },
@@ -295,7 +309,7 @@ default_config = {
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
-        "flush_interval": None,
+        "flush_interval": 300,
     },
     "ui": {
         "projects_prefix": "projects",  # The UI link prefix for projects
@@ -329,8 +343,10 @@ default_config = {
     },
     # preemptible node selector and tolerations to be added when running on spot nodes
     "preemptible_nodes": {
+        # encoded empty dict
         "node_selector": "e30=",
-        "tolerations": "e30=",
+        # encoded empty list
+        "tolerations": "W10=",
     },
 }
 
@@ -412,7 +428,15 @@ class Config:
         return config.hub_url
 
     @staticmethod
-    def decode_base64_config_and_load_to_dict(attribute_path: str) -> dict:
+    def decode_base64_config_and_load_to_object(
+        attribute_path: str, expected_type=dict
+    ):
+        """
+        decodes and loads the config attribute to expected type
+        :param attribute_path: the path in the default_config e.g. preemptible_nodes.node_selector
+        :param expected_type: the object type valid values are : `dict`, `list` etc...
+        :return: the expected type instance
+        """
         attributes = attribute_path.split(".")
         raw_attribute_value = config
         for part in attributes:
@@ -422,7 +446,7 @@ class Config:
                 raise mlrun.errors.MLRunNotFoundError(
                     "Attribute does not exist in config"
                 )
-        # There is a bug in the installer component in iguazio system that causes the configrued value to be base64 of
+        # There is a bug in the installer component in iguazio system that causes the configured value to be base64 of
         # null (without conditioning it we will end up returning None instead of empty dict)
         if raw_attribute_value and raw_attribute_value != "bnVsbA==":
             try:
@@ -432,23 +456,35 @@ class Config:
                     f"Unable to decode {attribute_path}"
                 )
             parsed_attribute_value = json.loads(decoded_attribute_value)
+            if type(parsed_attribute_value) != expected_type:
+                raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                    f"Expected type {expected_type}, got {type(parsed_attribute_value)}"
+                )
             return parsed_attribute_value
-        return {}
+        return expected_type()
 
     def get_default_function_node_selector(self) -> dict:
-        return self.decode_base64_config_and_load_to_dict(
-            "default_function_node_selector"
+        return self.decode_base64_config_and_load_to_object(
+            "default_function_node_selector", dict
         )
 
     def get_preemptible_node_selector(self) -> dict:
-        return self.decode_base64_config_and_load_to_dict(
-            "preemptible_nodes.node_selector"
+        return self.decode_base64_config_and_load_to_object(
+            "preemptible_nodes.node_selector", dict
         )
 
-    def get_preemptible_tolerations(self) -> dict:
-        return self.decode_base64_config_and_load_to_dict(
-            "preemptible_nodes.tolerations"
+    def get_preemptible_tolerations(self) -> list:
+        return self.decode_base64_config_and_load_to_object(
+            "preemptible_nodes.tolerations", list
         )
+
+    def is_preemption_nodes_configured(self):
+        if (
+            not self.get_preemptible_tolerations()
+            and not self.get_preemptible_node_selector()
+        ):
+            return False
+        return True
 
     @staticmethod
     def get_valid_function_priority_class_names():
@@ -481,14 +517,14 @@ class Config:
         if config.kfp_url:
             return config.kfp_url
         igz_version = self.get_parsed_igz_version()
-        if namespace is None:
-            if not config.namespace:
-                raise mlrun.errors.MLRunNotFoundError(
-                    "For KubeFlow Pipelines to function, a namespace must be configured"
-                )
-            namespace = config.namespace
         # TODO: When Iguazio 3.4 will deprecate we can remove this line
         if igz_version and igz_version <= semver.VersionInfo.parse("3.6.0-b1"):
+            if namespace is None:
+                if not config.namespace:
+                    raise mlrun.errors.MLRunNotFoundError(
+                        "For KubeFlow Pipelines to function, a namespace must be configured"
+                    )
+                namespace = config.namespace
             # When instead of host we provided namespace we tackled this issue
             # https://github.com/canonical/bundle-kubeflow/issues/412
             # TODO: When we'll move to kfp 1.4.0 (server side) it should be resolved
@@ -518,16 +554,49 @@ class Config:
 
         return auto_mount_params
 
+    def get_default_function_pod_resources(
+        self, with_gpu_requests=False, with_gpu_limits=False
+    ):
+        resources = {}
+        resource_requirements = ["requests", "limits"]
+        for requirement in resource_requirements:
+            with_gpu = (
+                with_gpu_requests if requirement == "requests" else with_gpu_limits
+            )
+            resources[
+                requirement
+            ] = self.get_default_function_pod_requirement_resources(
+                requirement, with_gpu
+            )
+        return resources
+
+    def resolve_runs_monitoring_missing_runtime_resources_debouncing_interval(self):
+        return (
+            float(self.runs_monitoring_missing_runtime_resources_debouncing_interval)
+            if self.runs_monitoring_missing_runtime_resources_debouncing_interval
+            else float(config.runs_monitoring_interval) * 2.0
+        )
+
     @staticmethod
-    def get_default_function_pod_resources():
+    def get_default_function_pod_requirement_resources(
+        requirement: str, with_gpu: bool = True
+    ):
+        """
+        :param requirement: kubernetes requirement resource one of the following : requests, limits
+        :param with_gpu: whether to return requirement resources with nvidia.com/gpu field (e.g. you cannot specify
+         GPU requests without specifying GPU limits) https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
+        :return: a dict containing the defaults resources (cpu, memory, nvidia.com/gpu)
+        """
         resources: dict = copy.deepcopy(config.default_function_pod_resources.to_dict())
         gpu_type = "nvidia.com/gpu"
         gpu = "gpu"
-        resource_requirements = ["requests", "limits"]
-        for requirement in resource_requirements:
-            resources.setdefault(requirement, {}).setdefault(gpu)
-            resources[requirement][gpu_type] = resources.get(requirement).pop(gpu)
-        return resources
+        resource_requirement = resources.get(requirement, {})
+        resource_requirement.setdefault(gpu)
+        if with_gpu:
+            resource_requirement[gpu_type] = resource_requirement.pop(gpu)
+        else:
+            resource_requirement.pop(gpu)
+        return resource_requirement
 
     def to_dict(self):
         return copy.copy(self._cfg)
@@ -628,6 +697,11 @@ class Config:
     def iguazio_api_url(self, value):
         self._iguazio_api_url = value
 
+    def is_api_running_on_k8s(self):
+        # determine if the API service is attached to K8s cluster
+        # when there is a cluster the .namespace is set
+        return True if mlrun.mlconf.namespace else False
+
 
 # Global configuration
 config = Config.from_dict(default_config)
@@ -708,7 +782,7 @@ def _convert_resources_to_str(config: dict = None):
         if not resource_requirement:
             continue
         for resource_type in resources_types:
-            value = resource_requirement.setdefault(resource_type, "")
+            value = resource_requirement.setdefault(resource_type, None)
             if value is None:
                 continue
             resource_requirement[resource_type] = str(value)

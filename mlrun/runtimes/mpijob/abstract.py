@@ -56,6 +56,8 @@ class MPIResourceSpec(KubeResourceSpec):
         priority_class_name=None,
         disable_auto_mount=False,
         pythonpath=None,
+        tolerations=None,
+        preemption_mode=None,
     ):
         super().__init__(
             command=command,
@@ -81,6 +83,8 @@ class MPIResourceSpec(KubeResourceSpec):
             priority_class_name=priority_class_name,
             disable_auto_mount=disable_auto_mount,
             pythonpath=pythonpath,
+            tolerations=tolerations,
+            preemption_mode=preemption_mode,
         )
         self.mpi_args = mpi_args or [
             "-x",
@@ -144,6 +148,8 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             self.store_run(runobj)
 
         meta = self._get_meta(runobj, True)
+
+        self._add_secrets_to_spec_before_running(runobj)
 
         job = self._generate_mpi_job(runobj, execution, meta)
 

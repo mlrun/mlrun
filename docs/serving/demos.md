@@ -3,7 +3,7 @@
 Read these tutorials to get an even better understanding of serving graphs.
 
 ```{toctree}
-:maxdepth: 1
+:maxdepth: 2
 distributed-graph
 graph-example
 ```

@@ -1,6 +1,7 @@
 import typing
 
 import fastapi
+import semver
 
 import mlrun.api.api.deps
 import mlrun.api.schemas
@@ -64,6 +65,7 @@ def get_frontend_spec(
         auto_mount_params=config.get_storage_auto_mount_params(),
         default_artifact_path=config.artifact_path,
         default_function_pod_resources=mlrun.mlconf.default_function_pod_resources.to_dict(),
+        default_function_preemption_mode=mlrun.mlconf.function_defaults.preemption_mode,
     )
 
 
@@ -86,6 +88,20 @@ def _resolve_feature_flags() -> mlrun.api.schemas.FeatureFlags:
     authentication = mlrun.api.schemas.AuthenticationFeatureFlag(
         mlrun.mlconf.httpdb.authentication.mode
     )
+    nuclio_streams = mlrun.api.schemas.NuclioStreamsFeatureFlag.disabled
+
+    if mlrun.mlconf.get_parsed_igz_version() and semver.VersionInfo.parse(
+        mlrun.runtimes.utils.resolve_nuclio_version()
+    ) >= semver.VersionInfo.parse("1.7.8"):
+        nuclio_streams = mlrun.api.schemas.NuclioStreamsFeatureFlag.enabled
+
+    preemption_nodes = mlrun.api.schemas.PreemptionNodesFeatureFlag.disabled
+    if mlrun.mlconf.is_preemption_nodes_configured():
+        preemption_nodes = mlrun.api.schemas.PreemptionNodesFeatureFlag.enabled
+
     return mlrun.api.schemas.FeatureFlags(
-        project_membership=project_membership, authentication=authentication
+        project_membership=project_membership,
+        authentication=authentication,
+        nuclio_streams=nuclio_streams,
+        preemption_nodes=preemption_nodes,
     )

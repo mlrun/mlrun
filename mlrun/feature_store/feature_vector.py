@@ -308,10 +308,14 @@ class FeatureVector(ModelObj):
         index_keys = []
         feature_set_fields = collections.defaultdict(list)
         features = copy(self.spec.features)
+        label_column_name = None
+        label_column_fset = None
         if offline and self.spec.label_feature:
             features.append(self.spec.label_feature)
-            _, name, alias = parse_feature_string(self.spec.label_feature)
-            self.status.label_column = alias or name
+            feature_set, name, _ = parse_feature_string(self.spec.label_feature)
+            self.status.label_column = name
+            label_column_name = name
+            label_column_fset = feature_set
 
         def add_feature(name, alias, feature_set_object, feature_set_full_name):
             if alias in processed_features.keys():
@@ -336,7 +340,9 @@ class FeatureVector(ModelObj):
             feature_fields = feature_set_object.spec.features.keys()
             if feature_name == "*":
                 for field in feature_fields:
-                    if field != feature_set_object.spec.timestamp_key:
+                    if field != feature_set_object.spec.timestamp_key and not (
+                        feature_set == label_column_fset and field == label_column_name
+                    ):
                         if alias:
                             add_feature(
                                 field,
@@ -358,14 +364,13 @@ class FeatureVector(ModelObj):
             for key in feature_set.spec.entities.keys():
                 if key not in index_keys:
                     index_keys.append(key)
-            for name, alias in fields:
-                field_name = alias or name
+            for name, _ in fields:
                 if name in feature_set.status.stats and update_stats:
-                    self.status.stats[field_name] = feature_set.status.stats[name]
+                    self.status.stats[name] = feature_set.status.stats[name]
                 if name in feature_set.spec.features.keys():
                     feature = feature_set.spec.features[name].copy()
                     feature.origin = f"{feature_set.fullname}.{name}"
-                    self.status.features[field_name] = feature
+                    self.status.features[name] = feature
 
         self.status.index_keys = index_keys
         return feature_set_objects, feature_set_fields

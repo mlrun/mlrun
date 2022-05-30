@@ -101,6 +101,8 @@ class DaskSpec(KubeResourceSpec):
         disable_auto_mount=False,
         pythonpath=None,
         workdir=None,
+        tolerations=None,
+        preemption_mode=None,
     ):
 
         super().__init__(
@@ -127,6 +129,8 @@ class DaskSpec(KubeResourceSpec):
             disable_auto_mount=disable_auto_mount,
             pythonpath=pythonpath,
             workdir=workdir,
+            tolerations=tolerations,
+            preemption_mode=preemption_mode,
         )
         self.args = args
 
@@ -292,13 +296,11 @@ class DaskCluster(KubejobRuntime):
 
         try:
             client = default_client()
+            # shutdown the cluster first, then close the client
+            client.shutdown()
             client.close()
         except ValueError:
             pass
-
-        # meta = self.metadata
-        # s = get_func_selector(meta.project, meta.name, meta.tag)
-        # clean_objects(s, running)
 
     def get_status(self):
         meta = self.metadata
@@ -628,6 +630,7 @@ def get_obj_status(selector=[], namespace=None):
 
 
 class DaskRuntimeHandler(BaseRuntimeHandler):
+    kind = "dask"
 
     # Dask runtime resources are per function (and not per run).
     # It means that monitoring runtime resources state doesn't say anything about the run state.
@@ -696,7 +699,8 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             return response
         service_resources = []
         for runtime_resources in runtime_resources_list:
-            service_resources += runtime_resources.service_resources
+            if runtime_resources.service_resources:
+                service_resources += runtime_resources.service_resources
         return self._enrich_service_resources_in_response(
             response, service_resources, group_by
         )

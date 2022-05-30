@@ -310,7 +310,7 @@ class MLRunInterface(ABC, Generic[Types.MLRunInterfaceableType]):
     ):
         """
         Replace the property in the object with the configured property in this interface. The original property will be
-        stored in a backup attribute with the the prefix noted in '_ORIGINAL_ATTRIBUTE_NAME' and the replacing property
+        stored in a backup attribute with the prefix noted in '_ORIGINAL_ATTRIBUTE_NAME' and the replacing property
         will be the one with the prefix noted in '_REPLACING_ATTRIBUTE_NAME'. If the property value should be None, set
         'include_none' to True, otherwise the interface default will be copied if 'property_value' is None.
 
@@ -337,7 +337,7 @@ class MLRunInterface(ABC, Generic[Types.MLRunInterfaceableType]):
     def _replace_function(cls, obj: Types.MLRunInterfaceableType, function_name: str):
         """
         Replace the method / function in the object with the configured method / function in this interface. The
-        original method / function will be stored in a backup attribute with the the prefix noted in
+        original method / function will be stored in a backup attribute with the prefix noted in
         '_ORIGINAL_ATTRIBUTE_NAME' and the replacing method / function will be the one with the prefix noted in
         '_REPLACING_ATTRIBUTE_NAME'.
 

@@ -12,14 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import base64
+import hashlib
 import time
 import typing
 from datetime import datetime
 from sys import stdout
 
+import kubernetes.client
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
+import mlrun.api.schemas
 import mlrun.errors
 
 from .config import config as mlconfig
@@ -39,6 +42,11 @@ def get_k8s_helper(namespace=None, silent=False, log=False):
     if not _k8s:
         _k8s = K8sHelper(namespace, silent=silent, log=log)
     return _k8s
+
+
+class SecretTypes:
+    opaque = "Opaque"
+    v3io_fuse = "v3io/fuse"
 
 
 class K8sHelper:
@@ -328,13 +336,50 @@ class K8sHelper:
 
         return service_account.secrets[0].name
 
-    def get_project_secret_name(self, project):
+    def get_project_secret_name(self, project) -> str:
         return mlconfig.secret_stores.kubernetes.project_secret_name.format(
             project=project
         )
 
+    def get_auth_secret_name(self, access_key: str) -> str:
+        hashed_access_key = self._hash_access_key(access_key)
+        return mlconfig.secret_stores.kubernetes.auth_secret_name.format(
+            hashed_access_key=hashed_access_key
+        )
+
+    @staticmethod
+    def _hash_access_key(access_key: str):
+        return hashlib.sha224(access_key.encode()).hexdigest()
+
     def store_project_secrets(self, project, secrets, namespace=""):
         secret_name = self.get_project_secret_name(project)
+        self.store_secrets(secret_name, secrets, namespace)
+
+    def store_auth_secret(self, username: str, access_key: str, namespace="") -> str:
+        secret_name = self.get_auth_secret_name(access_key)
+        secret_data = {
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username"): username,
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key(
+                "access_key"
+            ): access_key,
+        }
+        self.store_secrets(
+            secret_name,
+            secret_data,
+            namespace,
+            type_=SecretTypes.v3io_fuse,
+            labels={"mlrun/username": username},
+        )
+        return secret_name
+
+    def store_secrets(
+        self,
+        secret_name,
+        secrets,
+        namespace="",
+        type_=SecretTypes.opaque,
+        labels: typing.Optional[dict] = None,
+    ):
         namespace = self.resolve_namespace(namespace)
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
@@ -343,9 +388,9 @@ class K8sHelper:
             if exc.status != 404:
                 logger.error(f"failed to retrieve k8s secret: {exc}")
                 raise exc
-            k8s_secret = client.V1Secret(type="Opaque")
+            k8s_secret = client.V1Secret(type=type_)
             k8s_secret.metadata = client.V1ObjectMeta(
-                name=secret_name, namespace=namespace
+                name=secret_name, namespace=namespace, labels=labels
             )
             k8s_secret.string_data = secrets
             self.v1api.create_namespaced_secret(namespace, k8s_secret)
@@ -360,6 +405,12 @@ class K8sHelper:
 
     def delete_project_secrets(self, project, secrets, namespace=""):
         secret_name = self.get_project_secret_name(project)
+        self.delete_secrets(secret_name, secrets, namespace)
+
+    def delete_auth_secret(self, secret_ref: str, namespace=""):
+        self.delete_secrets(secret_ref, {}, namespace)
+
+    def delete_secrets(self, secret_name, secrets, namespace=""):
         namespace = self.resolve_namespace(namespace)
 
         try:
@@ -435,6 +486,8 @@ class BasePod:
         namespace="",
         kind="job",
         project=None,
+        default_pod_spec_attributes=None,
+        resources=None,
     ):
         self.namespace = namespace
         self.name = ""
@@ -454,6 +507,9 @@ class BasePod:
         }
         self._annotations = {}
         self._init_container = None
+        # will be applied on the pod spec only when calling .pod(), allows to override spec attributes
+        self.default_pod_spec_attributes = default_pod_spec_attributes
+        self.resources = resources
 
     @property
     def pod(self):
@@ -549,6 +605,7 @@ class BasePod:
             command=self.command,
             args=self.args,
             volume_mounts=self._mounts,
+            resources=self.resources,
         )
 
         pod_spec = client.V1PodSpec(
@@ -557,6 +614,11 @@ class BasePod:
             volumes=self._volumes,
             node_selector=self.node_selector,
         )
+
+        # if attribute isn't defined use default pod spec attributes
+        for key, val in self.default_pod_spec_attributes.items():
+            if not getattr(pod_spec, key, None):
+                setattr(pod_spec, key, val)
 
         if self._init_container:
             self._init_container.volume_mounts = self._mounts
@@ -593,3 +655,96 @@ def verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = N
             f"When specifying both GPU requests and limits these two values must be equal, "
             f"requests_gpu={requests_gpu}, limits_gpu={limits_gpu}"
         )
+
+
+def generate_preemptible_node_selector_requirements(
+    node_selector_operator: str,
+) -> typing.List[kubernetes.client.V1NodeSelectorRequirement]:
+    """
+    Generate node selector requirements based on the pre-configured node selector of the preemptible nodes.
+    node selector operator represents a key's relationship to a set of values.
+    Valid operators are listed in :py:class:`~mlrun.api.schemas.NodeSelectorOperator`
+    :param node_selector_operator: The operator of V1NodeSelectorRequirement
+    :return: List[V1NodeSelectorRequirement]
+    """
+    match_expressions = []
+    for (
+        node_selector_key,
+        node_selector_value,
+    ) in mlconfig.get_preemptible_node_selector().items():
+        match_expressions.append(
+            kubernetes.client.V1NodeSelectorRequirement(
+                key=node_selector_key,
+                operator=node_selector_operator,
+                values=[node_selector_value],
+            )
+        )
+    return match_expressions
+
+
+def generate_preemptible_nodes_anti_affinity_terms() -> typing.List[
+    kubernetes.client.V1NodeSelectorTerm
+]:
+    """
+    Generate node selector term containing anti-affinity expressions based on the
+    pre-configured node selector of the preemptible nodes.
+    Use for purpose of scheduling on node only if all match_expressions are satisfied.
+    This function uses a single term with potentially multiple expressions to ensure anti affinity.
+    https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
+    :return: List contains one nodeSelectorTerm with multiple expressions.
+    """
+    # import here to avoid circular imports
+    from mlrun.api.schemas import NodeSelectorOperator
+
+    # compile affinities with operator NotIn to make sure pods are not running on preemptible nodes.
+    node_selector_requirements = generate_preemptible_node_selector_requirements(
+        NodeSelectorOperator.node_selector_op_not_in.value
+    )
+    return [
+        kubernetes.client.V1NodeSelectorTerm(
+            match_expressions=node_selector_requirements,
+        )
+    ]
+
+
+def generate_preemptible_nodes_affinity_terms() -> typing.List[
+    kubernetes.client.V1NodeSelectorTerm
+]:
+    """
+    Use for purpose of scheduling on node having at least one of the node selectors.
+    When specifying multiple nodeSelectorTerms associated with nodeAffinity types,
+    then the pod can be scheduled onto a node if at least one of the nodeSelectorTerms can be satisfied.
+    :return: List of nodeSelectorTerms associated with the preemptible nodes.
+    """
+    # import here to avoid circular imports
+    from mlrun.api.schemas import NodeSelectorOperator
+
+    node_selector_terms = []
+
+    # compile affinities with operator In so pods could schedule on at least one of the preemptible nodes.
+    node_selector_requirements = generate_preemptible_node_selector_requirements(
+        NodeSelectorOperator.node_selector_op_in.value
+    )
+    for expression in node_selector_requirements:
+        node_selector_terms.append(
+            kubernetes.client.V1NodeSelectorTerm(match_expressions=[expression])
+        )
+    return node_selector_terms
+
+
+def generate_preemptible_tolerations() -> typing.List[kubernetes.client.V1Toleration]:
+    tolerations = mlconfig.get_preemptible_tolerations()
+
+    toleration_objects = []
+    for toleration in tolerations:
+        toleration_objects.append(
+            kubernetes.client.V1Toleration(
+                effect=toleration.get("effect", None),
+                key=toleration.get("key", None),
+                value=toleration.get("value", None),
+                operator=toleration.get("operator", None),
+                toleration_seconds=toleration.get("toleration_seconds", None)
+                or toleration.get("tolerationSeconds", None),
+            )
+        )
+    return toleration_objects

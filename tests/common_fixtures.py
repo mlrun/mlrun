@@ -67,6 +67,7 @@ def config_test_base():
     mlrun.k8s_utils._k8s = None
     mlrun.runtimes.runtime_handler_instances_cache = {}
     mlrun.runtimes.utils.cached_mpijob_crd_version = None
+    mlrun.runtimes.utils.cached_nuclio_version = None
 
 
 @pytest.fixture
@@ -148,21 +149,56 @@ def mock_failed_get_func(status_code: int):
 # Mock class used for client-side runtime tests. This mocks the rundb interface, for running/deploying runtimes
 class RunDBMock:
     def __init__(self):
+        self.kind = "http"
+        self._pipeline = None
         self._function = None
 
     def reset(self):
         self._function = None
+        self._pipeline = None
 
     # Expected to return a hash-key
     def store_function(self, function, name, project="", tag=None, versioned=False):
         self._function = function
         return "1234-1234-1234-1234"
 
+    def get_function(self, function, project, tag):
+        return {
+            "name": function,
+            "metadata": "bla",
+            "uid": "1234-1234-1234-1234",
+            "project": project,
+            "tag": tag,
+        }
+
     def submit_job(self, runspec, schedule=None):
         return {"status": {"status_text": "just a status"}}
 
+    def submit_pipeline(
+        self,
+        project,
+        pipeline,
+        arguments,
+        experiment,
+        run,
+        namespace,
+        ops,
+        artifact_path,
+    ):
+        self._pipeline = pipeline
+        return True
+
+    def store_project(self, name, project):
+        self._project_name = name
+        self._project = project
+
     def remote_builder(
-        self, func, with_mlrun, mlrun_version_specifier=None, skip_deployed=False
+        self,
+        func,
+        with_mlrun,
+        mlrun_version_specifier=None,
+        skip_deployed=False,
+        builder_env=None,
     ):
         self._function = func.to_dict()
         status = NuclioStatus(
@@ -255,6 +291,12 @@ class RunDBMock:
         assert deepdiff.DeepDiff(function_spec["volumes"], expected_volumes) == {}
         assert deepdiff.DeepDiff(function_spec["volume_mounts"], expected_mounts) == {}
 
+    def verify_authorization(
+        self,
+        authorization_verification_input: mlrun.api.schemas.AuthorizationVerificationInput,
+    ):
+        pass
+
 
 @pytest.fixture()
 def rundb_mock() -> RunDBMock:
@@ -262,6 +304,7 @@ def rundb_mock() -> RunDBMock:
 
     orig_get_run_db = mlrun.db.get_run_db
     mlrun.db.get_run_db = unittest.mock.Mock(return_value=mock_object)
+    mlrun.get_run_db = unittest.mock.Mock(return_value=mock_object)
 
     orig_use_remote_api = BaseRuntime._use_remote_api
     orig_get_db = BaseRuntime._get_db
@@ -274,6 +317,7 @@ def rundb_mock() -> RunDBMock:
 
     # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing
     mlrun.db.get_run_db = orig_get_run_db
+    mlrun.get_run_db = orig_get_run_db
     BaseRuntime._use_remote_api = orig_use_remote_api
     BaseRuntime._get_db = orig_get_db
     config.dbpath = orig_db_path

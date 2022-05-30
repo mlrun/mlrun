@@ -16,6 +16,7 @@ from contextlib import contextmanager
 from os import environ
 from tempfile import NamedTemporaryFile
 
+import deepdiff
 import pytest
 import requests_mock as requests_mock_package
 import yaml
@@ -24,7 +25,25 @@ import mlrun.errors
 from mlrun import config as mlconf
 from mlrun.db.httpdb import HTTPRunDB
 
-ns_env_key = f"{mlconf.env_prefix}NAMESPACE"
+namespace_env_key = f"{mlconf.env_prefix}NAMESPACE"
+default_function_pod_resources_env_key = (
+    f"{mlconf.env_prefix}DEFAULT_FUNCTION_POD_RESOURCES__"
+)
+default_function_pod_resources_request_gpu_env_key = (
+    f"{default_function_pod_resources_env_key}REQUESTS__GPU"
+)
+default_function_pod_resources_limits_gpu_env_key = (
+    f"{default_function_pod_resources_env_key}LIMITS__GPU"
+)
+default_function_pod_resources_request_cpu_env_key = (
+    f"{default_function_pod_resources_env_key}REQUESTS__CPU"
+)
+default_function_pod_resources_request_memory_env_key = (
+    f"{default_function_pod_resources_env_key}REQUESTS__MEMORY"
+)
+default_function_pod_resources_limits_cpu_env_key = (
+    f"{default_function_pod_resources_env_key}LIMITS__CPU"
+)
 
 
 @pytest.fixture
@@ -82,7 +101,7 @@ def test_file(config):
 
 def test_env(config):
     ns = "orange"
-    with patch_env({ns_env_key: ns}):
+    with patch_env({namespace_env_key: ns}):
         mlconf.config.reload()
 
     assert config.namespace == ns, "not populated from env"
@@ -95,7 +114,7 @@ def test_env_override(config):
     config_path = create_yaml_config(namespace=config_ns)
     env = {
         mlconf.env_file_key: config_path,
-        ns_env_key: env_ns,
+        namespace_env_key: env_ns,
     }
 
     with patch_env(env):
@@ -104,59 +123,227 @@ def test_env_override(config):
     assert config.namespace == env_ns, "env did not override"
 
 
-def test_decode_base64_config_and_load_to_dict():
-    encoded_attribute = "eyJlbmNvZGVkIjogImF0dHJpYnV0ZSJ9"
-    expected_decoded_output = {"encoded": "attribute"}
+def test_decode_base64_config_and_load_to_object():
+    encoded_dict_attribute = "eyJlbmNvZGVkIjogImF0dHJpYnV0ZSJ9"
+    expected_decoded_dict_output = {"encoded": "attribute"}
 
-    # Non-hierarchical attribute loading
-    mlconf.config.encoded_attribute = encoded_attribute
-    decoded_output = mlconf.config.decode_base64_config_and_load_to_dict(
-        "encoded_attribute"
+    encoded_list = "W3sidGVzdCI6IHsidGVzdF9kaWN0IjogMX19LCAxLCAyXQ=="
+    expected_decoded_list_output = [{"test": {"test_dict": 1}}, 1, 2]
+
+    # Non-hierarchical attribute loading with passing of expected type
+    mlconf.config.encoded_attribute = encoded_dict_attribute
+    decoded_output = mlconf.config.decode_base64_config_and_load_to_object(
+        "encoded_attribute", dict
     )
-    assert decoded_output == expected_decoded_output
+    assert type(decoded_output) == dict
+    assert decoded_output == expected_decoded_dict_output
 
-    # Hierarchical attribute loading
-    mlconf.config.for_test = {"encoded_attribute": encoded_attribute}
-    decoded_output = mlconf.config.decode_base64_config_and_load_to_dict(
+    # Hierarchical attribute loading without passing of expected type
+    mlconf.config.for_test = {"encoded_attribute": encoded_dict_attribute}
+    decoded_output = mlconf.config.decode_base64_config_and_load_to_object(
         "for_test.encoded_attribute"
     )
-    assert decoded_output == expected_decoded_output
+    assert type(decoded_output) == dict
+    assert decoded_output == expected_decoded_dict_output
 
-    # Not defined attribute
+    # Not defined attribute without passing of expected type
     mlconf.config.for_test = {"encoded_attribute": None}
-    decoded_output = mlconf.config.decode_base64_config_and_load_to_dict(
+    decoded_output = mlconf.config.decode_base64_config_and_load_to_object(
         "for_test.encoded_attribute"
     )
+    assert type(decoded_output) == dict
     assert decoded_output == {}
+
+    # Not defined attribute with passing of expected type
+    mlconf.config.for_test = {"encoded_attribute": None}
+    decoded_output = mlconf.config.decode_base64_config_and_load_to_object(
+        "for_test.encoded_attribute", list
+    )
+    assert type(decoded_output) == list
+    assert decoded_output == []
 
     # Non existing attribute loading
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        mlconf.config.decode_base64_config_and_load_to_dict("non_existing_attribute")
+        mlconf.config.decode_base64_config_and_load_to_object("non_existing_attribute")
 
     # Attribute defined but not encoded
     mlconf.config.for_test = {"encoded_attribute": "notencoded"}
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError):
-        mlconf.config.decode_base64_config_and_load_to_dict(
+        mlconf.config.decode_base64_config_and_load_to_object(
             "for_test.encoded_attribute"
+        )
+
+    # list attribute loading
+    mlconf.config.for_test = {"encoded_attribute": encoded_list}
+    decoded_list_output = mlconf.config.decode_base64_config_and_load_to_object(
+        "for_test.encoded_attribute", list
+    )
+    assert type(decoded_list_output) == list
+    assert decoded_list_output == expected_decoded_list_output
+
+
+def test_with_gpu_option_get_default_function_pod_resources(config):
+    requests_cpu = "30mi"
+    limits_cpu = "4"
+    requests_memory = "1M"
+    requests_gpu = "2"
+    limits_gpu = "2"
+    env = {
+        default_function_pod_resources_request_cpu_env_key: requests_cpu,
+        default_function_pod_resources_limits_cpu_env_key: limits_cpu,
+        default_function_pod_resources_request_memory_env_key: requests_memory,
+        default_function_pod_resources_request_gpu_env_key: requests_gpu,
+        default_function_pod_resources_limits_gpu_env_key: limits_gpu,
+    }
+    with patch_env(env):
+        mlconf.config.reload()
+
+        for test_case in [
+            {
+                "with_gpu_requests": True,
+                "with_gpu_limits": True,
+                "expected_resources": {
+                    "requests": {
+                        "cpu": requests_cpu,
+                        "memory": requests_memory,
+                        "nvidia.com/gpu": requests_gpu,
+                    },
+                    "limits": {
+                        "cpu": limits_cpu,
+                        "memory": None,
+                        "nvidia.com/gpu": limits_gpu,
+                    },
+                },
+            },
+            {
+                "with_gpu_requests": False,
+                "with_gpu_limits": True,
+                "expected_resources": {
+                    "requests": {"cpu": requests_cpu, "memory": requests_memory},
+                    "limits": {
+                        "cpu": limits_cpu,
+                        "memory": None,
+                        "nvidia.com/gpu": limits_gpu,
+                    },
+                },
+            },
+            {
+                "with_gpu_requests": True,
+                "with_gpu_limits": False,
+                "expected_resources": {
+                    "requests": {
+                        "cpu": requests_cpu,
+                        "memory": requests_memory,
+                        "nvidia.com/gpu": requests_gpu,
+                    },
+                    "limits": {
+                        "cpu": limits_cpu,
+                        "memory": None,
+                    },
+                },
+            },
+            {
+                "with_gpu_requests": False,
+                "with_gpu_limits": False,
+                "expected_resources": {
+                    "requests": {"cpu": requests_cpu, "memory": requests_memory},
+                    "limits": {"cpu": limits_cpu, "memory": None},
+                },
+            },
+        ]:
+            with_requests_gpu = test_case.get("with_gpu_requests")
+            with_gpu_limits = test_case.get("with_gpu_limits")
+            resources = config.get_default_function_pod_resources(
+                with_requests_gpu, with_gpu_limits
+            )
+            assert (
+                deepdiff.DeepDiff(
+                    resources,
+                    test_case.get("expected_resources"),
+                    ignore_order=True,
+                )
+                == {}
+            )
+
+
+def test_get_default_function_pod_requirement_resources(config):
+    requests_gpu = "2"
+    limits_gpu = "2"
+    env = {
+        default_function_pod_resources_request_gpu_env_key: requests_gpu,
+        default_function_pod_resources_limits_gpu_env_key: limits_gpu,
+    }
+    expected_resources_without_gpu = {
+        "requests": {"cpu": None, "memory": None},
+        "limits": {"cpu": None, "memory": None},
+    }
+    expected_resources_with_gpu = {
+        "requests": {"cpu": None, "memory": None, "nvidia.com/gpu": requests_gpu},
+        "limits": {"cpu": None, "memory": None, "nvidia.com/gpu": limits_gpu},
+    }
+    with patch_env(env):
+        mlconf.config.reload()
+        requests = config.get_default_function_pod_requirement_resources(
+            "requests", with_gpu=True
+        )
+        assert (
+            deepdiff.DeepDiff(
+                requests,
+                expected_resources_with_gpu["requests"],
+                ignore_order=True,
+            )
+            == {}
+        )
+        limits = config.get_default_function_pod_requirement_resources(
+            "limits", with_gpu=True
+        )
+        assert (
+            deepdiff.DeepDiff(
+                limits,
+                expected_resources_with_gpu["limits"],
+                ignore_order=True,
+            )
+            == {}
+        )
+        requests = config.get_default_function_pod_requirement_resources(
+            "requests", with_gpu=False
+        )
+        assert (
+            deepdiff.DeepDiff(
+                requests,
+                expected_resources_without_gpu["requests"],
+                ignore_order=True,
+            )
+            == {}
+        )
+        limits = config.get_default_function_pod_requirement_resources(
+            "limits", with_gpu=False
+        )
+        assert (
+            deepdiff.DeepDiff(
+                limits,
+                expected_resources_without_gpu["limits"],
+                ignore_order=True,
+            )
+            == {}
         )
 
 
 def test_gpu_validation(config):
-    dfpr_env_key = f"{mlconf.env_prefix}DEFAULT_FUNCTION_POD_RESOURCES__"
-    request_gpu_env_key = f"{dfpr_env_key}REQUESTS__GPU"
-    limits_gpu_env_key = f"{dfpr_env_key}LIMITS__GPU"
-
     # when gpu requests and gpu limits are not equal
     requests_gpu = "3"
     limits_gpu = "2"
-    env = {request_gpu_env_key: requests_gpu, limits_gpu_env_key: limits_gpu}
+    env = {
+        default_function_pod_resources_request_gpu_env_key: requests_gpu,
+        default_function_pod_resources_limits_gpu_env_key: limits_gpu,
+    }
     with patch_env(env):
         with pytest.raises(mlrun.errors.MLRunConflictError):
             mlconf.config.reload()
 
     # when only gpu request is set
     requests_gpu = "3"
-    env = {request_gpu_env_key: requests_gpu}
+    env = {default_function_pod_resources_request_gpu_env_key: requests_gpu}
     with patch_env(env):
         with pytest.raises(mlrun.errors.MLRunConflictError):
             mlconf.config.reload()
@@ -164,7 +351,10 @@ def test_gpu_validation(config):
     # when gpu requests and gpu limits are equal
     requests_gpu = "2"
     limits_gpu = "2"
-    env = {request_gpu_env_key: requests_gpu, limits_gpu_env_key: limits_gpu}
+    env = {
+        default_function_pod_resources_request_gpu_env_key: requests_gpu,
+        default_function_pod_resources_limits_gpu_env_key: limits_gpu,
+    }
     with patch_env(env):
         mlconf.config.reload()
     assert config.default_function_pod_resources.requests.gpu == requests_gpu
@@ -221,25 +411,32 @@ def test_iguazio_api_url_resolution():
 
 
 def test_resolve_kfp_url():
-    # nothing configured should return nothing
-    assert mlconf.config.kfp_url == ""
-    assert mlconf.config.namespace == ""
-    with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        mlconf.config.resolve_kfp_url()
+    mlconf.config.igz_version = ""
+    mlconf.config.namespace = ""
 
+    # URL configured - return it
     mlconf.config.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
     assert mlconf.config.resolve_kfp_url() == mlconf.config.kfp_url
 
+    # igz configured and less than 3.6.0 without namespace - explode
     mlconf.config.kfp_url = ""
-    mlconf.config.namespace = "default-tenant"
-
     mlconf.config.igz_version = "1.2.3"
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        mlconf.config.resolve_kfp_url()
+
+    # igz configured and less than 3.6.0 with namespace - resolve
+    mlconf.config.namespace = "default-tenant"
     assert (
         mlconf.config.resolve_kfp_url()
         == "http://ml-pipeline.default-tenant.svc.cluster.local:8888"
     )
 
+    # igz configured and over 3.6.0 - return None (after 3.6.0 kfp_url should be configured)
     mlconf.config.igz_version = "4.0.0"
+    assert mlconf.config.resolve_kfp_url() is None
+
+    # nothing configured - return None
+    mlconf.config.igz_version = ""
     assert mlconf.config.resolve_kfp_url() is None
 
 

@@ -9,13 +9,14 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
     def test_artifacts(self):
         db = mlrun.get_run_db()
         prj, uid, key, body = "p9", "u19", "k802", "tomato"
+        mlrun.get_or_create_project(prj, "./")
         artifact = mlrun.artifacts.Artifact(key, body, target_path="a.txt")
 
         db.store_artifact(key, artifact, uid, project=prj)
         db.store_artifact(key, artifact, uid, project=prj, iter=42)
         artifacts = db.list_artifacts(project=prj, tag="*")
         assert len(artifacts) == 2, "bad number of artifacts"
-        assert artifacts.objects()[0].key == key, "not a valid artifact object"
+        assert artifacts.to_objects()[0].key == key, "not a valid artifact object"
         assert artifacts.dataitems()[0].url, "not a valid artifact dataitem"
 
         artifacts = db.list_artifacts(project=prj, tag="*", iter=0)
@@ -31,6 +32,7 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
     def test_list_artifacts_filter_by_kind(self):
         prj, uid, key, body = "p9", "u19", "k802", "tomato"
+        mlrun.get_or_create_project(prj, context="./")
         model_artifact = mlrun.artifacts.model.ModelArtifact(
             key, body, target_path="a.txt"
         )

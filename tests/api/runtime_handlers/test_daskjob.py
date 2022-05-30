@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 from kubernetes import client
 from sqlalchemy.orm import Session
 
+import mlrun.api.schemas
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.runtimes import RuntimeKinds, get_runtime_handler
 from mlrun.runtimes.constants import PodPhases
@@ -10,6 +11,7 @@ from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
     def custom_setup(self):
+        self.kind = RuntimeKinds.dask
         self.runtime_handler = get_runtime_handler(RuntimeKinds.dask)
         self.runtime_handler.wait_for_deletion_interval = 0
 
@@ -20,7 +22,7 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
             "dask.org/component": "scheduler",
             "mlrun/class": "dask",
             "mlrun/function": "mydask",
-            "mlrun/project": "default",
+            "mlrun/project": self.project,
             "mlrun/scrape_metrics": "False",
             "mlrun/tag": "latest",
             "user": "root",
@@ -44,7 +46,7 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
             "dask.org/component": "worker",
             "mlrun/class": "dask",
             "mlrun/function": "mydask",
-            "mlrun/project": "default",
+            "mlrun/project": self.project,
             "mlrun/scrape_metrics": "False",
             "mlrun/tag": "latest",
             "user": "root",
@@ -69,7 +71,7 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
             "dask.org/component": "scheduler",
             "mlrun/class": "dask",
             "mlrun/function": "mydask",
-            "mlrun/project": "default",
+            "mlrun/project": self.project,
             "mlrun/scrape_metrics": "False",
             "mlrun/tag": "latest",
             "user": "root",
@@ -84,6 +86,37 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
             RuntimeKinds.dask,
             expected_pods=pods,
             expected_services=services,
+        )
+
+    def test_list_resources_grouped_by(self, db: Session, client: TestClient):
+        for group_by in [
+            mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
+        ]:
+            pods = self._mock_list_resources_pods()
+            services = self._mock_list_services([self.cluster_service])
+            self._assert_runtime_handler_list_resources(
+                RuntimeKinds.dask,
+                expected_pods=pods,
+                expected_services=services,
+                group_by=group_by,
+            )
+
+    def test_build_output_from_runtime_resources(self, db: Session, client: TestClient):
+        """
+        Some scenario happened in field (not sure what was the background) in which there were no services
+        And it caused build_output_from_runtime_resources when given the group by project list (happening in the crud
+        logic), this test reproduce it
+        """
+
+        self._mock_list_resources_pods()
+        self._mock_list_services([])
+        runtime_handler = get_runtime_handler(RuntimeKinds.dask)
+        resources = runtime_handler.list_resources(
+            self.project,
+            group_by=mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
+        )
+        runtime_handler.build_output_from_runtime_resources(
+            [resources[self.project][RuntimeKinds.dask]]
         )
 
     def test_delete_resources_completed_cluster(self, db: Session, client: TestClient):

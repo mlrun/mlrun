@@ -11,6 +11,11 @@ class ProjectMembershipFeatureFlag(str, enum.Enum):
     disabled = "disabled"
 
 
+class PreemptionNodesFeatureFlag(str, enum.Enum):
+    enabled = "enabled"
+    disabled = "disabled"
+
+
 class AuthenticationFeatureFlag(str, enum.Enum):
     none = "none"
     basic = "basic"
@@ -18,9 +23,16 @@ class AuthenticationFeatureFlag(str, enum.Enum):
     iguazio = "iguazio"
 
 
+class NuclioStreamsFeatureFlag(str, enum.Enum):
+    enabled = "enabled"
+    disabled = "disabled"
+
+
 class FeatureFlags(pydantic.BaseModel):
     project_membership: ProjectMembershipFeatureFlag
     authentication: AuthenticationFeatureFlag
+    nuclio_streams: NuclioStreamsFeatureFlag
+    preemption_nodes: PreemptionNodesFeatureFlag
 
 
 class FrontendSpec(pydantic.BaseModel):
@@ -38,3 +50,4 @@ class FrontendSpec(pydantic.BaseModel):
     auto_mount_params: typing.Dict[str, str] = {}
     default_artifact_path: str
     default_function_pod_resources: Resources = Resources()
+    default_function_preemption_mode: str

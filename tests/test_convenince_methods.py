@@ -15,6 +15,24 @@ def test_set_environment_with_invalid_project_name():
         mlrun.set_environment(project=invalid_name)
 
 
+def test_set_environment_cred():
+    old_key = os.environ.get("V3IO_ACCESS_KEY")
+    old_user = os.environ.get("V3IO_USERNAME")
+    artifact_path = mlrun.mlconf.artifact_path or "./"
+    mlrun.set_environment(access_key="xyz", username="joe", artifact_path=artifact_path)
+    assert os.environ["V3IO_ACCESS_KEY"] == "xyz"
+    assert os.environ["V3IO_USERNAME"] == "joe"
+
+    if old_key:
+        os.environ["V3IO_ACCESS_KEY"] = old_key
+    else:
+        del os.environ["V3IO_ACCESS_KEY"]
+    if old_user:
+        os.environ["V3IO_USERNAME"] = old_user
+    else:
+        del os.environ["V3IO_USERNAME"]
+
+
 def test_env_from_file():
     env_path = str(assets_path / "envfile")
     env_dict = mlrun.set_env_from_file(env_path, return_dict=True)

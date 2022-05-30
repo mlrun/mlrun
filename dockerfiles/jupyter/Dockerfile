@@ -1,6 +1,14 @@
 FROM jupyter/scipy-notebook:python-3.8.8
 
 USER root
+RUN apt-get update && \
+    apt-get -s dist-upgrade | \
+    grep "^Inst" | \
+    grep -i securi | \
+    awk -F " " {'print $2'} | \
+    xargs apt-get install -y --no-install-recommends && \
+    rm -rf /var/lib/apt/lists/*
+
 RUN apt-get update && apt-get install --no-install-recommends -y \
   graphviz \
  && rm -rf /var/lib/apt/lists/*
@@ -14,7 +22,7 @@ RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 WORKDIR $HOME
 
 COPY --chown=$NB_UID:$NB_GID ./README.md $HOME
-COPY --chown=$NB_UID:$NB_GID ./docs/quick-start.ipynb $HOME
+COPY --chown=$NB_UID:$NB_GID ./docs/quick-start $HOME/quick-start
 COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/mlrun-quick-start $HOME/_static/images/mlrun-quick-start
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlrun.env $HOME
 COPY --chown=$NB_UID:$NB_GID ./docs/tutorial $HOME/tutorial

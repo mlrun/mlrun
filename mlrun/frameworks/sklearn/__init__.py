@@ -98,11 +98,10 @@ def apply_mlrun(
     :param y_test:                   The test data ground truth for producing and calculating artifacts and metrics post
                                      training or post predict / predict_proba.
     :param sample_set:               A sample set of inputs for the model for logging its stats along the model in
-                                     favour of model monitoring.
+                                     favour of model monitoring. If not given the 'x_train' will be used by default.
     :param y_columns:                List of names of all the columns in the ground truth labels in case its a
                                      pd.DataFrame or a list of integers in case the dataset is a np.ndarray. If not
-                                     given but 'y_train' / 'y_test' is given then the labels / indices in it will be
-                                     used by default.
+                                     given 'y_train' is given then the labels / indices in it will be used by default.
     :param feature_vector:           Feature store feature vector uri (store://feature-vectors/<project>/<name>[:tag])
     :param feature_weights:          List of feature weights, one per input column.
     :param labels:                   Labels to log with the model.

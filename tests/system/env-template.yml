@@ -1,4 +1,4 @@
-# The system tests are expecting the env vars to be set in an env.yaml file in this same directory
+# The system tests are expecting the env vars to be set in an env.yml file in this same directory
 # this is a template file for the env file
 
 # The mlrun-api URL. e.g. https://mlrun-api.default-tenant.app.hedingber-28-1.iguazio-cd2.com

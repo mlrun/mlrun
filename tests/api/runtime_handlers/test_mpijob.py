@@ -13,6 +13,7 @@ from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
     def custom_setup(self):
+        self.kind = RuntimeKinds.mpijob
         self.runtime_handler = get_runtime_handler(RuntimeKinds.mpijob)
         self.runtime_handler.wait_for_deletion_interval = 0
 

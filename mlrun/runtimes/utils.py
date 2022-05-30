@@ -26,6 +26,7 @@ from kubernetes import client
 import mlrun
 import mlrun.builder
 import mlrun.utils.regex
+from mlrun.api.utils.clients import nuclio
 from mlrun.db import get_run_db
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
 from mlrun.k8s_utils import get_k8s_helper
@@ -59,6 +60,7 @@ global_context = _ContextStore()
 
 
 cached_mpijob_crd_version = None
+cached_nuclio_version = None
 
 
 # resolve mpijob runtime according to the mpi-operator's supported crd-version
@@ -116,6 +118,29 @@ def resolve_spark_operator_version():
         return int(regex.findall(config.spark_operator_version)[0])
     except Exception:
         raise ValueError("Failed to resolve spark operator's version")
+
+
+# if nuclio version specified on mlrun config set it likewise,
+# if not specified, get it from nuclio api client
+# since this is a heavy operation (sending requests to API), and it's unlikely that the version
+# will change - cache it (this means if we upgrade nuclio, we need to restart mlrun to re-fetch the new version)
+def resolve_nuclio_version():
+    global cached_nuclio_version
+
+    if not cached_nuclio_version:
+
+        # config override everything
+        nuclio_version = config.nuclio_version
+        if not nuclio_version and config.nuclio_dashboard_url:
+            try:
+                nuclio_client = nuclio.Client()
+                nuclio_version = nuclio_client.get_dashboard_version()
+            except Exception as exc:
+                logger.warning("Failed to resolve nuclio version", exc=str(exc))
+
+        cached_nuclio_version = nuclio_version
+
+    return cached_nuclio_version
 
 
 def calc_hash(func, tag=""):
@@ -288,8 +313,8 @@ def log_iter_artifacts(execution, df, header):
             body=gen_pcp_plot(df, index_col="iter"),
             local_path="parallel_coordinates.html",
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning(f"failed to log iter artifacts, {exc}")
 
 
 def resolve_function_image_name(function, image: typing.Optional[str] = None) -> str:
@@ -351,6 +376,13 @@ def set_named_item(obj, item):
         obj[item["name"]] = item
     else:
         obj[item.name] = item
+
+
+def set_item_attribute(item, attribute, value):
+    if isinstance(item, dict):
+        item[attribute] = value
+    else:
+        setattr(item, attribute, value)
 
 
 def get_item_name(item, attr="name"):
@@ -475,6 +507,27 @@ def verify_requests(
     return generate_resources(mem=mem, cpu=cpu)
 
 
+def get_gpu_from_resource_requirement(requirement: dict):
+    """
+    Because there could be different types of gpu types, and we don't know all the gpu types possible,
+    we want to get the gpu type and its value, we can figure out the type by knowing what resource types are static
+    and the possible number of resources.
+    Kubernetes support 3 types of resources, two of which their name doesn't change : cpu, memory.
+    :param requirement: requirement resource ( limits / requests ) which contain the resources.
+    """
+    if not requirement:
+        return None, None
+
+    if len(requirement) > 3:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Unable to resolve the gpu type because there are more than 3 resources"
+        )
+    for resource, value in requirement.items():
+        if resource not in ["cpu", "memory"]:
+            return resource, value
+    return None, None
+
+
 def generate_resources(mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
     """get pod cpu/memory/gpu resources dict"""
     resources = {}
@@ -531,18 +584,8 @@ class k8s_resource:
     def del_object(self, name, namespace=None):
         pass
 
-    def list_objects(self, namespace=None, selector=[], states=None):
-        return []
-
     def get_pods(self, name, namespace=None, master=False):
         return {}
-
-    def clean_objects(self, namespace=None, selector=[], states=None):
-        if not selector and not states:
-            raise ValueError("labels selector or states list must be specified")
-        items = self.list_objects(namespace, selector, states)
-        for item in items:
-            self.del_object(item.metadata.name, item.metadata.namespace)
 
 
 def enrich_function_from_dict(function, function_dict):
@@ -559,6 +602,8 @@ def enrich_function_from_dict(function, function_dict):
         "affinity",
         "priority_class_name",
         "credentials",
+        "tolerations",
+        "preemption_mode",
     ]:
         if attribute == "credentials":
             override_value = getattr(override_function.metadata, attribute, None)

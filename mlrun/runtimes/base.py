@@ -137,6 +137,9 @@ class FunctionSpec(ModelObj):
     def build(self, build):
         self._build = self._verify_dict(build, "build", ImageBuilder)
 
+    def enrich_function_preemption_spec(self):
+        pass
+
 
 class BaseRuntime(ModelObj):
     kind = "base"
@@ -219,6 +222,29 @@ class BaseRuntime(ModelObj):
             return True
         return False
 
+    def _enrich_on_client_side(self):
+        self.try_auto_mount_based_on_config()
+        self.fill_credentials()
+
+    def _enrich_on_server_side(self):
+        pass
+
+    def _enrich_on_server_and_client_sides(self):
+        """
+        enrich function also in client side and also on server side
+        """
+        pass
+
+    def _enrich_function(self):
+        """
+        enriches the function based on the flow state we run in (sdk or server)
+        """
+        if self._use_remote_api():
+            self._enrich_on_client_side()
+        else:
+            self._enrich_on_server_side()
+        self._enrich_on_server_and_client_sides()
+
     def _function_uri(self, tag=None, hash_key=None):
         return generate_object_uri(
             self.metadata.project,
@@ -248,9 +274,12 @@ class BaseRuntime(ModelObj):
         pass
 
     def fill_credentials(self):
-        if "MLRUN_AUTH_SESSION" in os.environ or "V3IO_ACCESS_KEY" in os.environ:
+        auth_session_env_var = (
+            mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
+        )
+        if auth_session_env_var in os.environ or "V3IO_ACCESS_KEY" in os.environ:
             self.metadata.credentials.access_key = os.environ.get(
-                "MLRUN_AUTH_SESSION"
+                auth_session_env_var
             ) or os.environ.get("V3IO_ACCESS_KEY")
 
     def run(
@@ -309,10 +338,7 @@ class BaseRuntime(ModelObj):
         if self.spec.mode and self.spec.mode not in run_modes:
             raise ValueError(f'run mode can only be {",".join(run_modes)}')
 
-        # Perform auto-mount if necessary - make sure it only runs on client side (when using remote API)
-        if self._use_remote_api():
-            self.try_auto_mount_based_on_config()
-            self.fill_credentials()
+        self._enrich_function()
 
         if local:
             return self._run_local(
@@ -581,8 +607,10 @@ class BaseRuntime(ModelObj):
         def_name = self.metadata.name
         if runspec.spec.handler_name:
             short_name = runspec.spec.handler_name
-            if "::" in short_name:
-                short_name = short_name.split("::")[1]  # drop class name
+            for separator in ["#", "::", "."]:
+                # drop paths, module or class name from short name
+                if separator in short_name:
+                    short_name = short_name.split(separator)[-1]
             def_name += "-" + short_name
         runspec.metadata.name = name or runspec.metadata.name or def_name
         verify_field_regex(
@@ -707,6 +735,9 @@ class BaseRuntime(ModelObj):
                 if code:
                     raise ValueError("cannot specify both code and source archive")
                 args += ["--source", self.spec.build.source]
+                if self.spec.workdir:
+                    # set the absolute/relative path to the cloned code
+                    args += ["--workdir", self.spec.workdir]
 
             if command:
                 args += [command]
@@ -1088,6 +1119,7 @@ def is_local(url):
 
 class BaseRuntimeHandler(ABC):
     # setting here to allow tests to override
+    kind = "base"
     wait_for_deletion_interval = 10
 
     @staticmethod
@@ -1235,7 +1267,12 @@ class BaseRuntimeHandler(ABC):
         else:
             runtime_resources = self._list_pods(namespace, label_selector)
         project_run_uid_map = self._list_runs_for_monitoring(db, db_session)
+        # project -> uid -> {"name": <runtime-resource-name>}
+        run_runtime_resources_map = {}
         for runtime_resource in runtime_resources:
+            project, uid, name = self._resolve_runtime_resource_run(runtime_resource)
+            run_runtime_resources_map.setdefault(project, {})
+            run_runtime_resources_map.get(project).update({uid: {"name": name}})
             try:
                 self._monitor_runtime_resource(
                     db,
@@ -1244,6 +1281,9 @@ class BaseRuntimeHandler(ABC):
                     runtime_resource,
                     runtime_resource_is_crd,
                     namespace,
+                    project,
+                    uid,
+                    name,
                 )
             except Exception as exc:
                 logger.warning(
@@ -1253,6 +1293,113 @@ class BaseRuntimeHandler(ABC):
                     exc=str(exc),
                     traceback=traceback.format_exc(),
                 )
+        for project, runs in project_run_uid_map.items():
+            if runs:
+                for run_uid, run in runs.items():
+                    try:
+                        if not run:
+                            run = db.read_run(db_session, run_uid, project)
+                        if self.kind == run.get("metadata", {}).get("labels", {}).get(
+                            "kind", ""
+                        ):
+                            self._ensure_run_not_stuck_on_non_terminal_state(
+                                db,
+                                db_session,
+                                project,
+                                run_uid,
+                                run,
+                                run_runtime_resources_map,
+                            )
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed ensuring run not stuck. Continuing",
+                            run_uid=run_uid,
+                            run=run,
+                            project=project,
+                            exc=str(exc),
+                            traceback=traceback.format_exc(),
+                        )
+
+    def _ensure_run_not_stuck_on_non_terminal_state(
+        self,
+        db: DBInterface,
+        db_session: Session,
+        project: str,
+        run_uid: str,
+        run: dict = None,
+        run_runtime_resources_map: dict = None,
+    ):
+        """
+        Ensuring that a run does not become trapped in a non-terminal state as a result of not finding
+        corresponding k8s resource.
+        This can occur when a node is evicted or preempted, causing the resources to be removed from the resource
+        listing when the final state recorded in the database is non-terminal.
+        This will have a significant impact on scheduled jobs, since they will not be created until the
+        previous run reaches a terminal state (because of concurrency limit)
+        """
+        now = now_date()
+        db_run_state = run.get("status", {}).get("state")
+        if not db_run_state:
+            # we are setting the run state to a terminal state to avoid log spamming, this is mainly sanity as we are
+            # setting state to runs when storing new runs.
+            logger.info(
+                "Runs monitoring found a run without state, updating to a terminal state",
+                project=project,
+                uid=run_uid,
+                db_run_state=db_run_state,
+                now=now,
+            )
+            run.setdefault("status", {})["state"] = RunStates.error
+            run.setdefault("status", {})["last_update"] = now.isoformat()
+            db.store_run(db_session, run, run_uid, project)
+            return
+        if db_run_state in RunStates.non_terminal_states():
+            if run_runtime_resources_map and run_uid in run_runtime_resources_map.get(
+                project, {}
+            ):
+                # if found resource there is no need to continue
+                return
+            last_update_str = run.get("status", {}).get("last_update")
+            debounce_period = (
+                config.resolve_runs_monitoring_missing_runtime_resources_debouncing_interval()
+            )
+            if last_update_str is None:
+                logger.info(
+                    "Runs monitoring found run in non-terminal state without last update time set, "
+                    "updating last update time to now, to be able to evaluate next time if something changed",
+                    project=project,
+                    uid=run_uid,
+                    db_run_state=db_run_state,
+                    now=now,
+                    debounce_period=debounce_period,
+                )
+                run.setdefault("status", {})["last_update"] = now.isoformat()
+                db.store_run(db_session, run, run_uid, project)
+                return
+
+            if datetime.fromisoformat(last_update_str) > now - timedelta(
+                seconds=debounce_period
+            ):
+                # we are setting non-terminal states to runs before the run is actually applied to k8s, meaning there is
+                # a timeframe where the run exists and no runtime resources exist and it's ok, therefore we're applying
+                # a debounce period before setting the state to error
+                logger.warning(
+                    "Monitoring did not discover a runtime resource that corresponded to a run in a "
+                    "non-terminal state. but record has recently updated. Debouncing",
+                    project=project,
+                    uid=run_uid,
+                    db_run_state=db_run_state,
+                    last_update=datetime.fromisoformat(last_update_str),
+                    now=now,
+                    debounce_period=debounce_period,
+                )
+            else:
+                logger.info(
+                    "Updating run state", run_uid=run_uid, run_state=RunStates.error
+                )
+                run.setdefault("status", {})["state"] = RunStates.error
+                run.setdefault("status", {})["last_update"] = now.isoformat()
+                db.store_run(db_session, run, run_uid, project)
 
     def _add_object_label_selector_if_needed(
         self,
@@ -1769,11 +1916,9 @@ class BaseRuntimeHandler(ABC):
         return True, last_update
 
     def _list_runs_for_monitoring(
-        self,
-        db: DBInterface,
-        db_session: Session,
+        self, db: DBInterface, db_session: Session, states: list = None
     ):
-        runs = db.list_runs(db_session, project="*")
+        runs = db.list_runs(db_session, project="*", states=states)
         project_run_uid_map = {}
         run_with_missing_data = []
         duplicated_runs = []
@@ -1820,8 +1965,12 @@ class BaseRuntimeHandler(ABC):
         runtime_resource: Dict,
         runtime_resource_is_crd: bool,
         namespace: str,
+        project: str = None,
+        uid: str = None,
+        name: str = None,
     ):
-        project, uid, name = self._resolve_runtime_resource_run(runtime_resource)
+        if not project and not uid and not name:
+            project, uid, name = self._resolve_runtime_resource_run(runtime_resource)
         if not project or not uid:
             # Currently any build pod won't have UID and therefore will cause this log message to be printed which
             # spams the log

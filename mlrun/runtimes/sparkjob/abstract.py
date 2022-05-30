@@ -44,7 +44,6 @@ from ...utils import (
 from ..base import RunError
 from ..kubejob import KubejobRuntime
 from ..pod import KubeResourceSpec
-from ..utils import generate_resources
 
 _service_account = "sparkapp"
 _sparkjob_template = {
@@ -139,6 +138,8 @@ class AbstractSparkJobSpec(KubeResourceSpec):
         pythonpath=None,
         node_name=None,
         affinity=None,
+        tolerations=None,
+        preemption_mode=None,
     ):
 
         super().__init__(
@@ -165,10 +166,16 @@ class AbstractSparkJobSpec(KubeResourceSpec):
             pythonpath=pythonpath,
             node_name=node_name,
             affinity=affinity,
+            tolerations=tolerations,
+            preemption_mode=preemption_mode,
         )
 
-        self.driver_resources = driver_resources or {}
-        self.executor_resources = executor_resources or {}
+        self._driver_resources = self.enrich_resources_with_default_pod_resources(
+            "driver_resources", driver_resources
+        )
+        self._executor_resources = self.enrich_resources_with_default_pod_resources(
+            "executor_resources", executor_resources
+        )
         self.spark_conf = spark_conf or {}
         self.hadoop_conf = hadoop_conf or {}
         self.job_type = job_type
@@ -178,6 +185,26 @@ class AbstractSparkJobSpec(KubeResourceSpec):
         self.deps = deps or {}
         self.main_class = main_class
         self.use_default_image = use_default_image
+
+    @property
+    def driver_resources(self) -> dict:
+        return self._driver_resources
+
+    @driver_resources.setter
+    def driver_resources(self, resources):
+        self._driver_resources = self.enrich_resources_with_default_pod_resources(
+            "driver_resources", resources
+        )
+
+    @property
+    def executor_resources(self) -> dict:
+        return self._executor_resources
+
+    @executor_resources.setter
+    def executor_resources(self, resources):
+        self._executor_resources = self.enrich_resources_with_default_pod_resources(
+            "executor_resources", resources
+        )
 
 
 class AbstractSparkRuntime(KubejobRuntime):
@@ -203,18 +230,19 @@ class AbstractSparkRuntime(KubejobRuntime):
         sj = new_function(kind=cls.kind, name="spark-default-image-deploy-temp")
         sj.spec.build.image = cls._get_default_deployed_mlrun_image_name(with_gpu)
 
-        sj.with_executor_requests(cpu=1, mem="512m", gpus=1 if with_gpu else None)
-        sj.with_driver_requests(cpu=1, mem="512m", gpus=1 if with_gpu else None)
+        # setting required resources
+        sj.with_executor_requests(cpu=1, mem="512m")
+        sj.with_driver_requests(cpu=1, mem="512m")
 
         sj.deploy()
         get_run_db().delete_function(name=sj.metadata.name)
 
     def _is_using_gpu(self):
         _, driver_gpu = self._get_gpu_type_and_quantity(
-            resources=self.spec.driver_resources["requests"]
+            resources=self.spec.driver_resources["limits"]
         )
         _, executor_gpu = self._get_gpu_type_and_quantity(
-            resources=self.spec.executor_resources["requests"]
+            resources=self.spec.executor_resources["limits"]
         )
         return bool(driver_gpu or executor_gpu)
 
@@ -442,7 +470,7 @@ with ctx:
                     str,
                 )
             gpu_type, gpu_quantity = self._get_gpu_type_and_quantity(
-                resources=self.spec.executor_resources["requests"]
+                resources=self.spec.executor_resources["limits"]
             )
             if gpu_type:
                 update_in(job, "spec.executor.gpu.name", gpu_type)
@@ -471,7 +499,7 @@ with ctx:
                     str,
                 )
             gpu_type, gpu_quantity = self._get_gpu_type_and_quantity(
-                resources=self.spec.driver_resources["requests"]
+                resources=self.spec.driver_resources["limits"]
             )
             if gpu_type:
                 update_in(job, "spec.driver.gpu.name", gpu_type)
@@ -491,14 +519,14 @@ with ctx:
             update_in(job, "spec.mainApplicationFile", self.spec.command)
 
         verify_list_and_update_in(job, "spec.arguments", self.spec.args or [], str)
-        self._submit_job(job, meta, code)
+        self._submit_spark_job(job, meta, code)
 
         return None
 
     def _enrich_job(self, job):
         raise NotImplementedError()
 
-    def _submit_job(
+    def _submit_spark_job(
         self,
         job,
         meta,
@@ -610,48 +638,41 @@ with ctx:
         node_name: typing.Optional[str] = None,
         node_selector: typing.Optional[typing.Dict[str, str]] = None,
         affinity: typing.Optional[client.V1Affinity] = None,
+        tolerations: typing.Optional[typing.List[client.V1Toleration]] = None,
     ):
         if node_name:
             raise NotImplementedError(
                 "Setting node name is not supported for spark runtime"
             )
+        # TODO add affinity support
+        # https://github.com/GoogleCloudPlatform/spark-on-k8s-operator/blob/master/pkg/apis/sparkoperator.k8s.io/v1beta2/types.go#L491
         if affinity:
             raise NotImplementedError(
                 "Setting affinity is not supported for spark runtime"
             )
-        super().with_node_selection(node_name, node_selector, affinity)
+        super().with_node_selection(node_name, node_selector, affinity, tolerations)
 
-    def with_executor_requests(
-        self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"
-    ):
+    def with_executor_requests(self, mem=None, cpu=None):
         """set executor pod required cpu/memory/gpu resources"""
-        update_in(
-            self.spec.executor_resources,
-            "requests",
-            generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type),
+        self.spec._verify_and_set_requests("executor_resources", mem, cpu)
+
+    def with_executor_limits(self, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
+        """set executor pod limits"""
+        # in spark operator there is only use of mem passed through requests,
+        # limits is set to the same value so passing mem=None
+        self.spec._verify_and_set_limits(
+            "executor_resources", None, cpu, gpus, gpu_type
         )
 
-    def with_executor_limits(self, cpu=None):
-        """set executor pod cpu limits"""
-        update_in(
-            self.spec.executor_resources, "limits", generate_resources(cpu=str(cpu))
-        )
-
-    def with_driver_requests(
-        self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"
-    ):
+    def with_driver_requests(self, mem=None, cpu=None):
         """set driver pod required cpu/memory/gpu resources"""
-        update_in(
-            self.spec.driver_resources,
-            "requests",
-            generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type),
-        )
+        self.spec._verify_and_set_requests("driver_resources", mem, cpu)
 
-    def with_driver_limits(self, cpu=None):
+    def with_driver_limits(self, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
         """set driver pod cpu limits"""
-        update_in(
-            self.spec.driver_resources, "limits", generate_resources(cpu=str(cpu))
-        )
+        # in spark operator there is only use of mem passed through requests,
+        # limits is set to the same value so passing mem=None
+        self.spec._verify_and_set_limits("driver_resources", None, cpu, gpus, gpu_type)
 
     def with_restart_policy(
         self,
@@ -712,6 +733,8 @@ with ctx:
 
 
 class SparkRuntimeHandler(BaseRuntimeHandler):
+    kind = "spark"
+
     def _resolve_crd_object_status_info(
         self, db: DBInterface, db_session: Session, crd_object
     ) -> Tuple[bool, Optional[datetime], Optional[str]]:

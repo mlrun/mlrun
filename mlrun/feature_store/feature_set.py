@@ -827,11 +827,13 @@ class FeatureSet(ModelObj):
     def publish(self, tag: str):
         """publish the feature set and lock it's metadata"""
 
+        if not mlrun.mlconf.feature_store.enable_publish_feature_set:
+            raise NotImplementedError(f"Publish of feature set is not supported.")
+
         if self.get_publish_time:
             raise MLRunBadRequestError(
                 f"Feature set was already published (published on: {self.get_publish_time})."
             )
-
         db = self._get_run_db()
 
         as_dict = self.to_dict()

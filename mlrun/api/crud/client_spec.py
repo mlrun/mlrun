@@ -69,6 +69,9 @@ class ClientSpec(
                 "function_defaults.preemption_mode"
             ),
             force_run_local=config.force_run_local,
+            enable_publish_feature_set=self._get_config_value_if_not_default(
+                "feature_store.enable_publish_feature_set"
+            ),
         )
 
     @staticmethod

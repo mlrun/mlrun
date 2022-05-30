@@ -353,6 +353,10 @@ class HTTPRunDB(RunDBInterface):
             config.force_run_local = config.force_run_local or server_cfg.get(
                 "force_run_local"
             )
+            config.enable_publish_feature_set = (
+                config.enable_publish_feature_set
+                or server_cfg.get("enable_publish_feature_set")
+            )
 
         except Exception as exc:
             logger.warning(

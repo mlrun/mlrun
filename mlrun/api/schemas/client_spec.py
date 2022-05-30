@@ -35,3 +35,4 @@ class ClientSpec(pydantic.BaseModel):
     preemptible_nodes_node_selector: typing.Optional[str]
     preemptible_nodes_tolerations: typing.Optional[str]
     default_preemption_mode: typing.Optional[str]
+    enable_publish_feature_set: typing.Optional[str]

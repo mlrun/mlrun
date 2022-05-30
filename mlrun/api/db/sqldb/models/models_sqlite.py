@@ -342,7 +342,7 @@ with warnings.catch_warnings():
         updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
         state = Column(String(255, collation=SQLCollationUtil.collation()))
         uid = Column(String(255, collation=SQLCollationUtil.collation()))
-        publish_time = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        publish_time = Column(TIMESTAMP, required=False)
 
         _full_object = Column("object", JSON)
 

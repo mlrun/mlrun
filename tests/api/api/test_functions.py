@@ -16,19 +16,15 @@ import mlrun.api.utils.singletons.k8s
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
 import mlrun.errors
-import tests.api.api.utils
 import tests.conftest
-
-PROJECT = "project-name"
 
 
 def test_build_status_pod_not_found(db: Session, client: TestClient):
-    tests.api.api.utils.create_project(client, PROJECT)
     function = {
         "kind": "job",
         "metadata": {
             "name": "function-name",
-            "project": PROJECT,
+            "project": "project-name",
             "tag": "latest",
         },
         "status": {"build_pod": "some-pod-name"},
@@ -65,7 +61,16 @@ async def test_multiple_store_function_race_condition(
     """
     This is testing the case that the retry_on_conflict decorator is coming to solve, see its docstring for more details
     """
-    await tests.api.api.utils.create_project_async(async_client, PROJECT)
+    project = {
+        "metadata": {
+            "name": "project-name",
+        }
+    }
+    response = await async_client.post(
+        "projects",
+        json=project,
+    )
+    assert response.status_code == HTTPStatus.CREATED.value
     # Make the get function method to return None on the first two calls, and then use the original function
     get_function_mock = tests.conftest.MockSpecificCalls(
         mlrun.api.utils.singletons.db.get_db()._get_class_instance_by_uid, [1, 2], None
@@ -109,8 +114,6 @@ async def test_multiple_store_function_race_condition(
 
 
 def test_build_function_with_mlrun_bool(db: Session, client: TestClient):
-    tests.api.api.utils.create_project(client, PROJECT)
-
     function_dict = {
         "kind": "job",
         "metadata": {

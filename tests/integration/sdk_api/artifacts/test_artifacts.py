@@ -9,7 +9,6 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
     def test_artifacts(self):
         db = mlrun.get_run_db()
         prj, uid, key, body = "p9", "u19", "k802", "tomato"
-        mlrun.get_or_create_project(prj, "./")
         artifact = mlrun.artifacts.Artifact(key, body, target_path="a.txt")
 
         db.store_artifact(key, artifact, uid, project=prj)
@@ -32,7 +31,6 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
     def test_list_artifacts_filter_by_kind(self):
         prj, uid, key, body = "p9", "u19", "k802", "tomato"
-        mlrun.get_or_create_project(prj, context="./")
         model_artifact = mlrun.artifacts.model.ModelArtifact(
             key, body, target_path="a.txt"
         )

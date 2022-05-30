@@ -311,18 +311,12 @@ def test_ensure_project(
     leader_follower: mlrun.api.utils.projects.remotes.follower.Member,
 ):
     project_name = "project-name"
-    with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        projects_leader.ensure_project(
-            None,
-            project_name,
-        )
-
+    projects_leader.ensure_project(
+        None,
+        project_name,
+    )
     project = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
-    )
-    projects_leader.create_project(
-        None,
-        project,
     )
     _assert_project_in_followers([leader_follower, nop_follower], project)
 

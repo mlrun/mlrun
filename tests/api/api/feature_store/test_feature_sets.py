@@ -4,8 +4,6 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-import tests.api.api.utils
-
 from .base import (
     _assert_diff_as_expected_except_for_specific_metadata,
     _list_and_assert_objects,
@@ -97,7 +95,6 @@ def _assert_extra_fields_exist(json_response):
 
 def test_feature_set_put_with_tag(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
-    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_set1"
     tag = "my_tag1"
@@ -114,7 +111,6 @@ def test_feature_set_put_with_tag(db: Session, client: TestClient) -> None:
 
 def test_feature_set_create_without_tag(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
-    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
@@ -126,7 +122,6 @@ def test_feature_set_create_without_tag(db: Session, client: TestClient) -> None
 
 def test_feature_set_create_with_extra_fields(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
-    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
@@ -151,7 +146,6 @@ def test_feature_set_create_with_extra_fields(db: Session, client: TestClient) -
 
 def test_feature_set_create_and_list(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
-    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
@@ -200,8 +194,6 @@ def test_feature_set_create_and_list(db: Session, client: TestClient) -> None:
 
 def test_feature_set_list_partition_by(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
-    tests.api.api.utils.create_project(client, project_name)
-
     count = 5
     for i in range(count):
         name = f"feature_set_{i}"
@@ -220,7 +212,6 @@ def test_feature_set_list_partition_by(db: Session, client: TestClient) -> None:
 
 def test_feature_set_patch(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
-    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
@@ -283,7 +274,6 @@ def test_feature_set_patch(db: Session, client: TestClient) -> None:
 
 def test_feature_set_get_by_reference(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
-    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
@@ -308,8 +298,6 @@ def test_feature_set_get_by_reference(db: Session, client: TestClient) -> None:
 
 def test_feature_set_delete(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
-    tests.api.api.utils.create_project(client, project_name)
-
     count = 5
     for i in range(count):
         name = f"feature_set_{i}"
@@ -333,7 +321,6 @@ def test_feature_set_delete(db: Session, client: TestClient) -> None:
 
 def test_feature_set_delete_version(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
-    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_set"
     feature_set = _generate_feature_set(name)
@@ -384,8 +371,6 @@ def test_feature_set_create_failure_already_exists(
     db: Session, client: TestClient
 ) -> None:
     project_name = f"prj-{uuid4().hex}"
-    tests.api.api.utils.create_project(client, project_name)
-
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
 
@@ -414,8 +399,6 @@ def test_feature_set_multiple_creates_and_patches(
     db: Session, client: TestClient
 ) -> None:
     project_name = f"prj-{uuid4().hex}"
-    tests.api.api.utils.create_project(client, project_name)
-
     count = 5
     for i in range(count):
         name = f"fs_{i}"
@@ -445,8 +428,6 @@ def test_feature_set_multiple_creates_and_patches(
 
 def test_feature_set_store(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
-    tests.api.api.utils.create_project(client, project_name)
-
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
 
@@ -493,8 +474,6 @@ def test_feature_set_store(db: Session, client: TestClient) -> None:
 
 def test_feature_set_tagging_with_re_store(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
-    tests.api.api.utils.create_project(client, project_name)
-
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
 
@@ -534,8 +513,6 @@ def test_feature_set_tagging_with_re_store(db: Session, client: TestClient) -> N
 
 def test_list_feature_sets_tags(db: Session, client: TestClient) -> None:
     project_name = "some-project"
-    tests.api.api.utils.create_project(client, project_name)
-
     name = "feature_set-1"
     name_2 = "feature_set-2"
     feature_set_1 = _generate_feature_set(name)
@@ -557,8 +534,6 @@ def test_list_feature_sets_tags(db: Session, client: TestClient) -> None:
 
 def test_feature_set_create_without_labels(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
-    tests.api.api.utils.create_project(client, project_name)
-
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
 
@@ -580,8 +555,6 @@ def test_feature_set_project_name_mismatch_failure(
     db: Session, client: TestClient
 ) -> None:
     project_name = f"prj-{uuid4().hex}"
-    tests.api.api.utils.create_project(client, project_name)
-
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
     feature_set["metadata"]["project"] = "booboo"
@@ -607,8 +580,6 @@ def test_feature_set_project_name_mismatch_failure(
 
 def test_feature_set_wrong_kind_failure(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
-    tests.api.api.utils.create_project(client, project_name)
-
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
     feature_set["kind"] = "wrong"
@@ -618,7 +589,6 @@ def test_feature_set_wrong_kind_failure(db: Session, client: TestClient) -> None
 
 def test_entities_list(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
-    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_set"
     count = 5
@@ -665,7 +635,6 @@ def test_entities_list(db: Session, client: TestClient) -> None:
 
 def test_features_list(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
-    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_set1"
     feature_set = _generate_feature_set(name)
@@ -708,8 +677,6 @@ def test_no_feature_leftovers_when_storing_feature_sets(
     db: Session, client: TestClient
 ) -> None:
     project_name = f"prj-{uuid4().hex}"
-    tests.api.api.utils.create_project(client, project_name)
-
     count = 5
     name = "feature_set"
     # Make sure no leftover features remain in the DB after doing multi-store on the same object
@@ -754,7 +721,6 @@ def test_no_feature_leftovers_when_storing_feature_sets(
 
 def test_unversioned_feature_set_actions(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
-    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_set_1"
     feature_set = _generate_feature_set(name)
@@ -801,7 +767,6 @@ def test_unversioned_feature_set_actions(db: Session, client: TestClient) -> Non
 
 def test_feature_set_name_exact_and_fuzzy_list(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
-    tests.api.api.utils.create_project(client, project_name)
 
     name = "FeatureSET123"
     feature_set = _generate_feature_set(name)
@@ -821,7 +786,6 @@ def test_feature_set_name_exact_and_fuzzy_list(db: Session, client: TestClient) 
 
 def test_multi_label_query(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
-    tests.api.api.utils.create_project(client, project_name)
 
     total_objects = 5
     for i in range(total_objects):

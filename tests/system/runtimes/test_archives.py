@@ -200,7 +200,6 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
     def test_job_project(self):
         project_name = "git-proj-job1"
         project = mlrun.new_project(project_name, user_project=True)
-        project.save()
         project.set_source(f"{git_uri}#main", True)  # , workdir="gtst")
         project.set_function(
             name="myjob",
@@ -218,7 +217,6 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
     def test_nuclio_project(self):
         project_name = "git-proj-nuc"
         project = mlrun.new_project(project_name, user_project=True)
-        project.save()
         project.set_source(f"{git_uri}#main")
         project.set_function(
             name="mynuclio",
@@ -244,7 +242,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
             user_project=True,
             subpath="subdir",
         )
-        project.save()
+
         # run job locally (from cloned source)
         run = project.run_function("myjob", local=True)
         assert run.state() == "completed"

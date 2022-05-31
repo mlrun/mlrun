@@ -312,7 +312,7 @@ class AbstractSparkRuntime(KubejobRuntime):
 
         except mlrun.errors.MLRunInvalidArgumentError:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Job name '{runobj.metadata.name}' is not valid. The job name must be not longer than 29 characters."
+                f"Job name '{runobj.metadata.name}' is not valid. The job name must be not longer than 29 characters"
             )
 
         # validating existence of required fields

@@ -40,6 +40,7 @@ class TargetTypes:
     nosql = "nosql"
     tsdb = "tsdb"
     stream = "stream"
+    kafka = "kafka"
     dataframe = "dataframe"
     custom = "custom"
 
@@ -51,6 +52,7 @@ class TargetTypes:
             TargetTypes.nosql,
             TargetTypes.tsdb,
             TargetTypes.stream,
+            TargetTypes.kafka,
             TargetTypes.dataframe,
             TargetTypes.custom,
         ]
@@ -1152,6 +1154,52 @@ class StreamTarget(BaseStoreTarget):
         raise NotImplementedError()
 
 
+class KafkaTarget(BaseStoreTarget):
+    kind = TargetTypes.kafka
+    is_table = False
+    is_online = False
+    support_spark = False
+    support_storey = True
+    support_append = True
+
+    def add_writer_state(
+        self, graph, after, features, key_columns=None, timestamp_key=None
+    ):
+        warnings.warn(
+            "This method is deprecated. Use add_writer_step instead",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        """add storey writer state to graph"""
+        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
+
+    def add_writer_step(
+        self,
+        graph,
+        after,
+        features,
+        key_columns=None,
+        timestamp_key=None,
+        featureset_status=None,
+    ):
+        key_columns = list(key_columns.keys())
+        column_list = self._get_column_list(
+            features=features, timestamp_key=timestamp_key, key_columns=key_columns
+        )
+
+        graph.add_step(
+            name=self.name or "KafkaTarget",
+            after=after,
+            graph_shape="cylinder",
+            class_name="storey.KafkaTarget",
+            columns=column_list,
+            **self.attributes,
+        )
+
+    def as_df(self, columns=None, df_module=None, **kwargs):
+        raise NotImplementedError()
+
+
 class TSDBTarget(BaseStoreTarget):
     kind = TargetTypes.tsdb
     is_table = False
@@ -1355,6 +1403,7 @@ kind_to_driver = {
     TargetTypes.nosql: NoSqlTarget,
     TargetTypes.dataframe: DFTarget,
     TargetTypes.stream: StreamTarget,
+    TargetTypes.kafka: KafkaTarget,
     TargetTypes.tsdb: TSDBTarget,
     TargetTypes.custom: CustomTarget,
 }

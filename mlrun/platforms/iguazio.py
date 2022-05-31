@@ -30,7 +30,6 @@ from mlrun.utils import dict_to_json
 
 _cached_control_session = None
 
-
 VolumeMount = namedtuple("Mount", ["path", "sub_path"])
 
 
@@ -424,6 +423,58 @@ class OutputStream:
             )
 
 
+class KafkaOutputStream:
+    def __init__(
+        self,
+        topic,
+        bootstrap_servers=None,
+        auto_offset_reset=None,
+        mock=False,
+    ):
+        self._kafka_producer = None
+        self._topic = topic
+        self._bootstrap_servers = bootstrap_servers
+        self._auto_offset_reset = auto_offset_reset
+
+        self._mock = mock
+        self._mock_queue = []
+
+        self._initialized = False
+
+    def _lazy_init(self):
+        if self._initialized:
+            return
+
+        import kafka
+
+        self._kafka_producer = kafka.KafkaConsumer(
+            self._topic,
+            bootstrap_servers=self._bootstrap_servers,
+            auto_offset_reset=self._auto_offset_reset,
+        )
+
+        self._initialized = True
+
+    def push(self, data):
+        self._lazy_init()
+
+        def dump_record(rec):
+            if not isinstance(rec, (str, bytes)):
+                return dict_to_json(rec)
+            return str(rec).encode("UTF-8")
+
+        if not isinstance(data, list):
+            data = [data]
+
+        if self._mock:
+            # for mock testing
+            self._mock_queue.extend(data)
+        else:
+            for record in data:
+                serialized_record = dump_record(record)
+                self._kafka_producer.send(self._topic, serialized_record)
+
+
 class V3ioStreamClient:
     def __init__(self, url: str, shard_id: int = 0, seek_to: str = None, **kwargs):
         endpoint, stream_path = parse_v3io_path(url)
@@ -528,7 +579,6 @@ def is_iguazio_system_2_10_or_above(dashboard_url):
 def add_or_refresh_credentials(
     api_url: str, username: str = "", password: str = "", token: str = ""
 ) -> (str, str, str):
-
     if is_iguazio_session(password):
         return username, password, token
 

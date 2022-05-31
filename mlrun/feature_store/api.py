@@ -302,7 +302,7 @@ def ingest(
     mlrun_context=None,
     spark_context=None,
     overwrite=None,
-) -> pd.DataFrame:
+) -> Union[pd.DataFrame, None]:
     """Read local DataFrame, file, URL, or source into the feature store
     Ingest reads from the source, run the graph transformations, infers  metadata and stats
     and writes the results to the default of specified targets
@@ -346,7 +346,8 @@ def ingest(
     :param overwrite:     delete the targets' data prior to ingestion
                           (default: True for non scheduled ingest - deletes the targets that are about to be ingested.
                                     False for scheduled ingest - does not delete the target)
-
+    :return:              if return_df is True then the a dataframe will be returned according to the graph
+                          (As long as mlrun_context is not given)
     """
     if isinstance(source, pd.DataFrame):
         source = _rename_source_dataframe_columns(source)
@@ -506,6 +507,7 @@ def ingest(
             mlrun_context=mlrun_context,
             namespace=namespace,
             overwrite=overwrite,
+            return_df=return_df,
         )
 
     if isinstance(source, str):
@@ -524,7 +526,7 @@ def ingest(
     infer_stats = InferOptions.get_common_options(
         infer_options, InferOptions.all_stats()
     )
-    return_df = return_df or infer_stats != InferOptions.Null
+    calculated_df = return_df or infer_stats != InferOptions.Null
     featureset.save()
 
     df = init_featureset_graph(
@@ -532,7 +534,7 @@ def ingest(
         featureset,
         namespace,
         targets=targets_to_ingest,
-        return_df=return_df,
+        return_df=calculated_df,
     )
     if not InferOptions.get_common_options(
         infer_stats, InferOptions.Index
@@ -553,8 +555,8 @@ def ingest(
                 target.last_written = source.start_time
 
     _post_ingestion(mlrun_context, featureset, spark_context)
-
-    return df
+    if return_df:
+        return df
 
 
 def preview(
@@ -566,6 +568,7 @@ def preview(
     options: InferOptions = None,
     verbose: bool = False,
     sample_size: int = None,
+    return_df: bool = True,
 ) -> pd.DataFrame:
     """run the ingestion pipeline with local DataFrame/file data and infer features schema and stats
 
@@ -589,6 +592,7 @@ def preview(
     :param options:        schema and stats infer options (:py:class:`~mlrun.feature_store.InferOptions`)
     :param verbose:        verbose log
     :param sample_size:    num of rows to sample from the dataset (for large datasets)
+    :param return_df:      indicate if to return a dataframe with the graph results
     """
     options = options if options is not None else InferOptions.default()
     if timestamp_key is not None:
@@ -636,7 +640,8 @@ def preview(
         source, featureset, entity_columns, options, sample_size=sample_size
     )
     featureset.save()
-    return df
+    if return_df:
+        return df
 
 
 def _run_ingestion_job(

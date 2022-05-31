@@ -151,6 +151,6 @@ void auditTools() {
    '''
 }
 ```
-After the Jenkins pipeline is complete, you can see the MLRun job in the MLRun UI
+After the Jenkins pipeline is complete, you can see the MLRun job in the MLRun UI.
 
-See the full example in [**https://github.com/mlrun/project-demo**](https://github.com/mlrun/project-demo)
+See the full example in [**https://github.com/mlrun/project-demo**](https://github.com/mlrun/project-demo).

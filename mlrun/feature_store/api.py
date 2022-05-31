@@ -31,6 +31,7 @@ from ..datastore.targets import (
     get_target_driver,
     kind_to_driver,
     validate_target_list,
+    validate_target_paths_for_engine,
 )
 from ..db import RunDBError
 from ..model import DataSource, DataTargetBase
@@ -270,6 +271,26 @@ def get_online_feature_service(
     return service
 
 
+def _rename_source_dataframe_columns(df):
+    rename_mapping = {}
+    column_set = set(df.columns)
+    for column in df.columns:
+        rename_to = column.replace(" ", "_").replace("(", "").replace(")", "")
+        if rename_to != column:
+            if rename_to in column_set:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f'column "{column}" cannot be renamed to "{rename_to}" because such a column already exists'
+                )
+            rename_mapping[column] = rename_to
+            column_set.add(rename_to)
+    if rename_mapping:
+        logger.warn(
+            f"the following dataframe columns have been renamed due to unsupported characters: {rename_mapping}"
+        )
+        df = df.rename(rename_mapping, axis=1)
+    return df
+
+
 def ingest(
     featureset: Union[FeatureSet, str] = None,
     source=None,
@@ -281,7 +302,7 @@ def ingest(
     mlrun_context=None,
     spark_context=None,
     overwrite=None,
-) -> pd.DataFrame:
+) -> Union[pd.DataFrame, None]:
     """Read local DataFrame, file, URL, or source into the feature store
     Ingest reads from the source, run the graph transformations, infers  metadata and stats
     and writes the results to the default of specified targets
@@ -325,9 +346,9 @@ def ingest(
     :param overwrite:     delete the targets' data prior to ingestion
                           (default: True for non scheduled ingest - deletes the targets that are about to be ingested.
                                     False for scheduled ingest - does not delete the target)
-
+    :return:              If return_df set to True and mlrun_context is not used (only for remote use) a dataframe
+                          result according the graph is returned, otherwise None.
     """
-    user_return_df = return_df
     if featureset:
         if isinstance(featureset, str):
             # need to strip store prefix from the uri
@@ -481,7 +502,7 @@ def ingest(
             mlrun_context=mlrun_context,
             namespace=namespace,
             overwrite=overwrite,
-            return_df=user_return_df,
+            return_df=return_df,
         )
 
     if isinstance(source, str):
@@ -500,7 +521,7 @@ def ingest(
     infer_stats = InferOptions.get_common_options(
         infer_options, InferOptions.all_stats()
     )
-    return_df = return_df or infer_stats != InferOptions.Null
+    calculated_df = return_df or infer_stats != InferOptions.Null
     featureset.save()
 
     df = init_featureset_graph(
@@ -508,7 +529,7 @@ def ingest(
         featureset,
         namespace,
         targets=targets_to_ingest,
-        return_df=return_df,
+        return_df=calculated_df,
     )
     if not InferOptions.get_common_options(
         infer_stats, InferOptions.Index
@@ -530,7 +551,7 @@ def ingest(
 
     _post_ingestion(mlrun_context, featureset, spark_context)
 
-    if user_return_df:
+    if return_df:
         return df
 
 
@@ -820,7 +841,11 @@ def _ingest_with_spark(
             if overwrite:
                 df_to_write.write.mode("overwrite").save(**spark_options)
             else:
-                df_to_write.write.mode("append").save(**spark_options)
+                # appending an empty dataframe may cause an empty file to be created (e.g. when writing to parquet)
+                # we would like to avoid that
+                df_to_write.persist()
+                if len(df_to_write) > 0:
+                    df_to_write.write.mode("append").save(**spark_options)
             target.set_resource(featureset)
             target.update_resource_status("ready")
 

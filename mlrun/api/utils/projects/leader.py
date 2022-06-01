@@ -1,6 +1,6 @@
 import collections
-import typing
 import traceback
+import typing
 
 import humanfriendly
 import sqlalchemy.orm
@@ -330,7 +330,7 @@ class Member(
         anyways fail (Nuclio doesn't allow these names as well)
         """
         return mlrun.projects.ProjectMetadata.validate_project_name(
-                project_name, raise_on_failure=False
+            project_name, raise_on_failure=False
         )
 
     def _run_on_all_followers(

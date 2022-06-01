@@ -428,13 +428,11 @@ class KafkaOutputStream:
         self,
         topic,
         bootstrap_servers=None,
-        auto_offset_reset=None,
         mock=False,
     ):
         self._kafka_producer = None
         self._topic = topic
         self._bootstrap_servers = bootstrap_servers
-        self._auto_offset_reset = auto_offset_reset
 
         self._mock = mock
         self._mock_queue = []
@@ -447,10 +445,8 @@ class KafkaOutputStream:
 
         import kafka
 
-        self._kafka_producer = kafka.KafkaConsumer(
-            self._topic,
+        self._kafka_producer = kafka.KafkaProducer(
             bootstrap_servers=self._bootstrap_servers,
-            auto_offset_reset=self._auto_offset_reset,
         )
 
         self._initialized = True

@@ -1418,14 +1418,20 @@ def _init_async_objects(context, steps):
                 if step.path and not skip_stream:
                     stream_path = step.path
                     endpoint = None
-                    if "://" in stream_path:
-                        endpoint, stream_path = parse_v3io_path(step.path)
-                        stream_path = stream_path.strip("/")
-                    step._async_object = storey.StreamTarget(
-                        storey.V3ioDriver(endpoint),
-                        stream_path,
-                        context=context,
-                    )
+                    if stream_path.startswith("kafka://"):
+                        step._async_object = storey.KafkaTarget(
+                            stream_path,
+                            context=context,
+                        )
+                    else:
+                        if stream_path.startswith("v3io://"):
+                            endpoint, stream_path = parse_v3io_path(step.path)
+                            stream_path = stream_path.strip("/")
+                        step._async_object = storey.StreamTarget(
+                            storey.V3ioDriver(endpoint),
+                            stream_path,
+                            context=context,
+                        )
                 else:
                     step._async_object = storey.Map(lambda x: x)
 

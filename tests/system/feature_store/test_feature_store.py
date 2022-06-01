@@ -71,7 +71,7 @@ def _generate_random_name():
     return random_name
 
 
-kafka_bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "")
+kafka_brokers = os.getenv("KAFKA_BROKERS", "")
 
 kafka_topic = "kafka_integration_test"
 
@@ -81,12 +81,10 @@ def kafka_topic_setup_teardown():
     import kafka
 
     # Setup
-    kafka_admin_client = kafka.KafkaAdminClient(
-        bootstrap_servers=kafka_bootstrap_servers
-    )
+    kafka_admin_client = kafka.KafkaAdminClient(bootstrap_servers=kafka_brokers)
     kafka_consumer = kafka.KafkaConsumer(
         kafka_topic,
-        bootstrap_servers=kafka_bootstrap_servers,
+        bootstrap_servers=kafka_brokers,
         auto_offset_reset="earliest",
     )
     try:
@@ -2553,9 +2551,7 @@ class TestFeatureStore(TestMLRunSystem):
         for key in res.to_dataframe().to_dict().keys():
             assert key in expected
 
-    @pytest.mark.skipif(
-        kafka_bootstrap_servers == "", reason="KAFKA_BOOTSTRAP_SERVERS must be set"
-    )
+    @pytest.mark.skipif(kafka_brokers == "", reason="KAFKA_BROKERS must be set")
     def test_kafka_target(self, kafka_topic_setup_teardown):
         kafka_consumer = kafka_topic_setup_teardown
 
@@ -2571,7 +2567,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         target = KafkaTarget(
             "kafka",
-            bootstrap_servers=kafka_bootstrap_servers,
+            bootstrap_servers=kafka_brokers,
             topic=kafka_topic,
         )
         fs.ingest(stocks_set, stocks, [target])

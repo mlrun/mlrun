@@ -22,6 +22,8 @@ from copy import copy, deepcopy
 from inspect import getfullargspec, signature
 from typing import Union
 
+import urllib3.util
+
 from ..config import config
 from ..datastore import get_stream_pusher
 from ..errors import MLRunInvalidArgumentError
@@ -1419,8 +1421,13 @@ def _init_async_objects(context, steps):
                     stream_path = step.path
                     endpoint = None
                     if stream_path.startswith("kafka://"):
+                        start = len("kafka://")
+                        topic = stream_path[start:]
+                        url = urllib3.util.parse_url(stream_path)
+                        bootstrap_servers = url.query["bootstrap_servers"]
                         step._async_object = storey.KafkaTarget(
-                            stream_path,
+                            topic=topic,
+                            bootstrap_servers=bootstrap_servers,
                             context=context,
                         )
                     else:

@@ -433,9 +433,14 @@ class ServingRuntime(RemoteRuntime):
 
                 child_function = self._spec.function_refs[function_name]
                 trigger_args = stream.trigger_args or {}
-                child_function.function_object.add_v3io_stream_trigger(
-                    stream.path, group=group, shards=stream.shards, **trigger_args
-                )
+                if stream.path.startswith("kafka://"):
+                    child_function.function_object.add_trigger(
+                        stream.path, **trigger_args
+                    )
+                else:
+                    child_function.function_object.add_v3io_stream_trigger(
+                        stream.path, group=group, shards=stream.shards, **trigger_args
+                    )
 
     def _deploy_function_refs(self, builder_env: dict = None):
         """set metadata and deploy child functions"""

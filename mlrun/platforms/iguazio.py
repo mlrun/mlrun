@@ -427,12 +427,12 @@ class KafkaOutputStream:
     def __init__(
         self,
         topic,
-        bootstrap_servers=None,
+        brokers=None,
         mock=False,
     ):
         self._kafka_producer = None
         self._topic = topic
-        self._bootstrap_servers = bootstrap_servers
+        self._brokers = brokers
 
         self._mock = mock
         self._mock_queue = []
@@ -446,7 +446,7 @@ class KafkaOutputStream:
         import kafka
 
         self._kafka_producer = kafka.KafkaProducer(
-            bootstrap_servers=self._bootstrap_servers,
+            bootstrap_servers=self._brokers,
         )
 
         self._initialized = True

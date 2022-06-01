@@ -1303,3 +1303,14 @@ def str_to_timestamp(time_str: str, now_time: Timestamp = None):
         return timestamp
 
     return Timestamp(time_str)
+
+
+def set_paths(pythonpath=""):
+    """update the sys path"""
+    if not pythonpath:
+        return
+    paths = pythonpath.split(":")
+    for p in paths:
+        abspath = path.abspath(p)
+        if abspath not in sys.path:
+            sys.path.append(abspath)

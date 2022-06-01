@@ -168,7 +168,7 @@ class OneHotEncoder(StepToDict, MapClass):
 
         if encoding:
             # replace(" " and "-") -> "_"
-            sanitized_category = lambda cat: re.sub("[ -]", "_", cat)
+            sanitized_category = lambda category: re.sub("[ -]", "_", category)
 
             one_hot_encoding = {
                 f"{feature}_{sanitized_category(category)}": 0

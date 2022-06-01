@@ -215,7 +215,7 @@ with warnings.catch_warnings():
 
     class BackgroundTask(Base, BaseModel):
         __tablename__ = "background_task"
-        __table_args__ = (UniqueConstraint("name", "project", name="_bg_uq"),)
+        __table_args__ = (UniqueConstraint("name", "project", name="_background_task_uc"),)
 
         id = Column(Integer, primary_key=True)
         name = Column(

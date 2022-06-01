@@ -93,7 +93,7 @@ class TableArtifact(Artifact):
         if not self._is_df:
             return self.spec.get_body()
         csv_buffer = StringIO()
-        self.get_body().to_csv(csv_buffer, line_terminator="\n", encoding="utf-8")
+        self.spec.get_body().to_csv(csv_buffer, line_terminator="\n", encoding="utf-8")
         return csv_buffer.getvalue()
 
 

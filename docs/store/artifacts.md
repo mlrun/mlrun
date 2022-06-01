@@ -5,7 +5,7 @@ An artifact is any data that is produced and/or consumed by functions, jobs, or 
 
 Artifacts metadata is stored in the projects database. The main types of artifacts are:
 -  **Files** — files, directories, images, figures, and plotlines.
--  **Datasets** — any data , such as tables and DataFrames.
+-  **Datasets** — any data, such as tables and DataFrames.
 -  **Models** — all trained models.
 -  **Feature Store Objects** - Feature Sets and Feature Vectors
 
@@ -123,7 +123,7 @@ The simplest way to store a dataset is with the following code:
 context.log_dataset(key='my_data', df=df)
 ```
 
-Where `key` is the the name of the artifact and `df` is the DataFrame. By default, MLRun stores a short preview of 20 lines. You can change the number of lines by changing the value of the `preview` parameter.
+Where `key` is the name of the artifact and `df` is the DataFrame. By default, MLRun stores a short preview of 20 lines. You can change the number of lines by changing the value of the `preview` parameter.
 
 MLRun also calculates statistics on the DataFrame on all numeric fields. You can enable statistics regardless to the DataFrame size by setting the `stats` parameter to `True`.
 

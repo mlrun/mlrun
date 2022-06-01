@@ -255,7 +255,7 @@ async def start_function(
         background_tasks,
         _start_function,
         function.metadata.project,
-        mlrun.mlconf.background_tasks_timeout_defaults.runtime.dask,
+        int(mlrun.mlconf.background_tasks_timeout_defaults.runtimes.dask),
         # args for _start_function
         function,
         auth_info,

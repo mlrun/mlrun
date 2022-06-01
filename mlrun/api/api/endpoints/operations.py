@@ -55,7 +55,9 @@ def trigger_migrations(
         db_session=db_session,
         background_tasks=background_tasks,
         function=_perform_migration,
-        timeout=mlrun.mlconf.background_tasks_timeout_defaults,
+        timeout=int(
+            mlrun.mlconf.background_tasks_timeout_defaults.operations.migrations
+        ),
     )
     current_migration_background_task_name = background_task.metadata.name
     response.status_code = http.HTTPStatus.ACCEPTED.value

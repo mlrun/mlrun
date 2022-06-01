@@ -47,15 +47,14 @@ RUN python -m pip install \
 COPY --chown=$NB_UID:$NB_GID . /tmp/mlrun
 RUN cd /tmp/mlrun && python -m pip install ".[complete-api]"
 
-ENV MLRUN_ARTIFACT_PATH=$HOME/data \
-    JUPYTER_ENABLE_LAB=yes \
+ENV JUPYTER_ENABLE_LAB=yes \
     MLRUN_HTTPDB__DATA_VOLUME=$HOME/data \
     MLRUN_HTTPDB__DSN='sqlite:////home/jovyan/data/mlrun.db?check_same_thread=false' \
     MLRUN_HTTPDB__LOGS_PATH=$HOME/data/logs \
     MLRUN_ENV_FILE=$HOME/mlrun.env
 
 # run the mlrun db (api) and the notebook in parallel
-CMD python -m mlrun db & MLRUN_DBPATH=http://localhost:8080 start-notebook.sh \
+CMD MLRUN_ARTIFACT_PATH=$HOME/data python -m mlrun db & MLRUN_DBPATH=http://localhost:8080 start-notebook.sh \
     --ip="0.0.0.0" \
     --port=8888 \
     --NotebookApp.token='' \

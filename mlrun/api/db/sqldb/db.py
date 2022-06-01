@@ -29,6 +29,7 @@ from mlrun.api.db.sqldb.helpers import (
 )
 from mlrun.api.db.sqldb.models import (
     Artifact,
+    BackgroundTask,
     DataVersion,
     Entity,
     Feature,
@@ -61,7 +62,6 @@ from mlrun.utils import (
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 unversioned_tagged_object_uid_prefix = "unversioned-"
-
 
 conflict_messages = [
     "(sqlite3.IntegrityError) UNIQUE constraint failed",
@@ -3030,3 +3030,142 @@ class SQLDB(DBInterface):
         now = datetime.now(timezone.utc)
         data_version_record = DataVersion(version=version, created=now)
         self._upsert(session, [data_version_record])
+
+    @retry_on_conflict
+    def store_background_task(
+        self,
+        session,
+        name: str,
+        state: str = mlrun.api.schemas.BackgroundTaskState.running,
+        project: str = None,
+        timeout: int = None,
+    ):
+        background_task_record = (
+            self._query(
+                session,
+                BackgroundTask,
+                name=name,
+                project=project,
+            )
+            .filter(BackgroundTask.project == project)
+            .one_or_none()
+        )
+        now = datetime.now(timezone.utc)
+        if background_task_record:
+            # we don't want to be able to change state after it reached terminal state
+            if (
+                background_task_record.state
+                in mlrun.api.schemas.BackgroundTaskState.terminal_states()
+                and state != background_task_record.state
+            ):
+                raise mlrun.errors.MLRunRuntimeError(
+                    "Trying to change background task in terminal state to different state, failing..."
+                )
+            # we don't set default background task timeout, to be able to resolve the timeout when the API
+            # queries the record, so even if the API restarts with new default timeout it will apply the new timeout
+            background_task_record.timeout = (
+                timeout
+                if timeout and not background_task_record.timeout
+                else background_task_record.timeout
+            )
+            background_task_record.state = state
+            background_task_record.updated = now
+        else:
+            background_task_record = BackgroundTask(
+                name=name,
+                project=project,
+                state=mlrun.api.schemas.BackgroundTaskState.running,
+                created=now,
+                updated=now,
+                timeout=timeout,
+            )
+        self._upsert(session, [background_task_record])
+
+    def get_background_task(
+        self, session, name: str, project: str = None
+    ) -> schemas.BackgroundTask:
+        background_task_record = self._get_background_task_record(
+            session, name, project
+        )
+
+        return self._transform_background_task_record_to_schema(background_task_record)
+
+    @staticmethod
+    def _transform_background_task_record_to_schema(
+        background_task_record: BackgroundTask,
+    ) -> schemas.BackgroundTask:
+        timeout = background_task_record.timeout
+        if mlrun.mlconf.background_tasks_timeout_defaults.mode == "enabled":
+            timeout = (
+                timeout
+                if timeout
+                else mlrun.mlconf.background_tasks_timeout_defaults.default
+            )
+
+        return schemas.BackgroundTask(
+            metadata=schemas.BackgroundTaskMetadata(
+                name=background_task_record.name,
+                project=background_task_record.project,
+                created=background_task_record.created,
+                updated=background_task_record.updated,
+                timeout=timeout,
+            ),
+            spec=schemas.BackgroundTaskSpec(),
+            status=schemas.BackgroundTaskStatus(
+                state=background_task_record.state,
+            ),
+        )
+
+    def _get_background_task_record(
+        self,
+        session: Session,
+        name: str,
+        project: str = None,
+        raise_on_not_found: bool = True,
+    ) -> BackgroundTask:
+        background_task_record = (
+            self._query(session, BackgroundTask, name=name)
+            .filter(BackgroundTask.project == project)
+            .one_or_none()
+        )
+        if not background_task_record:
+            if not raise_on_not_found:
+                return None
+            if project:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Background task not found: name={name}, project={project}"
+                )
+            else:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Background task not found: name={name}"
+                )
+        if self._is_background_task_timeout_exceeded(background_task_record):
+            # lazy update of state, only if get background task was requested and the timeout for the update passed
+            # and the task still in progress then we change to failed
+            self.store_background_task(
+                session,
+                name,
+                mlrun.api.schemas.background_task.BackgroundTaskState.failed,
+                project,
+            )
+            return self._get_background_task_record(session, name, project)
+
+        return background_task_record
+
+    @staticmethod
+    def _is_background_task_timeout_exceeded(background_task_record) -> bool:
+        if mlrun.mlconf.background_tasks_timeout_defaults.mode == "enabled":
+            timeout = background_task_record.timeout
+            timeout = (
+                timeout
+                if timeout
+                else int(mlrun.mlconf.background_tasks_timeout_defaults.default)
+            )
+            if (
+                background_task_record.state
+                not in mlrun.api.schemas.BackgroundTaskState.terminal_states()
+                and datetime.utcnow()
+                > timedelta(seconds=timeout) + background_task_record.updated
+            ):
+                return True
+        return False

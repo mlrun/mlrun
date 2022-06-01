@@ -2,7 +2,9 @@ import http
 
 import fastapi
 import fastapi.concurrency
+import sqlalchemy.orm
 
+import mlrun.api.api.deps
 import mlrun.api.crud
 import mlrun.api.initial_data
 import mlrun.api.schemas
@@ -25,6 +27,9 @@ current_migration_background_task_name = None
 def trigger_migrations(
     background_tasks: fastapi.BackgroundTasks,
     response: fastapi.Response,
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        mlrun.api.api.deps.get_db_session
+    ),
 ):
     # we didn't yet decide who should have permissions to such actions, therefore no authorization at the moment
     # note in api.py we do declare to use the authenticate_request dependency - meaning we do have authentication
@@ -32,7 +37,7 @@ def trigger_migrations(
     if mlrun.mlconf.httpdb.state == mlrun.api.schemas.APIStates.migrations_in_progress:
         background_task = (
             mlrun.api.utils.background_tasks.Handler().get_background_task(
-                current_migration_background_task_name
+                db_session, current_migration_background_task_name
             )
         )
         response.status_code = http.HTTPStatus.ACCEPTED.value
@@ -47,8 +52,10 @@ def trigger_migrations(
         return fastapi.Response(status_code=http.HTTPStatus.OK.value)
     logger.info("Starting the migration process")
     background_task = mlrun.api.utils.background_tasks.Handler().create_background_task(
-        background_tasks,
-        _perform_migration,
+        db_session=db_session,
+        background_tasks=background_tasks,
+        function=_perform_migration,
+        timeout=mlrun.mlconf.background_tasks_timeout_defaults,
     )
     current_migration_background_task_name = background_task.metadata.name
     response.status_code = http.HTTPStatus.ACCEPTED.value

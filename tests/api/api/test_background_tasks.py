@@ -24,12 +24,34 @@ def create_project_background_task(
     project: str,
     background_tasks: fastapi.BackgroundTasks,
     failed_task: bool = False,
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        mlrun.api.api.deps.get_db_session
+    ),
 ):
     function = bump_counter
     if failed_task:
         function = failing_function
-    return mlrun.api.utils.background_tasks.Handler().create_project_background_task(
-        project, background_tasks, function
+    return mlrun.api.utils.background_tasks.Handler().create_background_task(
+        db_session, background_tasks, function, project
+    )
+
+
+@test_router.post(
+    "/background-tasks",
+    response_model=mlrun.api.schemas.BackgroundTask,
+)
+def create_background_task(
+    background_tasks: fastapi.BackgroundTasks,
+    failed_task: bool = False,
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        mlrun.api.api.deps.get_db_session
+    ),
+):
+    function = bump_counter
+    if failed_task:
+        function = failing_function
+    return mlrun.api.utils.background_tasks.Handler().create_background_task(
+        db_session, background_tasks, function
     )
 
 
@@ -100,11 +122,26 @@ def test_get_project_background_task_not_exists(
     response = client.get(
         f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}/background-tasks/{name}"
     )
+    assert response.status_code == http.HTTPStatus.NOT_FOUND.value
+
+
+def test_create_background_task(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+):
+    response = client.post("/test/background-tasks")
     assert response.status_code == http.HTTPStatus.OK.value
     background_task = mlrun.api.schemas.BackgroundTask(**response.json())
-    assert background_task.metadata.project == project
-    assert background_task.metadata.name == name
-    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.failed
+    assert background_task.metadata.project is None
+
+    response = client.get(
+        f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{background_task.metadata.name}"
+    )
+    assert response.status_code == http.HTTPStatus.OK.value
+    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+    assert background_task.metadata.project is None
+    assert background_task.metadata.timeout == int(
+        mlrun.mlconf.background_tasks_timeout_defaults.default
+    )
 
 
 def test_get_background_task_auth_skip(
@@ -114,8 +151,11 @@ def test_get_background_task_auth_skip(
         unittest.mock.Mock()
     )
     mlrun.mlconf.igz_version = "3.2.0-b26.20210904121245"
+    response = client.post("/test/background-tasks")
+    assert response.status_code == http.HTTPStatus.OK.value
+    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
     response = client.get(
-        f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/some-task-name"
+        f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{background_task.metadata.name}"
     )
     assert response.status_code == http.HTTPStatus.OK.value
     assert (
@@ -125,7 +165,7 @@ def test_get_background_task_auth_skip(
 
     mlrun.mlconf.igz_version = "3.5.0-b26.20210904121245"
     response = client.get(
-        f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/some-task-name"
+        f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{background_task.metadata.name}"
     )
     assert response.status_code == http.HTTPStatus.OK.value
     assert (
@@ -134,12 +174,20 @@ def test_get_background_task_auth_skip(
     )
 
 
+# def test_create_new_background_task(
+#     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+# ):
+#     resp = client.post("start/function")
+#     assert resp.status_code == http.HTTPStatus.NOT_FOUND
+#
+
+
 def _assert_background_task_creation(expected_project, response):
     assert response.status_code == http.HTTPStatus.OK.value
     background_task = mlrun.api.schemas.BackgroundTask(**response.json())
     assert background_task.kind == mlrun.api.schemas.ObjectKind.background_task
     assert background_task.metadata.project == expected_project
     assert background_task.metadata.created is not None
-    assert background_task.metadata.updated is None
+    assert background_task.metadata.updated is not None
     assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.running
     return background_task

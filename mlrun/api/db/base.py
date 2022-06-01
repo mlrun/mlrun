@@ -501,3 +501,18 @@ class DBInterface(ABC):
 
     def get_marketplace_source(self, session, name) -> schemas.IndexedMarketplaceSource:
         pass
+
+    def store_background_task(
+        self,
+        session,
+        name: str,
+        state: str = schemas.BackgroundTaskState.running,
+        project: str = None,
+        timeout: int = None,
+    ):
+        pass
+
+    def get_background_task(
+        self, session, name: str, project: str = None
+    ) -> schemas.BackgroundTask:
+        pass

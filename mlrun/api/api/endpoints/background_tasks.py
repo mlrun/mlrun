@@ -1,5 +1,6 @@
 import fastapi
 import semver
+import sqlalchemy.orm
 
 import mlrun.api.api.deps
 import mlrun.api.schemas
@@ -19,6 +20,9 @@ def get_project_background_task(
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        mlrun.api.api.deps.get_db_session
+    ),
 ):
     # Since there's no not-found option on get_project_background_task - we authorize before getting (unlike other
     # get endpoint)
@@ -29,8 +33,8 @@ def get_project_background_task(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    return mlrun.api.utils.background_tasks.Handler().get_project_background_task(
-        project, name
+    return mlrun.api.utils.background_tasks.Handler().get_background_task(
+        db_session, name=name, project=project
     )
 
 
@@ -42,6 +46,9 @@ def get_background_task(
     name: str,
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        mlrun.api.api.deps.get_db_session
     ),
 ):
     # Since there's no not-found option on get_background_task - we authorize before getting (unlike other get endpoint)
@@ -56,4 +63,6 @@ def get_background_task(
             mlrun.api.schemas.AuthorizationAction.read,
             auth_info,
         )
-    return mlrun.api.utils.background_tasks.Handler().get_background_task(name)
+    return mlrun.api.utils.background_tasks.Handler().get_background_task(
+        db_session, name=name
+    )

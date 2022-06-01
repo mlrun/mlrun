@@ -9,6 +9,7 @@ import fastapi.concurrency
 import sqlalchemy.orm
 
 import mlrun.api.schemas
+import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
 import mlrun.errors
 import mlrun.utils.singleton
@@ -16,53 +17,38 @@ from mlrun.utils import logger
 
 
 class Handler(metaclass=mlrun.utils.singleton.Singleton):
-    def __init__(self):
-        self._project_background_tasks: typing.Dict[
-            str, typing.Dict[str, mlrun.api.schemas.BackgroundTask]
-        ] = {}
-        self._background_tasks: typing.Dict[str, mlrun.api.schemas.BackgroundTask] = {}
-
-    def create_project_background_task(
-        self,
-        db_session: sqlalchemy.orm.Session,
-        project: str,
-        background_tasks: fastapi.BackgroundTasks,
-        function,
-        *args,
-        **kwargs,
-    ) -> mlrun.api.schemas.BackgroundTask:
-        name = str(uuid.uuid4())
-        # sanity
-        if name in self._project_background_tasks:
-            raise RuntimeError("Background task name already exists")
-        background_task = self._generate_background_task(name, project)
-        self._project_background_tasks.setdefault(project, {})[name] = background_task
-        background_tasks.add_task(
-            self.background_task_wrapper, project, name, function, *args, **kwargs
-        )
-        return self.get_project_background_task(project, name)
-
     def create_background_task(
         self,
         db_session: sqlalchemy.orm.Session,
         background_tasks: fastapi.BackgroundTasks,
         function,
+        project: str = None,
+        timeout: int = None,
         *args,
         **kwargs,
     ) -> mlrun.api.schemas.BackgroundTask:
         name = str(uuid.uuid4())
-        # sanity
-        if name in self._background_tasks:
-            raise RuntimeError("Background task name already exists")
-        background_task = self._generate_background_task(name)
-        self._background_tasks[name] = background_task
-        background_tasks.add_task(
-            self.background_task_wrapper, None, name, function, *args, **kwargs
+        mlrun.api.utils.singletons.db.get_db().store_background_task(
+            db_session,
+            name,
+            mlrun.api.schemas.BackgroundTaskState.running,
+            project,
+            timeout,
         )
-        return self.get_background_task(name)
+        background_tasks.add_task(
+            self.background_task_wrapper,
+            db_session,
+            project,
+            name,
+            function,
+            *args,
+            **kwargs,
+        )
+        return self.get_background_task(db_session, name, project)
 
+    @staticmethod
     def _generate_background_task(
-        self, name: str, project: typing.Optional[str] = None
+        name: str, project: typing.Optional[str] = None
     ) -> mlrun.api.schemas.BackgroundTask:
         metadata = mlrun.api.schemas.BackgroundTaskMetadata(
             name=name, project=project, created=datetime.datetime.utcnow()
@@ -75,30 +61,24 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
             metadata=metadata, spec=spec, status=status
         )
 
-    def get_project_background_task(
-        self,
-        project: str,
-        name: str,
-    ) -> mlrun.api.schemas.BackgroundTask:
-        if (
-            project in self._project_background_tasks
-            and name in self._project_background_tasks[project]
-        ):
-            return self._project_background_tasks[project][name]
-        else:
-            return self._generate_background_task_not_found_response(name, project)
-
     def get_background_task(
         self,
+        db_session: sqlalchemy.orm.Session,
         name: str,
+        project: str = None,
     ) -> mlrun.api.schemas.BackgroundTask:
-        if name in self._background_tasks:
-            return self._background_tasks[name]
-        else:
-            return self._generate_background_task_not_found_response(name)
+        return mlrun.api.utils.singletons.db.get_db().get_background_task(
+            db_session, name, project
+        )
 
     async def background_task_wrapper(
-        self, project: typing.Optional[str], name: str, function, *args, **kwargs
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: typing.Optional[str],
+        name: str,
+        function,
+        *args,
+        **kwargs,
     ):
         try:
             if asyncio.iscoroutinefunction(function):
@@ -109,39 +89,16 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
             logger.warning(
                 f"Failed during background task execution: {function.__name__}, exc: {traceback.format_exc()}"
             )
-            self._update_background_task(
-                name, mlrun.api.schemas.BackgroundTaskState.failed, project
+            mlrun.api.utils.singletons.db.get_db().store_background_task(
+                db_session,
+                name,
+                state=mlrun.api.schemas.BackgroundTaskState.failed,
+                project=project,
             )
         else:
-            self._update_background_task(
-                name, mlrun.api.schemas.BackgroundTaskState.succeeded, project
+            mlrun.api.utils.singletons.db.get_db().store_background_task(
+                db_session,
+                name,
+                state=mlrun.api.schemas.BackgroundTaskState.succeeded,
+                project=project,
             )
-
-    def _update_background_task(
-        self,
-        name: str,
-        state: mlrun.api.schemas.BackgroundTaskState,
-        project: typing.Optional[str] = None,
-    ):
-        if project is not None:
-            background_task = self._project_background_tasks[project][name]
-        else:
-            background_task = self._background_tasks[name]
-        background_task.status.state = state
-        background_task.metadata.updated = datetime.datetime.utcnow()
-
-    def _generate_background_task_not_found_response(
-        self, name: str, project: typing.Optional[str] = None
-    ):
-        # in order to keep things simple we don't persist the background tasks to the DB
-        # If for some reason get is called and the background task doesn't exist, it means that probably we got
-        # restarted, therefore we want to return a failed background task so the client will retry (if needed)
-        return mlrun.api.schemas.BackgroundTask(
-            metadata=mlrun.api.schemas.BackgroundTaskMetadata(
-                name=name, project=project
-            ),
-            spec=mlrun.api.schemas.BackgroundTaskSpec(),
-            status=mlrun.api.schemas.BackgroundTaskStatus(
-                state=mlrun.api.schemas.BackgroundTaskState.failed
-            ),
-        )

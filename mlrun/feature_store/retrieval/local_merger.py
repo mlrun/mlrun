@@ -70,7 +70,7 @@ class LocalFeatureMerger(BaseMerger):
             self._result_df = self._result_df.dropna(
                 subset=[self.vector.status.label_column]
             )
-
+        # filter joined data frame
         if query:
             self._result_df.query(query, inplace=True)
 

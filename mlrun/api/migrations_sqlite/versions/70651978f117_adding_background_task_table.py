@@ -1,15 +1,15 @@
 """Adding background task table
 
-Revision ID: 66762973450f
+Revision ID: 70651978f117
 Revises: e5594ed3ab53
-Create Date: 2022-05-30 10:48:01.210397
+Create Date: 2022-06-01 10:09:25.658580
 
 """
 import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = "66762973450f"
+revision = "70651978f117"
 down_revision = "e5594ed3ab53"
 branch_labels = None
 depends_on = None
@@ -20,12 +20,12 @@ def upgrade():
     op.create_table(
         "background_task",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("uid", sa.String(length=255), nullable=True),
-        sa.Column("name", sa.String(length=255), nullable=True),
+        sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("project", sa.String(length=255), nullable=True),
-        sa.Column("creation_time", sa.TIMESTAMP(), nullable=True),
-        sa.Column("update_time", sa.TIMESTAMP(), nullable=True),
+        sa.Column("created", sa.TIMESTAMP(), nullable=True),
+        sa.Column("updated", sa.TIMESTAMP(), nullable=True),
         sa.Column("state", sa.String(length=255), nullable=True),
+        sa.Column("timeout", sa.Integer(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
     # ### end Alembic commands ###

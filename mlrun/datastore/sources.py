@@ -820,6 +820,7 @@ class MongoDBSource(BaseSourceDriver):
             "chunksize": chunksize,
             "mongodb_client": mongodb_client,
             "spark_options": spark_options,
+            "connection_string": connection_string
         }
         attrs = {key: value for key, value in attrs.items() if value is not None}
         super().__init__(
@@ -830,6 +831,7 @@ class MongoDBSource(BaseSourceDriver):
             schedule=schedule,
             start_time=start_time,
             end_time=end_time,
+
         )
 
     def to_dataframe(self):
@@ -874,8 +876,8 @@ class MongoDBSource(BaseSourceDriver):
         attributes = self.attributes or {}
         if context:
             attributes["context"] = context
-        return storey.MongoDBSource(
-            paths=self.path,
+
+        return storey.sources.MongoDBSource(
             key_field=self.key_field or key_field,
             time_field=self.time_field or time_field,
             storage_options=self._get_store().get_storage_options(),

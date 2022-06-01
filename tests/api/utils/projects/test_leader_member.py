@@ -131,7 +131,10 @@ def test_projects_sync_leader_project_syncing(
         metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
         spec=mlrun.api.schemas.ProjectSpec(description=project_description),
     )
-    leader_follower.create_project(None, project)
+    enriched_project = project.copy(deep=True)
+    # simulate project enrichment
+    enriched_project.status.state = enriched_project.spec.desired_state
+    leader_follower.create_project(None, enriched_project)
     invalid_project_name = "invalid_name"
     invalid_project = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=invalid_project_name),

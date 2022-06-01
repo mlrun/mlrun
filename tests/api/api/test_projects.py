@@ -1046,6 +1046,7 @@ def _assert_db_resources_in_project(
                 and project_member_mode == "follower"
             )
             or (cls.__tablename__ == "projects" and project_member_mode == "follower")
+            or (cls.__tablename__ == "background_task")
         ):
             continue
         number_of_cls_records = 0

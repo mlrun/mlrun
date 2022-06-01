@@ -2572,7 +2572,6 @@ class TestFeatureStore(TestMLRunSystem):
         )
         target = KafkaTarget(
             "kafka",
-            kafka_topic,
             attributes={
                 "bootstrap_servers": kafka_bootstrap_servers,
                 "topic": kafka_topic,

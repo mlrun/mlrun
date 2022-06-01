@@ -868,6 +868,23 @@ class MongoDBSource(BaseSourceDriver):
                 "collection_name and db_name args must be specified"
             )
 
+    def to_step(self, key_field=None, time_field=None, context=None):
+        import storey
+
+        attributes = self.attributes or {}
+        if context:
+            attributes["context"] = context
+        return storey.ParquetSource(
+            paths=self.path,
+            key_field=self.key_field or key_field,
+            time_field=self.time_field or time_field,
+            storage_options=self._get_store().get_storage_options(),
+            end_filter=self.end_time,
+            start_filter=self.start_time,
+            filter_column=self.time_field or time_field,
+            **attributes,
+        )
+
     def is_iterator(self):
         return True if self.attributes.get("chunksize") else False
 

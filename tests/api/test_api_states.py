@@ -38,7 +38,7 @@ def test_migrations_states(
         assert response.status_code == http.HTTPStatus.OK.value
 
         response = client.get("projects/some-project/background-tasks/some-task")
-        assert response.status_code == http.HTTPStatus.OK.value
+        assert response.status_code == http.HTTPStatus.NOT_FOUND.value
 
         response = client.get("client-spec")
         assert response.status_code == http.HTTPStatus.OK.value

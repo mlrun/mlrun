@@ -1162,6 +1162,19 @@ class KafkaTarget(BaseStoreTarget):
     support_storey = True
     support_append = True
 
+    def __init__(
+        self,
+        *args,
+        topic=None,
+        bootstrap_servers=None,
+        **kwargs,
+    ):
+        attrs = {
+            "topic": topic,
+            "bootstrap_servers": bootstrap_servers,
+        }
+        super().__init__(*args, attributes=attrs, **kwargs)
+
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):

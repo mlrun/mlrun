@@ -73,7 +73,6 @@ def _generate_random_name():
 
 kafka_bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "")
 
-
 kafka_topic = "kafka_integration_test"
 
 
@@ -2572,10 +2571,8 @@ class TestFeatureStore(TestMLRunSystem):
         )
         target = KafkaTarget(
             "kafka",
-            attributes={
-                "bootstrap_servers": kafka_bootstrap_servers,
-                "topic": kafka_topic,
-            },
+            bootstrap_servers=kafka_bootstrap_servers,
+            topic=kafka_topic,
         )
         fs.ingest(stocks_set, stocks, [target])
 

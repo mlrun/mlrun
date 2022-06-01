@@ -874,7 +874,7 @@ class MongoDBSource(BaseSourceDriver):
         attributes = self.attributes or {}
         if context:
             attributes["context"] = context
-        return storey.ParquetSource(
+        return storey.MongoDBSource(
             paths=self.path,
             key_field=self.key_field or key_field,
             time_field=self.time_field or time_field,

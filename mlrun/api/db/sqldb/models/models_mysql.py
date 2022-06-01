@@ -215,10 +215,12 @@ with warnings.catch_warnings():
 
     class BackgroundTask(Base, BaseModel):
         __tablename__ = "background_task"
+        __table_args__ = (UniqueConstraint("name", "project", name="_bg_uq"),)
 
         id = Column(Integer, primary_key=True)
-        uid = Column(String(255, collation=SQLCollationUtil.collation()))
-        name = Column(String(255, collation=SQLCollationUtil.collation()))
+        name = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
         project = Column(String(255, collation=SQLCollationUtil.collation()))
         created = Column(
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
@@ -229,6 +231,7 @@ with warnings.catch_warnings():
             default=datetime.now(timezone.utc),
         )
         state = Column(String(255, collation=SQLCollationUtil.collation()))
+        timeout = Column(Integer)
 
     class Schedule(Base, BaseModel):
         __tablename__ = "schedules_v2"

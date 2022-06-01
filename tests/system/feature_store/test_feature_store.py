@@ -2578,13 +2578,10 @@ class TestFeatureStore(TestMLRunSystem):
             b'{"ticker": "AAPL", "name": "Apple Inc", "booly": true}',
         ]
 
-        try:
-            kafka_consumer.subscribe([kafka_topic])
-            for expected_record in expected_records:
-                record = next(kafka_consumer)
-                assert record.value == expected_record
-        finally:
-            kafka_consumer.close()
+        kafka_consumer.subscribe([kafka_topic])
+        for expected_record in expected_records:
+            record = next(kafka_consumer)
+            assert record.value == expected_record
 
 
 def verify_purge(fset, targets):

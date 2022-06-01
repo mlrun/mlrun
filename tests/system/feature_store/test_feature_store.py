@@ -2534,7 +2534,7 @@ class TestFeatureStore(TestMLRunSystem):
         train_dataset = fs.get_offline_features(
             fv_name,
             target=ParquetTarget(),
-            filter="age>6 and department_RD==1",
+            query="age>6 and department_RD==1",
             engine=engine,
             engine_args=engine_args,
         )

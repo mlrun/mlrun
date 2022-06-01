@@ -23,7 +23,7 @@ class SparkFeatureMerger(BaseMerger):
         feature_set_fields,
         start_time=None,
         end_time=None,
-        filter=None,
+        query=None,
     ):
         from pyspark.sql import SparkSession
         from pyspark.sql.functions import col
@@ -90,8 +90,8 @@ class SparkFeatureMerger(BaseMerger):
         self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
 
         # filter joined data frame
-        if filter:
-            self._result_df = self._result_df.filter(filter)
+        if query:
+            self._result_df = self._result_df.filter(query)
 
         self._result_df = self._result_df.drop(*self._drop_columns)
 

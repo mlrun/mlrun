@@ -98,7 +98,7 @@ def get_offline_features(
     update_stats: bool = False,
     engine: str = None,
     engine_args: dict = None,
-    filter: str = None,
+    query: str = None,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 
@@ -173,7 +173,7 @@ def get_offline_features(
     :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
     :param engine:          processing engine kind ("local", "dask", or "spark")
     :param engine_args:     kwargs for the processing engine
-    :param filter:          The query string to filter unnecessary rows
+    :param query:          The query string to filter unnecessary rows
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
@@ -217,7 +217,7 @@ def get_offline_features(
         end_time=end_time,
         with_indexes=with_indexes,
         update_stats=update_stats,
-        filter=filter,
+        query=query,
     )
 
 

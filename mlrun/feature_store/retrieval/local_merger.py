@@ -30,7 +30,7 @@ class LocalFeatureMerger(BaseMerger):
         feature_set_fields,
         start_time=None,
         end_time=None,
-        filter=None,
+        query=None,
     ):
 
         feature_sets = []
@@ -71,8 +71,8 @@ class LocalFeatureMerger(BaseMerger):
                 subset=[self.vector.status.label_column]
             )
 
-        if filter:
-            self._result_df.query(filter, inplace=True)
+        if query:
+            self._result_df.query(query, inplace=True)
 
         if self._drop_indexes:
             self._result_df.reset_index(drop=True, inplace=True)

@@ -274,54 +274,83 @@ class Member(
             )
             if self._should_sync_project_to_followers(project_name):
                 if missing_followers:
-                    for missing_follower in missing_followers:
-                        logger.debug(
-                            "Project is missing from follower. Creating",
-                            missing_follower_name=missing_follower,
-                            project_follower_name=project_follower_name,
-                            project_name=project_name,
-                            project=project,
-                        )
-                        try:
-                            self._enrich_and_validate_before_creation(project)
-                            self._followers[missing_follower].create_project(
-                                db_session,
-                                project,
-                            )
-                        except Exception as exc:
-                            logger.warning(
-                                "Failed creating missing project in follower",
-                                missing_follower_name=missing_follower,
-                                project_follower_name=project_follower_name,
-                                project_name=project_name,
-                                project=project,
-                                exc=str(exc),
-                                traceback=traceback.format_exc(),
-                            )
-                # we possibly enriched the project we found in the follower, so let's update the followers that had it
-                for follower_name in follower_names:
-                    logger.debug(
-                        "Updating project in follower",
-                        follower_name=follower_name,
-                        project_name=project_name,
-                        project=project,
+                    self._create_project_in_missing_followers(
+                        db_session,
+                        missing_followers,
+                        project_follower_name,
+                        project_name,
+                        project,
                     )
-                    try:
-                        self._enrich_and_validate_before_creation(project)
-                        self._followers[follower_name].store_project(
-                            db_session,
-                            project_name,
-                            project,
-                        )
-                    except Exception as exc:
-                        logger.warning(
-                            "Failed updating project in follower",
-                            follower_name=follower_name,
-                            project_name=project_name,
-                            project=project,
-                            exc=str(exc),
-                            traceback=traceback.format_exc(),
-                        )
+
+                # we possibly enriched the project we found in the follower, so let's update the followers that had it
+                self._store_project_in_followers(
+                    db_session, follower_names, project_name, project
+                )
+
+    def _store_project_in_followers(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        follower_names: typing.Set[str],
+        project_name: str,
+        project: mlrun.api.schemas.Project,
+    ):
+        for follower_name in follower_names:
+            logger.debug(
+                "Updating project in follower",
+                follower_name=follower_name,
+                project_name=project_name,
+                project=project,
+            )
+            try:
+                self._enrich_and_validate_before_creation(project)
+                self._followers[follower_name].store_project(
+                    db_session,
+                    project_name,
+                    project,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed updating project in follower",
+                    follower_name=follower_name,
+                    project_name=project_name,
+                    project=project,
+                    exc=str(exc),
+                    traceback=traceback.format_exc(),
+                )
+
+    def _create_project_in_missing_followers(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        missing_followers: typing.Set[str],
+        # the name of the follower which we took the missing project from
+        project_follower_name: str,
+        project_name: str,
+        project: mlrun.api.schemas.Project,
+    ):
+        for missing_follower in missing_followers:
+            logger.debug(
+                "Project is missing from follower. Creating",
+                missing_follower_name=missing_follower,
+                project_follower_name=project_follower_name,
+                project_name=project_name,
+                project=project,
+            )
+            try:
+                self._enrich_and_validate_before_creation(project)
+                self._followers[missing_follower].create_project(
+                    db_session,
+                    project,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed creating missing project in follower",
+                    missing_follower_name=missing_follower,
+                    project_follower_name=project_follower_name,
+                    project_name=project_name,
+                    project=project,
+                    exc=str(exc),
+                    traceback=traceback.format_exc(),
+                )
 
     def _should_sync_project_to_followers(self, project_name: str) -> bool:
         """

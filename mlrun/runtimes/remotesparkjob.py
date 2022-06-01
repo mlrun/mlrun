@@ -56,6 +56,7 @@ class RemoteSparkSpec(KubeResourceSpec):
         pythonpath=None,
         tolerations=None,
         preemption_mode=None,
+        spark_service=None,
     ):
         super().__init__(
             command=command,
@@ -85,6 +86,7 @@ class RemoteSparkSpec(KubeResourceSpec):
             preemption_mode=preemption_mode,
         )
         self.provider = provider
+        self.spark_service = spark_service
 
 
 class RemoteSparkProviders(object):
@@ -118,6 +120,12 @@ class RemoteSparkRuntime(KubejobRuntime):
         return super().is_deployed()
 
     def _run(self, runobj: RunObject, execution):
+        # check for existence of spark_services
+        if not get_k8s_helper().is_service_exist(name=self.spec.spark_service):
+            raise MLRunInvalidArgumentError(
+                f"The spark service provided {self.spec.spark_service} does not exist. "
+                f"Please notice the name should be given as it is shown in the Iguazio UI."
+            )
         self.spec.image = self.spec.image or self.default_image
         super()._run(runobj=runobj, execution=execution)
 
@@ -131,12 +139,7 @@ class RemoteSparkRuntime(KubejobRuntime):
 
     def with_spark_service(self, spark_service, provider=RemoteSparkProviders.iguazio):
         """Attach spark service to function"""
-        # check for existence of spark_services
-        if not get_k8s_helper().is_service_exist(name=spark_service):
-            raise MLRunInvalidArgumentError(
-                f"The spark service provided {spark_service} does not exist. "
-                f"Please notice the name should be given as it is shown in the Iguazio UI."
-            )
+        self.spec.spark_service = spark_service
         self.spec.provider = provider
         if provider == RemoteSparkProviders.iguazio:
             self.spec.env.append(

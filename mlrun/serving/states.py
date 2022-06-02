@@ -21,8 +21,7 @@ import warnings
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
 from typing import Union
-
-import urllib3.util
+from urllib.parse import parse_qs, urlparse
 
 from ..config import config
 from ..datastore import get_stream_pusher
@@ -1418,8 +1417,8 @@ def _init_async_objects(context, steps):
                     if stream_path.startswith("kafka://"):
                         start = len("kafka://")
                         topic = stream_path[start:]
-                        url = urllib3.util.parse_url(stream_path)
-                        bootstrap_servers = url.query["bootstrap_servers"]
+                        url = urlparse(stream_path)
+                        bootstrap_servers = parse_qs(url.query)["bootstrap_servers"][0]
                         step._async_object = storey.KafkaTarget(
                             topic=topic,
                             bootstrap_servers=bootstrap_servers,

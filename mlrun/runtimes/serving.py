@@ -436,7 +436,7 @@ class ServingRuntime(RemoteRuntime):
                 trigger_args = stream.trigger_args or {}
                 if stream.path.startswith("kafka://"):
                     trigger = KafkaTrigger(
-                        brokers=stream.options["brokers"],
+                        brokers=stream.options["brokers"].split(","),
                         topics=[stream.options["topic"]],
                         **trigger_args,
                     )

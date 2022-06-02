@@ -1,25 +1,25 @@
+import collections
+import dataclasses
 import json
 import os
-from collections import defaultdict
-from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import v3io
 
-from mlrun import get_run_db, store_manager
-from mlrun.api.schemas import ModelEndpoint
-from mlrun.data_types.infer import DFDataInfer, InferOptions
-from mlrun.run import MLClientCtx
-from mlrun.utils import config, logger
-from mlrun.utils.model_monitoring import EndpointType, parse_model_endpoint_store_prefix
-from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
+import mlrun
+import mlrun.api.schemas
+import mlrun.data_types.infer
+import mlrun.run
+import mlrun.utils
+import mlrun.utils.model_monitoring
+import mlrun.utils.v3io_clients
 
 _TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f%z"
 
 
-@dataclass
+@dataclasses.dataclass
 class TotalVarianceDistance:
     """
     Provides a symmetric drift distance between two periods t and u
@@ -42,7 +42,7 @@ class TotalVarianceDistance:
         return np.sum(np.abs(self.distrib_t - self.distrib_u)) / 2
 
 
-@dataclass
+@dataclasses.dataclass
 class HellingerDistance:
     """
     Hellinger distance is an f divergence measure, similar to the Kullback-Leibler (KL) divergence.
@@ -68,7 +68,7 @@ class HellingerDistance:
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class KullbackLeiblerDivergence:
     """
     KL Divergence (or relative entropy) is a measure of how one probability distribution differs from another.
@@ -271,7 +271,7 @@ class VirtualDrift:
                 )
 
         # define drift result dictionary with values as a dictionary
-        drift_result = defaultdict(dict)
+        drift_result = collections.defaultdict(dict)
 
         # fill drift result dictionary with the statistical metrics results per feature
         # and the total sum and mean of each metric
@@ -317,7 +317,7 @@ class BatchProcessor:
 
     def __init__(
         self,
-        context: MLClientCtx,
+        context: mlrun.run.MLClientCtx,
         project: str,
         model_monitoring_access_key: str,
         v3io_access_key: str,
@@ -346,24 +346,30 @@ class BatchProcessor:
         # define the required paths for the project objects.
         # note that the kv table, tsdb, and the input stream paths are located at the default location
         # while the parquet path is located at the user-space location
-        template = config.model_endpoint_monitoring.store_prefixes.default
+        template = mlrun.utils.config.model_endpoint_monitoring.store_prefixes.default
         kv_path = template.format(project=self.project, kind="endpoints")
-        _, self.kv_container, self.kv_path = parse_model_endpoint_store_prefix(kv_path)
+        (
+            _,
+            self.kv_container,
+            self.kv_path,
+        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(kv_path)
         tsdb_path = template.format(project=project, kind="events")
-        _, self.tsdb_container, self.tsdb_path = parse_model_endpoint_store_prefix(
-            tsdb_path
-        )
+        (
+            _,
+            self.tsdb_container,
+            self.tsdb_path,
+        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(tsdb_path)
         stream_path = template.format(project=self.project, kind="log_stream")
-        _, self.stream_container, self.stream_path = parse_model_endpoint_store_prefix(
-            stream_path
-        )
-        self.parquet_path = (
-            config.model_endpoint_monitoring.store_prefixes.user_space.format(
-                project=project, kind="parquet"
-            )
+        (
+            _,
+            self.stream_container,
+            self.stream_path,
+        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(stream_path)
+        self.parquet_path = mlrun.utils.config.model_endpoint_monitoring.store_prefixes.user_space.format(
+            project=project, kind="parquet"
         )
 
-        logger.info(
+        mlrun.utils.logger.info(
             "Initializing BatchProcessor",
             project=project,
             model_monitoring_access_key_initalized=bool(model_monitoring_access_key),
@@ -379,20 +385,22 @@ class BatchProcessor:
 
         # get drift thresholds from the model monitoring configuration
         self.default_possible_drift_threshold = (
-            config.model_endpoint_monitoring.drift_thresholds.default.possible_drift
+            mlrun.utils.config.model_endpoint_monitoring.drift_thresholds.default.possible_drift
         )
         self.default_drift_detected_threshold = (
-            config.model_endpoint_monitoring.drift_thresholds.default.drift_detected
+            mlrun.utils.config.model_endpoint_monitoring.drift_thresholds.default.drift_detected
         )
 
         # get a runtime database
-        self.db = get_run_db()
+        self.db = mlrun.get_run_db()
 
         # get the frames clients based on the v3io configuration
         # it will be used later for writing the results into the tsdb
-        self.v3io = get_v3io_client(access_key=self.v3io_access_key)
-        self.frames = get_frames_client(
-            address=config.v3io_framesd,
+        self.v3io = mlrun.utils.v3io_clients.get_v3io_client(
+            access_key=self.v3io_access_key
+        )
+        self.frames = mlrun.utils.v3io_clients.get_frames_client(
+            address=mlrun.utils.config.v3io_framesd,
             container=self.tsdb_container,
             token=self.v3io_access_key,
         )
@@ -422,7 +430,7 @@ class BatchProcessor:
         try:
             endpoints = self.db.list_model_endpoints(self.project)
         except Exception as e:
-            logger.error("Failed to list endpoints", exc=e)
+            mlrun.utils.logger.error("Failed to list endpoints", exc=e)
             return
 
         active_endpoints = set()
@@ -430,12 +438,12 @@ class BatchProcessor:
             if endpoint.spec.active:
                 active_endpoints.add(endpoint.metadata.uid)
 
-        store, sub = store_manager.get_or_create_store(self.parquet_path)
+        store, sub = mlrun.store_manager.get_or_create_store(self.parquet_path)
         prefix = self.parquet_path.replace(sub, "")
         fs = store.get_filesystem(silent=False)
 
         if not fs.exists(sub):
-            logger.warn(f"{sub} does not exist")
+            mlrun.utils.logger.warn(f"{sub} does not exist")
             return
 
         for endpoint_dir in fs.ls(sub):
@@ -453,7 +461,7 @@ class BatchProcessor:
 
                 full_path = f"{prefix}{last_hour['name']}"
 
-                logger.info(f"Now processing {full_path}")
+                mlrun.utils.logger.info(f"Now processing {full_path}")
 
                 # get model endpoint object
                 endpoint = self.db.get_model_endpoint(
@@ -461,9 +469,12 @@ class BatchProcessor:
                 )
 
                 # skip router endpoint
-                if endpoint.status.endpoint_type == EndpointType.ROUTER:
+                if (
+                    endpoint.status.endpoint_type
+                    == mlrun.utils.model_monitoring.EndpointType.ROUTER
+                ):
                     # endpoint.status.feature_stats is None
-                    logger.info(f"{endpoint_id} is router skipping")
+                    mlrun.utils.logger.info(f"{endpoint_id} is router skipping")
                     continue
 
                 df = pd.read_parquet(full_path)
@@ -478,8 +489,9 @@ class BatchProcessor:
                 # get the current stats that are represented by histogram of each feature within the dataset.
                 # in the following dictionary, each key is a feature with dictionary of stats
                 # (including histogram distribution) as a value
-                current_stats = DFDataInfer.get_stats(
-                    df=named_features_df, options=InferOptions.Histogram
+                current_stats = mlrun.data_types.infer.DFDataInfer.get_stats(
+                    df=named_features_df,
+                    options=mlrun.data_types.infer.InferOptions.Histogram,
                 )
 
                 # compute the drift based on the histogram of the current stats and the histogram of
@@ -488,14 +500,14 @@ class BatchProcessor:
                     feature_stats=endpoint.status.feature_stats,
                     current_stats=current_stats,
                 )
-                logger.info("Drift result", drift_result=drift_result)
+                mlrun.utils.logger.info("Drift result", drift_result=drift_result)
 
                 # check for possible drift based on the results of the statistical metrics defined above
                 drift_status, drift_measure = self.check_for_drift(
                     drift_result=drift_result, endpoint=endpoint
                 )
 
-                logger.info(
+                mlrun.utils.logger.info(
                     "Drift status",
                     endpoint_id=endpoint_id,
                     drift_status=drift_status,
@@ -553,11 +565,13 @@ class BatchProcessor:
                 # logger.info(f"Done updating drift measures {full_path}")
 
             except Exception as e:
-                logger.error(f"Exception for endpoint {endpoint_id}")
+                mlrun.utils.logger.error(f"Exception for endpoint {endpoint_id}")
                 self.exception = e
 
     def check_for_drift(
-        self, drift_result: Dict[str, Dict[str, Any]], endpoint: ModelEndpoint
+        self,
+        drift_result: Dict[str, Dict[str, Any]],
+        endpoint: mlrun.api.schemas.ModelEndpoint,
     ) -> Tuple[str, float]:
         """
         Check for drift based on the defined decision rule and the calculated results of the statistical metrics
@@ -603,7 +617,7 @@ class BatchProcessor:
         return last_dir
 
 
-def handler(context: MLClientCtx):
+def handler(context: mlrun.run.MLClientCtx):
     batch_processor = BatchProcessor(
         context=context,
         project=context.project,

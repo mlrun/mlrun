@@ -1,19 +1,18 @@
-from pathlib import Path
+import pathlib
 
-from sqlalchemy.orm import Session
+import sqlalchemy.orm
 
 import mlrun
+import mlrun.api.api.utils
+import mlrun.api.crud.secrets
+import mlrun.api.utils.singletons.db
+import mlrun.config
 import mlrun.feature_store as fs
-from mlrun import code_to_function, v3io_cred
-from mlrun.api.api.utils import get_run_db_instance
-from mlrun.api.crud.secrets import Secrets, SecretsClientType
-from mlrun.api.utils.singletons.db import get_db
-from mlrun.config import config
-from mlrun.model_monitoring.stream_processing_fs import EventStreamProcessor
-from mlrun.runtimes import KubejobRuntime
-from mlrun.utils.helpers import logger
+import mlrun.model_monitoring.stream_processing_fs
+import mlrun.runtimes
+import mlrun.utils.helpers
 
-_CURRENT_FILE_PATH = Path(__file__)
+_CURRENT_FILE_PATH = pathlib.Path(__file__)
 _STREAM_PROCESSING_FUNCTION_PATH = _CURRENT_FILE_PATH.parent / "stream_processing_fs.py"
 _MONIOTINRG_BATCH_FUNCTION_PATH = (
     _CURRENT_FILE_PATH.parent / "model_monitoring_batch.py"
@@ -21,7 +20,7 @@ _MONIOTINRG_BATCH_FUNCTION_PATH = (
 
 
 def get_model_monitoring_stream_processing_function(
-    project: str, model_monitoring_access_key: str, db_session: Session
+    project: str, model_monitoring_access_key: str, db_session: sqlalchemy.orm.Session
 ):
     """
     Initialize model monitoring stream processing function.
@@ -35,10 +34,10 @@ def get_model_monitoring_stream_processing_function(
     """
 
     # initialize Stream Processor object
-    stream_processor = EventStreamProcessor(
+    stream_processor = mlrun.model_monitoring.stream_processing_fs.EventStreamProcessor(
         project=project,
         model_monitoring_access_key=model_monitoring_access_key,
-        parquet_batching_max_events=config.model_endpoint_monitoring.parquet_batching_max_events,
+        parquet_batching_max_events=mlrun.config.config.model_endpoint_monitoring.parquet_batching_max_events,
     )
 
     # create feature set for this project
@@ -48,7 +47,7 @@ def get_model_monitoring_stream_processing_function(
     fset.spec.source = http_source
 
     # create a new serving function for the streaming process
-    function = code_to_function(
+    function = mlrun.code_to_function(
         name="model-monitoring-stream",
         project=project,
         filename=str(_STREAM_PROCESSING_FUNCTION_PATH),
@@ -60,7 +59,7 @@ def get_model_monitoring_stream_processing_function(
     function.metadata.project = project
 
     # add v3io stream trigger
-    stream_path = config.model_endpoint_monitoring.store_prefixes.default.format(
+    stream_path = mlrun.config.config.model_endpoint_monitoring.store_prefixes.default.format(
         project=project, kind="stream"
     )
     function.add_v3io_stream_trigger(
@@ -71,8 +70,9 @@ def get_model_monitoring_stream_processing_function(
     function.set_env_from_secret(
         "MODEL_MONITORING_ACCESS_KEY",
         mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
-        Secrets().generate_client_project_secret_key(
-            SecretsClientType.model_monitoring, "MODEL_MONITORING_ACCESS_KEY"
+        mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
+            mlrun.api.crud.secrets.SecretsClientType.model_monitoring,
+            "MODEL_MONITORING_ACCESS_KEY",
         ),
     )
 
@@ -88,7 +88,7 @@ def get_model_monitoring_stream_processing_function(
     )
     function = http_source.add_nuclio_trigger(function)
     function.metadata.credentials.access_key = model_monitoring_access_key
-    function.apply(v3io_cred())
+    function.apply(mlrun.v3io_cred())
 
     return function
 
@@ -96,7 +96,7 @@ def get_model_monitoring_stream_processing_function(
 def get_model_monitoring_batch_function(
     project: str,
     model_monitoring_access_key: str,
-    db_session: Session,
+    db_session: sqlalchemy.orm.Session,
     auth_info: mlrun.api.schemas.AuthInfo,
 ):
     """
@@ -110,23 +110,25 @@ def get_model_monitoring_batch_function(
 
     """
 
-    logger.info(
+    mlrun.utils.helpers.logger.info(
         f"Checking deployment status for model monitoring batch processing function [{project}]"
     )
-    function_list = get_db().list_functions(
+    function_list = mlrun.api.utils.singletons.db.get_db().list_functions(
         session=db_session, name="model-monitoring-batch", project=project
     )
 
     if function_list:
-        logger.info(
+        mlrun.utils.helpers.logger.info(
             f"Detected model monitoring batch processing function [{project}] already deployed"
         )
         return
 
-    logger.info(f"Deploying model monitoring batch processing function [{project}]")
+    mlrun.utils.helpers.logger.info(
+        f"Deploying model monitoring batch processing function [{project}]"
+    )
 
     # create job function runtime for the model monitoring batch
-    function: KubejobRuntime = code_to_function(
+    function: mlrun.runtimes.KubejobRuntime = mlrun.code_to_function(
         name="model-monitoring-batch",
         project=project,
         filename=str(_MONIOTINRG_BATCH_FUNCTION_PATH),
@@ -134,7 +136,7 @@ def get_model_monitoring_batch_function(
         image="mlrun/mlrun",
         handler="handler",
     )
-    function.set_db_connection(get_run_db_instance(db_session))
+    function.set_db_connection(mlrun.api.api.utils.get_run_db_instance(db_session))
 
     # set the project to the job function
     function.metadata.project = project
@@ -143,8 +145,9 @@ def get_model_monitoring_batch_function(
     function.set_env_from_secret(
         "MODEL_MONITORING_ACCESS_KEY",
         mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
-        Secrets().generate_client_project_secret_key(
-            SecretsClientType.model_monitoring, "MODEL_MONITORING_ACCESS_KEY"
+        mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
+            mlrun.api.crud.secrets.SecretsClientType.model_monitoring,
+            "MODEL_MONITORING_ACCESS_KEY",
         ),
     )
 

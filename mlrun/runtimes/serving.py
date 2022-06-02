@@ -440,7 +440,7 @@ class ServingRuntime(RemoteRuntime):
                         topics=[stream.options["topic"]],
                         **trigger_args,
                     )
-                    child_function.function_object.add_trigger(stream.path, trigger)
+                    child_function.function_object.add_trigger("kafka", trigger)
                 else:
                     child_function.function_object.add_v3io_stream_trigger(
                         stream.path, group=group, shards=stream.shards, **trigger_args

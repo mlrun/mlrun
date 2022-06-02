@@ -116,7 +116,9 @@ class ModelEndpoints:
         )
 
         self.write_endpoint_to_kv(
-            access_key=access_key, endpoint=model_endpoint, update=True,
+            access_key=access_key,
+            endpoint=model_endpoint,
+            update=True,
         )
 
         mlrun.utils.helpers.logger.info(
@@ -147,8 +149,11 @@ class ModelEndpoints:
             endpoint=mlrun.config.config.v3io_api
         )
 
-        path = mlrun.config.config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS
+        path = (
+            mlrun.config.config.model_endpoint_monitoring.store_prefixes.default.format(
+                project=project,
+                kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
+            )
         )
         (
             _,
@@ -243,7 +248,11 @@ class ModelEndpoints:
                 table_path=path,
                 access_key=auth_info.data_session,
                 filter_expression=self.build_kv_cursor_filter_expression(
-                    project, function, model, labels, top_level,
+                    project,
+                    function,
+                    model,
+                    labels,
+                    top_level,
                 ),
                 attribute_names=["endpoint_id"],
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
@@ -291,15 +300,19 @@ class ModelEndpoints:
         """
         access_key = self.get_access_key(auth_info)
         mlrun.utils.helpers.logger.info(
-            "Getting model endpoint record from kv", endpoint_id=endpoint_id,
+            "Getting model endpoint record from kv",
+            endpoint_id=endpoint_id,
         )
 
         client = mlrun.utils.v3io_clients.get_v3io_client(
             endpoint=mlrun.config.config.v3io_api
         )
 
-        path = mlrun.config.config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS
+        path = (
+            mlrun.config.config.model_endpoint_monitoring.store_prefixes.default.format(
+                project=project,
+                kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
+            )
         )
         (
             _,
@@ -456,9 +469,11 @@ class ModelEndpoints:
         )
         function = client.kv.update if update else client.kv.put
 
-        path = mlrun.config.config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=endpoint.metadata.project,
-            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
+        path = (
+            mlrun.config.config.model_endpoint_monitoring.store_prefixes.default.format(
+                project=endpoint.metadata.project,
+                kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
+            )
         )
         (
             _,
@@ -511,8 +526,10 @@ class ModelEndpoints:
                 "Metric names must be provided"
             )
 
-        path = mlrun.config.config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS
+        path = (
+            mlrun.config.config.model_endpoint_monitoring.store_prefixes.default.format(
+                project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS
+            )
         )
         (
             _,
@@ -584,16 +601,21 @@ class ModelEndpoints:
         endpoints = self.list_endpoints(auth_info, project_name)
         for endpoint in endpoints.endpoints:
             self.delete_endpoint_record(
-                auth_info, endpoint.metadata.project, endpoint.metadata.uid, access_key,
+                auth_info,
+                endpoint.metadata.project,
+                endpoint.metadata.uid,
+                access_key,
             )
 
         v3io = mlrun.utils.v3io_clients.get_v3io_client(
             endpoint=mlrun.config.config.v3io_api, access_key=access_key
         )
 
-        path = mlrun.config.config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project_name,
-            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
+        path = (
+            mlrun.config.config.model_endpoint_monitoring.store_prefixes.default.format(
+                project=project_name,
+                kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
+            )
         )
         tsdb_path = mlrun.utils.model_monitoring.parse_model_endpoint_project_prefix(
             path, project_name
@@ -642,7 +664,9 @@ class ModelEndpoints:
         # Cleanup TSDB
         try:
             frames.delete(
-                backend="tsdb", table=path, if_missing=v3io_frames.frames_pb2.IGNORE,
+                backend="tsdb",
+                table=path,
+                if_missing=v3io_frames.frames_pb2.IGNORE,
             )
         except v3io_frames.errors.CreateError:
             # frames might raise an exception if schema file does not exist.

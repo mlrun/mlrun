@@ -59,8 +59,10 @@ def get_model_monitoring_stream_processing_function(
     function.metadata.project = project
 
     # add v3io stream trigger
-    stream_path = mlrun.config.config.model_endpoint_monitoring.store_prefixes.default.format(
-        project=project, kind="stream"
+    stream_path = (
+        mlrun.config.config.model_endpoint_monitoring.store_prefixes.default.format(
+            project=project, kind="stream"
+        )
     )
     function.add_v3io_stream_trigger(
         stream_path=stream_path, name="monitoring_stream_trigger"

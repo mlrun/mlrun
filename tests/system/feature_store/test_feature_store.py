@@ -373,46 +373,76 @@ class TestFeatureStore(TestMLRunSystem):
             assert df is not None
 
     @pytest.mark.parametrize(
-        "target_path, final_path",
+        "should_succeed, is_parquet, is_partitioned, target_path",
         [
-            (
-                "v3io:///bigdata/csvtest/csvname.csv",
-                "v3io:///bigdata/csvtest/{run_id}/csvname.csv",
-            ),
-            (
-                "v3io:///bigdata/csvtest/csvname",
-                "v3io:///bigdata/csvtest/csvname/{run_id}/",
-            ),
-            (
-                "v3io:///bigdata/csvtest/csvname/",
-                "v3io:///bigdata/csvtest/csvname/{run_id}/",
-            ),
-            (
-                "v3io:///bigdata/csvtest/csvname/{run_id}",
-                "v3io:///bigdata/csvtest/csvname/{run_id}/",
-            ),
+            # storey - csv - fail for directory
+            (True, False, None, "v3io:///bigdata/dif-eng/file.csv"),
+            (False, False, None, "v3io:///bigdata/dif-eng/csv"),
+            # storey - parquet - fail for single file on partitioned
+            (True, True, False, "v3io:///bigdata/dif-eng/pq"),
+            (True, True, False, "v3io:///bigdata/dif-eng/file.pq"),
+            (True, True, True, "v3io:///bigdata/dif-eng/pq"),
+            (False, True, True, "v3io:///bigdata/dif-eng/file.pq"),
         ],
     )
-    def test_csv_path(self, target_path, final_path):
-        df = pd.DataFrame(
-            {
-                "key": ["key1", "key2"],
-                "time_stamp": [
-                    datetime(2020, 11, 1, 17, 33, 15),
-                    datetime(2020, 10, 1, 17, 33, 15),
-                ],
-                "another_time_column": [
-                    datetime(2020, 9, 1, 17, 33, 15),
-                    datetime(2020, 8, 1, 17, 33, 15),
-                ],
-            }
+    def test_different_paths_for_ingest_on_storey_engines(
+        self, should_succeed, is_parquet, is_partitioned, target_path
+    ):
+        fset = FeatureSet("fsname", entities=[Entity("ticker")], engine="storey")
+        target = (
+            ParquetTarget(name="tar", path=target_path, partitioned=is_partitioned)
+            if is_parquet
+            else CSVTarget(name="tar", path=target_path)
         )
-        fset = FeatureSet("csvnamefs", entities=[Entity("key")])
-        target = CSVTarget(name="csvtar", path=target_path)
-        fs.ingest(fset, source=df, targets=[target])
+        if should_succeed:
+            fs.ingest(fset, source=stocks, targets=[target])
+            if fset.get_target_path().endswith(fset.status.targets[0].run_id + "/"):
+                store, _ = mlrun.store_manager.get_or_create_store(
+                    fset.get_target_path()
+                )
+                v3io = store.get_filesystem(False)
+                assert v3io.isdir(fset.get_target_path())
+        else:
+            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+                fs.ingest(fset, source=stocks, targets=[target])
 
-        expected = final_path.format(run_id=fset.status.targets[0].run_id)
-        assert fset.get_target_path("csvtar") == expected
+    @pytest.mark.parametrize(
+        "should_succeed, is_parquet, is_partitioned, target_path, chunks",
+        [
+            (False, True, False, "v3io:///bigdata/pd-eng/pq", None),
+            (True, True, False, "v3io:///bigdata/pd-eng/file.pq", None),
+            (False, False, False, "v3io:///bigdata/pd-eng/csv", None),
+            (True, False, False, "v3io:///bigdata/pd-eng/file.csv", None),
+            (True, False, False, "v3io:///bigdata/pd-eng/csv", 100),
+            (False, False, False, "v3io:///bigdata/pd-eng/file.csv", 100),
+        ],
+    )
+    def test_different_paths_for_ingest_on_pandas_engines(
+        self, should_succeed, is_parquet, is_partitioned, target_path, chunks
+    ):
+        source = CSVSource(
+            "mycsv", path=os.path.relpath(str(self.assets_path / "testdata.csv"))
+        )
+        if chunks:
+            source.attributes["chunksize"] = chunks
+        fset = FeatureSet("pandaset", entities=[Entity("key")], engine="pandas")
+        target = (
+            ParquetTarget(name="tar", path=target_path, partitioned=is_partitioned)
+            if is_parquet
+            else CSVTarget(name="tar", path=target_path)
+        )
+
+        if should_succeed:
+            fs.ingest(fset, source=source, targets=[target])
+            if fset.get_target_path().endswith(fset.status.targets[0].run_id + "/"):
+                store, _ = mlrun.store_manager.get_or_create_store(
+                    fset.get_target_path()
+                )
+                v3io = store.get_filesystem(False)
+                assert v3io.isdir(fset.get_target_path())
+        else:
+            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+                fs.ingest(fset, source=source, targets=[target])
 
     def test_nosql_no_path(self):
         df = pd.DataFrame(
@@ -1469,6 +1499,11 @@ class TestFeatureStore(TestMLRunSystem):
         assert len(resp.columns) == 2
         assert "price_m" in resp.columns
 
+        # status should contain original feature name, not its alias
+        features_in_status = [feature.name for feature in vector.status.features]
+        assert "price_max_1h" in features_in_status
+        assert "price_m" not in features_in_status
+
         vector.save()
         stats = vector.get_stats_table()
         assert len(stats) == 2
@@ -2302,7 +2337,6 @@ class TestFeatureStore(TestMLRunSystem):
         with fs.get_online_feature_service(
             vector, impute_policy={"*": "$max", "data_avg_1h": "$mean", "data2": 4}
         ) as svc:
-
             print(svc.vector.status.to_yaml())
 
             resp = svc.get([{"name": "ab"}])

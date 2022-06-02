@@ -36,7 +36,7 @@ from mlrun.lists import RunList
 
 from ..execution import MLClientCtx
 from ..model import RunObject
-from ..utils import get_handler_extended, get_in, logger
+from ..utils import get_handler_extended, get_in, logger, set_paths
 from ..utils.clones import extract_source
 from .base import BaseRuntime, FunctionSpec, spec_fields
 from .kubejob import KubejobRuntime
@@ -252,7 +252,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         execution._current_workdir = workdir
         execution._old_workdir = None
 
-        if self.spec.build.source:
+        if self.spec.build.source and not hasattr(self, "_is_run_local"):
             target_dir = extract_source(
                 self.spec.build.source,
                 self.spec.clone_target_dir,
@@ -352,16 +352,6 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             except FileNotFoundError:
                 logger.info("no context file found")
             return runobj.to_dict()
-
-
-def set_paths(pythonpath=""):
-    if not pythonpath:
-        return
-    paths = pythonpath.split(":")
-    for p in paths:
-        abspath = os.path.abspath(p)
-        if abspath not in sys.path:
-            sys.path.append(abspath)
 
 
 def load_module(file_name, handler, context):

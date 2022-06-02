@@ -32,6 +32,7 @@ class TestRuntimeHandlerBase:
 
         self.project = "test-project"
         self.run_uid = "test_run_uid"
+        self.kind = "job"
 
         mlrun.mlconf.mpijob_crd_version = mlrun.runtimes.constants.MPIJobCRDVersions.v1
         self.custom_setup()
@@ -51,6 +52,9 @@ class TestRuntimeHandlerBase:
                 "project": self.project,
                 "name": "some-run-name",
                 "uid": self.run_uid,
+                "labels": {
+                    "kind": self.kind,
+                },
             },
         }
         mlrun.api.crud.Runs().store_run(

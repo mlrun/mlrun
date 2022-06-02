@@ -13,11 +13,14 @@
 # limitations under the License.
 import datetime
 import getpass
+import glob
 import pathlib
 import shutil
+import tempfile
 import typing
 import warnings
-from os import environ, makedirs, path
+import zipfile
+from os import environ, makedirs, path, remove
 
 import dotenv
 import inflection
@@ -30,6 +33,7 @@ import mlrun.api.schemas
 import mlrun.db
 import mlrun.errors
 import mlrun.utils.regex
+from mlrun.runtimes import RuntimeKinds
 
 from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifact
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
@@ -77,12 +81,13 @@ def init_repo(context, url, init_git):
 def new_project(
     name,
     context=None,
-    init_git=False,
-    user_project=False,
-    remote=None,
-    from_template=None,
-    secrets=None,
-    description=None,
+    init_git: bool = False,
+    user_project: bool = False,
+    remote: str = None,
+    from_template: str = None,
+    secrets: dict = None,
+    description: str = None,
+    subpath: str = None,
 ) -> "MlrunProject":
     """Create a new MLRun project, optionally load it from a yaml/zip/git template
 
@@ -117,6 +122,7 @@ def new_project(
     :param from_template:     path to project YAML/zip file that will be used as a template
     :param secrets:      key:secret dict or SecretsStore used to download sources
     :param description:  text describing the project
+    :param subpath:      project subpath (relative to the context dir)
 
     :returns: project object
     """
@@ -139,6 +145,7 @@ def new_project(
     else:
         project = MlrunProject(name=name)
     project.spec.context = context
+    project.spec.subpath = subpath or project.spec.subpath
 
     repo, url = init_repo(context, remote, init_git or remote)
     project.spec.repo = repo
@@ -155,14 +162,14 @@ def new_project(
 
 
 def load_project(
-    context,
-    url=None,
-    name=None,
-    secrets=None,
-    init_git=False,
-    subpath="",
-    clone=False,
-    user_project=False,
+    context: str,
+    url: str = None,
+    name: str = None,
+    secrets: dict = None,
+    init_git: bool = False,
+    subpath: str = None,
+    clone: bool = False,
+    user_project: bool = False,
 ) -> "MlrunProject":
     """Load an MLRun project from git or tar or dir
 
@@ -237,15 +244,15 @@ def load_project(
 
 
 def get_or_create_project(
-    name,
-    context,
-    url=None,
-    secrets=None,
+    name: str,
+    context: str,
+    url: str = None,
+    secrets: dict = None,
     init_git=False,
-    subpath="",
-    clone=False,
-    user_project=False,
-    from_template=None,
+    subpath: str = None,
+    clone: bool = False,
+    user_project: bool = False,
+    from_template: str = None,
 ) -> "MlrunProject":
     """Load a project from MLRun DB, or create/import if doesnt exist
 
@@ -263,7 +270,7 @@ def get_or_create_project(
     :param name:         project name
     :param secrets:      key:secret dict or SecretsStore used to download sources
     :param init_git:     if True, will git init the context dir
-    :param subpath:      project subpath (within the archive)
+    :param subpath:      project subpath (within the archive/context)
     :param clone:        if True, always clone (delete any existing content)
     :param user_project: add the current user name to the project name (for db:// prefixes)
     :param from_template:     path to project YAML file that will be used as from_template (for new projects)
@@ -287,7 +294,7 @@ def get_or_create_project(
         return project
 
     except mlrun.errors.MLRunNotFoundError:
-        spec_path = path.join(context, subpath, "project.yaml")
+        spec_path = path.join(context, subpath or "", "project.yaml")
         if url or path.isfile(spec_path):
             # load project from archive or local project.yaml
             project = load_project(
@@ -310,6 +317,7 @@ def get_or_create_project(
                 user_project=user_project,
                 from_template=from_template,
                 secrets=secrets,
+                subpath=subpath,
             )
             logger.info(f"created and saved project {name}")
         project.save_to_db()
@@ -317,7 +325,8 @@ def get_or_create_project(
 
 
 def _load_project_dir(context, name="", subpath=""):
-    fpath = path.join(context, subpath, "project.yaml")
+    subpath_str = subpath or ""
+    fpath = path.join(context, subpath_str, "project.yaml")
     if path.isfile(fpath):
         with open(fpath) as fp:
             data = fp.read()
@@ -325,8 +334,8 @@ def _load_project_dir(context, name="", subpath=""):
             project = _project_instance_from_struct(struct, name)
             project.spec.context = context
 
-    elif path.isfile(path.join(context, subpath, "function.yaml")):
-        func = import_function(path.join(context, subpath, "function.yaml"))
+    elif path.isfile(path.join(context, subpath_str, "function.yaml")):
+        func = import_function(path.join(context, subpath_str, "function.yaml"))
         project = MlrunProject(
             name=func.metadata.project,
             functions=[{"url": "function.yaml", "name": func.metadata.name}],
@@ -459,7 +468,8 @@ class ProjectSpec(ModelObj):
         default_requirements: typing.Union[str, typing.List[str]] = None,
         desired_state=mlrun.api.schemas.ProjectState.online.value,
         owner=None,
-        disable_auto_mount=False,
+        disable_auto_mount=None,
+        workdir=None,
     ):
         self.repo = None
 
@@ -469,8 +479,8 @@ class ProjectSpec(ModelObj):
         self._source = None
         self.source = source or ""
         self.load_source_on_run = load_source_on_run
-        self.subpath = subpath or ""
-        self.origin_url = origin_url or ""
+        self.subpath = subpath
+        self.origin_url = origin_url
         self.goals = goals
         self.desired_state = desired_state
         self.owner = owner
@@ -482,6 +492,7 @@ class ProjectSpec(ModelObj):
         self._artifacts = {}
         self.artifacts = artifacts or []
         self.default_requirements = default_requirements
+        self.workdir = workdir
 
         self._workflows = {}
         self.workflows = workflows or []
@@ -500,6 +511,8 @@ class ProjectSpec(ModelObj):
                 if url:
                     self._source = url
 
+        if self._source in [".", "./"]:
+            return path.abspath(self.context)
         return self._source
 
     @source.setter
@@ -654,6 +667,10 @@ class ProjectSpec(ModelObj):
                 return True
         return False
 
+    def get_code_path(self):
+        """Get the path to the code root/workdir"""
+        return path.join(self.context, self.workdir or self.subpath or "")
+
 
 class ProjectStatus(ModelObj):
     def __init__(self, state=None):
@@ -785,16 +802,20 @@ class MlrunProject(ModelObj):
         )
         self.spec.source = source
 
-    def set_source(self, source, pull_at_runtime=False):
+    def set_source(self, source, pull_at_runtime=False, workdir=None):
         """set the project source code path(can be git/tar/zip archive)
 
         :param source:     valid path to git, zip, or tar file, (or None for current) e.g.
                            git://github.com/mlrun/something.git
                            http://some/url/file.zip
         :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
+        :param workdir:    the relative workdir path (under the context dir)
         """
         self.spec.load_source_on_run = pull_at_runtime
         self.spec.source = source or self.spec.source
+        self.spec.workdir = workdir or self.spec.workdir
+        # reset function objects (to recalculate build attributes)
+        self.sync_functions()
 
     def get_artifact_uri(
         self, key: str, category: str = "artifact", tag: str = None
@@ -1364,11 +1385,12 @@ class MlrunProject(ModelObj):
 
         :returns: project object
         """
-        if func is None:
+        if func is None and not _has_module(handler, kind):
+            # if function path is not provided and it is not a module (no ".")
             # use the current notebook as default
             if not is_ipython:
                 raise ValueError(
-                    "function must be specified (when not running inside a Notebook)"
+                    "function path or module must be specified (when not running inside a Notebook)"
                 )
             from IPython import get_ipython
 
@@ -1377,6 +1399,7 @@ class MlrunProject(ModelObj):
             if func.startswith(path.abspath(self.spec.context)):
                 func = path.relpath(func, self.spec.context)
 
+        func = func or ""
         if isinstance(func, str):
             # in hub or db functions name defaults to the function name
             if not name and not (func.startswith("db://") or func.startswith("hub://")):
@@ -1435,7 +1458,7 @@ class MlrunProject(ModelObj):
         return self.get_function(key, sync)
 
     def get_function(
-        self, key, sync=False, enrich=False, ignore_cache=False
+        self, key, sync=True, enrich=False, ignore_cache=False
     ) -> mlrun.runtimes.BaseRuntime:
         """get function object by name
 
@@ -1449,7 +1472,7 @@ class MlrunProject(ModelObj):
         if key in self.spec._function_objects and not sync and not ignore_cache:
             function = self.spec._function_objects[key]
         elif key in self.spec._function_definitions and not ignore_cache:
-            self.sync_functions()
+            self.sync_functions([key])
             function = self.spec._function_objects[key]
         else:
             function = get_db_function(self, key)
@@ -1481,20 +1504,24 @@ class MlrunProject(ModelObj):
         elif url and url.endswith(".zip"):
             clone_zip(url, self.spec.context, self._secrets)
 
-    def create_remote(self, url, name="origin"):
+    def create_remote(self, url, name="origin", branch=None):
         """create remote for the project git
 
-        :param url:   remote git url
-        :param name:  name for the remote (default is 'origin')
+        :param url:    remote git url
+        :param name:   name for the remote (default is 'origin')
+        :param branch: Git branch to use as source
         """
         if not self.spec.repo:
             raise ValueError("git repo is not set/defined")
         self.spec.repo.create_remote(name, url=url)
         url = url.replace("https://", "git://")
-        try:
-            url = f"{url}#refs/heads/{self.spec.repo.active_branch.name}"
-        except Exception:
-            pass
+        if not branch:
+            try:
+                branch = self.spec.repo.active_branch.name
+            except Exception:
+                pass
+        if branch:
+            url = f"{url}#{branch}"
         self.spec._source = self.spec.source or url
         self.spec.origin_url = self.spec.origin_url or url
 
@@ -1531,9 +1558,10 @@ class MlrunProject(ModelObj):
         if self._initialized and not always:
             return self.spec._function_objects
 
-        funcs = {}
+        funcs = self.spec._function_objects
         if not names:
             names = self.spec._function_definitions.keys()
+            funcs = {}
         origin = add_code_metadata(self.spec.context)
         for name in names:
             f = self.spec._function_definitions.get(name)
@@ -1557,7 +1585,7 @@ class MlrunProject(ModelObj):
     def with_secrets(self, kind, source, prefix=""):
         """register a secrets source (file, env or dict)
 
-        read secrets from a source provider to be used in workflows,example::
+        read secrets from a source provider to be used in workflows, example::
 
             proj.with_secrets('file', 'file.txt')
             proj.with_secrets('inline', {'key': 'val'})
@@ -1703,7 +1731,7 @@ class MlrunProject(ModelObj):
         dirty=False,
         ttl=None,
         engine=None,
-        local=False,
+        local=None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1856,16 +1884,42 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.store_project(self.metadata.name, self.to_dict())
 
-    def export(self, filepath=None):
-        """save the project object into a file (default to project.yaml)"""
-        filepath = filepath or path.join(
-            self.spec.context, self.spec.subpath or "", "project.yaml"
-        )
-        project_dir = pathlib.Path(filepath).parent
-        if not project_dir.exists():
-            project_dir.mkdir(parents=True)
-        with open(filepath, "w") as fp:
+    def export(self, filepath=None, include_files: str = None):
+        """save the project object into a yaml file or zip archive (default to project.yaml)
+
+        By default the project object is exported to a yaml file, when the filepath suffix is '.zip'
+        the project context dir (code files) are also copied into the zip, the archive path can include
+        DataItem urls (for remote object storage, e.g. s3://<bucket>/<path>).
+
+        :param filepath: path to store project .yaml or .zip (with the project dir content)
+        :param include_files: glob filter string for selecting files to include in the zip archive
+        """
+        project_file_path = filepath
+        archive_code = filepath and str(filepath).endswith(".zip")
+        if not filepath or archive_code:
+            project_file_path = path.join(
+                self.spec.context, self.spec.subpath or "", "project.yaml"
+            )
+        project_dir = pathlib.Path(project_file_path).parent
+        project_dir.mkdir(parents=True, exist_ok=True)
+        with open(project_file_path, "w") as fp:
             fp.write(self.to_yaml())
+
+        if archive_code:
+            files_filter = include_files or "**"
+            tmp_path = None
+            if "://" in filepath:
+                tmp_path = tempfile.mktemp(".zip")
+            zipf = zipfile.ZipFile(tmp_path or filepath, "w")
+            for file_path in glob.iglob(
+                f"{project_dir}/{files_filter}", recursive=True
+            ):
+                write_path = pathlib.Path(file_path)
+                zipf.write(write_path, arcname=write_path.relative_to(project_dir))
+            zipf.close()
+            if tmp_path:
+                mlrun.get_dataitem(filepath).upload(tmp_path)
+                remove(tmp_path)
 
     def set_model_monitoring_credentials(self, access_key: str):
         """Set the credentials that will be used by the project's model monitoring
@@ -1892,7 +1946,7 @@ class MlrunProject(ModelObj):
         labels: dict = None,
         base_task: mlrun.model.RunTemplate = None,
         watch: bool = True,
-        local: bool = False,
+        local: bool = None,
         verbose: bool = None,
         selector: str = None,
         auto_build: bool = None,
@@ -2169,7 +2223,7 @@ class MlrunProject(ModelObj):
         :param labels: List runs that have a specific label assigned. Currently only a single label filter can be
             applied, otherwise result will be empty.
         :param state: List only runs whose state is specified.
-        :param sort: Whether to sort the result according to their start time. Otherwise results will be
+        :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
         :param last: Deprecated - currently not used.
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
@@ -2449,7 +2503,9 @@ class MlrunProjectLegacy(ModelObj):
     # needed for tests
     def save(self, filepath=None):
         """save the project object into a file (default to project.yaml)"""
-        filepath = filepath or path.join(self.context, self.subpath, "project.yaml")
+        filepath = filepath or path.join(
+            self.context, self.subpath or "", "project.yaml"
+        )
         with open(filepath, "w") as fp:
             fp.write(self.to_yaml())
 
@@ -2464,19 +2520,23 @@ def _init_function_from_dict(f, project):
     requirements = f.get("requirements", None)
 
     in_context = False
-    if not url and "spec" not in f:
-        raise ValueError("function missing a url or a spec")
+    has_module = _has_module(handler, kind)
+    if not url and "spec" not in f and not has_module:
+        # function must point to a file or a module or have a spec
+        raise ValueError("function missing a url or a spec or a module")
 
     relative_url = url
     if url and "://" not in url:
         if project.spec.context and not url.startswith("/"):
-            url = path.join(project.spec.context, url)
+            url = path.join(project.spec.get_code_path(), url)
             in_context = True
         if not path.isfile(url):
             raise OSError(f"{url} not found")
 
     if "spec" in f:
         func = new_function(name, runtime=f["spec"])
+    elif not url and has_module:
+        func = new_function(name, image=image, kind=kind or "job", handler=handler)
     elif url.endswith(".yaml") or url.startswith("db://") or url.startswith("hub://"):
         func = import_function(url)
         if image:
@@ -2494,16 +2554,18 @@ def _init_function_from_dict(f, project):
             )
         if in_context and with_repo:
             func = new_function(
-                name, command=relative_url, image=image, kind=kind or "job"
+                name,
+                command=relative_url,
+                image=image,
+                kind=kind or "job",
+                handler=handler,
             )
-            if handler:
-                func.spec.default_handler = handler
         else:
             func = code_to_function(
                 name, filename=url, image=image, kind=kind or "job", handler=handler
             )
     else:
-        raise ValueError(f"unsupported function url {url} or no spec")
+        raise ValueError(f"unsupported function url:handler {url}:{handler} or no spec")
 
     if with_repo:
         func.spec.build.source = "./"
@@ -2593,3 +2655,9 @@ def _init_function_from_obj_legacy(func, project, name=None):
     if project.tag:
         func.metadata.tag = project.tag
     return name or func.metadata.name, func
+
+
+def _has_module(handler, kind):
+    if not handler:
+        return False
+    return (kind in RuntimeKinds.nuclio_runtimes() and ":" in handler) or "." in handler

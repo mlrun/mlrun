@@ -1323,3 +1323,14 @@ def is_legacy_artifact(artifact):
         return "metadata" not in artifact
     else:
         return not hasattr(artifact, "metadata")
+
+
+def set_paths(pythonpath=""):
+    """update the sys path"""
+    if not pythonpath:
+        return
+    paths = pythonpath.split(":")
+    for p in paths:
+        abspath = path.abspath(p)
+        if abspath not in sys.path:
+            sys.path.append(abspath)

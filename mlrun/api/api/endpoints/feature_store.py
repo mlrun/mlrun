@@ -436,8 +436,7 @@ def publish_feature_set(
             f"Cannot publish tag: '{tag}', tag already exists."
         )
     except mlrun.errors.MLRunNotFoundError as err:
-        if "Feature-set not found" not in err.args:
-            raise err
+        pass
 
     if feature_set.metadata.publish_time:
         raise mlrun.errors.MLRunBadRequestError(

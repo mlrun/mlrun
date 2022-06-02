@@ -145,9 +145,7 @@ def test_build_function_with_mlrun_bool(db: Session, client: TestClient):
 def test_start_function_succeeded(db: Session, client: TestClient, monkeypatch):
     name = "dask"
     project = "test-dask"
-    dask_cluster = mlrun.new_function(
-        name, project=project, kind="dask"
-    )
+    dask_cluster = mlrun.new_function(name, project=project, kind="dask")
     monkeypatch.setattr(
         mlrun.api.api.endpoints.functions,
         "_parse_start_function_body",
@@ -185,9 +183,7 @@ def test_start_function_fails(db: Session, client: TestClient, monkeypatch):
 
     name = "dask"
     project = "test-dask"
-    dask_cluster = mlrun.new_function(
-        name, project=project, kind="dask"
-    )
+    dask_cluster = mlrun.new_function(name, project=project, kind="dask")
     monkeypatch.setattr(
         mlrun.api.api.endpoints.functions,
         "_parse_start_function_body",
@@ -215,3 +211,71 @@ def test_start_function_fails(db: Session, client: TestClient, monkeypatch):
     assert response.status_code == http.HTTPStatus.OK.value
     background_task = mlrun.api.schemas.BackgroundTask(**response.json())
     assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.failed
+
+
+def test_start_function(db: Session, client: TestClient, monkeypatch):
+    def failing_func():
+        raise mlrun.errors.MLRunRuntimeError()
+
+    name = "dask"
+    project = "test-dask"
+    for test_case in [
+        {
+            "_start_function_mock": unittest.mock.Mock,
+            "expected_status_result": mlrun.api.schemas.BackgroundTaskState.succeeded,
+            "background_timeout_mode": "enabled",
+            "dask_timeout": 100,
+        },
+        {
+            "_start_function_mock": failing_func,
+            "expected_status_result": mlrun.api.schemas.BackgroundTaskState.failed,
+            "background_timeout_mode": "enabled",
+            "dask_timeout": None,
+        },
+        {
+            "_start_function_mock": unittest.mock.Mock,
+            "expected_status_result": mlrun.api.schemas.BackgroundTaskState.succeeded,
+            "background_timeout_mode": "disabled",
+            "dask_timeout": 0,
+        },
+    ]:
+        _start_function_mock = test_case.get("_start_function_mock", unittest.mock.Mock)
+        expected_status_result = test_case.get(
+            "expected_status_result", mlrun.api.schemas.BackgroundTaskState.running
+        )
+        background_timeout_mode = test_case.get("background_timeout_mode", "enabled")
+        dask_timeout = test_case.get("dask_timeout", None)
+
+        mlrun.mlconf.background_tasks_timeout_defaults.mode = background_timeout_mode
+        mlrun.mlconf.background_tasks_timeout_defaults.runtimes.dask = dask_timeout
+
+        dask_cluster = mlrun.new_function(name, project=project, kind="dask")
+        monkeypatch.setattr(
+            mlrun.api.api.endpoints.functions,
+            "_parse_start_function_body",
+            lambda *args, **kwargs: dask_cluster,
+        )
+        monkeypatch.setattr(
+            mlrun.api.api.endpoints.functions,
+            "_start_function",
+            lambda *args, **kwargs: _start_function_mock(),
+        )
+        response = client.post(
+            "start/function",
+            json=mlrun.utils.generate_object_uri(
+                dask_cluster.metadata.project,
+                dask_cluster.metadata.name,
+            ),
+        )
+        assert response.status_code == http.HTTPStatus.OK
+        background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+        assert (
+            background_task.status.state
+            == mlrun.api.schemas.BackgroundTaskState.running
+        )
+        response = client.get(
+            f"projects/{project}/background-tasks/{background_task.metadata.name}"
+        )
+        assert response.status_code == http.HTTPStatus.OK.value
+        background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+        assert background_task.status.state == expected_status_result

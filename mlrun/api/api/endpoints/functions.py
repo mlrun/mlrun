@@ -248,6 +248,11 @@ async def start_function(
         mlrun.api.schemas.AuthorizationAction.update,
         auth_info,
     )
+    background_timeout = mlrun.mlconf.background_tasks_timeout_defaults.runtimes.dask
+    if mlrun.mlconf.background_tasks_timeout_defaults.mode == "enabled":
+        background_timeout = (
+            int(background_timeout) if background_timeout is not None else None
+        )
 
     background_task = await run_in_threadpool(
         mlrun.api.utils.background_tasks.Handler().create_background_task,
@@ -255,7 +260,7 @@ async def start_function(
         background_tasks,
         _start_function,
         function.metadata.project,
-        int(mlrun.mlconf.background_tasks_timeout_defaults.runtimes.dask),
+        background_timeout,
         # args for _start_function
         function,
         auth_info,

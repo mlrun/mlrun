@@ -81,9 +81,7 @@ def get_stream_pusher(stream_path: str, **kwargs):
         endpoint, stream_path = parse_v3io_path(stream_path)
         return OutputStream(stream_path, endpoint=endpoint, **kwargs)
     elif stream_path.startswith("kafka://"):
-        start = len("kafka://")
-        topic = stream_path[start:]
-        return KafkaOutputStream(topic, **kwargs)
+        return KafkaOutputStream(**kwargs)
     elif stream_path.startswith("dummy://"):
         return _DummyStream(**kwargs)
     else:

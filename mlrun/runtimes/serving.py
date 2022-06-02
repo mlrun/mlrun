@@ -18,6 +18,7 @@ from copy import deepcopy
 from typing import List, Union
 
 import nuclio
+from nuclio import KafkaTrigger
 
 import mlrun
 import mlrun.api.schemas
@@ -434,9 +435,12 @@ class ServingRuntime(RemoteRuntime):
                 child_function = self._spec.function_refs[function_name]
                 trigger_args = stream.trigger_args or {}
                 if stream.path.startswith("kafka://"):
-                    child_function.function_object.add_trigger(
-                        stream.path, **trigger_args
+                    trigger = KafkaTrigger(
+                        brokers=stream.options["brokers"],
+                        topics=[stream.options["topic"]],
+                        **trigger_args,
                     )
+                    child_function.function_object.add_trigger(stream.path, trigger)
                 else:
                     child_function.function_object.add_v3io_stream_trigger(
                         stream.path, group=group, shards=stream.shards, **trigger_args

@@ -113,6 +113,51 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
+    project_name = "nuclio-kafka-project"
+    topic = "TestNuclioRuntimeWithKafka"
+    brokers = os.getenv("MLRUN_SYSTEM_TESTS_KAFKA_BROKERS")
+
+    def custom_teardown(self):
+        v3io_client = v3io.dataplane.Client(
+            endpoint=os.environ["V3IO_API"], access_key=os.environ["V3IO_ACCESS_KEY"]
+        )
+        v3io_client.delete_stream(
+            self.stream_container,
+            self.stream_path,
+            raise_for_status=RaiseForStatus.never,
+        )
+
+    @pytest.mark.skipif(
+        not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"
+    )
+    def test_serving_with_kafka_queue(self):
+        code_path = str(self.assets_path / "nuclio_function.py")
+        child_code_path = str(self.assets_path / "child_function.py")
+
+        self._logger.debug("Creating nuclio function")
+        function = mlrun.code_to_function(
+            name="function-with-child-kafka",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+
+        graph = function.set_topology("flow", engine="async")
+
+        graph.to(
+            ">>", "q1", path=f"kafka://", topic=self.topic, brokers=self.brokers
+        ).to(name="child", class_name="Identity", function="child")
+
+        function.add_child_function("child", child_code_path, "mlrun/mlrun")
+
+        self._logger.debug("Deploying nuclio function")
+        function.deploy()
+
+
+@tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
     project_name = "nuclio-mlrun-jobs"
 

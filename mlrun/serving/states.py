@@ -619,15 +619,11 @@ class QueueStep(BaseStep):
         name: str = None,
         path: str = None,
         after: list = None,
-        shards: int = None,
-        retention_in_hours: int = None,
         trigger_args: dict = None,
         **options,
     ):
         super().__init__(name, after)
         self.path = path
-        self.shards = shards
-        self.retention_in_hours = retention_in_hours
         self.options = options
         self.trigger_args = trigger_args
         self._stream = None
@@ -638,8 +634,7 @@ class QueueStep(BaseStep):
         if self.path:
             self._stream = get_stream_pusher(
                 self.path,
-                shards=self.shards,
-                retention_in_hours=self.retention_in_hours,
+                **self.options,
             )
         self._set_error_handler()
 

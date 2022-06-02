@@ -77,7 +77,7 @@ install-requirements: ## Install all requirements needed for development
 		-r extras-requirements.txt \
 		-r dev-requirements.txt \
 		-r dockerfiles/mlrun-api/requirements.txt \
-#		-r docs/requirements.txt
+		-r docs/requirements.txt
 
 .PHONY: create-migration-sqlite
 create-migration-sqlite: export MLRUN_HTTPDB__DSN="sqlite:///$(shell pwd)/mlrun/api/migrations_sqlite/mlrun.db?check_same_thread=false"

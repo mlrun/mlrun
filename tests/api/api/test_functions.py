@@ -1,4 +1,5 @@
 import asyncio
+import http
 import unittest.mock
 from http import HTTPStatus
 
@@ -139,3 +140,78 @@ def test_build_function_with_mlrun_bool(db: Session, client: TestClient):
             == with_mlrun
         )
     mlrun.api.api.endpoints.functions._build_function = original_build_function
+
+
+def test_start_function_succeeded(db: Session, client: TestClient, monkeypatch):
+    name = "dask"
+    project = "test-dask"
+    dask_cluster = mlrun.new_function(
+        name, project=project, kind="dask"
+    )
+    monkeypatch.setattr(
+        mlrun.api.api.endpoints.functions,
+        "_parse_start_function_body",
+        lambda *args, **kwargs: dask_cluster,
+    )
+    monkeypatch.setattr(
+        mlrun.api.api.endpoints.functions,
+        "_start_function",
+        lambda *args, **kwargs: unittest.mock.Mock(),
+    )
+    response = client.post(
+        "start/function",
+        json=mlrun.utils.generate_object_uri(
+            dask_cluster.metadata.project,
+            dask_cluster.metadata.name,
+        ),
+    )
+    assert response.status_code == http.HTTPStatus.OK.value
+    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.running
+
+    response = client.get(
+        f"projects/{project}/background-tasks/{background_task.metadata.name}"
+    )
+    assert response.status_code == http.HTTPStatus.OK.value
+    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+    assert (
+        background_task.status.state == mlrun.api.schemas.BackgroundTaskState.succeeded
+    )
+
+
+def test_start_function_fails(db: Session, client: TestClient, monkeypatch):
+    def failing_func():
+        raise mlrun.errors.MLRunRuntimeError()
+
+    name = "dask"
+    project = "test-dask"
+    dask_cluster = mlrun.new_function(
+        name, project=project, kind="dask"
+    )
+    monkeypatch.setattr(
+        mlrun.api.api.endpoints.functions,
+        "_parse_start_function_body",
+        lambda *args, **kwargs: dask_cluster,
+    )
+    monkeypatch.setattr(
+        mlrun.api.api.endpoints.functions,
+        "_start_function",
+        lambda *args, **kwargs: failing_func(),
+    )
+
+    response = client.post(
+        "start/function",
+        json=mlrun.utils.generate_object_uri(
+            dask_cluster.metadata.project,
+            dask_cluster.metadata.name,
+        ),
+    )
+    assert response.status_code == http.HTTPStatus.OK
+    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.running
+    response = client.get(
+        f"projects/{project}/background-tasks/{background_task.metadata.name}"
+    )
+    assert response.status_code == http.HTTPStatus.OK.value
+    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.failed

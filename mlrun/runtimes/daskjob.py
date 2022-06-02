@@ -616,10 +616,10 @@ def enrich_dask_cluster(function, secrets, client_version):
 
 def validate_dask_related_libraries_installed():
     try:
-        import dask
+        import dask  # noqa: F401
         from dask.distributed import Client, default_client  # noqa: F401
         from dask_kubernetes import KubeCluster, make_pod_spec  # noqa: F401
-        from kubernetes import client
+        from kubernetes import client  # noqa: F401
     except ImportError as exc:
         print(
             "missing dask or dask_kubernetes, please run "

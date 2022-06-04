@@ -30,7 +30,7 @@ COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/tutorial $HOME/_static/images
 COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/MLRun-logo.png $HOME/_static/images
 
 ARG MLRUN_CACHE_DATE=initial
-RUN git clone --branch 0.10.x https://github.com/mlrun/demos.git $HOME/demos
+RUN git clone --branch 1.0.x https://github.com/mlrun/demos.git $HOME/demos
 RUN git clone --branch master https://github.com/mlrun/functions.git $HOME/functions
 
 RUN mkdir data

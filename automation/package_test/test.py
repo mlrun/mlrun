@@ -1,3 +1,5 @@
+import json
+import re
 import subprocess
 
 import click
@@ -27,6 +29,7 @@ class PackageTester:
             "[complete-api]": {
                 "import_test_command": f"{basic_import}; {api_import}; {s3_import}; "
                 + f"{azure_blob_storage_import}; {azure_key_vault_import}",
+                "perform_vulnerability_check": True,
             },
             "[s3]": {"import_test_command": f"{basic_import}; {s3_import}"},
             "[azure-blob-storage]": {
@@ -45,6 +48,7 @@ class PackageTester:
             "[complete]": {
                 "import_test_command": f"{basic_import}; {s3_import}; {azure_blob_storage_import}; "
                 + f"{azure_key_vault_import}; {google_cloud_storage_import}",
+                "perform_vulnerability_check": True,
             },
         }
 
@@ -68,6 +72,13 @@ class PackageTester:
                 results,
                 "requirements_conflicts_test",
             )
+            if extra_tests_data.get("perform_vulnerability_check"):
+                self._run_test(
+                    self._test_requirements_vulnerabilities,
+                    extra,
+                    results,
+                    "requirements_conflicts_test",
+                )
             self._clean_venv()
 
         failed = False
@@ -112,6 +123,50 @@ class PackageTester:
                 run_in_venv=True,
                 env={"MLRUN_DBPATH": "http://mock-server"},
             )
+
+    def _test_requirements_vulnerabilities(self, extra):
+        self._logger.debug(
+            "Testing requirements vulnerabilities",
+            extra=extra,
+        )
+        self._run_command(
+            "pip install safety",
+            run_in_venv=True,
+        )
+        code, stdout, stderr = self._run_command(
+            "safety check --json",
+            run_in_venv=True,
+            raise_on_error=False,
+        )
+        if code != 0:
+            vulnerabilities = json.loads(stdout)
+            ignored_vulnerabilities = {
+                "kubernetes": {
+                    "pattern": r"^Kubernetes(.*)unfixed vulnerability, CVE-2021-29923(.*)",
+                    "reason": "Vulnerability not fixed, nothing we can do",
+                },
+                "mlrun": {
+                    "pattern": r"^Mlrun(.*)TensorFlow' \(2.4.1\)(.*)$",
+                    "reason": "Newer tensorflow versions are not compatible with our CUDA and rapids versions so we ca"
+                    "n't upgrade it",
+                },
+            }
+            filtered_vulnerabilities = []
+            for vulnerability in vulnerabilities:
+                if vulnerability[0] in ignored_vulnerabilities:
+                    ignored_vulnerability = ignored_vulnerabilities[vulnerability[0]]
+                    if re.match(ignored_vulnerability["pattern"], vulnerability[3]):
+                        continue
+                filtered_vulnerabilities.append(vulnerability)
+            if filtered_vulnerabilities:
+                message = "Found vulnerable requirements"
+                logger.warning(
+                    message,
+                    vulnerabilities=vulnerabilities,
+                    filtered_vulnerabilities=filtered_vulnerabilities,
+                    ignored_vulnerabilities=ignored_vulnerabilities,
+                )
+                raise AssertionError(message)
 
     def _test_requirements_conflicts(self, extra):
         self._logger.debug(
@@ -158,7 +213,7 @@ class PackageTester:
             run_in_venv=True,
         )
 
-    def _run_command(self, command, run_in_venv=False, env=None):
+    def _run_command(self, command, run_in_venv=False, env=None, raise_on_error=True):
         if run_in_venv:
             command = f". test-venv/bin/activate && {command}"
         try:
@@ -172,18 +227,18 @@ class PackageTester:
                 encoding="utf-8",
             )
         except subprocess.CalledProcessError as exc:
-            logger.warning(
-                "Command failed",
-                stdout=exc.stdout,
-                stderr=exc.stderr,
-                return_code=exc.returncode,
-                cmd=exc.cmd,
-                args=exc.args,
-            )
-            raise
-        output = process.stdout
-
-        return output
+            if raise_on_error:
+                logger.warning(
+                    "Command failed",
+                    stdout=exc.stdout,
+                    stderr=exc.stderr,
+                    return_code=exc.returncode,
+                    cmd=exc.cmd,
+                    args=exc.args,
+                )
+                raise
+            return exc.returncode, exc.stdout, exc.stderr
+        return process.returncode, process.stdout, process.stderr
 
 
 @click.group()

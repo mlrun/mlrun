@@ -569,7 +569,6 @@ def preview(
     options: InferOptions = None,
     verbose: bool = False,
     sample_size: int = None,
-    return_df: bool = True,
 ) -> pd.DataFrame:
     """run the ingestion pipeline with local DataFrame/file data and infer features schema and stats
 
@@ -593,7 +592,6 @@ def preview(
     :param options:        schema and stats infer options (:py:class:`~mlrun.feature_store.InferOptions`)
     :param verbose:        verbose log
     :param sample_size:    num of rows to sample from the dataset (for large datasets)
-    :param return_df:      indicate if to return a dataframe with the graph results
     """
     options = options if options is not None else InferOptions.default()
     if timestamp_key is not None:
@@ -641,8 +639,7 @@ def preview(
         source, featureset, entity_columns, options, sample_size=sample_size
     )
     featureset.save()
-    if return_df:
-        return df
+    return df
 
 
 def _run_ingestion_job(
@@ -757,6 +754,7 @@ def _ingest_with_spark(
     mlrun_context=None,
     namespace=None,
     overwrite=None,
+    return_df: bool = True,
 ):
     created_spark_context = False
     try:
@@ -872,7 +870,8 @@ def _ingest_with_spark(
             spark.stop()
             # We shouldn't return a dataframe that depends on a stopped context
             return
-    return df
+    if return_df:
+        return df
 
 
 def _post_ingestion(context, featureset, spark=None):

@@ -139,9 +139,7 @@ def test_create_background_task(
     assert response.status_code == http.HTTPStatus.OK.value
     background_task = mlrun.api.schemas.BackgroundTask(**response.json())
     assert background_task.metadata.project is None
-    assert background_task.metadata.timeout == int(
-        mlrun.mlconf.background_tasks.default_timeouts.default
-    )
+    assert background_task.metadata.timeout is None
 
 
 def test_get_background_task_auth_skip(

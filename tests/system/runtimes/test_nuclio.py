@@ -139,14 +139,11 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         graph.to(
             ">>",
             "q1",
-            path=f"kafka://a?bootstrap_servers={self.brokers}",
-            topic=self.topic,
-            brokers=self.brokers,
+            path=f"kafka://{self.brokers}/{self.topic}",
         ).to(name="child", class_name="Identity", function="child")
 
         function.add_child_function(
-            "child",
-            child_code_path,
+            "child", child_code_path, "mlrun/mlrun:1.1.0-rc3"
         )
 
         self._logger.debug("Deploying nuclio function")

@@ -427,7 +427,7 @@ class KafkaOutputStream:
     def __init__(
         self,
         topic,
-        brokers=None,
+        brokers,
         mock=False,
     ):
         self._kafka_producer = None

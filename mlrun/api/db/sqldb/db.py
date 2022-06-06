@@ -3131,14 +3131,12 @@ class SQLDB(DBInterface):
         if not background_task_record:
             if not raise_on_not_found:
                 return None
+            message = f"Background task not found: name={name}"
             if project:
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"Background task not found: name={name}, project={project}"
-                )
-            else:
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"Background task not found: name={name}"
-                )
+                message = f"{message}, project={project}"
+            raise mlrun.errors.MLRunNotFoundError(
+                message
+            )
         if self._is_background_task_timeout_exceeded(background_task_record):
             # lazy update of state, only if get background task was requested and the timeout for the update passed
             # and the task still in progress then we change to failed

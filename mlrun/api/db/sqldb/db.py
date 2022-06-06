@@ -3074,7 +3074,7 @@ class SQLDB(DBInterface):
             background_task_record = BackgroundTask(
                 name=name,
                 project=project,
-                state=mlrun.api.schemas.BackgroundTaskState.running,
+                state=state,
                 created=now,
                 updated=now,
                 timeout=timeout,

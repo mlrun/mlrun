@@ -3143,16 +3143,12 @@ class SQLDB(DBInterface):
     def _is_background_task_timeout_exceeded(background_task_record) -> bool:
         if mlrun.mlconf.background_tasks.timeout_mode == "enabled":
             timeout = background_task_record.timeout
-            timeout = (
-                timeout
-                if timeout
-                else int(mlrun.mlconf.background_tasks.default_timeouts.default)
-            )
             if (
+                timeout and
                 background_task_record.state
                 not in mlrun.api.schemas.BackgroundTaskState.terminal_states()
                 and datetime.utcnow()
-                > timedelta(seconds=timeout) + background_task_record.updated
+                > timedelta(seconds=int(timeout)) + background_task_record.updated
             ):
                 return True
         return False

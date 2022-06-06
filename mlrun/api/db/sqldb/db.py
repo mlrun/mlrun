@@ -1956,6 +1956,11 @@ class SQLDB(DBInterface):
         else:
             db_feature_set = FeatureSet(project=project, full_object=feature_set_dict)
 
+        if db_feature_set.publish_time:
+            raise mlrun.errors.MLRunBadRequestError(
+                "Cannot patch an already published Feature-set"
+            )
+
         self._update_db_record_from_object_dict(db_feature_set, feature_set_dict, uid)
 
         self._update_feature_set_spec(db_feature_set, feature_set_dict)
@@ -2032,6 +2037,11 @@ class SQLDB(DBInterface):
             feature_set_uri = generate_object_uri(project, name, tag)
             raise mlrun.errors.MLRunNotFoundError(
                 f"Feature-set not found {feature_set_uri}"
+            )
+
+        if feature_set_record.metadata.publish_time:
+            raise mlrun.errors.MLRunBadRequestError(
+                "Cannot patch an already published Feature-set"
             )
 
         feature_set_struct = feature_set_record.dict(exclude_none=True)

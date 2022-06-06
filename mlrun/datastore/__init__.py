@@ -29,6 +29,8 @@ __all__ = [
     "KafkaSource",
 ]
 
+from urllib.parse import urlparse
+
 from ..platforms.iguazio import KafkaOutputStream, OutputStream, parse_v3io_path
 from ..utils import logger
 from .base import DataItem
@@ -81,7 +83,12 @@ def get_stream_pusher(stream_path: str, **kwargs):
         endpoint, stream_path = parse_v3io_path(stream_path)
         return OutputStream(stream_path, endpoint=endpoint, **kwargs)
     elif stream_path.startswith("kafka://"):
-        return KafkaOutputStream(**kwargs)
+        bootstrap_servers = kwargs.get("bootstrap_servers", [])
+        url = urlparse(stream_path)
+        if url.netloc:
+            bootstrap_servers = [url.netloc] + bootstrap_servers
+        topic = url.path
+        return KafkaOutputStream(topic, bootstrap_servers)
     elif stream_path.startswith("dummy://"):
         return _DummyStream(**kwargs)
     else:

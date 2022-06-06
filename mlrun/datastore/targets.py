@@ -18,6 +18,7 @@ import typing
 import warnings
 from collections import Counter
 from copy import copy
+from urllib.parse import urlparse
 
 import pandas as pd
 
@@ -1165,7 +1166,6 @@ class KafkaTarget(BaseStoreTarget):
     def __init__(
         self,
         *args,
-        topic=None,
         bootstrap_servers=None,
         **kwargs,
     ):
@@ -1200,13 +1200,20 @@ class KafkaTarget(BaseStoreTarget):
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
 
+        bootstrap_servers = self.attributes.get("bootstrap_servers", [])
+        url = urlparse(self.path)
+        if url.netloc:
+            bootstrap_servers = [url.netloc] + bootstrap_servers
+        topic = url.path
+
         graph.add_step(
             name=self.name or "KafkaTarget",
             after=after,
             graph_shape="cylinder",
             class_name="storey.KafkaTarget",
             columns=column_list,
-            **self.attributes,
+            topic=topic,
+            bootstrap_servers=bootstrap_servers,
         )
 
     def as_df(self, columns=None, df_module=None, **kwargs):

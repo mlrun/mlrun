@@ -1415,10 +1415,13 @@ def _init_async_objects(context, steps):
                     stream_path = step.path
                     endpoint = None
                     if stream_path.startswith("kafka://"):
-                        start = len("kafka://")
-                        topic = stream_path[start:]
+                        bootstrap_servers = step.trigger_args.get(
+                            "bootstrap_servers", []
+                        )
                         url = urlparse(stream_path)
-                        bootstrap_servers = parse_qs(url.query)["bootstrap_servers"][0]
+                        if url.netloc:
+                            bootstrap_servers = [url.netloc] + bootstrap_servers
+                        topic = url.path
                         step._async_object = storey.KafkaTarget(
                             topic=topic,
                             bootstrap_servers=bootstrap_servers,

@@ -2622,13 +2622,17 @@ class TestFeatureStore(TestMLRunSystem):
 
         # after publish check that status contains the targets on published and removed on un-versioned
         published_fset = fset.publish(tag)
-        assert not fset.status.targets
         validate_targets(published_fset, {"o1", "o2", "t1", "t2"})
 
         # also check that targets exists under status in fset_from_db
         db = mlrun.get_run_db()
         fset_from_db = db.get_feature_set(name, tag=tag)
         validate_targets(fset_from_db, {"o1", "o2", "t1", "t2"})
+
+        # check that targets on un-versioned fset are empty
+        assert not fset.status.targets
+        fset.reload()
+        assert not fset.status.targets
 
     @pytest.mark.skip("wait for full publish implementation")
     def test_published_feature_set_apis(self):

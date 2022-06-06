@@ -1,7 +1,16 @@
 # Installation and setup guide <!-- omit in toc -->
 
 This guide outlines the steps for installing and running MLRun. 
-Once MLRun is installed you can access it remotely from your IDE (PyCharm or VSCode), read [**how to setup your IDE environment**](./install/remote.md). 
+
+## Overview
+
+- Install the MLRun service [locally using Docker](https://docs.mlrun.org/en/latest/install/local-docker.html) or [over Kubernetes Cluster](https://docs.mlrun.org/en/latest/install/kubernetes.html). Alternatively, you can use [Iguazio's managed MLRun service](https://www.iguazio.com/docs/latest-release/).
+- [Set up your client environment](https://docs.mlrun.org/en/latest/install/remote.html) to work with the local or remote MLRun service.
+
+Once you have installed and configured MLRun, follow the [Quick Start tutorial](./docs.mlrun.org/en/latest/quick-start/quick-start.html) and [Additional Tutorials and Examples](./docs.mlrun.org/en/latest/howto/index.html) to learn how to use MLRun to develop and deploy machine 
+learning applications to production.
+
+For interactive installation and usage tutorials, try the [MLRun Katakoda Scenarios](https://www.katacoda.com/mlrun).
 
 **Installation options:**
 ```{toctree}

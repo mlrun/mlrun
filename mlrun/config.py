@@ -118,6 +118,8 @@ default_config = {
     "default_tensorboard_logs_path": "/User/.tensorboard/{{project}}",
     # ";" separated list of notebook cell tag names to ignore e.g. "ignore-this;ignore-that"
     "ignored_notebook_tags": "",
+    # when set it will force the local=True in run_function(), set to "auto" will run local if there is no k8s
+    "force_run_local": "auto",
     "function_defaults": {
         "image_by_kind": {
             "job": "mlrun/mlrun",
@@ -249,7 +251,7 @@ default_config = {
             # pip install <requirement_specifier>, e.g. mlrun==0.5.4, mlrun~=0.5,
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
             "mlrun_version_specifier": "",
-            "kaniko_image": "gcr.io/kaniko-project/executor:v1.6.0",  # kaniko builder image
+            "kaniko_image": "gcr.io/kaniko-project/executor:v1.8.0",  # kaniko builder image
             "kaniko_init_container_image": "alpine:3.13.1",
             # additional docker build args in json encoded base64 format
             "build_args": "",
@@ -431,7 +433,7 @@ class Config:
     ):
         """
         decodes and loads the config attribute to expected type
-        :param attribute_path: the path in the default_config e.g preemptible_nodes.node_selector
+        :param attribute_path: the path in the default_config e.g. preemptible_nodes.node_selector
         :param expected_type: the object type valid values are : `dict`, `list` etc...
         :return: the expected type instance
         """
@@ -581,8 +583,8 @@ class Config:
     ):
         """
         :param requirement: kubernetes requirement resource one of the following : requests, limits
-        :param with_gpu: whether to return requirement resources with nvidia.com/gpu field (e.g you cannot specify GPU
-         requests without specifying GPU limits) https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
+        :param with_gpu: whether to return requirement resources with nvidia.com/gpu field (e.g. you cannot specify
+         GPU requests without specifying GPU limits) https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
         :return: a dict containing the defaults resources (cpu, memory, nvidia.com/gpu)
         """
         resources: dict = copy.deepcopy(config.default_function_pod_resources.to_dict())
@@ -694,6 +696,11 @@ class Config:
     @iguazio_api_url.setter
     def iguazio_api_url(self, value):
         self._iguazio_api_url = value
+
+    def is_api_running_on_k8s(self):
+        # determine if the API service is attached to K8s cluster
+        # when there is a cluster the .namespace is set
+        return True if mlrun.mlconf.namespace else False
 
 
 # Global configuration

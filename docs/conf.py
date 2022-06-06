@@ -95,7 +95,7 @@ html_title = ""
 html_logo = "./MLRun_Character.png"
 html_favicon = "./favicon.ico"
 extra_navbar = "<p>Your HTML</p>"
-jupyter_execute_notebooks = "off"
+nb_execution_mode = "off"
 html_sourcelink_suffix = ""
 autoclass_content = "both"
 
@@ -130,11 +130,12 @@ myst_enable_extensions = [
     "replacements",
     "linkify",
     "substitution",
-    "myst_nb",
 ]
 myst_url_schemes = ("http", "https", "mailto")
+myst_heading_anchors = 2
 panels_add_bootstrap_css = False
-
+myst_all_links_external = True
+myst_substitutions = {"version": version}
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True

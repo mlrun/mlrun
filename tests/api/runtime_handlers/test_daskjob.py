@@ -11,6 +11,7 @@ from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
     def custom_setup(self):
+        self.kind = RuntimeKinds.dask
         self.runtime_handler = get_runtime_handler(RuntimeKinds.dask)
         self.runtime_handler.wait_for_deletion_interval = 0
 

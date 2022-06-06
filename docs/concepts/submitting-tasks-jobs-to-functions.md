@@ -2,7 +2,7 @@
 
 MLRun batch function objects support a {py:meth}`~mlrun.runtimes.BaseRuntime.run` method for invoking a job over them. 
 The run method accepts various parameters such as `name`, `handler`, `params`, `inputs`, `schedule`, etc. 
-Alternatively you can pass a **`Task`** object (see: {py:func}`~mlrun.model.new_task`) that holds all of the 
+Alternatively, you can pass a **`Task`** object (see: {py:func}`~mlrun.model.new_task`) that holds all of the 
 parameters plus the advanced options. 
 
 ```{admonition} Run/simulate functions locally: 

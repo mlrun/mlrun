@@ -48,6 +48,12 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         else:
             assert "javaOptions" not in body["spec"]["executor"]
 
+    @staticmethod
+    def _assert_cores(body: dict, expected_cores: dict):
+        for resource in ["executor", "driver"]:
+            if expected_cores.get(resource):
+                assert body[resource]["cores"] == expected_cores[resource]
+
     def _assert_custom_object_creation_config(
         self,
         expected_runtime_class_name="spark",
@@ -59,6 +65,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         expected_executor_java_options=None,
         expected_driver_resources: dict = None,
         expected_executor_resources: dict = None,
+        expected_cores: dict = None,
     ):
         if assert_create_custom_object_called:
             mlrun.api.utils.singletons.k8s.get_k8s().crdapi.create_namespaced_custom_object.assert_called_once()
@@ -84,6 +91,9 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             self._assert_resources(
                 body["spec"]["executor"], expected_executor_resources
             )
+
+        if expected_cores:
+            self._assert_cores(body["spec"], expected_cores)
 
     def _assert_volume_and_mounts(
         self,
@@ -183,10 +193,17 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         runtime.with_driver_requests(cpu="2", mem="512m")
         runtime.with_driver_limits(cpu="3", gpus=1)
 
+        expected_cores = {
+            "executor": 8,
+            "driver": 2,
+        }
+        runtime.with_cores(expected_cores["executor"], expected_cores["driver"])
+
         self.execute_function(runtime)
         self._assert_custom_object_creation_config(
             expected_driver_resources=expected_driver,
             expected_executor_resources=expected_executor,
+            expected_cores=expected_cores,
         )
 
     def test_run_with_host_path_volume(
@@ -269,3 +286,38 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             expected_driver_java_options=driver_java_options,
             expected_executor_java_options=executor_java_options,
         )
+
+    @pytest.mark.parametrize(
+        "executor_cores, driver_cores, expect_failure",
+        [
+            (4, None, False),
+            (3, 3, False),
+            (None, 2, False),
+            (None, None, False),
+            (0.5, None, True),
+            (None, -1, True),
+        ],
+    )
+    def test_cores(
+        self,
+        executor_cores,
+        driver_cores,
+        expect_failure,
+        db: sqlalchemy.orm.Session,
+        client: fastapi.testclient.TestClient,
+    ):
+        runtime = self._generate_runtime()
+        if expect_failure:
+            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+                runtime.with_cores(
+                    executor_cores=executor_cores, driver_cores=driver_cores
+                )
+            return
+        else:
+            runtime.with_cores(executor_cores=executor_cores, driver_cores=driver_cores)
+
+        # By default, if not specified otherwise, the cores are set to 1
+        expected_cores = {"executor": executor_cores or 1, "driver": driver_cores or 1}
+
+        self.execute_function(runtime)
+        self._assert_custom_object_creation_config(expected_cores=expected_cores)

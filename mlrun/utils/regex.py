@@ -33,7 +33,7 @@ run_name = label_value
 # The names of the generated resources are in the format: [function_name]-[uid*8]-[generated_resource_name]
 #   function_name - the name provided by the user
 #   uid*8 - is 8 characters generated in mlrun to give the resources a guaranteed unique name.
-#   generated_resource_name - for each resource added a describing suffix (e.g driver) in that case
+#   generated_resource_name - for each resource added a describing suffix (e.g. driver) in that case
 #       the longest suffix is "-[uid*13]-driver-svc" which contains 25 characters. Therefore the limit should be
 #       63 - 25 - 9 = 29
 #       NOTE: If a name is between 30-33 characters - the function will complete successfully without creating the

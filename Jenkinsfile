@@ -12,7 +12,7 @@ podTemplate(
     label: podLabel,
     containers: [
         containerTemplate(name: 'jnlp', image: 'jenkins/jnlp-slave:4.0.1-1', workingDir: workDir, resourceRequestCpu: '2000m', resourceLimitCpu: '2000m', resourceRequestMemory: '2048Mi', resourceLimitMemory: '2048Mi'),
-        containerTemplate(name: 'base-build', image: 'iguazioci/alpine-base-build:ae7e534841e68675d15f4bd98f07197aed5591af', workingDir: workDir, ttyEnabled: true, command: 'cat'),
+        containerTemplate(name: 'base-build', image: 'iguazioci/alpine-base-build:ae7e534841e68675d15f4bd98f07197aed5591af', workingDir: workDir, resourceRequestCpu: '4000m', resourceLimitCpu: '4000m', resourceRequestMemory: '5048Mi', resourceLimitMemory: '5048Mi', ttyEnabled: true, command: 'cat'),
         containerTemplate(name: 'python37', image: 'python:3.7-stretch', workingDir: workDir, ttyEnabled: true, command: 'cat'),
     ],
     volumes: [
@@ -33,33 +33,113 @@ podTemplate(
                         println(common.shellc("MLRUN_VERSION=${dockerTag} make api"))
                     }
                     dockerx.images_push_multi_registries(["${gitProject}/mlrun-api:${dockerTag}"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
+                }
+            }
+        }
+    }
+    node(podLabel) {
+        common.notify_slack {
+            withCredentials([
+                string(credentialsId: 'iguazio-prod-git-user-token', variable: 'GIT_TOKEN')
+            ]) {
+
+                container('base-build') {
+                    stage("git clone") {
+                        checkout scm
+                    }
 
                     stage("build ${gitProject}/mlrun in dood") {
                         println(common.shellc("MLRUN_VERSION=${dockerTag} make mlrun"))
                     }
                     dockerx.images_push_multi_registries(["${gitProject}/mlrun:${dockerTag}"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
+                }
+            }
+        }
+    }
+
+    node(podLabel) {
+        common.notify_slack {
+            withCredentials([
+                string(credentialsId: 'iguazio-prod-git-user-token', variable: 'GIT_TOKEN')
+            ]) {
+
+                container('base-build') {
+                    stage("git clone") {
+                        checkout scm
+                    }
 
                     stage("build ${gitProject}/jupyter in dood") {
                         println(common.shellc("MLRUN_VERSION=${dockerTag} make jupyter"))
                     }
                     dockerx.images_push_multi_registries(["${gitProject}/jupyter:${dockerTag}"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
+                }
+            }
+        }
+    }
+
+    node(podLabel) {
+        common.notify_slack {
+            withCredentials([
+                string(credentialsId: 'iguazio-prod-git-user-token', variable: 'GIT_TOKEN')
+            ]) {
+
+                container('base-build') {
+                    stage("git clone") {
+                        checkout scm
+                    }
 
                     stage("build ${gitProject}/base in dood") {
                         println(common.shellc("MLRUN_VERSION=${dockerTag} make base"))
                     }
                     dockerx.images_push_multi_registries(["${gitProject}/ml-base:${dockerTag}"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
+                }
+            }
+        }
+    }
 
+    node(podLabel) {
+        common.notify_slack {
+            withCredentials([
+                string(credentialsId: 'iguazio-prod-git-user-token', variable: 'GIT_TOKEN')
+            ]) {
+
+                container('base-build') {
+                    stage("git clone") {
+                        checkout scm
+                    }
                     stage("build ${gitProject}/models in dood") {
                         println(common.shellc("MLRUN_VERSION=${dockerTag} make models"))
                     }
                     dockerx.images_push_multi_registries(["${gitProject}/ml-models:${dockerTag}"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
+                }
+            }
+        }
+    }
 
+    node(podLabel) {
+        common.notify_slack {
+            withCredentials([
+                string(credentialsId: 'iguazio-prod-git-user-token', variable: 'GIT_TOKEN')
+            ]) {
+
+                container('base-build') {
+                    stage("git clone") {
+                        checkout scm
+                    }
                     stage("build ${gitProject}/models-gpu in dood") {
                         println(common.shellc("MLRUN_VERSION=${dockerTag} make models-gpu"))
                     }
                     dockerx.images_push_multi_registries(["${gitProject}/ml-models-gpu:${dockerTag}"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
-
                 }
+            }
+        }
+    }
+
+    node(podLabel) {
+        common.notify_slack {
+            withCredentials([
+                string(credentialsId: 'iguazio-prod-git-user-token', variable: 'GIT_TOKEN')
+            ]) {
 
                 container('jnlp') {
                     common.conditional_stage('Create mlrun/ui release', "${env.TAG_NAME}" != "unstable") {
@@ -77,9 +157,20 @@ podTemplate(
                         ui_github_client.createRelease(source_branch, env.TAG_NAME, true, true)
                     }
                 }
+            }
+        }
+    }
+
+    node(podLabel) {
+        common.notify_slack {
 
                 common.conditional_stage('Upload to PyPi', "${env.TAG_NAME}" != "unstable") {
                     container('python37') {
+                        withCredentials([
+                            string(credentialsId: 'iguazio-prod-git-user-token', variable: 'GIT_TOKEN')
+                            ]) {
+                                checkout scm
+                            }
                         withCredentials([
                             usernamePassword(
                                 credentialsId: 'iguazio-prod-pypi-credentials',
@@ -101,7 +192,7 @@ podTemplate(
                         }
                     }
                 }
-            }
+
         }
     }
 }

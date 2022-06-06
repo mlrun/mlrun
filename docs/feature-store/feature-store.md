@@ -37,7 +37,7 @@ from average, pattern on image, etc.).
 - **Feature set** &mdash;  A grouping of features that are ingested together and stored in a logical group. Feature sets take data from 
 offline or online sources, build a list of features through a set of transformations, and store the resulting features, along with the 
 associated metadata and statistics. For example, a transaction may be grouped by the ID of a person performing the transfer or by the device 
-identifier used to perform the transaction. You can also define in the the timestamp source in the feature set, and ingest data into a 
+identifier used to perform the transaction. You can also define in the timestamp source in the feature set, and ingest data into a 
 feature set. See more details in [feature sets](transformations.md).
 - **Execution graph** &mdash; A set of operations performed on the data while it is ingested. The graph contains steps that represent 
 data sources and targets, and can also contain steps that transform and enrich the data that is passed through the feature set.

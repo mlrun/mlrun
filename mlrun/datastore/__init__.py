@@ -29,8 +29,6 @@ __all__ = [
     "KafkaSource",
 ]
 
-from urllib.parse import urlparse
-
 from ..platforms.iguazio import KafkaOutputStream, OutputStream, parse_v3io_path
 from ..runtimes.utils import parse_kafka_url
 from ..utils import logger

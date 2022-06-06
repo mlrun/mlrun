@@ -2555,7 +2555,7 @@ class TestFeatureStore(TestMLRunSystem):
         target_path_template = base_target_path + "{name}/{run_id}/"
         name = "targets-publish-test"
         tag = f"tag-{time.time()}"
-        fset = fs.FeatureSet(name, entities=[fs.Entity("ticker")], engine="pandas")
+        fset = fs.FeatureSet(name, entities=[fs.Entity("ticker")])
 
         def validate_target_path(target):
             assert target.get_path().get_absolute_path() == target_path_template.format(
@@ -2579,7 +2579,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         other_targets = [
             ParquetTarget(name="o1", path=f"{base_target_path}o1/"),
-            CSVTarget(name="o2", path=f"{base_target_path}o2/"),
+            ParquetTarget(name="o2", path=f"{base_target_path}o2/"),
         ]
         fset_targets = [
             ParquetTarget(name="t1", path=f"{base_target_path}t1/"),

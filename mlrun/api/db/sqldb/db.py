@@ -3059,7 +3059,7 @@ class SQLDB(DBInterface):
                 and state != background_task_record.state
             ):
                 raise mlrun.errors.MLRunRuntimeError(
-                    "Background task already exists with terminal state. failing"
+                    "Background task already reached terminal state can not change to another state. Failing"
                 )
             # we don't set default background task timeout, to be able to resolve the timeout when the API
             # queries the record, so even if the API restarts with new default timeout it will apply the new timeout

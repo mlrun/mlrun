@@ -354,6 +354,7 @@ with warnings.catch_warnings():
         )
         state = Column(String(255, collation=SQLCollationUtil.collation()))
         uid = Column(String(255, collation=SQLCollationUtil.collation()))
+        publish_time = Column(sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), nullable=True)
 
         _full_object = Column("object", JSON)
 

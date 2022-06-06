@@ -23,6 +23,7 @@ from nuclio import KafkaTrigger
 import mlrun
 import mlrun.api.schemas
 
+from ..datastore import parse_kafka_url
 from ..model import ObjectList
 from ..secrets import SecretsStore
 from ..serving.server import GraphServer, create_graph_server
@@ -435,9 +436,13 @@ class ServingRuntime(RemoteRuntime):
                 child_function = self._spec.function_refs[function_name]
                 trigger_args = stream.trigger_args or {}
                 if stream.path.startswith("kafka://"):
+                    brokers = stream.options["brokers"]
+                    if brokers:
+                        brokers = brokers.split(",")
+                    topic, brokers = parse_kafka_url(stream.path, brokers)
                     trigger = KafkaTrigger(
-                        brokers=stream.options["brokers"].split(","),
-                        topics=[stream.options["topic"]],
+                        brokers=brokers,
+                        topics=[topic],
                         **trigger_args,
                     )
                     child_function.function_object.add_trigger("kafka", trigger)

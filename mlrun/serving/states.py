@@ -1417,7 +1417,9 @@ def _init_async_objects(context, steps):
                     if stream_path.startswith("kafka://"):
                         bootstrap_servers = None
                         if step.trigger_args:
-                            bootstrap_servers = step.trigger_args.get("bootstrap_servers")
+                            bootstrap_servers = step.trigger_args.get(
+                                "bootstrap_servers"
+                            )
                         topic, bootstrap_servers = parse_kafka_url(
                             stream_path, bootstrap_servers
                         )

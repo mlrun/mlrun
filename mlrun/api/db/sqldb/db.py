@@ -3144,8 +3144,8 @@ class SQLDB(DBInterface):
         if mlrun.mlconf.background_tasks.timeout_mode == "enabled":
             timeout = background_task_record.timeout
             if (
-                timeout and
-                background_task_record.state
+                timeout
+                and background_task_record.state
                 not in mlrun.api.schemas.BackgroundTaskState.terminal_states()
                 and datetime.utcnow()
                 > timedelta(seconds=int(timeout)) + background_task_record.updated

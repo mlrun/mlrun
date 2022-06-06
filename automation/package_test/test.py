@@ -140,6 +140,11 @@ class PackageTester:
         )
         if code != 0:
             vulnerabilities = json.loads(stdout)
+            if vulnerabilities:
+                self._logger.debug(
+                    "Found requirements vulnerabilities",
+                    vulnerabilities=vulnerabilities,
+                )
             ignored_vulnerabilities = {
                 "kubernetes": {
                     "pattern": r"^Kubernetes(.*)unfixed vulnerability, CVE-2021-29923(.*)",
@@ -150,16 +155,26 @@ class PackageTester:
                     "reason": "Newer tensorflow versions are not compatible with our CUDA and rapids versions so we ca"
                     "n't upgrade it",
                 },
+                "numpy": {
+                    "pattern": r"(.*)",
+                    "reason": "Storey require numpy <1.22 and the vulnerabilities fixed after this version, so we're "
+                    "waiting for Storey to release a version that supports the newer numpy and then we'll fix"
+                    " it as well",
+                },
             }
             filtered_vulnerabilities = []
             for vulnerability in vulnerabilities:
                 if vulnerability[0] in ignored_vulnerabilities:
                     ignored_vulnerability = ignored_vulnerabilities[vulnerability[0]]
                     if re.match(ignored_vulnerability["pattern"], vulnerability[3]):
+                        self._logger.debug(
+                            "Ignoring vulnerability",
+                            vulnerability=vulnerability,
+                        )
                         continue
                 filtered_vulnerabilities.append(vulnerability)
             if filtered_vulnerabilities:
-                message = "Found vulnerable requirements"
+                message = "Found vulnerable requirements that can not be ignored"
                 logger.warning(
                     message,
                     vulnerabilities=vulnerabilities,

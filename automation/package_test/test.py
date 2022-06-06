@@ -146,31 +146,57 @@ class PackageTester:
                     vulnerabilities=vulnerabilities,
                 )
             ignored_vulnerabilities = {
-                "kubernetes": {
-                    "pattern": r"^Kubernetes(.*)unfixed vulnerability, CVE-2021-29923(.*)",
-                    "reason": "Vulnerability not fixed, nothing we can do",
-                },
-                "mlrun": {
-                    "pattern": r"^Mlrun(.*)TensorFlow' \(2.4.1\)(.*)$",
-                    "reason": "Newer tensorflow versions are not compatible with our CUDA and rapids versions so we ca"
-                    "n't upgrade it",
-                },
-                "numpy": {
-                    "pattern": r"(.*)",
-                    "reason": "Storey require numpy <1.22 and the vulnerabilities fixed after this version, so we're "
-                    "waiting for Storey to release a version that supports the newer numpy and then we'll fix"
-                    " it as well",
-                },
+                "kubernetes": [
+                    {
+                        "pattern": r"^Kubernetes(.*)unfixed vulnerability, CVE-2021-29923(.*)",
+                        "reason": "Vulnerability not fixed, nothing we can do",
+                    }
+                ],
+                "mlrun": [
+                    {
+                        "pattern": r"^Mlrun(.*)TensorFlow' \(2.4.1\)(.*)$",
+                        "reason": "Newer tensorflow versions are not compatible with our CUDA and rapids versions so we"
+                        " can't upgrade it",
+                    },
+                    {
+                        "pattern": r"(.*)"
+                        r"("
+                        r"https://github\.com/mlrun/mlrun/pull/1997/commits/de4c87f478f8d76dd8e46942588c81e"
+                        r"f0d0b481e"
+                        r"|"
+                        r"1\.0\.3rc1 adds \"notebook~=6\.4"
+                        r"|"
+                        r"1\.0\.3rc1 adds \"pillow~=9\.0"
+                        r")"
+                        r"(.*)",
+                        "reason": "Those already fixed, we're getting them only because in our CI our version is "
+                        "0.0.0+unstable",
+                    },
+                ],
+                "numpy": [
+                    {
+                        "pattern": r"(.*)",
+                        "reason": "Storey require numpy <1.22 and the vulnerabilities fixed after this version, so "
+                        "we're waiting for Storey to release a version that supports the newer numpy and then"
+                        " we'll fix it as well",
+                    },
+                ],
             }
             filtered_vulnerabilities = []
             for vulnerability in vulnerabilities:
                 if vulnerability[0] in ignored_vulnerabilities:
                     ignored_vulnerability = ignored_vulnerabilities[vulnerability[0]]
-                    if re.match(ignored_vulnerability["pattern"], vulnerability[3]):
-                        self._logger.debug(
-                            "Ignoring vulnerability",
-                            vulnerability=vulnerability,
-                        )
+                    ignore_vulnerability = False
+                    for ignored_pattern in ignored_vulnerability:
+                        if re.search(ignored_pattern["pattern"], vulnerability[3]):
+                            self._logger.debug(
+                                "Ignoring vulnerability",
+                                vulnerability=vulnerability,
+                                reason=ignored_pattern["reason"],
+                            )
+                            ignore_vulnerability = True
+                            break
+                    if ignore_vulnerability:
                         continue
                 filtered_vulnerabilities.append(vulnerability)
             if filtered_vulnerabilities:

@@ -23,6 +23,7 @@ import mlrun.runtimes.function
 import mlrun.utils.helpers
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
+from mlrun.utils import logger
 
 
 class ModelEndpoints:
@@ -38,7 +39,7 @@ class ModelEndpoints:
         """
 
         if model_endpoint.spec.model_uri or model_endpoint.status.feature_stats:
-            mlrun.utils.helpers.logger.info(
+            logger.info(
                 "Getting feature metadata",
                 project=model_endpoint.metadata.project,
                 model=model_endpoint.spec.model,
@@ -48,7 +49,7 @@ class ModelEndpoints:
 
         # If model artifact was supplied, grab model meta data from artifact
         if model_endpoint.spec.model_uri:
-            mlrun.utils.helpers.logger.info(
+            logger.info(
                 "Getting model object, inferring column names and collecting feature stats"
             )
             run_db = mlrun.api.api.utils.get_run_db_instance(db_session)
@@ -76,9 +77,7 @@ class ModelEndpoints:
         # of the features. If feature_names was supplied, replace the names set in feature_stats, otherwise - make
         # sure to keep a clean version of the names
         if model_endpoint.status.feature_stats:
-            mlrun.utils.helpers.logger.info(
-                "Feature stats found, cleaning feature names"
-            )
+            logger.info("Feature stats found, cleaning feature names")
             if model_endpoint.spec.feature_names:
                 if len(model_endpoint.status.feature_stats) != len(
                     model_endpoint.spec.feature_names
@@ -104,16 +103,14 @@ class ModelEndpoints:
             model_endpoint.status.feature_stats = clean_feature_stats
             model_endpoint.spec.feature_names = clean_feature_names
 
-            mlrun.utils.helpers.logger.info(
+            logger.info(
                 "Done preparing feature names and stats",
                 feature_names=model_endpoint.spec.feature_names,
             )
 
         # If none of the above was supplied, feature names will be assigned on first contact with the model monitoring
         # system
-        mlrun.utils.helpers.logger.info(
-            "Updating model endpoint", endpoint_id=model_endpoint.metadata.uid
-        )
+        logger.info("Updating model endpoint", endpoint_id=model_endpoint.metadata.uid)
 
         self.write_endpoint_to_kv(
             access_key=access_key,
@@ -121,9 +118,7 @@ class ModelEndpoints:
             update=True,
         )
 
-        mlrun.utils.helpers.logger.info(
-            "Model endpoint updated", endpoint_id=model_endpoint.metadata.uid
-        )
+        logger.info("Model endpoint updated", endpoint_id=model_endpoint.metadata.uid)
 
         return model_endpoint
 
@@ -142,18 +137,14 @@ class ModelEndpoints:
         :param endpoint_id: The id of the endpoint
         :param access_key: access key with permission to delete
         """
-        mlrun.utils.helpers.logger.info(
-            "Clearing model endpoint table", endpoint_id=endpoint_id
-        )
+        logger.info("Clearing model endpoint table", endpoint_id=endpoint_id)
         client = mlrun.utils.v3io_clients.get_v3io_client(
-            endpoint=mlrun.config.config.v3io_api
+            endpoint=mlrun.mlconf.v3io_api
         )
 
-        path = (
-            mlrun.config.config.model_endpoint_monitoring.store_prefixes.default.format(
-                project=project,
-                kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
-            )
+        path = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
+            project=project,
+            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         (
             _,
@@ -168,9 +159,7 @@ class ModelEndpoints:
             access_key=access_key,
         )
 
-        mlrun.utils.helpers.logger.info(
-            "Model endpoint table cleared", endpoint_id=endpoint_id
-        )
+        logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
 
     def list_endpoints(
         self,
@@ -212,7 +201,7 @@ class ModelEndpoints:
         :param uids: will return ModelEndpointList of endpoints with uid in uids
         """
 
-        mlrun.utils.helpers.logger.info(
+        logger.info(
             "Listing endpoints",
             project=project,
             model=model,
@@ -231,10 +220,10 @@ class ModelEndpoints:
 
         if uids is None:
             client = mlrun.utils.v3io_clients.get_v3io_client(
-                endpoint=mlrun.config.config.v3io_api
+                endpoint=mlrun.mlconf.v3io_api
             )
 
-            path = mlrun.config.config.model_endpoint_monitoring.store_prefixes.default.format(
+            path = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                 project=project,
                 kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
             )
@@ -299,20 +288,18 @@ class ModelEndpoints:
         the output of the resulting object
         """
         access_key = self.get_access_key(auth_info)
-        mlrun.utils.helpers.logger.info(
+        logger.info(
             "Getting model endpoint record from kv",
             endpoint_id=endpoint_id,
         )
 
         client = mlrun.utils.v3io_clients.get_v3io_client(
-            endpoint=mlrun.config.config.v3io_api
+            endpoint=mlrun.mlconf.v3io_api
         )
 
-        path = (
-            mlrun.config.config.model_endpoint_monitoring.store_prefixes.default.format(
-                project=project,
-                kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
-            )
+        path = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
+            project=project,
+            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         (
             _,
@@ -465,15 +452,13 @@ class ModelEndpoints:
         children_uids = endpoint.status.children_uids or []
 
         client = mlrun.utils.v3io_clients.get_v3io_client(
-            endpoint=mlrun.config.config.v3io_api
+            endpoint=mlrun.mlconf.v3io_api
         )
         function = client.kv.update if update else client.kv.put
 
-        path = (
-            mlrun.config.config.model_endpoint_monitoring.store_prefixes.default.format(
-                project=endpoint.metadata.project,
-                kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
-            )
+        path = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
+            project=endpoint.metadata.project,
+            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         (
             _,
@@ -526,10 +511,8 @@ class ModelEndpoints:
                 "Metric names must be provided"
             )
 
-        path = (
-            mlrun.config.config.model_endpoint_monitoring.store_prefixes.default.format(
-                project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS
-            )
+        path = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
+            project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS
         )
         (
             _,
@@ -539,7 +522,7 @@ class ModelEndpoints:
 
         client = mlrun.utils.v3io_clients.get_frames_client(
             token=access_key,
-            address=mlrun.config.config.v3io_framesd,
+            address=mlrun.mlconf.v3io_framesd,
             container=container,
         )
 
@@ -568,9 +551,7 @@ class ModelEndpoints:
                     name=metric, values=values
                 )
         except v3io_frames.errors.ReadError:
-            mlrun.utils.helpers.logger.warn(
-                f"failed to read tsdb for endpoint {endpoint_id}"
-            )
+            logger.warn(f"failed to read tsdb for endpoint {endpoint_id}")
         return metrics_mapping
 
     def verify_project_has_no_model_endpoints(self, project_name: str):
@@ -578,7 +559,7 @@ class ModelEndpoints:
             data_session=os.getenv("V3IO_ACCESS_KEY")
         )
 
-        if not mlrun.config.config.igz_version or not mlrun.config.config.v3io_api:
+        if not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api:
             return
 
         endpoints = self.list_endpoints(auth_info, project_name)
@@ -595,7 +576,7 @@ class ModelEndpoints:
 
         # we would ideally base on config.v3io_api but can't for backwards compatibility reasons,
         # we're using the igz version heuristic
-        if not mlrun.config.config.igz_version or not mlrun.config.config.v3io_api:
+        if not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api:
             return
 
         endpoints = self.list_endpoints(auth_info, project_name)
@@ -608,14 +589,12 @@ class ModelEndpoints:
             )
 
         v3io = mlrun.utils.v3io_clients.get_v3io_client(
-            endpoint=mlrun.config.config.v3io_api, access_key=access_key
+            endpoint=mlrun.mlconf.v3io_api, access_key=access_key
         )
 
-        path = (
-            mlrun.config.config.model_endpoint_monitoring.store_prefixes.default.format(
-                project=project_name,
-                kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
-            )
+        path = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
+            project=project_name,
+            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         tsdb_path = mlrun.utils.model_monitoring.parse_model_endpoint_project_prefix(
             path, project_name
@@ -629,7 +608,7 @@ class ModelEndpoints:
         frames = mlrun.utils.v3io_clients.get_frames_client(
             token=access_key,
             container=container,
-            address=mlrun.config.config.v3io_framesd,
+            address=mlrun.mlconf.v3io_framesd,
         )
         try:
             all_records = v3io.kv.new_cursor(
@@ -654,7 +633,7 @@ class ModelEndpoints:
             # KV might raise an exception even it was set not raise one.  exception is raised if path is empty or
             # not exist, therefore ignoring failures until they'll fix the bug.
             # TODO: remove try except after bug is fixed
-            mlrun.utils.helpers.logger.debug(
+            logger.debug(
                 "Failed cleaning model endpoints KV. Ignoring",
                 exc=str(exc),
                 traceback=traceback.format_exc(),
@@ -684,19 +663,19 @@ class ModelEndpoints:
         db_session,
         auto_info: mlrun.api.schemas.AuthInfo,
     ):
-        mlrun.utils.helpers.logger.info(
+        logger.info(
             f"Checking deployment status for model monitoring stream processing function [{project}]"
         )
         try:
             mlrun.runtimes.function.get_nuclio_deploy_status(
                 name="model-monitoring-stream", project=project, tag=""
             )
-            mlrun.utils.helpers.logger.info(
+            logger.info(
                 f"Detected model monitoring stream processing function [{project}] already deployed"
             )
             return
         except nuclio.utils.DeployError:
-            mlrun.utils.helpers.logger.info(
+            logger.info(
                 f"Deploying model monitoring stream processing function [{project}]"
             )
 
@@ -750,13 +729,9 @@ class ModelEndpoints:
         features = []
         for name in feature_names:
             if feature_stats is not None and name not in feature_stats:
-                mlrun.utils.helpers.logger.warn(
-                    f"Feature '{name}' missing from 'feature_stats'"
-                )
+                logger.warn(f"Feature '{name}' missing from 'feature_stats'")
             if current_stats is not None and name not in current_stats:
-                mlrun.utils.helpers.logger.warn(
-                    f"Feature '{name}' missing from 'current_stats'"
-                )
+                logger.warn(f"Feature '{name}' missing from 'current_stats'")
             f = mlrun.api.schemas.Features.new(
                 name, safe_feature_stats.get(name), safe_current_stats.get(name)
             )

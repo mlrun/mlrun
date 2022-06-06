@@ -17,6 +17,7 @@ import mlrun.feature_store.steps
 import mlrun.utils
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
+from mlrun.utils import logger
 
 ISO_8061_UTC = "%Y-%m-%d %H:%M:%S.%f%z"
 FUNCTION_URI = "function_uri"
@@ -85,8 +86,8 @@ class EventStreamProcessor:
         self.aggregate_avg_windows = aggregate_avg_windows or ["5m", "1h"]
         self.aggregate_avg_period = aggregate_avg_period
 
-        self.v3io_framesd = v3io_framesd or mlrun.config.config.v3io_framesd
-        self.v3io_api = v3io_api or mlrun.config.config.v3io_api
+        self.v3io_framesd = v3io_framesd or mlrun.mlconf.v3io_framesd
+        self.v3io_api = v3io_api or mlrun.mlconf.v3io_api
 
         self.v3io_access_key = v3io_access_key or os.environ.get("V3IO_ACCESS_KEY")
         self.model_monitoring_access_key = (
@@ -95,7 +96,7 @@ class EventStreamProcessor:
             or self.v3io_access_key
         )
 
-        template = mlrun.config.config.model_endpoint_monitoring.store_prefixes.default
+        template = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default
 
         kv_path = template.format(project=project, kind="endpoints")
         (
@@ -112,17 +113,19 @@ class EventStreamProcessor:
         ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(tsdb_path)
         self.tsdb_path = f"{self.tsdb_container}/{self.tsdb_path}"
 
-        self.parquet_path = mlrun.config.config.model_endpoint_monitoring.store_prefixes.user_space.format(
-            project=project, kind="parquet"
+        self.parquet_path = (
+            mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
+                project=project, kind="parquet"
+            )
         )
 
-        mlrun.utils.logger.info(
+        logger.info(
             "Initializing model monitoring event stream processor",
             parquet_batching_max_events=self.parquet_batching_max_events,
             v3io_access_key=self.v3io_access_key,
             model_monitoring_access_key=self.model_monitoring_access_key,
-            default_store_prefix=mlrun.config.config.model_endpoint_monitoring.store_prefixes.default,
-            user_space_store_prefix=mlrun.config.config.model_endpoint_monitoring.store_prefixes.user_space,
+            default_store_prefix=mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default,
+            user_space_store_prefix=mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space,
             v3io_api=self.v3io_api,
             v3io_framesd=self.v3io_framesd,
             kv_container=self.kv_container,
@@ -383,7 +386,7 @@ class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
-        mlrun.utils.logger.info("ProcessBeforeParquet1", event=event)
+        logger.info("ProcessBeforeParquet1", event=event)
         for key in [UNPACKED_LABELS, FEATURES]:
             event.pop(key, None)
         value = event.get("entities")
@@ -392,7 +395,7 @@ class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
         for key in [LABELS, METRICS, ENTITIES]:
             if not event.get(key):
                 event[key] = None
-        mlrun.utils.logger.info("ProcessBeforeParquet2", event=event)
+        logger.info("ProcessBeforeParquet2", event=event)
         return event
 
 
@@ -537,7 +540,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
     ):
         if all(isinstance(x, int) or isinstance(x, float) for x in field):
             return True
-        mlrun.utils.logger.error(
+        logger.error(
             f"List does not consist of only numeric values: {field} [Event -> {','.join(dict_path)}]"
         )
         return False
@@ -546,7 +549,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         # Make sure process is resumable, if process fails for any reason, be able to pick things up close to where we
         # left them
         if endpoint_id not in self.endpoints:
-            mlrun.utils.logger.info("Trying to resume state", endpoint_id=endpoint_id)
+            logger.info("Trying to resume state", endpoint_id=endpoint_id)
             endpoint_record = get_endpoint_record(
                 kv_container=self.kv_container,
                 kv_path=self.kv_path,
@@ -611,7 +614,7 @@ def enrich_even_details(event) -> typing.Optional[dict]:
 def is_not_none(field: typing.Any, dict_path: typing.List[str]):
     if field is not None:
         return True
-    mlrun.utils.logger.error(
+    logger.error(
         f"Expected event field is missing: {field} [Event -> {','.join(dict_path)}]"
     )
     return False
@@ -685,7 +688,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                 feature_names = self._infer_feature_names_from_data(event)
 
             if not feature_names:
-                mlrun.utils.logger.warn(
+                logger.warn(
                     "Feature names are not initialized, they will be automatically generated",
                     endpoint_id=endpoint_id,
                 )
@@ -703,7 +706,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                 label_columns = self._infer_label_columns_from_data(event)
 
             if not label_columns:
-                mlrun.utils.logger.warn(
+                logger.warn(
                     "label column names are not initialized, they will be automatically generated",
                     endpoint_id=endpoint_id,
                 )
@@ -720,10 +723,10 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
             self.label_columns[endpoint_id] = label_columns
             self.feature_names[endpoint_id] = feature_names
 
-            mlrun.utils.logger.info(
+            logger.info(
                 "Label columns", endpoint_id=endpoint_id, label_columns=label_columns
             )
-            mlrun.utils.logger.info(
+            logger.info(
                 "Feature names", endpoint_id=endpoint_id, feature_names=feature_names
             )
 
@@ -738,7 +741,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
         event[NAMED_PREDICTIONS] = {
             name: prediction for name, prediction in zip(label_columns, prediction)
         }
-        mlrun.utils.logger.info("Mapped event", event=event)
+        logger.info("Mapped event", event=event)
         return event
 
 
@@ -783,7 +786,7 @@ class InferSchema(mlrun.feature_store.steps.MapClass):
                 container=self.container,
                 address=self.v3io_framesd,
             ).execute(backend="kv", table=self.table, command="infer_schema")
-            mlrun.utils.logger.info(
+            logger.info(
                 "Found new keys, inferred schema", table=self.table, event=event
             )
         return event
@@ -792,7 +795,7 @@ class InferSchema(mlrun.feature_store.steps.MapClass):
 def get_endpoint_record(
     kv_container: str, kv_path: str, endpoint_id: str, access_key: str
 ) -> typing.Optional[dict]:
-    mlrun.utils.logger.info(
+    logger.info(
         "Grabbing endpoint data",
         container=kv_container,
         table_path=kv_path,

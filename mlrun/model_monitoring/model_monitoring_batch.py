@@ -15,6 +15,7 @@ import mlrun.run
 import mlrun.utils
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
+from mlrun.utils import logger
 
 _TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f%z"
 
@@ -369,7 +370,7 @@ class BatchProcessor:
             project=project, kind="parquet"
         )
 
-        mlrun.utils.logger.info(
+        logger.info(
             "Initializing BatchProcessor",
             project=project,
             model_monitoring_access_key_initalized=bool(model_monitoring_access_key),
@@ -430,7 +431,7 @@ class BatchProcessor:
         try:
             endpoints = self.db.list_model_endpoints(self.project)
         except Exception as e:
-            mlrun.utils.logger.error("Failed to list endpoints", exc=e)
+            logger.error("Failed to list endpoints", exc=e)
             return
 
         active_endpoints = set()
@@ -443,7 +444,7 @@ class BatchProcessor:
         fs = store.get_filesystem(silent=False)
 
         if not fs.exists(sub):
-            mlrun.utils.logger.warn(f"{sub} does not exist")
+            logger.warn(f"{sub} does not exist")
             return
 
         for endpoint_dir in fs.ls(sub):
@@ -461,7 +462,7 @@ class BatchProcessor:
 
                 full_path = f"{prefix}{last_hour['name']}"
 
-                mlrun.utils.logger.info(f"Now processing {full_path}")
+                logger.info(f"Now processing {full_path}")
 
                 # get model endpoint object
                 endpoint = self.db.get_model_endpoint(
@@ -474,7 +475,7 @@ class BatchProcessor:
                     == mlrun.utils.model_monitoring.EndpointType.ROUTER
                 ):
                     # endpoint.status.feature_stats is None
-                    mlrun.utils.logger.info(f"{endpoint_id} is router skipping")
+                    logger.info(f"{endpoint_id} is router skipping")
                     continue
 
                 df = pd.read_parquet(full_path)
@@ -500,14 +501,14 @@ class BatchProcessor:
                     feature_stats=endpoint.status.feature_stats,
                     current_stats=current_stats,
                 )
-                mlrun.utils.logger.info("Drift result", drift_result=drift_result)
+                logger.info("Drift result", drift_result=drift_result)
 
                 # check for possible drift based on the results of the statistical metrics defined above
                 drift_status, drift_measure = self.check_for_drift(
                     drift_result=drift_result, endpoint=endpoint
                 )
 
-                mlrun.utils.logger.info(
+                logger.info(
                     "Drift status",
                     endpoint_id=endpoint_id,
                     drift_status=drift_status,
@@ -565,7 +566,7 @@ class BatchProcessor:
                 # logger.info(f"Done updating drift measures {full_path}")
 
             except Exception as e:
-                mlrun.utils.logger.error(f"Exception for endpoint {endpoint_id}")
+                logger.error(f"Exception for endpoint {endpoint_id}")
                 self.exception = e
 
     def check_for_drift(

@@ -11,6 +11,7 @@ import mlrun.feature_store as fs
 import mlrun.model_monitoring.stream_processing_fs
 import mlrun.runtimes
 import mlrun.utils.helpers
+from mlrun.utils import logger
 
 _CURRENT_FILE_PATH = pathlib.Path(__file__)
 _STREAM_PROCESSING_FUNCTION_PATH = _CURRENT_FILE_PATH.parent / "stream_processing_fs.py"
@@ -37,7 +38,7 @@ def get_model_monitoring_stream_processing_function(
     stream_processor = mlrun.model_monitoring.stream_processing_fs.EventStreamProcessor(
         project=project,
         model_monitoring_access_key=model_monitoring_access_key,
-        parquet_batching_max_events=mlrun.config.config.model_endpoint_monitoring.parquet_batching_max_events,
+        parquet_batching_max_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
     )
 
     # create feature set for this project
@@ -59,10 +60,8 @@ def get_model_monitoring_stream_processing_function(
     function.metadata.project = project
 
     # add v3io stream trigger
-    stream_path = (
-        mlrun.config.config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=project, kind="stream"
-        )
+    stream_path = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
+        project=project, kind="stream"
     )
     function.add_v3io_stream_trigger(
         stream_path=stream_path, name="monitoring_stream_trigger"
@@ -112,7 +111,7 @@ def get_model_monitoring_batch_function(
 
     """
 
-    mlrun.utils.helpers.logger.info(
+    logger.info(
         f"Checking deployment status for model monitoring batch processing function [{project}]"
     )
     function_list = mlrun.api.utils.singletons.db.get_db().list_functions(
@@ -120,14 +119,12 @@ def get_model_monitoring_batch_function(
     )
 
     if function_list:
-        mlrun.utils.helpers.logger.info(
+        logger.info(
             f"Detected model monitoring batch processing function [{project}] already deployed"
         )
         return
 
-    mlrun.utils.helpers.logger.info(
-        f"Deploying model monitoring batch processing function [{project}]"
-    )
+    logger.info(f"Deploying model monitoring batch processing function [{project}]")
 
     # create job function runtime for the model monitoring batch
     function: mlrun.runtimes.KubejobRuntime = mlrun.code_to_function(

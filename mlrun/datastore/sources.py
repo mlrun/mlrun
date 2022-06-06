@@ -755,37 +755,29 @@ class KafkaSource(OnlineSource):
 
 class MongoDBSource(BaseSourceDriver):
     """
-    Reads Google BigQuery query results as input source for a flow.
+    Reads MongoDB as input source for a flow.
 
     example::
-
-         # use sql query
-         query_string = "SELECT * FROM `the-psf.pypi.downloads20210328` LIMIT 5000"
-         source = BigQuerySource("bq1", query=query_string,
-                                 gcp_project="my_project",
-                                 materialization_dataset="dataviews")
-
-         # read a table
-         source = BigQuerySource("bq2", table="the-psf.pypi.downloads20210328", gcp_project="my_project")
-
+         connection_string = "???"
+         query = {age: {"$gt: 5}}
+         MongoDBSource(connection_string=connection_string, collection_name="coll",
+         db_name="my_dataset", chunksize=5, query=query)
 
     :parameter name:  source name
-    :parameter table: table name/path, cannot be used together with query
-    :parameter query: sql query string
-    :parameter materialization_dataset: for query with spark, The target dataset for the materialized view.
-                                        This dataset should be in same location as the view or the queried tables.
-                                        must be set to a dataset where the GCP user has table creation permission
+    :parameter query: dictionary query for mongodb
     :parameter chunksize: number of rows per chunk (default large single chunk)
     :parameter key_field: the column to be used as the key for events. Can be a list of keys.
     :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
     :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
          cause the job to run every 30 minutes
-    :parameter gcp_project:  google cloud project name
-    :parameter spark_options: additional spart read options
+    :parameter db_name: the name of the database as mention on mongodb
+    :parameter connection_string:
+    :parameter collection_name: the name of the collection as mention on mongodb
+    :parameter spark_options: additional spark read options
     """
 
     kind = "mongodb"
-    support_storey = False
+    support_storey = True
     support_spark = False
 
     def __init__(
@@ -836,7 +828,7 @@ class MongoDBSource(BaseSourceDriver):
 
     def to_dataframe(self):
 
-        class MongoDbiter:
+        class MongoDBiter:
             def __init__(self, collection, iter_chunksize, iter_query):
                 self.my_collection_iter = collection.find_raw_batches(iter_query, batch_size=iter_chunksize)
 
@@ -860,7 +852,7 @@ class MongoDBSource(BaseSourceDriver):
             my_collection = my_db[collection_name]
 
             if chunksize:
-                return MongoDbiter(my_collection, chunksize, query)
+                return MongoDBiter(my_collection, chunksize, query)
             else:
                 df = pd.DataFrame(list(my_collection.find(query)))
                 df['_id'] = df['_id'].astype(str)

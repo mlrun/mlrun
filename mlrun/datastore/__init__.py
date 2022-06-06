@@ -32,6 +32,7 @@ __all__ = [
 from urllib.parse import urlparse
 
 from ..platforms.iguazio import KafkaOutputStream, OutputStream, parse_v3io_path
+from ..runtimes.utils import parse_kafka_url
 from ..utils import logger
 from .base import DataItem
 from .datastore import StoreManager, in_memory_store, uri_to_ipython
@@ -83,11 +84,9 @@ def get_stream_pusher(stream_path: str, **kwargs):
         endpoint, stream_path = parse_v3io_path(stream_path)
         return OutputStream(stream_path, endpoint=endpoint, **kwargs)
     elif stream_path.startswith("kafka://"):
-        bootstrap_servers = kwargs.get("bootstrap_servers", [])
-        url = urlparse(stream_path)
-        if url.netloc:
-            bootstrap_servers = [url.netloc] + bootstrap_servers
-        topic = url.path
+        topic, bootstrap_servers = parse_kafka_url(
+            stream_path, kwargs.get("bootstrap_servers")
+        )
         return KafkaOutputStream(topic, bootstrap_servers)
     elif stream_path.startswith("dummy://"):
         return _DummyStream(**kwargs)

@@ -28,6 +28,7 @@ from ..datastore import get_stream_pusher
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj, ObjectDict
 from ..platforms.iguazio import parse_v3io_path
+from ..runtimes.utils import parse_kafka_url
 from ..utils import get_class, get_function
 from .utils import _extract_input_data, _update_result_body
 
@@ -1415,13 +1416,11 @@ def _init_async_objects(context, steps):
                     stream_path = step.path
                     endpoint = None
                     if stream_path.startswith("kafka://"):
-                        bootstrap_servers = step.trigger_args.get(
-                            "bootstrap_servers", []
+                        bootstrap_servers = step.trigger_args.get("bootstrap_servers")
+                        topic, bootstrap_servers = parse_kafka_url(
+                            stream_path, bootstrap_servers
                         )
-                        url = urlparse(stream_path)
-                        if url.netloc:
-                            bootstrap_servers = [url.netloc] + bootstrap_servers
-                        topic = url.path
+
                         step._async_object = storey.KafkaTarget(
                             topic=topic,
                             bootstrap_servers=bootstrap_servers,

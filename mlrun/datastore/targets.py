@@ -32,6 +32,7 @@ from mlrun.utils.v3io_clients import get_frames_client
 from .. import errors
 from ..data_types import ValueType
 from ..platforms.iguazio import parse_v3io_path, split_path
+from ..runtimes.utils import parse_kafka_url
 from .utils import store_path_to_spark
 
 
@@ -1200,11 +1201,8 @@ class KafkaTarget(BaseStoreTarget):
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
 
-        bootstrap_servers = self.attributes.get("bootstrap_servers", [])
-        url = urlparse(self.path)
-        if url.netloc:
-            bootstrap_servers = [url.netloc] + bootstrap_servers
-        topic = url.path
+        bootstrap_servers = self.attributes.get("bootstrap_servers")
+        topic, bootstrap_servers = parse_kafka_url(self.path, bootstrap_servers)
 
         graph.add_step(
             name=self.name or "KafkaTarget",

@@ -174,14 +174,6 @@ def test_get_background_task_auth_skip(
     )
 
 
-# def test_create_new_background_task(
-#     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
-# ):
-#     resp = client.post("start/function")
-#     assert resp.status_code == http.HTTPStatus.NOT_FOUND
-#
-
-
 def _assert_background_task_creation(expected_project, response):
     assert response.status_code == http.HTTPStatus.OK.value
     background_task = mlrun.api.schemas.BackgroundTask(**response.json())

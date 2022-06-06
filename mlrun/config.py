@@ -309,7 +309,7 @@ default_config = {
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
-        "enable_publish_feature_set": False,
+        "enable_publish_feature_set": True,
         "flush_interval": 300,
     },
     "ui": {

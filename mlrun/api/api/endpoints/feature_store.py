@@ -459,12 +459,14 @@ def publish_feature_set(
         versioned,
     )
 
-    return mlrun.api.crud.FeatureStore().get_feature_set(
-        db_session,
-        project,
-        name,
-        tag,
-        uid,
+    return mlrun.api.schemas.FeatureSetPublishOutput(
+        feature_set=mlrun.api.crud.FeatureStore().get_feature_set(
+            db_session,
+            project,
+            name,
+            tag,
+            uid,
+        )
     )
 
 

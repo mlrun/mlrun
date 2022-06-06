@@ -143,7 +143,8 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         ).to(name="child", class_name="Identity", function="child")
 
         function.add_child_function(
-            "child", child_code_path, "mlrun/mlrun:1.1.0-rc3"
+            "child",
+            child_code_path,
         )
 
         self._logger.debug("Deploying nuclio function")

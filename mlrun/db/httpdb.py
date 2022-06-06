@@ -1817,7 +1817,7 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call(
             "POST", path, error_message, body=dict_to_json(feature_set)
         )
-        return FeatureSet.from_dict(resp.json())
+        return FeatureSet.from_dict(resp.json()["feature_set"])
 
     def delete_feature_set(self, name, project="", tag=None, uid=None):
         """Delete a :py:class:`~mlrun.feature_store.FeatureSet` object from the DB.

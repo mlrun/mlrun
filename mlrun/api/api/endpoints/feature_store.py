@@ -435,7 +435,7 @@ def publish_feature_set(
         raise mlrun.errors.MLRunBadRequestError(
             f"Cannot publish tag: '{tag}', tag already exists."
         )
-    except mlrun.errors.MLRunNotFoundError as err:
+    except mlrun.errors.MLRunNotFoundError:
         pass
 
     if feature_set.metadata.publish_time:
@@ -504,6 +504,9 @@ def list_entities(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    if not mlrun.mlconf.feature_store.enable_publish_feature_set:
+        raise NotImplementedError(f"Publish of feature set is not supported.")
+
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.api.schemas.AuthorizationAction.read,

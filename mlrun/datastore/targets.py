@@ -18,7 +18,6 @@ import typing
 import warnings
 from collections import Counter
 from copy import copy
-from urllib.parse import urlparse
 
 import pandas as pd
 
@@ -32,8 +31,7 @@ from mlrun.utils.v3io_clients import get_frames_client
 from .. import errors
 from ..data_types import ValueType
 from ..platforms.iguazio import parse_v3io_path, split_path
-from ..runtimes.utils import parse_kafka_url
-from .utils import store_path_to_spark
+from .utils import parse_kafka_url, store_path_to_spark
 
 
 class TargetTypes:
@@ -1171,7 +1169,6 @@ class KafkaTarget(BaseStoreTarget):
         **kwargs,
     ):
         attrs = {
-            "topic": topic,
             "bootstrap_servers": bootstrap_servers,
         }
         super().__init__(*args, attributes=attrs, **kwargs)

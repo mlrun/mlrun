@@ -19,7 +19,6 @@ import typing
 from copy import deepcopy
 from io import StringIO
 from sys import stderr
-from urllib.parse import urlparse
 
 import pandas as pd
 from kubernetes import client
@@ -638,12 +637,3 @@ def enrich_function_from_dict(function, function_dict):
             else:
                 setattr(function.spec, attribute, override_value)
     return function
-
-
-def parse_kafka_url(url, bootstrap_servers=None):
-    bootstrap_servers = bootstrap_servers or []
-    url = urlparse(url)
-    if url.netloc:
-        bootstrap_servers = [url.netloc] + bootstrap_servers
-    topic = url.path
-    return topic, bootstrap_servers

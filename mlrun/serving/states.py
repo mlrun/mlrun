@@ -21,14 +21,13 @@ import warnings
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
 from typing import Union
-from urllib.parse import parse_qs, urlparse
 
 from ..config import config
 from ..datastore import get_stream_pusher
+from ..datastore.utils import parse_kafka_url
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj, ObjectDict
 from ..platforms.iguazio import parse_v3io_path
-from ..runtimes.utils import parse_kafka_url
 from ..utils import get_class, get_function
 from .utils import _extract_input_data, _update_result_body
 

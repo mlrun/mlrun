@@ -21,6 +21,7 @@ __all__ = [
     "CSVTarget",
     "NoSqlTarget",
     "StreamTarget",
+    "KafkaTarget",
     "CSVSource",
     "ParquetSource",
     "BigQuerySource",
@@ -30,7 +31,6 @@ __all__ = [
 ]
 
 from ..platforms.iguazio import KafkaOutputStream, OutputStream, parse_v3io_path
-from ..runtimes.utils import parse_kafka_url
 from ..utils import logger
 from .base import DataItem
 from .datastore import StoreManager, in_memory_store, uri_to_ipython
@@ -50,6 +50,7 @@ from .store_resources import (
     parse_store_uri,
 )
 from .targets import CSVTarget, NoSqlTarget, ParquetTarget, StreamTarget
+from .utils import parse_kafka_url
 
 store_manager = StoreManager()
 

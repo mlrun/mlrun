@@ -526,6 +526,7 @@ def ingest(
     infer_stats = InferOptions.get_common_options(
         infer_options, InferOptions.all_stats()
     )
+    # Check if dataframe is already calculated (for feature set graph):
     calculated_df = return_df or infer_stats != InferOptions.Null
     featureset.save()
 

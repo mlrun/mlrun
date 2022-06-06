@@ -56,7 +56,7 @@ def trigger_migrations(
         background_tasks=background_tasks,
         function=_perform_migration,
         timeout=int(
-            mlrun.mlconf.background_tasks_timeout_defaults.operations.migrations
+            mlrun.mlconf.background_tasks.default_timeouts.operations.migrations
         ),
     )
     current_migration_background_task_name = background_task.metadata.name

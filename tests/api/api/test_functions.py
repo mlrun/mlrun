@@ -246,8 +246,8 @@ def test_start_function(db: Session, client: TestClient, monkeypatch):
         background_timeout_mode = test_case.get("background_timeout_mode", "enabled")
         dask_timeout = test_case.get("dask_timeout", None)
 
-        mlrun.mlconf.background_tasks_timeout_defaults.mode = background_timeout_mode
-        mlrun.mlconf.background_tasks_timeout_defaults.runtimes.dask = dask_timeout
+        mlrun.mlconf.background_tasks.timeout_mode = background_timeout_mode
+        mlrun.mlconf.background_tasks.default_timeouts.runtimes.dask = dask_timeout
 
         dask_cluster = mlrun.new_function(name, project=project, kind="dask")
         monkeypatch.setattr(

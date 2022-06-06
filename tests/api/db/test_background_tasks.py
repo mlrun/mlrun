@@ -130,7 +130,7 @@ def test_get_background_task_with_exceeded_timeout_and_disabled_timeout(
     task_name = "test"
     project = "test-project"
     task_timeout = 0
-    mlrun.mlconf.background_tasks_timeout_defaults.mode = "disabled"
+    mlrun.mlconf.background_tasks.timeout_mode = "disabled"
     db.store_background_task(
         db_session, name=task_name, timeout=task_timeout, project=project
     )

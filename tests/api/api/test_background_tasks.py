@@ -140,7 +140,7 @@ def test_create_background_task(
     background_task = mlrun.api.schemas.BackgroundTask(**response.json())
     assert background_task.metadata.project is None
     assert background_task.metadata.timeout == int(
-        mlrun.mlconf.background_tasks_timeout_defaults.default
+        mlrun.mlconf.background_tasks.default_timeouts.default
     )
 
 

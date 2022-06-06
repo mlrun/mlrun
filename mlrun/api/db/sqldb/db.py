@@ -3095,11 +3095,11 @@ class SQLDB(DBInterface):
         background_task_record: BackgroundTask,
     ) -> schemas.BackgroundTask:
         timeout = background_task_record.timeout
-        if mlrun.mlconf.background_tasks_timeout_defaults.mode == "enabled":
+        if mlrun.mlconf.background_tasks.timeout_mode == "enabled":
             timeout = (
                 timeout
                 if timeout
-                else mlrun.mlconf.background_tasks_timeout_defaults.default
+                else mlrun.mlconf.background_tasks.default_timeouts.default
             )
 
         return schemas.BackgroundTask(
@@ -3154,12 +3154,12 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _is_background_task_timeout_exceeded(background_task_record) -> bool:
-        if mlrun.mlconf.background_tasks_timeout_defaults.mode == "enabled":
+        if mlrun.mlconf.background_tasks.timeout_mode == "enabled":
             timeout = background_task_record.timeout
             timeout = (
                 timeout
                 if timeout
-                else int(mlrun.mlconf.background_tasks_timeout_defaults.default)
+                else int(mlrun.mlconf.background_tasks.default_timeouts.default)
             )
             if (
                 background_task_record.state

@@ -121,11 +121,13 @@ default_config = {
     # when set it will force the local=True in run_function(), set to "auto" will run local if there is no k8s
     "force_run_local": "auto",
     # timeout to wait for background task to be updated / finished by the worker responsible for the task
-    "background_tasks_timeout_defaults": {
-        "mode": "enabled",
-        "default": "600",
-        "operations": {"migrations": "3600"},
-        "runtimes": {"dask": "300"},
+    "background_tasks": {
+        "timeout_mode": "enabled",
+        "default_timeouts": {
+            "default": "600",
+            "operations": {"migrations": "3600"},
+            "runtimes": {"dask": "300"},
+        },
     },
     "function_defaults": {
         "image_by_kind": {

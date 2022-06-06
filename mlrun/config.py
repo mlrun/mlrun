@@ -124,7 +124,6 @@ default_config = {
     "background_tasks": {
         "timeout_mode": "enabled",
         "default_timeouts": {
-            "default": "600",
             "operations": {"migrations": "3600"},
             "runtimes": {"dask": "300"},
         },

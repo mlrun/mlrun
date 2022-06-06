@@ -61,10 +61,7 @@ class PackageTester:
         for extra, extra_tests_data in self._extras_tests_data.items():
             self._create_venv()
             self._install_extra(extra)
-            results[extra] = {
-                "import_test": {"passed": True},
-                "requirements_conflicts_test": {"passed": True},
-            }
+            results[extra] = {}
             self._run_test(self._test_extra_imports, extra, results, "import_test")
             self._run_test(
                 self._test_requirements_conflicts,
@@ -100,7 +97,9 @@ class PackageTester:
         try:
             test_function(extra)
         except Exception:
-            results[extra][test_key]["passed"] = False
+            results[extra].setdefault(test_key, {})["passed"] = False
+        else:
+            results[extra].setdefault(test_key, {})["passed"] = True
 
     def _test_extra_imports(self, extra):
         self._logger.debug(

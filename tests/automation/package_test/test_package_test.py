@@ -23,7 +23,7 @@ def test_test_requirements_vulnerabilities():
         null
     ]
 ]""",
-            "should_fail": True,
+            "expected_to_fail": True,
         },
         {
             "output_file": tests.conftest.tests_root_directory
@@ -53,7 +53,7 @@ def test_test_requirements_vulnerabilities():
                 return code, output, ""
 
         package_tester._run_command = unittest.mock.Mock(side_effect=_run_command_mock)
-        if case.get("should_fail"):
+        if case.get("expected_to_fail"):
             with pytest.raises(AssertionError, match="Found vulnerable requirements"):
                 package_tester._test_requirements_vulnerabilities("some-extra")
         else:

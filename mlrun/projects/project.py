@@ -13,11 +13,14 @@
 # limitations under the License.
 import datetime
 import getpass
+import glob
 import pathlib
 import shutil
+import tempfile
 import typing
 import warnings
-from os import environ, makedirs, path
+import zipfile
+from os import environ, makedirs, path, remove
 
 import dotenv
 import inflection
@@ -508,6 +511,8 @@ class ProjectSpec(ModelObj):
                 if url:
                     self._source = url
 
+        if self._source in [".", "./"]:
+            return path.abspath(self.context)
         return self._source
 
     @source.setter
@@ -809,6 +814,8 @@ class MlrunProject(ModelObj):
         self.spec.load_source_on_run = pull_at_runtime
         self.spec.source = source or self.spec.source
         self.spec.workdir = workdir or self.spec.workdir
+        # reset function objects (to recalculate build attributes)
+        self.sync_functions()
 
     def get_artifact_uri(
         self, key: str, category: str = "artifact", tag: str = None
@@ -1451,7 +1458,7 @@ class MlrunProject(ModelObj):
         return self.get_function(key, sync)
 
     def get_function(
-        self, key, sync=False, enrich=False, ignore_cache=False
+        self, key, sync=True, enrich=False, ignore_cache=False
     ) -> mlrun.runtimes.BaseRuntime:
         """get function object by name
 
@@ -1465,7 +1472,7 @@ class MlrunProject(ModelObj):
         if key in self.spec._function_objects and not sync and not ignore_cache:
             function = self.spec._function_objects[key]
         elif key in self.spec._function_definitions and not ignore_cache:
-            self.sync_functions()
+            self.sync_functions([key])
             function = self.spec._function_objects[key]
         else:
             function = get_db_function(self, key)
@@ -1497,20 +1504,24 @@ class MlrunProject(ModelObj):
         elif url and url.endswith(".zip"):
             clone_zip(url, self.spec.context, self._secrets)
 
-    def create_remote(self, url, name="origin"):
+    def create_remote(self, url, name="origin", branch=None):
         """create remote for the project git
 
-        :param url:   remote git url
-        :param name:  name for the remote (default is 'origin')
+        :param url:    remote git url
+        :param name:   name for the remote (default is 'origin')
+        :param branch: Git branch to use as source
         """
         if not self.spec.repo:
             raise ValueError("git repo is not set/defined")
         self.spec.repo.create_remote(name, url=url)
         url = url.replace("https://", "git://")
-        try:
-            url = f"{url}#refs/heads/{self.spec.repo.active_branch.name}"
-        except Exception:
-            pass
+        if not branch:
+            try:
+                branch = self.spec.repo.active_branch.name
+            except Exception:
+                pass
+        if branch:
+            url = f"{url}#{branch}"
         self.spec._source = self.spec.source or url
         self.spec.origin_url = self.spec.origin_url or url
 
@@ -1547,9 +1558,10 @@ class MlrunProject(ModelObj):
         if self._initialized and not always:
             return self.spec._function_objects
 
-        funcs = {}
+        funcs = self.spec._function_objects
         if not names:
             names = self.spec._function_definitions.keys()
+            funcs = {}
         origin = add_code_metadata(self.spec.context)
         for name in names:
             f = self.spec._function_definitions.get(name)
@@ -1573,7 +1585,7 @@ class MlrunProject(ModelObj):
     def with_secrets(self, kind, source, prefix=""):
         """register a secrets source (file, env or dict)
 
-        read secrets from a source provider to be used in workflows,example::
+        read secrets from a source provider to be used in workflows, example::
 
             proj.with_secrets('file', 'file.txt')
             proj.with_secrets('inline', {'key': 'val'})
@@ -1719,7 +1731,7 @@ class MlrunProject(ModelObj):
         dirty=False,
         ttl=None,
         engine=None,
-        local=False,
+        local=None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1872,16 +1884,42 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.store_project(self.metadata.name, self.to_dict())
 
-    def export(self, filepath=None):
-        """save the project object into a file (default to project.yaml)"""
-        filepath = filepath or path.join(
-            self.spec.context, self.spec.subpath or "", "project.yaml"
-        )
-        project_dir = pathlib.Path(filepath).parent
-        if not project_dir.exists():
-            project_dir.mkdir(parents=True)
-        with open(filepath, "w") as fp:
+    def export(self, filepath=None, include_files: str = None):
+        """save the project object into a yaml file or zip archive (default to project.yaml)
+
+        By default the project object is exported to a yaml file, when the filepath suffix is '.zip'
+        the project context dir (code files) are also copied into the zip, the archive path can include
+        DataItem urls (for remote object storage, e.g. s3://<bucket>/<path>).
+
+        :param filepath: path to store project .yaml or .zip (with the project dir content)
+        :param include_files: glob filter string for selecting files to include in the zip archive
+        """
+        project_file_path = filepath
+        archive_code = filepath and str(filepath).endswith(".zip")
+        if not filepath or archive_code:
+            project_file_path = path.join(
+                self.spec.context, self.spec.subpath or "", "project.yaml"
+            )
+        project_dir = pathlib.Path(project_file_path).parent
+        project_dir.mkdir(parents=True, exist_ok=True)
+        with open(project_file_path, "w") as fp:
             fp.write(self.to_yaml())
+
+        if archive_code:
+            files_filter = include_files or "**"
+            tmp_path = None
+            if "://" in filepath:
+                tmp_path = tempfile.mktemp(".zip")
+            zipf = zipfile.ZipFile(tmp_path or filepath, "w")
+            for file_path in glob.iglob(
+                f"{project_dir}/{files_filter}", recursive=True
+            ):
+                write_path = pathlib.Path(file_path)
+                zipf.write(write_path, arcname=write_path.relative_to(project_dir))
+            zipf.close()
+            if tmp_path:
+                mlrun.get_dataitem(filepath).upload(tmp_path)
+                remove(tmp_path)
 
     def set_model_monitoring_credentials(self, access_key: str):
         """Set the credentials that will be used by the project's model monitoring
@@ -1908,7 +1946,7 @@ class MlrunProject(ModelObj):
         labels: dict = None,
         base_task: mlrun.model.RunTemplate = None,
         watch: bool = True,
-        local: bool = False,
+        local: bool = None,
         verbose: bool = None,
         selector: str = None,
         auto_build: bool = None,
@@ -2185,7 +2223,7 @@ class MlrunProject(ModelObj):
         :param labels: List runs that have a specific label assigned. Currently only a single label filter can be
             applied, otherwise result will be empty.
         :param state: List only runs whose state is specified.
-        :param sort: Whether to sort the result according to their start time. Otherwise results will be
+        :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
         :param last: Deprecated - currently not used.
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import os
 from copy import deepcopy
 from typing import List, Union
 
@@ -33,7 +34,7 @@ from ..serving.states import (
     new_remote_endpoint,
     params_to_step,
 )
-from ..utils import get_caller_globals, logger
+from ..utils import get_caller_globals, logger, set_paths
 from .function import NuclioSpec, RemoteRuntime
 from .function_reference import FunctionReference
 
@@ -601,7 +602,12 @@ class ServingRuntime(RemoteRuntime):
         return env
 
     def to_mock_server(
-        self, namespace=None, current_function="*", track_models=False, **kwargs
+        self,
+        namespace=None,
+        current_function="*",
+        track_models=False,
+        workdir=None,
+        **kwargs,
     ) -> GraphServer:
         """create mock server object for local testing/emulation
 
@@ -609,16 +615,23 @@ class ServingRuntime(RemoteRuntime):
         :param log_level: log level (error | info | debug)
         :param current_function: specify if you want to simulate a child function, * for all functions
         :param track_models: allow model tracking (disabled by default in the mock server)
+        :param workdir:   working directory to locate the source code (if not the current one)
         """
 
         # set the namespaces/modules to look for the steps code in
         namespace = namespace or []
         if not isinstance(namespace, list):
             namespace = [namespace]
-        module = mlrun.run.function_to_module(self, silent=True)
+        module = mlrun.run.function_to_module(self, silent=True, workdir=workdir)
         if module:
             namespace.append(module)
         namespace.append(get_caller_globals())
+
+        if workdir:
+            old_workdir = os.getcwd()
+            workdir = os.path.realpath(workdir)
+            set_paths(workdir)
+            os.chdir(workdir)
 
         server = create_graph_server(
             parameters=self.spec.parameters,
@@ -639,5 +652,27 @@ class ServingRuntime(RemoteRuntime):
             logger=logger,
             is_mock=True,
         )
+
+        if workdir:
+            os.chdir(old_workdir)
+
         server.init_object(namespace)
         return server
+
+    def plot(self, filename=None, format=None, source=None, **kw):
+        """plot/save graph using graphviz
+
+        example::
+
+            serving_fn = mlrun.new_function("serving", image="mlrun/mlrun", kind="serving")
+            serving_fn.add_model('my-classifier',model_path=model_path,
+                                  class_name='mlrun.frameworks.sklearn.SklearnModelServer')
+            serving_fn.plot(rankdir="LR")
+
+        :param filename:  target filepath for the image (None for the notebook)
+        :param format:    The output format used for rendering (``'pdf'``, ``'png'``, etc.)
+        :param source:    source step to add to the graph
+        :param kw:        kwargs passed to graphviz, e.g. rankdir="LR" (see: https://graphviz.org/doc/info/attrs.html)
+        :return: graphviz graph object
+        """
+        return self.spec.graph.plot(filename, format=format, source=source, **kw)

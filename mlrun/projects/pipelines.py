@@ -33,7 +33,7 @@ from ..runtimes.pod import AutoMountType
 
 
 def get_workflow_engine(engine_kind, local=False):
-    if local:
+    if pipeline_context.is_run_local(local):
         if engine_kind == "kfp":
             logger.warning(
                 "running kubeflow pipeline locally, note some ops may not run locally!"
@@ -135,7 +135,7 @@ class FunctionsDict:
 
     def load_or_set_function(self, key, default=None) -> mlrun.runtimes.BaseRuntime:
         try:
-            function = self.project.get_function(key)
+            function = self.project.get_function(key, sync=False)
         except Exception as e:
             if not default:
                 raise e
@@ -183,6 +183,18 @@ class _PipelineContext:
         self.workflow_id = None
         self.workflow_artifact_path = None
         self.runs_map = {}
+
+    def is_run_local(self, local=None):
+        if local is not None:
+            # if the user specified an explicit value in local we use it
+            return local
+        force_run_local = mlrun.mlconf.force_run_local
+        if force_run_local is None or force_run_local == "auto":
+            force_run_local = not mlrun.mlconf.is_api_running_on_k8s()
+        if self.workflow:
+            force_run_local = force_run_local or self.workflow.run_local
+
+        return force_run_local
 
     def set(self, project, workflow=None):
         self.project = project
@@ -300,9 +312,9 @@ def enrich_function_object(
     setattr(f, "_enriched", True)
     src = f.spec.build.source
     if src and src in [".", "./"]:
-        if not project.spec.source:
-            raise ValueError(
-                "project source must be specified when cloning context to a function"
+        if not project.spec.source and not project.spec.mountdir:
+            logger.warning(
+                "project.spec.source should be specified when function is using code from project context"
             )
 
         if project.spec.mountdir:

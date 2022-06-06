@@ -68,6 +68,7 @@ class ClientSpec(
             default_preemption_mode=self._get_config_value_if_not_default(
                 "function_defaults.preemption_mode"
             ),
+            force_run_local=config.force_run_local,
         )
 
     @staticmethod

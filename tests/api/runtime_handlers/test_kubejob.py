@@ -17,7 +17,8 @@ from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
     def custom_setup(self):
-        self.runtime_handler = get_runtime_handler(RuntimeKinds.job)
+        self.kind = self._get_class_name()
+        self.runtime_handler = get_runtime_handler(self._get_class_name())
         self.runtime_handler.wait_for_deletion_interval = 0
 
         job_labels = {
@@ -186,7 +187,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 "list_namespaced_pods_calls": [[]],
                 "interval_time_to_add_to_run_update_time": 0,
                 "start_run_states": RunStates.non_terminal_states(),
-                "expected_reached_state": RunStates.absent,
+                "expected_reached_state": RunStates.error,
             },
             # monitoring interval and debouncing interval are configured which means debouncing interval will
             # be the debounce period, run is still in the debounce period that's why expecting not to override state
@@ -208,7 +209,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 "list_namespaced_pods_calls": [[], [], []],
                 "interval_time_to_add_to_run_update_time": -200,
                 "start_run_states": RunStates.non_terminal_states(),
-                "expected_reached_state": RunStates.absent,
+                "expected_reached_state": RunStates.error,
             },
             # monitoring interval configured and debouncing interval isn't configured which means
             # monitoring interval * 2 will be the debounce period.
@@ -219,7 +220,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 "list_namespaced_pods_calls": [[], [], []],
                 "interval_time_to_add_to_run_update_time": -65,
                 "start_run_states": RunStates.non_terminal_states(),
-                "expected_reached_state": RunStates.absent,
+                "expected_reached_state": RunStates.error,
             },
             # monitoring interval configured and debouncing interval isn't configured which means
             # monitoring interval * 2 will be the debounce period.

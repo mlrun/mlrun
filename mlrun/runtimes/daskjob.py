@@ -493,7 +493,7 @@ class DaskCluster(KubejobRuntime):
 
 
 def deploy_function(function: DaskCluster, secrets=None, client_version: str = None):
-    validate_dask_related_libraries_installed()
+    _validate_dask_related_libraries_installed()
 
     scheduler_pod, worker_pod, function, namespace = enrich_dask_cluster(
         function, secrets, client_version
@@ -614,7 +614,7 @@ def enrich_dask_cluster(function, secrets, client_version):
     return scheduler_pod, worker_pod, function, namespace
 
 
-def validate_dask_related_libraries_installed():
+def _validate_dask_related_libraries_installed():
     try:
         import dask  # noqa: F401
         from dask.distributed import Client, default_client  # noqa: F401

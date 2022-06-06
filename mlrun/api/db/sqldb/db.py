@@ -3061,16 +3061,15 @@ class SQLDB(DBInterface):
                 raise mlrun.errors.MLRunRuntimeError(
                     "Background task already reached terminal state can not change to another state. Failing"
                 )
-            # we don't set default background task timeout, to be able to resolve the timeout when the API
-            # queries the record, so even if the API restarts with new default timeout it will apply the new timeout
-            background_task_record.timeout = (
-                timeout
-                if timeout and not background_task_record.timeout
-                else background_task_record.timeout
-            )
+
+            if timeout and mlrun.mlconf.background_tasks.timeout_mode == "enabled":
+                background_task_record.timeout = timeout
             background_task_record.state = state
             background_task_record.updated = now
         else:
+            if timeout and mlrun.mlconf.background_tasks.timeout_mode == "disabled":
+                timeout = None
+
             background_task_record = BackgroundTask(
                 name=name,
                 project=project,
@@ -3094,21 +3093,13 @@ class SQLDB(DBInterface):
     def _transform_background_task_record_to_schema(
         background_task_record: BackgroundTask,
     ) -> schemas.BackgroundTask:
-        timeout = background_task_record.timeout
-        if mlrun.mlconf.background_tasks.timeout_mode == "enabled":
-            timeout = (
-                timeout
-                if timeout
-                else mlrun.mlconf.background_tasks.default_timeouts.default
-            )
-
         return schemas.BackgroundTask(
             metadata=schemas.BackgroundTaskMetadata(
                 name=background_task_record.name,
                 project=background_task_record.project,
                 created=background_task_record.created,
                 updated=background_task_record.updated,
-                timeout=timeout,
+                timeout=background_task_record.timeout,
             ),
             spec=schemas.BackgroundTaskSpec(),
             status=schemas.BackgroundTaskStatus(

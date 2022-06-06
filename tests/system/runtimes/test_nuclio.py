@@ -119,16 +119,6 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
     topic = "TestNuclioRuntimeWithKafka"
     brokers = os.getenv("MLRUN_SYSTEM_TESTS_KAFKA_BROKERS")
 
-    def custom_teardown(self):
-        v3io_client = v3io.dataplane.Client(
-            endpoint=os.environ["V3IO_API"], access_key=os.environ["V3IO_ACCESS_KEY"]
-        )
-        v3io_client.delete_stream(
-            self.stream_container,
-            self.stream_path,
-            raise_for_status=RaiseForStatus.never,
-        )
-
     @pytest.mark.skipif(
         not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"
     )
@@ -142,16 +132,22 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
             kind="serving",
             project=self.project_name,
             filename=code_path,
-            image="mlrun/mlrun",
         )
 
         graph = function.set_topology("flow", engine="async")
 
         graph.to(
-            ">>", "q1", path=f"kafka://", topic=self.topic, brokers=self.brokers
+            ">>",
+            "q1",
+            path=f"kafka://a?bootstrap_servers={self.brokers}",
+            topic=self.topic,
+            brokers=self.brokers,
         ).to(name="child", class_name="Identity", function="child")
 
-        function.add_child_function("child", child_code_path, "mlrun/mlrun")
+        function.add_child_function(
+            "child",
+            child_code_path,
+        )
 
         self._logger.debug("Deploying nuclio function")
         function.deploy()

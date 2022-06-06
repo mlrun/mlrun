@@ -77,7 +77,7 @@ class PackageTester:
                     self._test_requirements_vulnerabilities,
                     extra,
                     results,
-                    "requirements_conflicts_test",
+                    "requirements_vulnerabilities_test",
                 )
             self._clean_venv()
 

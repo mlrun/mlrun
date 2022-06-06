@@ -315,7 +315,7 @@ class AbstractSparkRuntime(KubejobRuntime):
             if pattern_error == sparkjob_name[-1]:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Job name '{runobj.metadata.name}' is not valid."
-                    f" The job name must be not longer than 29 characters."
+                    f" The job name must be not longer than 29 characters"
                 )
             elif pattern_error in sparkjob_name[:-1]:
                 raise mlrun.errors.MLRunInvalidArgumentError(

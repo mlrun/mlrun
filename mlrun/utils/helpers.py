@@ -1334,3 +1334,9 @@ def set_paths(pythonpath=""):
         abspath = path.abspath(p)
         if abspath not in sys.path:
             sys.path.append(abspath)
+
+
+def is_relative_path(path):
+    if not path:
+        return False
+    return not (path.startswith("/") or ":\\" in path or "://" in path)

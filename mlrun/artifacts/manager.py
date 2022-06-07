@@ -16,7 +16,7 @@ import pathlib
 from os.path import isdir
 
 from ..db import RunDBInterface
-from ..utils import is_legacy_artifact, logger, uxjoin
+from ..utils import is_legacy_artifact, is_relative_path, logger, uxjoin
 from .base import (
     Artifact,
     DirArtifact,
@@ -154,26 +154,21 @@ class ArtifactManager:
             viewer = "web-app"
         item.format = format or item.format
         item.src_path = src_path
-        if src_path and ("://" in src_path or src_path.startswith("/")):
-            raise ValueError(
-                f"local/source path ({src_path}) must be a relative path, "
-                "cannot be remote or absolute path, "
-                "use target_path for absolute paths"
-            )
 
         if target_path:
-            if not (
-                target_path.startswith("/")
-                or ":\\" in target_path
-                or "://" in target_path
-            ):
+            if is_relative_path(target_path):
                 raise ValueError(
                     f"target_path ({target_path}) param cannot be relative"
                 )
+        elif "://" in src_path:
+            if upload:
+                raise ValueError(f"Cannot upload from remote path {src_path}")
+            target_path = src_path
+            upload = False
         else:
             target_path = uxjoin(
                 artifact_path,
-                src_path,
+                src_path if is_relative_path(src_path) else "",
                 filename(key, item.format),
                 producer.iteration,
                 item.is_dir,

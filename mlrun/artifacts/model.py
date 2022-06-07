@@ -24,7 +24,7 @@ from ..data_types import InferOptions, get_infer_interface
 from ..datastore import is_store_uri, store_manager
 from ..features import Feature
 from ..model import ObjectList
-from ..utils import StorePrefix
+from ..utils import StorePrefix, is_relative_path
 from .base import Artifact, ArtifactSpec, LegacyArtifact, upload_extra_data
 
 model_spec_filename = "model_spec.yaml"
@@ -626,7 +626,7 @@ def _load_model_spec(spec_path):
 
 
 def _get_file_path(base_path: str, name: str, isdir=False):
-    if name.startswith("/") or "://" in name:
+    if not is_relative_path(name):
         return name
     if not isdir:
         base_path = path.dirname(base_path)

@@ -22,7 +22,12 @@ import mlrun.errors
 
 from ..datastore import get_store_uri, is_store_uri, store_manager
 from ..model import ModelObj
-from ..utils import StorePrefix, calculate_local_file_hash, generate_artifact_uri
+from ..utils import (
+    StorePrefix,
+    calculate_local_file_hash,
+    generate_artifact_uri,
+    is_relative_path,
+)
 
 calc_hash = True
 
@@ -1022,7 +1027,7 @@ def upload_extra_data(
             artifact_spec.extra_data[prefix + key] = target
             continue
 
-        if not (item.startswith("/") or "://" in item):
+        if is_relative_path(item):
             src_path = (
                 os.path.join(artifact_spec.src_path, item)
                 if artifact_spec.src_path

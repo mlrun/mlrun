@@ -40,9 +40,12 @@ def test_test_requirements_vulnerabilities():
         logger.info("Testing case", case=case)
 
         def _run_command_mock(command, *args, **kwargs):
+            # _test_requirements_vulnerabilities flow is running two commands:
+            # 1. pip install safety - we don't care about it, so simply return success
+            # 2. safety check --json - this is the actual one we want to mock the output for
             if command == "pip install safety":
                 return 0, "", ""
-            else:
+            elif command == "safety check --json":
                 if case.get("output_file"):
                     with open(case["output_file"]) as file:
                         output = file.readlines()
@@ -51,6 +54,8 @@ def test_test_requirements_vulnerabilities():
                     output = case.get("output")
                 code = 255 if output else 0
                 return code, output, ""
+            else:
+                raise NotImplementedError(f"Got unexpected command: {command}")
 
         package_tester._run_command = unittest.mock.Mock(side_effect=_run_command_mock)
         if case.get("expected_to_fail"):

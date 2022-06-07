@@ -605,11 +605,12 @@ with ctx:
 
     def with_igz_spark(self, mount_v3io_to_executor=True):
         self._update_igz_jars(deps=self._get_igz_deps())
+        additional_executor_volume_mounts = copy(self.spec.volume_mounts)
         self.apply(mount_v3io_extended())
-        self.spec.driver_volume_mounts = self.spec.volume_mounts
-        self.spec.executor_volume_mounts = (
-            copy(self.spec.volume_mounts) if mount_v3io_to_executor else []
-        )
+        self.spec.driver_volume_mounts += self.spec.volume_mounts
+        if mount_v3io_to_executor:
+            additional_executor_volume_mounts = self.spec.volume_mounts
+        self.spec.executor_volume_mounts += additional_executor_volume_mounts
         self.spec.volume_mounts = []
         self.apply(
             mount_v3iod(

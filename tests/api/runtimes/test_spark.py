@@ -258,7 +258,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         "mount_v3io_to_executor",
         [True, False],
     )
-    def test_with_igz_spark(
+    def test_with_igz_spark_volume_mounts(
         self,
         mount_v3io_to_executor,
         db: sqlalchemy.orm.Session,

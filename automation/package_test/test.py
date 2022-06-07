@@ -124,6 +124,14 @@ class PackageTester:
             )
 
     def _test_requirements_vulnerabilities(self, extra):
+        """
+        When additional vulnerabilities are being discovered, we expect this test to fail; our objective is to fix them
+        all ASAP. There are several circumstances when this cannot be handled simply by using a newer version, such as
+        when another library requires an older version, a vulnerability that has not been fixed, or an environment
+        requirement. If this is the case, we will add the library with a thorough description of the issue and suggested
+        action items for future readers to the ignored_vulnerabilities.
+        When a vulnerability is fixed, we should remove it from the ignored_vulnerabilities list.
+        """
         self._logger.debug(
             "Testing requirements vulnerabilities",
             extra=extra,

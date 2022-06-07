@@ -607,6 +607,9 @@ with ctx:
         self._update_igz_jars(deps=self._get_igz_deps())
         additional_executor_volume_mounts = copy(self.spec.volume_mounts)
         self.apply(mount_v3io_extended())
+
+        # move volume_mounts to driver and executor specific fields and leave v3io mounts
+        # out of executor mounts if mount_v3io_to_executor=False
         self.spec.driver_volume_mounts += self.spec.volume_mounts
         if mount_v3io_to_executor:
             additional_executor_volume_mounts = self.spec.volume_mounts

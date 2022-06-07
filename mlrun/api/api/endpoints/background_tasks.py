@@ -63,6 +63,24 @@ def get_background_task(
             mlrun.api.schemas.AuthorizationAction.read,
             auth_info,
         )
-    return mlrun.api.utils.background_tasks.Handler().get_background_task(
-        db_session, name=name
-    )
+
+    if mlrun.mlconf.httpdb.clusterization.role == "chief":
+        (
+            background_task,
+            exists,
+        ) = mlrun.api.utils.background_tasks.Handler().get_chiefs_background_task(
+            name=name
+        )
+        if not exists:
+            return mlrun.api.utils.background_tasks.Handler().get_background_task(
+                db_session, name=name
+            )
+        return background_task
+    else:
+        try:
+            return mlrun.api.utils.background_tasks.Handler().get_background_task(
+                db_session, name=name
+            )
+        except Exception as exc:
+            # redirect to chief
+            pass

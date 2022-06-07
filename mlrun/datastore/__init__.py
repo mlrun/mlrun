@@ -82,7 +82,7 @@ def get_stream_pusher(stream_path: str, **kwargs):
     elif stream_path.startswith("v3io"):
         endpoint, stream_path = parse_v3io_path(stream_path)
         return OutputStream(stream_path, endpoint=endpoint, **kwargs)
-    elif stream_path.startswith("kafka://"):
+    elif stream_path.startswith("kafka://") or "bootstrap_servers" in kwargs:
         topic, bootstrap_servers = parse_kafka_url(
             stream_path, kwargs.get("bootstrap_servers")
         )

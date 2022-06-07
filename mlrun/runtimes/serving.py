@@ -435,7 +435,10 @@ class ServingRuntime(RemoteRuntime):
 
                 child_function = self._spec.function_refs[function_name]
                 trigger_args = stream.trigger_args or {}
-                if stream.path.startswith("kafka://"):
+                if (
+                    stream.path.startswith("kafka://")
+                    or "bootstrap_servers" in stream.options
+                ):
                     brokers = stream.options.get("bootstrap_servers")
                     if brokers:
                         brokers = brokers.split(",")

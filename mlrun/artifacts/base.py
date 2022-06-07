@@ -1132,7 +1132,7 @@ def get_artifact_meta(artifact):
 
 def calc_target_path(item: Artifact, artifact_path, hash=None):
     artifact_path = artifact_path or ""
-    if not artifact_path.endswith("/"):
+    if artifact_path and not artifact_path.endswith("/"):
         artifact_path += "/"
 
     local_path = item.db_key

@@ -122,6 +122,7 @@ default_config = {
     "force_run_local": "auto",
     # timeout to wait for background task to be updated / finished by the worker responsible for the task
     "background_tasks": {
+        # enabled / disabled
         "timeout_mode": "enabled",
         "default_timeouts": {
             "operations": {"migrations": "3600"},

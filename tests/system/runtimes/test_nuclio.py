@@ -136,11 +136,9 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
 
         graph = function.set_topology("flow", engine="async")
 
-        graph.to(
-            ">>",
-            "q1",
-            path=f"kafka://{self.brokers}/{self.topic}",
-        ).to(name="child", class_name="Identity", function="child")
+        graph.to(">>", "q1", path=f"/{self.topic}", bootstrap_servers=self.brokers).to(
+            name="child", class_name="Identity", function="child"
+        )
 
         function.add_child_function(
             "child",

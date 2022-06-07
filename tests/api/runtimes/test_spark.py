@@ -265,8 +265,17 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         client: fastapi.testclient.TestClient,
     ):
         runtime = self._generate_runtime()
+
+        orig = os.getenv("V3IO_USERNAME")
         os.environ["V3IO_USERNAME"] = "me"
-        runtime.with_igz_spark(mount_v3io_to_executor=mount_v3io_to_executor)
+        try:
+            runtime.with_igz_spark(mount_v3io_to_executor=mount_v3io_to_executor)
+        finally:
+            if orig:
+                os.environ["V3IO_USERNAME"] = orig
+            else:
+                os.unsetenv("V3IO_USERNAME")
+
         self.execute_function(runtime)
         expected_common_mounts = [
             kubernetes.client.V1VolumeMount(mount_path="/dev/shm", name="shm"),

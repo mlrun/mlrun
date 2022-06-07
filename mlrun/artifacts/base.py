@@ -1138,7 +1138,7 @@ def calc_target_path(item: Artifact, artifact_path, hash=None):
     local_path = item.db_key
     suffix = ""
     if not item.is_dir:
-        suffix = os.path.splitext(item.src_path) or f".{item.format}"
+        suffix = os.path.splitext(item.src_path or "") or f".{item.format}"
 
     if item.iter:
         local_path = os.path.join(local_path, str(item.iter)).replace("\\", "/")

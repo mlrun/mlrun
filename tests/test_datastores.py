@@ -42,13 +42,13 @@ def test_in_memory():
 
     data = mlrun.datastore.set_in_memory_item("aa", "123")
     in_memory_store = mlrun.datastore.get_in_memory_items()
-    new_df = mlrun.run.get_dataitem("memory://k2").as_df()
+    new_df = mlrun.run.get_dataitem(f"memory://{context.name}_k2").as_df()
 
     assert len(in_memory_store) == 3, "data not written properly to in mem store"
     assert data.get() == "123", "in mem store failed to get/put"
     assert len(new_df) == 5, "in mem store failed dataframe test"
     assert (
-        mlrun.run.get_dataitem("memory://k1").get() == "abc"
+        mlrun.run.get_dataitem(f"memory://{context.name}_k1").get() == "abc"
     ), "failed to log in mem artifact"
 
 
@@ -75,15 +75,15 @@ def test_file():
         print(alist)
         assert mlrun.run.get_dataitem(tmpdir).listdir() == alist, "failed listdir"
 
-        expected = ["test1.txt", "x.txt", "k2.csv"]
+        expected = ["test1.txt", "k2key.csv", f"{context.name}_k1.txt"]
         for a in expected:
             assert a in alist, f"artifact {a} was not generated"
 
-        new_fd = mlrun.run.get_dataitem(tmpdir + "/k2.csv").as_df()
+        new_fd = mlrun.run.get_dataitem(tmpdir + "/k2key.csv").as_df()
 
         assert len(new_fd) == 5, "failed dataframe test"
         assert (
-            mlrun.run.get_dataitem(tmpdir + "/x.txt").get() == b"abc"
+            mlrun.run.get_dataitem(f"{tmpdir}/{context.name}_k1.txt").get() == b"abc"
         ), "failed to log in file artifact"
 
         name = k2.uri

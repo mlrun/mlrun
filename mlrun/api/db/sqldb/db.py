@@ -3067,7 +3067,7 @@ class SQLDB(DBInterface):
             background_task_record.state = state
             background_task_record.updated = now
         else:
-            if timeout and mlrun.mlconf.background_tasks.timeout_mode == "disabled":
+            if mlrun.mlconf.background_tasks.timeout_mode == "disabled":
                 timeout = None
 
             background_task_record = BackgroundTask(
@@ -3141,14 +3141,17 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _is_background_task_timeout_exceeded(background_task_record) -> bool:
-        if mlrun.mlconf.background_tasks.timeout_mode == "enabled":
-            timeout = background_task_record.timeout
-            if (
-                timeout
-                and background_task_record.state
-                not in mlrun.api.schemas.BackgroundTaskState.terminal_states()
-                and datetime.utcnow()
-                > timedelta(seconds=int(timeout)) + background_task_record.updated
-            ):
-                return True
+        # We don't verify if timeout_mode is enabled because if timeout is defined and
+        # mlrun.mlconf.background_tasks.timeout_mode == "disabled",
+        # it signifies that the background task was initiated while timeout mode was enabled,
+        # and we intend to verify it as if timeout mode was enabled
+        timeout = background_task_record.timeout
+        if (
+            timeout
+            and background_task_record.state
+            not in mlrun.api.schemas.BackgroundTaskState.terminal_states()
+            and datetime.utcnow()
+            > timedelta(seconds=int(timeout)) + background_task_record.updated
+        ):
+            return True
         return False

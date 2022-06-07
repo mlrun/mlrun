@@ -18,7 +18,8 @@ class Member(mlrun.api.utils.projects.remotes.follower.Member):
     ):
         if project.metadata.name in self._projects:
             raise mlrun.errors.MLRunConflictError("Project already exists")
-        self._projects[project.metadata.name] = project
+        # deep copy so we won't accidentally get changes from tests
+        self._projects[project.metadata.name] = project.copy(deep=True)
 
     def store_project(
         self,
@@ -26,7 +27,8 @@ class Member(mlrun.api.utils.projects.remotes.follower.Member):
         name: str,
         project: mlrun.api.schemas.Project,
     ):
-        self._projects[name] = project
+        # deep copy so we won't accidentally get changes from tests
+        self._projects[name] = project.copy(deep=True)
 
     def patch_project(
         self,
@@ -52,7 +54,8 @@ class Member(mlrun.api.utils.projects.remotes.follower.Member):
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
     ) -> mlrun.api.schemas.Project:
-        return self._projects[name]
+        # deep copy so we won't accidentally get changes from tests
+        return self._projects[name].copy(deep=True)
 
     def list_projects(
         self,
@@ -68,6 +71,8 @@ class Member(mlrun.api.utils.projects.remotes.follower.Member):
                 "Filtering by owner, labels or state is not supported"
             )
         projects = list(self._projects.values())
+        # deep copy so we won't accidentally get changes from tests
+        projects = [project.copy(deep=True) for project in projects]
         if names:
             projects = [
                 project

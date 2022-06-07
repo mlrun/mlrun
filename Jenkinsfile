@@ -33,33 +33,113 @@ podTemplate(
                         println(common.shellc("MLRUN_VERSION=${dockerTag} make api"))
                     }
                     dockerx.images_push_multi_registries(["${gitProject}/mlrun-api:${dockerTag}"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
+                }
+            }
+        }
+    }
+    node(podLabel) {
+        common.notify_slack {
+            withCredentials([
+                string(credentialsId: 'iguazio-prod-git-user-token', variable: 'GIT_TOKEN')
+            ]) {
+
+                container('base-build') {
+                    stage("git clone") {
+                        checkout scm
+                    }
 
                     stage("build ${gitProject}/mlrun in dood") {
                         println(common.shellc("MLRUN_VERSION=${dockerTag} make mlrun"))
                     }
                     dockerx.images_push_multi_registries(["${gitProject}/mlrun:${dockerTag}"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
+                }
+            }
+        }
+    }
+
+    node(podLabel) {
+        common.notify_slack {
+            withCredentials([
+                string(credentialsId: 'iguazio-prod-git-user-token', variable: 'GIT_TOKEN')
+            ]) {
+
+                container('base-build') {
+                    stage("git clone") {
+                        checkout scm
+                    }
 
                     stage("build ${gitProject}/jupyter in dood") {
                         println(common.shellc("MLRUN_VERSION=${dockerTag} make jupyter"))
                     }
                     dockerx.images_push_multi_registries(["${gitProject}/jupyter:${dockerTag}"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
+                }
+            }
+        }
+    }
+
+    node(podLabel) {
+        common.notify_slack {
+            withCredentials([
+                string(credentialsId: 'iguazio-prod-git-user-token', variable: 'GIT_TOKEN')
+            ]) {
+
+                container('base-build') {
+                    stage("git clone") {
+                        checkout scm
+                    }
 
                     stage("build ${gitProject}/base in dood") {
                         println(common.shellc("MLRUN_VERSION=${dockerTag} make base"))
                     }
                     dockerx.images_push_multi_registries(["${gitProject}/ml-base:${dockerTag}"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
+                }
+            }
+        }
+    }
 
+    node(podLabel) {
+        common.notify_slack {
+            withCredentials([
+                string(credentialsId: 'iguazio-prod-git-user-token', variable: 'GIT_TOKEN')
+            ]) {
+
+                container('base-build') {
+                    stage("git clone") {
+                        checkout scm
+                    }
                     stage("build ${gitProject}/models in dood") {
                         println(common.shellc("MLRUN_VERSION=${dockerTag} make models"))
                     }
                     dockerx.images_push_multi_registries(["${gitProject}/ml-models:${dockerTag}"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
+                }
+            }
+        }
+    }
 
+    node(podLabel) {
+        common.notify_slack {
+            withCredentials([
+                string(credentialsId: 'iguazio-prod-git-user-token', variable: 'GIT_TOKEN')
+            ]) {
+
+                container('base-build') {
+                    stage("git clone") {
+                        checkout scm
+                    }
                     stage("build ${gitProject}/models-gpu in dood") {
                         println(common.shellc("MLRUN_VERSION=${dockerTag} make models-gpu"))
                     }
                     dockerx.images_push_multi_registries(["${gitProject}/ml-models-gpu:${dockerTag}"], [DockerRepo.ARTIFACTORY_IGUAZIO, DockerRepo.MLRUN_DOCKER_HUB, DockerRepo.MLRUN_QUAY_IO])
-
                 }
+            }
+        }
+    }
+
+    node(podLabel) {
+        common.notify_slack {
+            withCredentials([
+                string(credentialsId: 'iguazio-prod-git-user-token', variable: 'GIT_TOKEN')
+            ]) {
 
                 container('jnlp') {
                     common.conditional_stage('Create mlrun/ui release', "${env.TAG_NAME}" != "unstable") {
@@ -77,9 +157,20 @@ podTemplate(
                         ui_github_client.createRelease(source_branch, env.TAG_NAME, true, true)
                     }
                 }
+            }
+        }
+    }
+
+    node(podLabel) {
+        common.notify_slack {
 
                 common.conditional_stage('Upload to PyPi', "${env.TAG_NAME}" != "unstable") {
                     container('python37') {
+                        withCredentials([
+                            string(credentialsId: 'iguazio-prod-git-user-token', variable: 'GIT_TOKEN')
+                            ]) {
+                                checkout scm
+                            }
                         withCredentials([
                             usernamePassword(
                                 credentialsId: 'iguazio-prod-pypi-credentials',
@@ -101,7 +192,7 @@ podTemplate(
                         }
                     }
                 }
-            }
+
         }
     }
 }

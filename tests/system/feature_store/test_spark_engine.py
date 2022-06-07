@@ -612,7 +612,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             pd.read_parquet(target.get_target_path())
 
     @pytest.mark.parametrize(
-        "should_succeed, engine, is_parquet, is_partitioned, target_path",
+        "should_succeed, is_parquet, is_partitioned, target_path",
         [
             # spark - csv - fail for single file
             (True, False, None, "v3io:///bigdata/dif-eng/csv"),

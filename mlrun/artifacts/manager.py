@@ -16,7 +16,7 @@ import pathlib
 from os.path import isdir
 
 from ..db import RunDBInterface
-from ..utils import is_legacy_artifact, is_relative_path, logger, uxjoin
+from ..utils import is_legacy_artifact, is_relative_path, logger
 from .base import (
     Artifact,
     DirArtifact,
@@ -155,29 +155,13 @@ class ArtifactManager:
         item.format = format or item.format
         item.src_path = src_path
 
-        if target_path:
-            if is_relative_path(target_path):
-                raise ValueError(
-                    f"target_path ({target_path}) param cannot be relative"
-                )
-        elif "://" in src_path:
-            if upload:
-                raise ValueError(f"Cannot upload from remote path {src_path}")
-            target_path = src_path
-            upload = False
-        else:
-            target_path = uxjoin(
-                artifact_path,
-                src_path if is_relative_path(src_path) else "",
-                filename(key, item.format),
-                producer.iteration,
-                item.is_dir,
-            )
-
-        if target_path and item.is_dir and not target_path.endswith("/"):
-            target_path += "/"
-
-        item.target_path = target_path
+        if db_key is None:
+            # set the default artifact db key
+            if producer.kind == "run":
+                db_key = producer.name + "_" + key
+            else:
+                db_key = key
+        item.db_key = db_key if db_key else ""
         item.viewer = viewer or item.viewer
         item.tree = producer.tag
         item.labels = labels or item.labels
@@ -186,13 +170,23 @@ class ArtifactManager:
         item.project = producer.project
         item.tag = tag or item.tag
 
-        if db_key is None:
-            # set the default artifact db key
-            if producer.kind == "run":
-                db_key = producer.name + "_" + key
-            else:
-                db_key = key
-        item.db_key = db_key if db_key else ""
+        if target_path:
+            if is_relative_path(target_path):
+                raise ValueError(
+                    f"target_path ({target_path}) param cannot be relative"
+                )
+        elif src_path and "://" in src_path:
+            if upload:
+                raise ValueError(f"Cannot upload from remote path {src_path}")
+            target_path = src_path
+            upload = False
+        else:
+            target_path = item.calc_target_path(artifact_path)
+
+        if target_path and item.is_dir and not target_path.endswith("/"):
+            target_path += "/"
+
+        item.target_path = target_path
 
         item.before_log()
         self.artifacts[key] = item

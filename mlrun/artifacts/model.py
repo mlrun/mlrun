@@ -411,6 +411,17 @@ class ModelArtifact(Artifact):
         spec_path = path.join(self.spec.target_path, model_spec_filename)
         store_manager.object(url=spec_path).put(self.to_yaml())
 
+    def _get_file_body(self):
+        body = self.spec.get_body()
+        if body:
+            return body
+        src_model_path = _get_src_path(self, self.spec.model_file)
+        if src_model_path and path.isfile(src_model_path):
+            with open(src_model_path, "rb") as fp:
+                return fp.read()
+        target_model_path = path.join(self.spec.target_path, self.spec.model_file)
+        return mlrun.get_dataitem(target_model_path).get()
+
 
 class LegacyModelArtifact(Artifact):
     """ML Model artifact

@@ -13,7 +13,9 @@
 # limitations under the License.
 import hashlib
 import os
+import tempfile
 import warnings
+import zipfile
 
 import yaml
 
@@ -217,6 +219,56 @@ class Artifact(ModelObj):
     @status.setter
     def status(self, status):
         self._status = self._verify_dict(status, "status", ArtifactStatus)
+
+    def _get_file_body(self):
+        body = self.spec.get_body()
+        if body:
+            return body
+        if self.src_path and os.path.isfile(self.src_path):
+            with open(self.src_path, "rb") as fp:
+                return fp.read()
+        return mlrun.get_dataitem(self.get_target_path()).get()
+
+    def export(self, target_path: str, with_extras=True):
+        """save the artifact object into a yaml/json file or zip archive
+
+        when the target path is a .yaml/.json file the artifact spec is saved into that file,
+        when the target_path suffix is '.zip' the artifact spec, body and extra data items are
+        packaged into a zip file. The archive target_path support DataItem urls for remote object storage
+        (e.g. s3://<bucket>/<path>).
+
+        :param target_path: path to store artifact .yaml/.json spec or .zip (spec with the content)
+        :param with_extras: will include the extra_data items in the zip archive
+        """
+        if target_path.endswith(".yaml") or target_path.endswith(".yml"):
+            mlrun.get_dataitem(target_path).put(self.to_yaml())
+
+        elif target_path.endswith(".json"):
+            mlrun.get_dataitem(target_path).put(self.to_json())
+
+        elif target_path.endswith(".zip"):
+            tmp_path = None
+            if "://" in target_path:
+                tmp_path = tempfile.mktemp(".zip")
+            zipf = zipfile.ZipFile(tmp_path or target_path, "w")
+            zipf.writestr("_spec.yaml", self.to_yaml())
+            body = self._get_file_body()
+            zipf.writestr("_body", body)
+            if with_extras:
+                for k, item_path in self.extra_data.items():
+                    if is_relative_path(item_path):
+                        base_dir = self.src_path
+                        if not self.is_dir:
+                            base_dir = os.path.dirname(base_dir)
+                        item_path = os.path.join(base_dir, item_path).replace("\\", "/")
+                    zipf.writestr(k, mlrun.get_dataitem(item_path).get())
+            zipf.close()
+
+            if tmp_path:
+                mlrun.get_dataitem(target_path).upload(tmp_path)
+                os.remove(tmp_path)
+        else:
+            raise ValueError("unsupported file suffix, use .yaml, .json, or .zip")
 
     def before_log(self):
         pass
@@ -695,6 +747,9 @@ class Artifact(ModelObj):
         )
         self.metadata.hash = hash
 
+    def calc_target_path(self, artifact_path, hash=None):
+        return calc_target_path(self, artifact_path, hash)
+
 
 class DirArtifactSpec(ArtifactSpec):
     _dict_fields = [
@@ -947,6 +1002,9 @@ class LegacyArtifact(ModelObj):
     def artifact_kind(self):
         return self.kind
 
+    def calc_target_path(self, artifact_path, hash=None):
+        return calc_target_path(self, artifact_path, hash)
+
 
 class LegacyDirArtifact(LegacyArtifact):
     _dict_fields = [
@@ -1070,3 +1128,19 @@ def get_artifact_meta(artifact):
         extra_dataitems[k] = store_manager.object(v, key=k)
 
     return artifact_spec, extra_dataitems
+
+
+def calc_target_path(item: Artifact, artifact_path, hash=None):
+    artifact_path = artifact_path or ""
+    if not artifact_path.endswith("/"):
+        artifact_path += "/"
+
+    local_path = item.db_key
+    suffix = ""
+    if not item.is_dir:
+        suffix = os.path.splitext(item.src_path) or f".{item.format}"
+
+    if item.iter:
+        local_path = os.path.join(local_path, str(item.iter)).replace("\\", "/")
+
+    return f"{artifact_path}{local_path}{suffix}"

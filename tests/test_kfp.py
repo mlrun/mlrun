@@ -125,11 +125,11 @@ def test_kfp_function_run_with_hyper_params(kfp_dirs):
 
 
 def _assert_output_dir(output_dir, name, iterations=1):
-    output_prefix = f"{output_dir}/{name}_"
+    output_prefix = f"{output_dir}/{name}/"
     for iteration in range(1, iterations):
         _assert_iteration_output_dir_files(output_prefix, iteration)
     if iterations > 1:
-        iteration_results_file = output_prefix + "iteration_results.csv"
+        iteration_results_file = output_prefix + "0/iteration_results.csv"
         with open(iteration_results_file) as file:
             count = 0
             for row in csv.DictReader(file):
@@ -139,20 +139,17 @@ def _assert_output_dir(output_dir, name, iterations=1):
 
 
 def _assert_iteration_output_dir_files(output_dir, iteration):
-    def file_path(key, suffix):
-        if iteration:
-            return output_dir + f"{key}/{iteration}.{suffix}"
-        else:
-            return output_dir + f"{key}.{suffix}"
+    def file_path(key):
+        return output_dir + f"{iteration}/{key}"
 
-    with open(file_path("model", "txt")) as model_file:
+    with open(file_path("model.txt")) as model_file:
         contents = model_file.read()
         assert contents == model_body
-    with open(file_path("results", "html")) as results_file:
+    with open(file_path("results.html")) as results_file:
         contents = results_file.read()
         assert contents == results_body
-    assert os.path.exists(file_path("chart", "html"))
-    assert os.path.exists(file_path("mydf", "parquet"))
+    assert os.path.exists(file_path("chart.html"))
+    assert os.path.exists(file_path("mydf.parquet"))
 
 
 def _assert_artifacts_dir(artifacts_dir, expected_accuracy, expected_loss):

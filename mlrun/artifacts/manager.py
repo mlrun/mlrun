@@ -87,7 +87,7 @@ class ArtifactProducer:
         return {"kind": self.kind, "name": self.name, "tag": self.tag}
 
 
-def dict_to_artifact(struct: dict):
+def dict_to_artifact(struct: dict) -> Artifact:
     # Need to distinguish between LegacyArtifact classes and Artifact classes. Use existence of the "metadata"
     # property to make this distinction
     kind = struct.get("kind", "")
@@ -175,13 +175,14 @@ class ArtifactManager:
                 raise ValueError(
                     f"target_path ({target_path}) param cannot be relative"
                 )
+            upload = False
         elif src_path and "://" in src_path:
             if upload:
                 raise ValueError(f"Cannot upload from remote path {src_path}")
             target_path = src_path
             upload = False
         else:
-            target_path = item.calc_target_path(artifact_path)
+            target_path = item.calc_target_path(artifact_path, producer)
 
         if target_path and item.is_dir and not target_path.endswith("/"):
             target_path += "/"
@@ -257,6 +258,7 @@ class ArtifactManager:
 
 
 def extend_artifact_path(artifact_path: str, default_artifact_path: str):
+    artifact_path = str(artifact_path or "")
     if artifact_path and artifact_path.startswith("+/"):
         if not default_artifact_path:
             return artifact_path[len("+/") :]

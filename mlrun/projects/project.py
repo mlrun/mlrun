@@ -14,6 +14,7 @@
 import datetime
 import getpass
 import glob
+import json
 import pathlib
 import shutil
 import tempfile
@@ -1324,6 +1325,52 @@ class MlrunProject(ModelObj):
             labels=labels,
         )
         return item
+
+    def import_artifact(self, item_path: str, new_key=None, artifact_path=None):
+        """Import an artifact object/package from .yaml, .json, or .zip file
+
+        :param item_path:     dataitem url  or file path to the file/package
+        :param new_key:       overwrite the artifact key/name
+        :param artifact_path: target artifact path (when not using the default)
+        :return: artifact object
+        """
+
+        def get_artifact(spec):
+            artifact = dict_to_artifact(spec)
+            artifact.metadata.key = new_key or artifact.metadata.key
+            artifact.metadata.project = self.metadata.name
+            artifact.metadata.updated = None
+            return artifact
+
+        dataitem = mlrun.get_dataitem(item_path)
+        if item_path.endswith(".yaml") or item_path.endswith(".yml"):
+            artifact_dict = yaml.load(dataitem.get(), Loader=yaml.FullLoader)
+            artifact = get_artifact(artifact_dict)
+        elif item_path.endswith(".json"):
+            artifact_dict = json.loads(dataitem.get())
+            artifact = get_artifact(artifact_dict)
+        elif item_path.endswith(".zip"):
+            item_file = dataitem.local()
+            with tempfile.TemporaryDirectory() as temp_dir:
+                with zipfile.ZipFile(item_file, "r") as zf:
+                    zf.extractall(temp_dir)
+                with open(f"{temp_dir}/_spec.yaml", "r") as fp:
+                    data = fp.read()
+                spec = yaml.load(data, Loader=yaml.FullLoader)
+                artifact = get_artifact(spec)
+                with open(f"{temp_dir}/_body", "rb") as fp:
+                    artifact.inline = fp.read()
+                artifact.target_path = ""
+                return self.log_artifact(
+                    artifact, local_path=temp_dir, artifact_path=artifact_path
+                )
+
+            if dataitem.kind != "file":
+                remove(item_file)
+        else:
+            raise ValueError("unsupported file suffix, use .yaml, .json, or .zip")
+
+        return self.log_artifact(artifact, artifact_path=artifact_path)
 
     def reload(self, sync=False, context=None) -> "MlrunProject":
         """reload the project and function objects from the project yaml/specs

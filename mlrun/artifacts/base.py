@@ -251,17 +251,21 @@ class Artifact(ModelObj):
             if "://" in target_path:
                 tmp_path = tempfile.mktemp(".zip")
             zipf = zipfile.ZipFile(tmp_path or target_path, "w")
-            zipf.writestr("_spec.yaml", self.to_yaml())
             body = self._get_file_body()
             zipf.writestr("_body", body)
+            extras = {}
             if with_extras:
                 for k, item_path in self.extra_data.items():
                     if is_relative_path(item_path):
-                        base_dir = self.src_path
+                        base_dir = self.src_path or ""
                         if not self.is_dir:
                             base_dir = os.path.dirname(base_dir)
                         item_path = os.path.join(base_dir, item_path).replace("\\", "/")
                     zipf.writestr(k, mlrun.get_dataitem(item_path).get())
+                    extras[k] = k
+            artifact = self.copy()
+            artifact.extra_data = extras
+            zipf.writestr("_spec.yaml", artifact.to_yaml())
             zipf.close()
 
             if tmp_path:
@@ -747,8 +751,8 @@ class Artifact(ModelObj):
         )
         self.metadata.hash = hash
 
-    def calc_target_path(self, artifact_path, hash=None):
-        return calc_target_path(self, artifact_path, hash)
+    def calc_target_path(self, artifact_path, producer):
+        return calc_target_path(self, artifact_path, producer)
 
 
 class DirArtifactSpec(ArtifactSpec):
@@ -1002,8 +1006,8 @@ class LegacyArtifact(ModelObj):
     def artifact_kind(self):
         return self.kind
 
-    def calc_target_path(self, artifact_path, hash=None):
-        return calc_target_path(self, artifact_path, hash)
+    def calc_target_path(self, artifact_path, producer):
+        return calc_target_path(self, artifact_path, producer)
 
 
 class LegacyDirArtifact(LegacyArtifact):
@@ -1080,7 +1084,7 @@ def upload_extra_data(
     for key, item in extra_data.items():
 
         if isinstance(item, bytes):
-            target = os.path.join(target_path, key)
+            target = os.path.join(target_path, prefix + key)
             store_manager.object(url=target).put(item)
             artifact_spec.extra_data[prefix + key] = target
             continue
@@ -1130,19 +1134,19 @@ def get_artifact_meta(artifact):
     return artifact_spec, extra_dataitems
 
 
-def calc_target_path(item: Artifact, artifact_path, hash=None):
+def calc_target_path(item: Artifact, artifact_path, producer):
+    # path convention: artifact_path[/{run_name}]/{iter}/{key}.{suffix}
+    # todo: add run_id here (vs in the .run() methods), support items dedup (by hash)
     artifact_path = artifact_path or ""
     if artifact_path and not artifact_path.endswith("/"):
         artifact_path += "/"
+    if producer.kind == "run":
+        artifact_path += f"{producer.name}/{item.iter or 0}/"
 
-    local_path = item.db_key
-    suffix = ""
+    suffix = "/"
     if not item.is_dir:
         suffix = os.path.splitext(item.src_path or "")[1]
         if not suffix and item.format:
             suffix = f".{item.format}"
 
-    if item.iter:
-        local_path = os.path.join(local_path, str(item.iter)).replace("\\", "/")
-
-    return f"{artifact_path}{local_path}{suffix}"
+    return f"{artifact_path}{item.key}{suffix}"

@@ -455,9 +455,13 @@ class KafkaOutputStream:
         self._lazy_init()
 
         def dump_record(rec):
-            if not isinstance(rec, (str, bytes)):
-                return dict_to_json(rec)
-            return str(rec).encode("UTF-8")
+            if isinstance(rec, bytes):
+                return rec
+
+            if not isinstance(rec, str):
+                rec = dict_to_json(rec)
+
+            return rec.encode("UTF-8")
 
         if not isinstance(data, list):
             data = [data]

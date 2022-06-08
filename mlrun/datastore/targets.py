@@ -24,7 +24,7 @@ import pandas as pd
 import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
-from mlrun.model import DataTarget, DataTargetBase, TargetPathObject, DataSource
+from mlrun.model import DataSource, DataTarget, DataTargetBase, TargetPathObject
 from mlrun.utils import now_date
 from mlrun.utils.v3io_clients import get_frames_client
 
@@ -121,7 +121,9 @@ def validate_target_paths_for_engine(targets, engine, source):
                     f"spark CSV/Parquet targets must be directories, got path:'{target.path}'"
                 )
             elif engine == "pandas":
-                if isinstance(source, DataSource) and source.attributes.get("chunksize"):
+                if isinstance(source, DataSource) and source.attributes.get(
+                    "chunksize"
+                ):
                     if is_single_file:
                         raise mlrun.errors.MLRunInvalidArgumentError(
                             "pandas CSV/Parquet targets must be a directory "

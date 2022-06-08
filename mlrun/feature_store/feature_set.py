@@ -828,7 +828,7 @@ class FeatureSet(ModelObj):
         """publish the feature set and lock it's metadata"""
 
         if not mlrun.mlconf.feature_store.enable_publish_feature_set:
-            raise NotImplementedError(f"Publish of feature set is not supported.")
+            raise NotImplementedError("Publish of feature set is not supported.")
 
         if self.get_publish_time:
             raise MLRunBadRequestError(

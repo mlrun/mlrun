@@ -412,7 +412,7 @@ def publish_feature_set(
     db_session: Session = Depends(deps.get_db_session),
 ):
     if not mlrun.mlconf.feature_store.enable_publish_feature_set:
-        raise NotImplementedError(f"Publish of feature set is not supported.")
+        raise NotImplementedError("Publish of feature set is not supported.")
 
     mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
         db_session, project, auth_info=auth_info

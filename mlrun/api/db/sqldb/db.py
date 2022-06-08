@@ -1898,7 +1898,9 @@ class SQLDB(DBInterface):
             db_object.created = common_object_dict["metadata"].pop(
                 "created", None
             ) or datetime.now(timezone.utc)
-        db_object.publish_time = common_object_dict["metadata"].pop("publish_time", None)
+        db_object.publish_time = common_object_dict["metadata"].pop(
+            "publish_time", None
+        )
         db_object.state = common_object_dict.get("status", {}).get("state")
         db_object.uid = uid
 

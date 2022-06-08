@@ -2,11 +2,11 @@ import json
 from http import HTTPStatus
 from uuid import uuid4
 
-import mlrun
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun
 import tests.api.api.utils
 
 from .base import (
@@ -100,7 +100,13 @@ def _patch_and_assert_feature_set(
 
 
 def _store_and_assert_feature_set(
-    client: TestClient, project, name, reference, feature_set, versioned=True, exception=None
+    client: TestClient,
+    project,
+    name,
+    reference,
+    feature_set,
+    versioned=True,
+    exception=None,
 ):
     response = client.put(
         f"projects/{project}/feature-sets/{name}/references/{reference}?versioned={versioned}",
@@ -110,7 +116,13 @@ def _store_and_assert_feature_set(
 
 
 def _publish_and_assert_feature_set(
-    client: TestClient, project, name, reference, feature_set, versioned=True, exception=None
+    client: TestClient,
+    project,
+    name,
+    reference,
+    feature_set,
+    versioned=True,
+    exception=None,
 ):
     response = client.post(
         f"projects/{project}/feature-sets/{name}/references/{reference}/publish?versioned={versioned}",
@@ -130,6 +142,7 @@ def _assert_response(response, exception=None):
         assert exc is not None
         assert exc.__contains__(exception.__class__.__name__)
         assert exc.__contains__(exception.__str__())
+
 
 def _assert_extra_fields_exist(json_response):
     # Make sure we get all the out-of-schema fields properly
@@ -808,7 +821,14 @@ def test_unversioned_feature_set_actions(db: Session, client: TestClient) -> Non
         client, project_name, feature_set, versioned=False
     )
 
-    allowed_added_fields = ["created", "updated", "tag", "uid", "project", "publish_time"]
+    allowed_added_fields = [
+        "created",
+        "updated",
+        "tag",
+        "uid",
+        "project",
+        "publish_time",
+    ]
     _assert_diff_as_expected_except_for_specific_metadata(
         feature_set, feature_set_response, allowed_added_fields
     )
@@ -944,13 +964,17 @@ def test_feature_set_publish_enabled(db: Session, client: TestClient) -> None:
     tag = "pub-tag"
     feature_set = _generate_feature_set(name)
 
-    response = _publish_and_assert_feature_set(client, project_name, name, tag, feature_set)
+    response = _publish_and_assert_feature_set(
+        client, project_name, name, tag, feature_set
+    )
     assert response["feature_set"]["metadata"]["publish_time"] is not None
     assert response["feature_set"]["metadata"]["name"] == name
     assert response["feature_set"]["metadata"]["tag"] == tag
 
 
-def test_feature_set_forbidden_apis_after_publish(db: Session, client: TestClient) -> None:
+def test_feature_set_forbidden_apis_after_publish(
+    db: Session, client: TestClient
+) -> None:
     project_name = f"prj-{uuid4().hex}"
     tests.api.api.utils.create_project(client, project_name)
     mlrun.mlconf.feature_store.enable_publish_feature_set = True
@@ -959,29 +983,55 @@ def test_feature_set_forbidden_apis_after_publish(db: Session, client: TestClien
     tag = "pub-tag"
     feature_set = _generate_feature_set(name)
 
-    response = _publish_and_assert_feature_set(client, project_name, name, tag, feature_set)
+    response = _publish_and_assert_feature_set(
+        client, project_name, name, tag, feature_set
+    )
     assert response["feature_set"]["metadata"]["publish_time"] is not None
     assert response["feature_set"]["metadata"]["name"] == name
     assert response["feature_set"]["metadata"]["tag"] == tag
     publish_time = response["feature_set"]["metadata"]["publish_time"]
 
     _publish_and_assert_feature_set(
-        client, project_name, name, tag, feature_set,
-        exception=mlrun.errors.MLRunBadRequestError(f"Cannot publish tag: '{tag}', tag already exists."),
+        client,
+        project_name,
+        name,
+        tag,
+        feature_set,
+        exception=mlrun.errors.MLRunBadRequestError(
+            f"Cannot publish tag: '{tag}', tag already exists."
+        ),
     )
 
     feature_set["metadata"]["publish_time"] = publish_time
     _publish_and_assert_feature_set(
-        client, project_name, name, "other", feature_set,
-        exception=mlrun.errors.MLRunBadRequestError(f"Feature set was already published (published on:"),
+        client,
+        project_name,
+        name,
+        "other",
+        feature_set,
+        exception=mlrun.errors.MLRunBadRequestError(
+            "Feature set was already published (published on:"
+        ),
     )
 
     _store_and_assert_feature_set(
-        client, project_name, name, tag, feature_set,
-        exception=mlrun.errors.MLRunBadRequestError("Cannot store an already published Feature-set"),
+        client,
+        project_name,
+        name,
+        tag,
+        feature_set,
+        exception=mlrun.errors.MLRunBadRequestError(
+            "Cannot store an already published Feature-set"
+        ),
     )
 
     _patch_and_assert_feature_set(
-        client, project_name, name, feature_set, reference=tag,
-        exception=mlrun.errors.MLRunBadRequestError("Cannot patch an already published Feature-set"),
+        client,
+        project_name,
+        name,
+        feature_set,
+        reference=tag,
+        exception=mlrun.errors.MLRunBadRequestError(
+            "Cannot patch an already published Feature-set"
+        ),
     )

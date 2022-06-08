@@ -1414,19 +1414,22 @@ def _init_async_objects(context, steps):
                 if step.path and not skip_stream:
                     stream_path = step.path
                     endpoint = None
-                    if stream_path.startswith("kafka://"):
-                        bootstrap_servers = None
-                        if step.trigger_args:
-                            bootstrap_servers = step.trigger_args.get(
-                                "bootstrap_servers"
-                            )
+                    kafka_bootstrap_servers = step.options.get(
+                        "kafka_bootstrap_servers"
+                    )
+                    if stream_path.startswith("kafka://") or kafka_bootstrap_servers:
                         topic, bootstrap_servers = parse_kafka_url(
-                            stream_path, bootstrap_servers
+                            stream_path, kafka_bootstrap_servers
+                        )
+
+                        kafka_producer_options = step.options.get(
+                            "kafka_producer_options"
                         )
 
                         step._async_object = storey.KafkaTarget(
                             topic=topic,
                             bootstrap_servers=bootstrap_servers,
+                            producer_options=kafka_producer_options,
                             context=context,
                         )
                     else:

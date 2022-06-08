@@ -71,7 +71,7 @@ def test_file():
         # test that we can get the artifact as dataitem
         assert k1.to_dataitem().get(encoding="utf-8") == "abc", "wrong .dataitem result"
 
-        assert len(mlrun.run.get_dataitem(tmpdir).listdir()) == 3, "failed listdir"
+        assert "test1.txt" in mlrun.run.get_dataitem(tmpdir).listdir(), "failed listdir"
 
         expected = [f"{tmpdir}/test1.txt", k2.get_target_path(), k1.get_target_path()]
         for a in expected:
@@ -79,7 +79,7 @@ def test_file():
                 tmpdir
             ), f"artifact {a} was not generated"
 
-        new_fd = mlrun.run.get_dataitem(tmpdir + "/k2key.csv").as_df()
+        new_fd = mlrun.run.get_dataitem(k2.get_target_path()).as_df()
 
         assert len(new_fd) == 5, "failed dataframe test"
         assert (

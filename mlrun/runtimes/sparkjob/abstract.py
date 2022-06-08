@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import typing
-from copy import deepcopy
+from copy import copy, deepcopy
 from datetime import datetime
 from typing import Dict, Optional, Tuple
 
@@ -619,9 +619,18 @@ with ctx:
                 self.spec.deps["files"] = []
             self.spec.deps["files"] += deps["files"]
 
-    def with_igz_spark(self):
+    def with_igz_spark(self, mount_v3io_to_executor=True):
         self._update_igz_jars(deps=self._get_igz_deps())
+        additional_executor_volume_mounts = copy(self.spec.volume_mounts)
         self.apply(mount_v3io_extended())
+
+        # move volume_mounts to driver and executor specific fields and leave v3io mounts
+        # out of executor mounts if mount_v3io_to_executor=False
+        self.spec.driver_volume_mounts += self.spec.volume_mounts
+        if mount_v3io_to_executor:
+            additional_executor_volume_mounts = self.spec.volume_mounts
+        self.spec.executor_volume_mounts += additional_executor_volume_mounts
+        self.spec.volume_mounts = []
         self.apply(
             mount_v3iod(
                 namespace=config.namespace,

@@ -81,6 +81,6 @@ def get_background_task(
             return mlrun.api.utils.background_tasks.Handler().get_background_task(
                 db_session, name=name
             )
-        except Exception as exc:
+        except Exception:
             # redirect to chief
             pass

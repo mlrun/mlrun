@@ -1173,17 +1173,6 @@ class KafkaTarget(BaseStoreTarget):
         }
         super().__init__(*args, attributes=attrs, **kwargs)
 
-    def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
-    ):
-        warnings.warn(
-            "This method is deprecated. Use add_writer_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        """add storey writer state to graph"""
-        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
-
     def add_writer_step(
         self,
         graph,

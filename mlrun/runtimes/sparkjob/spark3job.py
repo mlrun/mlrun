@@ -670,8 +670,8 @@ class Spark3Runtime(AbstractSparkRuntime):
             if exporter_jar:
                 self.spec.monitoring["exporter_jar"] = exporter_jar
 
-    def with_igz_spark(self, mount_v3io_to_executor=True):
-        super().with_igz_spark(mount_v3io_to_executor)
+    def with_igz_spark(self):
+        super().with_igz_spark()
         if "enabled" not in self.spec.monitoring or self.spec.monitoring["enabled"]:
             self._with_monitoring(
                 exporter_jar="/spark/jars/jmx_prometheus_javaagent-0.16.1.jar",

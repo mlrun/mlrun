@@ -79,9 +79,11 @@ def get_stream_pusher(stream_path: str, **kwargs):
 
     if stream_path.startswith("kafka://") or "bootstrap_servers" in kwargs:
         topic, bootstrap_servers = parse_kafka_url(
-            stream_path, kwargs.get("bootstrap_servers")
+            stream_path, kwargs.get("kafka_bootstrap_servers")
         )
-        return KafkaOutputStream(topic, bootstrap_servers)
+        return KafkaOutputStream(
+            topic, bootstrap_servers, kwargs.get("kafka_producer_options")
+        )
     elif "://" not in stream_path:
         return OutputStream(stream_path, **kwargs)
     elif stream_path.startswith("v3io"):

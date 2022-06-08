@@ -428,11 +428,13 @@ class KafkaOutputStream:
         self,
         topic,
         brokers,
+        producer_options=None,
         mock=False,
     ):
         self._kafka_producer = None
         self._topic = topic
         self._brokers = brokers
+        self._producer_options = producer_options
 
         self._mock = mock
         self._mock_queue = []
@@ -447,6 +449,7 @@ class KafkaOutputStream:
 
         self._kafka_producer = kafka.KafkaProducer(
             bootstrap_servers=self._brokers,
+            producer_options=self._producer_options,
         )
 
         self._initialized = True

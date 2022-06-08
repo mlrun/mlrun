@@ -1166,10 +1166,12 @@ class KafkaTarget(BaseStoreTarget):
         self,
         *args,
         bootstrap_servers=None,
+        producer_options=None,
         **kwargs,
     ):
         attrs = {
             "bootstrap_servers": bootstrap_servers,
+            "producer_options": producer_options,
         }
         super().__init__(*args, attributes=attrs, **kwargs)
 
@@ -1198,6 +1200,7 @@ class KafkaTarget(BaseStoreTarget):
             columns=column_list,
             topic=topic,
             bootstrap_servers=bootstrap_servers,
+            producer_options=self.attributes.get("producer_options"),
         )
 
     def as_df(self, columns=None, df_module=None, **kwargs):

@@ -2582,6 +2582,28 @@ class TestFeatureStore(TestMLRunSystem):
             record = next(kafka_consumer)
             assert record.value == expected_record
 
+    @pytest.mark.skipif(kafka_brokers == "", reason="KAFKA_BROKERS must be set")
+    def test_kafka_target_bad_kafka_options(self):
+
+        stocks = pd.DataFrame(
+            {
+                "ticker": ["MSFT", "GOOG", "AAPL"],
+                "name": ["Microsoft Corporation", "Alphabet Inc", "Apple Inc"],
+                "booly": [True, False, True],
+            }
+        )
+        stocks_set = fs.FeatureSet(
+            "stocks_test", entities=[Entity("ticker", ValueType.STRING)]
+        )
+        target = KafkaTarget(
+            "kafka",
+            path=kafka_topic,
+            bootstrap_servers=kafka_brokers,
+            producer_options={"compression_type": "invalid value"},
+        )
+        with pytest.raises(ValueError):
+            fs.ingest(stocks_set, stocks, [target])
+
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)

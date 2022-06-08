@@ -214,9 +214,9 @@ with warnings.catch_warnings():
             return f"{self.project}/{self.uid}/{self.iteration}"
 
     class BackgroundTask(Base, BaseModel):
-        __tablename__ = "background_task"
+        __tablename__ = "background_tasks"
         __table_args__ = (
-            UniqueConstraint("name", "project", name="_background_task_uc"),
+            UniqueConstraint("name", "project", name="_background_tasks_uc"),
         )
 
         id = Column(Integer, primary_key=True)

@@ -42,6 +42,7 @@ class SQLiteMigrationUtil(object):
         "feature_vectors_tags",
         "projects_labels",
         "data_versions",
+        "background_tasks",
     ]
 
     def __init__(self):

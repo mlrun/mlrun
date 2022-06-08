@@ -449,7 +449,7 @@ class KafkaOutputStream:
 
         self._kafka_producer = kafka.KafkaProducer(
             bootstrap_servers=self._brokers,
-            producer_options=self._producer_options,
+            **self._producer_options,
         )
 
         self._initialized = True

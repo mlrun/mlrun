@@ -77,7 +77,7 @@ def get_stream_pusher(stream_path: str, **kwargs):
     :param stream_path:        path/url of stream
     """
 
-    if stream_path.startswith("kafka://") or "bootstrap_servers" in kwargs:
+    if stream_path.startswith("kafka://") or "kafka_bootstrap_servers" in kwargs:
         topic, bootstrap_servers = parse_kafka_url(
             stream_path, kwargs.get("kafka_bootstrap_servers")
         )

@@ -124,7 +124,7 @@ def test_storing_project_background_task_and_non_project_background_task_with_sa
 @pytest.mark.parametrize(
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
-def test_get_background_task_with_exceeded_timeout_and_disabled_timeout(
+def test_get_background_task_with_disabled_timeout(
     db: DBInterface, db_session: Session
 ):
     task_name = "test"
@@ -135,16 +135,11 @@ def test_get_background_task_with_exceeded_timeout_and_disabled_timeout(
         db_session, name=task_name, timeout=task_timeout, project=project
     )
     background_task = db.get_background_task(db_session, task_name, project)
-    assert background_task.metadata.timeout == task_timeout
+    # expecting to be None because if mode is disabled and timeout provided it ignores it
+    assert background_task.metadata.timeout is None
     # expecting created and updated time to be equal because mode disabled even if timeout exceeded
     assert background_task.metadata.created == background_task.metadata.updated
     assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.running
-    # expecting timeout to exceed
-    assert (
-        datetime.timedelta(seconds=background_task.metadata.timeout)
-        + background_task.metadata.updated
-        < datetime.datetime.utcnow()
-    )
     task_name = "test1"
     db.store_background_task(db_session, name=task_name, project=project)
     # because timeout default mode is disabled, expecting not to enrich the background task timeout

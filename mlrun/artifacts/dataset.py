@@ -103,6 +103,10 @@ class DatasetArtifactSpec(ArtifactSpec):
         "header",
         "length",
         "column_metadata",
+        "features",
+        "partition_keys",
+        "timestamp_key",
+        "label_column",
     ]
 
     def __init__(self):
@@ -111,6 +115,10 @@ class DatasetArtifactSpec(ArtifactSpec):
         self.header = None
         self.length = None
         self.column_metadata = None
+        self.features = None
+        self.partition_keys = None
+        self.timestamp_key = None
+        self.label_column = None
 
 
 class DatasetArtifact(Artifact):

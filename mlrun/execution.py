@@ -638,6 +638,7 @@ class MLClientCtx(object):
             labels=labels,
             db_key=db_key,
             format=format,
+            **kwargs,
         )
         self._update_db()
         return item
@@ -657,6 +658,7 @@ class MLClientCtx(object):
         db_key=None,
         target_path="",
         extra_data=None,
+        label_column: str = None,
         **kwargs,
     ):
         """log a dataset artifact and optionally upload it to datastore
@@ -674,6 +676,7 @@ class MLClientCtx(object):
 
         :param key:           artifact key
         :param df:            dataframe object
+        :param label_column:  name of the label column (the one holding the target (y) values)
         :param local_path:    path to the local file we upload, will also be use
                               as the destination subpath (under "artifact_path")
         :param artifact_path: target artifact path (when not using the default)
@@ -700,6 +703,7 @@ class MLClientCtx(object):
             extra_data=extra_data,
             format=format,
             stats=stats,
+            label_column=label_column,
             **kwargs,
         )
 
@@ -787,14 +791,12 @@ class MLClientCtx(object):
             raise MLRunInvalidArgumentError(
                 "cannot specify inputs and training set together"
             )
-        if model_file and "://" in model_file:
-            model_dir = os.path.dirname(model_file)
-            model_file = os.path.basename(model_file)
 
         model = ModelArtifact(
             key,
             body,
             model_file=model_file,
+            model_dir=model_dir,
             metrics=metrics,
             parameters=parameters,
             inputs=inputs,
@@ -812,7 +814,6 @@ class MLClientCtx(object):
         item = self._artifacts_manager.log_artifact(
             self,
             model,
-            local_path=model_dir,
             artifact_path=extend_artifact_path(artifact_path, self.artifact_path),
             tag=tag,
             upload=upload,

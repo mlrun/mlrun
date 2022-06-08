@@ -140,6 +140,8 @@ class ArtifactSpec(ModelObj):
     @inline.setter
     def inline(self, body):
         self._body = body
+        if body:
+            self._is_inline = True
 
     def get_body(self):
         """get the artifact body when inline"""
@@ -177,6 +179,7 @@ class Artifact(ModelObj):
         project=None,
         metadata: ArtifactMetadata = None,
         spec: ArtifactSpec = None,
+        src_path: str = None,
     ):
         self._metadata = None
         self.metadata = metadata
@@ -191,9 +194,10 @@ class Artifact(ModelObj):
         self.spec.target_path = target_path or self.spec.target_path
         self.spec.format = format or self.spec.format
         self.spec.viewer = viewer or self.spec.viewer
+        self.spec.src_path = src_path
 
         if body:
-            self.spec.inline = body
+            self.spec._body = body
         self.spec._is_inline = is_inline or self.spec._is_inline
 
         self.status = ArtifactStatus()
@@ -344,6 +348,9 @@ class Artifact(ModelObj):
 
     # Following properties are for backwards compatibility with the ArtifactLegacy class. They should be
     # removed once we only work with the new Artifact structure.
+
+    def is_inline(self):
+        return self.spec._is_inline
 
     @property
     def inline(self):
@@ -917,6 +924,9 @@ class LegacyArtifact(ModelObj):
             if hasattr(item, "target_path"):
                 self.extra_data[key] = item.target_path
 
+    def is_inline(self):
+        return self._inline
+
     @property
     def is_dir(self):
         """this is a directory"""
@@ -932,6 +942,8 @@ class LegacyArtifact(ModelObj):
     @inline.setter
     def inline(self, body):
         self._body = body
+        if body:
+            self._inline = True
 
     @property
     def uri(self):

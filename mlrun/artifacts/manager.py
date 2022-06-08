@@ -138,13 +138,14 @@ class ArtifactManager:
         upload=None,
         labels=None,
         db_key=None,
+        **kwargs,
     ) -> Artifact:
         if isinstance(item, str):
             key = item
             if local_path and isdir(local_path):
-                item = DirArtifact(key, body)
+                item = DirArtifact(key, body, **kwargs)
             else:
-                item = Artifact(key, body)
+                item = Artifact(key, body, **kwargs)
         else:
             key = item.key
             target_path = target_path or item.target_path
@@ -181,7 +182,7 @@ class ArtifactManager:
                 raise ValueError(f"Cannot upload from remote path {src_path}")
             target_path = src_path
             upload = False
-        else:
+        elif not item.is_inline():
             target_path = item.calc_target_path(artifact_path, producer)
 
         if target_path and item.is_dir and not target_path.endswith("/"):
@@ -192,7 +193,7 @@ class ArtifactManager:
         item.before_log()
         self.artifacts[key] = item
 
-        if (upload is None and item.kind != "dir") or upload:
+        if ((upload is None and item.kind != "dir") or upload) and not item.is_inline():
             item.upload()
 
         if db_key:

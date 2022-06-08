@@ -132,12 +132,17 @@ class ModelArtifact(Artifact):
         feature_vector=None,
         feature_weights=None,
         extra_data=None,
+        model_dir=None,
         **kwargs,
     ):
 
         super().__init__(key, body, format=format, target_path=target_path, **kwargs)
+        if model_file and "://" in model_file:
+            model_dir = path.dirname(model_file)
+            model_file = path.basename(model_file)
 
         self.spec.model_file = model_file
+        self.spec.src_path = model_dir
         self.spec.parameters = parameters or {}
         self.spec.metrics = metrics or {}
         self.spec.inputs = inputs or []

@@ -6,6 +6,8 @@ from mlrun.artifacts.manager import extend_artifact_path
 from mlrun.utils import StorePrefix
 from tests import conftest
 
+results_dir = (pathlib.Path(conftest.results) / "artifacts").absolute()
+
 
 def test_artifacts_export_required_fields():
     artifact_classes = [
@@ -72,22 +74,44 @@ def test_calc_target_path():
     Model = mlrun.artifacts.ModelArtifact
     cases = [
         # artifact_path, artifact, src_path, iter, producer, expected
-        ("x", Artifact("k1"), "", None, FakeProducer("j1"), "x/j1/0/k1"),
+        ("x", Artifact("k1"), None, FakeProducer("j1"), "x/j1/0/k1"),
         (
             None,
             Artifact("k2", format="html"),
-            "",
             1,
             FakeProducer("j1"),
             "j1/1/k2.html",
         ),
-        ("", Artifact("k3"), "model.pkl", 0, FakeProducer("j1"), "j1/0/k3.pkl"),
-        ("x", Artifact("k4"), "a.b", None, FakeProducer(kind="project"), "x/k4.b"),
-        ("", Model("k5"), "model.pkl", 0, FakeProducer("j1"), "j1/0/k5/"),
-        ("x", Model("k6"), "a.b", None, FakeProducer(kind="project"), "x/k6/"),
+        (
+            "",
+            Artifact("k3", src_path="model.pkl"),
+            0,
+            FakeProducer("j1"),
+            "j1/0/k3.pkl",
+        ),
+        (
+            "x",
+            Artifact("k4", src_path="a.b"),
+            None,
+            FakeProducer(kind="project"),
+            "x/k4.b",
+        ),
+        (
+            "",
+            Model("k5", model_dir="y", model_file="model.pkl"),
+            0,
+            FakeProducer("j1"),
+            "j1/0/k5/",
+        ),
+        (
+            "x",
+            Model("k6", model_file="a.b"),
+            None,
+            FakeProducer(kind="project"),
+            "x/k6/",
+        ),
     ]
-    for artifact_path, artifact, src_path, iter, producer, expected in cases:
-        artifact.src_path = src_path
+    for artifact_path, artifact, iter, producer, expected in cases:
         artifact.iter = iter
         target = mlrun.artifacts.base.calc_target_path(
             artifact, artifact_path, producer
@@ -96,7 +120,6 @@ def test_calc_target_path():
 
 
 def test_export_import():
-    results_dir = (pathlib.Path(conftest.results) / "artifacts").absolute()
     project = mlrun.new_project("log-mod")
     target_project = mlrun.new_project("log-mod2")
     model = project.log_model(
@@ -123,3 +146,21 @@ def test_export_import():
             data = fp.read()
         assert data == b"123"
         assert extra_dataitems["kk"].get() == b"456"
+
+
+def test_inline_body():
+    project = mlrun.new_project("inline")
+
+    # log an artifact and save the content/body in the object (inline)
+    artifact = project.log_artifact(
+        "x", body="123", is_inline=True, artifact_path=results_dir
+    )
+    assert artifact.spec.get_body() == "123"
+    artifact.export(f"{results_dir}/x.yaml")
+
+    # verify the body survived the export and import
+    artifact = project.import_artifact(
+        f"{results_dir}/x.yaml", "y", artifact_path=results_dir
+    )
+    assert artifact.spec.get_body() == "123"
+    assert artifact.metadata.key == "y"

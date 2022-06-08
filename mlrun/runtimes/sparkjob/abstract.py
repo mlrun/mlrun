@@ -306,8 +306,24 @@ class AbstractSparkRuntime(KubejobRuntime):
         return gpu_type[0] if gpu_type else None, gpu_quantity
 
     def _validate(self, runobj: RunObject):
-        # validating length limit for sparkjob's function name
-        verify_field_regex("run.metadata.name", runobj.metadata.name, sparkjob_name)
+        # validating correctness of sparkjob's function name
+        try:
+            verify_field_regex("run.metadata.name", runobj.metadata.name, sparkjob_name)
+
+        except mlrun.errors.MLRunInvalidArgumentError as err:
+            pattern_error = str(err).split(" ")[-1]
+            if pattern_error == sparkjob_name[-1]:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Job name '{runobj.metadata.name}' is not valid."
+                    f" The job name must be not longer than 29 characters"
+                )
+            elif pattern_error in sparkjob_name[:-1]:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "a valid label must be an empty string or consist of alphanumeric characters,"
+                    " '-', '_' or '.', and must start and end with an alphanumeric character"
+                )
+            else:
+                raise err
 
         # validating existence of required fields
         if "requests" not in self.spec.executor_resources:

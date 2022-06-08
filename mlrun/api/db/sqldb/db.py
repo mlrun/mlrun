@@ -1381,6 +1381,7 @@ class SQLDB(DBInterface):
         self._delete_functions(session, name)
         self._delete_feature_sets(session, name)
         self._delete_feature_vectors(session, name)
+        self._delete_background_tasks(session, project=name)
 
         # resources deletion should remove their tags and labels as well, but doing another try in case there are
         # orphan resources
@@ -3106,6 +3107,26 @@ class SQLDB(DBInterface):
                 state=background_task_record.state,
             ),
         )
+
+    def _list_project_background_tasks(
+        self, session: Session, project: str
+    ) -> typing.List[str]:
+        return [
+            name
+            for name, in self._query(
+                session, distinct(BackgroundTask.name), project=project
+            ).all()
+        ]
+
+    def _delete_background_tasks(self, session: Session, project: str):
+        logger.debug("Removing background tasks from db", project=project)
+        for background_task_name in self._list_project_background_tasks(
+            session, project
+        ):
+            self.delete_background_task(session, background_task_name, project)
+
+    def delete_background_task(self, session: Session, name: str, project: str):
+        self._delete(session, BackgroundTask, name=name, project=project)
 
     def _get_background_task_record(
         self,

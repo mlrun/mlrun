@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.api.utils
 import mlrun.api.crud
 import mlrun.api.schemas
+import mlrun.api.utils.background_tasks
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.logs_dir
@@ -954,6 +955,12 @@ def _create_resources_of_all_kinds(
 
     secrets = {f"secret_{i}": "a secret" for i in range(5)}
     k8s_secrets_mock.store_project_secrets(project, secrets)
+    db.store_background_task(
+        db_session,
+        name="task",
+        state=mlrun.api.schemas.BackgroundTaskState.running,
+        project=project,
+    )
 
 
 def _assert_resources_in_project(
@@ -1046,7 +1053,7 @@ def _assert_db_resources_in_project(
                 and project_member_mode == "follower"
             )
             or (cls.__tablename__ == "projects" and project_member_mode == "follower")
-            or (cls.__tablename__ == "background_task")
+            # or (cls.__tablename__ == "background_tasks")
         ):
             continue
         number_of_cls_records = 0
@@ -1122,6 +1129,13 @@ def _assert_db_resources_in_project(
                     .filter(Project.name == project)
                     .count()
                 )
+            # if cls.__tablename__ == "background_tasks":
+            #     number_of_cls_records = (
+            #         db_session.query(Project)
+            #         .join(cls)
+            #         .filter(Project.name == project)
+            #         .count()
+            #     )
         elif cls.__name__ == "Project":
             number_of_cls_records = (
                 db_session.query(Project).filter(Project.name == project).count()

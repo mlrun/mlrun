@@ -1898,11 +1898,14 @@ class SQLDB(DBInterface):
             db_object.created = common_object_dict["metadata"].pop(
                 "created", None
             ) or datetime.now(timezone.utc)
+        db_object.publish_time = common_object_dict["metadata"].pop("publish_time", None)
         db_object.state = common_object_dict.get("status", {}).get("state")
         db_object.uid = uid
 
         common_object_dict["metadata"]["updated"] = str(updated_datetime)
         common_object_dict["metadata"]["created"] = str(db_object.created)
+        if db_object.publish_time:
+            common_object_dict["metadata"]["publish_time"] = str(db_object.publish_time)
 
         # In case of an unversioned object, we don't want to return uid to user queries. However,
         # the uid DB field has to be set, since it's used for uniqueness in the DB.
@@ -1958,7 +1961,7 @@ class SQLDB(DBInterface):
 
         if db_feature_set.publish_time:
             raise mlrun.errors.MLRunBadRequestError(
-                "Cannot patch an already published Feature-set"
+                "Cannot store an already published Feature-set"
             )
 
         self._update_db_record_from_object_dict(db_feature_set, feature_set_dict, uid)

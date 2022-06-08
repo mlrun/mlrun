@@ -448,7 +448,7 @@ def publish_feature_set(
 
     feature_set.metadata.tag = tag
     # datetime is not serializable by Json so setting it as str
-    feature_set.metadata.publish_time = datetime.now(timezone.utc).isoformat()
+    feature_set.metadata.publish_time = datetime.now(timezone.utc)
 
     uid = mlrun.api.crud.FeatureStore().store_feature_set(
         db_session,

@@ -747,6 +747,7 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     object_dict["status"] = None
     object_dict["metadata"]["updated"] = None
     object_created_timestamp = object_dict["metadata"].pop("created", None)
+    object_published_timestamp = object_dict["metadata"].pop("publish_time", None)
     data = json.dumps(object_dict, sort_keys=True).encode()
     h = hashlib.sha1()
     h.update(data)
@@ -756,6 +757,8 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     object_dict["status"] = status
     if object_created_timestamp:
         object_dict["metadata"]["created"] = object_created_timestamp
+    if object_published_timestamp:
+        object_dict["metadata"]["publish_time"] = object_published_timestamp
     return uid
 
 

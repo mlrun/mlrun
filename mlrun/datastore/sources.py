@@ -18,9 +18,12 @@ from copy import copy
 from datetime import datetime
 from typing import Dict, List, Optional, Union
 
+import bson
+import pandas as pd
 import v3io
 from nuclio import KafkaTrigger
 from nuclio.config import split_path
+from pymongo import MongoClient
 
 import mlrun
 from mlrun.secrets import SecretsStore
@@ -30,9 +33,6 @@ from ..model import DataSource
 from ..platforms.iguazio import parse_v3io_path
 from ..utils import get_class
 from .utils import store_path_to_spark
-from pymongo import MongoClient
-import bson
-import pandas as pd
 
 
 def get_source_from_dict(source):
@@ -123,14 +123,14 @@ class CSVSource(BaseSourceDriver):
     support_spark = True
 
     def __init__(
-            self,
-            name: str = "",
-            path: str = None,
-            attributes: Dict[str, str] = None,
-            key_field: str = None,
-            time_field: str = None,
-            schedule: str = None,
-            parse_dates: Optional[Union[List[int], List[str]]] = None,
+        self,
+        name: str = "",
+        path: str = None,
+        attributes: Dict[str, str] = None,
+        key_field: str = None,
+        time_field: str = None,
+        schedule: str = None,
+        parse_dates: Optional[Union[List[int], List[str]]] = None,
     ):
         super().__init__(name, path, attributes, key_field, time_field, schedule)
         self._parse_dates = parse_dates
@@ -166,9 +166,9 @@ class CSVSource(BaseSourceDriver):
         df = session.read.load(**self.get_spark_options())
         for col_name, col_type in df.dtypes:
             if (
-                    col_name == self.time_field
-                    or self._parse_dates
-                    and col_name in self._parse_dates
+                col_name == self.time_field
+                or self._parse_dates
+                and col_name in self._parse_dates
             ):
                 df = df.withColumn(col_name, funcs.col(col_name).cast("timestamp"))
         if named_view:
@@ -212,15 +212,15 @@ class ParquetSource(BaseSourceDriver):
     support_spark = True
 
     def __init__(
-            self,
-            name: str = "",
-            path: str = None,
-            attributes: Dict[str, str] = None,
-            key_field: str = None,
-            time_field: str = None,
-            schedule: str = None,
-            start_time: Optional[Union[datetime, str]] = None,
-            end_time: Optional[Union[datetime, str]] = None,
+        self,
+        name: str = "",
+        path: str = None,
+        attributes: Dict[str, str] = None,
+        key_field: str = None,
+        time_field: str = None,
+        schedule: str = None,
+        start_time: Optional[Union[datetime, str]] = None,
+        end_time: Optional[Union[datetime, str]] = None,
     ):
 
         if isinstance(start_time, str):
@@ -241,12 +241,12 @@ class ParquetSource(BaseSourceDriver):
         )
 
     def to_step(
-            self,
-            key_field=None,
-            time_field=None,
-            start_time=None,
-            end_time=None,
-            context=None,
+        self,
+        key_field=None,
+        time_field=None,
+        start_time=None,
+        end_time=None,
+        context=None,
     ):
         import storey
 
@@ -313,20 +313,20 @@ class BigQuerySource(BaseSourceDriver):
     support_spark = True
 
     def __init__(
-            self,
-            name: str = "",
-            table: str = None,
-            max_results_for_table: int = None,
-            query: str = None,
-            materialization_dataset: str = None,
-            chunksize: int = None,
-            key_field: str = None,
-            time_field: str = None,
-            schedule: str = None,
-            start_time=None,
-            end_time=None,
-            gcp_project: str = None,
-            spark_options: dict = None,
+        self,
+        name: str = "",
+        table: str = None,
+        max_results_for_table: int = None,
+        query: str = None,
+        materialization_dataset: str = None,
+        chunksize: int = None,
+        key_field: str = None,
+        time_field: str = None,
+        schedule: str = None,
+        start_time=None,
+        end_time=None,
+        gcp_project: str = None,
+        spark_options: dict = None,
     ):
         if query and table:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -458,20 +458,20 @@ class SnowflakeSource(BaseSourceDriver):
     support_storey = False
 
     def __init__(
-            self,
-            name: str = "",
-            key_field: str = None,
-            time_field: str = None,
-            schedule: str = None,
-            start_time=None,
-            end_time=None,
-            query: str = None,
-            url: str = None,
-            user: str = None,
-            password: str = None,
-            database: str = None,
-            schema: str = None,
-            warehouse: str = None,
+        self,
+        name: str = "",
+        key_field: str = None,
+        time_field: str = None,
+        schedule: str = None,
+        start_time=None,
+        end_time=None,
+        query: str = None,
+        url: str = None,
+        user: str = None,
+        password: str = None,
+        database: str = None,
+        schema: str = None,
+        warehouse: str = None,
     ):
         attrs = {
             "query": query,
@@ -513,11 +513,11 @@ class CustomSource(BaseSourceDriver):
     support_spark = False
 
     def __init__(
-            self,
-            class_name: str = None,
-            name: str = "",
-            schedule: str = None,
-            **attributes,
+        self,
+        class_name: str = None,
+        name: str = "",
+        schedule: str = None,
+        **attributes,
     ):
         attributes = attributes or {}
         attributes["class_name"] = class_name
@@ -542,7 +542,7 @@ class DataFrameSource:
     support_storey = True
 
     def __init__(
-            self, df, key_field=None, time_field=None, context=None, iterator=False
+        self, df, key_field=None, time_field=None, context=None, iterator=False
     ):
         self._df = df
         if isinstance(key_field, str):
@@ -586,13 +586,13 @@ class OnlineSource(BaseSourceDriver):
     kind = ""
 
     def __init__(
-            self,
-            name: str = None,
-            path: str = None,
-            attributes: Dict[str, str] = None,
-            key_field: str = None,
-            time_field: str = None,
-            workers: int = None,
+        self,
+        name: str = None,
+        path: str = None,
+        attributes: Dict[str, str] = None,
+        key_field: str = None,
+        time_field: str = None,
+        workers: int = None,
     ):
         super().__init__(name, path, attributes, key_field, time_field)
         self.online = True
@@ -640,14 +640,14 @@ class StreamSource(OnlineSource):
     kind = "v3ioStream"
 
     def __init__(
-            self,
-            name="stream",
-            group="serving",
-            seek_to="earliest",
-            shards=1,
-            retention_in_hours=24,
-            extra_attributes: dict = None,
-            **kwargs,
+        self,
+        name="stream",
+        group="serving",
+        seek_to="earliest",
+        shards=1,
+        retention_in_hours=24,
+        extra_attributes: dict = None,
+        **kwargs,
     ):
         """
         Sets stream source for the flow. If stream doesn't exist it will create it
@@ -697,15 +697,15 @@ class KafkaSource(OnlineSource):
     kind = "kafka"
 
     def __init__(
-            self,
-            brokers="localhost:9092",
-            topics="topic",
-            group="serving",
-            initial_offset="earliest",
-            partitions=None,
-            sasl_user=None,
-            sasl_pass=None,
-            **kwargs,
+        self,
+        brokers="localhost:9092",
+        topics="topic",
+        group="serving",
+        initial_offset="earliest",
+        partitions=None,
+        sasl_user=None,
+        sasl_pass=None,
+        **kwargs,
     ):
         """Sets kafka source for the flow
 
@@ -781,20 +781,20 @@ class MongoDBSource(BaseSourceDriver):
     support_spark = False
 
     def __init__(
-            self,
-            name: str = "",
-            max_results_for_table: int = None,
-            query: dict = None,
-            chunksize: int = None,
-            key_field: str = None,
-            time_field: str = None,
-            schedule: str = None,
-            start_time=None,
-            end_time=None,
-            db_name: str = None,
-            connection_string: str = None,
-            collection_name: str = None,
-            spark_options: dict = None,
+        self,
+        name: str = "",
+        max_results_for_table: int = None,
+        query: dict = None,
+        chunksize: int = None,
+        key_field: str = None,
+        time_field: str = None,
+        schedule: str = None,
+        start_time=None,
+        end_time=None,
+        db_name: str = None,
+        connection_string: str = None,
+        collection_name: str = None,
+        spark_options: dict = None,
     ):
         key = "MONGO_CONNECTION_STRING"
         connection_string = connection_string or os.getenv(key)
@@ -812,7 +812,7 @@ class MongoDBSource(BaseSourceDriver):
             "chunksize": chunksize,
             "mongodb_client": mongodb_client,
             "spark_options": spark_options,
-            "connection_string": connection_string
+            "connection_string": connection_string,
         }
         attrs = {key: value for key, value in attrs.items() if value is not None}
         super().__init__(
@@ -823,14 +823,14 @@ class MongoDBSource(BaseSourceDriver):
             schedule=schedule,
             start_time=start_time,
             end_time=end_time,
-
         )
 
     def to_dataframe(self):
-
         class MongoDBiter:
             def __init__(self, collection, iter_chunksize, iter_query):
-                self.my_collection_iter = collection.find_raw_batches(iter_query, batch_size=iter_chunksize)
+                self.my_collection_iter = collection.find_raw_batches(
+                    iter_query, batch_size=iter_chunksize
+                )
 
             def __iter__(self):
                 return self
@@ -839,7 +839,7 @@ class MongoDBSource(BaseSourceDriver):
                 batch = next(self.my_collection_iter)
                 decode_batch = bson.decode_all(batch)
                 curr_df = pd.DataFrame(decode_batch)
-                df['_id'] = df['_id'].astype(str)
+                df["_id"] = df["_id"].astype(str)
                 return curr_df
 
         query = self.attributes.get("query")
@@ -855,7 +855,7 @@ class MongoDBSource(BaseSourceDriver):
                 return MongoDBiter(my_collection, chunksize, query)
             else:
                 df = pd.DataFrame(list(my_collection.find(query)))
-                df['_id'] = df['_id'].astype(str)
+                df["_id"] = df["_id"].astype(str)
                 return df
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(

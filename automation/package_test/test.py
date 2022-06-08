@@ -50,7 +50,7 @@ class PackageTester:
             "[kafka]": {"import_test_command": f"{basic_import}; {targets_import}"},
             "[complete]": {
                 "import_test_command": f"{basic_import}; {s3_import}; {azure_blob_storage_import}; "
-                + f"{azure_key_vault_import}; {google_cloud_storage_import} {targets_import}",
+                + f"{azure_key_vault_import}; {google_cloud_storage_import}; {targets_import}",
                 "perform_vulnerability_check": True,
             },
         }

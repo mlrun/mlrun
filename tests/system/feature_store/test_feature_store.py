@@ -71,13 +71,13 @@ def _generate_random_name():
     return random_name
 
 
-kafka_brokers = os.getenv("KAFKA_BROKERS", "")
+kafka_brokers = os.getenv("MLRUN_SYSTEM_TESTS_KAFKA_BROKERS")
 
 kafka_topic = "kafka_integration_test"
 
 
 @pytest.fixture()
-def kafka_topic_setup_teardown():
+def kafka_consumer():
     import kafka
 
     # Setup
@@ -2552,8 +2552,7 @@ class TestFeatureStore(TestMLRunSystem):
             assert key in expected
 
     @pytest.mark.skipif(kafka_brokers == "", reason="KAFKA_BROKERS must be set")
-    def test_kafka_target(self, kafka_topic_setup_teardown):
-        kafka_consumer = kafka_topic_setup_teardown
+    def test_kafka_target(self, kafka_consumer):
 
         stocks = pd.DataFrame(
             {
@@ -2567,8 +2566,8 @@ class TestFeatureStore(TestMLRunSystem):
         )
         target = KafkaTarget(
             "kafka",
+            path=kafka_topic,
             bootstrap_servers=kafka_brokers,
-            topic=kafka_topic,
         )
         fs.ingest(stocks_set, stocks, [target])
 

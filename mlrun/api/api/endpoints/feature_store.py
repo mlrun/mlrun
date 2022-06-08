@@ -575,11 +575,11 @@ def create_feature_vector(
     response_model=schemas.FeatureVector,
 )
 def get_feature_vector(
-        project: str,
-        name: str,
-        reference: str,
-        auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
-        db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str,
+    reference: str,
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: Session = Depends(deps.get_db_session),
 ):
     tag, uid = parse_reference(reference)
     feature_vector = mlrun.api.crud.FeatureStore().get_feature_vector(
@@ -602,21 +602,21 @@ def get_feature_vector(
     "/projects/{project}/feature-vectors", response_model=schemas.FeatureVectorsOutput
 )
 def list_feature_vectors(
-        project: str,
-        name: str = None,
-        state: str = None,
-        tag: str = None,
-        labels: List[str] = Query(None, alias="label"),
-        partition_by: schemas.FeatureStorePartitionByField = Query(
-            None, alias="partition-by"
-        ),
-        rows_per_partition: int = Query(1, alias="rows-per-partition", gt=0),
-        partition_sort_by: schemas.SortField = Query(None, alias="partition-sort-by"),
-        partition_order: schemas.OrderType = Query(
-            schemas.OrderType.desc, alias="partition-order"
-        ),
-        auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
-        db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str = None,
+    state: str = None,
+    tag: str = None,
+    labels: List[str] = Query(None, alias="label"),
+    partition_by: schemas.FeatureStorePartitionByField = Query(
+        None, alias="partition-by"
+    ),
+    rows_per_partition: int = Query(1, alias="rows-per-partition", gt=0),
+    partition_sort_by: schemas.SortField = Query(None, alias="partition-sort-by"),
+    partition_order: schemas.OrderType = Query(
+        schemas.OrderType.desc, alias="partition-order"
+    ),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
@@ -656,10 +656,10 @@ def list_feature_vectors(
     response_model=schemas.FeatureVectorsTagsOutput,
 )
 def list_feature_vectors_tags(
-        project: str,
-        name: str,
-        auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
-        db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str,
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: Session = Depends(deps.get_db_session),
 ):
     if name != "*":
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -699,13 +699,13 @@ def list_feature_vectors_tags(
     response_model=schemas.FeatureVector,
 )
 def store_feature_vector(
-        project: str,
-        name: str,
-        reference: str,
-        feature_vector: schemas.FeatureVector,
-        versioned: bool = True,
-        auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
-        db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str,
+    reference: str,
+    feature_vector: schemas.FeatureVector,
+    versioned: bool = True,
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.singletons.project_member.get_project_member().ensure_project(
         db_session, project, auth_info=auth_info
@@ -738,15 +738,15 @@ def store_feature_vector(
 
 @router.patch("/projects/{project}/feature-vectors/{name}/references/{reference}")
 def patch_feature_vector(
-        project: str,
-        name: str,
-        feature_vector_patch: dict,
-        reference: str,
-        patch_mode: schemas.PatchMode = Header(
-            schemas.PatchMode.replace, alias=schemas.HeaderNames.patch_mode
-        ),
-        auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
-        db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str,
+    feature_vector_patch: dict,
+    reference: str,
+    patch_mode: schemas.PatchMode = Header(
+        schemas.PatchMode.replace, alias=schemas.HeaderNames.patch_mode
+    ),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
@@ -774,11 +774,11 @@ def patch_feature_vector(
 @router.delete("/projects/{project}/feature-vectors/{name}")
 @router.delete("/projects/{project}/feature-vectors/{name}/references/{reference}")
 def delete_feature_vector(
-        project: str,
-        name: str,
-        reference: str = None,
-        auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
-        db_session: Session = Depends(deps.get_db_session),
+    project: str,
+    name: str,
+    reference: str = None,
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
@@ -797,7 +797,7 @@ def delete_feature_vector(
 
 
 def _verify_feature_vector_features_permissions(
-        auth_info: mlrun.api.schemas.AuthInfo, project: str, feature_vector: dict
+    auth_info: mlrun.api.schemas.AuthInfo, project: str, feature_vector: dict
 ):
     features = []
     if feature_vector.get("spec", {}).get("features"):

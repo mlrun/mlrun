@@ -1,7 +1,10 @@
+import pathlib
+
 import pytest
 
 import mlrun
 import mlrun.artifacts
+import tests.conftest
 import tests.projects.base_pipeline
 
 
@@ -34,13 +37,22 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
         assert len(artifacts) == 1
 
     def test_import_artifacts(self):
-        project = mlrun.new_project("test-sa2")
+        results_path = str(pathlib.Path(tests.conftest.results) / "project")
+        project = mlrun.new_project("test-sa2", context=str(self.assets_path))
+        project.spec.artifact_path = results_path
+        # use inline body (in the yaml)
         project.set_artifact("y", str(self.assets_path / "artifact.yaml"))
+        # use body from the project context dir
+        project.set_artifact("z", mlrun.artifacts.Artifact(src_path="body.txt"))
         project.register_artifacts()
 
-        artifacts = project.list_artifacts()
-        assert len(artifacts) == 1
-        assert artifacts[0]["metadata"]["key"] == "y"
+        artifacts = project.list_artifacts().objects()
+        assert len(artifacts) == 2
+        assert artifacts[0].metadata.key == "y"
+        assert artifacts[0]._get_file_body() == "123"
+
+        assert artifacts[1].metadata.key == "z"
+        assert artifacts[1]._get_file_body() == b"ABC"
 
     def test_run_alone(self):
         mlrun.projects.pipeline_context.clear(with_project=True)

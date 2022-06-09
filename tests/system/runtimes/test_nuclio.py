@@ -1,4 +1,5 @@
 import os
+import uuid
 
 import pytest
 import requests
@@ -116,13 +117,42 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
 @pytest.mark.enterprise
 class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
     project_name = "nuclio-kafka-project"
-    topic = "TestNuclioRuntimeWithKafka"
+    topic_uuid_part = uuid.uuid4()
+    topic = f"TestNuclioRuntimeWithKafka-{topic_uuid_part}"
+    topic_out = f"TestNuclioRuntimeWithKafka-out-{topic_uuid_part}"
     brokers = os.getenv("MLRUN_SYSTEM_TESTS_KAFKA_BROKERS")
+
+    @pytest.fixture()
+    def kafka_consumer(self):
+        import kafka
+
+        # Setup
+        kafka_admin_client = kafka.KafkaAdminClient(bootstrap_servers=self.brokers)
+        kafka_admin_client.create_topics(
+            [
+                kafka.admin.NewTopic(self.topic, 1, 1),
+                kafka.admin.NewTopic(self.topic_out, 1, 1),
+            ]
+        )
+
+        kafka_consumer = kafka.KafkaConsumer(
+            self.topic_out,
+            bootstrap_servers=self.brokers,
+            auto_offset_reset="earliest",
+        )
+
+        # Test runs
+        yield kafka_consumer
+
+        # Teardown
+        kafka_admin_client.delete_topics([self.topic, self.topic_out])
+        kafka_admin_client.close()
+        kafka_consumer.close()
 
     @pytest.mark.skipif(
         not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"
     )
-    def test_serving_with_kafka_queue(self):
+    def test_serving_with_kafka_queue(self, kafka_consumer):
         code_path = str(self.assets_path / "nuclio_function.py")
         child_code_path = str(self.assets_path / "child_function.py")
 
@@ -138,7 +168,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
 
         graph.to(">>", "q1", path=self.topic, kafka_bootstrap_servers=self.brokers).to(
             name="child", class_name="Identity", function="child"
-        )
+        ).to(">>", "out", path=self.topic_out, kafka_bootstrap_servers=self.brokers)
 
         function.add_child_function(
             "child",
@@ -146,7 +176,16 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         )
 
         self._logger.debug("Deploying nuclio function")
-        function.deploy()
+        url = function.deploy()
+
+        self._logger.debug("Triggering nuclio function")
+        resp = requests.post(url, json={"hello": "world"})
+        assert resp.status_code == 200
+
+        self._logger.debug("Waiting for data to arrive in output topic")
+        kafka_consumer.subscribe([self.topic_out])
+        record = next(kafka_consumer)
+        assert record.value == b'{"hello": "world"}'
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured

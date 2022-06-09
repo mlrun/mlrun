@@ -238,11 +238,18 @@ class AbstractSparkRuntime(KubejobRuntime):
         get_run_db().delete_function(name=sj.metadata.name)
 
     def _is_using_gpu(self):
-        _, driver_gpu = self._get_gpu_type_and_quantity(
-            resources=self.spec.driver_resources["limits"]
+        driver_limits = self.spec.driver_resources.get("limits")
+        _, driver_gpu = (
+            self._get_gpu_type_and_quantity(resources=driver_limits)
+            if driver_limits
+            else (None, None)
         )
-        _, executor_gpu = self._get_gpu_type_and_quantity(
-            resources=self.spec.executor_resources["limits"]
+        executor_limits = self.spec.executor_resources.get("limits")
+        _, executor_gpu = (
+            self._get_gpu_type_and_quantity(resources=executor_limits)
+            if executor_limits
+            else None,
+            None,
         )
         return bool(driver_gpu or executor_gpu)
 

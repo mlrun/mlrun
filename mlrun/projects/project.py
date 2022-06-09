@@ -1069,7 +1069,7 @@ class MlrunProject(ModelObj):
 
         :param key:  artifact key/name
         :param artifact:  mlrun Artifact object/dict (or its subclasses) or path to artifact
-                          file to import (yaml/json/zip)
+                          file to import (yaml/json/zip), relative paths are relative to the context path
         :param target_path: absolute target path url (point to the artifact content location)
         :param tag:    artifact tag
         """
@@ -1102,8 +1102,13 @@ class MlrunProject(ModelObj):
         )
         for artifact_dict in self.spec.artifacts:
             if _is_imported_artifact(artifact_dict):
+                import_from = artifact_dict["import_from"]
+                if is_relative_path(import_from):
+                    # source path should be relative to the project context
+                    import_from = path.join(self.spec.get_code_path(), import_from)
+
                 self.import_artifact(
-                    artifact_dict["import_from"],
+                    import_from,
                     artifact_dict["key"],
                     tag=artifact_dict.get("tag"),
                 )
@@ -2171,6 +2176,18 @@ class MlrunProject(ModelObj):
             builder_env=builder_env,
             project_object=self,
         )
+
+    def get_artifact(self, key, tag=None, iter=None):
+        """Return an artifact object
+
+        :param key: artifact key
+        :param tag: version tag
+        :param iter: iteration number (for hyper-param tasks)
+        :return: Artifact object
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        artifact = db.read_artifact(key, tag, iter=iter, project=self.metadata.name)
+        return dict_to_artifact(artifact)
 
     def list_artifacts(
         self,

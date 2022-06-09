@@ -183,14 +183,6 @@ class PackageTester:
                         "0.0.0+unstable",
                     },
                 ],
-                "numpy": [
-                    {
-                        "pattern": r"(.*)",
-                        "reason": "Storey require numpy <1.22 and the vulnerabilities fixed after this version, so "
-                        "we're waiting for Storey to release a version that supports the newer numpy and then"
-                        " we'll fix it as well",
-                    },
-                ],
             }
             filtered_vulnerabilities = []
             for vulnerability in vulnerabilities:

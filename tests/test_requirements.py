@@ -82,7 +82,7 @@ def test_requirement_specifiers_convention():
         "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
         "aioitertools": {"<0.9"},
-        "storey": {"~=1.0.4"},
+        "storey": {"~=1.1.1"},
         "bokeh": {"~=2.4, >=2.4.2"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},
@@ -105,7 +105,7 @@ def test_requirement_specifiers_convention():
         "urllib3": {">=1.25.4, <1.27"},
         "cryptography": {"~=3.0, <3.4"},
         "chardet": {">=3.0.2, <4.0"},
-        "numpy": {">=1.16.5, <1.22.0"},
+        "numpy": {">=1.16.5, <1.23.0"},
         "alembic": {"~=1.4,<1.6.0"},
         "boto3": {"~=1.9, <1.17.107"},
         "azure-core": {"<1.23"},

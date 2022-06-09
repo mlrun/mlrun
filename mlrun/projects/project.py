@@ -656,7 +656,7 @@ class ProjectSpec(ModelObj):
     def set_artifact(self, key, artifact):
         if hasattr(artifact, "base_dict"):
             artifact = artifact.base_dict()
-        elif not _is_imported_artifact(artifact):
+        if not _is_imported_artifact(artifact):
             artifact["metadata"]["key"] = key
         self._artifacts[key] = artifact
 
@@ -1109,7 +1109,7 @@ class MlrunProject(ModelObj):
                 )
             else:
                 artifact = dict_to_artifact(artifact_dict)
-                if is_relative_path(artifact.spec.src_path):
+                if is_relative_path(artifact.src_path):
                     # source path should be relative to the project context
                     artifact.spec.src_path = path.join(
                         self.spec.get_code_path(), artifact.spec.src_path
@@ -1406,7 +1406,7 @@ class MlrunProject(ModelObj):
                 spec = yaml.load(data, Loader=yaml.FullLoader)
                 artifact = get_artifact(spec)
                 with open(f"{temp_dir}/_body", "rb") as fp:
-                    artifact.inline = fp.read()
+                    artifact.spec._body = fp.read()
                 artifact.target_path = ""
                 return self.log_artifact(
                     artifact, local_path=temp_dir, artifact_path=artifact_path

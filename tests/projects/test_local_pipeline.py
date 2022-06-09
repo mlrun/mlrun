@@ -33,6 +33,15 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
         artifacts = self.project.list_artifacts(tag="x")
         assert len(artifacts) == 1
 
+    def test_import_artifacts(self):
+        project = mlrun.new_project("test-sa2")
+        project.set_artifact("y", str(self.assets_path / "artifact.yaml"))
+        project.register_artifacts()
+
+        artifacts = project.list_artifacts()
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == "y"
+
     def test_run_alone(self):
         mlrun.projects.pipeline_context.clear(with_project=True)
         function = mlrun.code_to_function(

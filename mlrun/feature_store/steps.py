@@ -1,3 +1,4 @@
+import re
 import uuid
 from typing import Any, Dict, List, Union
 
@@ -8,7 +9,6 @@ from storey import MapClass
 from mlrun.serving.server import get_event_time
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import get_in
-import re
 
 
 class FeaturesetValidator(StepToDict, MapClass):

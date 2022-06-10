@@ -17,7 +17,7 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
         )
 
     def test_set_artifact(self):
-        self.project = mlrun.new_project("test-sa")
+        self.project = mlrun.new_project("test-sa", skip_save=True)
         self.project.set_artifact(
             "data1", mlrun.artifacts.Artifact(target_path=self.data_url)
         )

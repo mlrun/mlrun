@@ -160,7 +160,7 @@ def new_project(
         project.spec.description = description
     mlrun.mlconf.default_project = project.metadata.name
     pipeline_context.set(project)
-    if not skip_save and mlrun.mlconf.dbpath and mlrun.get_run_db().kind != "file":
+    if not skip_save and mlrun.mlconf.dbpath:
         project.save()
     return project
 

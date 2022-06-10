@@ -14,6 +14,7 @@
 import datetime
 import getpass
 import glob
+import json
 import pathlib
 import shutil
 import tempfile
@@ -43,7 +44,14 @@ from ..model import EntrypointParam, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
 from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
-from ..utils import RunNotifications, is_ipython, is_legacy_artifact, logger, update_in
+from ..utils import (
+    RunNotifications,
+    is_ipython,
+    is_legacy_artifact,
+    is_relative_path,
+    logger,
+    update_in,
+)
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from .operations import build_function, deploy_function, run_function
@@ -635,7 +643,7 @@ class ProjectSpec(ModelObj):
                 raise ValueError("artifacts must be a dict or class")
             if isinstance(artifact, dict):
                 # Support legacy artifacts
-                if is_legacy_artifact(artifact):
+                if is_legacy_artifact(artifact) or _is_imported_artifact(artifact):
                     key = artifact.get("key")
                 else:
                     key = artifact.get("metadata").get("key", "")
@@ -652,7 +660,8 @@ class ProjectSpec(ModelObj):
     def set_artifact(self, key, artifact):
         if hasattr(artifact, "base_dict"):
             artifact = artifact.base_dict()
-        artifact["metadata"]["key"] = key
+        if not _is_imported_artifact(artifact):
+            artifact["metadata"]["key"] = key
         self._artifacts[key] = artifact
 
     def remove_artifact(self, key):
@@ -1042,7 +1051,13 @@ class MlrunProject(ModelObj):
         )
         self.spec.artifacts = artifacts
 
-    def set_artifact(self, key, artifact=None, target_path=None, tag=None):
+    def set_artifact(
+        self,
+        key,
+        artifact: typing.Union[str, dict, Artifact] = None,
+        target_path: str = None,
+        tag: str = None,
+    ):
         """add/set an artifact in the project spec (will be registered on load)
 
         example::
@@ -1052,24 +1067,37 @@ class MlrunProject(ModelObj):
             # register a model artifact
             project.set_artifact('model', ModelArtifact(model_file="model.pkl"), target_path=model_dir_url)
 
+            # register a path to artifact package (will be imported on project load)
+            # to generate such package use `artifact.export(target_path)`
+            project.set_artifact('model', 'https://mystuff.com/models/mymodel.zip')
+
         :param key:  artifact key/name
-        :param artifact:  mlrun Artifact object (or its subclasses)
+        :param artifact:  mlrun Artifact object/dict (or its subclasses) or path to artifact
+                          file to import (yaml/json/zip), relative paths are relative to the context path
         :param target_path: absolute target path url (point to the artifact content location)
         :param tag:    artifact tag
         """
-        if not artifact:
-            artifact = Artifact()
-        artifact.spec.target_path = target_path or artifact.spec.target_path
-        if not artifact.spec.target_path or "://" not in artifact.spec.target_path:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "absolute target_path url to a shared/object storage must be specified"
-            )
-        artifact.metadata.tag = tag or artifact.metadata.tag
+        if artifact and isinstance(artifact, str):
+            artifact = {"import_from": artifact, "key": key}
+            if tag:
+                artifact["tag"] = tag
+        else:
+            if not artifact:
+                artifact = Artifact()
+            artifact.spec.target_path = target_path or artifact.spec.target_path
+            if artifact.spec.target_path and "://" not in artifact.spec.target_path:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "target_path url must point to a shared/object storage path"
+                )
+            artifact.metadata.tag = tag or artifact.metadata.tag
         self.spec.set_artifact(key, artifact)
 
     def register_artifacts(self):
         """register the artifacts in the MLRun DB (under this project)"""
         artifact_manager = self._get_artifact_manager()
+        artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
+            self.spec.artifact_path or mlrun.mlconf.artifact_path, self.metadata.name
+        )
         producer = ArtifactProducer(
             "project",
             self.metadata.name,
@@ -1077,8 +1105,27 @@ class MlrunProject(ModelObj):
             tag=self._get_hexsha() or "latest",
         )
         for artifact_dict in self.spec.artifacts:
-            artifact = dict_to_artifact(artifact_dict)
-            artifact_manager.log_artifact(producer, artifact, upload=False)
+            if _is_imported_artifact(artifact_dict):
+                import_from = artifact_dict["import_from"]
+                if is_relative_path(import_from):
+                    # source path should be relative to the project context
+                    import_from = path.join(self.spec.get_code_path(), import_from)
+
+                self.import_artifact(
+                    import_from,
+                    artifact_dict["key"],
+                    tag=artifact_dict.get("tag"),
+                )
+            else:
+                artifact = dict_to_artifact(artifact_dict)
+                if is_relative_path(artifact.src_path):
+                    # source path should be relative to the project context
+                    artifact.spec.src_path = path.join(
+                        self.spec.get_code_path(), artifact.spec.src_path
+                    )
+                artifact_manager.log_artifact(
+                    producer, artifact, artifact_path=artifact_path
+                )
 
     def _get_artifact_manager(self):
         if self._artifact_manager:
@@ -1107,6 +1154,7 @@ class MlrunProject(ModelObj):
         upload=None,
         labels=None,
         target_path=None,
+        **kwargs,
     ):
         """log an output artifact and optionally upload it to datastore
 
@@ -1159,6 +1207,7 @@ class MlrunProject(ModelObj):
             upload=upload,
             labels=labels,
             target_path=target_path,
+            **kwargs,
         )
         return item
 
@@ -1176,6 +1225,7 @@ class MlrunProject(ModelObj):
         stats=False,
         target_path="",
         extra_data=None,
+        label_column: str = None,
         **kwargs,
     ) -> DatasetArtifact:
         """
@@ -1194,6 +1244,7 @@ class MlrunProject(ModelObj):
 
         :param key:           artifact key
         :param df:            dataframe object
+        :param label_column:  name of the label column (the one holding the target (y) values)
         :param local_path:    path to the local file we upload, will also be use
                               as the destination subpath (under "artifact_path")
         :param artifact_path: target artifact path (when not using the default)
@@ -1217,6 +1268,7 @@ class MlrunProject(ModelObj):
             extra_data=extra_data,
             format=format,
             stats=stats,
+            label_column=label_column,
             **kwargs,
         )
 
@@ -1269,6 +1321,7 @@ class MlrunProject(ModelObj):
         :param key:             artifact key or artifact class ()
         :param body:            will use the body as the artifact content
         :param model_file:      path to the local model file we upload (see also model_dir)
+                                or to a model file data url (e.g. http://host/path/model.pkl)
         :param model_dir:       path to the local dir holding the model file and extra files
         :param artifact_path:   target artifact path (when not using the default)
                                 to define a subpath under the default location use:
@@ -1287,7 +1340,7 @@ class MlrunProject(ModelObj):
         :param training_set:    training set dataframe, used to infer inputs & outputs
         :param label_column:    which columns in the training set are the label (target) columns
         :param extra_data:      key/value list of extra files/charts to link with this dataset
-                                value can be abs/relative path string | bytes | artifact object
+                                value can be absolute path | relative path (to model dir) | bytes | artifact object
 
         :returns: artifact object
         """
@@ -1301,6 +1354,7 @@ class MlrunProject(ModelObj):
             key,
             body,
             model_file=model_file,
+            model_dir=model_dir,
             metrics=metrics,
             parameters=parameters,
             inputs=inputs,
@@ -1317,13 +1371,62 @@ class MlrunProject(ModelObj):
 
         item = self.log_artifact(
             model,
-            local_path=model_dir,
             artifact_path=artifact_path,
             tag=tag,
             upload=upload,
             labels=labels,
         )
         return item
+
+    def import_artifact(
+        self, item_path: str, new_key=None, artifact_path=None, tag=None
+    ):
+        """Import an artifact object/package from .yaml, .json, or .zip file
+
+        :param item_path:     dataitem url  or file path to the file/package
+        :param new_key:       overwrite the artifact key/name
+        :param artifact_path: target artifact path (when not using the default)
+        :param tag:           artifact tag to set
+        :return: artifact object
+        """
+
+        def get_artifact(spec):
+            artifact = dict_to_artifact(spec)
+            artifact.metadata.key = new_key or artifact.metadata.key
+            artifact.metadata.project = self.metadata.name
+            artifact.metadata.updated = None
+            artifact.metadata.tag = tag or artifact.metadata.tag
+            return artifact
+
+        dataitem = mlrun.get_dataitem(item_path)
+        if item_path.endswith(".yaml") or item_path.endswith(".yml"):
+            artifact_dict = yaml.load(dataitem.get(), Loader=yaml.FullLoader)
+            artifact = get_artifact(artifact_dict)
+        elif item_path.endswith(".json"):
+            artifact_dict = json.loads(dataitem.get())
+            artifact = get_artifact(artifact_dict)
+        elif item_path.endswith(".zip"):
+            item_file = dataitem.local()
+            with tempfile.TemporaryDirectory() as temp_dir:
+                with zipfile.ZipFile(item_file, "r") as zf:
+                    zf.extractall(temp_dir)
+                with open(f"{temp_dir}/_spec.yaml", "r") as fp:
+                    data = fp.read()
+                spec = yaml.load(data, Loader=yaml.FullLoader)
+                artifact = get_artifact(spec)
+                with open(f"{temp_dir}/_body", "rb") as fp:
+                    artifact.spec._body = fp.read()
+                artifact.target_path = ""
+                return self.log_artifact(
+                    artifact, local_path=temp_dir, artifact_path=artifact_path
+                )
+
+            if dataitem.kind != "file":
+                remove(item_file)
+        else:
+            raise ValueError("unsupported file suffix, use .yaml, .json, or .zip")
+
+        return self.log_artifact(artifact, artifact_path=artifact_path)
 
     def reload(self, sync=False, context=None) -> "MlrunProject":
         """reload the project and function objects from the project yaml/specs
@@ -2079,6 +2182,18 @@ class MlrunProject(ModelObj):
             project_object=self,
         )
 
+    def get_artifact(self, key, tag=None, iter=None):
+        """Return an artifact object
+
+        :param key: artifact key
+        :param tag: version tag
+        :param iter: iteration number (for hyper-param tasks)
+        :return: Artifact object
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        artifact = db.read_artifact(key, tag, iter=iter, project=self.metadata.name)
+        return dict_to_artifact(artifact)
+
     def list_artifacts(
         self,
         name=None,
@@ -2666,3 +2781,7 @@ def _has_module(handler, kind):
     if not handler:
         return False
     return (kind in RuntimeKinds.nuclio_runtimes() and ":" in handler) or "." in handler
+
+
+def _is_imported_artifact(artifact):
+    return artifact and isinstance(artifact, dict) and "import_from" in artifact

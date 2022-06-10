@@ -69,7 +69,7 @@ class FakeProducer:
         self.name = name
 
 
-def test_calc_target_path():
+def test_generate_target_path():
     Artifact = mlrun.artifacts.Artifact
     Model = mlrun.artifacts.ModelArtifact
     cases = [
@@ -113,7 +113,7 @@ def test_calc_target_path():
     ]
     for artifact_path, artifact, iter, producer, expected in cases:
         artifact.iter = iter
-        target = mlrun.artifacts.base.calc_target_path(
+        target = mlrun.artifacts.base.generate_target_path(
             artifact, artifact_path, producer
         )
         print(f"\ntarget:   {target}\nexpected: {expected}")

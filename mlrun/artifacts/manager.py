@@ -183,7 +183,7 @@ class ArtifactManager:
             target_path = src_path
             upload = False
         elif not item.is_inline():
-            target_path = item.calc_target_path(artifact_path, producer)
+            target_path = item.generate_target_path(artifact_path, producer)
 
         if target_path and item.is_dir and not target_path.endswith("/"):
             target_path += "/"

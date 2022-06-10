@@ -255,7 +255,7 @@ class Artifact(ModelObj):
         elif target_path.endswith(".zip"):
             tmp_path = None
             if "://" in target_path:
-                tmp_path = tempfile.mktemp(".zip")
+                tmp_path = tempfile.NamedTemporaryFile(suffix=".zip", delete=False).name
             zipf = zipfile.ZipFile(tmp_path or target_path, "w")
             body = self._get_file_body()
             zipf.writestr("_body", body)
@@ -760,8 +760,8 @@ class Artifact(ModelObj):
         )
         self.metadata.hash = hash
 
-    def calc_target_path(self, artifact_path, producer):
-        return calc_target_path(self, artifact_path, producer)
+    def generate_target_path(self, artifact_path, producer):
+        return generate_target_path(self, artifact_path, producer)
 
 
 class DirArtifactSpec(ArtifactSpec):
@@ -1020,8 +1020,8 @@ class LegacyArtifact(ModelObj):
     def artifact_kind(self):
         return self.kind
 
-    def calc_target_path(self, artifact_path, producer):
-        return calc_target_path(self, artifact_path, producer)
+    def generate_target_path(self, artifact_path, producer):
+        return generate_target_path(self, artifact_path, producer)
 
 
 class LegacyDirArtifact(LegacyArtifact):
@@ -1148,7 +1148,7 @@ def get_artifact_meta(artifact):
     return artifact_spec, extra_dataitems
 
 
-def calc_target_path(item: Artifact, artifact_path, producer):
+def generate_target_path(item: Artifact, artifact_path, producer):
     # path convention: artifact_path[/{run_name}]/{iter}/{key}.{suffix}
     # todo: add run_id here (vs in the .run() methods), support items dedup (by hash)
     artifact_path = artifact_path or ""

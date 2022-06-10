@@ -18,7 +18,31 @@ from mlrun.utils import logger
 
 class Handler(metaclass=mlrun.utils.singleton.Singleton):
     def __init__(self):
-        self._background_tasks: typing.Dict[str, mlrun.api.schemas.BackgroundTask] = {}
+        self._internal_background_tasks: typing.Dict[
+            str, mlrun.api.schemas.BackgroundTask
+        ] = {}
+
+    @staticmethod
+    def get_background_task(
+        db_session: sqlalchemy.orm.Session,
+        name: str,
+        project: str = None,
+    ) -> mlrun.api.schemas.BackgroundTask:
+        return mlrun.api.utils.singletons.db.get_db().get_background_task(
+            db_session, name, project
+        )
+
+    def get_internal_background_task(
+        self,
+        name: str,
+    ) -> (mlrun.api.schemas.BackgroundTask, bool):
+        if name in self._internal_background_tasks:
+            return self._internal_background_tasks[name], True
+        else:
+            return (
+                self._generate_internal_background_task_not_found_response(name),
+                False,
+            )
 
     def create_background_task(
         self,
@@ -53,26 +77,7 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
         )
         return self.get_background_task(db_session, name, project)
 
-    @staticmethod
-    def get_background_task(
-        db_session: sqlalchemy.orm.Session,
-        name: str,
-        project: str = None,
-    ) -> mlrun.api.schemas.BackgroundTask:
-        return mlrun.api.utils.singletons.db.get_db().get_background_task(
-            db_session, name, project
-        )
-
-    def get_chiefs_background_task(
-        self,
-        name: str,
-    ) -> (mlrun.api.schemas.BackgroundTask, bool):
-        if name in self._background_tasks:
-            return self._background_tasks[name], True
-        else:
-            return self._generate_chiefs_background_task_not_found_response(name), False
-
-    def create_chiefs_background_task(
+    def create_internal_background_task(
         self,
         background_tasks: fastapi.BackgroundTasks,
         function,
@@ -81,27 +86,27 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
     ) -> mlrun.api.schemas.BackgroundTask:
         name = str(uuid.uuid4())
         # sanity
-        if name in self._background_tasks:
+        if name in self._internal_background_tasks:
             raise RuntimeError("Background task name already exists")
         background_task = self._generate_background_task(name)
-        self._background_tasks[name] = background_task
+        self._internal_background_tasks[name] = background_task
         background_tasks.add_task(
-            self.chiefs_background_task_wrapper,
+            self.internal_background_task_wrapper,
             name=name,
             function=function,
             *args,
             **kwargs,
         )
 
-        background_task, _ = self.get_chiefs_background_task(name)
+        background_task, _ = self.get_internal_background_task(name)
         return background_task
 
-    def _update_chiefs_background_task(
+    def _update_internal_background_task(
         self,
         name: str,
         state: mlrun.api.schemas.BackgroundTaskState,
     ):
-        background_task = self._background_tasks[name]
+        background_task = self._internal_background_tasks[name]
         background_task.status.state = state
         background_task.metadata.updated = datetime.datetime.utcnow()
 
@@ -125,7 +130,7 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
         )
 
     @staticmethod
-    def _generate_chiefs_background_task_not_found_response(
+    def _generate_internal_background_task_not_found_response(
         name: str, project: typing.Optional[str] = None
     ):
         # in order to keep things simple we don't persist the background tasks to the DB
@@ -173,7 +178,7 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
                 project=project,
             )
 
-    async def chiefs_background_task_wrapper(
+    async def internal_background_task_wrapper(
         self, name: str, function, *args, **kwargs
     ):
         try:
@@ -185,10 +190,10 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
             logger.warning(
                 f"Failed during background task execution: {function.__name__}, exc: {traceback.format_exc()}"
             )
-            self._update_chiefs_background_task(
+            self._update_internal_background_task(
                 name, mlrun.api.schemas.BackgroundTaskState.failed
             )
         else:
-            self._update_chiefs_background_task(
+            self._update_internal_background_task(
                 name, mlrun.api.schemas.BackgroundTaskState.succeeded
             )

@@ -27,7 +27,7 @@ def test_migrations_already_in_progress(
         background_task_name
     )
     handler_mock = mlrun.api.utils.background_tasks.Handler()
-    handler_mock.get_chiefs_background_task = unittest.mock.Mock(
+    handler_mock.get_internal_background_task = unittest.mock.Mock(
         return_value=(_generate_background_task_schema(background_task_name), True)
     )
     monkeypatch.setattr(

@@ -6,6 +6,8 @@ import mlrun.api.api.deps
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
+import mlrun.api.utils.clients.chief
+from mlrun.utils import logger
 
 router = fastapi.APIRouter()
 
@@ -68,7 +70,7 @@ def get_background_task(
         (
             background_task,
             exists,
-        ) = mlrun.api.utils.background_tasks.Handler().get_chiefs_background_task(
+        ) = mlrun.api.utils.background_tasks.Handler().get_internal_background_task(
             name=name
         )
         if not exists:
@@ -81,6 +83,16 @@ def get_background_task(
             return mlrun.api.utils.background_tasks.Handler().get_background_task(
                 db_session, name=name
             )
-        except Exception:
-            # redirect to chief
-            pass
+        except mlrun.errors.MLRunNotFoundError:
+            logger.info(
+                "Background doesn't exists in DB. redirecting to chief", name=name
+            )
+        except Exception as exc:
+            logger.warning(
+                "Got unexpected error while trying to find background task. redirecting to chief",
+                name=name,
+                exc=str(exc),
+            )
+        finally:
+            chief_client = mlrun.api.utils.clients.chief.Client()
+            return chief_client.get_background_task(name=name)

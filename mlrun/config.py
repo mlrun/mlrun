@@ -146,6 +146,10 @@ default_config = {
         "clusterization": {
             # one of chief/worker
             "role": "chief",
+            "chief": {
+                "service": "mlrun-api-chief",
+                "port": 8080,
+            },
         },
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
@@ -539,6 +543,25 @@ class Config:
             # TODO: When we'll move to kfp 1.4.0 (server side) it should be resolved
             return f"http://ml-pipeline.{namespace}.svc.cluster.local:8888"
         return None
+
+    def resolve_chief_api_url(self):
+        if self.httpdb.clusterization.chief.url:
+            return self.httpdb.clusterization.chief.url
+        if not self.httpdb.clusterization.chief.service:
+            raise mlrun.errors.MLRunNotFoundError(
+                "For resolving chief url, chief service name must be provided"
+            )
+        if self.namespace is None:
+            raise mlrun.errors.MLRunNotFoundError(
+                "For resolving chief url, namespace must be provided"
+            )
+
+        chief_api_url = f"http://{self.httpdb.clusterization.chief.service}.{self.namespace}.svc.cluster.local"
+        if config.httpdb.clusterization.chief.port:
+            chief_api_url = f"{chief_api_url}:{self.httpdb.clusterization.chief.port}"
+
+        self.httpdb.clusterization.chief.url = chief_api_url
+        return self.httpdb.clusterization.chief.url
 
     @staticmethod
     def get_storage_auto_mount_params():

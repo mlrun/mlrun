@@ -61,7 +61,7 @@ def create_background_task(
     "/internal-background-tasks",
     response_model=mlrun.api.schemas.BackgroundTask,
 )
-def create_background_task(
+def create_internal_background_task(
     background_tasks: fastapi.BackgroundTasks,
     failed_task: bool = False,
 ):
@@ -142,6 +142,7 @@ def test_get_project_background_task_not_exists(
         f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}/background-tasks/{name}"
     )
     assert response.status_code == http.HTTPStatus.NOT_FOUND.value
+
 
 @pytest.mark.parametrize("role", ["worker, chief"])
 def test_create_background_task(

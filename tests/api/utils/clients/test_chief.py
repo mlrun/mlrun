@@ -27,22 +27,6 @@ async def chief_client(
     return client
 
 
-def _generate_background_task_schema(
-    background_task_name,
-    state: mlrun.api.schemas.BackgroundTaskState = mlrun.api.schemas.BackgroundTaskState.running,
-) -> mlrun.api.schemas.BackgroundTask:
-    now = datetime.datetime.utcnow()
-    return mlrun.api.schemas.BackgroundTask(
-        metadata=mlrun.api.schemas.BackgroundTaskMetadata(
-            name=background_task_name,
-            created=now,
-            updated=now,
-        ),
-        status=mlrun.api.schemas.BackgroundTaskStatus(state=state.value),
-        spec=mlrun.api.schemas.BackgroundTaskSpec(),
-    )
-
-
 def test_get_background_task_from_chief_succeeded(
     api_url: str,
     chief_client: mlrun.api.utils.clients.chief.Client,
@@ -126,3 +110,19 @@ def test_trigger_migrations_from_chief_failed(
     requests_mock.get(f"{api_url}/api/v1/operations/migrations", status_code=500)
     with pytest.raises(Exception):
         chief_client.trigger_migrations()
+
+
+def _generate_background_task_schema(
+    background_task_name,
+    state: mlrun.api.schemas.BackgroundTaskState = mlrun.api.schemas.BackgroundTaskState.running,
+) -> mlrun.api.schemas.BackgroundTask:
+    now = datetime.datetime.utcnow()
+    return mlrun.api.schemas.BackgroundTask(
+        metadata=mlrun.api.schemas.BackgroundTaskMetadata(
+            name=background_task_name,
+            created=now,
+            updated=now,
+        ),
+        status=mlrun.api.schemas.BackgroundTaskStatus(state=state.value),
+        spec=mlrun.api.schemas.BackgroundTaskSpec(),
+    )

@@ -147,6 +147,8 @@ default_config = {
             # one of chief/worker
             "role": "chief",
             "chief": {
+                # when url is specified, it takes precedence over service and port
+                "url": "",
                 "service": "mlrun-api-chief",
                 "port": 8080,
             },

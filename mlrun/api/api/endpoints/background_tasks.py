@@ -65,7 +65,7 @@ def get_background_task(
             mlrun.api.schemas.AuthorizationAction.read,
             auth_info,
         )
-
+    background_task = None
     if mlrun.mlconf.httpdb.clusterization.role == "chief":
         (
             background_task,
@@ -80,19 +80,24 @@ def get_background_task(
         return background_task
     else:
         try:
-            return mlrun.api.utils.background_tasks.Handler().get_background_task(
-                db_session, name=name
+            background_task = (
+                mlrun.api.utils.background_tasks.Handler().get_background_task(
+                    db_session, name=name
+                )
             )
         except mlrun.errors.MLRunNotFoundError:
             logger.info(
-                "Background doesn't exists in DB. redirecting to chief", name=name
+                "Background doesn't exists in DB. redirecting to chief",
+                background_task=name,
             )
         except Exception as exc:
             logger.warning(
                 "Got unexpected error while trying to find background task. redirecting to chief",
-                name=name,
+                background_task=name,
                 exc=str(exc),
             )
         finally:
+            if background_task:
+                return background_task
             chief_client = mlrun.api.utils.clients.chief.Client()
             return chief_client.get_background_task(name=name)

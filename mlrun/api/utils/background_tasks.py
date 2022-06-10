@@ -36,6 +36,9 @@ class Handler(metaclass=mlrun.utils.singleton.Singleton):
         self,
         name: str,
     ) -> (mlrun.api.schemas.BackgroundTask, bool):
+        """
+        :return: returns the background task object and bool whether exists
+        """
         if name in self._internal_background_tasks:
             return self._internal_background_tasks[name], True
         else:

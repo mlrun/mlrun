@@ -4,6 +4,7 @@ updates:
   - package-ecosystem: "pip"
     directory: "/"
     labels:
+      - "pip"
       - "root"
       - "dependencies"
     schedule:
@@ -12,6 +13,16 @@ updates:
   - package-ecosystem: "pip"
     directory: "/dockerfiles/mlrun-api"
     labels:
+      - "pip"
+      - "api"
+      - "dependencies"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "docker"
+    directory: "/dockerfiles/mlrun-api"
+    labels:
+      - "docker"
       - "api"
       - "dependencies"
     schedule:
@@ -20,7 +31,17 @@ updates:
   - package-ecosystem: "pip"
     directory: "/dockerfiles/models"
     labels:
+      - "pip"
       - "models"
+      - "dependencies"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "docker"
+    directory: "/dockerfiles/models"
+    labels:
+      - "docker"
+      - "api"
       - "dependencies"
     schedule:
       interval: "daily"
@@ -28,6 +49,16 @@ updates:
   - package-ecosystem: "pip"
     directory: "/dockerfiles/models-gpu"
     labels:
+      - "pip"
+      - "models-gpu"
+      - "dependencies"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "docker"
+    directory: "/dockerfiles/models-gpu"
+    labels:
+      - "docker"
       - "models-gpu"
       - "dependencies"
     schedule:
@@ -36,6 +67,16 @@ updates:
   - package-ecosystem: "pip"
     directory: "/dockerfiles/base"
     labels:
+      - "pip"
+      - "base"
+      - "dependencies"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "docker"
+    directory: "/dockerfiles/base"
+    labels:
+      - "docker"
       - "base"
       - "dependencies"
     schedule:
@@ -44,6 +85,16 @@ updates:
   - package-ecosystem: "pip"
     directory: "/dockerfiles/jupyter"
     labels:
+      - "pip"
+      - "jupyter"
+      - "dependencies"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "docker"
+    directory: "/dockerfiles/jupyter"
+    labels:
+      - "docker"
       - "jupyter"
       - "dependencies"
     schedule:

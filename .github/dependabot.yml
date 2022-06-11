@@ -1,0 +1,58 @@
+version: 2
+
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    labels:
+      - "root"
+      - "dependencies"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "pip"
+    directory: "/dockerfiles/mlrun-api"
+    labels:
+      - "api"
+      - "dependencies"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "pip"
+    directory: "/dockerfiles/models"
+    labels:
+      - "models"
+      - "dependencies"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "pip"
+    directory: "/dockerfiles/models-gpu"
+    labels:
+      - "models-gpu"
+      - "dependencies"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "pip"
+    directory: "/dockerfiles/base"
+    labels:
+      - "base"
+      - "dependencies"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "pip"
+    directory: "/dockerfiles/jupyter"
+    labels:
+      - "jupyter"
+      - "dependencies"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    labels:
+      - "github-actions"
+      - "dependencies"
+    schedule:
+      interval: "daily"

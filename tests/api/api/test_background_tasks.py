@@ -194,13 +194,19 @@ def test_get_background_task_auth_skip(
 
 
 def test_get_background_task_not_exists_on_worker_exists_in_chief(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, monkeypatch
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"
     name = "task-name"
     expected_background_task = _generate_background_task_schema(name)
-    mlrun.api.utils.clients.chief.Client.get_background_task = unittest.mock.Mock(
+    handler_mock = mlrun.api.utils.clients.chief.Client()
+    handler_mock.get_background_task = unittest.mock.Mock(
         return_value=expected_background_task
+    )
+    monkeypatch.setattr(
+        mlrun.api.utils.clients.chief,
+        "Client",
+        lambda *args, **kwargs: handler_mock,
     )
     response = client.get(f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{name}")
     assert response.status_code == http.HTTPStatus.OK.value
@@ -209,12 +215,18 @@ def test_get_background_task_not_exists_on_worker_exists_in_chief(
 
 
 def test_get_background_task_not_exists_in_both_worker_and_chief(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, monkeypatch
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"
     name = "task-name"
-    mlrun.api.utils.clients.chief.Client.get_background_task = unittest.mock.Mock(
+    handler_mock = mlrun.api.utils.clients.chief.Client()
+    handler_mock.get_background_task = unittest.mock.Mock(
         side_effect=mlrun.errors.MLRunHTTPError("Explode")
+    )
+    monkeypatch.setattr(
+        mlrun.api.utils.clients.chief,
+        "Client",
+        lambda *args, **kwargs: handler_mock,
     )
     with pytest.raises(mlrun.errors.MLRunHTTPError):
         client.get(f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{name}")

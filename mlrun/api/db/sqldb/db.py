@@ -3041,6 +3041,10 @@ class SQLDB(DBInterface):
         project: str = None,
         timeout: int = None,
     ):
+        # if project doesn't provided, this means this is internal background task, for better performance
+        # when accessing the db, we set project name that isn't compatible with users project conventions
+        if not project:
+            project = mlrun.mlconf.background_tasks.none_project_name
         background_task_record = (
             self._query(
                 session,
@@ -3084,6 +3088,11 @@ class SQLDB(DBInterface):
     def get_background_task(
         self, session, name: str, project: str = None
     ) -> schemas.BackgroundTask:
+        # if project doesn't provided, this means this is internal background task, for better performance
+        # when accessing the db, we set project name that isn't compatible with users project conventions
+        if not project:
+            project = mlrun.mlconf.background_tasks.none_project_name
+
         background_task_record = self._get_background_task_record(
             session, name, project
         )
@@ -3094,10 +3103,15 @@ class SQLDB(DBInterface):
     def _transform_background_task_record_to_schema(
         background_task_record: BackgroundTask,
     ) -> schemas.BackgroundTask:
+        project = background_task_record.project
+        # if project name is the none project name then we want to override it with None
+        # because this is just internal representation of background task without project
+        if project and project == mlrun.mlconf.background_tasks.none_project_name:
+            project = None
         return schemas.BackgroundTask(
             metadata=schemas.BackgroundTaskMetadata(
                 name=background_task_record.name,
-                project=background_task_record.project,
+                project=project,
                 created=background_task_record.created,
                 updated=background_task_record.updated,
                 timeout=background_task_record.timeout,

@@ -128,6 +128,10 @@ default_config = {
             "operations": {"migrations": "3600"},
             "runtimes": {"dask": "300"},
         },
+        # this project name is representation of the "project" name for background tasks without related project
+        # chose an incompatible project name to avoid conflicts with user's project
+        # this is internal project name, mainly for performance ( db indexing )
+        "none_project_name": "0123_project",
     },
     "function_defaults": {
         "image_by_kind": {

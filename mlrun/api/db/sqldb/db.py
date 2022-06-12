@@ -3092,7 +3092,9 @@ class SQLDB(DBInterface):
                 project,
                 mlrun.api.schemas.background_task.BackgroundTaskState.failed,
             )
-            background_task_record = self._get_background_task_record(session, name, project)
+            background_task_record = self._get_background_task_record(
+                session, name, project
+            )
 
         return self._transform_background_task_record_to_schema(background_task_record)
 

@@ -248,8 +248,7 @@ class AbstractSparkRuntime(KubejobRuntime):
         _, executor_gpu = (
             self._get_gpu_type_and_quantity(resources=executor_limits)
             if executor_limits
-            else None,
-            None,
+            else (None, None)
         )
         return bool(driver_gpu or executor_gpu)
 

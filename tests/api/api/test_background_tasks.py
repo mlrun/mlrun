@@ -39,22 +39,6 @@ def create_project_background_task(
 
 
 @test_router.post(
-    "/background-tasks",
-    response_model=mlrun.api.schemas.BackgroundTask,
-)
-def create_background_task(
-    background_tasks: fastapi.BackgroundTasks,
-    failed_task: bool = False,
-):
-    function = bump_counter
-    if failed_task:
-        function = failing_function
-    return mlrun.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
-        background_tasks, function
-    )
-
-
-@test_router.post(
     "/internal-background-tasks",
     response_model=mlrun.api.schemas.BackgroundTask,
 )
@@ -141,25 +125,6 @@ def test_get_project_background_task_not_exists(
     assert response.status_code == http.HTTPStatus.NOT_FOUND.value
 
 
-@pytest.mark.parametrize("role", ["worker, chief"])
-def test_create_background_task(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, role
-):
-    mlrun.mlconf.httpdb.clusterization.role = role
-    response = client.post("/test/background-tasks")
-    assert response.status_code == http.HTTPStatus.OK.value
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
-    assert background_task.metadata.project is None
-
-    response = client.get(
-        f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{background_task.metadata.name}"
-    )
-    assert response.status_code == http.HTTPStatus.OK.value
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
-    assert background_task.metadata.project is None
-    assert background_task.metadata.timeout is None
-
-
 def test_get_background_task_auth_skip(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ):
@@ -167,7 +132,7 @@ def test_get_background_task_auth_skip(
         unittest.mock.Mock()
     )
     mlrun.mlconf.igz_version = "3.2.0-b26.20210904121245"
-    response = client.post("/test/background-tasks")
+    response = client.post("/test/internal-background-tasks")
     assert response.status_code == http.HTTPStatus.OK.value
     background_task = mlrun.api.schemas.BackgroundTask(**response.json())
     response = client.get(
@@ -218,7 +183,7 @@ def test_get_background_task_not_exists_in_both_worker_and_chief(
     name = "task-name"
     handler_mock = mlrun.api.utils.clients.chief.Client()
     handler_mock.get_background_task = unittest.mock.Mock(
-        side_effect=mlrun.errors.MLRunHTTPError("Explode")
+        side_effect=mlrun.errors.MLRunHTTPError()
     )
     monkeypatch.setattr(
         mlrun.api.utils.clients.chief,

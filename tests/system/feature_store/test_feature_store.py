@@ -1183,14 +1183,16 @@ class TestFeatureStore(TestMLRunSystem):
         }
     )
 
-    def test_ingest_pandas_engine(self):
+    @pytest.mark.parametrize("engine", ["pandas", "storey", None])
+    def test_ingest_default_targets_for_engine(self, engine):
         data = pd.DataFrame({"name": ["ab", "cd"], "data": [10, 20]})
 
         data.set_index(["name"], inplace=True)
-        fset = fs.FeatureSet("pandass", entities=[fs.Entity("name")], engine="pandas")
+        fs_name = f"{engine}fs"
+        fset = fs.FeatureSet(fs_name, entities=[fs.Entity("name")], engine=engine)
         fs.ingest(featureset=fset, source=data)
 
-        features = ["pandass.*"]
+        features = [f"{fs_name}.*"]
         vector = fs.FeatureVector("my-vec", features)
         svc = fs.get_online_feature_service(vector)
         try:

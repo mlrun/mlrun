@@ -22,6 +22,7 @@ class PackageTester:
             "from mlrun.datastore.sources import BigQuerySource"
         )
         google_cloud_storage_import = "import mlrun.datastore.google_cloud_storage"
+        targets_import = "import mlrun.datastore.targets"
 
         self._extras_tests_data = {
             "": {"import_test_command": f"{basic_import}"},
@@ -45,9 +46,11 @@ class PackageTester:
             "[google-cloud-storage]": {
                 "import_test_command": f"{basic_import}; {google_cloud_storage_import}"
             },
+            # TODO: this won't actually fail if the requirement is missing
+            "[kafka]": {"import_test_command": f"{basic_import}; {targets_import}"},
             "[complete]": {
                 "import_test_command": f"{basic_import}; {s3_import}; {azure_blob_storage_import}; "
-                + f"{azure_key_vault_import}; {google_cloud_storage_import}",
+                + f"{azure_key_vault_import}; {google_cloud_storage_import}; {targets_import}",
                 "perform_vulnerability_check": True,
             },
         }

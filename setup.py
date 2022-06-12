@@ -98,6 +98,7 @@ extras_require = {
     "plotly": ["plotly~=5.4"],
     "google-cloud-storage": ["gcsfs~=2021.8.1"],
     "google-cloud-bigquery": ["google-cloud-bigquery~=3.0"],
+    "kafka": ["kafka-python~=2.0"],
 }
 extras_require["complete"] = sorted(
     {

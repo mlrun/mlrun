@@ -3041,16 +3041,12 @@ class SQLDB(DBInterface):
         state: str = mlrun.api.schemas.BackgroundTaskState.running,
         timeout: int = None,
     ):
-        background_task_record = (
-            self._query(
-                session,
-                BackgroundTask,
-                name=name,
-                project=project,
-            )
-            .filter(BackgroundTask.project == project)
-            .one_or_none()
-        )
+        background_task_record = self._query(
+            session,
+            BackgroundTask,
+            name=name,
+            project=project,
+        ).one_or_none()
         now = datetime.now(timezone.utc)
         if background_task_record:
             # we don't want to be able to change state after it reached terminal state
@@ -3135,11 +3131,9 @@ class SQLDB(DBInterface):
         project: str,
         raise_on_not_found: bool = True,
     ) -> BackgroundTask:
-        background_task_record = (
-            self._query(session, BackgroundTask, name=name)
-            .filter(BackgroundTask.project == project)
-            .one_or_none()
-        )
+        background_task_record = self._query(
+            session, BackgroundTask, name=name, project=project
+        ).one_or_none()
         if not background_task_record:
             if not raise_on_not_found:
                 return None

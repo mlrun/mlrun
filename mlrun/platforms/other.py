@@ -18,6 +18,7 @@ import os
 import mlrun
 from mlrun.config import config
 from mlrun.errors import MLRunInvalidArgumentError
+from mlrun.utils.helpers import logger
 
 from .iguazio import mount_v3io
 
@@ -169,18 +170,20 @@ def mount_hostpath(host_path, mount_path, volume_name="hostpath"):
 
 
 def mount_s3(
+    secret_name=None,
     aws_access_key="",
     aws_secret_key="",
-    secret_name=None,
     endpoint_url=None,
+    prefix="",
     aws_region=None,
 ):
     """Modifier function to add s3 env vars or secrets to container
 
+    :param secret_name: kubernetes secret name (storing the access/secret keys)
     :param aws_access_key: AWS_ACCESS_KEY_ID value
     :param aws_secret_key: AWS_SECRET_ACCESS_KEY value
     :param endpoint_url: s3 endpoint address (for non AWS s3)
-    :param secret_name: kubernetes secret name (storing the access/secret keys)
+    :param prefix: string prefix to add before the env var name (for working with multiple s3 data stores)
     :param aws_region: amazon region
     :return:
     """
@@ -190,29 +193,35 @@ def mount_s3(
             "can use k8s_secret for credentials or specify them (aws_access_key, aws_secret_key) not both"
         )
 
+    if aws_access_key or aws_secret_key:
+        logger.warning(
+            "it is recommended to use k8s secret (specify secret_name), "
+            "specifying the aws_access_key/aws_secret_key directly is unsafe"
+        )
+
     def _use_s3_cred(container_op):
         from os import environ
 
         from kubernetes import client as k8s_client
 
-        _access_key = aws_access_key or environ.get("AWS_ACCESS_KEY_ID")
-        _secret_key = aws_secret_key or environ.get("AWS_SECRET_ACCESS_KEY")
-        _endpoint_url = endpoint_url or environ.get("S3_ENDPOINT_URL")
+        _access_key = aws_access_key or environ.get(prefix + "AWS_ACCESS_KEY_ID")
+        _secret_key = aws_secret_key or environ.get(prefix + "AWS_SECRET_ACCESS_KEY")
+        _endpoint_url = endpoint_url or environ.get(prefix + "S3_ENDPOINT_URL")
 
         container = container_op.container
         if _endpoint_url:
             container.add_env_variable(
-                k8s_client.V1EnvVar(name="S3_ENDPOINT_URL", value=endpoint_url)
+                k8s_client.V1EnvVar(name=prefix + "S3_ENDPOINT_URL", value=endpoint_url)
             )
         if aws_region:
             container.add_env_variable(
-                k8s_client.V1EnvVar(name="AWS_REGION", value=aws_region)
+                k8s_client.V1EnvVar(name=prefix + "AWS_REGION", value=aws_region)
             )
 
         if secret_name:
             container.add_env_variable(
                 k8s_client.V1EnvVar(
-                    name="AWS_ACCESS_KEY_ID",
+                    name=prefix + "AWS_ACCESS_KEY_ID",
                     value_from=k8s_client.V1EnvVarSource(
                         secret_key_ref=k8s_client.V1SecretKeySelector(
                             name=secret_name, key="AWS_ACCESS_KEY_ID"
@@ -221,7 +230,7 @@ def mount_s3(
                 )
             ).add_env_variable(
                 k8s_client.V1EnvVar(
-                    name="AWS_SECRET_ACCESS_KEY",
+                    name=prefix + "AWS_SECRET_ACCESS_KEY",
                     value_from=k8s_client.V1EnvVarSource(
                         secret_key_ref=k8s_client.V1SecretKeySelector(
                             name=secret_name, key="AWS_SECRET_ACCESS_KEY"
@@ -232,9 +241,13 @@ def mount_s3(
 
         else:
             return container_op.add_env_variable(
-                k8s_client.V1EnvVar(name="AWS_ACCESS_KEY_ID", value=_access_key)
+                k8s_client.V1EnvVar(
+                    name=prefix + "AWS_ACCESS_KEY_ID", value=_access_key
+                )
             ).add_env_variable(
-                k8s_client.V1EnvVar(name="AWS_SECRET_ACCESS_KEY", value=_secret_key)
+                k8s_client.V1EnvVar(
+                    name=prefix + "AWS_SECRET_ACCESS_KEY", value=_secret_key
+                )
             )
 
     return _use_s3_cred

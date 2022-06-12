@@ -206,9 +206,10 @@ class HTTPRunDB(RunDBInterface):
         # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)
         # convert to strings. Do the same for params for niceness
         for dict_ in [headers, params]:
-            for key in dict_.keys():
-                if isinstance(dict_[key], enum.Enum):
-                    dict_[key] = dict_[key].value
+            if dict_ is not None:
+                for key in dict_.keys():
+                    if isinstance(dict_[key], enum.Enum):
+                        dict_[key] = dict_[key].value
 
         if not self.session:
             self.session = requests.Session()

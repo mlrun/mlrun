@@ -40,7 +40,7 @@ def test_model_update():
     model = ModelArtifact("my-model", model_file="a.pkl")
     target_path = results_dir + "model/"
 
-    project = mlrun.new_project("test-proj")
+    project = mlrun.new_project("test-proj", skip_save=True)
     artifact = project.log_artifact(model, upload=False, artifact_path=target_path)
 
     artifact_uri = f"store://artifacts/{artifact.project}/{artifact.db_key}"

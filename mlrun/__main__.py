@@ -51,6 +51,7 @@ from .secrets import SecretsStore
 from .utils import (
     dict_to_yaml,
     get_in,
+    is_relative_path,
     list2dict,
     logger,
     parse_versioned_object_uri,
@@ -854,7 +855,7 @@ def project(
     url_str = " from " + url if url else ""
     print(f"Loading project {proj.name}{url_str} into {context}:\n")
 
-    if artifact_path and not ("://" in artifact_path or artifact_path.startswith("/")):
+    if is_relative_path(artifact_path):
         artifact_path = path.abspath(artifact_path)
     if param:
         proj.spec.params = fill_params(param, proj.spec.params)

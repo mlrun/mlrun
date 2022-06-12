@@ -31,7 +31,7 @@ from mlrun.utils.v3io_clients import get_frames_client
 from .. import errors
 from ..data_types import ValueType
 from ..platforms.iguazio import parse_v3io_path, split_path
-from .utils import store_path_to_spark
+from .utils import parse_kafka_url, store_path_to_spark
 
 
 class TargetTypes:
@@ -40,6 +40,7 @@ class TargetTypes:
     nosql = "nosql"
     tsdb = "tsdb"
     stream = "stream"
+    kafka = "kafka"
     dataframe = "dataframe"
     custom = "custom"
 
@@ -51,6 +52,7 @@ class TargetTypes:
             TargetTypes.nosql,
             TargetTypes.tsdb,
             TargetTypes.stream,
+            TargetTypes.kafka,
             TargetTypes.dataframe,
             TargetTypes.custom,
         ]
@@ -1152,6 +1154,59 @@ class StreamTarget(BaseStoreTarget):
         raise NotImplementedError()
 
 
+class KafkaTarget(BaseStoreTarget):
+    kind = TargetTypes.kafka
+    is_table = False
+    is_online = False
+    support_spark = False
+    support_storey = True
+    support_append = True
+
+    def __init__(
+        self,
+        *args,
+        bootstrap_servers=None,
+        producer_options=None,
+        **kwargs,
+    ):
+        attrs = {
+            "bootstrap_servers": bootstrap_servers,
+            "producer_options": producer_options,
+        }
+        super().__init__(*args, attributes=attrs, **kwargs)
+
+    def add_writer_step(
+        self,
+        graph,
+        after,
+        features,
+        key_columns=None,
+        timestamp_key=None,
+        featureset_status=None,
+    ):
+        key_columns = list(key_columns.keys())
+        column_list = self._get_column_list(
+            features=features, timestamp_key=timestamp_key, key_columns=key_columns
+        )
+
+        bootstrap_servers = self.attributes.get("bootstrap_servers")
+        topic, bootstrap_servers = parse_kafka_url(self.path, bootstrap_servers)
+
+        graph.add_step(
+            name=self.name or "KafkaTarget",
+            after=after,
+            graph_shape="cylinder",
+            class_name="storey.KafkaTarget",
+            columns=column_list,
+            topic=topic,
+            bootstrap_servers=bootstrap_servers,
+            producer_options=self.attributes.get("producer_options"),
+        )
+
+    def as_df(self, columns=None, df_module=None, **kwargs):
+        raise NotImplementedError()
+
+
 class TSDBTarget(BaseStoreTarget):
     kind = TargetTypes.tsdb
     is_table = False
@@ -1355,6 +1410,7 @@ kind_to_driver = {
     TargetTypes.nosql: NoSqlTarget,
     TargetTypes.dataframe: DFTarget,
     TargetTypes.stream: StreamTarget,
+    TargetTypes.kafka: KafkaTarget,
     TargetTypes.tsdb: TSDBTarget,
     TargetTypes.custom: CustomTarget,
 }

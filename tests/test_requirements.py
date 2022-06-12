@@ -84,6 +84,7 @@ def test_requirement_specifiers_convention():
         "aioitertools": {"<0.9"},
         "storey": {"~=1.1.1"},
         "bokeh": {"~=2.4, >=2.4.2"},
+        "typing-extensions": {">=3.10.0,<4"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},
         "python-dotenv": {""},

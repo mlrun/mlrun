@@ -3083,6 +3083,16 @@ class SQLDB(DBInterface):
         background_task_record = self._get_background_task_record(
             session, name, project
         )
+        if self._is_background_task_timeout_exceeded(background_task_record):
+            # lazy update of state, only if get background task was requested and the timeout for the update passed
+            # and the task still in progress then we change to failed
+            self.store_background_task(
+                session,
+                name,
+                project,
+                mlrun.api.schemas.background_task.BackgroundTaskState.failed,
+            )
+            background_task_record = self._get_background_task_record(session, name, project)
 
         return self._transform_background_task_record_to_schema(background_task_record)
 
@@ -3140,17 +3150,6 @@ class SQLDB(DBInterface):
             raise mlrun.errors.MLRunNotFoundError(
                 f"Background task not found: name={name}, project={project}"
             )
-        if self._is_background_task_timeout_exceeded(background_task_record):
-            # lazy update of state, only if get background task was requested and the timeout for the update passed
-            # and the task still in progress then we change to failed
-            self.store_background_task(
-                session,
-                name,
-                project,
-                mlrun.api.schemas.background_task.BackgroundTaskState.failed,
-            )
-            return self._get_background_task_record(session, name, project)
-
         return background_task_record
 
     @staticmethod

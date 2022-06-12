@@ -20,14 +20,20 @@ class TestNewProject:
 
     def test_yaml_template(self):
         project = mlrun.new_project(
-            "newproj", "./", from_template=str(self.assets_path / "project.yaml")
+            "newproj",
+            "./",
+            from_template=str(self.assets_path / "project.yaml"),
+            skip_save=True,
         )
         assert project.spec.description == "test", "failed to load yaml template"
 
     def test_zip_template(self):
         shutil.rmtree(project_dir, ignore_errors=True)
         project = mlrun.new_project(
-            "newproj2", project_dir, from_template=str(self.assets_path / "project.zip")
+            "newproj2",
+            project_dir,
+            from_template=str(self.assets_path / "project.zip"),
+            skip_save=True,
         )
         assert project.spec.description == "test", "failed to load yaml template"
 
@@ -41,6 +47,7 @@ class TestNewProject:
             "newproj3",
             project_dir,
             from_template="git://github.com/mlrun/project-demo.git",
+            skip_save=True,
         )
         assert project.spec.description == "test", "failed to load yaml template"
 

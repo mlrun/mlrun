@@ -96,6 +96,7 @@ def new_project(
     secrets: dict = None,
     description: str = None,
     subpath: str = None,
+    skip_save: bool = False,
 ) -> "MlrunProject":
     """Create a new MLRun project, optionally load it from a yaml/zip/git template
 
@@ -131,6 +132,7 @@ def new_project(
     :param secrets:      key:secret dict or SecretsStore used to download sources
     :param description:  text describing the project
     :param subpath:      project subpath (relative to the context dir)
+    :param skip_save:    do not save the created project in the DB
 
     :returns: project object
     """
@@ -166,6 +168,8 @@ def new_project(
         project.spec.description = description
     mlrun.mlconf.default_project = project.metadata.name
     pipeline_context.set(project)
+    if not skip_save and mlrun.mlconf.dbpath:
+        project.save()
     return project
 
 
@@ -1982,6 +1986,7 @@ class MlrunProject(ModelObj):
     def save(self, filepath=None):
         self.export(filepath)
         self.save_to_db()
+        return self
 
     def save_to_db(self):
         db = mlrun.db.get_run_db(secrets=self._secrets)

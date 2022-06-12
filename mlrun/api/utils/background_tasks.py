@@ -17,7 +17,7 @@ import mlrun.utils.singleton
 from mlrun.utils import logger
 
 
-class BackgroundTaskHandler(abc.ABC):
+class AbstractBackgroundTaskHandler(abc.ABC):
     @abc.abstractmethod
     def create_background_task(
         self, *args, **kwargs
@@ -28,9 +28,28 @@ class BackgroundTaskHandler(abc.ABC):
     def get_background_task(self, *args, **kwargs) -> mlrun.api.schemas.BackgroundTask:
         pass
 
+    @staticmethod
+    def _generate_background_task(
+        name: str, project: typing.Optional[str] = None
+    ) -> mlrun.api.schemas.BackgroundTask:
+        now = datetime.datetime.utcnow()
+        metadata = mlrun.api.schemas.BackgroundTaskMetadata(
+            name=name,
+            project=project,
+            created=now,
+            updated=now,
+        )
+        spec = mlrun.api.schemas.BackgroundTaskSpec()
+        status = mlrun.api.schemas.BackgroundTaskStatus(
+            state=mlrun.api.schemas.BackgroundTaskState.running
+        )
+        return mlrun.api.schemas.BackgroundTask(
+            metadata=metadata, spec=spec, status=status
+        )
+
 
 class ProjectBackgroundTasksHandler(
-    BackgroundTaskHandler, metaclass=mlrun.utils.singleton.AbstractSingleton
+    AbstractBackgroundTaskHandler, metaclass=mlrun.utils.singleton.AbstractSingleton
 ):
     def create_background_task(
         self,
@@ -103,28 +122,9 @@ class ProjectBackgroundTasksHandler(
                 state=mlrun.api.schemas.BackgroundTaskState.succeeded,
             )
 
-    @staticmethod
-    def _generate_background_task(
-        name: str, project: typing.Optional[str] = None
-    ) -> mlrun.api.schemas.BackgroundTask:
-        now = datetime.datetime.utcnow()
-        metadata = mlrun.api.schemas.BackgroundTaskMetadata(
-            name=name,
-            project=project,
-            created=now,
-            updated=now,
-        )
-        spec = mlrun.api.schemas.BackgroundTaskSpec()
-        status = mlrun.api.schemas.BackgroundTaskStatus(
-            state=mlrun.api.schemas.BackgroundTaskState.running
-        )
-        return mlrun.api.schemas.BackgroundTask(
-            metadata=metadata, spec=spec, status=status
-        )
-
 
 class InternalBackgroundTasksHandler(
-    BackgroundTaskHandler, metaclass=mlrun.utils.singleton.AbstractSingleton
+    AbstractBackgroundTaskHandler, metaclass=mlrun.utils.singleton.AbstractSingleton
 ):
     def __init__(self):
         self._internal_background_tasks: typing.Dict[
@@ -165,25 +165,6 @@ class InternalBackgroundTasksHandler(
             return self._internal_background_tasks[name]
         else:
             return self._generate_background_task_not_found_response(name)
-
-    @staticmethod
-    def _generate_background_task(
-        name: str, project: typing.Optional[str] = None
-    ) -> mlrun.api.schemas.BackgroundTask:
-        now = datetime.datetime.utcnow()
-        metadata = mlrun.api.schemas.BackgroundTaskMetadata(
-            name=name,
-            project=project,
-            created=now,
-            updated=now,
-        )
-        spec = mlrun.api.schemas.BackgroundTaskSpec()
-        status = mlrun.api.schemas.BackgroundTaskStatus(
-            state=mlrun.api.schemas.BackgroundTaskState.running
-        )
-        return mlrun.api.schemas.BackgroundTask(
-            metadata=metadata, spec=spec, status=status
-        )
 
     @staticmethod
     def _generate_background_task_not_found_response(

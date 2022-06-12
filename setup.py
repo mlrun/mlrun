@@ -85,6 +85,7 @@ extras_require = {
         "s3fs~=2021.8.1",
     ],
     "azure-blob-storage": [
+        "msrest~=0.6.21",
         "azure-storage-blob~=12.0",
         "azure-core<1.23",
         "adlfs~=2021.8.1",

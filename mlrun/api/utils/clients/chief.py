@@ -17,10 +17,9 @@ class Client(
     We chose chief-workers architecture to provide multi-instance API.
     By default, all API calls can access both the chief and workers.
     The key distinction is that some responsibilities, such as scheduling jobs, are exclusively performed by the chief.
-    Instead of limiting the ui/client to only send requests to the chief, which would cause the entire scaling solution
-    to be redundant.
-    When one of the workers receives a request that the chief needs to execute or may have the knowledge of that piece
-    of information, the worker will redirect the request to the chief.
+    Instead of limiting the ui/client to only send requests to the chief, because the workers doesn't hold all the
+    information. When one of the workers receives a request that the chief needs to execute or may have the knowledge
+    of that piece of information, the worker will redirect the request to the chief.
     """
 
     def __init__(self) -> None:

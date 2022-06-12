@@ -152,32 +152,7 @@ class InternalBackgroundTasksHandler(
             **kwargs,
         )
 
-        background_task, _ = self.get_background_task(name)
-        return background_task
-
-    def create_internal_background_task(
-        self,
-        background_tasks: fastapi.BackgroundTasks,
-        function,
-        *args,
-        **kwargs,
-    ) -> mlrun.api.schemas.BackgroundTask:
-        name = str(uuid.uuid4())
-        # sanity
-        if name in self._internal_background_tasks:
-            raise RuntimeError("Background task name already exists")
-        background_task = self._generate_background_task(name)
-        self._internal_background_tasks[name] = background_task
-        background_tasks.add_task(
-            self.background_task_wrapper,
-            name=name,
-            function=function,
-            *args,
-            **kwargs,
-        )
-
-        background_task = self.get_background_task(name)
-        return background_task
+        return self.get_background_task(name)
 
     def get_background_task(
         self,

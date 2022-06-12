@@ -154,6 +154,20 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         kubernetes_api_client = kubernetes.client.ApiClient()
         return list(map(kubernetes_api_client.sanitize_for_serialization, list_))
 
+    def test_deploy_default_image_without_limits(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        default_docker_registry = mlrun.config.config.httpdb.builder.docker_registry
+        mlrun.config.config.httpdb.builder.docker_registry = "test_registry"
+        try:
+            runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
+            runtime.spec.image = None
+            runtime.spec.use_default_image = True
+            self.execute_function(runtime)
+            self._assert_custom_object_creation_config()
+        finally:
+            mlrun.config.config.httpdb.builder.docker_registry = default_docker_registry
+
     def test_run_without_runspec(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):

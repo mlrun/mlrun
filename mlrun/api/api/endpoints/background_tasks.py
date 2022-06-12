@@ -35,7 +35,7 @@ def get_project_background_task(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    return mlrun.api.utils.background_tasks.Handler().get_background_task(
+    return mlrun.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
         db_session, name=name, project=project
     )
 
@@ -44,13 +44,10 @@ def get_project_background_task(
     "/background-tasks/{name}",
     response_model=mlrun.api.schemas.BackgroundTask,
 )
-def get_background_task(
+def get_internal_background_task(
     name: str,
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
-    ),
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        mlrun.api.api.deps.get_db_session
     ),
 ):
     # Since there's no not-found option on get_background_task - we authorize before getting (unlike other get endpoint)
@@ -65,39 +62,11 @@ def get_background_task(
             mlrun.api.schemas.AuthorizationAction.read,
             auth_info,
         )
-    background_task = None
     if mlrun.mlconf.httpdb.clusterization.role == "chief":
-        (
-            background_task,
-            exists,
-        ) = mlrun.api.utils.background_tasks.Handler().get_internal_background_task(
+        return mlrun.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
             name=name
         )
-        if not exists:
-            return mlrun.api.utils.background_tasks.Handler().get_background_task(
-                db_session, name=name
-            )
-        return background_task
     else:
-        try:
-            background_task = (
-                mlrun.api.utils.background_tasks.Handler().get_background_task(
-                    db_session, name=name
-                )
-            )
-        except mlrun.errors.MLRunNotFoundError:
-            logger.info(
-                "Background doesn't exists in DB. redirecting to chief",
-                background_task=name,
-            )
-        except Exception as exc:
-            logger.warning(
-                "Got unexpected error while trying to find background task. redirecting to chief",
-                background_task=name,
-                exc=str(exc),
-            )
-        finally:
-            if background_task:
-                return background_task
-            chief_client = mlrun.api.utils.clients.chief.Client()
-            return chief_client.get_background_task(name=name)
+        logger.info("Requesting internal background task, redirecting to chief")
+        chief_client = mlrun.api.utils.clients.chief.Client()
+        return chief_client.get_background_task(name=name)

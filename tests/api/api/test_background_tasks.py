@@ -52,7 +52,7 @@ def create_background_task(
     function = bump_counter
     if failed_task:
         function = failing_function
-    return mlrun.api.utils.background_tasks.Handler().create_background_task(
+    return mlrun.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
         db_session, background_tasks, function
     )
 
@@ -68,7 +68,7 @@ def create_internal_background_task(
     function = bump_counter
     if failed_task:
         function = failing_function
-    return mlrun.api.utils.background_tasks.Handler().create_internal_background_task(
+    return mlrun.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
         background_tasks,
         function,
     )

@@ -37,18 +37,9 @@ def trigger_migrations(
     # note in api.py we do declare to use the authenticate_request dependency - meaning we do have authentication
     global current_migration_background_task_name
     if mlrun.mlconf.httpdb.state == mlrun.api.schemas.APIStates.migrations_in_progress:
-        (
-            background_task,
-            exists,
-        ) = mlrun.api.utils.background_tasks.Handler().get_internal_background_task(
+        background_task = mlrun.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
             current_migration_background_task_name
         )
-        # mainly sanity because migrations will disappear after restart because its in memory
-        # and instance that just initialized not supposed to be in state of migrations_in_progress
-        if not exists:
-            raise mlrun.errors.MLRunPreconditionFailedError(
-                "Migrations were already triggered and failed. Restart the API to retry"
-            )
         response.status_code = http.HTTPStatus.ACCEPTED.value
         return background_task
     elif mlrun.mlconf.httpdb.state == mlrun.api.schemas.APIStates.migrations_failed:
@@ -60,11 +51,9 @@ def trigger_migrations(
     ):
         return fastapi.Response(status_code=http.HTTPStatus.OK.value)
     logger.info("Starting the migration process")
-    background_task = (
-        mlrun.api.utils.background_tasks.Handler().create_internal_background_task(
-            background_tasks,
-            _perform_migration,
-        )
+    background_task = mlrun.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
+        background_tasks,
+        _perform_migration,
     )
     current_migration_background_task_name = background_task.metadata.name
     response.status_code = http.HTTPStatus.ACCEPTED.value

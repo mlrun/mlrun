@@ -26,13 +26,13 @@ def test_migrations_already_in_progress(
     mlrun.api.api.endpoints.operations.current_migration_background_task_name = (
         background_task_name
     )
-    handler_mock = mlrun.api.utils.background_tasks.Handler()
-    handler_mock.get_internal_background_task = unittest.mock.Mock(
-        return_value=(_generate_background_task_schema(background_task_name), True)
+    handler_mock = mlrun.api.utils.background_tasks.InternalBackgroundTasksHandler()
+    handler_mock.get_background_task = unittest.mock.Mock(
+        return_value=(_generate_background_task_schema(background_task_name))
     )
     monkeypatch.setattr(
         mlrun.api.utils.background_tasks,
-        "Handler",
+        "InternalBackgroundTasksHandler",
         lambda *args, **kwargs: handler_mock,
     )
     mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.migrations_in_progress

@@ -1,12 +1,12 @@
 from abc import ABC
-from typing import Dict, List, Type, Union
+from typing import Dict, List, Union
 
 import sklearn
 from sklearn.preprocessing import LabelBinarizer
 
 import mlrun.errors
-from .._common.metrics_library import MetricsLibrary
-from .._ml_common.utils import AlgorithmFunctionality
+from .._common import MetricsLibrary
+from .._ml_common import AlgorithmFunctionality
 from .utils import SKLearnTypes
 from .metric import Metric
 
@@ -21,7 +21,11 @@ class SKLearnMetricsLibrary(MetricsLibrary, ABC):
     @classmethod
     def get_metrics(
         cls,
-        metrics: Union[List[Metric], List[SKLearnTypes.MetricEntryType], Dict[str, SKLearnTypes.MetricEntryType]] = None,
+        metrics: Union[
+            List[Metric],
+            List[SKLearnTypes.MetricEntryType],
+            Dict[str, SKLearnTypes.MetricEntryType],
+        ] = None,
         context: mlrun.MLClientCtx = None,
         include_default: bool = True,
         **default_kwargs,
@@ -47,7 +51,9 @@ class SKLearnMetricsLibrary(MetricsLibrary, ABC):
 
         # Get the metrics passed via context:
         if context is not None:
-            context_metrics = super(SKLearnMetricsLibrary, cls).get_metrics(context=context)
+            context_metrics = super(SKLearnMetricsLibrary, cls).get_metrics(
+                context=context
+            )
             if context_metrics is not None:
                 parsed_metrics += context_metrics
 
@@ -63,7 +69,11 @@ class SKLearnMetricsLibrary(MetricsLibrary, ABC):
 
     @staticmethod
     def _parse(
-        metrics: Union[List[Metric], List[SKLearnTypes.MetricEntryType], Dict[str, SKLearnTypes.MetricEntryType]]
+        metrics: Union[
+            List[Metric],
+            List[SKLearnTypes.MetricEntryType],
+            Dict[str, SKLearnTypes.MetricEntryType],
+        ]
     ) -> List[Metric]:
         """
         Parse the given metrics by the possible rules of the framework implementing.
@@ -74,9 +84,7 @@ class SKLearnMetricsLibrary(MetricsLibrary, ABC):
         """
         # Parse from dictionary:
         if isinstance(metrics, dict):
-            return SKLearnMetricsLibrary._from_dict(
-                metrics_dictionary=metrics
-            )
+            return SKLearnMetricsLibrary._from_dict(metrics_dictionary=metrics)
 
         # Parse from list:
         if isinstance(metrics, list):
@@ -90,7 +98,9 @@ class SKLearnMetricsLibrary(MetricsLibrary, ABC):
         )
 
     @staticmethod
-    def _from_list(metrics_list: List[Union[Metric, SKLearnTypes.MetricEntryType]]) -> List[Metric]:
+    def _from_list(
+        metrics_list: List[Union[Metric, SKLearnTypes.MetricEntryType]]
+    ) -> List[Metric]:
         """
         Collect the given metrics configurations from a list. The metrics names will be chosen by the following rules:
 
@@ -115,7 +125,9 @@ class SKLearnMetricsLibrary(MetricsLibrary, ABC):
         ]
 
     @staticmethod
-    def _from_dict(metrics_dictionary: Dict[str, SKLearnTypes.MetricEntryType]) -> List[Metric]:
+    def _from_dict(
+        metrics_dictionary: Dict[str, SKLearnTypes.MetricEntryType]
+    ) -> List[Metric]:
         """
         Collect the given metrics configurations from a dictionary.
 
@@ -136,7 +148,9 @@ class SKLearnMetricsLibrary(MetricsLibrary, ABC):
         ]
 
     @classmethod
-    def _default(cls, model: SKLearnTypes.ModelType, y: SKLearnTypes.DatasetType = None) -> List[Metric]:
+    def _default(
+        cls, model: SKLearnTypes.ModelType, y: SKLearnTypes.DatasetType = None
+    ) -> List[Metric]:
         """
         Get the default metrics list according to the algorithm functionality.
 
@@ -253,7 +267,9 @@ class SKLearnMetricsLibrary(MetricsLibrary, ABC):
 
         # Check if the 'need_probabilities' attribute is given:
         if SKLearnMetricsLibrary._NEED_PROBABILITIES_KEYWORD in arguments:
-            need_probabilities = arguments[SKLearnMetricsLibrary._NEED_PROBABILITIES_KEYWORD]
+            need_probabilities = arguments[
+                SKLearnMetricsLibrary._NEED_PROBABILITIES_KEYWORD
+            ]
             arguments.pop(SKLearnMetricsLibrary._NEED_PROBABILITIES_KEYWORD)
         else:
             need_probabilities = False

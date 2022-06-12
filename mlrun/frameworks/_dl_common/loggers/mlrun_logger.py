@@ -7,9 +7,9 @@ import plotly.graph_objects as go
 import mlrun
 from mlrun.artifacts import Artifact, PlotlyArtifact
 
-from ..utils import DLTypes
+from ..utils import DLTypes, LoggingMode
 from ..model_handler import DLModelHandler
-from .logger import Logger, LoggerMode
+from .logger import Logger
 
 
 class MLRunLogger(Logger):
@@ -25,7 +25,7 @@ class MLRunLogger(Logger):
     * At the end of the run:
 
       * Per epoch chart artifacts for the validation summaries and dynamic hyperparameters.
-      * Model is logged with all of the files and artifacts.
+      * Model is logged with all the files and artifacts.
     """
 
     class _Loops:
@@ -60,7 +60,7 @@ class MLRunLogger(Logger):
         """
         Log the last epoch. The last epoch information recorded in the given tracking dictionaries will be logged,
         meaning the epoch index will not be taken from the given 'epoch' parameter, but the '-1' index will be used in
-        all of the dictionaries. Each epoch will log the following information:
+        all the dictionaries. Each epoch will log the following information:
 
         * Results table:
 
@@ -79,7 +79,7 @@ class MLRunLogger(Logger):
         # Log the collected hyperparameters and values as results to the epoch's child context:
         for static_parameter, value in self._static_hyperparameters.items():
             self._context.log_result(static_parameter, value)
-        if self._mode == LoggerMode.TRAINING:
+        if self._mode == LoggingMode.TRAINING:
             for dynamic_parameter, values in self._dynamic_hyperparameters.items():
                 self._context.log_result(dynamic_parameter, values[-1])
             for metric, results in self._training_summaries.items():
@@ -89,7 +89,7 @@ class MLRunLogger(Logger):
         for metric, results in self._validation_summaries.items():
             self._context.log_result(
                 f"{self._Loops.EVALUATION}_{metric}"
-                if self._mode == LoggerMode.EVALUATION
+                if self._mode == LoggingMode.EVALUATION
                 else f"{self._Loops.VALIDATION}_{metric}",
                 results[-1],
             )
@@ -97,12 +97,12 @@ class MLRunLogger(Logger):
         # Log the epochs metrics results as chart artifacts:
         loops = (
             [self._Loops.EVALUATION]
-            if self._mode == LoggerMode.EVALUATION
+            if self._mode == LoggingMode.EVALUATION
             else [self._Loops.TRAINING, self._Loops.VALIDATION]
         )
         metrics_dictionaries = (
             [self._validation_results]
-            if self._mode == LoggerMode.EVALUATION
+            if self._mode == LoggingMode.EVALUATION
             else [self._training_results, self._validation_results]
         )
         for loop, metrics_dictionary in zip(loops, metrics_dictionaries):
@@ -153,7 +153,7 @@ class MLRunLogger(Logger):
         :param extra_data:    Extra data to log with the model.
         """
         # If in training mode, log the summaries and hyperparameters artifacts:
-        if self._mode == LoggerMode.TRAINING:
+        if self._mode == LoggingMode.TRAINING:
             # Create chart artifacts for summaries:
             for metric_name in self._training_summaries:
                 # Create the plotly artifact:
@@ -191,7 +191,7 @@ class MLRunLogger(Logger):
 
         # Log or update:
         model_handler.set_context(context=self._context)
-        if self._mode == LoggerMode.EVALUATION:
+        if self._mode == LoggingMode.EVALUATION:
             model_handler.update(
                 labels=labels,
                 parameters=parameters,
@@ -219,7 +219,7 @@ class MLRunLogger(Logger):
         :return: The metrics summary.
         """
         # If in training mode, return both training and validation metrics:
-        if self._mode == LoggerMode.TRAINING:
+        if self._mode == LoggingMode.TRAINING:
             return {
                 **{
                     f"{self._Loops.TRAINING}_{name}": values[-1]

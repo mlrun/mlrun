@@ -7,7 +7,7 @@ from sklearn.base import is_classifier, is_regressor
 
 import mlrun
 
-from .._common import Types, Utils
+from .._common import Types, Utils, LoggingMode
 
 
 class MLTypes(Types, ABC):

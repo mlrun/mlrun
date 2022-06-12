@@ -68,7 +68,6 @@ class MLPlan(Plan, ABC):
         pass
 
 
-# TODO: Move to common plan as PlotPlan (should be available for all plotly plans)
 class MLPlotPlan(MLPlan, ABC):
     """
     An abstract class for describing a ML plan for plots. A ML plan is used to produce artifact manually or in a given

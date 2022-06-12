@@ -3,13 +3,14 @@ import pickle
 from typing import Dict, List, Union
 
 import cloudpickle
-import lightgbm as lgbm
+import lightgbm as lgb
 
 import mlrun
 
 from .._common import without_mlrun_interface
-from .._ml_common import DatasetType, MLModelHandler
+from .._ml_common import MLModelHandler
 from .mlrun_interface import LGBMModelMLRunInterface
+from .utils import LGBMTypes
 
 
 class LGBMModelHandler(MLModelHandler):
@@ -32,7 +33,7 @@ class LGBMModelHandler(MLModelHandler):
         self,
         model_name: str = None,
         model_path: str = None,
-        model: Union[lgbm.Booster, lgbm.LGBMModel] = None,
+        model: LGBMTypes.ModelType = None,
         modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
         custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
         custom_objects_directory: str = None,
@@ -175,7 +176,7 @@ class LGBMModelHandler(MLModelHandler):
         self,
         model_name: str = None,
         optimize: bool = True,
-        input_sample: DatasetType = None,
+        input_sample: LGBMTypes.DatasetType = None,
         log: bool = None,
     ):
         """

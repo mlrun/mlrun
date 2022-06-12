@@ -28,7 +28,7 @@ class Producer:
         self._context = context
         self._plans = plans if plans is not None else []
 
-        # Setup the logger's mode (defaulted to Training):
+        # Set up the logger's mode (defaulted to Training):
         self._mode = LoggingMode.TRAINING
 
         # Prepare the dictionaries to hold the artifacts. Once they are logged they will be moved from one to another:
@@ -90,8 +90,8 @@ class Producer:
         """
         Produce the artifacts ready at the given stage and log them.
 
-        :param stage:            The current stage to log at.
-        :param kwargs:           All of the required produce arguments to pass onto the plans.
+        :param stage:  The current stage to log at.
+        :param kwargs: All the required produce arguments to pass onto the plans.
         """
         # Produce all the artifacts according to the given stage:
         self._produce_artifacts(

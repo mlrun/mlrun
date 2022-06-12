@@ -17,8 +17,9 @@ from tensorflow.keras.optimizers import Optimizer
 
 import mlrun
 
-from .._common import MLRunInterface, RestorationInformation
+from .._common import MLRunInterface
 from .callbacks import LoggingCallback
+from utils import TFKerasTypes
 
 
 class TFKerasMLRunInterface(MLRunInterface, ABC):
@@ -63,7 +64,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
     def add_interface(
         cls,
         obj: keras.Model,
-        restoration: RestorationInformation = None,
+        restoration: TFKerasTypes.MLRunInterfaceRestorationType = None,
     ):
         """
         Enrich the object with this interface properties, methods and functions so it will have this framework MLRun's

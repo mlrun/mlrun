@@ -16,7 +16,7 @@ class DatasetPlan(MLPlan):
 
     class Purposes(Enum):
         """
-        All of the dataset split purposes.
+        All the dataset split purposes.
         """
 
         OTHER = "other"

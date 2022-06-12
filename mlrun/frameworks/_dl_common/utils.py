@@ -1,6 +1,6 @@
 from typing import TypeVar
 from abc import ABC
-from .._common import Types, Utils
+from .._common import Types, Utils, LoggingMode
 
 
 class DLTypes(Types, ABC):

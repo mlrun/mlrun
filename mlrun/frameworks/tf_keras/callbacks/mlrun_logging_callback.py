@@ -3,8 +3,7 @@ from typing import Callable, Dict, List, Union
 import mlrun
 from mlrun.artifacts import Artifact
 
-from ..._common import TrackableType
-from ..._dl_common.loggers import LoggerMode, MLRunLogger
+from ..._dl_common import LoggingMode, MLRunLogger
 from ..model_handler import TFKerasModelHandler
 from .logging_callback import LoggingCallback
 
@@ -120,7 +119,7 @@ class MLRunLoggingCallback(LoggingCallback):
         super(MLRunLoggingCallback, self).on_test_end(logs=logs)
 
         # Check if its part of evaluation. If so, end the run:
-        if self._logger.mode == LoggerMode.EVALUATION:
+        if self._logger.mode == LoggingMode.EVALUATION:
             self._logger.log_epoch_to_context(epoch=1)
             self._end_run()
 

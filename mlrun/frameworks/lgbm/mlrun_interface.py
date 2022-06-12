@@ -1,11 +1,14 @@
 from abc import ABC
 from typing import List
 from types import ModuleType
+
 import lightgbm as lgb
+
 import mlrun
-from .._common import MLRunInterface, RestorationInformation
+from .._common import MLRunInterface
 from .._ml_common import MLModelHandler, MLPlan
 from ..sklearn import SKLearnMLRunInterface
+from .utils import LGBMTypes
 
 
 class LGBMBoosterMLRunInterface(MLRunInterface, ABC):
@@ -39,13 +42,13 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
     def add_interface(
         cls,
         obj: ModuleType = None,
-        restoration: RestorationInformation = None,
+        restoration: LGBMTypes.MLRunInterfaceRestorationType = None,
     ):
         # If the lightgbm module was not provided:
         if obj is None:
             # Set it to the module imported here:
             obj = lgb
-            # See if lightgbm was imported outside of this file's scope:
+            # See if lightgbm was imported outside this file's scope:
             if all(lgb_import not in globals() for lgb_import in ["lightgbm", "lgb"]):
                 # Import lightgbm globally:
                 globals().update({"lightgbm": lgb, "lgb": lgb})

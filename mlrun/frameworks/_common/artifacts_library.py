@@ -21,12 +21,14 @@ class ArtifactsLibrary(ABC):
     # A constant name for the context parameter to use for passing a plans configuration:
     CONTEXT_PARAMETER = "_artifacts"
 
+    # TODO: Finish support for custom plans.
     @classmethod
     def get_plans(
         cls,
         artifacts: Union[List[Plan], Dict[str, dict], List[str]] = None,
         context: mlrun.MLClientCtx = None,
         include_default: bool = True,
+        # custom_plans: dict = None, :param custom_plans: Custom user plans objects to initialize from.
         **default_kwargs,
     ) -> List[Plan]:
         """
@@ -45,24 +47,32 @@ class ArtifactsLibrary(ABC):
 
         :raise MLRunInvalidArgumentError: If the plans were not passed in a list or a dictionary.
         """
-        # Setup the plans list:
+        # Generate the available plans dictionary:
+        available_plans = cls._get_library_plans()
+        # if custom_plans is not None:
+        #     available_plans = {**available_plans, **custom_plans}
+
+        # Initialize the plans list:
         parsed_plans = []  # type: List[Plan]
 
         # Get the user input plans:
         artifacts_from_context = None
         if context is not None:
-            artifacts_from_context = context.parameters.get(
-                cls.CONTEXT_PARAMETER, None
-            )
+            artifacts_from_context = context.parameters.get(cls.CONTEXT_PARAMETER, None)
         for user_input in [artifacts, artifacts_from_context]:
             if user_input is not None:
                 if isinstance(user_input, dict):
-                    parsed_plans += cls._from_dict(plans_dictionary=user_input)
+                    parsed_plans += cls._from_dict(
+                        requested_plans=user_input, available_plans=available_plans
+                    )
                 elif isinstance(user_input, list):
-                    parsed_plans += cls._from_list(plans_list=user_input)
+                    parsed_plans += cls._from_list(
+                        requested_plans=user_input, available_plans=available_plans
+                    )
                 else:
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Artifacts plans are expected to be given in a list or a dictionary, got: '{type(user_input)}'."
+                        f"Artifacts plans are expected to be given in a list or a dictionary, "
+                        f"got: '{type(user_input)}'."
                     )
 
         # Get the library's default:
@@ -82,92 +92,9 @@ class ArtifactsLibrary(ABC):
         pass
 
     @classmethod
-    def _from_dict(cls, plans_dictionary: Dict[str, dict]) -> List[Plan]:
-        """
-        Initialize a list of plans from a given configuration dictionary. The configuration is expected to be a
-        dictionary of plans and their initialization parameters in the following format:
-        {
-            PLAN_NAME: {
-                PARAMETER_NAME: PARAMETER_VALUE,
-                ...
-            },
-            ...
-        }
-
-        :param plans_dictionary: The configurations of plans.
-
-        :return: The initialized plans list.
-
-        :raise MLRunInvalidArgumentError: If the configuration was incorrect due to unsupported plan or miss use of
-                                          parameters in the plan initializer.
-        """
-        # Get all of the supported plans in this library:
-        library_plans = cls._get_library_plans()
-
-        # Go through the given configuration an initialize the plans accordingly:
-        plans = []  # type: List[Plan]
-        for plan_name, plan_parameters in plans_dictionary.items():
-            # Validate the plan is in the library:
-            if plan_name not in library_plans:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"The given artifact '{plan_name}' is not supported in this artifacts library. The supported"
-                    f"artifacts are: {list(library_plans.keys())}."
-                )
-            # Try to create the plan with the given parameters:
-            try:
-                plans.append(library_plans[plan_name](**plan_parameters))
-            except TypeError as error:
-                # A TypeError was raised, that means there was a miss use of parameters in the plan's '__init__' method:
-                raise mlrun.MLRunInvalidArgumentError(
-                    f"The following artifact: '{plan_name}' cannot be parsed due to miss use of parameters: {error}"
-                )
-
-        return plans
-
-    @classmethod
-    def _from_list(cls, plans_list: List[str]):
-        """
-        Initialize a list of plans from a given configuration list. The configuration is expected to be a list of plans
-        names to be initialized with their default configuration.
-
-        :param plans_list: The list of plans names to initialize.
-
-        :return: The initialized plans list.
-
-        :raise MLRunInvalidArgumentError: If the configuration was incorrect due to unsupported plan.
-        """
-        # Get all of the supported plans in this library:
-        library_plans = cls._get_library_plans()
-
-        # Go through the given configuration an initialize the plans accordingly:
-        plans = []  # type: List[Plan]
-        for plan in plans_list:
-            # Initialized plan:
-            if isinstance(plan, Plan):
-                plans.append(plan)
-            # Plan name that needed to be parsed:
-            elif isinstance(plan, str):
-                # Validate the plan is in the library:
-                if plan not in library_plans:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"The given artifact '{plan}' is not supported in this artifacts library. The supported"
-                        f"artifacts are: {list(library_plans.keys())}."
-                    )
-                # Create the plan and collect it:
-                plans.append(library_plans[plan]())
-            # Unsupported type:
-            else:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Expecting a list of artifact plans or plans names from the artifacts library but given: "
-                    f"'{type(plan)}'"
-                )
-
-        return plans
-
-    @classmethod
     def _get_library_plans(cls) -> Dict[str, Type[Plan]]:
         """
-        Get all of the supported plans in this library.
+        Get all the supported plans in this library.
 
         :return: The library's plans.
         """
@@ -176,3 +103,85 @@ class ArtifactsLibrary(ABC):
             for plan_name, plan_class in cls.__dict__.items()
             if isinstance(plan_class, type) and not plan_name.startswith("_")
         }
+
+    @staticmethod
+    def _from_dict(
+        requested_plans: Dict[str, dict], available_plans: Dict[str, Type[Plan]]
+    ) -> List[Plan]:
+        """
+        Initialize a list of plans from a given configuration dictionary. The configuration is expected to be a
+        dictionary of plans and their initialization parameters in the following format:
+
+        {
+            PLAN_NAME: {
+                PARAMETER_NAME: PARAMETER_VALUE,
+            },
+        }
+
+        :param requested_plans: The configurations of plans to initialize.
+        :param available_plans: The available plans to initialize from.
+
+        :return: The initialized plans list.
+
+        :raise MLRunInvalidArgumentError: If the configuration was incorrect due to unsupported plan or miss use of
+                                          parameters in the plan initializer.
+        """
+        # Go through the given configuration and initialize the plans accordingly:
+        plans = []  # type: List[Plan]
+        for plan_name, plan_parameters in requested_plans.items():
+            # Validate the plan is in the library:
+            if plan_name not in available_plans:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The given artifact '{plan_name}' is not known in this artifacts library. The known artifacts "
+                    f"are: {list(available_plans.keys())}."
+                )
+            # Try to create the plan with the given parameters:
+            try:
+                plans.append(available_plans[plan_name](**plan_parameters))
+            except TypeError as error:
+                # A TypeError was raised, that means there was a misuse of parameters in the plan's '__init__' method:
+                raise mlrun.MLRunInvalidArgumentError(
+                    f"The following artifact: '{plan_name}' cannot be parsed due to misuse of parameters: {error}"
+                )
+
+        return plans
+
+    @staticmethod
+    def _from_list(
+        requested_plans: List[str], available_plans: Dict[str, Type[Plan]]
+    ) -> List[Plan]:
+        """
+        Initialize a list of plans from a given configuration list. The configuration is expected to be a list of plans
+        names to be initialized with their default configuration.
+
+        :param requested_plans: The plans to initialize.
+        :param available_plans: The available plans to initialize from.
+
+        :return: The initialized plans list.
+
+        :raise MLRunInvalidArgumentError: If the configuration was incorrect due to unsupported plan.
+        """
+        # Go through the given configuration and initialize the plans accordingly:
+        plans = []  # type: List[Plan]
+        for plan in requested_plans:
+            # Initialized plan:
+            if isinstance(plan, Plan):
+                plans.append(plan)
+            # Plan name that needed to be parsed:
+            elif isinstance(plan, str):
+                # Validate the plan is in the library:
+                if plan not in available_plans:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"The given artifact '{plan}' is not known in this artifacts library. The known artifacts "
+                        f"are: {list(available_plans.keys())}."
+                    )
+                # Create the plan and collect it:
+                plans.append(available_plans[plan]())
+            # Unsupported type:
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Expecting a list of artifact plans or plans names from the artifacts library but given: "
+                    f"'{type(plan)}'"
+                )
+
+        return plans

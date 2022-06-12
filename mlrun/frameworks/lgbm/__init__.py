@@ -1,27 +1,18 @@
-import warnings
 from typing import Dict, List, Union
 
 import lightgbm as lgb
 
 import mlrun
 
-from .._common import ExtraDataType, get_plans
-from .._ml_common import (
-    DatasetType,
-    Metric,
-    MetricEntry,
-    MetricsLibrary,
-    MLArtifactsLibrary,
-    MLPlan,
-    PickleModelServer,
-    get_metrics,
-)
+from .._ml_common import MLArtifactsLibrary, MLPlan, PickleModelServer
+from ..sklearn import SKLearnMetricsLibrary, Metric
 from .mlrun_interface import LGBMModelMLRunInterface
 from .model_handler import LGBMModelHandler
+from .utils import LGBMUtils, LGBMTypes
 
-# Placeholders as the SciKit-Learn API is commonly used among all of the ML frameworks:
+# Placeholders as the SciKit-Learn API is commonly used among all ML frameworks:
 LGBMArtifactsLibrary = MLArtifactsLibrary
-LGBMMetricsLibrary = MetricsLibrary
+LGBMMetricsLibrary = SKLearnMetricsLibrary
 LGBMModelServer = PickleModelServer
 
 
@@ -35,16 +26,16 @@ def apply_mlrun(
     custom_objects_directory: str = None,
     context: mlrun.MLClientCtx = None,
     artifacts: Union[List[MLPlan], List[str], Dict[str, dict]] = None,
-    metrics: Union[List[Metric], List[MetricEntry], Dict[str, MetricEntry]] = None,
-    x_test: DatasetType = None,
-    y_test: DatasetType = None,
-    sample_set: Union[DatasetType, mlrun.DataItem, str] = None,
+    metrics: Union[List[Metric], List[LGBMTypes.MetricEntryType], Dict[str, LGBMTypes.MetricEntryType]] = None,
+    x_test: LGBMTypes.DatasetType = None,
+    y_test: LGBMTypes.DatasetType = None,
+    sample_set: Union[LGBMTypes.DatasetType, mlrun.DataItem, str] = None,
     y_columns: Union[List[str], List[int]] = None,
     feature_vector: str = None,
     feature_weights: List[float] = None,
     labels: Dict[str, Union[str, int, float]] = None,
     parameters: Dict[str, Union[str, int, float]] = None,
-    extra_data: Dict[str, ExtraDataType] = None,
+    extra_data: Dict[str, LGBMTypes.ExtraDataType] = None,
     auto_log: bool = True,
     **kwargs
 ) -> LGBMModelHandler:
@@ -120,20 +111,6 @@ def apply_mlrun(
 
     :return: The model handler initialized with the provided model.
     """
-    if "X_test" in kwargs:
-        warnings.warn(
-            "The attribute 'X_test' was changed to 'x_test' and will be removed next version.",
-            # TODO: Remove in mlrun 1.0.0
-            PendingDeprecationWarning,
-        )
-        x_test = kwargs["X_test"]
-    if "X_train" in kwargs or "y_train" in kwargs:
-        warnings.warn(
-            "The attributes 'X_train' and 'y_train' are no longer required and will be removed next version.",
-            # TODO: Remove in mlrun 1.0.0
-            PendingDeprecationWarning,
-        )
-
     # Get the default context:
     if context is None:
         context = mlrun.get_or_create_ctx(LGBMModelMLRunInterface.DEFAULT_CONTEXT_NAME)
@@ -163,7 +140,7 @@ def apply_mlrun(
     if sample_set is not None:
         handler.set_sample_set(sample_set=sample_set)
     if y_columns is not None:
-        handler.set_y_columns(y_columns=y_columns)
+        handler.set_target_columns(target_columns=y_columns)
     if feature_vector is not None:
         handler.set_feature_vector(feature_vector=feature_vector)
     if feature_weights is not None:
@@ -178,22 +155,17 @@ def apply_mlrun(
     # Add MLRun's interface to the model:
     LGBMModelMLRunInterface.add_interface(obj=model)
 
-    # Set the handler to the model:
-    model.set_model_handler(model_handler=handler)
-
     # Configure the logger:
-    model.configure_logger(
+    model.configure_logging(
         context=context,
-        plans=get_plans(
-            artifacts_library=LGBMArtifactsLibrary,
+        plans=LGBMArtifactsLibrary.get_plans(
             artifacts=artifacts,
             context=context,
             include_default=auto_log,
             model=model,
             y=y_test,
         ),
-        metrics=get_metrics(
-            metrics_library=LGBMMetricsLibrary,
+        metrics=LGBMMetricsLibrary.get_metrics(
             metrics=metrics,
             context=context,
             include_default=auto_log,
@@ -202,6 +174,7 @@ def apply_mlrun(
         ),
         x_test=x_test,
         y_test=y_test,
+        model_handler=handler
     )
 
     return handler

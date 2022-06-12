@@ -21,10 +21,11 @@ from .utils import Utils, Types
 
 class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
     """
-    An abstract interface for handling a model of the supported frameworks.
+    An abstract interface for handling a model of the supported frameworks. The handler will support loading, saving
+    and logging a model with all the required modules, custom objects and collected information about it.
     """
 
-    # Framework name:
+    # Framework name (Must be set when inheriting the class):
     FRAMEWORK_NAME = None  # type: str
 
     # Constant artifact names:
@@ -48,8 +49,8 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
         **kwargs,
     ):
         """
-        Initialize the handler. The model can be set here so it won't require loading. Note you must provide at least
-        one of 'model' and 'model_path'. If a model is not given, the files in the model path will be collected
+        Initialize the handler. The model can be set here, so it won't require loading. Note you must provide at least
+        one of `model` and `model_path`. If a model is not given, the files in the model path will be collected
         automatically to be ready for loading.
 
         :param model:                    Model to handle or None in case a loading parameters were supplied.
@@ -57,20 +58,24 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
                                          path in the following format:
                                          'store://models/<PROJECT_NAME>/<MODEL_NAME>:<VERSION>'
         :param model_name:               The model name for saving and logging the model:
+
                                          * Mandatory for loading the model from a local path.
                                          * If given a logged model (store model path) it will be read from the artifact.
                                          * If given a loaded model object and the model name is None, the name will be
                                            set to the model's object name / class.
+
         :param modules_map:              A dictionary of all the modules required for loading the model. Each key
                                          is a path to a module and its value is the object name to import from it. All
                                          the modules will be imported globally. If multiple objects needed to be
                                          imported from the same module a list can be given. The map can be passed as a
                                          path to a json file as well. For example:
+
                                          {
                                              "module1": None,  # => import module1
                                              "module2": ["func1", "func2"],  # => from module2 import func1, func2
                                              "module3.sub_module": "func3",  # => from module3.sub_module import func3
                                          }
+
                                          If the model path given is of a store object, the modules map will be read from
                                          the logged modules map artifact of the model.
         :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key
@@ -78,10 +83,12 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
                                          from it. If multiple objects needed to be imported from the same py file a list
                                          can be given. The map can be passed as a path to a json file as well. For
                                          example:
+
                                          {
                                              "/.../custom_optimizer.py": "optimizer",
                                              "/.../custom_layers.py": ["layer1", "layer2"]
                                          }
+
                                          All the paths will be accessed from the given 'custom_objects_directory',
                                          meaning each py file will be read from 'custom_objects_directory/<MAP VALUE>'.
                                          If the model path given is of a store object, the custom objects map will be
@@ -393,7 +400,7 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
         self, artifacts: Union[Artifact, List[Artifact], Dict[str, Artifact]]
     ):
         """
-        Register the given artifacts so they will be logged as extra data with the model of this handler. Notice: The
+        Register the given artifacts, so they will be logged as extra data with the model of this handler. Notice: The
         artifacts will be logged only when either 'log' or 'update' are called.
 
         :param artifacts: The artifacts to register. Can be passed as a single artifact, a list of artifacts or an

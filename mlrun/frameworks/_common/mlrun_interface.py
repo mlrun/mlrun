@@ -17,8 +17,8 @@ class MLRunInterface(ABC, Generic[Types.MLRunInterfaceableType]):
 
     In order to replace object's attributes, the attributes to replace are needed to be added to the attributes:
     '_REPLACED_PROPERTIES', '_REPLACED_METHODS' and '_REPLACED_FUNCTIONS'. The original attribute will be kept in a
-    backup attribute with the prefix noted in '_ORIGINAL_ATTRIBUTE_NAME'. Replacing functions / methods will be the one
-    located by looking for the prefix noted in '_REPLACING_ATTRIBUTE_NAME'. The replacing function / method can be a
+    backup attribute with the prefix noted in '_ORIGINAL_ATTRIBUTE_NAME'. The replacing functions / methods will be
+    located by looking for the prefix noted in '_REPLACING_ATTRIBUTE_NAME'. The replacing function / method can be an
     MLRunInterface class method that return a function / method.
 
     For example: if "x" is in the list then the method "object.x" will be stored as "object.original_x" and "object.x"
@@ -35,6 +35,8 @@ class MLRunInterface(ABC, Generic[Types.MLRunInterfaceableType]):
     _REPLACED_PROPERTIES = {}  # type: Dict[str, Any]
     _REPLACED_METHODS = []  # type: List[str]
     _REPLACED_FUNCTIONS = []  # type: List[str]
+
+    # TODO: Add _OPTIONALLY_REPLACED_PROPERTIES, _OPTIONALLY_REPLACED_METHODS and _OPTIONALLY_REPLACED_FUNCTIONS
 
     # Name template for the replaced attribute to be stored as in the object.
     _ORIGINAL_ATTRIBUTE_NAME = "original_{}"

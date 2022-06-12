@@ -1,4 +1,3 @@
-import warnings
 from typing import Dict, List, Union
 
 import mlrun
@@ -10,7 +9,7 @@ from .mlrun_interface import SKLearnMLRunInterface
 from .model_handler import SKLearnModelHandler
 from .utils import SKLearnTypes, SKLearnUtils
 
-# Placeholders as the SciKit-Learn API is commonly used among all of the ML frameworks:
+# Placeholders as the SciKit-Learn API is commonly used among all ML frameworks:
 SKLearnModelServer = PickleModelServer
 SKLearnArtifactsLibrary = MLArtifactsLibrary
 
@@ -113,20 +112,6 @@ def apply_mlrun(
 
     :return: The model handler initialized with the provided model.
     """
-    if "X_test" in kwargs:
-        warnings.warn(
-            "The attribute 'X_test' was changed to 'x_test' and will be removed next version.",
-            # TODO: Remove in mlrun 1.0.0
-            PendingDeprecationWarning,
-        )
-        x_test = kwargs["X_test"]
-    if "X_train" in kwargs or "y_train" in kwargs:
-        warnings.warn(
-            "The attributes 'X_train' and 'y_train' are no longer required and will be removed next version.",
-            # TODO: Remove in mlrun 1.0.0
-            PendingDeprecationWarning,
-        )
-
     # Get the default context:
     if context is None:
         context = mlrun.get_or_create_ctx(SKLearnMLRunInterface.DEFAULT_CONTEXT_NAME)
@@ -171,14 +156,10 @@ def apply_mlrun(
     # Add MLRun's interface to the model:
     SKLearnMLRunInterface.add_interface(obj=model)
 
-    # Set the handler to the model:
-    model.set_model_handler(model_handler=handler)
-
     # Configure the logger:
-    model.configure_logger(
+    model.configure_logging(
         context=context,
         plans=SKLearnArtifactsLibrary.get_plans(
-            artifacts_library=SKLearnArtifactsLibrary,
             artifacts=artifacts,
             context=context,
             include_default=auto_log,
@@ -194,6 +175,7 @@ def apply_mlrun(
         ),
         x_test=x_test,
         y_test=y_test,
+        model_handler=handler
     )
 
     return handler

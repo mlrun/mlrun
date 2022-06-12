@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Collection
+from typing import Collection, Union
 
 import mlrun
 
@@ -19,7 +19,7 @@ class MetricsLibrary(ABC):
 
         :param context: A context to look in if the configuration was passed as a parameter.
 
-        :return: The parsed collection of metrics in the context.
+        :return: The parsed collection of metrics in the context or None if there weren't any.
         """
         metrics_from_context = context.parameters.get(cls.CONTEXT_PARAMETER, None)
         return cls._parse(metrics=metrics_from_context) if metrics_from_context is not None else None

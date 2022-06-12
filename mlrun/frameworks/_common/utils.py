@@ -1,7 +1,7 @@
 from abc import ABC
 from enum import Enum
 from pathlib import Path
-from typing import TypeVar, Union, Tuple, Dict, List, Any
+from typing import TypeVar, Union, Tuple, Dict, List, Any, Type
 
 import numpy as np
 import scipy.sparse.base as sp
@@ -35,7 +35,7 @@ class Types(ABC):
     ]
 
     # Common dataset type to all frameworks:
-    DatasetType = Union[list, tuple, dict, np.ndarray, sp.spmatrix]
+    DatasetType = Union[list, tuple, dict, np.ndarray, sp.spmatrix, pd.DataFrame, pd.Series]
 
     # A joined type for receiving a path from 'pathlib' or 'os.path':
     PathType = Union[str, Path]
@@ -52,8 +52,8 @@ class LoggingMode(Enum):
     The logging mode options.
     """
 
-    TRAINING = "training"
-    EVALUATION = "evaluation"
+    TRAINING = "Training"
+    EVALUATION = "Evaluation"
 
 
 class Utils(ABC):
@@ -85,8 +85,7 @@ class Utils(ABC):
             return np.array(list(dataset.values()))
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"Could not convert the given dataset into a numpy ndarray. Supporting conversion from: "
-            f"'pandas.DataFrame', 'pandas.Series', 'scipy.sparse.base.spmatrix', list and dict. The given dataset was "
-            f"of type: '{type(dataset)}'"
+            f"{Utils.get_union_typehint_string(Types.DatasetType)}. The given dataset was of type: '{type(dataset)}'"
         )
 
     @staticmethod
@@ -109,8 +108,7 @@ class Utils(ABC):
             return pd.DataFrame.sparse.from_spmatrix(dataset)
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"Could not convert the given dataset into a pandas DataFrame. Supporting conversion from: "
-            f"'numpy.ndarray', 'pandas.Series', 'scipy.sparse.base.spmatrix' list and dict. The given dataset was of "
-            f"type: '{type(dataset)}'"
+            f"{Utils.get_union_typehint_string(Types.DatasetType)}. The given dataset was of type: '{type(dataset)}'"
         )
 
     @staticmethod
@@ -199,3 +197,15 @@ class Utils(ABC):
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"MLRun value type is not supporting the given numpy data type: '{np_dtype}'."
         )
+
+    @staticmethod
+    def get_union_typehint_string(union_typehint) -> str:
+        """
+        Get the string representation of a types.Union typehint object.
+
+        :param union_typehint: The union typehint to get its string representation.
+
+        :return: The union typehint's string.
+        """
+        return str(union_typehint).split('[', 1)[1].rsplit(']', 1)[0]
+

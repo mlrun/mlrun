@@ -219,7 +219,9 @@ with warnings.catch_warnings():
         name = Column(
             String(255, collation=SQLCollationUtil.collation()), nullable=False
         )
-        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        project = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
         created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
         updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
         state = Column(String(255, collation=SQLCollationUtil.collation()))

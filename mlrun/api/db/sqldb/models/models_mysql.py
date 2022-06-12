@@ -223,7 +223,9 @@ with warnings.catch_warnings():
         name = Column(
             String(255, collation=SQLCollationUtil.collation()), nullable=False
         )
-        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        project = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
         created = Column(
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
             default=datetime.now(timezone.utc),

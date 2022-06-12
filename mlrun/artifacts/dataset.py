@@ -137,6 +137,7 @@ class DatasetArtifact(Artifact):
         extra_data: dict = None,
         column_metadata: dict = None,
         ignore_preview_limits: bool = False,
+        label_column: str = None,
         **kwargs,
     ):
 
@@ -153,6 +154,7 @@ class DatasetArtifact(Artifact):
         self.status.stats = None
         self.extra_data = extra_data or {}
         self.column_metadata = column_metadata or {}
+        self.spec.label_column = label_column
 
         if df is not None:
             if hasattr(df, "dask"):

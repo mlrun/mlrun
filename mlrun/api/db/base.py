@@ -506,13 +506,13 @@ class DBInterface(ABC):
         self,
         session,
         name: str,
+        project: str,
         state: str = schemas.BackgroundTaskState.running,
-        project: str = None,
         timeout: int = None,
     ):
         pass
 
     def get_background_task(
-        self, session, name: str, project: str = None
+        self, session, name: str, project: str
     ) -> schemas.BackgroundTask:
         pass

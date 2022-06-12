@@ -46,8 +46,8 @@ class ProjectBackgroundTasksHandler(
         mlrun.api.utils.singletons.db.get_db().store_background_task(
             db_session,
             name,
-            mlrun.api.schemas.BackgroundTaskState.running,
             project,
+            mlrun.api.schemas.BackgroundTaskState.running,
             timeout,
         )
         background_tasks.add_task(
@@ -74,7 +74,7 @@ class ProjectBackgroundTasksHandler(
     async def background_task_wrapper(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: typing.Optional[str],
+        project: str,
         name: str,
         function,
         *args,
@@ -92,15 +92,15 @@ class ProjectBackgroundTasksHandler(
             mlrun.api.utils.singletons.db.get_db().store_background_task(
                 db_session,
                 name,
-                state=mlrun.api.schemas.BackgroundTaskState.failed,
                 project=project,
+                state=mlrun.api.schemas.BackgroundTaskState.failed,
             )
         else:
             mlrun.api.utils.singletons.db.get_db().store_background_task(
                 db_session,
                 name,
-                state=mlrun.api.schemas.BackgroundTaskState.succeeded,
                 project=project,
+                state=mlrun.api.schemas.BackgroundTaskState.succeeded,
             )
 
     @staticmethod

@@ -958,8 +958,8 @@ def _create_resources_of_all_kinds(
     db.store_background_task(
         db_session,
         name="task",
-        state=mlrun.api.schemas.BackgroundTaskState.running,
         project=project,
+        state=mlrun.api.schemas.BackgroundTaskState.running,
     )
 
 

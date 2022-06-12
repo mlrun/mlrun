@@ -120,18 +120,14 @@ default_config = {
     "ignored_notebook_tags": "",
     # when set it will force the local=True in run_function(), set to "auto" will run local if there is no k8s
     "force_run_local": "auto",
-    # timeout to wait for background task to be updated / finished by the worker responsible for the task
     "background_tasks": {
         # enabled / disabled
         "timeout_mode": "enabled",
+        # timeout in seconds to wait for background task to be updated / finished by the worker responsible for the task
         "default_timeouts": {
             "operations": {"migrations": "3600"},
-            "runtimes": {"dask": "300"},
+            "runtimes": {"dask": "600"},
         },
-        # this project name is representation of the "project" name for background tasks without related project
-        # chose an incompatible project name to avoid conflicts with user's project
-        # this is internal project name, mainly for performance ( db indexing )
-        "none_project_name": "0123_project",
     },
     "function_defaults": {
         "image_by_kind": {

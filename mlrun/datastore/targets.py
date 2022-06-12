@@ -108,7 +108,7 @@ def validate_target_paths_for_engine(targets, engine, source):
 
     pandas:
         if source contains chunksize attribute - path must be a directory
-        else if parquet - if partitioned must be a directory
+        else if parquet - if partitioned(=True) - path must be a directory
         else - path must be a single file
     """
     for base_target in targets:

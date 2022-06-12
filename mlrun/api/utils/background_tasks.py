@@ -35,9 +35,9 @@ class ProjectBackgroundTasksHandler(
     def create_background_task(
         self,
         db_session: sqlalchemy.orm.Session,
+        project: str,
         background_tasks: fastapi.BackgroundTasks,
         function,
-        project: str,
         timeout: int = None,  # in seconds
         *args,
         **kwargs,

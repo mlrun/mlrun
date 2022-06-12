@@ -255,11 +255,11 @@ async def start_function(
         )
 
     background_task = await run_in_threadpool(
-        mlrun.api.utils.background_tasks.Handler().create_background_task,
+        mlrun.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
         db_session,
+        function.metadata.project,
         background_tasks,
         _start_function,
-        function.metadata.project,
         background_timeout,
         # args for _start_function
         function,

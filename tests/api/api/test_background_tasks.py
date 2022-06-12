@@ -33,8 +33,8 @@ def create_project_background_task(
     function = bump_counter
     if failed_task:
         function = failing_function
-    return mlrun.api.utils.background_tasks.Handler().create_background_task(
-        db_session, background_tasks, function, project
+    return mlrun.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
+        db_session, project, background_tasks, function
     )
 
 
@@ -45,15 +45,12 @@ def create_project_background_task(
 def create_background_task(
     background_tasks: fastapi.BackgroundTasks,
     failed_task: bool = False,
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        mlrun.api.api.deps.get_db_session
-    ),
 ):
     function = bump_counter
     if failed_task:
         function = failing_function
-    return mlrun.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
-        db_session, background_tasks, function
+    return mlrun.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
+        background_tasks, function
     )
 
 

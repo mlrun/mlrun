@@ -112,7 +112,7 @@ def validate_target_paths_for_engine(targets, engine, source):
         else - path must be a single file
     """
     for base_target in targets:
-        if (
+        if hasattr(base_target, "kind") and (
             base_target.kind == TargetTypes.parquet
             or base_target.kind == TargetTypes.csv
         ):

@@ -770,9 +770,10 @@ class MongoDBSource(BaseSourceDriver):
     :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
     :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
          cause the job to run every 30 minutes
-    :parameter db_name: the name of the database as mention on mongodb
-    :parameter connection_string:
-    :parameter collection_name: the name of the collection as mention on mongodb
+    :parameter db_name: string. the name of the database you would like to access as it mention on mongodb
+    :parameter connection_string: string. your mongodb connection string
+    :parameter collection_name: string. the collection name you would like to access,
+                                from the current db as it mention on mongodb
     :parameter spark_options: additional spark read options
     """
 

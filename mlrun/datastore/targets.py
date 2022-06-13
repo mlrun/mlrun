@@ -139,6 +139,7 @@ def validate_target_paths_for_engine(targets, engine, source):
                         )
                 elif not is_single_file:
                     raise mlrun.errors.MLRunInvalidArgumentError(
+                        "When using a non chunked source, "
                         f"pandas CSV/Parquet targets must be a single file, got path:'{target.path}'"
                     )
             elif not engine or engine == "storey":

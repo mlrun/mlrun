@@ -3060,7 +3060,7 @@ class SQLDB(DBInterface):
                 )
 
             if timeout and mlrun.mlconf.background_tasks.timeout_mode == "enabled":
-                background_task_record.timeout = timeout
+                background_task_record.timeout = int(timeout)
             background_task_record.state = state
             background_task_record.updated = now
         else:
@@ -3073,7 +3073,7 @@ class SQLDB(DBInterface):
                 state=state,
                 created=now,
                 updated=now,
-                timeout=timeout,
+                timeout=int(timeout) if timeout else None,
             )
         self._upsert(session, [background_task_record])
 

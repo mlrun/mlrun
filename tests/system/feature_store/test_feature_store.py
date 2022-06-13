@@ -2664,6 +2664,7 @@ class TestFeatureStore(TestMLRunSystem):
         with pytest.raises(ValueError):
             fs.ingest(stocks_set, stocks, [target])
 
+
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)
     orig_status_targets = list(fset.status.targets.keys())

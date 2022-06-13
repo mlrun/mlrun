@@ -140,7 +140,7 @@ class RemoteSparkRuntime(KubejobRuntime):
 
     def with_spark_service(self, spark_service, provider=RemoteSparkProviders.iguazio):
         """Attach spark service to function"""
-        print('new')
+        print("new")
         self.spec.spark_service = spark_service
         self.spec.provider = provider
         if provider == RemoteSparkProviders.iguazio:

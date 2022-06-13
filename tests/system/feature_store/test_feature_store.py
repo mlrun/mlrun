@@ -1035,7 +1035,8 @@ class TestFeatureStore(TestMLRunSystem):
             }
         )
         data_set1 = fs.FeatureSet("fs1", entities=[Entity("string")])
-        fs.ingest(data_set1, data, infer_options=fs.InferOptions.default())
+        targets = [ParquetTarget(partitioned=False), NoSqlTarget()]
+        fs.ingest(data_set1, data, targets=targets, infer_options=fs.InferOptions.default())
         features = ["fs1.*"]
         vector = fs.FeatureVector("vector", features)
         vector.spec.with_indexes = True
@@ -1075,7 +1076,8 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         data_set1 = fs.FeatureSet("fs1", entities=[Entity("string")])
-        fs.ingest(data_set1, data, infer_options=fs.InferOptions.default())
+        targets = [ParquetTarget(partitioned=False), NoSqlTarget()]
+        fs.ingest(data_set1, data, targets=targets, infer_options=fs.InferOptions.default())
 
         data2 = pd.DataFrame(
             {

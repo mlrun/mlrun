@@ -346,7 +346,7 @@ def ingest(
     :param overwrite:     delete the targets' data prior to ingestion
                           (default: True for non scheduled ingest - deletes the targets that are about to be ingested.
                                     False for scheduled ingest - does not delete the target)
-    :return:              if return_df is True then the a dataframe will be returned according to the graph
+    :return:              if return_df is True, a dataframe will be returned based on the graph
                           (As long as mlrun_context is not given)
     """
     if isinstance(source, pd.DataFrame):

@@ -1,4 +1,5 @@
 import copy
+import http
 
 import requests.adapters
 import urllib3
@@ -37,12 +38,17 @@ class Client(
         response_body = response.json()
         return mlrun.api.schemas.BackgroundTask(**response_body)
 
-    def trigger_migrations(self) -> mlrun.api.schemas.BackgroundTask:
-        response = self._send_request_to_api("POST", "operations/migrations")
-        response_body = response.json()
-        return mlrun.api.schemas.BackgroundTask(**response_body)
+    def trigger_migrations(self) -> requests.Response:
+        # the endpoint of /operations/migrations can return multiple http status codes including status codes which are
+        # 400+ (not response.ok), we want the user accessing the worker to experience the same behavior as if it
+        # accessed the chief
+        return self._send_request_to_api(
+            "POST", "operations/migrations", to_fail_on_not_ok=False
+        )
 
-    def _send_request_to_api(self, method, path, **kwargs):
+    def _send_request_to_api(
+        self, method, path, to_fail_on_not_ok: bool = True, **kwargs
+    ):
         url = f"{self._api_url}/api/{mlrun.mlconf.api_base_version}/{path}"
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = 20
@@ -63,6 +69,8 @@ class Client(
                         {"error": error, "error_stack_trace": error_stack_trace}
                     )
             logger.warning("Request to chief failed", **log_kwargs)
+            if not to_fail_on_not_ok:
+                return response
             mlrun.errors.raise_for_status(response)
         logger.debug(
             "Request to chief succeeded",

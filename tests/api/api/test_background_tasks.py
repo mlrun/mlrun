@@ -6,6 +6,7 @@ import unittest.mock
 import fastapi
 import fastapi.testclient
 import pytest
+import requests
 import sqlalchemy.orm
 
 import mlrun.api.api.deps
@@ -18,6 +19,8 @@ import mlrun.api.utils.clients.chief
 test_router = fastapi.APIRouter()
 
 
+# because we don't have specific endpoints for creating background tasks, but only through start_function /
+# operations/migrations, with the routes bellow we simulate those actions that would be performed
 @test_router.post(
     "/projects/{project}/background-tasks",
     response_model=mlrun.api.schemas.BackgroundTask,
@@ -155,12 +158,12 @@ def test_get_background_task_auth_skip(
     )
 
 
-def test_get_background_task_not_exists_on_worker_exists_in_chief(
+def test_get_internal_background_task_redirect_from_worker_to_chief_exists(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, monkeypatch
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"
     name = "task-name"
-    expected_background_task = _generate_background_task_schema(name)
+    expected_background_task = _generate_background_task(name)
     handler_mock = mlrun.api.utils.clients.chief.Client()
     handler_mock.get_background_task = unittest.mock.Mock(
         return_value=expected_background_task
@@ -176,7 +179,7 @@ def test_get_background_task_not_exists_on_worker_exists_in_chief(
     assert background_task == expected_background_task
 
 
-def test_get_background_task_not_exists_in_both_worker_and_chief(
+def test_get_internal_background_task_from_worker_redirect_to_chief_doesnt_exists(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, monkeypatch
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"
@@ -194,7 +197,7 @@ def test_get_background_task_not_exists_in_both_worker_and_chief(
         client.get(f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{name}")
 
 
-def test_get_background_task_in_chief_exists_in_memory(
+def test_get_internal_background_task_in_chief_exists(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ):
     response = client.post("/test/internal-background-tasks")
@@ -208,7 +211,65 @@ def test_get_background_task_in_chief_exists_in_memory(
     assert response.status_code == http.HTTPStatus.OK.value
 
 
-def _generate_background_task_schema(
+def test_trigger_migrations_from_worker_returns_same_response_as_chief(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, monkeypatch
+):
+    mlrun.mlconf.httpdb.clusterization.role = "worker"
+
+    for test_case in [
+        {
+            "status_code": http.HTTPStatus.PRECONDITION_FAILED.value,
+            "content": b'{"error":"Migrations were already triggered and failed. Restart the API to retry"}',
+        },
+        {
+            "status_code": http.HTTPStatus.ACCEPTED.value,
+            "content": b'{"kind":"BackgroundTask","metadata":{"name":"2efd3890-3a12-416d-ae92-807b7796e257",'
+            b'"project":null,"created":"2022-06-13T21:30:42.431158","updated":'
+            b'"2022-06-13T21:30:42.431158","timeout":null},"spec":{},"status":{"state":"running"}}',
+        },
+        {
+            "status_code": http.HTTPStatus.OK.value,
+            "content": b"{}",
+        },
+        {
+            "status_code": http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
+            "content": None,
+        },
+    ]:
+        expected_response = requests.Response()
+        expected_response.status_code = test_case.get("status_code")
+        expected_response._content = test_case.get("content")
+        handler_mock = mlrun.api.utils.clients.chief.Client()
+        handler_mock.trigger_migrations = unittest.mock.Mock(
+            return_value=expected_response
+        )
+        monkeypatch.setattr(
+            mlrun.api.utils.clients.chief,
+            "Client",
+            lambda *args, **kwargs: handler_mock,
+        )
+        response = client.post(f"{ORIGINAL_VERSIONED_API_PREFIX}/operations/migrations")
+        assert response.status_code == expected_response.status_code
+        # the expected returned statuses from operations/migrations
+        if response.status_code in [
+            http.HTTPStatus.ACCEPTED.value,
+            http.HTTPStatus.OK.value,
+            http.HTTPStatus.PRECONDITION_FAILED.value,
+        ]:
+            assert response.json() == expected_response.json()
+            if response.status_code == http.HTTPStatus.ACCEPTED.value:
+                assert mlrun.api.schemas.BackgroundTask(
+                    **response.json()
+                ) == mlrun.api.schemas.BackgroundTask(**expected_response.json())
+        else:
+            assert (
+                response.json() == {}
+                if not expected_response.content
+                else expected_response.json()
+            )
+
+
+def _generate_background_task(
     background_task_name,
     state: mlrun.api.schemas.BackgroundTaskState = mlrun.api.schemas.BackgroundTaskState.running,
 ) -> mlrun.api.schemas.BackgroundTask:

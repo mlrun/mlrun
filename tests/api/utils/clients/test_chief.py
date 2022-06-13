@@ -1,4 +1,5 @@
 import datetime
+import http
 
 import fastapi.encoders
 import pytest
@@ -27,13 +28,13 @@ async def chief_client(
     return client
 
 
-def test_get_background_task_from_chief_succeeded(
+def test_get_background_task_from_chief_success(
     api_url: str,
     chief_client: mlrun.api.utils.clients.chief.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     task_name = "test-for-chief"
-    background_schema = _generate_background_task_schema(task_name)
+    background_schema = _generate_background_task(task_name)
     # using jsonable_encoder because datetime isn't json serializable object
     # https://fastapi.tiangolo.com/tutorial/encoder/
     response_body = fastapi.encoders.jsonable_encoder(background_schema)
@@ -67,7 +68,10 @@ def test_get_background_task_from_chief_failed(
     requests_mock: requests_mock_package.Mocker,
 ):
     task_name = "test-for-chief"
-    requests_mock.get(f"{api_url}/api/v1/background-tasks/{task_name}", status_code=500)
+    requests_mock.get(
+        f"{api_url}/api/v1/background-tasks/{task_name}",
+        status_code=http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
+    )
     with pytest.raises(Exception):
         chief_client.get_background_task(task_name)
 
@@ -78,12 +82,18 @@ def test_trigger_migration_succeeded(
     requests_mock: requests_mock_package.Mocker,
 ):
     task_name = "test-for-chief"
-    background_schema = _generate_background_task_schema(task_name)
+    background_schema = _generate_background_task(task_name)
     # using jsonable_encoder because datetime isn't json serializable object
     # https://fastapi.tiangolo.com/tutorial/encoder/
     response_body = fastapi.encoders.jsonable_encoder(background_schema)
-    requests_mock.post(f"{api_url}/api/v1/operations/migrations", json=response_body)
-    background_task = chief_client.trigger_migrations()
+    requests_mock.post(
+        f"{api_url}/api/v1/operations/migrations",
+        json=response_body,
+        status_code=http.HTTPStatus.ACCEPTED,
+    )
+    response = chief_client.trigger_migrations()
+    assert response.status_code == http.HTTPStatus.ACCEPTED
+    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
     assert background_task.metadata.name == task_name
     assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.running
     assert background_task.metadata.created == background_schema.metadata.created
@@ -91,8 +101,14 @@ def test_trigger_migration_succeeded(
     background_schema.status.state = mlrun.api.schemas.BackgroundTaskState.succeeded
     background_schema.metadata.updated = datetime.datetime.utcnow()
     response_body = fastapi.encoders.jsonable_encoder(background_schema)
-    requests_mock.post(f"{api_url}/api/v1/operations/migrations", json=response_body)
-    background_task = chief_client.trigger_migrations()
+    requests_mock.post(
+        f"{api_url}/api/v1/operations/migrations",
+        json=response_body,
+        status_code=http.HTTPStatus.ACCEPTED,
+    )
+    response = chief_client.trigger_migrations()
+    assert response.status_code == http.HTTPStatus.ACCEPTED
+    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
     assert background_task.metadata.name == task_name
     assert (
         background_task.status.state == mlrun.api.schemas.BackgroundTaskState.succeeded
@@ -102,17 +118,66 @@ def test_trigger_migration_succeeded(
     assert background_task.metadata.updated > background_task.metadata.created
 
 
-def test_trigger_migrations_from_chief_failed(
+def test_trigger_migrations_from_chief_failures(
     api_url: str,
     chief_client: mlrun.api.utils.clients.chief.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
-    requests_mock.get(f"{api_url}/api/v1/operations/migrations", status_code=500)
-    with pytest.raises(Exception):
-        chief_client.trigger_migrations()
+    requests_mock.post(
+        f"{api_url}/api/v1/operations/migrations",
+        status_code=http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
+    )
+    response = chief_client.trigger_migrations()
+    assert response.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR.value
+    assert not response.text
+
+    requests_mock.post(
+        f"{api_url}/api/v1/operations/migrations",
+        status_code=http.HTTPStatus.PRECONDITION_FAILED.value,
+        text="Migrations were already triggered and failed. Restart the API to retry",
+    )
+    response = chief_client.trigger_migrations()
+    assert response.status_code == http.HTTPStatus.PRECONDITION_FAILED.value
+    assert "Migrations were already triggered and failed" in response.text
 
 
-def _generate_background_task_schema(
+def test_trigger_migrations_chief_restarted_while_executing_migrations(
+    api_url: str,
+    chief_client: mlrun.api.utils.clients.chief.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    task_name = "test-bg-failed"
+
+    background_schema = _generate_background_task(task_name)
+    # using jsonable_encoder because datetime isn't json serializable object
+    # https://fastapi.tiangolo.com/tutorial/encoder/
+    response_body = fastapi.encoders.jsonable_encoder(background_schema)
+    requests_mock.post(
+        f"{api_url}/api/v1/operations/migrations",
+        json=response_body,
+        status_code=http.HTTPStatus.ACCEPTED,
+    )
+    response = chief_client.trigger_migrations()
+    assert response.status_code == http.HTTPStatus.ACCEPTED
+    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+    assert background_task.metadata.name == task_name
+    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.running
+    assert background_task.metadata.created == background_schema.metadata.created
+
+    # in internal background tasks, failed state is only when the background task doesn't exists in memory,
+    # which means the api was restarted
+    background_schema.status.state = mlrun.api.schemas.BackgroundTaskState.failed
+    response_body = fastapi.encoders.jsonable_encoder(background_schema)
+    requests_mock.get(
+        f"{api_url}/api/v1/background-tasks/{task_name}", json=response_body
+    )
+    background_task = chief_client.get_background_task(task_name)
+    assert background_task.metadata.name == task_name
+    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.failed
+    assert background_task.metadata.created == background_schema.metadata.created
+
+
+def _generate_background_task(
     background_task_name,
     state: mlrun.api.schemas.BackgroundTaskState = mlrun.api.schemas.BackgroundTaskState.running,
 ) -> mlrun.api.schemas.BackgroundTask:

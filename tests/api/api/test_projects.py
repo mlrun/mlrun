@@ -1053,7 +1053,6 @@ def _assert_db_resources_in_project(
                 and project_member_mode == "follower"
             )
             or (cls.__tablename__ == "projects" and project_member_mode == "follower")
-            # or (cls.__tablename__ == "background_tasks")
         ):
             continue
         number_of_cls_records = 0
@@ -1129,13 +1128,6 @@ def _assert_db_resources_in_project(
                     .filter(Project.name == project)
                     .count()
                 )
-            # if cls.__tablename__ == "background_tasks":
-            #     number_of_cls_records = (
-            #         db_session.query(Project)
-            #         .join(cls)
-            #         .filter(Project.name == project)
-            #         .count()
-            #     )
         elif cls.__name__ == "Project":
             number_of_cls_records = (
                 db_session.query(Project).filter(Project.name == project).count()

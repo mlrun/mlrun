@@ -253,6 +253,7 @@ class FeatureSet(ModelObj):
         entities: List[Union[Entity, str]] = None,
         timestamp_key: str = None,
         engine: str = None,
+        label_column: str = None,
     ):
         """Feature set object, defines a set of features and their data pipeline
 
@@ -267,6 +268,7 @@ class FeatureSet(ModelObj):
         :param entities:      list of entity (index key) names or :py:class:`~mlrun.features.FeatureSet.Entity`
         :param timestamp_key: timestamp column name
         :param engine:        name of the processing engine (storey, pandas, or spark), defaults to storey
+        :param label_column:  name of the label column (the one holding the target (y) values)
         """
         self._spec: FeatureSetSpec = None
         self._metadata = None
@@ -279,6 +281,7 @@ class FeatureSet(ModelObj):
             entities=entities,
             timestamp_key=timestamp_key,
             engine=engine,
+            label_column=label_column,
         )
 
         if timestamp_key in self.spec.entities.keys():
@@ -593,13 +596,13 @@ class FeatureSet(ModelObj):
 
             myset.add_aggregation("ask", ["sum", "max"], "1h", "10m", name="asks")
 
-        :param column:     name of column/field aggregate. Do not name columns starting with either `t_` or `aggr_`.
+        :param column:     name of column/field aggregate. Do not name columns starting with either `_` or `aggr_`.
                            They are reserved for internal use, and the data does not ingest correctly.
                            When using the pandas engine, do not use spaces (` `) or periods (`.`) in the column names;
                            they cause errors in the ingestion.
         :param operations: aggregation operations, e.g. ['sum', 'std']
         :param windows:    time windows, can be a single window, e.g. '1h', '1d',
-                            or a list of same unit windows e.g ['1h', '6h']
+                            or a list of same unit windows e.g. ['1h', '6h']
                             windows are transformed to fixed windows or
                             sliding windows depending whether period parameter
                             provided.
@@ -617,7 +620,7 @@ class FeatureSet(ModelObj):
                               to a specific window. It is processed only once
                               (when the query processes the window to which the record belongs).
         :param period:     optional, sliding window granularity, e.g. '20s' '10m'  '3h' '7d'
-        :param name:       optional, aggregation name/prefix. Must be unique per feature set.If not passed,
+        :param name:       optional, aggregation name/prefix. Must be unique per feature set. If not passed,
                             the column will be used as name.
         :param step_name: optional, graph step name
         :param state_name: *Deprecated* - use step_name instead

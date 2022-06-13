@@ -1,6 +1,6 @@
 # Built-in steps
 
-MlRun provides you with many built-in stapes that you can use when building your graph. 
+MlRun provides you with many built-in steps that you can use when building your graph. 
 
 Click on the step names in the following sections to see the full usage.
 

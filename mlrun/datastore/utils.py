@@ -1,3 +1,6 @@
+from urllib.parse import urlparse
+
+
 def store_path_to_spark(path):
     if path.startswith("v3io:///"):
         path = "v3io:" + path[len("v3io:/") :]
@@ -13,3 +16,12 @@ def store_path_to_spark(path):
         else:
             path = "s3a:" + path[len("s3:") :]
     return path
+
+
+def parse_kafka_url(url, bootstrap_servers=None):
+    bootstrap_servers = bootstrap_servers or []
+    url = urlparse(url)
+    if url.netloc:
+        bootstrap_servers = [url.netloc] + bootstrap_servers
+    topic = url.path
+    return topic, bootstrap_servers

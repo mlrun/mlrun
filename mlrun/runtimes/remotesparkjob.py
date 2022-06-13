@@ -189,6 +189,8 @@ class RemoteSparkRuntime(KubejobRuntime):
 
 
 class RemoteSparkRuntimeHandler(KubeRuntimeHandler):
+    kind = "remote-spark"
+
     @staticmethod
     def _are_resources_coupled_to_run_object() -> bool:
         return True

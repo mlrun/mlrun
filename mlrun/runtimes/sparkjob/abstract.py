@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import typing
-from copy import deepcopy
+from copy import copy, deepcopy
 from datetime import datetime
 from typing import Dict, Optional, Tuple
 
@@ -44,7 +44,6 @@ from ...utils import (
 from ..base import RunError
 from ..kubejob import KubejobRuntime
 from ..pod import KubeResourceSpec
-from ..utils import generate_resources
 
 _service_account = "sparkapp"
 _sparkjob_template = {
@@ -231,18 +230,19 @@ class AbstractSparkRuntime(KubejobRuntime):
         sj = new_function(kind=cls.kind, name="spark-default-image-deploy-temp")
         sj.spec.build.image = cls._get_default_deployed_mlrun_image_name(with_gpu)
 
-        sj.with_executor_requests(cpu=1, mem="512m", gpus=1 if with_gpu else None)
-        sj.with_driver_requests(cpu=1, mem="512m", gpus=1 if with_gpu else None)
+        # setting required resources
+        sj.with_executor_requests(cpu=1, mem="512m")
+        sj.with_driver_requests(cpu=1, mem="512m")
 
         sj.deploy()
         get_run_db().delete_function(name=sj.metadata.name)
 
     def _is_using_gpu(self):
         _, driver_gpu = self._get_gpu_type_and_quantity(
-            resources=self.spec.driver_resources["requests"]
+            resources=self.spec.driver_resources["limits"]
         )
         _, executor_gpu = self._get_gpu_type_and_quantity(
-            resources=self.spec.executor_resources["requests"]
+            resources=self.spec.executor_resources["limits"]
         )
         return bool(driver_gpu or executor_gpu)
 
@@ -306,8 +306,24 @@ class AbstractSparkRuntime(KubejobRuntime):
         return gpu_type[0] if gpu_type else None, gpu_quantity
 
     def _validate(self, runobj: RunObject):
-        # validating length limit for sparkjob's function name
-        verify_field_regex("run.metadata.name", runobj.metadata.name, sparkjob_name)
+        # validating correctness of sparkjob's function name
+        try:
+            verify_field_regex("run.metadata.name", runobj.metadata.name, sparkjob_name)
+
+        except mlrun.errors.MLRunInvalidArgumentError as err:
+            pattern_error = str(err).split(" ")[-1]
+            if pattern_error == sparkjob_name[-1]:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Job name '{runobj.metadata.name}' is not valid."
+                    f" The job name must be not longer than 29 characters"
+                )
+            elif pattern_error in sparkjob_name[:-1]:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "a valid label must be an empty string or consist of alphanumeric characters,"
+                    " '-', '_' or '.', and must start and end with an alphanumeric character"
+                )
+            else:
+                raise err
 
         # validating existence of required fields
         if "requests" not in self.spec.executor_resources:
@@ -470,7 +486,7 @@ with ctx:
                     str,
                 )
             gpu_type, gpu_quantity = self._get_gpu_type_and_quantity(
-                resources=self.spec.executor_resources["requests"]
+                resources=self.spec.executor_resources["limits"]
             )
             if gpu_type:
                 update_in(job, "spec.executor.gpu.name", gpu_type)
@@ -499,7 +515,7 @@ with ctx:
                     str,
                 )
             gpu_type, gpu_quantity = self._get_gpu_type_and_quantity(
-                resources=self.spec.driver_resources["requests"]
+                resources=self.spec.driver_resources["limits"]
             )
             if gpu_type:
                 update_in(job, "spec.driver.gpu.name", gpu_type)
@@ -603,9 +619,18 @@ with ctx:
                 self.spec.deps["files"] = []
             self.spec.deps["files"] += deps["files"]
 
-    def with_igz_spark(self):
+    def with_igz_spark(self, mount_v3io_to_executor=True):
         self._update_igz_jars(deps=self._get_igz_deps())
+        additional_executor_volume_mounts = copy(self.spec.volume_mounts)
         self.apply(mount_v3io_extended())
+
+        # move volume_mounts to driver and executor specific fields and leave v3io mounts
+        # out of executor mounts if mount_v3io_to_executor=False
+        self.spec.driver_volume_mounts += self.spec.volume_mounts
+        if mount_v3io_to_executor:
+            additional_executor_volume_mounts = self.spec.volume_mounts
+        self.spec.executor_volume_mounts += additional_executor_volume_mounts
+        self.spec.volume_mounts = []
         self.apply(
             mount_v3iod(
                 namespace=config.namespace,
@@ -652,41 +677,27 @@ with ctx:
             )
         super().with_node_selection(node_name, node_selector, affinity, tolerations)
 
-    def with_executor_requests(
-        self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"
-    ):
+    def with_executor_requests(self, mem=None, cpu=None):
         """set executor pod required cpu/memory/gpu resources"""
-        resources = self._verify_spark_job_requests(
-            "executor_resources", mem, cpu, gpus, gpu_type
-        )
-        update_in(
-            self.spec.executor_resources,
-            "requests",
-            resources,
+        self.spec._verify_and_set_requests("executor_resources", mem, cpu)
+
+    def with_executor_limits(self, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
+        """set executor pod limits"""
+        # in spark operator there is only use of mem passed through requests,
+        # limits is set to the same value so passing mem=None
+        self.spec._verify_and_set_limits(
+            "executor_resources", None, cpu, gpus, gpu_type
         )
 
-    def with_executor_limits(self, cpu=None):
-        """set executor pod cpu limits"""
-        resources = self._verify_spark_job_limits("executor_resources", cpu)
-        update_in(self.spec.executor_resources, "limits", resources)
-
-    def with_driver_requests(
-        self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"
-    ):
+    def with_driver_requests(self, mem=None, cpu=None):
         """set driver pod required cpu/memory/gpu resources"""
-        resources = self._verify_spark_job_requests(
-            "driver_resources", mem, cpu, gpus, gpu_type
-        )
-        update_in(
-            self.spec.driver_resources,
-            "requests",
-            resources,
-        )
+        self.spec._verify_and_set_requests("driver_resources", mem, cpu)
 
-    def with_driver_limits(self, cpu=None):
+    def with_driver_limits(self, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
         """set driver pod cpu limits"""
-        resources = self._verify_spark_job_limits("driver_resources", cpu)
-        update_in(self.spec.driver_resources, "limits", resources)
+        # in spark operator there is only use of mem passed through requests,
+        # limits is set to the same value so passing mem=None
+        self.spec._verify_and_set_limits("driver_resources", None, cpu, gpus, gpu_type)
 
     def with_restart_policy(
         self,
@@ -745,50 +756,10 @@ with ctx:
     def spec(self, spec):
         raise NotImplementedError()
 
-    @staticmethod
-    def _verify_spark_job_limits(
-        resources_field_name,
-        cpu=None,
-    ):
-        if cpu:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.limits.cpu",
-                cpu,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        return generate_resources(cpu=str(cpu))
-
-    @staticmethod
-    def _verify_spark_job_requests(
-        resources_field_name,
-        mem=None,
-        cpu=None,
-        gpus=None,
-        gpu_type="nvidia.com/gpu",
-    ):
-        if mem:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.limits.memory",
-                mem,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        if cpu:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.limits.cpu",
-                cpu,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
-        if gpus:
-            verify_field_regex(
-                f"function.spec.{resources_field_name}.limits.gpus",
-                gpus,
-                mlrun.utils.regex.k8s_resource_quantity_regex,
-            )
-        return generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type)
-
 
 class SparkRuntimeHandler(BaseRuntimeHandler):
+    kind = "spark"
+
     def _resolve_crd_object_status_info(
         self, db: DBInterface, db_session: Session, crd_object
     ) -> Tuple[bool, Optional[datetime], Optional[str]]:

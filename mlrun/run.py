@@ -14,6 +14,7 @@
 
 import importlib.util as imputil
 import json
+import os
 import pathlib
 import socket
 import tempfile
@@ -172,6 +173,7 @@ def run_local(
     kind = "local" if isinstance(handler, str) and "." in handler else ""
     fn = new_function(meta.name, command=command, args=args, mode=mode, kind=kind)
     fn.metadata = meta
+    setattr(fn, "_is_run_local", True)
     if workdir:
         fn.spec.workdir = str(workdir)
     fn.spec.allow_empty_resources = allow_empty_resources
@@ -226,6 +228,7 @@ def function_to_module(code="", workdir=None, secrets=None, silent=False):
             return None
         raise ValueError("nothing to run, specify command or function")
 
+    command = os.path.join(workdir or "", command)
     path = Path(command)
     mod_name = path.name
     if path.suffix:
@@ -278,9 +281,9 @@ def load_func_code(command="", workdir=None, secrets=None, name="name"):
                     temp_file.write(code)
 
         elif command and not is_remote:
-            command = path.join(workdir or "", command)
-            if not path.isfile(command):
-                raise OSError(f"command file {command} not found")
+            file_path = path.join(workdir or "", command)
+            if not path.isfile(file_path):
+                raise OSError(f"command file {file_path} not found")
 
         else:
             logger.warn("run command, file or code were not specified")

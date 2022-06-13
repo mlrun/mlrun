@@ -13,14 +13,17 @@
 # limitations under the License.
 
 import json
+import os
 from copy import deepcopy
 from typing import List, Union
 
 import nuclio
+from nuclio import KafkaTrigger
 
 import mlrun
 import mlrun.api.schemas
 
+from ..datastore import parse_kafka_url
 from ..model import ObjectList
 from ..secrets import SecretsStore
 from ..serving.server import GraphServer, create_graph_server
@@ -33,7 +36,7 @@ from ..serving.states import (
     new_remote_endpoint,
     params_to_step,
 )
-from ..utils import get_caller_globals, logger
+from ..utils import get_caller_globals, logger, set_paths
 from .function import NuclioSpec, RemoteRuntime
 from .function_reference import FunctionReference
 
@@ -432,9 +435,25 @@ class ServingRuntime(RemoteRuntime):
 
                 child_function = self._spec.function_refs[function_name]
                 trigger_args = stream.trigger_args or {}
-                child_function.function_object.add_v3io_stream_trigger(
-                    stream.path, group=group, shards=stream.shards, **trigger_args
-                )
+
+                if (
+                    stream.path.startswith("kafka://")
+                    or "kafka_bootstrap_servers" in stream.options
+                ):
+                    brokers = stream.options.get("kafka_bootstrap_servers")
+                    if brokers:
+                        brokers = brokers.split(",")
+                    topic, brokers = parse_kafka_url(stream.path, brokers)
+                    trigger = KafkaTrigger(
+                        brokers=brokers,
+                        topics=[topic],
+                        **trigger_args,
+                    )
+                    child_function.function_object.add_trigger("kafka", trigger)
+                else:
+                    child_function.function_object.add_v3io_stream_trigger(
+                        stream.path, group=group, shards=stream.shards, **trigger_args
+                    )
 
     def _deploy_function_refs(self, builder_env: dict = None):
         """set metadata and deploy child functions"""
@@ -601,7 +620,12 @@ class ServingRuntime(RemoteRuntime):
         return env
 
     def to_mock_server(
-        self, namespace=None, current_function="*", track_models=False, **kwargs
+        self,
+        namespace=None,
+        current_function="*",
+        track_models=False,
+        workdir=None,
+        **kwargs,
     ) -> GraphServer:
         """create mock server object for local testing/emulation
 
@@ -609,16 +633,23 @@ class ServingRuntime(RemoteRuntime):
         :param log_level: log level (error | info | debug)
         :param current_function: specify if you want to simulate a child function, * for all functions
         :param track_models: allow model tracking (disabled by default in the mock server)
+        :param workdir:   working directory to locate the source code (if not the current one)
         """
 
         # set the namespaces/modules to look for the steps code in
         namespace = namespace or []
         if not isinstance(namespace, list):
             namespace = [namespace]
-        module = mlrun.run.function_to_module(self, silent=True)
+        module = mlrun.run.function_to_module(self, silent=True, workdir=workdir)
         if module:
             namespace.append(module)
         namespace.append(get_caller_globals())
+
+        if workdir:
+            old_workdir = os.getcwd()
+            workdir = os.path.realpath(workdir)
+            set_paths(workdir)
+            os.chdir(workdir)
 
         server = create_graph_server(
             parameters=self.spec.parameters,
@@ -639,5 +670,27 @@ class ServingRuntime(RemoteRuntime):
             logger=logger,
             is_mock=True,
         )
+
+        if workdir:
+            os.chdir(old_workdir)
+
         server.init_object(namespace)
         return server
+
+    def plot(self, filename=None, format=None, source=None, **kw):
+        """plot/save graph using graphviz
+
+        example::
+
+            serving_fn = mlrun.new_function("serving", image="mlrun/mlrun", kind="serving")
+            serving_fn.add_model('my-classifier',model_path=model_path,
+                                  class_name='mlrun.frameworks.sklearn.SklearnModelServer')
+            serving_fn.plot(rankdir="LR")
+
+        :param filename:  target filepath for the image (None for the notebook)
+        :param format:    The output format used for rendering (``'pdf'``, ``'png'``, etc.)
+        :param source:    source step to add to the graph
+        :param kw:        kwargs passed to graphviz, e.g. rankdir="LR" (see: https://graphviz.org/doc/info/attrs.html)
+        :return: graphviz graph object
+        """
+        return self.spec.graph.plot(filename, format=format, source=source, **kw)

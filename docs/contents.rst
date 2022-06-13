@@ -15,6 +15,7 @@
    projects/project
    concepts/functions-concepts
    concepts/data-feature-store
+   feature-store/feature-store
    concepts/runs-experiments-workflows
    store/artifacts
    concepts/deployment-monitoring
@@ -58,5 +59,5 @@
    api/index
    <!-- web-apps -->
    cli
-   examples
-   Glossary
+   <!-- examples -->
+   glossary

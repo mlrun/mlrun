@@ -204,6 +204,8 @@ class ParquetSource(BaseSourceDriver):
          start_filter & end_filter
     :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
          cause the job to run every 30 minutes
+    :parameter start_time: filters out data before this time
+    :parameter end_time: filters out data after this time
     :parameter attributes: additional parameters to pass to storey.
     """
 
@@ -223,12 +225,6 @@ class ParquetSource(BaseSourceDriver):
         end_time: Optional[Union[datetime, str]] = None,
     ):
 
-        if isinstance(start_time, str):
-            start_time = datetime.fromisoformat(start_time)
-
-        if isinstance(end_time, str):
-            end_time = datetime.fromisoformat(end_time)
-
         super().__init__(
             name,
             path,
@@ -239,6 +235,34 @@ class ParquetSource(BaseSourceDriver):
             start_time,
             end_time,
         )
+
+    @property
+    def start_time(self):
+        return self._start_time
+
+    @start_time.setter
+    def start_time(self, start_time):
+        if isinstance(start_time, str):
+            self._start_time = self._convert_to_datetime(start_time)
+        else:
+            self._start_time = start_time
+
+    @property
+    def end_time(self):
+        return self._end_time
+
+    @end_time.setter
+    def end_time(self, end_time):
+        if isinstance(end_time, str):
+            self._end_time = self._convert_to_datetime(end_time)
+        else:
+            self._end_time = end_time
+
+    @staticmethod
+    def _convert_to_datetime(time: str):
+        if time.endswith("Z"):
+            return datetime.fromisoformat(time.replace("Z", "+00:00"))
+        return datetime.fromisoformat(time)
 
     def to_step(
         self,
@@ -293,7 +317,7 @@ class BigQuerySource(BaseSourceDriver):
          source = BigQuerySource("bq2", table="the-psf.pypi.downloads20210328", gcp_project="my_project")
 
 
-    :parameter name:  source name
+    :parameter name: source name
     :parameter table: table name/path, cannot be used together with query
     :parameter query: sql query string
     :parameter materialization_dataset: for query with spark, The target dataset for the materialized view.
@@ -304,7 +328,9 @@ class BigQuerySource(BaseSourceDriver):
     :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
     :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
          cause the job to run every 30 minutes
-    :parameter gcp_project:  google cloud project name
+    :parameter start_time: filters out data before this time
+    :parameter end_time: filters out data after this time
+    :parameter gcp_project: google cloud project name
     :parameter spark_options: additional spart read options
     """
 
@@ -375,6 +401,7 @@ class BigQuerySource(BaseSourceDriver):
 
     def to_dataframe(self):
         from google.cloud import bigquery
+        from google.cloud.bigquery_storage_v1 import BigQueryReadClient
 
         def schema_to_dtypes(schema):
             from mlrun.data_types.data_types import gbq_to_pandas_dtype
@@ -396,7 +423,10 @@ class BigQuerySource(BaseSourceDriver):
             self._rows_iterator = query_job.result(page_size=chunksize)
             dtypes = schema_to_dtypes(self._rows_iterator.schema)
             if chunksize:
-                return self._rows_iterator.to_dataframe_iterable(dtypes=dtypes)
+                # passing bqstorage_client greatly improves performance
+                return self._rows_iterator.to_dataframe_iterable(
+                    bqstorage_client=BigQueryReadClient(), dtypes=dtypes
+                )
             else:
                 return self._rows_iterator.to_dataframe(dtypes=dtypes)
         elif table:
@@ -408,7 +438,10 @@ class BigQuerySource(BaseSourceDriver):
             )
             dtypes = schema_to_dtypes(rows.schema)
             if chunksize:
-                return rows.to_dataframe_iterable(dtypes=dtypes)
+                # passing bqstorage_client greatly improves performance
+                return rows.to_dataframe_iterable(
+                    bqstorage_client=BigQueryReadClient(), dtypes=dtypes
+                )
             else:
                 return rows.to_dataframe(dtypes=dtypes)
         else:
@@ -453,6 +486,39 @@ class BigQuerySource(BaseSourceDriver):
 
 
 class SnowflakeSource(BaseSourceDriver):
+    """
+    Reads Snowflake query results as input source for a flow.
+
+    The Snowflake cluster's password must be provided using the SNOWFLAKE_PASSWORD environment variable or secret.
+    See https://docs.mlrun.org/en/latest/store/datastore.html#storage-credentials-and-parameters for how to set secrets.
+
+    example::
+
+         source = SnowflakeSource(
+            "sf",
+            query="..",
+            url="...",
+            user="...",
+            database="...",
+            schema="...",
+            warehouse="...",
+        )
+
+    :parameter name: source name
+    :parameter key_field: the column to be used as the key for events. Can be a list of keys.
+    :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
+    :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
+         cause the job to run every 30 minutes
+    :parameter start_time: filters out data before this time
+    :parameter end_time: filters out data after this time
+    :parameter query: sql query string
+    :parameter url: URL of the snowflake cluster
+    :parameter user: snowflake user
+    :parameter database: snowflake database
+    :parameter schema: snowflake schema
+    :parameter warehouse: snowflake warehouse
+    """
+
     kind = "snowflake"
     support_spark = True
     support_storey = False
@@ -468,7 +534,6 @@ class SnowflakeSource(BaseSourceDriver):
         query: str = None,
         url: str = None,
         user: str = None,
-        password: str = None,
         database: str = None,
         schema: str = None,
         warehouse: str = None,
@@ -477,7 +542,6 @@ class SnowflakeSource(BaseSourceDriver):
             "query": query,
             "url": url,
             "user": user,
-            "password": password,
             "database": database,
             "schema": schema,
             "warehouse": warehouse,
@@ -493,13 +557,27 @@ class SnowflakeSource(BaseSourceDriver):
             end_time=end_time,
         )
 
+    def _get_password(self):
+        key = "SNOWFLAKE_PASSWORD"
+        snowflake_password = os.getenv(key) or os.getenv(
+            SecretsStore.k8s_env_variable_name_for_secret(key)
+        )
+
+        if not snowflake_password:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "No password provided. Set password using the SNOWFLAKE_PASSWORD "
+                "project secret or environment variable."
+            )
+
+        return snowflake_password
+
     def get_spark_options(self):
         return {
             "format": "net.snowflake.spark.snowflake",
             "query": self.attributes.get("query"),
             "sfURL": self.attributes.get("url"),
             "sfUser": self.attributes.get("user"),
-            "sfPassword": self.attributes.get("password"),
+            "sfPassword": self._get_password(),
             "sfDatabase": self.attributes.get("database"),
             "sfSchema": self.attributes.get("schema"),
             "sfWarehouse": self.attributes.get("warehouse"),
@@ -736,7 +814,7 @@ class KafkaSource(OnlineSource):
     def add_nuclio_trigger(self, function):
         partitions = self.attributes.get("partitions")
         trigger = KafkaTrigger(
-            brokers=self.attributes["brokers"],
+            brokers=self.attributes["brokers"].split(","),
             topics=self.attributes["topics"],
             partitions=partitions,
             consumer_group=self.attributes["group"],

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.api.endpoints.feature_store
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
+import tests.api.api.utils
 
 from .base import (
     _assert_diff_as_expected_except_for_specific_metadata,
@@ -59,6 +60,8 @@ def _create_and_assert_feature_vector(
 
 def test_feature_vector_create(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     name = "feature_set1"
     feature_vector = _generate_feature_vector(name)
     feature_vector["metadata"]["project"] = project_name
@@ -95,6 +98,8 @@ def test_feature_vector_create(db: Session, client: TestClient) -> None:
 
 def test_list_feature_vectors(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     count = 10
     dead_count = 0
     blue_lables_count = 0
@@ -161,6 +166,8 @@ def _store_feature_vector(
 
 def test_feature_vector_store(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     name = "feature_vector1"
     feature_vector = _generate_feature_vector(name)
 
@@ -203,6 +210,8 @@ def test_feature_vector_store(db: Session, client: TestClient) -> None:
 
 def test_feature_vector_re_tag_using_store(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     name = "feature_vector1"
     feature_vector = _generate_feature_vector(name)
 
@@ -232,6 +241,7 @@ def test_feature_vector_re_tag_using_store(db: Session, client: TestClient) -> N
 
 def test_feature_vector_patch(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_vector_1"
     feature_vector = _generate_feature_vector(name)
@@ -275,6 +285,8 @@ def test_feature_vector_patch(db: Session, client: TestClient) -> None:
 
 def test_feature_vector_delete(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     count = 5
     for i in range(count):
         name = f"feature_vector_{i}"
@@ -300,6 +312,7 @@ def test_feature_vector_delete(db: Session, client: TestClient) -> None:
 
 def test_feature_vector_delete_version(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_vector"
     feature_vector = _generate_feature_vector(name)
@@ -346,6 +359,8 @@ def test_feature_vector_delete_version(db: Session, client: TestClient) -> None:
 
 def test_unversioned_feature_vector_actions(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     name = "feature_vector1"
     feature_vector = _generate_feature_vector(name)
     feature_vector_response = _create_and_assert_feature_vector(
@@ -388,6 +403,8 @@ def test_unversioned_feature_vector_actions(db: Session, client: TestClient) -> 
 
 def test_list_feature_vectors_tags(db: Session, client: TestClient) -> None:
     project_name = "some-project"
+    tests.api.api.utils.create_project(client, project_name)
+
     name = "feature_vector-1"
     name_2 = "feature_vector-2"
     feature_vector_1 = _generate_feature_vector(name)
@@ -413,6 +430,8 @@ def test_list_feature_vectors_tags(db: Session, client: TestClient) -> None:
 
 def test_feature_vector_list_partition_by(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     count = 5
     for i in range(count):
         name = f"feature_vector_{i}"

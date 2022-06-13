@@ -1,8 +1,10 @@
+import os
 import typing
 
 import deepdiff
 import fastapi.testclient
 import kubernetes
+import pytest
 import sqlalchemy.orm
 
 import mlrun.api.schemas
@@ -47,6 +49,12 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         else:
             assert "javaOptions" not in body["spec"]["executor"]
 
+    @staticmethod
+    def _assert_cores(body: dict, expected_cores: dict):
+        for resource in ["executor", "driver"]:
+            if expected_cores.get(resource):
+                assert body[resource]["cores"] == expected_cores[resource]
+
     def _assert_custom_object_creation_config(
         self,
         expected_runtime_class_name="spark",
@@ -56,6 +64,9 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         expected_executor_volume_mounts: typing.Optional[list] = None,
         expected_driver_java_options=None,
         expected_executor_java_options=None,
+        expected_driver_resources: dict = None,
+        expected_executor_resources: dict = None,
+        expected_cores: dict = None,
     ):
         if assert_create_custom_object_called:
             mlrun.api.utils.singletons.k8s.get_k8s().crdapi.create_namespaced_custom_object.assert_called_once()
@@ -75,6 +86,16 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             body, expected_driver_java_options, expected_executor_java_options
         )
 
+        if expected_driver_resources:
+            self._assert_resources(body["spec"]["driver"], expected_driver_resources)
+        if expected_executor_resources:
+            self._assert_resources(
+                body["spec"]["executor"], expected_executor_resources
+            )
+
+        if expected_cores:
+            self._assert_cores(body["spec"], expected_cores)
+
     def _assert_volume_and_mounts(
         self,
         body: dict,
@@ -82,7 +103,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         expected_driver_volume_mounts: typing.Optional[list] = None,
         expected_executor_volume_mounts: typing.Optional[list] = None,
     ):
-        if expected_volumes:
+        if expected_volumes is not None:
             sanitized_volumes = self._sanitize_list_for_serialization(expected_volumes)
             assert (
                 deepdiff.DeepDiff(
@@ -90,7 +111,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 )
                 == {}
             )
-        if expected_driver_volume_mounts:
+        if expected_driver_volume_mounts is not None:
             sanitized_driver_volume_mounts = self._sanitize_list_for_serialization(
                 expected_driver_volume_mounts
             )
@@ -102,7 +123,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 )
                 == {}
             )
-        if expected_executor_volume_mounts:
+        if expected_executor_volume_mounts is not None:
             sanitized_executor_volume_mounts = self._sanitize_list_for_serialization(
                 expected_executor_volume_mounts
             )
@@ -115,6 +136,21 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 == {}
             )
 
+    def _assert_resources(self, actual_resources, expected_values):
+        self._assert_limits(actual_resources, expected_values["limits"])
+        self._assert_requests(actual_resources, expected_values["requests"])
+
+    @staticmethod
+    def _assert_requests(actual, expected):
+        assert actual["coreRequest"] == expected["cpu"]
+        assert actual["memory"] == expected["mem"]
+
+    @staticmethod
+    def _assert_limits(actual, expected):
+        assert actual["coreLimit"] == expected["cpu"]
+        assert actual["gpu"]["name"] == expected["gpu_type"]
+        assert actual["gpu"]["quantity"] == expected["gpus"]
+
     def _sanitize_list_for_serialization(self, list_: list):
         kubernetes_api_client = kubernetes.client.ApiClient()
         return list(map(kubernetes_api_client.sanitize_for_serialization, list_))
@@ -125,6 +161,51 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
         self.execute_function(runtime)
         self._assert_custom_object_creation_config()
+
+    def test_run_without_required_resources(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+            self.execute_function(runtime)
+        assert exc.value.args[0] == "Sparkjob must contain executor requests"
+
+    def test_run_with_limits_and_requests(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
+
+        expected_executor = {
+            "requests": {"cpu": "1", "mem": "1G"},
+            "limits": {"cpu": "2", "gpu_type": "nvidia.com/gpu", "gpus": 1},
+        }
+        expected_driver = {
+            "requests": {"cpu": "2", "mem": "512m"},
+            "limits": {"cpu": "3", "gpu_type": "nvidia.com/gpu", "gpus": 1},
+        }
+
+        runtime.with_executor_requests(cpu="1", mem="1G")
+        runtime.with_executor_limits(cpu="2", gpus=1)
+
+        runtime.with_driver_requests(cpu="2", mem="512m")
+        runtime.with_driver_limits(cpu="3", gpus=1)
+
+        expected_cores = {
+            "executor": 8,
+            "driver": 2,
+        }
+        runtime.with_cores(expected_cores["executor"], expected_cores["driver"])
+
+        self.execute_function(runtime)
+        self._assert_custom_object_creation_config(
+            expected_driver_resources=expected_driver,
+            expected_executor_resources=expected_executor,
+            expected_cores=expected_cores,
+        )
 
     def test_run_with_host_path_volume(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
@@ -205,4 +286,91 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         self._assert_custom_object_creation_config(
             expected_driver_java_options=driver_java_options,
             expected_executor_java_options=executor_java_options,
+        )
+
+    @pytest.mark.parametrize(
+        "executor_cores, driver_cores, expect_failure",
+        [
+            (4, None, False),
+            (3, 3, False),
+            (None, 2, False),
+            (None, None, False),
+            (0.5, None, True),
+            (None, -1, True),
+        ],
+    )
+    def test_cores(
+        self,
+        executor_cores,
+        driver_cores,
+        expect_failure,
+        db: sqlalchemy.orm.Session,
+        client: fastapi.testclient.TestClient,
+    ):
+        runtime = self._generate_runtime()
+        if expect_failure:
+            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+                runtime.with_cores(
+                    executor_cores=executor_cores, driver_cores=driver_cores
+                )
+            return
+        else:
+            runtime.with_cores(executor_cores=executor_cores, driver_cores=driver_cores)
+
+        # By default, if not specified otherwise, the cores are set to 1
+        expected_cores = {"executor": executor_cores or 1, "driver": driver_cores or 1}
+
+        self.execute_function(runtime)
+        self._assert_custom_object_creation_config(expected_cores=expected_cores)
+
+    @pytest.mark.parametrize(
+        "mount_v3io_to_executor",
+        [True, False],
+    )
+    def test_with_igz_spark_volume_mounts(
+        self,
+        mount_v3io_to_executor,
+        db: sqlalchemy.orm.Session,
+        client: fastapi.testclient.TestClient,
+    ):
+        runtime = self._generate_runtime()
+
+        orig = os.getenv("V3IO_USERNAME")
+        os.environ["V3IO_USERNAME"] = "me"
+        try:
+            runtime.with_igz_spark(mount_v3io_to_executor=mount_v3io_to_executor)
+        finally:
+            if orig:
+                os.environ["V3IO_USERNAME"] = orig
+            else:
+                os.unsetenv("V3IO_USERNAME")
+
+        self.execute_function(runtime)
+        expected_common_mounts = [
+            kubernetes.client.V1VolumeMount(mount_path="/dev/shm", name="shm"),
+            kubernetes.client.V1VolumeMount(
+                mount_path="/var/run/iguazio/dayman", name="v3iod-comm"
+            ),
+            kubernetes.client.V1VolumeMount(
+                mount_path="/var/run/iguazio/daemon_health", name="daemon-health"
+            ),
+            kubernetes.client.V1VolumeMount(
+                mount_path="/etc/config/v3io", name="v3io-config"
+            ),
+        ]
+        v3io_mounts = [
+            kubernetes.client.V1VolumeMount(
+                mount_path="/v3io", name="v3io", sub_path=""
+            ),
+            kubernetes.client.V1VolumeMount(
+                mount_path="/User", name="v3io", sub_path="users/me"
+            ),
+        ]
+        expected_driver_mounts = expected_common_mounts + v3io_mounts
+        expected_executor_mounts = expected_common_mounts
+        if mount_v3io_to_executor:
+            expected_executor_mounts += v3io_mounts
+        self._assert_custom_object_creation_config(
+            expected_driver_volume_mounts=expected_driver_mounts,
+            expected_executor_volume_mounts=expected_executor_mounts,
         )

@@ -1,5 +1,6 @@
 import os
 import pathlib
+import zipfile
 
 import deepdiff
 import inflection
@@ -13,7 +14,7 @@ import tests.conftest
 
 def test_sync_functions():
     project_name = "project-name"
-    project = mlrun.new_project(project_name)
+    project = mlrun.new_project(project_name, skip_save=True)
     project.set_function("hub://describe", "describe")
     project_function_object = project.spec._function_objects
     project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
@@ -121,7 +122,7 @@ def test_export_project_dir_doesnt_exist():
         / "another-new-dir"
         / "project.yaml"
     )
-    project = mlrun.projects.project.new_project(project_name)
+    project = mlrun.projects.project.new_project(project_name, skip_save=True)
     project.export(filepath=project_file_path)
 
 
@@ -130,18 +131,18 @@ def test_new_project_context_doesnt_exist():
     project_dir_path = (
         pathlib.Path(tests.conftest.results) / "new-dir" / "another-new-dir"
     )
-    mlrun.projects.project.new_project(project_name, project_dir_path)
+    mlrun.projects.project.new_project(project_name, project_dir_path, skip_save=True)
 
 
 def test_create_project_with_invalid_name():
     invalid_name = "project_name"
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        mlrun.projects.project.new_project(invalid_name, init_git=False)
+        mlrun.projects.project.new_project(invalid_name, init_git=False, skip_save=True)
 
 
 def test_get_set_params():
     project_name = "project-name"
-    project = mlrun.new_project(project_name)
+    project = mlrun.new_project(project_name, skip_save=True)
     param_key = "param-key"
     param_value = "param-value"
     project.params[param_key] = param_value
@@ -156,7 +157,7 @@ def test_user_project():
     usernames = ["valid-username", "require_Normalization"]
     for username in usernames:
         os.environ["V3IO_USERNAME"] = username
-        project = mlrun.new_project(project_name, user_project=True)
+        project = mlrun.new_project(project_name, user_project=True, skip_save=True)
         assert (
             project.metadata.name
             == f"{project_name}-{inflection.dasherize(username.lower())}"
@@ -225,7 +226,7 @@ def test_function_run_cli():
     # run function stored in the project spec
     project_dir_path = pathlib.Path(tests.conftest.results) / "project-run-func"
     function_path = pathlib.Path(__file__).parent / "assets" / "handler.py"
-    project = mlrun.new_project("run-cli", str(project_dir_path))
+    project = mlrun.new_project("run-cli", str(project_dir_path), skip_save=True)
     project.set_function(
         str(function_path),
         "my-func",
@@ -241,8 +242,31 @@ def test_function_run_cli():
 
 
 def test_get_artifact_uri():
-    project = mlrun.new_project("arti")
+    project = mlrun.new_project("arti", skip_save=True)
     uri = project.get_artifact_uri("x")
     assert uri == "store://artifacts/arti/x"
     uri = project.get_artifact_uri("y", category="model", tag="prod")
     assert uri == "store://models/arti/y:prod"
+
+
+def test_export_to_zip():
+    project_dir_path = pathlib.Path(tests.conftest.results) / "zip-project"
+    project = mlrun.new_project(
+        "tozip", context=str(project_dir_path / "code"), skip_save=True
+    )
+    project.set_function("hub://describe", "desc")
+    with (project_dir_path / "code" / "f.py").open("w") as f:
+        f.write("print(1)\n")
+
+    zip_path = str(project_dir_path / "proj.zip")
+    project.export(zip_path)
+
+    assert os.path.isfile(str(project_dir_path / "code" / "project.yaml"))
+    assert os.path.isfile(zip_path)
+
+    zipf = zipfile.ZipFile(zip_path, "r")
+    assert set(zipf.namelist()) == set(["./", "f.py", "project.yaml"])
+
+    # check upload to (remote) DataItem
+    project.export("memory://x.zip")
+    assert mlrun.get_dataitem("memory://x.zip").stat().size

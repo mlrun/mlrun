@@ -41,6 +41,8 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         "executor_volume_mounts",
         "driver_java_options",
         "executor_java_options",
+        "driver_cores",
+        "executor_cores",
     ]
 
     def __init__(
@@ -95,6 +97,8 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         executor_volume_mounts=None,
         driver_java_options=None,
         executor_java_options=None,
+        driver_cores=None,
+        executor_cores=None,
     ):
 
         super().__init__(
@@ -152,6 +156,8 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         self.executor_volume_mounts = executor_volume_mounts or {}
         self.driver_java_options = driver_java_options
         self.executor_java_options = executor_java_options
+        self.driver_cores = driver_cores
+        self.executor_cores = executor_cores
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(
@@ -296,9 +302,18 @@ class Spark3Runtime(AbstractSparkRuntime):
         verify_and_update_in(
             job,
             "spec.driver.cores",
-            1,  # Must be set due to CRD validations. Will be overridden by coreRequest
+            self.spec.driver_cores or 1,
             int,
         )
+        # By default we set this to 1 in the parent class. Here we override the value if requested.
+        if self.spec.executor_cores:
+            verify_and_update_in(
+                job,
+                "spec.executor.cores",
+                self.spec.executor_cores,
+                int,
+            )
+
         if "requests" in self.spec.driver_resources:
             if "cpu" in self.spec.driver_resources["requests"]:
                 verify_and_update_in(
@@ -655,9 +670,40 @@ class Spark3Runtime(AbstractSparkRuntime):
             if exporter_jar:
                 self.spec.monitoring["exporter_jar"] = exporter_jar
 
-    def with_igz_spark(self):
-        super().with_igz_spark()
+    def with_igz_spark(self, mount_v3io_to_executor=True):
+        super().with_igz_spark(mount_v3io_to_executor)
         if "enabled" not in self.spec.monitoring or self.spec.monitoring["enabled"]:
             self._with_monitoring(
                 exporter_jar="/spark/jars/jmx_prometheus_javaagent-0.16.1.jar",
             )
+
+    def with_cores(self, executor_cores: int = None, driver_cores: int = None):
+        """
+        Allows to configure spark.executor.cores and spark.driver.cores parameters. The values must be integers
+        greater than or equal to 1. If a parameter is not specified, it defaults to 1.
+
+        Spark operator has multiple options to control the number of cores available to the executor and driver.
+        The .coreLimit and .coreRequest parameters can be set for both executor and driver,
+        but they only controls the k8s properties of the pods created to run driver/executor.
+        Spark itself uses the spec.[executor|driver].cores parameter to set the parallelism of tasks and cores
+        assigned to each task within the pod. This function sets the .cores parameters for the job executed.
+
+        See https://github.com/GoogleCloudPlatform/spark-on-k8s-operator/issues/581 for a discussion about those
+        parameters and their meaning in Spark operator.
+
+        :param executor_cores: Number of cores to use for executor (spark.executor.cores)
+        :param driver_cores:   Number of cores to use for driver (spark.driver.cores)
+        """
+        if executor_cores:
+            if not isinstance(executor_cores, int) or executor_cores < 1:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"executor_cores must be an integer greater than or equal to 1. Got: {executor_cores}"
+                )
+            self.spec.executor_cores = executor_cores
+
+        if driver_cores:
+            if not isinstance(driver_cores, int) or driver_cores < 1:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"driver_cores must be an integer greater than or equal to 1. Got: {driver_cores}"
+                )
+            self.spec.driver_cores = driver_cores

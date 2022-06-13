@@ -111,6 +111,12 @@ def new_run(state, labels, uid=None, **kw):
 
 
 def freeze(f, **kwargs):
+    """
+    Enables to override an attribute passed to a sub-function without the need to access the function directly
+    :param f: the function we want to pass the attribute to
+    :param kwargs: dictionary containing name(key) and value of the attributes to override.
+    :return: wrapped function with overridden attributes
+    """
     frozen = kwargs
 
     def wrapper(*args, **kwargs):

@@ -66,7 +66,12 @@ def get_obj_path(schema, path, user=""):
     if schema:
         schema_prefix = schema + "://"
         if not path.startswith(schema_prefix):
-            return schema + "://" + path
+            path = f"{schema_prefix}{path}"
+    if not path.startswith("v3io://") and (
+        not config.httpdb.real_path
+        or (config.httpdb.real_path and not path.startswith(config.httpdb.real_path))
+    ):
+        raise mlrun.errors.MLRunAccessDeniedError("Unauthorized path")
     return path
 
 

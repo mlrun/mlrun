@@ -220,7 +220,7 @@ async def test_create_schedule_mlrun_function(
 
     assert runs[0]["status"]["state"] == RunStates.completed
 
-    # the default of list_runs returns the the list descending by date.
+    # the default of list_runs returns the list descending by date.
     expected_last_run_uri = f"{project}@{runs[0]['metadata']['uid']}#0"
 
     schedule = get_db().get_schedule(db, project, schedule_name)

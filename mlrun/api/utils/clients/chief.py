@@ -1,5 +1,4 @@
 import copy
-import http
 
 import requests.adapters
 import urllib3

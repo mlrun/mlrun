@@ -6,7 +6,6 @@ import unittest.mock
 import fastapi
 import fastapi.testclient
 import pytest
-import requests
 import sqlalchemy.orm
 
 import mlrun.api.api.deps
@@ -19,8 +18,8 @@ import mlrun.api.utils.clients.chief
 test_router = fastapi.APIRouter()
 
 
-# because we don't have specific endpoints for creating background tasks, but only through start_function /
-# operations/migrations, with the routes bellow we simulate those actions that would be performed
+# the reason we  have to declare an endpoint is that our class is built on top of FastAPI's background_tasks mechanism,
+# and to get this class, we must trigger an endpoint
 @test_router.post(
     "/projects/{project}/background-tasks",
     response_model=mlrun.api.schemas.BackgroundTask,
@@ -219,7 +218,8 @@ def test_trigger_migrations_from_worker_returns_same_response_as_chief(
     for test_case in [
         {
             "status_code": http.HTTPStatus.PRECONDITION_FAILED.value,
-            "content": b'{"error":"Migrations were already triggered and failed. Restart the API to retry"}',
+            "content": b'{"detail":{"reason":"MLRunPreconditionFailedError(\'Migrations were'
+            b" already triggered and failed. Restart the API to retry')\"}}",
         },
         {
             "status_code": http.HTTPStatus.ACCEPTED.value,
@@ -236,9 +236,9 @@ def test_trigger_migrations_from_worker_returns_same_response_as_chief(
             "content": None,
         },
     ]:
-        expected_response = requests.Response()
-        expected_response.status_code = test_case.get("status_code")
-        expected_response._content = test_case.get("content")
+        expected_response = fastapi.Response(
+            status_code=test_case.get("status_code"), content=test_case.get("content")
+        )
         handler_mock = mlrun.api.utils.clients.chief.Client()
         handler_mock.trigger_migrations = unittest.mock.Mock(
             return_value=expected_response
@@ -250,23 +250,7 @@ def test_trigger_migrations_from_worker_returns_same_response_as_chief(
         )
         response = client.post(f"{ORIGINAL_VERSIONED_API_PREFIX}/operations/migrations")
         assert response.status_code == expected_response.status_code
-        # the expected returned statuses from operations/migrations
-        if response.status_code in [
-            http.HTTPStatus.ACCEPTED.value,
-            http.HTTPStatus.OK.value,
-            http.HTTPStatus.PRECONDITION_FAILED.value,
-        ]:
-            assert response.json() == expected_response.json()
-            if response.status_code == http.HTTPStatus.ACCEPTED.value:
-                assert mlrun.api.schemas.BackgroundTask(
-                    **response.json()
-                ) == mlrun.api.schemas.BackgroundTask(**expected_response.json())
-        else:
-            assert (
-                response.json() == {}
-                if not expected_response.content
-                else expected_response.json()
-            )
+        assert response.content == expected_response.body
 
 
 def _generate_background_task(

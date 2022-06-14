@@ -27,22 +27,12 @@ current_migration_background_task_name = None
 def trigger_migrations(
     background_tasks: fastapi.BackgroundTasks,
     response: fastapi.Response,
+    request: fastapi.Request,
 ):
     # only chief can execute migrations, redirecting request to chief
     if mlrun.mlconf.httpdb.clusterization.role != "chief":
         chief_client = mlrun.api.utils.clients.chief.Client()
-        migrations_response = chief_client.trigger_migrations()
-        response.status_code = migrations_response.status_code
-        if migrations_response.status_code == http.HTTPStatus.ACCEPTED.value:
-            response_body = migrations_response.json()
-            return mlrun.api.schemas.BackgroundTask(**response_body)
-        if migrations_response.status_code == http.HTTPStatus.OK.value:
-            return migrations_response.json()
-        else:
-            try:
-                return migrations_response.json()
-            except Exception:
-                return {}
+        return chief_client.trigger_migrations(request)
 
     # we didn't yet decide who should have permissions to such actions, therefore no authorization at the moment
     # note in api.py we do declare to use the authenticate_request dependency - meaning we do have authentication

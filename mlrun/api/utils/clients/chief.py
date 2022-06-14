@@ -1,5 +1,7 @@
+import asyncio
 import copy
 
+import fastapi
 import requests.adapters
 import urllib3
 
@@ -32,21 +34,59 @@ class Client(
         self._session.mount("http://", http_adapter)
         self._api_url = mlrun.mlconf.resolve_chief_api_url()
 
-    def get_background_task(self, name) -> mlrun.api.schemas.BackgroundTask:
-        response = self._send_request_to_api("GET", f"background-tasks/{name}")
-        response_body = response.json()
-        return mlrun.api.schemas.BackgroundTask(**response_body)
+    def get_background_task(
+        self, name: str, request: fastapi.Request = None
+    ) -> fastapi.Response:
+        request_kwargs = self._resolve_request_kwargs_from_request(request)
+        chief_response = self._send_request_to_api(
+            "GET", f"background-tasks/{name}", **request_kwargs
+        )
+        return self._parse_response_to_fastapi_response(chief_response)
 
-    def trigger_migrations(self) -> requests.Response:
-        # the endpoint of /operations/migrations can return multiple http status codes including status codes which are
-        # 400+ (not response.ok), we want the user accessing the worker to experience the same behavior as if it
-        # accessed the chief
-        return self._send_request_to_api(
-            "POST", "operations/migrations", to_fail_on_not_ok=False
+    def trigger_migrations(self, request: fastapi.Request = None) -> fastapi.Response:
+        request_kwargs = self._resolve_request_kwargs_from_request(request)
+        chief_response = self._send_request_to_api(
+            method="POST", path="operations/migrations", **request_kwargs
+        )
+        return self._parse_response_to_fastapi_response(chief_response)
+
+    def _resolve_request_kwargs_from_request(
+        self, request: fastapi.Request = None
+    ) -> dict:
+        kwargs = {}
+        if request:
+            data = self._get_request_body(request)
+            kwargs.update({"data": data})
+            kwargs.update({"headers": dict(request.headers)})
+            kwargs.update({"params": dict(request.query_params)})
+            kwargs.update({"cookies": request.cookies})
+        return kwargs
+
+    @staticmethod
+    def _get_request_body(request: fastapi.Request):
+        loop = asyncio.get_event_loop()
+        # body is an async function
+        future = asyncio.ensure_future(request.body())
+        loop.run_until_complete(future)
+        return future.result()
+
+    @staticmethod
+    def _parse_response_to_fastapi_response(
+        chief_response: requests.Response,
+    ) -> fastapi.Response:
+        # based on the way we implemented the exception handling for endpoints in MLRun we can expect the media type
+        # of the response to be of type application/json, see mlrun.api.http_status_error_handler for reference
+        return fastapi.responses.Response(
+            content=chief_response.content,
+            status_code=chief_response.status_code,
+            headers=dict(
+                chief_response.headers
+            ),  # chief_response.headers is of type CaseInsensitiveDict
+            media_type="application/json",
         )
 
     def _send_request_to_api(
-        self, method, path, to_fail_on_not_ok: bool = True, **kwargs
+        self, method, path, raise_on_failure: bool = False, **kwargs
     ):
         url = f"{self._api_url}/api/{mlrun.mlconf.api_base_version}/{path}"
         if kwargs.get("timeout") is None:
@@ -68,9 +108,9 @@ class Client(
                         {"error": error, "error_stack_trace": error_stack_trace}
                     )
             logger.warning("Request to chief failed", **log_kwargs)
-            if not to_fail_on_not_ok:
-                return response
-            mlrun.errors.raise_for_status(response)
+            if raise_on_failure:
+                mlrun.errors.raise_for_status(response)
+            return response
         logger.debug(
             "Request to chief succeeded",
             method=method,

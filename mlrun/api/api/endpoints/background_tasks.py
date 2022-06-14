@@ -46,6 +46,7 @@ def get_project_background_task(
 )
 def get_internal_background_task(
     name: str,
+    request: fastapi.Request,
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
@@ -69,4 +70,4 @@ def get_internal_background_task(
     else:
         logger.info("Requesting internal background task, redirecting to chief")
         chief_client = mlrun.api.utils.clients.chief.Client()
-        return chief_client.get_background_task(name=name)
+        return chief_client.get_background_task(name=name, request=request)

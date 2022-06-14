@@ -1,5 +1,7 @@
+import ast
 import datetime
 import http
+import json
 
 import fastapi.encoders
 import pytest
@@ -41,7 +43,9 @@ def test_get_background_task_from_chief_success(
     requests_mock.get(
         f"{api_url}/api/v1/background-tasks/{task_name}", json=response_body
     )
-    background_task = chief_client.get_background_task(task_name)
+    response = chief_client.get_background_task(task_name)
+    assert response.status_code == http.HTTPStatus.OK
+    background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
     assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.running
     assert background_task.metadata.created == background_schema.metadata.created
@@ -52,7 +56,9 @@ def test_get_background_task_from_chief_success(
     requests_mock.get(
         f"{api_url}/api/v1/background-tasks/{task_name}", json=response_body
     )
-    background_task = chief_client.get_background_task(task_name)
+    response = chief_client.get_background_task(task_name)
+    assert response.status_code == http.HTTPStatus.OK
+    background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
     assert (
         background_task.status.state == mlrun.api.schemas.BackgroundTaskState.succeeded
@@ -72,8 +78,8 @@ def test_get_background_task_from_chief_failed(
         f"{api_url}/api/v1/background-tasks/{task_name}",
         status_code=http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
     )
-    with pytest.raises(Exception):
-        chief_client.get_background_task(task_name)
+    response = chief_client.get_background_task(task_name)
+    assert response.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR.value
 
 
 def test_trigger_migration_succeeded(
@@ -93,7 +99,7 @@ def test_trigger_migration_succeeded(
     )
     response = chief_client.trigger_migrations()
     assert response.status_code == http.HTTPStatus.ACCEPTED
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+    background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
     assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.running
     assert background_task.metadata.created == background_schema.metadata.created
@@ -108,7 +114,7 @@ def test_trigger_migration_succeeded(
     )
     response = chief_client.trigger_migrations()
     assert response.status_code == http.HTTPStatus.ACCEPTED
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+    background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
     assert (
         background_task.status.state == mlrun.api.schemas.BackgroundTaskState.succeeded
@@ -129,7 +135,7 @@ def test_trigger_migrations_from_chief_failures(
     )
     response = chief_client.trigger_migrations()
     assert response.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR.value
-    assert not response.text
+    assert not response.body
 
     requests_mock.post(
         f"{api_url}/api/v1/operations/migrations",
@@ -138,7 +144,9 @@ def test_trigger_migrations_from_chief_failures(
     )
     response = chief_client.trigger_migrations()
     assert response.status_code == http.HTTPStatus.PRECONDITION_FAILED.value
-    assert "Migrations were already triggered and failed" in response.text
+    assert "Migrations were already triggered and failed" in response.body.decode(
+        "utf-8"
+    )
 
 
 def test_trigger_migrations_chief_restarted_while_executing_migrations(
@@ -159,7 +167,7 @@ def test_trigger_migrations_chief_restarted_while_executing_migrations(
     )
     response = chief_client.trigger_migrations()
     assert response.status_code == http.HTTPStatus.ACCEPTED
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+    background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
     assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.running
     assert background_task.metadata.created == background_schema.metadata.created
@@ -171,10 +179,18 @@ def test_trigger_migrations_chief_restarted_while_executing_migrations(
     requests_mock.get(
         f"{api_url}/api/v1/background-tasks/{task_name}", json=response_body
     )
-    background_task = chief_client.get_background_task(task_name)
+    response = chief_client.get_background_task(task_name)
+    assert response.status_code == http.HTTPStatus.OK
+    background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
     assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.failed
     assert background_task.metadata.created == background_schema.metadata.created
+
+
+def _transform_response_to_background_task(response: fastapi.Response):
+    decoded_body = response.body.decode("utf-8")
+    body_dict = json.loads(decoded_body)
+    return mlrun.api.schemas.BackgroundTask(**body_dict)
 
 
 def _generate_background_task(

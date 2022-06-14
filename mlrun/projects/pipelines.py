@@ -558,6 +558,34 @@ class _LocalRunner(_PipelineRunner):
         return ""
 
 
+class _RemoteRunner(_PipelineRunner):
+    """remote pipelines runner"""
+
+    engine = "remote"
+
+    @classmethod
+    def run(
+        cls,
+        project,
+        workflow_spec: WorkflowSpec,
+        name=None,
+        workflow_handler=None,
+        secrets=None,
+        artifact_path=None,
+        namespace=None,
+    ) -> _PipelineRunStatus:
+
+        workflow_handler = cls._get_handler(
+            workflow_handler, workflow_spec, project, secrets
+        )
+        run = mlrun.new_function(
+            name=name,
+            project=project.name,
+            kind='job',  # TODO: Generalize
+            source=project.spec.source,
+        ).run(handler=workflow_handler)
+
+
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):
     spec = imputil.spec_from_file_location("workflow", pipeline)
     if spec is None:

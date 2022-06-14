@@ -585,6 +585,7 @@ class _RemoteRunner(_PipelineRunner):
             project=project.name,
             kind='job',  # TODO: Generalize
             source=project.spec.source,
+            image='mlrun/mlrun'
         ).run(handler=workflow_handler)
 
 

@@ -107,7 +107,10 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             sanitized_volumes = self._sanitize_list_for_serialization(expected_volumes)
             assert (
                 deepdiff.DeepDiff(
-                    body["spec"]["volumes"], sanitized_volumes, ignore_order=True
+                    body["spec"]["volumes"],
+                    sanitized_volumes,
+                    ignore_order=True,
+                    report_repetition=True,
                 )
                 == {}
             )
@@ -120,6 +123,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                     body["spec"]["driver"]["volumeMounts"],
                     sanitized_driver_volume_mounts,
                     ignore_order=True,
+                    report_repetition=True,
                 )
                 == {}
             )
@@ -132,6 +136,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                     body["spec"]["executor"]["volumeMounts"],
                     sanitized_executor_volume_mounts,
                     ignore_order=True,
+                    report_repetition=True,
                 )
                 == {}
             )
@@ -334,12 +339,13 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         self._assert_custom_object_creation_config(expected_cores=expected_cores)
 
     @pytest.mark.parametrize(
-        "mount_v3io_to_executor",
-        [True, False],
+        ["mount_v3io_to_executor", "with_igz_spark_twice"],
+        [(False, False), (True, False), (False, True), (True, True)],
     )
     def test_with_igz_spark_volume_mounts(
         self,
         mount_v3io_to_executor,
+        with_igz_spark_twice,
         db: sqlalchemy.orm.Session,
         client: fastapi.testclient.TestClient,
     ):
@@ -348,7 +354,19 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         orig = os.getenv("V3IO_USERNAME")
         os.environ["V3IO_USERNAME"] = "me"
         try:
+            runtime.with_executor_host_path_volume(
+                host_path="/tmp",
+                mount_path="/before",
+                volume_name="path-volume-before",
+            )
             runtime.with_igz_spark(mount_v3io_to_executor=mount_v3io_to_executor)
+            if with_igz_spark_twice:
+                runtime.with_igz_spark(mount_v3io_to_executor=mount_v3io_to_executor)
+            runtime.with_executor_host_path_volume(
+                host_path="/tmp",
+                mount_path="/after",
+                volume_name="path-volume-after",
+            )
         finally:
             if orig:
                 os.environ["V3IO_USERNAME"] = orig
@@ -356,7 +374,15 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 os.unsetenv("V3IO_USERNAME")
 
         self.execute_function(runtime)
-        expected_common_mounts = [
+        user_added_executor_volume_mounts = [
+            kubernetes.client.V1VolumeMount(
+                mount_path="/before", name="path-volume-before"
+            ),
+            kubernetes.client.V1VolumeMount(
+                mount_path="/after", name="path-volume-after"
+            ),
+        ]
+        common_volume_mounts = [
             kubernetes.client.V1VolumeMount(mount_path="/dev/shm", name="shm"),
             kubernetes.client.V1VolumeMount(
                 mount_path="/var/run/iguazio/dayman", name="v3iod-comm"
@@ -376,8 +402,10 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 mount_path="/User", name="v3io", sub_path="users/me"
             ),
         ]
-        expected_driver_mounts = expected_common_mounts + v3io_mounts
-        expected_executor_mounts = expected_common_mounts
+        expected_driver_mounts = common_volume_mounts + v3io_mounts
+        expected_executor_mounts = (
+            common_volume_mounts + user_added_executor_volume_mounts
+        )
         if mount_v3io_to_executor:
             expected_executor_mounts += v3io_mounts
         self._assert_custom_object_creation_config(

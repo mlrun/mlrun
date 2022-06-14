@@ -1036,7 +1036,9 @@ class TestFeatureStore(TestMLRunSystem):
         )
         data_set1 = fs.FeatureSet("fs1", entities=[Entity("string")])
         targets = [ParquetTarget(partitioned=False), NoSqlTarget()]
-        fs.ingest(data_set1, data, targets=targets, infer_options=fs.InferOptions.default())
+        fs.ingest(
+            data_set1, data, targets=targets, infer_options=fs.InferOptions.default()
+        )
         features = ["fs1.*"]
         vector = fs.FeatureVector("vector", features)
         vector.spec.with_indexes = True
@@ -1077,7 +1079,9 @@ class TestFeatureStore(TestMLRunSystem):
 
         data_set1 = fs.FeatureSet("fs1", entities=[Entity("string")])
         targets = [ParquetTarget(partitioned=False), NoSqlTarget()]
-        fs.ingest(data_set1, data, targets=targets, infer_options=fs.InferOptions.default())
+        fs.ingest(
+            data_set1, data, targets=targets, infer_options=fs.InferOptions.default()
+        )
 
         data2 = pd.DataFrame(
             {
@@ -1705,7 +1709,8 @@ class TestFeatureStore(TestMLRunSystem):
         df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
 
         fset = fs.FeatureSet(name="overwrite-fs", entities=[fs.Entity("name")])
-        fs.ingest(fset, df1, targets=[CSVTarget(), ParquetTarget(partitioned=False), NoSqlTarget()])
+        targets = [CSVTarget(), ParquetTarget(partitioned=False), NoSqlTarget()]
+        fs.ingest(fset, df1, targets=targets)
 
         features = ["overwrite-fs.*"]
         fvec = fs.FeatureVector("overwrite-vec", features=features)

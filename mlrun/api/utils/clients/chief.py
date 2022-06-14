@@ -12,6 +12,8 @@ import mlrun.utils.singleton
 from mlrun.utils import logger
 
 
+# we were thinking to simply use httpdb, but decided to have a separated class for simplicity for now until
+# this class evolves, but this should be reconsidered when adding more functionality to the class
 class Client(
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):

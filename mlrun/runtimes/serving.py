@@ -18,10 +18,12 @@ from copy import deepcopy
 from typing import List, Union
 
 import nuclio
+from nuclio import KafkaTrigger
 
 import mlrun
 import mlrun.api.schemas
 
+from ..datastore import parse_kafka_url
 from ..model import ObjectList
 from ..secrets import SecretsStore
 from ..serving.server import GraphServer, create_graph_server
@@ -433,9 +435,25 @@ class ServingRuntime(RemoteRuntime):
 
                 child_function = self._spec.function_refs[function_name]
                 trigger_args = stream.trigger_args or {}
-                child_function.function_object.add_v3io_stream_trigger(
-                    stream.path, group=group, shards=stream.shards, **trigger_args
-                )
+
+                if (
+                    stream.path.startswith("kafka://")
+                    or "kafka_bootstrap_servers" in stream.options
+                ):
+                    brokers = stream.options.get("kafka_bootstrap_servers")
+                    if brokers:
+                        brokers = brokers.split(",")
+                    topic, brokers = parse_kafka_url(stream.path, brokers)
+                    trigger = KafkaTrigger(
+                        brokers=brokers,
+                        topics=[topic],
+                        **trigger_args,
+                    )
+                    child_function.function_object.add_trigger("kafka", trigger)
+                else:
+                    child_function.function_object.add_v3io_stream_trigger(
+                        stream.path, group=group, shards=stream.shards, **trigger_args
+                    )
 
     def _deploy_function_refs(self, builder_env: dict = None):
         """set metadata and deploy child functions"""

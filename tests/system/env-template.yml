@@ -24,3 +24,6 @@ MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE:
 
 # google big query credentials json for test_google_big_query
 MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON:
+
+# kafka brokers string for kafka tests
+MLRUN_SYSTEM_TESTS_KAFKA_BROKERS:

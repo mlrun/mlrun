@@ -806,6 +806,7 @@ class AutoMountType(str, Enum):
     v3io_credentials = "v3io_credentials"
     v3io_fuse = "v3io_fuse"
     pvc = "pvc"
+    s3 = "s3"
 
     @classmethod
     def _missing_(cls, value):
@@ -828,6 +829,7 @@ class AutoMountType(str, Enum):
             mlrun.mount_v3io.__name__,
             mlrun.platforms.other.mount_pvc.__name__,
             mlrun.auto_mount.__name__,
+            mlrun.platforms.mount_s3.__name__,
         ]
 
     @classmethod
@@ -860,6 +862,7 @@ class AutoMountType(str, Enum):
             AutoMountType.v3io_fuse: mlrun.mount_v3io,
             AutoMountType.pvc: mlrun.platforms.other.mount_pvc,
             AutoMountType.auto: self._get_auto_modifier(),
+            AutoMountType.s3: mlrun.platforms.mount_s3,
         }[self]
 
 

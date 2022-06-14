@@ -626,7 +626,7 @@ with ctx:
 
     def with_igz_spark(self, mount_v3io_to_executor=True):
         self._update_igz_jars(deps=self._get_igz_deps())
-        self.apply(mount_v3io_extended())
+        self.apply(mount_v3io_extended(name="v3io"))
 
         # if we only want to mount v3io on the driver, move v3io
         # mounts from common volume mounts to driver volume mounts

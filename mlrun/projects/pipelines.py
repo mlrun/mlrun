@@ -586,7 +586,7 @@ class _RemoteRunner(_PipelineRunner):
             kind='job',  # TODO: Generalize
             source=project.spec.source,
             image='mlrun/mlrun'
-        ).run(handler=workflow_handler, auto_build=True)
+        ).run(handler=workflow_handler, auto_build=True, local=True)
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):

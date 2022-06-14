@@ -1,5 +1,6 @@
 import copy
 import datetime
+import enum
 import http
 import json
 import typing
@@ -416,6 +417,14 @@ class Client(
                 kwargs.setdefault("headers", {})[
                     mlrun.api.schemas.HeaderNames.projects_role
                 ] = "mlrun"
+
+        # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)
+        # convert to strings. Do the same for params for niceness
+        for kwarg in ["headers", "params"]:
+            dict_ = kwargs.get(kwarg, {})
+            for key in dict_.keys():
+                if isinstance(dict_[key], enum.Enum):
+                    dict_[key] = dict_[key].value
         response = self._session.request(method, url, verify=False, **kwargs)
         if not response.ok:
             log_kwargs = copy.deepcopy(kwargs)

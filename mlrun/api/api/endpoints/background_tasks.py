@@ -63,7 +63,10 @@ def get_internal_background_task(
             mlrun.api.schemas.AuthorizationAction.read,
             auth_info,
         )
-    if mlrun.mlconf.httpdb.clusterization.role == "chief":
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        == mlrun.api.schemas.ClusterizationRole.chief
+    ):
         return mlrun.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
             name=name
         )

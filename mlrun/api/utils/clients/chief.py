@@ -43,6 +43,10 @@ class Client(
         )
         return self._parse_response_to_fastapi_response(chief_response)
 
+    def get_migration_state(self):
+        chief_response = self._send_request_to_api("GET", "operations/migrations")
+        return self._parse_response_to_fastapi_response(chief_response)
+
     def trigger_migrations(self, request: fastapi.Request = None) -> fastapi.Response:
         request_kwargs = self._resolve_request_kwargs_from_request(request)
         chief_response = self._send_request_to_api(

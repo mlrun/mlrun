@@ -10,7 +10,9 @@ import uvicorn.protocols.utils
 from fastapi.exception_handlers import http_exception_handler
 
 import mlrun.api.schemas
+import mlrun.api.utils.clients.chief
 import mlrun.errors
+import mlrun.utils
 import mlrun.utils.version
 from mlrun.api.api.api import api_router
 from mlrun.api.db.session import close_session, create_session
@@ -241,8 +243,40 @@ def _cleanup_runtimes():
         close_session(db_session)
 
 
+def _get_chief_state():
+    chief_client = mlrun.api.utils.clients.chief.Client()
+    return chief_client.get_migration_state()
+
+
+def _is_chief_reached_online_state():
+    chief_state = _get_chief_state()
+    if chief_state == mlrun.api.schemas.APIStates.online:
+        return True
+    else:
+        mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.waiting_for_chief
+        raise mlrun.errors.MLRunPreconditionFailedError()
+
+
+def wait_until_chief_state_is_online():
+    mlrun.utils.retry_until_successful(
+        backoff=60,
+        timeout=60 * 60 * 24,
+        logger=logger,
+        verbose=False,
+        _function=_is_chief_reached_online_state,
+    )
+
+
 def main():
-    init_data()
+    if config.httpdb.clusterization.role == mlrun.api.schemas.ClusterizationRole.chief:
+        init_data()
+    elif (
+        config.httpdb.clusterization.worker.wait_for_chief_to_reach_online_state_mode
+        == mlrun.api.schemas.WaitForChiefToReachOnlineStateFeatureFlag.enabled
+        and config.httpdb.clusterization.role
+        == mlrun.api.schemas.ClusterizationRole.worker
+    ):
+        wait_until_chief_state_is_online()
     logger.info(
         "Starting API server",
         port=config.httpdb.port,

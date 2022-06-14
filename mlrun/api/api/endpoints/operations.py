@@ -30,7 +30,10 @@ def trigger_migrations(
     request: fastapi.Request,
 ):
     # only chief can execute migrations, redirecting request to chief
-    if mlrun.mlconf.httpdb.clusterization.role != "chief":
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.api.schemas.ClusterizationRole.chief
+    ):
         chief_client = mlrun.api.utils.clients.chief.Client()
         return chief_client.trigger_migrations(request)
 
@@ -59,6 +62,24 @@ def trigger_migrations(
     current_migration_background_task_name = background_task.metadata.name
     response.status_code = http.HTTPStatus.ACCEPTED.value
     return background_task
+
+
+@router.get(
+    "/operations/migrations",
+    responses={
+        http.HTTPStatus.OK.value: {"model": mlrun.api.schemas.APIState},
+    },
+)
+def get_migration_state():
+    # only chief knows about the migration state
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.api.schemas.ClusterizationRole.chief
+    ):
+        chief_client = mlrun.api.utils.clients.chief.Client()
+        return chief_client.get_migration_state()
+
+    return mlrun.api.schemas.APIState(state=mlrun.mlconf.httpdb.state)
 
 
 async def _perform_migration():

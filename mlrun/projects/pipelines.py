@@ -43,6 +43,8 @@ def get_workflow_engine(engine_kind, local=False):
         return _KFPRunner
     if engine_kind == "local":
         return _LocalRunner
+    if engine_kind == 'remote':
+        return _RemoteRunner
     raise mlrun.errors.MLRunInvalidArgumentError(
         f"Provided workflow engine is not supported. engine_kind={engine_kind}"
     )

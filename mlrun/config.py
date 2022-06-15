@@ -152,11 +152,6 @@ default_config = {
                 "service": "mlrun-api-chief",
                 "port": 8080,
             },
-            "worker": {
-                # enabled / disabled
-                # TODO change to enabled once feature is complete
-                "wait_for_chief_to_reach_online_state_mode": "disabled"
-            },
         },
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),

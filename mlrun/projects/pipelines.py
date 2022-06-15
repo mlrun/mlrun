@@ -43,7 +43,7 @@ def get_workflow_engine(engine_kind, local=False):
         return _KFPRunner
     if engine_kind == "local":
         return _LocalRunner
-    if engine_kind == 'remote':
+    if engine_kind == "remote":
         return _RemoteRunner
     raise mlrun.errors.MLRunInvalidArgumentError(
         f"Provided workflow engine is not supported. engine_kind={engine_kind}"
@@ -576,17 +576,40 @@ class _RemoteRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
     ) -> _PipelineRunStatus:
+        pipeline_context.set(project, workflow_spec)
+        workflow_id = uuid.uuid4().hex
 
         workflow_handler = cls._get_handler(
             workflow_handler, workflow_spec, project, secrets
         )
-        run = mlrun.new_function(
-            name=name,
-            project=project.name,
-            kind='job',  # TODO: Generalize
-            source=project.spec.source,
-            image='mlrun/mlrun'
-        ).run(handler=workflow_handler, auto_build=True, local=True)
+        try:
+            fn = mlrun.new_function(
+                name=name,
+                project=project.name,
+                kind="job",
+                source=project.spec.source,
+                # image='mlrun/mlrun',
+            )
+            fn.run(
+                handler=workflow_handler,
+                # auto_build=True,
+                local=workflow_spec.run_local
+            )
+            state = mlrun.run.RunStatuses.succeeded
+        except Exception as e:
+            trace = traceback.format_exc()
+            logger.error(trace)
+            project.notifiers.push(
+                f"Workflow {workflow_id} run failed!, error: {e}\n{trace}"
+            )
+            state = mlrun.run.RunStatuses.failed
+
+        mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
+        project.notifiers.push_start_message(project.metadata.name, id=workflow_id)
+        pipeline_context.clear()
+        return _PipelineRunStatus(
+            workflow_id, cls, project=project, workflow=workflow_spec, state=state
+        )
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):

@@ -513,8 +513,9 @@ class OnlineVectorService:
                         data[name] = self._impute_values.get(name, v)
 
             if as_list and data:
-                keys = set(self.vector.status.features.keys())
-                keys.add(self.vector.get_feature_aliases().values())
+                keys = set(self.vector.status.features.keys()).union(
+                    set(self.vector.get_feature_aliases().values())
+                )
                 data = [
                     data.get(key, None)
                     for key in keys

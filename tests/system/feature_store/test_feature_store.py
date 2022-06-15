@@ -233,7 +233,7 @@ class TestFeatureStore(TestMLRunSystem):
         self._logger.debug("Get offline feature vector")
         features = [
             "stock-quotes.bid",
-            "stock-quotes.asks2_sum_5h",
+            "stock-quotes.asks2_sum_5h as 5h",
             "stock-quotes.ask as mycol",
             "stocks.*",
         ]

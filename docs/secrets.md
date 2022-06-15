@@ -20,11 +20,11 @@ and how much exposure they create for your secrets.
 ## Overview
 There are two main use-cases for providing secrets to an MLRun job. These are:
 
-1. Use MLRun-managed secrets. This is a flow that enables the MLRun user (data scientist/engineer) to create and use
-    secrets through facilities that MLRun implements and manages.
-2. Create secrets externally to MLRun, using a Kubernetes secret or some other secret management framework (such as
-    Azure vault), and utilize these secrets from within MLRun to enrich execution jobs. In this flow the secrets will
-    usually be created and managed by an IT admin, and the data-scientist only accesses the secrets.
+1. [Use MLRun-managed secrets](#mlrun-managed-secrets). This is a flow that enables the MLRun user (for example a 
+data scientist or engineer) to create and use secrets through interfaces that MLRun implements and manages.
+2. [Create secrets externally](#externally-managed-secrets) to MLRun using a Kubernetes secret or some other secret 
+management framework (such as Azure vault), and utilize these secrets from within MLRun to enrich execution jobs. For 
+example, the secrets are created and managed by an IT admin and the data-scientist only accesses them.
 
 The following sections will cover the details of those two use-cases.
 
@@ -76,7 +76,7 @@ Regardless of the type of secret provider used, the executed code uses the same
 as shown in the above example.
 
 ### Secret providers
-As mentioned, MLRun provides the user with several secret providers. Each of those providers functions differently and 
+MLRun provides several secret providers. Each of those providers functions differently and 
 has different traits with respect to what secrets can be passed and how they're handled. It's important to understand 
 these parameters to make sure secrets are not compromised and that their secrecy is maintained.
 
@@ -88,16 +88,18 @@ for any other use-case.
 ```
 
 #### Kubernetes project secrets
-MLRun can use a Kubernetes (k8s) secret to store and retrieve secret values on a per-project basis. This method
-is supported for all runtimes that generate k8s pods.  The k8s provider creates a k8s secret per project, and can 
-store multiple secret keys within this secret. Project secrets can be created through the MLRun Python SDK as well as 
+MLRun can use Kubernetes (k8s) secrets to store and retrieve secret values on a per-project basis. This method
+is supported for all runtimes that generate k8s pods.  MLRun creates a k8s secret per project, and stores 
+multiple secret keys within this secret. Project secrets can be created through the MLRun SDK as well as 
 through the MLRun UI. 
-By default, all jobs that belong to a project automatically get access to all the associated project secrets. There is
+
+By default, all jobs in a project automatically get access to all the associated project secrets. There is
 no need to use ```with_secrets``` to provide access to project secrets.
 
-##### Populating the kubernetes secret
+##### Creating project secrets
 To populate the MLRun k8s project secret with secret values, use the project object's 
-{py:func}`~mlrun.projects.MlrunProject.set_secrets` function. For example:
+{py:func}`~mlrun.projects.MlrunProject.set_secrets` function, which accepts a dictionary of secret values or
+a file containing a list of secrets. For example:
 
 ```python
 # Create project secrets for the myproj project.
@@ -112,8 +114,8 @@ action, which normally should only be executed once. After the secrets are popul
 to protect the confidentiality of the secret values.
 ```
 
-The MLRun API does not allow the user to see the secret values, but it does allow 
-users to see the keys that belong to a given project, assuming the user has permissions on that specific project. 
+The MLRun API does not allow the user to see project secrets values, but it does allow 
+seeing the keys that belong to a given project, assuming the user has permissions on that specific project. 
 See the {py:class}`~mlrun.db.httpdb.HTTPRunDB` class documentation for additional details.
 
 When MLRun is executed in the Iguazio platform, the secret management APIs are protected by the platform such
@@ -127,19 +129,18 @@ Viewers can only view the secret keys. The values themselves are not visible to 
 
 ##### Accessing the secrets
 By default, any runtime not executed locally automatically gains access to all the secrets of the project it 
-belongs to. To limit access of an executing job to a subset of these secrets, call the following:
+belongs to, so no configuration is required to enable that. It is possible to limit access of an executing job to a 
+subset of these secrets by calling the following function with a list of the secrets to be accessed:
 
 ```python
 task.with_secrets('kubernetes', ['password', 'aws_key'])
 ```
 
-Note that only the secret keys are passed in this case, since the values are kept in the k8s secret. 
-The MLRun framework adds environment variables to the pod spec whose value is retrieved through the `valueFrom` option,
-with `secretKeyRef` pointing at the secret maintained by MLRun.
-
-As a result, this method does not expose the secret values at all, except at the actual pod executing the code where
-the secret value is exposed through an environment variable. This means that even a user with `kubectl` looking at the pod
-spec cannot see the secret values. 
+When the job is executed, the MLRun framework adds environment variables to the pod spec whose value is retrieved 
+through the k8s `valueFrom` option, with `secretKeyRef` pointing at the secret maintained by MLRun.
+As a result, this method does not expose the secret values at all, except inside the pod executing the code where
+the secret value is exposed through an environment variable. This means that even a user with `kubectl` looking at the 
+pod spec cannot see the secret values. 
 
 Users, however, can view the secrets using the following methods:
 
@@ -152,7 +153,7 @@ use elevated permissions).
 
 ##### Accessing secrets in nuclio functions
 
-The k8s secrets are passed to nuclio functions as environment variables, and their values can be retrieved directly 
+Nuclio functions do not have the MLRun context available to retrieve secret values. Secret values need to be retrieved 
 from the environment variable of the same name. For example, to access the `aws_key` secret in a nuclio function use:
 ```python
 aws_key = os.environ.get("aws_key")

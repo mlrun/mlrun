@@ -159,11 +159,14 @@ def test_redirection_from_worker_to_chief_get_internal_background_tasks(
         expected_status = test_case.get("expected_status")
         expected_response = test_case.get("expected_body")
         httpserver.expect_ordered_request(
-            f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{task_name}", method="GET"
+            f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{task_name}",
+            method="GET",
         ).respond_with_json(expected_response, status=expected_status)
         url = httpserver.url_for("")
         mlrun.mlconf.httpdb.clusterization.chief.url = url
-        response = client.get(f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{task_name}")
+        response = client.get(
+            f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{task_name}"
+        )
         assert response.status_code == expected_status
         assert response.json() == expected_response
 

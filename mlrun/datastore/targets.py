@@ -18,6 +18,7 @@ import typing
 import warnings
 from collections import Counter
 from copy import copy
+from typing import Union
 
 import pandas as pd
 
@@ -94,7 +95,7 @@ def get_default_prefix_for_source(kind):
     return get_default_prefix_for_target(kind)
 
 
-def validate_target_paths_for_engine(targets, engine, source):
+def validate_target_paths_for_engine(targets, engine, source: Union[DataSource, pd.DataFrame]):
     """Validating that target paths are suitable for the required engine.
     validate for single file targets only (parquet and csv).
 
@@ -110,6 +111,13 @@ def validate_target_paths_for_engine(targets, engine, source):
         if source contains chunksize attribute - path must be a directory
         else if parquet - if partitioned(=True) - path must be a directory
         else - path must be a single file
+
+
+    :param targets:       list of data target objects
+    :param engine:        name of the processing engine (storey, pandas, or spark), defaults to storey
+    :param source:        source dataframe or other sources (e.g. parquet source see:
+                          :py:class:`~mlrun.datastore.ParquetSource` and other classes in
+                          mlrun.datastore with suffix Source)
     """
     for base_target in targets:
         if hasattr(base_target, "kind") and (
@@ -123,6 +131,7 @@ def validate_target_paths_for_engine(targets, engine, source):
                     f"spark CSV/Parquet targets must be directories, got path:'{target.path}'"
                 )
             elif engine == "pandas":
+                # check if source is DataSource (not DataFrame) and if contains chunk size
                 if isinstance(source, DataSource) and source.attributes.get(
                     "chunksize"
                 ):

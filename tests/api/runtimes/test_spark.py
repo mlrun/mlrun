@@ -1,3 +1,4 @@
+import os
 import typing
 
 import deepdiff
@@ -102,15 +103,18 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         expected_driver_volume_mounts: typing.Optional[list] = None,
         expected_executor_volume_mounts: typing.Optional[list] = None,
     ):
-        if expected_volumes:
+        if expected_volumes is not None:
             sanitized_volumes = self._sanitize_list_for_serialization(expected_volumes)
             assert (
                 deepdiff.DeepDiff(
-                    body["spec"]["volumes"], sanitized_volumes, ignore_order=True
+                    body["spec"]["volumes"],
+                    sanitized_volumes,
+                    ignore_order=True,
+                    report_repetition=True,
                 )
                 == {}
             )
-        if expected_driver_volume_mounts:
+        if expected_driver_volume_mounts is not None:
             sanitized_driver_volume_mounts = self._sanitize_list_for_serialization(
                 expected_driver_volume_mounts
             )
@@ -119,10 +123,11 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                     body["spec"]["driver"]["volumeMounts"],
                     sanitized_driver_volume_mounts,
                     ignore_order=True,
+                    report_repetition=True,
                 )
                 == {}
             )
-        if expected_executor_volume_mounts:
+        if expected_executor_volume_mounts is not None:
             sanitized_executor_volume_mounts = self._sanitize_list_for_serialization(
                 expected_executor_volume_mounts
             )
@@ -131,6 +136,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                     body["spec"]["executor"]["volumeMounts"],
                     sanitized_executor_volume_mounts,
                     ignore_order=True,
+                    report_repetition=True,
                 )
                 == {}
             )
@@ -153,6 +159,16 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
     def _sanitize_list_for_serialization(self, list_: list):
         kubernetes_api_client = kubernetes.client.ApiClient()
         return list(map(kubernetes_api_client.sanitize_for_serialization, list_))
+
+    def test_deploy_default_image_without_limits(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        mlrun.config.config.httpdb.builder.docker_registry = "test_registry"
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
+        runtime.spec.image = None
+        runtime.spec.use_default_image = True
+        self.execute_function(runtime)
+        self._assert_custom_object_creation_config()
 
     def test_run_without_runspec(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
@@ -321,3 +337,78 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
 
         self.execute_function(runtime)
         self._assert_custom_object_creation_config(expected_cores=expected_cores)
+
+    @pytest.mark.parametrize(
+        ["mount_v3io_to_executor", "with_igz_spark_twice"],
+        [(False, False), (True, False), (False, True), (True, True)],
+    )
+    def test_with_igz_spark_volume_mounts(
+        self,
+        mount_v3io_to_executor,
+        with_igz_spark_twice,
+        db: sqlalchemy.orm.Session,
+        client: fastapi.testclient.TestClient,
+    ):
+        runtime = self._generate_runtime()
+
+        orig = os.getenv("V3IO_USERNAME")
+        os.environ["V3IO_USERNAME"] = "me"
+        try:
+            runtime.with_executor_host_path_volume(
+                host_path="/tmp",
+                mount_path="/before",
+                volume_name="path-volume-before",
+            )
+            runtime.with_igz_spark(mount_v3io_to_executor=mount_v3io_to_executor)
+            if with_igz_spark_twice:
+                runtime.with_igz_spark(mount_v3io_to_executor=mount_v3io_to_executor)
+            runtime.with_executor_host_path_volume(
+                host_path="/tmp",
+                mount_path="/after",
+                volume_name="path-volume-after",
+            )
+        finally:
+            if orig:
+                os.environ["V3IO_USERNAME"] = orig
+            else:
+                os.unsetenv("V3IO_USERNAME")
+
+        self.execute_function(runtime)
+        user_added_executor_volume_mounts = [
+            kubernetes.client.V1VolumeMount(
+                mount_path="/before", name="path-volume-before"
+            ),
+            kubernetes.client.V1VolumeMount(
+                mount_path="/after", name="path-volume-after"
+            ),
+        ]
+        common_volume_mounts = [
+            kubernetes.client.V1VolumeMount(mount_path="/dev/shm", name="shm"),
+            kubernetes.client.V1VolumeMount(
+                mount_path="/var/run/iguazio/dayman", name="v3iod-comm"
+            ),
+            kubernetes.client.V1VolumeMount(
+                mount_path="/var/run/iguazio/daemon_health", name="daemon-health"
+            ),
+            kubernetes.client.V1VolumeMount(
+                mount_path="/etc/config/v3io", name="v3io-config"
+            ),
+        ]
+        v3io_mounts = [
+            kubernetes.client.V1VolumeMount(
+                mount_path="/v3io", name="v3io", sub_path=""
+            ),
+            kubernetes.client.V1VolumeMount(
+                mount_path="/User", name="v3io", sub_path="users/me"
+            ),
+        ]
+        expected_driver_mounts = common_volume_mounts + v3io_mounts
+        expected_executor_mounts = (
+            common_volume_mounts + user_added_executor_volume_mounts
+        )
+        if mount_v3io_to_executor:
+            expected_executor_mounts += v3io_mounts
+        self._assert_custom_object_creation_config(
+            expected_driver_volume_mounts=expected_driver_mounts,
+            expected_executor_volume_mounts=expected_executor_mounts,
+        )

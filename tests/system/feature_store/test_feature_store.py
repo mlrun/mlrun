@@ -29,6 +29,7 @@ from mlrun.datastore.sources import (
 )
 from mlrun.datastore.targets import (
     CSVTarget,
+    KafkaTarget,
     NoSqlTarget,
     ParquetTarget,
     TargetTypes,
@@ -68,6 +69,38 @@ def myfunc1(x, context=None):
 def _generate_random_name():
     random_name = "".join([random.choice(string.ascii_letters) for i in range(10)])
     return random_name
+
+
+kafka_brokers = os.getenv("MLRUN_SYSTEM_TESTS_KAFKA_BROKERS")
+
+kafka_topic = "kafka_integration_test"
+
+
+@pytest.fixture()
+def kafka_consumer():
+    import kafka
+
+    # Setup
+    kafka_admin_client = kafka.KafkaAdminClient(bootstrap_servers=kafka_brokers)
+    kafka_consumer = kafka.KafkaConsumer(
+        kafka_topic,
+        bootstrap_servers=kafka_brokers,
+        auto_offset_reset="earliest",
+    )
+    try:
+        kafka_admin_client.delete_topics([kafka_topic])
+        sleep(1)
+    except kafka.errors.UnknownTopicOrPartitionError:
+        pass
+    kafka_admin_client.create_topics([kafka.admin.NewTopic(kafka_topic, 1, 1)])
+
+    # Test runs
+    yield kafka_consumer
+
+    # Teardown
+    kafka_admin_client.delete_topics([kafka_topic])
+    kafka_admin_client.close()
+    kafka_consumer.close()
 
 
 # Marked as enterprise because of v3io mount and pipelines
@@ -2517,6 +2550,59 @@ class TestFeatureStore(TestMLRunSystem):
         assert len(expected) == len(res.to_dataframe().to_dict().keys())
         for key in res.to_dataframe().to_dict().keys():
             assert key in expected
+
+    @pytest.mark.skipif(kafka_brokers == "", reason="KAFKA_BROKERS must be set")
+    def test_kafka_target(self, kafka_consumer):
+
+        stocks = pd.DataFrame(
+            {
+                "ticker": ["MSFT", "GOOG", "AAPL"],
+                "name": ["Microsoft Corporation", "Alphabet Inc", "Apple Inc"],
+                "booly": [True, False, True],
+            }
+        )
+        stocks_set = fs.FeatureSet(
+            "stocks_test", entities=[Entity("ticker", ValueType.STRING)]
+        )
+        target = KafkaTarget(
+            "kafka",
+            path=kafka_topic,
+            bootstrap_servers=kafka_brokers,
+        )
+        fs.ingest(stocks_set, stocks, [target])
+
+        expected_records = [
+            b'{"ticker": "MSFT", "name": "Microsoft Corporation", "booly": true}',
+            b'{"ticker": "GOOG", "name": "Alphabet Inc", "booly": false}',
+            b'{"ticker": "AAPL", "name": "Apple Inc", "booly": true}',
+        ]
+
+        kafka_consumer.subscribe([kafka_topic])
+        for expected_record in expected_records:
+            record = next(kafka_consumer)
+            assert record.value == expected_record
+
+    @pytest.mark.skipif(kafka_brokers == "", reason="KAFKA_BROKERS must be set")
+    def test_kafka_target_bad_kafka_options(self):
+
+        stocks = pd.DataFrame(
+            {
+                "ticker": ["MSFT", "GOOG", "AAPL"],
+                "name": ["Microsoft Corporation", "Alphabet Inc", "Apple Inc"],
+                "booly": [True, False, True],
+            }
+        )
+        stocks_set = fs.FeatureSet(
+            "stocks_test", entities=[Entity("ticker", ValueType.STRING)]
+        )
+        target = KafkaTarget(
+            "kafka",
+            path=kafka_topic,
+            bootstrap_servers=kafka_brokers,
+            producer_options={"compression_type": "invalid value"},
+        )
+        with pytest.raises(ValueError):
+            fs.ingest(stocks_set, stocks, [target])
 
 
 def verify_purge(fset, targets):

@@ -20,13 +20,13 @@ and how much exposure they create for your secrets.
 ## Overview
 There are two main use-cases for providing secrets to an MLRun job. These are:
 
-1. [Use MLRun-managed secrets](#mlrun-managed-secrets). This is a flow that enables the MLRun user (for example a 
+- [Use MLRun-managed secrets](#mlrun-managed-secrets). This is a flow that enables the MLRun user (for example a 
 data scientist or engineer) to create and use secrets through interfaces that MLRun implements and manages.
-2. [Create secrets externally](#externally-managed-secrets) to MLRun using a Kubernetes secret or some other secret 
+- [Create secrets externally](#externally-managed-secrets) to MLRun using a Kubernetes secret or some other secret 
 management framework (such as Azure vault), and utilize these secrets from within MLRun to enrich execution jobs. For 
-example, the secrets are created and managed by an IT admin and the data-scientist only accesses them.
+example, the secrets are created and managed by an IT admin, and the data-scientist only accesses them.
 
-The following sections will cover the details of those two use-cases.
+The following sections cover the details of those two use-cases.
 
 ## MLRun-managed secrets
 MLRun uses the concept of Tasks to encapsulate runtime parameters. Tasks are used to specify execution context
@@ -246,7 +246,7 @@ task.with_secrets("inline", {"MY_SECRET": "12345"})
 ```
 
 As can be seen, even the client code exposes the secret value. If this is used to pass secrets to a job running in a kubernetes 
-pod the secret is also visible in the pod spec. This means that any user that can run `kubectl` and is permitted 
+pod, the secret is also visible in the pod spec. This means that any user that can run `kubectl` and is permitted 
 to view pod specs can also see the secret keys and their values.
 
 ##### Environment
@@ -288,7 +288,7 @@ environment variables containing specific keys from the secret.
 
 ### Mapping secrets to environment
 Let's assume a k8s secret called `my-secret` was created in the same k8s namespace where MLRun is running, with two
-keys in it - `secret1` and `secret2`. The following example will add these two secret keys as environment variables
+keys in it - `secret1` and `secret2`. The following example adds these two secret keys as environment variables
 to an MLRun job:
 
 ```python
@@ -302,7 +302,8 @@ function.set_env_from_secret("SECRET_ENV_VAR_1", secret="my-secret", secret_key=
 function.set_env_from_secret("SECRET_ENV_VAR_2", secret="my-secret", secret_key="secret2")
 ```
 
-This will only take effect for functions executed remotely, as the secret value will be injected to the function pod.
+This only takes effect for functions executed remotely, as the secret value is injected to the function pod, which does
+not exist for functions executed locally.
 Within the function code, the secret values will be exposed as regular environment variables, for example:
 
 ```python
@@ -322,6 +323,6 @@ function:
 function.mount_secret("my-secret", "/mnt/secrets/")
 ```
 
-This will create two files in the function pod, called `/mnt/secrets/secret1` and `/mnt/secrets/secret2`. Reading these
-files will provide the values. It is possible to limit the keys mounted to the function - see the documentation
+This creates two files in the function pod, called `/mnt/secrets/secret1` and `/mnt/secrets/secret2`. Reading these
+files provides the values. It is possible to limit the keys mounted to the function - see the documentation
 of {py:func}`~mlrun.platforms.mount_secret` for more details.

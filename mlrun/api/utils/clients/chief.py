@@ -40,21 +40,26 @@ class Client(
         self, name: str, request: fastapi.Request = None
     ) -> fastapi.Response:
         request_kwargs = self._resolve_request_kwargs_from_request(request)
-        chief_response = self._send_request_to_api(
+        return self._proxy_request_to_chief(
             "GET", f"background-tasks/{name}", **request_kwargs
         )
-        return self._parse_response_to_fastapi_response(chief_response)
 
     def get_migration_state(self):
-        chief_response = self._send_request_to_api("GET", "operations/migrations")
-        return self._parse_response_to_fastapi_response(chief_response)
+        return self._proxy_request_to_chief("GET", "operations/migrations")
 
     def trigger_migrations(self, request: fastapi.Request = None) -> fastapi.Response:
         request_kwargs = self._resolve_request_kwargs_from_request(request)
-        chief_response = self._send_request_to_api(
+        return self._proxy_request_to_chief(
             method="POST", path="operations/migrations", **request_kwargs
         )
-        return self._parse_response_to_fastapi_response(chief_response)
+
+    def _proxy_request_to_chief(
+        self, method, path, raise_on_failure: bool = False, **kwargs
+    ):
+        chief_response = self._send_request_to_api(
+            method=method, path=path, raise_on_failure=raise_on_failure, **kwargs
+        )
+        return self._convert_requests_response_to_fastapi_response(chief_response)
 
     def _resolve_request_kwargs_from_request(
         self, request: fastapi.Request = None
@@ -77,7 +82,7 @@ class Client(
         return future.result()
 
     @staticmethod
-    def _parse_response_to_fastapi_response(
+    def _convert_requests_response_to_fastapi_response(
         chief_response: requests.Response,
     ) -> fastapi.Response:
         # based on the way we implemented the exception handling for endpoints in MLRun we can expect the media type

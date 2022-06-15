@@ -64,24 +64,6 @@ def trigger_migrations(
     return background_task
 
 
-@router.get(
-    "/operations/migrations",
-    responses={
-        http.HTTPStatus.OK.value: {"model": mlrun.api.schemas.APIState},
-    },
-)
-def get_migration_state():
-    # only chief knows about the migration state
-    if (
-        mlrun.mlconf.httpdb.clusterization.role
-        != mlrun.api.schemas.ClusterizationRole.chief
-    ):
-        chief_client = mlrun.api.utils.clients.chief.Client()
-        return chief_client.get_migration_state()
-
-    return mlrun.api.schemas.APIState(state=mlrun.mlconf.httpdb.state)
-
-
 async def _perform_migration():
     # import here to prevent import cycle
     import mlrun.api.main

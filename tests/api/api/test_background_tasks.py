@@ -146,7 +146,7 @@ def test_get_background_task_auth_skip(
         == 0
     )
 
-    mlrun.mlconf.igz_version = "3.5.0-b26.20210904121245"
+    mlrun.mlconf.igz_version = "3.7.0-b26.20210904121245"
     response = client.get(
         f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{background_task.metadata.name}"
     )

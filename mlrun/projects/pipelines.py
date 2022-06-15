@@ -592,7 +592,7 @@ class _RemoteRunner(_PipelineRunner):
             )
             fn.run(
                 handler=workflow_handler,
-                # auto_build=True,
+                auto_build=True,
                 local=workflow_spec.run_local
             )
             state = mlrun.run.RunStatuses.succeeded

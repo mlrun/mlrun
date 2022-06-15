@@ -1068,7 +1068,10 @@ class TestFeatureStore(TestMLRunSystem):
             }
         )
         data_set1 = fs.FeatureSet("fs1", entities=[Entity("string")])
-        fs.ingest(data_set1, data, infer_options=fs.InferOptions.default())
+        targets = [ParquetTarget(partitioned=False), NoSqlTarget()]
+        fs.ingest(
+            data_set1, data, targets=targets, infer_options=fs.InferOptions.default()
+        )
         features = ["fs1.*"]
         vector = fs.FeatureVector("vector", features)
         vector.spec.with_indexes = True
@@ -1108,7 +1111,10 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         data_set1 = fs.FeatureSet("fs1", entities=[Entity("string")])
-        fs.ingest(data_set1, data, infer_options=fs.InferOptions.default())
+        targets = [ParquetTarget(partitioned=False), NoSqlTarget()]
+        fs.ingest(
+            data_set1, data, targets=targets, infer_options=fs.InferOptions.default()
+        )
 
         data2 = pd.DataFrame(
             {
@@ -1216,14 +1222,16 @@ class TestFeatureStore(TestMLRunSystem):
         }
     )
 
-    def test_ingest_pandas_engine(self):
+    @pytest.mark.parametrize("engine", ["pandas", "storey", None])
+    def test_ingest_default_targets_for_engine(self, engine):
         data = pd.DataFrame({"name": ["ab", "cd"], "data": [10, 20]})
 
         data.set_index(["name"], inplace=True)
-        fset = fs.FeatureSet("pandass", entities=[fs.Entity("name")], engine="pandas")
+        fs_name = f"{engine}fs"
+        fset = fs.FeatureSet(fs_name, entities=[fs.Entity("name")], engine=engine)
         fs.ingest(featureset=fset, source=data)
 
-        features = ["pandass.*"]
+        features = [f"{fs_name}.*"]
         vector = fs.FeatureVector("my-vec", features)
         svc = fs.get_online_feature_service(vector)
         try:
@@ -1734,7 +1742,8 @@ class TestFeatureStore(TestMLRunSystem):
         df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
 
         fset = fs.FeatureSet(name="overwrite-fs", entities=[fs.Entity("name")])
-        fs.ingest(fset, df1, targets=[CSVTarget(), ParquetTarget(), NoSqlTarget()])
+        targets = [CSVTarget(), ParquetTarget(partitioned=False), NoSqlTarget()]
+        fs.ingest(fset, df1, targets=targets)
 
         features = ["overwrite-fs.*"]
         fvec = fs.FeatureVector("overwrite-vec", features=features)
@@ -1755,7 +1764,7 @@ class TestFeatureStore(TestMLRunSystem):
             resp = svc.get(entity_rows=[{"name": "GHI"}])
             assert resp[0]["value"] == 3
 
-        fs.ingest(fset, df2)
+        fs.ingest(fset, df2, [ParquetTarget(partitioned=False), NoSqlTarget()])
 
         csv_path = fset.get_target_path(name="csv")
         csv_df = pd.read_csv(csv_path)

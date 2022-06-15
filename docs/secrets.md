@@ -291,22 +291,30 @@ Let's assume a k8s secret called `my-secret` was created in the same k8s namespa
 keys in it - `secret1` and `secret2`. The following example adds these two secret keys as environment variables
 to an MLRun job:
 
-```python
+```{code-block} python
+:emphasize-lines: 7-12
+
 function = mlrun.code_to_function(
     name="secret_func",
     handler="test_function",
     ...
 )
 
-function.set_env_from_secret("SECRET_ENV_VAR_1", secret="my-secret", secret_key="secret1")
-function.set_env_from_secret("SECRET_ENV_VAR_2", secret="my-secret", secret_key="secret2")
+function.set_env_from_secret(
+    "SECRET_ENV_VAR_1", secret="my-secret", secret_key="secret1"
+)
+function.set_env_from_secret(
+    "SECRET_ENV_VAR_2", secret="my-secret", secret_key="secret2"
+)
 ```
 
 This only takes effect for functions executed remotely, as the secret value is injected to the function pod, which does
 not exist for functions executed locally.
 Within the function code, the secret values will be exposed as regular environment variables, for example:
 
-```python
+```{code-block} python
+:emphasize-lines: 4-4 
+
 # Function handler
 def test_function(context):
     # Getting the value in the secret2 key.

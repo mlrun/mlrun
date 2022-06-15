@@ -6,6 +6,7 @@ import unittest.mock
 import fastapi
 import fastapi.testclient
 import pytest
+import requests
 import sqlalchemy.orm
 
 import mlrun.api.api.deps
@@ -16,6 +17,7 @@ import mlrun.api.utils.background_tasks
 import mlrun.api.utils.clients.chief
 
 test_router = fastapi.APIRouter()
+# response_status_code = http.HTTPStatus.ACCEPTED.value
 
 
 # the reason we  have to declare an endpoint is that our class is built on top of FastAPI's background_tasks mechanism,
@@ -57,6 +59,27 @@ def create_internal_background_task(
     )
 
 
+# @test_router.post(
+#     "/operations/migrations",
+#     responses={
+#         http.HTTPStatus.OK.value: {},
+#         http.HTTPStatus.ACCEPTED.value: {"model": mlrun.api.schemas.BackgroundTask},
+#     },
+# )
+# def trigger_migrations(response: fastapi.Response):
+#     response.status_code = response_status_code
+#     if response_status_code == http.HTTPStatus.ACCEPTED.value:
+#         return _generate_background_task("test")
+#     elif response_status_code == http.HTTPStatus.OK.value:
+#         return {}
+#     elif response_status_code == http.HTTPStatus.PRECONDITION_FAILED.value:
+#         raise mlrun.errors.MLRunPreconditionFailedError(
+#             "Migrations were already triggered and failed. Restart the API to retry"
+#         )
+#     else:
+#         raise mlrun.errors.MLRunInternalServerError("internal error")
+
+
 call_counter: int = 0
 
 
@@ -78,6 +101,71 @@ def client() -> typing.Generator:
 
 
 ORIGINAL_VERSIONED_API_PREFIX = mlrun.api.main.BASE_VERSIONED_API_PREFIX
+
+
+def test_redirection_from_worker_to_chief_trigger_migrations(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
+):
+    mlrun.mlconf.httpdb.clusterization.role = "worker"
+    task_name = "testy"
+
+    for test_case in [
+        {
+            "expected_status": http.HTTPStatus.OK.value,
+            "expected_body": {},
+        },
+        {
+            "expected_status": http.HTTPStatus.ACCEPTED.value,
+            "expected_body": _generate_background_task(task_name).json(),
+        },
+        {
+            "expected_status": http.HTTPStatus.PRECONDITION_FAILED.value,
+            "expected_body": {"detail": {"reason": "waiting for migrations"}},
+        },
+        {
+            "expected_status": http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
+            "expected_body": {"detail": {"reason": "unexpected error"}},
+        },
+    ]:
+
+        expected_status = test_case.get("expected_status")
+        expected_response = test_case.get("expected_body")
+        httpserver.expect_ordered_request(
+            f"{ORIGINAL_VERSIONED_API_PREFIX}/operations/migrations", method="POST"
+        ).respond_with_json(expected_response, status=expected_status)
+        url = httpserver.url_for("")
+        mlrun.mlconf.httpdb.clusterization.chief.url = url
+        response = client.post(f"{ORIGINAL_VERSIONED_API_PREFIX}/operations/migrations")
+        assert response.status_code == expected_status
+        assert response.json() == expected_response
+
+
+def test_redirection_from_worker_to_chief_get_internal_background_tasks(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
+):
+    mlrun.mlconf.httpdb.clusterization.role = "worker"
+    task_name = "testy"
+    for test_case in [
+        {
+            "expected_status": http.HTTPStatus.OK.value,
+            "expected_body": _generate_background_task(task_name).json(),
+        },
+        {
+            "expected_status": http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
+            "expected_body": {"detail": {"reason": "error_message"}},
+        },
+    ]:
+
+        expected_status = test_case.get("expected_status")
+        expected_response = test_case.get("expected_body")
+        httpserver.expect_ordered_request(
+            f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{task_name}", method="GET"
+        ).respond_with_json(expected_response, status=expected_status)
+        url = httpserver.url_for("")
+        mlrun.mlconf.httpdb.clusterization.chief.url = url
+        response = client.get(f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{task_name}")
+        assert response.status_code == expected_status
+        assert response.json() == expected_response
 
 
 def test_create_project_background_task_in_chief_success(
@@ -248,7 +336,9 @@ def test_trigger_migrations_from_worker_returns_same_response_as_chief(
             "Client",
             lambda *args, **kwargs: handler_mock,
         )
-        response = client.post(f"{ORIGINAL_VERSIONED_API_PREFIX}/operations/migrations")
+        response: requests.Response = client.post(
+            f"{ORIGINAL_VERSIONED_API_PREFIX}/operations/migrations"
+        )
         assert response.status_code == expected_response.status_code
         assert response.content == expected_response.body
 

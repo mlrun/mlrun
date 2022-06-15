@@ -551,7 +551,7 @@ class Config:
             return f"http://ml-pipeline.{namespace}.svc.cluster.local:8888"
         return None
 
-    def resolve_chief_api_url(self):
+    def resolve_chief_api_url(self) -> str:
         if self.httpdb.clusterization.chief.url:
             return self.httpdb.clusterization.chief.url
         if not self.httpdb.clusterization.chief.service:

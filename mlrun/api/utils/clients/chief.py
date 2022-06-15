@@ -35,6 +35,10 @@ class Client(
         self._session = requests.Session()
         self._session.mount("http://", http_adapter)
         self._api_url = mlrun.mlconf.resolve_chief_api_url()
+        # remove backslash from end of api url
+        self._api_url = (
+            self._api_url[:-1] if self._api_url.endswith("/") else self._api_url
+        )
 
     def get_background_task(
         self, name: str, request: fastapi.Request = None

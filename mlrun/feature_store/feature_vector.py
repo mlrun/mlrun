@@ -506,12 +506,12 @@ class OnlineVectorService:
                     ):
                         data[column] = None
                 aliases = self.vector.get_feature_aliases()
-                for column in aliases.keys():
+                for column, alias in aliases.items():
                     if (
-                        aliases[column] not in actual_columns
+                        alias not in actual_columns
                         and column != self.vector.status.label_column
                     ):
-                        data[aliases[column]] = None
+                        data[alias] = None
 
             if self._impute_values and data:
                 for name in data.keys():
@@ -520,9 +520,8 @@ class OnlineVectorService:
                         data[name] = self._impute_values.get(name, v)
 
             if as_list and data:
-                keys = list(self.vector.status.features.keys()) + list(
-                    self.vector.get_feature_aliases().values()
-                )
+                keys = set(self.vector.status.features.keys())
+                keys.add(self.vector.get_feature_aliases().values())
                 data = [
                     data.get(key, None)
                     for key in keys

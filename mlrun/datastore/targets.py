@@ -95,7 +95,9 @@ def get_default_prefix_for_source(kind):
     return get_default_prefix_for_target(kind)
 
 
-def validate_target_paths_for_engine(targets, engine, source: Union[DataSource, pd.DataFrame]):
+def validate_target_paths_for_engine(
+    targets, engine, source: Union[DataSource, pd.DataFrame]
+):
     """Validating that target paths are suitable for the required engine.
     validate for single file targets only (parquet and csv).
 

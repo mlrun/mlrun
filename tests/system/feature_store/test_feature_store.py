@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import pathlib
 import random
@@ -13,6 +14,7 @@ import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 import pytest
+import requests
 from pandas.util.testing import assert_frame_equal
 from storey import MapClass
 
@@ -2612,6 +2614,126 @@ class TestFeatureStore(TestMLRunSystem):
         )
         with pytest.raises(ValueError):
             fs.ingest(stocks_set, stocks, [target])
+
+    def test_alias_change(self):
+        quotes = pd.DataFrame(
+            {
+                "time": [
+                    pd.Timestamp("2016-05-25 13:30:00.023"),
+                    pd.Timestamp("2016-05-25 13:30:00.023"),
+                    pd.Timestamp("2016-05-25 13:30:00.030"),
+                    pd.Timestamp("2016-05-25 13:30:00.041"),
+                    pd.Timestamp("2016-05-25 13:30:00.048"),
+                    pd.Timestamp("2016-05-25 13:30:00.049"),
+                    pd.Timestamp("2016-05-25 13:30:00.072"),
+                    pd.Timestamp("2016-05-25 13:30:00.075"),
+                ],
+                "ticker": [
+                    "GOOG",
+                    "MSFT",
+                    "MSFT",
+                    "MSFT",
+                    "GOOG",
+                    "AAPL",
+                    "GOOG",
+                    "MSFT",
+                ],
+                "bid": [720.50, 51.95, 51.97, 51.99, 720.50, 97.99, 720.50, 52.01],
+                "ask": [720.93, 51.96, 51.98, 52.00, 720.93, 98.01, 720.88, 52.03],
+            }
+        )
+
+        stocks = pd.DataFrame(
+            {
+                "ticker": ["MSFT", "GOOG", "AAPL"],
+                "name": ["Microsoft Corporation", "Alphabet Inc", "Apple Inc"],
+                "exchange": ["NASDAQ", "NASDAQ", "NASDAQ"],
+            }
+        )
+
+        stocks_set = fs.FeatureSet("stocks", entities=[fs.Entity("ticker")])
+        fs.ingest(stocks_set, stocks, infer_options=fs.InferOptions.default())
+
+        quotes_set = fs.FeatureSet("stock-quotes", entities=[fs.Entity("ticker")])
+
+        quotes_set.graph.to("storey.Extend", _fn="({'extra': event['bid'] * 77})").to(
+            "storey.Filter", "filter", _fn="(event['bid'] > 51.92)"
+        ).to(FeaturesetValidator())
+
+        quotes_set.add_aggregation("asks1", ["sum", "max"], "1h", "10m")
+        quotes_set.add_aggregation("asks5", ["sum", "max"], "5h", "10m")
+        quotes_set.add_aggregation("bids", ["min", "max"], "1h", "10m")
+
+        quotes_set["bid"] = fs.Feature(
+            validator=MinMaxValidator(min=52, severity="info")
+        )
+
+        quotes_set.set_targets()
+
+        fs.preview(
+            quotes_set,
+            quotes,
+            entity_columns=["ticker"],
+            timestamp_key="time",
+            options=fs.InferOptions.default(),
+        )
+
+        fs.ingest(quotes_set, quotes)
+
+        features = [
+            "stock-quotes.asks5_sum_5h as total_ask",
+            "stock-quotes.bids_min_1h",
+            "stock-quotes.bids_max_1h",
+            "stocks.*",
+        ]
+
+        vector_name = "stocks-vec"
+
+        vector = fs.FeatureVector(
+            vector_name, features, description="stocks demo feature vector"
+        )
+        vector.save()
+
+        # change alias
+        request_url = (
+            f"{mlrun.mlconf.iguazio_api_url}/mlrun/api/v1/projects/{self.project_name}/"
+            f"feature-vectors/{vector_name}/references/latest"
+        )
+        request_body = {
+            "metadata": {},
+            "spec": {
+                "features": [
+                    "stock-quotes.asks5_sum_5h as new_alias_for_total_ask",
+                    "stock-quotes.bids_min_1h",
+                    "stock-quotes.bids_max_1h",
+                    "stocks.*",
+                ]
+            },
+        }
+        headers = {
+            "Cookie": "session=j:" + json.dumps({"sid": os.getenv("V3IO_ACCESS_KEY")})
+        }
+        response = requests.patch(
+            request_url, json=request_body, headers=headers, verify=False
+        )
+        assert (
+            response.status_code == 200
+        ), f"Failed to patch feature vector: {response}"
+
+        service = fs.get_online_feature_service(vector_name)
+        try:
+            resp = service.get([{"ticker": "AAPL"}])
+            assert resp == [
+                {
+                    "bids_min_1h": math.inf,
+                    "bids_max_1h": -math.inf,
+                    "new_alias_for_total_ask": 0.0,
+                    "name": "Apple Inc",
+                    "exchange": "NASDAQ",
+                }
+            ]
+        finally:
+            service.close()
 
 
 def verify_purge(fset, targets):

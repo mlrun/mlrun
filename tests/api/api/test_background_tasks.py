@@ -17,7 +17,6 @@ import mlrun.api.utils.background_tasks
 import mlrun.api.utils.clients.chief
 
 test_router = fastapi.APIRouter()
-# response_status_code = http.HTTPStatus.ACCEPTED.value
 
 
 # the reason we  have to declare an endpoint is that our class is built on top of FastAPI's background_tasks mechanism,

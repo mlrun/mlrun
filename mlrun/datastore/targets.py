@@ -1431,6 +1431,7 @@ class MongoDBTarget(BaseStoreTarget):
             connection_string: str = None,
             collection_name: str = None,
             create_collection: bool = False,
+            override_collection: bool = False,
     ):
 
         super().__init__(
@@ -1472,6 +1473,8 @@ class MongoDBTarget(BaseStoreTarget):
                 raise ValueError(
                     f"Collection named {collection_name} is not exist in {db_name} database"
                 )
+        elif override_collection:
+            my_db[collection_name].delete_many({})
         self.attributes = {
             "collection_name": collection_name,
             "db_name": db_name,

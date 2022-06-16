@@ -5,17 +5,20 @@ import sklearn
 from sklearn.preprocessing import LabelBinarizer
 
 import mlrun.errors
-from .._common import MetricsLibrary
 from .._ml_common import AlgorithmFunctionality
 from .utils import SKLearnTypes
 from .metric import Metric
 
 
-class SKLearnMetricsLibrary(MetricsLibrary, ABC):
+class MetricsLibrary(ABC):
     """
     Static class for getting and parsing metrics to use in training and evaluation of SciKit-Learn.
     """
 
+    # A constant name for the context parameter to use for passing a metrics configuration:
+    CONTEXT_PARAMETER = "_metrics"
+
+    # A keyword to add in case the metric is based on predictions probabilities (not final predictions):
     _NEED_PROBABILITIES_KEYWORD = "need_probabilities"
 
     @classmethod
@@ -46,16 +49,14 @@ class SKLearnMetricsLibrary(MetricsLibrary, ABC):
 
         :raise MLRunInvalidArgumentError: If the metrics were not passed in a list or a dictionary.
         """
-        # Setup the plans list:
+        # Set up the plans list:
         parsed_metrics = []  # type: List[Metric]
 
         # Get the metrics passed via context:
-        if context is not None:
-            context_metrics = super(SKLearnMetricsLibrary, cls).get_metrics(
-                context=context
+        if context is not None and cls.CONTEXT_PARAMETER in context.parameters:
+            parsed_metrics += cls._parse(
+                metrics=context.parameters.get(cls.CONTEXT_PARAMETER, None)
             )
-            if context_metrics is not None:
-                parsed_metrics += context_metrics
 
         # Get the user's set metrics:
         if metrics is not None:
@@ -67,13 +68,14 @@ class SKLearnMetricsLibrary(MetricsLibrary, ABC):
 
         return parsed_metrics
 
-    @staticmethod
+    @classmethod
     def _parse(
+        cls,
         metrics: Union[
             List[Metric],
             List[SKLearnTypes.MetricEntryType],
             Dict[str, SKLearnTypes.MetricEntryType],
-        ]
+        ],
     ) -> List[Metric]:
         """
         Parse the given metrics by the possible rules of the framework implementing.
@@ -84,11 +86,11 @@ class SKLearnMetricsLibrary(MetricsLibrary, ABC):
         """
         # Parse from dictionary:
         if isinstance(metrics, dict):
-            return SKLearnMetricsLibrary._from_dict(metrics_dictionary=metrics)
+            return cls._from_dict(metrics_dictionary=metrics)
 
         # Parse from list:
         if isinstance(metrics, list):
-            return SKLearnMetricsLibrary._from_list(metrics_list=metrics)
+            return cls._from_list(metrics_list=metrics)
 
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"The metrics are expected to be in a list or a dictionary. Received: {type(metrics)}. A metric can be a "
@@ -97,9 +99,9 @@ class SKLearnMetricsLibrary(MetricsLibrary, ABC):
             f"each key will be the name to use for logging the metric."
         )
 
-    @staticmethod
+    @classmethod
     def _from_list(
-        metrics_list: List[Union[Metric, SKLearnTypes.MetricEntryType]]
+        cls, metrics_list: List[Union[Metric, SKLearnTypes.MetricEntryType]]
     ) -> List[Metric]:
         """
         Collect the given metrics configurations from a list. The metrics names will be chosen by the following rules:
@@ -120,13 +122,13 @@ class SKLearnMetricsLibrary(MetricsLibrary, ABC):
         return [
             metric
             if isinstance(metric, Metric)
-            else SKLearnMetricsLibrary._to_metric_class(metric_entry=metric)
+            else cls._to_metric_class(metric_entry=metric)
             for metric in metrics_list
         ]
 
-    @staticmethod
+    @classmethod
     def _from_dict(
-        metrics_dictionary: Dict[str, SKLearnTypes.MetricEntryType]
+        cls, metrics_dictionary: Dict[str, SKLearnTypes.MetricEntryType]
     ) -> List[Metric]:
         """
         Collect the given metrics configurations from a dictionary.
@@ -141,7 +143,7 @@ class SKLearnMetricsLibrary(MetricsLibrary, ABC):
         :return: A list of metrics objects.
         """
         return [
-            SKLearnMetricsLibrary._to_metric_class(
+            cls._to_metric_class(
                 metric_entry=metric, metric_name=metric_name
             )
             for metric_name, metric in metrics_dictionary.items()
@@ -245,20 +247,21 @@ class SKLearnMetricsLibrary(MetricsLibrary, ABC):
 
         return metrics
 
-    @staticmethod
+    @classmethod
     def _to_metric_class(
+        cls,
         metric_entry: SKLearnTypes.MetricEntryType,
         metric_name: str = None,
     ) -> Metric:
         """
         Create a Metric instance from a user given metric entry.
 
-        :param metric_entry: Metric entry as passed inside of a list or a dictionary.
+        :param metric_entry: Metric entry as passed inside a list or a dictionary.
         :param metric_name:  The metric name to use (if passed from a dictionary).
 
         :return: The metric class instance of this entry.
         """
-        # If its a tuple, unpack it to get the additional arguments:
+        # If it's a tuple, unpack it to get the additional arguments:
         if isinstance(metric_entry, tuple):
             metric, arguments = metric_entry
         else:
@@ -266,11 +269,11 @@ class SKLearnMetricsLibrary(MetricsLibrary, ABC):
             arguments = {}
 
         # Check if the 'need_probabilities' attribute is given:
-        if SKLearnMetricsLibrary._NEED_PROBABILITIES_KEYWORD in arguments:
+        if cls._NEED_PROBABILITIES_KEYWORD in arguments:
             need_probabilities = arguments[
-                SKLearnMetricsLibrary._NEED_PROBABILITIES_KEYWORD
+                cls._NEED_PROBABILITIES_KEYWORD
             ]
-            arguments.pop(SKLearnMetricsLibrary._NEED_PROBABILITIES_KEYWORD)
+            arguments.pop(cls._NEED_PROBABILITIES_KEYWORD)
         else:
             need_probabilities = False
 

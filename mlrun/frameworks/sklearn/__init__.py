@@ -4,7 +4,7 @@ import mlrun
 
 from .._ml_common import PickleModelServer, MLPlan, MLArtifactsLibrary
 from mlrun.frameworks.sklearn.metric import Metric
-from .metrics_library import SKLearnMetricsLibrary
+from .metrics_library import MetricsLibrary
 from .mlrun_interface import SKLearnMLRunInterface
 from .model_handler import SKLearnModelHandler
 from .utils import SKLearnTypes, SKLearnUtils
@@ -106,9 +106,9 @@ def apply_mlrun(
     :param labels:                   Labels to log with the model.
     :param parameters:               Parameters to log with the model.
     :param extra_data:               Extra data to log with the model.
-    :param auto_log:                 Whether or not to apply MLRun's auto logging on the model. Auto logging will add
-                                     the default artifacts and metrics to the lists of artifacts and metrics. Defaulted
-                                     to True.
+    :param auto_log:                 Whether to apply MLRun's auto logging on the model. Auto logging will add the
+                                     default artifacts and metrics to the lists of artifacts and metrics. Defaulted to
+                                     True.
 
     :return: The model handler initialized with the provided model.
     """
@@ -166,7 +166,7 @@ def apply_mlrun(
             model=model,
             y=y_test,
         ),
-        metrics=SKLearnMetricsLibrary.get_metrics(
+        metrics=MetricsLibrary.get_metrics(
             metrics=metrics,
             context=context,
             include_default=auto_log,

@@ -17,6 +17,7 @@ class MLTypes(Types, ABC):
     # Type for a metric entry, can be passed as the metric function itself, as a callable object, a string of the name
     # of the function and the full module path to the function to import. Arguments to use when calling the metric can
     # be joined by wrapping it as a tuple:
+    # TODO: will be moved to SKLearn's framework once LightGBM and XGBoost are fully supported.
     MetricEntryType = Union[Tuple[Union[Callable, str], dict], Callable, str]
 
     # Type for the target column name - a list of indices or column names that are the ground truth (y) of a dataset.

@@ -47,8 +47,8 @@ class ConfusionMatrixPlan(MLPlotPlan):
 
     def is_ready(self, stage: MLPlanStages, is_probabilities: bool) -> bool:
         """
-        Check whether or not the plan is fit for production by the given stage and prediction probabilities. The
-        confusion matrix is ready only post prediction.
+        Check whether the plan is fit for production by the given stage and prediction probabilities. The confusion
+        matrix is ready only post prediction.
 
         :param stage:            The stage to check if the plan is ready.
         :param is_probabilities: True if the 'y_pred' that will be sent to 'produce' is a prediction of probabilities

@@ -6,6 +6,7 @@ from mlrun.artifacts import Artifact
 from ..._dl_common import LoggingMode, MLRunLogger
 from ..model_handler import TFKerasModelHandler
 from .logging_callback import LoggingCallback
+from ..utils import TFKerasTypes
 
 
 class MLRunLoggingCallback(LoggingCallback):
@@ -34,14 +35,14 @@ class MLRunLoggingCallback(LoggingCallback):
         context: mlrun.MLClientCtx,
         model_handler: TFKerasModelHandler,
         log_model_tag: str = "",
-        log_model_labels: Dict[str, TrackableType] = None,
-        log_model_parameters: Dict[str, TrackableType] = None,
-        log_model_extra_data: Dict[str, Union[TrackableType, Artifact]] = None,
+        log_model_labels: Dict[str, TFKerasTypes.TrackableType] = None,
+        log_model_parameters: Dict[str, TFKerasTypes.TrackableType] = None,
+        log_model_extra_data: Dict[str, Union[TFKerasTypes.TrackableType, Artifact]] = None,
         dynamic_hyperparameters: Dict[
-            str, Union[List[Union[str, int]], Callable[[], TrackableType]]
+            str, Union[List[Union[str, int]], Callable[[], TFKerasTypes.TrackableType]]
         ] = None,
         static_hyperparameters: Dict[
-            str, Union[TrackableType, List[Union[str, int]]]
+            str, Union[TFKerasTypes, List[Union[str, int]]]
         ] = None,
         auto_log: bool = False,
     ):

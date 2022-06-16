@@ -12,7 +12,7 @@ from tensorflow.python.ops import summary_ops_v2
 
 import mlrun
 
-from ..._common import TrackableType
+from ..utils import TFKerasTypes
 from ..._dl_common.loggers import TensorboardLogger
 from .logging_callback import LoggingCallback
 
@@ -246,10 +246,10 @@ class TensorboardLoggingCallback(LoggingCallback):
             Callable[[Union[Variable, Tensor]], Union[float, Tensor]]
         ] = None,
         dynamic_hyperparameters: Dict[
-            str, Union[List[Union[str, int]], Callable[[], TrackableType]]
+            str, Union[List[Union[str, int]], Callable[[], TFKerasTypes.TrackableType]]
         ] = None,
         static_hyperparameters: Dict[
-            str, Union[TrackableType, List[Union[str, int]]]
+            str, Union[TFKerasTypes.TrackableType, List[Union[str, int]]]
         ] = None,
         update_frequency: Union[int, str] = "epoch",
         auto_log: bool = False,

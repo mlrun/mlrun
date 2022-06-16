@@ -8,6 +8,7 @@ from tensorflow.keras.callbacks import Callback
 import mlrun
 
 from ..._dl_common import Logger, LoggingMode
+from ..utils import TFKerasTypes
 
 
 class LoggingCallback(Callback):
@@ -21,10 +22,10 @@ class LoggingCallback(Callback):
         self,
         context: mlrun.MLClientCtx = None,
         dynamic_hyperparameters: Dict[
-            str, Union[List[Union[str, int]], Callable[[], TrackableType]]
+            str, Union[List[Union[str, int]], Callable[[], TFKerasTypes.TrackableType]]
         ] = None,
         static_hyperparameters: Dict[
-            str, Union[TrackableType, List[Union[str, int]]]
+            str, Union[TFKerasTypes.TrackableType, List[Union[str, int]]]
         ] = None,
         auto_log: bool = False,
     ):

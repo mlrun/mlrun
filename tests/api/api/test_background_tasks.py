@@ -59,27 +59,6 @@ def create_internal_background_task(
     )
 
 
-# @test_router.post(
-#     "/operations/migrations",
-#     responses={
-#         http.HTTPStatus.OK.value: {},
-#         http.HTTPStatus.ACCEPTED.value: {"model": mlrun.api.schemas.BackgroundTask},
-#     },
-# )
-# def trigger_migrations(response: fastapi.Response):
-#     response.status_code = response_status_code
-#     if response_status_code == http.HTTPStatus.ACCEPTED.value:
-#         return _generate_background_task("test")
-#     elif response_status_code == http.HTTPStatus.OK.value:
-#         return {}
-#     elif response_status_code == http.HTTPStatus.PRECONDITION_FAILED.value:
-#         raise mlrun.errors.MLRunPreconditionFailedError(
-#             "Migrations were already triggered and failed. Restart the API to retry"
-#         )
-#     else:
-#         raise mlrun.errors.MLRunInternalServerError("internal error")
-
-
 call_counter: int = 0
 
 

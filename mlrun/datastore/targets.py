@@ -35,6 +35,7 @@ from .utils import parse_kafka_url, store_path_to_spark
 
 
 class TargetTypes:
+    mongodb = "mongodb"
     csv = "csv"
     parquet = "parquet"
     nosql = "nosql"
@@ -55,6 +56,7 @@ class TargetTypes:
             TargetTypes.kafka,
             TargetTypes.dataframe,
             TargetTypes.custom,
+            TargetTypes.mongodb,
         ]
 
 
@@ -113,8 +115,8 @@ def validate_target_paths_for_engine(targets, engine, source):
     """
     for base_target in targets:
         if (
-            base_target.kind == TargetTypes.parquet
-            or base_target.kind == TargetTypes.csv
+                base_target.kind == TargetTypes.parquet
+                or base_target.kind == TargetTypes.csv
         ):
             target = get_target_driver(base_target)
             is_single_file = target.is_single_file()
@@ -139,9 +141,9 @@ def validate_target_paths_for_engine(targets, engine, source):
                         f"CSV target for storey engine must be a single file, got path:'{target.path}'"
                     )
                 elif (
-                    target.kind == TargetTypes.parquet
-                    and target.partitioned
-                    and is_single_file
+                        target.kind == TargetTypes.parquet
+                        and target.partitioned
+                        and is_single_file
                 ):
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         f"partitioned Parquet target for storey engine must be a directory, got path:'{target.path}'"
@@ -344,20 +346,20 @@ class BaseStoreTarget(DataTargetBase):
     support_append = False
 
     def __init__(
-        self,
-        name: str = "",
-        path=None,
-        attributes: typing.Dict[str, str] = None,
-        after_step=None,
-        columns=None,
-        partitioned: bool = False,
-        key_bucketing_number: typing.Optional[int] = None,
-        partition_cols: typing.Optional[typing.List[str]] = None,
-        time_partitioning_granularity: typing.Optional[str] = None,
-        after_state=None,
-        max_events: typing.Optional[int] = None,
-        flush_after_seconds: typing.Optional[int] = None,
-        storage_options: typing.Dict[str, str] = None,
+            self,
+            name: str = "",
+            path=None,
+            attributes: typing.Dict[str, str] = None,
+            after_step=None,
+            columns=None,
+            partitioned: bool = False,
+            key_bucketing_number: typing.Optional[int] = None,
+            partition_cols: typing.Optional[typing.List[str]] = None,
+            time_partitioning_granularity: typing.Optional[str] = None,
+            after_state=None,
+            max_events: typing.Optional[int] = None,
+            flush_after_seconds: typing.Optional[int] = None,
+            storage_options: typing.Dict[str, str] = None,
     ):
         super().__init__(
             self.kind,
@@ -435,12 +437,12 @@ class BaseStoreTarget(DataTargetBase):
         return result
 
     def write_dataframe(
-        self,
-        df,
-        key_column=None,
-        timestamp_key=None,
-        chunk_id=0,
-        **kwargs,
+            self,
+            df,
+            key_column=None,
+            timestamp_key=None,
+            chunk_id=0,
+            **kwargs,
     ) -> typing.Optional[int]:
         if hasattr(df, "rdd"):
             options = self.get_spark_options(key_column, timestamp_key)
@@ -477,7 +479,7 @@ class BaseStoreTarget(DataTargetBase):
             partition_cols = []
             target_df = df
             if timestamp_key and (
-                self.partitioned or self.time_partitioning_granularity
+                    self.partitioned or self.time_partitioning_granularity
             ):
                 target_df = df.copy(deep=False)
                 time_partitioning_granularity = self.time_partitioning_granularity
@@ -581,18 +583,18 @@ class BaseStoreTarget(DataTargetBase):
         return target
 
     def add_writer_step(
-        self,
-        graph,
-        after,
-        features,
-        key_columns=None,
-        timestamp_key=None,
-        featureset_status=None,
+            self,
+            graph,
+            after,
+            features,
+            key_columns=None,
+            timestamp_key=None,
+            featureset_status=None,
     ):
         raise NotImplementedError()
 
     def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+            self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         warnings.warn(
             "This method is deprecated. Use add_writer_step instead",
@@ -606,14 +608,14 @@ class BaseStoreTarget(DataTargetBase):
         self._get_store().rm(self.get_target_path(), recursive=True)
 
     def as_df(
-        self,
-        columns=None,
-        df_module=None,
-        entities=None,
-        start_time=None,
-        end_time=None,
-        time_column=None,
-        **kwargs,
+            self,
+            columns=None,
+            df_module=None,
+            entities=None,
+            start_time=None,
+            end_time=None,
+            time_column=None,
+            **kwargs,
     ):
         """return the target data as dataframe"""
         return mlrun.get_dataitem(self.get_target_path()).as_df(
@@ -669,20 +671,20 @@ class ParquetTarget(BaseStoreTarget):
     support_append = True
 
     def __init__(
-        self,
-        name: str = "",
-        path=None,
-        attributes: typing.Dict[str, str] = None,
-        after_step=None,
-        columns=None,
-        partitioned: bool = None,
-        key_bucketing_number: typing.Optional[int] = None,
-        partition_cols: typing.Optional[typing.List[str]] = None,
-        time_partitioning_granularity: typing.Optional[str] = None,
-        after_state=None,
-        max_events: typing.Optional[int] = 10000,
-        flush_after_seconds: typing.Optional[int] = 900,
-        storage_options: typing.Dict[str, str] = None,
+            self,
+            name: str = "",
+            path=None,
+            attributes: typing.Dict[str, str] = None,
+            after_step=None,
+            columns=None,
+            partitioned: bool = None,
+            key_bucketing_number: typing.Optional[int] = None,
+            partition_cols: typing.Optional[typing.List[str]] = None,
+            time_partitioning_granularity: typing.Optional[str] = None,
+            after_state=None,
+            max_events: typing.Optional[int] = 10000,
+            flush_after_seconds: typing.Optional[int] = 900,
+            storage_options: typing.Dict[str, str] = None,
     ):
         if after_state:
             warnings.warn(
@@ -694,12 +696,12 @@ class ParquetTarget(BaseStoreTarget):
 
         if partitioned is None:
             if all(
-                value is None
-                for value in [
-                    key_bucketing_number,
-                    partition_cols,
-                    time_partitioning_granularity,
-                ]
+                    value is None
+                    for value in [
+                        key_bucketing_number,
+                        partition_cols,
+                        time_partitioning_granularity,
+                    ]
             ):
                 partitioned = False
             else:
@@ -721,8 +723,8 @@ class ParquetTarget(BaseStoreTarget):
         )
 
         if (
-            time_partitioning_granularity is not None
-            and time_partitioning_granularity not in self._legal_time_units
+                time_partitioning_granularity is not None
+                and time_partitioning_granularity not in self._legal_time_units
         ):
             raise errors.MLRunInvalidArgumentError(
                 f"time_partitioning_granularity parameter must be one of {','.join(self._legal_time_units)}, "
@@ -743,7 +745,7 @@ class ParquetTarget(BaseStoreTarget):
                 df.to_parquet(fp, **kwargs)
 
     def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+            self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         warnings.warn(
             "This method is deprecated. Use add_writer_step instead",
@@ -754,13 +756,13 @@ class ParquetTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
-        self,
-        graph,
-        after,
-        features,
-        key_columns=None,
-        timestamp_key=None,
-        featureset_status=None,
+            self,
+            graph,
+            after,
+            features,
+            key_columns=None,
+            timestamp_key=None,
+            featureset_status=None,
     ):
         if self.attributes.get("infer_columns_from_data"):
             column_list = None
@@ -782,12 +784,12 @@ class ParquetTarget(BaseStoreTarget):
             partition_cols.extend(self.partition_cols)
         time_partitioning_granularity = self.time_partitioning_granularity
         if self.partitioned and all(
-            value is None
-            for value in [
-                time_partitioning_granularity,
-                self.key_bucketing_number,
-                self.partition_cols,
-            ]
+                value is None
+                for value in [
+                    time_partitioning_granularity,
+                    self.key_bucketing_number,
+                    self.partition_cols,
+                ]
         ):
             time_partitioning_granularity = "hour"
         if time_partitioning_granularity is not None:
@@ -798,9 +800,9 @@ class ParquetTarget(BaseStoreTarget):
                     break
 
         if (
-            not self.partitioned
-            and not self.get_target_path().endswith(".parquet")
-            and not self.get_target_path().endswith(".pq")
+                not self.partitioned
+                and not self.get_target_path().endswith(".parquet")
+                and not self.get_target_path().endswith(".pq")
         ):
             partition_cols = []
 
@@ -827,7 +829,7 @@ class ParquetTarget(BaseStoreTarget):
             index_cols=tuple_key_columns,
             partition_cols=partition_cols,
             storage_options=self.storage_options
-            or self._get_store().get_storage_options(),
+                            or self._get_store().get_storage_options(),
             max_events=self.max_events,
             flush_after_seconds=self.flush_after_seconds,
             **self.attributes,
@@ -838,9 +840,9 @@ class ParquetTarget(BaseStoreTarget):
         if timestamp_key:
             time_partitioning_granularity = self.time_partitioning_granularity
             if (
-                not time_partitioning_granularity
-                and self.partitioned
-                and not self.partition_cols
+                    not time_partitioning_granularity
+                    and self.partitioned
+                    and not self.partition_cols
             ):
                 time_partitioning_granularity = "hour"
             if time_partitioning_granularity:
@@ -862,14 +864,14 @@ class ParquetTarget(BaseStoreTarget):
         return {"format": "parquet"}
 
     def as_df(
-        self,
-        columns=None,
-        df_module=None,
-        entities=None,
-        start_time=None,
-        end_time=None,
-        time_column=None,
-        **kwargs,
+            self,
+            columns=None,
+            df_module=None,
+            entities=None,
+            start_time=None,
+            end_time=None,
+            time_column=None,
+            **kwargs,
     ):
         """return the target data as dataframe"""
         return mlrun.get_dataitem(self.get_target_path()).as_df(
@@ -901,7 +903,7 @@ class CSVTarget(BaseStoreTarget):
             df.to_csv(fp, **kwargs)
 
     def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+            self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         warnings.warn(
             "This method is deprecated. Use add_writer_step instead",
@@ -912,13 +914,13 @@ class CSVTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
-        self,
-        graph,
-        after,
-        features,
-        key_columns=None,
-        timestamp_key=None,
-        featureset_status=None,
+            self,
+            graph,
+            after,
+            features,
+            key_columns=None,
+            timestamp_key=None,
+            featureset_status=None,
     ):
         key_columns = list(key_columns.keys())
         column_list = self._get_column_list(
@@ -958,14 +960,14 @@ class CSVTarget(BaseStoreTarget):
         return df
 
     def as_df(
-        self,
-        columns=None,
-        df_module=None,
-        entities=None,
-        start_time=None,
-        end_time=None,
-        time_column=None,
-        **kwargs,
+            self,
+            columns=None,
+            df_module=None,
+            entities=None,
+            start_time=None,
+            end_time=None,
+            time_column=None,
+            **kwargs,
     ):
         df = super().as_df(
             columns=columns, df_module=df_module, entities=entities, **kwargs
@@ -999,7 +1001,7 @@ class NoSqlTarget(BaseStoreTarget):
         )
 
     def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+            self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         warnings.warn(
             "This method is deprecated. Use add_writer_step instead",
@@ -1010,13 +1012,13 @@ class NoSqlTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
-        self,
-        graph,
-        after,
-        features,
-        key_columns=None,
-        timestamp_key=None,
-        featureset_status=None,
+            self,
+            graph,
+            after,
+            features,
+            key_columns=None,
+            timestamp_key=None,
+            featureset_status=None,
     ):
         key_columns = list(key_columns.keys())
         table = self._resource.uri
@@ -1081,7 +1083,7 @@ class NoSqlTarget(BaseStoreTarget):
         return df
 
     def write_dataframe(
-        self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
+            self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
     ):
         if hasattr(df, "rdd"):
             options = self.get_spark_options(key_column, timestamp_key)
@@ -1112,7 +1114,7 @@ class StreamTarget(BaseStoreTarget):
     support_append = True
 
     def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+            self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         warnings.warn(
             "This method is deprecated. Use add_writer_step instead",
@@ -1123,13 +1125,13 @@ class StreamTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
-        self,
-        graph,
-        after,
-        features,
-        key_columns=None,
-        timestamp_key=None,
-        featureset_status=None,
+            self,
+            graph,
+            after,
+            features,
+            key_columns=None,
+            timestamp_key=None,
+            featureset_status=None,
     ):
         from storey import V3ioDriver
 
@@ -1163,11 +1165,11 @@ class KafkaTarget(BaseStoreTarget):
     support_append = True
 
     def __init__(
-        self,
-        *args,
-        bootstrap_servers=None,
-        producer_options=None,
-        **kwargs,
+            self,
+            *args,
+            bootstrap_servers=None,
+            producer_options=None,
+            **kwargs,
     ):
         attrs = {
             "bootstrap_servers": bootstrap_servers,
@@ -1176,13 +1178,13 @@ class KafkaTarget(BaseStoreTarget):
         super().__init__(*args, attributes=attrs, **kwargs)
 
     def add_writer_step(
-        self,
-        graph,
-        after,
-        features,
-        key_columns=None,
-        timestamp_key=None,
-        featureset_status=None,
+            self,
+            graph,
+            after,
+            features,
+            key_columns=None,
+            timestamp_key=None,
+            featureset_status=None,
     ):
         key_columns = list(key_columns.keys())
         column_list = self._get_column_list(
@@ -1216,7 +1218,7 @@ class TSDBTarget(BaseStoreTarget):
     support_append = True
 
     def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+            self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         warnings.warn(
             "This method is deprecated. Use add_writer_step instead",
@@ -1227,13 +1229,13 @@ class TSDBTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
-        self,
-        graph,
-        after,
-        features,
-        key_columns=None,
-        timestamp_key=None,
-        featureset_status=None,
+            self,
+            graph,
+            after,
+            features,
+            key_columns=None,
+            timestamp_key=None,
+            featureset_status=None,
     ):
         key_columns = list(key_columns.keys())
         endpoint, uri = parse_v3io_path(self.get_target_path())
@@ -1262,7 +1264,7 @@ class TSDBTarget(BaseStoreTarget):
         raise NotImplementedError()
 
     def write_dataframe(
-        self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
+            self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
     ):
         access_key = self._secrets.get("V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY"))
 
@@ -1296,12 +1298,12 @@ class CustomTarget(BaseStoreTarget):
     support_storey = True
 
     def __init__(
-        self,
-        class_name: str,
-        name: str = "",
-        after_step=None,
-        after_state=None,
-        **attributes,
+            self,
+            class_name: str,
+            name: str = "",
+            after_step=None,
+            after_state=None,
+            **attributes,
     ):
         if after_state:
             warnings.warn(
@@ -1316,7 +1318,7 @@ class CustomTarget(BaseStoreTarget):
         super().__init__(name, "", attributes, after_step=after_step)
 
     def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+            self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         warnings.warn(
             "This method is deprecated. Use add_writer_step instead",
@@ -1327,13 +1329,13 @@ class CustomTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
-        self,
-        graph,
-        after,
-        features,
-        key_columns=None,
-        timestamp_key=None,
-        featureset_status=None,
+            self,
+            graph,
+            after,
+            features,
+            key_columns=None,
+            timestamp_key=None,
+            featureset_status=None,
     ):
         attributes = copy(self.attributes)
         class_name = attributes.pop("class_name")
@@ -1361,7 +1363,7 @@ class DFTarget(BaseStoreTarget):
         pass
 
     def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
+            self, graph, after, features, key_columns=None, timestamp_key=None
     ):
         warnings.warn(
             "This method is deprecated. Use add_writer_step instead",
@@ -1372,13 +1374,13 @@ class DFTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
-        self,
-        graph,
-        after,
-        features,
-        key_columns=None,
-        timestamp_key=None,
-        featureset_status=None,
+            self,
+            graph,
+            after,
+            features,
+            key_columns=None,
+            timestamp_key=None,
+            featureset_status=None,
     ):
         key_columns = list(key_columns.keys())
         # todo: column filter
@@ -1393,15 +1395,161 @@ class DFTarget(BaseStoreTarget):
         )
 
     def as_df(
-        self,
-        columns=None,
-        df_module=None,
-        start_time=None,
-        end_time=None,
-        time_column=None,
-        **kwargs,
+            self,
+            columns=None,
+            df_module=None,
+            start_time=None,
+            end_time=None,
+            time_column=None,
+            **kwargs,
     ):
         return self._df
+
+
+class MongoDBTarget(BaseStoreTarget):
+    kind = TargetTypes.mongodb
+    is_offline = True
+    support_spark = False
+    support_storey = True
+
+    def __init__(
+            self,
+            name: str = "",
+            path=None,
+            attributes: typing.Dict[str, str] = None,
+            after_step=None,
+            columns=None,
+            partitioned: bool = False,
+            key_bucketing_number: typing.Optional[int] = None,
+            partition_cols: typing.Optional[typing.List[str]] = None,
+            time_partitioning_granularity: typing.Optional[str] = None,
+            after_state=None,
+            max_events: typing.Optional[int] = None,
+            flush_after_seconds: typing.Optional[int] = None,
+            storage_options: typing.Dict[str, str] = None,
+            db_name: str = None,
+            connection_string: str = None,
+            collection_name: str = None,
+            create_collection: bool = False,
+    ):
+
+        super().__init__(
+            name,
+            path,
+            attributes,
+            after_step,
+            columns,
+            partitioned,
+            key_bucketing_number,
+            partition_cols,
+            time_partitioning_granularity,
+            max_events=max_events,
+            flush_after_seconds=flush_after_seconds,
+            storage_options=storage_options,
+            after_state=after_state,
+        )
+
+        if not all([db_name, collection_name, connection_string]):
+            return
+
+        from pymongo import MongoClient
+
+        mongodb_client = MongoClient(connection_string)
+        all_dbs = mongodb_client.list_database_names()
+        if db_name not in all_dbs:
+            if create_collection:
+                pass
+            else:
+                raise ValueError(f"DataBase named {db_name} is not exist")
+        my_db = mongodb_client[db_name]
+        all_collections = my_db.list_collection_names()
+        if collection_name not in all_collections:
+            if create_collection:
+                my_collection = my_db[collection_name]
+                my_collection.insert_one({"test": "test"})
+                my_collection.delete_one({"test": "test"})
+            else:
+                raise ValueError(
+                    f"Collection named {collection_name} is not exist in {db_name} database"
+                )
+        self.attributes = {
+            "collection_name": collection_name,
+            "db_name": db_name,
+            "connection_string": connection_string,
+        }
+
+    def add_writer_state(
+            self, graph, after, features, key_columns=None, timestamp_key=None
+    ):
+        warnings.warn(
+            "This method is deprecated. Use add_writer_step instead",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        """add storey writer state to graph"""
+        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
+
+    def add_writer_step(
+            self,
+            graph,
+            after,
+            features,
+            key_columns=None,
+            timestamp_key=None,
+            featureset_status=None,
+    ):
+        key_columns = list(key_columns.keys())
+        column_list = self._get_column_list(
+            features=features, timestamp_key=timestamp_key, key_columns=key_columns
+        )
+
+        graph.add_step(
+            name=self.name or "MongoDBTarget",
+            after=after,
+            graph_shape="cylinder",
+            class_name="storey.MongoDBTarget",
+            columns=column_list,
+            header=True,
+            index_cols=key_columns,
+            storage_options=self._get_store().get_storage_options(),
+            **self.attributes,
+        )
+
+    def as_df(
+            self,
+            columns=None,
+            df_module=None,
+            entities=None,
+            start_time=None,
+            end_time=None,
+            time_column=None,
+            **kwargs,
+    ):
+        try:
+            query = kwargs["query"]
+        except:
+            query = {}
+        if time_column:
+            time_query = {time_column: {}}
+            if start_time:
+                time_query[time_column]["$gte"] = start_time
+            if end_time:
+                time_query[time_column]["$lt"] = end_time
+            if time_query[time_column] and query:
+                query.update(time_query)
+            elif time_query[time_column] and not query:
+                query = time_query
+
+        from pymongo import MongoClient
+
+        mongodb_client = MongoClient(self.attributes["connection_string"])
+        my_db = mongodb_client[self.attributes["db_name"]]
+        my_collection = my_db[self.attributes["collection_name"]]
+        my_collection = my_collection.find(query)
+
+        df = pd.DataFrame(list(my_collection))
+        df["_id"] = str(df["_id"])
+        return df
 
 
 kind_to_driver = {
@@ -1413,6 +1561,7 @@ kind_to_driver = {
     TargetTypes.kafka: KafkaTarget,
     TargetTypes.tsdb: TSDBTarget,
     TargetTypes.custom: CustomTarget,
+    TargetTypes.mongodb: MongoDBTarget,
 }
 
 
@@ -1422,8 +1571,8 @@ def _get_target_path(driver, resource, run_id_mode=False):
     suffix = driver.suffix
     if not suffix:
         if (
-            kind == ParquetTarget.kind
-            and resource.kind == mlrun.api.schemas.ObjectKind.feature_vector
+                kind == ParquetTarget.kind
+                and resource.kind == mlrun.api.schemas.ObjectKind.feature_vector
         ):
             suffix = ".parquet"
     kind_prefix = (

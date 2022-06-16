@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import typing
-from copy import copy, deepcopy
+from copy import deepcopy
 from datetime import datetime
 from typing import Dict, Optional, Tuple
 
@@ -44,6 +44,7 @@ from ...utils import (
 from ..base import RunError
 from ..kubejob import KubejobRuntime
 from ..pod import KubeResourceSpec
+from ..utils import get_item_name
 
 _service_account = "sparkapp"
 _sparkjob_template = {
@@ -238,12 +239,16 @@ class AbstractSparkRuntime(KubejobRuntime):
         get_run_db().delete_function(name=sj.metadata.name)
 
     def _is_using_gpu(self):
-        _, driver_gpu = self._get_gpu_type_and_quantity(
-            resources=self.spec.driver_resources["limits"]
-        )
-        _, executor_gpu = self._get_gpu_type_and_quantity(
-            resources=self.spec.executor_resources["limits"]
-        )
+        driver_limits = self.spec.driver_resources.get("limits")
+        driver_gpu = None
+        if driver_limits:
+            _, driver_gpu = self._get_gpu_type_and_quantity(resources=driver_limits)
+
+        executor_limits = self.spec.executor_resources.get("limits")
+        executor_gpu = None
+        if executor_limits:
+            _, executor_gpu = self._get_gpu_type_and_quantity(resources=executor_limits)
+
         return bool(driver_gpu or executor_gpu)
 
     @property
@@ -621,16 +626,21 @@ with ctx:
 
     def with_igz_spark(self, mount_v3io_to_executor=True):
         self._update_igz_jars(deps=self._get_igz_deps())
-        additional_executor_volume_mounts = copy(self.spec.volume_mounts)
-        self.apply(mount_v3io_extended())
+        self.apply(mount_v3io_extended(name="v3io"))
 
-        # move volume_mounts to driver and executor specific fields and leave v3io mounts
-        # out of executor mounts if mount_v3io_to_executor=False
-        self.spec.driver_volume_mounts += self.spec.volume_mounts
-        if mount_v3io_to_executor:
-            additional_executor_volume_mounts = self.spec.volume_mounts
-        self.spec.executor_volume_mounts += additional_executor_volume_mounts
-        self.spec.volume_mounts = []
+        # if we only want to mount v3io on the driver, move v3io
+        # mounts from common volume mounts to driver volume mounts
+        if not mount_v3io_to_executor:
+            v3io_mounts = []
+            non_v3io_mounts = []
+            for mount in self.spec.volume_mounts:
+                if get_item_name(mount) == "v3io":
+                    v3io_mounts.append(mount)
+                else:
+                    non_v3io_mounts.append(mount)
+            self.spec.volume_mounts = non_v3io_mounts
+            self.spec.driver_volume_mounts += v3io_mounts
+
         self.apply(
             mount_v3iod(
                 namespace=config.namespace,

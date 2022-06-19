@@ -39,7 +39,7 @@ on:
 
 jobs:
   run-system-tests-enterprise-ci:
-    timeout-minutes: 180
+    timeout-minutes: 360
     name: Run System Tests Enterprise
     runs-on: ubuntu-latest
 

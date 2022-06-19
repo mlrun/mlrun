@@ -2102,6 +2102,12 @@ class SQLDB(DBInterface):
             self._delete(session, cls, project=project, name=name)
 
     def delete_feature_set(self, session, project, name, tag=None, uid=None):
+        feature_set_record = self._get_feature_set(session, project, name, tag, uid)
+        if feature_set_record.metadata.publish_time:
+            raise mlrun.errors.MLRunBadRequestError(
+                "Cannot delete a published Feature-set"
+            )
+
         self._delete_feature_store_object(session, FeatureSet, project, name, tag, uid)
 
     def create_feature_vector(

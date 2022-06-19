@@ -857,6 +857,7 @@ class FeatureSet(ModelObj):
         resp = db.publish_feature_set(as_dict, tag=tag)
 
         self.status.targets = []
+        self.save()
 
         return resp
         # in case of use of read only publish set
@@ -865,7 +866,7 @@ class FeatureSet(ModelObj):
     def _verify_not_published(self):
         if self.metadata.publish_time:
             raise mlrun.errors.MLRunBadRequestError("cannot be called on a published feature set"
-                                                    f"(published on: {self.get_publish_time()}).")
+                                                    f"(published on: {self.get_publish_time}).")
 
 
 class SparkAggregateByKey(StepToDict):

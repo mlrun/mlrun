@@ -2519,6 +2519,7 @@ class TestFeatureStore(TestMLRunSystem):
         for key in res.to_dataframe().to_dict().keys():
             assert key in expected
 
+    @pytest.mark.skip("wait for full publish implementation (when feature flag enabled).")
     def test_publish(self):
         name = "publish-test"
         tag = f"tag-{time.time()}"
@@ -2549,6 +2550,7 @@ class TestFeatureStore(TestMLRunSystem):
             assert actual.metadata.tag == tag
             assert actual.metadata.project == self.project_name
 
+    @pytest.mark.skip("wait for full publish implementation (when feature flag enabled).")
     def test_targets_on_feature_set_publish(self):
 
         base_target_path = "v3io:///bigdata/system-test-project/publish_parquet_"
@@ -2626,8 +2628,8 @@ class TestFeatureStore(TestMLRunSystem):
 
         # also check that targets exists under status in fset_from_db
         db = mlrun.get_run_db()
-        fset_from_db = db.get_feature_set(name, tag=tag)
-        validate_targets(fset_from_db, {"o1", "o2", "t1", "t2"})
+        published_fset_from_db = db.get_feature_set(name, tag=tag)
+        validate_targets(published_fset_from_db, {"o1", "o2", "t1", "t2"})
 
         # check that targets on un-versioned fset are empty
         assert not fset.status.targets
@@ -2638,7 +2640,7 @@ class TestFeatureStore(TestMLRunSystem):
     def test_published_feature_set_apis(self):
         from mlrun.errors import MLRunBadRequestError
 
-        expected_error = AttributeError
+        expected_error = MLRunBadRequestError
         name = "readonly"
         timestamp_key = "time"
         tag = f"ro-tag-{time.time()}"
@@ -2652,48 +2654,17 @@ class TestFeatureStore(TestMLRunSystem):
         assert published_fset.spec.timestamp_key == timestamp_key
         assert published_fset.status.state == "created"
         with pytest.raises(expected_error):
-            published_fset.spec = fset.spec
+            published_fset.set_targets()
         with pytest.raises(expected_error):
-            published_fset.spec.timestamp_key = "other"
+            published_fset.purge_targets()
         with pytest.raises(expected_error):
-            published_fset.metadata = fset.metadata
+            published_fset.add_entity(None)
         with pytest.raises(expected_error):
-            published_fset.metadata.tag = "other"
+            published_fset.add_feature(None)
         with pytest.raises(expected_error):
-            published_fset.status = fset.status
+            published_fset.add_aggregation(None, None, None)
         with pytest.raises(expected_error):
-            published_fset.status.stats = {"other"}
-        published_fset.status.state = "other"
-        assert published_fset.status.state == "other"
-
-        # Test disabled methods for published feature set:
-        with pytest.raises(expected_error):
-            from mlrun.model import DataTarget
-
-            published_fset.status.update_target(DataTarget(name="temp"))
-        # with pytest.raises(expected_error):
-        #     published_fset.set_targets()    # TODO - this doesn't fail because of use in update() on a list object
-        # with pytest.raises(expected_error):
-        #     published_fset.add_entity(fs.Entity("entity"))
-        # with pytest.raises(expected_error):
-        #     published_fset.add_feature(Feature())
-        # with pytest.raises(expected_error):
-        #     published_fset.add_aggregation("aggr", "ticker", "sum", "1h")
-        with pytest.raises(MLRunBadRequestError):
-            published_fset.publish(tag)
-        with pytest.raises(expected_error):
-            published_fset.publish("already-published")
-
-        # Test enabled methods for published feature set:
-        published_fset.status.update_last_written_for_target("path", datetime.now())
-        published_fset.plot()
-        fset.to_dict()
-        published_fset.to_dict()
-        published_fset.save()
-        published_fset.to_dataframe()
-
-        # TODO - decide what to do with:
-        # published_fset.purge_targets() - should be enabled from ingest but disabled from outside
+            published_fset.publish(None)
 
 
 def verify_purge(fset, targets):

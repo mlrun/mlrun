@@ -77,7 +77,7 @@ class TestMLRunSystem:
             fsets = self._run_db.list_feature_sets()
             if fsets:
                 for fset in fsets:
-                    fset.purge_targets()
+                    fset._purge_targets()
 
         self._delete_test_project()
 

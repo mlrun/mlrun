@@ -9,7 +9,7 @@ on:
 
     # * is a special character in YAML so you have to quote this string
     # Run the system tests every 3 hours
-    - cron:  '0 */3 * * *'
+    - cron:  '0 */4 * * *'
 
   workflow_dispatch:
     inputs:
@@ -39,7 +39,7 @@ on:
 
 jobs:
   run-system-tests-enterprise-ci:
-    timeout-minutes: 360
+    timeout-minutes: 240
     name: Run System Tests Enterprise
     runs-on: ubuntu-latest
 

@@ -8,7 +8,7 @@ on:
   schedule:
 
     # * is a special character in YAML so you have to quote this string
-    # Run the system tests every 3 hours
+    # Run the system tests every 4 hours
     - cron:  '0 */4 * * *'
 
   workflow_dispatch:
@@ -39,6 +39,7 @@ on:
 
 jobs:
   run-system-tests-enterprise-ci:
+    # When increasing the timeout make sure it's not larger than the schedule cron interval
     timeout-minutes: 240
     name: Run System Tests Enterprise
     runs-on: ubuntu-latest

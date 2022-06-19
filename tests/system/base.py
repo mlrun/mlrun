@@ -244,10 +244,9 @@ class TestMLRunSystem:
         iteration_results: bool = False,
     ):
         self._logger.debug("Verifying run outputs", spec=run_outputs)
-        iterpath = str(best_iteration) if best_iteration else ""
-        assert run_outputs["model"] == str(output_path / iterpath / "model.txt")
-        assert run_outputs["html_result"] == str(output_path / iterpath / "result.html")
-        assert run_outputs["chart"] == str(output_path / iterpath / "chart.html")
+        assert run_outputs["model"].startswith(str(output_path))
+        assert run_outputs["html_result"].startswith(str(output_path))
+        assert run_outputs["chart"].startswith(str(output_path))
         assert run_outputs["mydf"] == f"store://artifacts/{project}/{name}_mydf:{uid}"
         if accuracy:
             assert run_outputs["accuracy"] == accuracy
@@ -256,9 +255,7 @@ class TestMLRunSystem:
         if best_iteration:
             assert run_outputs["best_iteration"] == best_iteration
         if iteration_results:
-            assert run_outputs["iteration_results"] == str(
-                output_path / "iteration_results.csv"
-            )
+            assert run_outputs["iteration_results"].startswith(str(output_path))
 
     @staticmethod
     def _has_marker(test: typing.Callable, marker_name: str) -> bool:

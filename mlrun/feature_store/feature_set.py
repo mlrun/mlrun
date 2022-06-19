@@ -387,6 +387,8 @@ class FeatureSet(ModelObj):
                                     the end cant be determined automatically
         :param default_final_state: *Deprecated* - use default_final_step instead
         """
+        self._verify_not_published()
+
         if default_final_state:
             warnings.warn(
                 "The default_final_state parameter is deprecated. Use default_final_step instead",
@@ -418,6 +420,10 @@ class FeatureSet(ModelObj):
             self.spec.graph.final_step = default_final_step
 
     def purge_targets(self, target_names: List[str] = None, silent: bool = False):
+        self._verify_not_published()
+        self._purge_targets(target_names, silent)
+
+    def _purge_targets(self, target_names: List[str] = None, silent: bool = False):
         """Delete data of specific targets
         :param target_names: List of names of targets to delete (default: delete all ingested targets)
         :param silent: Fail silently if target doesn't exist in featureset status"""
@@ -528,6 +534,8 @@ class FeatureSet(ModelObj):
         :param description: description of the entity
         :param labels:      label tags dict
         """
+        self._verify_not_published()
+
         entity = Entity(name, value_type, description=description, labels=labels)
         self._spec.entities.update(entity, name)
 
@@ -551,6 +559,8 @@ class FeatureSet(ModelObj):
         :param feature:         setting of Feature
         :param name:            feature name
         """
+        self._verify_not_published()
+
         self._spec.features.update(feature, name)
 
     def link_analysis(self, name, uri):
@@ -643,6 +653,8 @@ class FeatureSet(ModelObj):
                             ``emit_policy=storey.EmitEveryEvent()`` when using the Spark engine to emit every event
 
         """
+        self._verify_not_published()
+
         if isinstance(operations, str):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Invalid parameters provided - operations must be a list."
@@ -826,6 +838,7 @@ class FeatureSet(ModelObj):
 
     def publish(self, tag: str):
         """publish the feature set and lock it's metadata"""
+        self._verify_not_published()
 
         if not mlrun.mlconf.feature_store.enable_publish_feature_set:
             raise NotImplementedError("Publish of feature set is not supported.")
@@ -849,9 +862,10 @@ class FeatureSet(ModelObj):
         # in case of use of read only publish set
         # return PublishedFeatureSet(published_feature_set)
 
-    def verify_not_published(self):
+    def _verify_not_published(self):
         if self.metadata.publish_time:
-            raise mlrun.errors.MLRunBadRequestError("cannot be called on a published feature set")
+            raise mlrun.errors.MLRunBadRequestError("cannot be called on a published feature set"
+                                                    f"(published on: {self.get_publish_time()}).")
 
 
 class SparkAggregateByKey(StepToDict):

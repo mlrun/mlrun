@@ -460,7 +460,9 @@ def ingest(
         purge_target_names = [
             t if isinstance(t, str) else t.name for t in targets_to_ingest
         ]
-        featureset.purge_targets(target_names=purge_target_names, silent=True)
+
+        # call protected to pass published verification.
+        featureset._purge_targets(target_names=purge_target_names, silent=True)
 
         featureset.update_targets_for_ingest(
             targets=targets_to_ingest,

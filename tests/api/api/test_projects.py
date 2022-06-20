@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.api.utils
 import mlrun.api.crud
 import mlrun.api.schemas
+import mlrun.api.utils.background_tasks
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.logs_dir
@@ -954,6 +955,12 @@ def _create_resources_of_all_kinds(
 
     secrets = {f"secret_{i}": "a secret" for i in range(5)}
     k8s_secrets_mock.store_project_secrets(project, secrets)
+    db.store_background_task(
+        db_session,
+        name="task",
+        project=project,
+        state=mlrun.api.schemas.BackgroundTaskState.running,
+    )
 
 
 def _assert_resources_in_project(

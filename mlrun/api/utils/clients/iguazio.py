@@ -481,7 +481,7 @@ class Client(
                 },
             }
         }
-        if project.metadata.created is not None:
+        if project.metadata.created:
             body["data"]["attributes"][
                 "created_at"
             ] = project.metadata.created.isoformat()
@@ -497,7 +497,7 @@ class Client(
             ] = Client._transform_mlrun_labels_to_iguazio_labels(
                 project.metadata.annotations
             )
-        if project.spec.owner is not None:
+        if project.spec.owner:
             body["data"]["attributes"]["owner_username"] = project.spec.owner
         return body
 

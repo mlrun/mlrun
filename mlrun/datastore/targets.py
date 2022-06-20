@@ -1542,7 +1542,7 @@ class MongoDBTarget(BaseStoreTarget):
     ):
         try:
             query = kwargs["query"]
-        except:
+        except KeyError:
             query = {}
         if time_column:
             time_query = {time_column: {}}
@@ -1571,7 +1571,7 @@ class MongoDBTarget(BaseStoreTarget):
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
     ):
         if hasattr(df, "rdd"):
-            raise ValueError(f"Spark is not supported")
+            raise ValueError("Spark is not supported")
         else:
             from pymongo import MongoClient
 

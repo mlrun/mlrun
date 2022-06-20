@@ -140,7 +140,12 @@ class Client(
         """
         when endpoint is not async, we need to open an event loop because the request.body() is an async method
         """
-        loop = asyncio.get_event_loop()
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError as ex:
+            if "There is no current event loop in thread" in str(ex):
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
         future = asyncio.ensure_future(request.body())
         loop.run_until_complete(future)
         return future.result()

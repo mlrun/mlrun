@@ -1566,6 +1566,23 @@ class MongoDBTarget(BaseStoreTarget):
             df["_id"] = str(df["_id"])
         return df
 
+    def write_dataframe(
+            self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
+    ):
+        if hasattr(df, "rdd"):
+            raise ValueError(
+                f"Spark is not supported"
+            )
+        else:
+            from pymongo import MongoClient
+
+            mongodb_client = MongoClient(self.attributes["connection_string"])
+            db = mongodb_client[self.attributes["db_name"]]
+            collection = db[self.attributes["collection_name"]]
+
+            data = df.to_dict(orient='records')
+            collection.insert_many(data)
+
 
 kind_to_driver = {
     TargetTypes.parquet: ParquetTarget,

@@ -120,6 +120,15 @@ default_config = {
     "ignored_notebook_tags": "",
     # when set it will force the local=True in run_function(), set to "auto" will run local if there is no k8s
     "force_run_local": "auto",
+    "background_tasks": {
+        # enabled / disabled
+        "timeout_mode": "enabled",
+        # timeout in seconds to wait for background task to be updated / finished by the worker responsible for the task
+        "default_timeouts": {
+            "operations": {"migrations": "3600"},
+            "runtimes": {"dask": "600"},
+        },
+    },
     "function_defaults": {
         "image_by_kind": {
             "job": "mlrun/mlrun",
@@ -137,6 +146,12 @@ default_config = {
         "clusterization": {
             # one of chief/worker
             "role": "chief",
+            "chief": {
+                # when url is specified, it takes precedence over service and port
+                "url": "",
+                "service": "mlrun-api-chief",
+                "port": 8080,
+            },
         },
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
@@ -329,7 +344,7 @@ default_config = {
         },
     },
     "storage": {
-        # What type of auto-mount to use for functions. Can be one of: none, auto, v3io_credentials, v3io_fuse, pvc.
+        # What type of auto-mount to use for functions. Can be one of: none, auto, v3io_credentials, v3io_fuse, pvc, s3.
         # Default is auto - which is v3io_credentials when running on Iguazio. If not Iguazio: pvc if the
         # MLRUN_PVC_MOUNT env is configured or auto_mount_params contain "pvc_name". Otherwise will do nothing (none).
         "auto_mount_type": "auto",
@@ -531,6 +546,25 @@ class Config:
             # TODO: When we'll move to kfp 1.4.0 (server side) it should be resolved
             return f"http://ml-pipeline.{namespace}.svc.cluster.local:8888"
         return None
+
+    def resolve_chief_api_url(self) -> str:
+        if self.httpdb.clusterization.chief.url:
+            return self.httpdb.clusterization.chief.url
+        if not self.httpdb.clusterization.chief.service:
+            raise mlrun.errors.MLRunNotFoundError(
+                "For resolving chief url, chief service name must be provided"
+            )
+        if self.namespace is None:
+            raise mlrun.errors.MLRunNotFoundError(
+                "For resolving chief url, namespace must be provided"
+            )
+
+        chief_api_url = f"http://{self.httpdb.clusterization.chief.service}.{self.namespace}.svc.cluster.local"
+        if config.httpdb.clusterization.chief.port:
+            chief_api_url = f"{chief_api_url}:{self.httpdb.clusterization.chief.port}"
+
+        self.httpdb.clusterization.chief.url = chief_api_url
+        return self.httpdb.clusterization.chief.url
 
     @staticmethod
     def get_storage_auto_mount_params():

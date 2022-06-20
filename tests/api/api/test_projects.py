@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.api.utils
 import mlrun.api.crud
 import mlrun.api.schemas
+import mlrun.api.utils.background_tasks
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.logs_dir
@@ -117,7 +118,7 @@ def test_delete_project_with_resources(
     response = client.delete(
         f"projects/{project_to_remove}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check.value
         },
     )
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
@@ -126,7 +127,7 @@ def test_delete_project_with_resources(
     response = client.delete(
         f"projects/{project_to_remove}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted.value
         },
     )
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
@@ -135,7 +136,7 @@ def test_delete_project_with_resources(
     response = client.delete(
         f"projects/{project_to_remove}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading.value
         },
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
@@ -174,7 +175,7 @@ def test_delete_project_with_resources(
     response = client.delete(
         f"projects/{project_to_remove}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check.value
         },
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
@@ -183,7 +184,7 @@ def test_delete_project_with_resources(
     response = client.delete(
         f"projects/{project_to_remove}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted.value
         },
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
@@ -445,7 +446,7 @@ def test_delete_project_deletion_strategy_check(
     response = client.delete(
         f"projects/{project.metadata.name}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check.value
         },
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
@@ -467,7 +468,7 @@ def test_delete_project_deletion_strategy_check(
     response = client.delete(
         f"projects/{project.metadata.name}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check.value
         },
     )
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
@@ -533,7 +534,7 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     response = client.delete(
         f"projects/{project_name}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading.value
         },
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
@@ -576,7 +577,7 @@ def test_delete_project_deletion_strategy_check_external_resource(
     response = client.delete(
         f"projects/{project.metadata.name}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted.value
         },
     )
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
@@ -586,7 +587,7 @@ def test_delete_project_deletion_strategy_check_external_resource(
     response = client.delete(
         f"projects/{project.metadata.name}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted.value
         },
     )
     assert response
@@ -771,7 +772,7 @@ def test_projects_crud(
     response = client.delete(
         f"projects/{name1}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted.value
         },
     )
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
@@ -780,7 +781,7 @@ def test_projects_crud(
     response = client.delete(
         f"projects/{name1}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading.value
         },
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
@@ -954,6 +955,12 @@ def _create_resources_of_all_kinds(
 
     secrets = {f"secret_{i}": "a secret" for i in range(5)}
     k8s_secrets_mock.store_project_secrets(project, secrets)
+    db.store_background_task(
+        db_session,
+        name="task",
+        project=project,
+        state=mlrun.api.schemas.BackgroundTaskState.running,
+    )
 
 
 def _assert_resources_in_project(

@@ -866,9 +866,9 @@ def test_data_migration_fix_datasets_large_previews(
             exclude_paths=[
                 "root['metadata']['updated']",
                 "root['spec']['header']",
-                "root['spec']['stats']",
+                "root['status']['stats']",
                 "root['spec']['schema']",
-                "root['spec']['preview']",
+                "root['status']['preview']",
                 "root['metadata']['tag']",
                 "root['spec']['db_key']",
             ],
@@ -880,11 +880,11 @@ def test_data_migration_fix_datasets_large_previews(
         == mlrun.artifacts.dataset.max_preview_columns
     )
     assert (
-        len(artifact_with_invalid_preview_after_migration["spec"]["stats"])
+        len(artifact_with_invalid_preview_after_migration["status"]["stats"])
         == mlrun.artifacts.dataset.max_preview_columns - 1
     )
     assert (
-        len(artifact_with_invalid_preview_after_migration["spec"]["preview"][0])
+        len(artifact_with_invalid_preview_after_migration["status"]["preview"][0])
         == mlrun.artifacts.dataset.max_preview_columns
     )
     assert (

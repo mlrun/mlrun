@@ -26,6 +26,10 @@ ENV PATH /opt/conda/bin:$PATH
 # Set default shell to /bin/bash
 SHELL ["/bin/bash", "-cu"]
 
+RUN apt-key del 7fa2af80 && \
+    apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub && \
+    apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/7fa2af80.pub
+
 RUN apt-get update && \
     apt-mark hold libcublas-dev libcublas10 && \
     apt-get upgrade -y && \

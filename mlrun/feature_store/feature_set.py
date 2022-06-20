@@ -254,6 +254,7 @@ class FeatureSet(ModelObj):
         entities: List[Union[Entity, str]] = None,
         timestamp_key: str = None,
         engine: str = None,
+        label_column: str = None,
     ):
         """Feature set object, defines a set of features and their data pipeline
 
@@ -268,6 +269,7 @@ class FeatureSet(ModelObj):
         :param entities:      list of entity (index key) names or :py:class:`~mlrun.features.FeatureSet.Entity`
         :param timestamp_key: timestamp column name
         :param engine:        name of the processing engine (storey, pandas, or spark), defaults to storey
+        :param label_column:  name of the label column (the one holding the target (y) values)
         """
         self._spec: FeatureSetSpec = None
         self._metadata = None
@@ -280,6 +282,7 @@ class FeatureSet(ModelObj):
             entities=entities,
             timestamp_key=timestamp_key,
             engine=engine,
+            label_column=label_column,
         )
 
         if timestamp_key in self.spec.entities.keys():

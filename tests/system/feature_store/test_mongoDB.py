@@ -16,7 +16,7 @@ CREDENTIALS_ENV = "MLRUN_SYSTEM_TESTS_MONGODB_CONNECTION_STRING"
 
 def _are_mongodb_connection_string_not_set() -> bool:
 
-    return False
+    return True
 
 
 # Marked as enterprise because of v3io mount and pipelines

@@ -481,23 +481,23 @@ class Client(
                 },
             }
         }
-        if project.metadata.created:
+        if project.metadata.created is not None:
             body["data"]["attributes"][
                 "created_at"
             ] = project.metadata.created.isoformat()
-        if project.metadata.labels:
+        if project.metadata.labels is not None:
             body["data"]["attributes"][
                 "labels"
             ] = Client._transform_mlrun_labels_to_iguazio_labels(
                 project.metadata.labels
             )
-        if project.metadata.annotations:
+        if project.metadata.annotations is not None:
             body["data"]["attributes"][
                 "annotations"
             ] = Client._transform_mlrun_labels_to_iguazio_labels(
                 project.metadata.annotations
             )
-        if project.spec.owner:
+        if project.spec.owner is not None:
             body["data"]["attributes"]["owner_username"] = project.spec.owner
         return body
 

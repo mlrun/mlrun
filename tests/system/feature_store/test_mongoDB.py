@@ -6,6 +6,7 @@ from pymongo import MongoClient
 
 import mlrun.feature_store as fs
 from mlrun.datastore.sources import MongoDBSource
+from mlrun.datastore.targets import MongoDBTarget
 from mlrun.datastore.targets import CSVTarget
 from mlrun.feature_store.steps import OneHotEncoder
 from tests.system.base import TestMLRunSystem
@@ -15,7 +16,7 @@ CREDENTIALS_ENV = "MLRUN_SYSTEM_TESTS_MONGODB_CONNECTION_STRING"
 
 def _are_mongodb_connection_string_not_set() -> bool:
 
-    return True
+    return False
 
 
 # Marked as enterprise because of v3io mount and pipelines
@@ -36,6 +37,7 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
         ]
         cls.db = "sample_training"
         cls.collection = "posts"
+        cls.target_collection = "posts_after_fs"
 
     def custom_setup(self):
         self._init_env_from_file()
@@ -55,7 +57,12 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
             db_name=self.db,
             query=query_dict,
         )
-        self._test_mongodb_source(source, 10, self.cancellation_policy_val)
+        target = MongoDBTarget(connection_string=self.mongodb_connection_string,
+                               db_name=self.db,
+                               collection_name=self.target_collection,
+                               create_collection=True,
+                               override_collection=True)
+        self._test_mongodb_source(source, target, 10, self.cancellation_policy_val)
 
     def test_mongodb_source_query_with_chunk_size(self):
         query_dict = {"author": {"$regex": "machine"}}
@@ -66,7 +73,12 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
             query=query_dict,
             chunksize=10,
         )
-        self._test_mongodb_source(source, 10, self.cancellation_policy_val)
+        target = MongoDBTarget(connection_string=self.mongodb_connection_string,
+                               db_name=self.db,
+                               collection_name=self.target_collection,
+                               create_collection=True,
+                               override_collection=True)
+        self._test_mongodb_source(source, target, 10, self.cancellation_policy_val)
 
     def test_mongodb_source_query_with_time_filter(self):
         query_dict = {"author": {"$regex": "machine"}}
@@ -81,11 +93,16 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
             end_time=end,
             time_field="date",
         )
-        self._test_mongodb_source(source, 10, self.cancellation_policy_val)
+        target = MongoDBTarget(connection_string=self.mongodb_connection_string,
+                               db_name=self.db,
+                               collection_name=self.target_collection,
+                               create_collection=True,
+                               override_collection=True)
+        self._test_mongodb_source(source, target, 10, self.cancellation_policy_val)
 
     @staticmethod
-    def _test_mongodb_source(source: MongoDBSource, column_amount: int, map: list):
-        targets = [CSVTarget(name="temp")]
+    def _test_mongodb_source(source: MongoDBSource,target: MongoDBTarget, column_amount: int, map: list):
+        targets = [target]
         feature_set = fs.FeatureSet(
             "sample_training_posts",
             entities=[fs.Entity("_id")],
@@ -106,3 +123,4 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
 
         assert ingest_df is not None
         assert len(ingest_df.columns) == column_amount
+        assert len(target.as_df().columns) == column_amount+1

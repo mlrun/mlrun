@@ -6,6 +6,7 @@ from http import HTTPStatus
 from typing import List, Optional
 
 import v3io
+import v3io.dataplane
 from fastapi import (
     APIRouter,
     BackgroundTasks,

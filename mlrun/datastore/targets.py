@@ -1407,6 +1407,17 @@ class DFTarget(BaseStoreTarget):
 
 
 class MongoDBTarget(BaseStoreTarget):
+    """
+        :parameter db_name: the name of the database to access
+        :parameter connection_string: your mongodb connection string
+        :parameter collection_name: the name of the collection to access,
+                                    from the current database
+        :parameter query: dictionary query for mongodb
+        :parameter create_collection: pass True if you want to create new collection named by
+                                      collection_name on current database.
+        :parameter override_collection: pass True if you want to override all the documents on the
+                                        collection named by collection_name on current database.
+    """
     kind = TargetTypes.mongodb
     is_offline = True
     support_spark = False
@@ -1551,7 +1562,8 @@ class MongoDBTarget(BaseStoreTarget):
         my_collection = my_collection.find(query)
 
         df = pd.DataFrame(list(my_collection))
-        df["_id"] = str(df["_id"])
+        if "_id" in df.columns:
+            df["_id"] = str(df["_id"])
         return df
 
 

@@ -9,6 +9,7 @@ and how much exposure they create for your secrets.
 **In this section**
 - [Overview](#overview)
 - [MLRun-managed secrets](#mlrun-managed-secrets)
+  - [Using tasks with secrets](#using-tasks-with-secrets) 
   - [Secret providers](#secret-providers)
      - [Kubernetes project secrets](#kubernetes-project-secrets)
      - [Azure Vault](#azure-vault)
@@ -29,12 +30,47 @@ example, the secrets are created and managed by an IT admin, and the data-scient
 The following sections cover the details of those two use-cases.
 
 ## MLRun-managed secrets
+The easiest way to pass secrets to MLRun jobs is through the MLRun project secrets mechanism. MLRun jobs automatically
+gain access to all project secrets defined for the same project. More details are available 
+[later in this page](#kubernetes-project-secrets). 
+
+The following is an example of using project secrets:
+
+```python
+# Create project secrets for the myproj project
+project = mlrun.get_or_create_project("myproj", "./")
+secrets = {'AWS_KEY': '111222333'}
+project.set_secrets(secrets=secrets, provider="kubernetes")
+
+# Create and run the MLRun job
+function = mlrun.code_to_function(
+    name="secret_func",
+    filename="my_code.py",
+    handler="test_function",
+    kind="job",
+    image="mlrun/mlrun"
+)
+function.run()
+```
+
+the handler defined in `my_code.py` accesses the `AWS_KEY` secret by using the 
+{py:func}`~mlrun.execution.MLClientCtx.get_secret()` API:
+```python
+def test_function(context):
+    context.logger.info("running function")
+    aws_key = context.get_secret("AWS_KEY")
+    # Use aws_key to perform processing.
+    ...
+```
+
+### Using tasks with secrets
 MLRun uses the concept of Tasks to encapsulate runtime parameters. Tasks are used to specify execution context
 such as hyper-parameters. They can also be used to pass details about secrets that are going to be used in the 
-runtime.
+runtime. This allows for control over specific secrets passed to runtimes, and support for the various MLRun secret
+providers.
 
 To pass secret parameters, use the Task's {py:func}`~mlrun.model.RunTemplate.with_secrets()` function. For example, 
-the following command passes secrets provided by a kubernetes secret to the execution context:
+the following command passes specific project-secrets to the execution context:
 
 ```{code-block} python
 :emphasize-lines: 8-8
@@ -50,19 +86,6 @@ task = mlrun.new_task().with_secrets("kubernetes", ["AWS_KEY", "DB_PASSWORD"])
 run = function.run(task, ...)
 ```
 
-Within the code in `my_code.py`, the handler can access these secrets by using the 
-{py:func}`~mlrun.execution.MLClientCtx.get_secret()` API:
-
-```{code-block} python
-:emphasize-lines: 3-3
-
-def test_function(context, db_name):
-    context.logger.info("running function")
-    db_password = context.get_secret("DB_PASSWORD")
-    # Rest of code can use db_password to perform processing.
-    ...
-```
-
 The {py:func}`~mlrun.model.RunTemplate.with_secrets()` function tells MLRun what secrets the executed code needs to 
 access. The MLRun framework prepares the needed infrastructure to make these secrets available to the runtime, 
 and passes information about them to the execution framework by specifying those secrets in the spec of the runtime. 
@@ -71,7 +94,7 @@ For example, if running a kubernetes job, the secret keys are noted in the gener
 The actual details of MLRun's handling of the secrets differ per the **secret provider** used. The following sections
 provide more details on these providers and how they handle secrets and their values.
 
-Regardless of the type of secret provider used, the executed code uses the same 
+Regardless of the type of secret provider used, the executed code uses the 
 {py:func}`~mlrun.execution.MLClientCtx.get_secret()` API to gain access to the value of the secrets passed to it, 
 as shown in the above example.
 
@@ -104,7 +127,7 @@ a file containing a list of secrets. For example:
 ```python
 # Create project secrets for the myproj project.
 project = mlrun.get_or_create_project("myproj", "./")
-secrets = {'password': 'myPassw0rd', 'aws_key': '111222333'}
+secrets = {'password': 'myPassw0rd', 'AWS_KEY': '111222333'}
 project.set_secrets(secrets=secrets, provider="kubernetes")
 ```
 
@@ -133,7 +156,7 @@ belongs to, so no configuration is required to enable that. It is possible to li
 subset of these secrets by calling the following function with a list of the secrets to be accessed:
 
 ```python
-task.with_secrets('kubernetes', ['password', 'aws_key'])
+task.with_secrets('kubernetes', ['password', 'AWS_KEY'])
 ```
 
 When the job is executed, the MLRun framework adds environment variables to the pod spec whose value is retrieved 
@@ -154,9 +177,9 @@ use elevated permissions).
 ##### Accessing secrets in nuclio functions
 
 Nuclio functions do not have the MLRun context available to retrieve secret values. Secret values need to be retrieved 
-from the environment variable of the same name. For example, to access the `aws_key` secret in a nuclio function use:
+from the environment variable of the same name. For example, to access the `AWS_KEY` secret in a nuclio function use:
 ```python
-aws_key = os.environ.get("aws_key")
+aws_key = os.environ.get("AWS_KEY")
 ```
 
 #### Azure Vault

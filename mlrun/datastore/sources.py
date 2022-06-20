@@ -929,13 +929,13 @@ class MongoDBSource(BaseSourceDriver):
         collection_name = self.attributes.get("collection_name")
         chunksize = self.attributes.get("chunksize")
         if collection_name and db_name:
-            my_db = mongodb_client[db_name]
-            my_collection = my_db[collection_name]
+            db = mongodb_client[db_name]
+            collection = db[collection_name]
 
             if chunksize:
-                return MongoDBiter(my_collection, chunksize, query)
+                return MongoDBiter(collection, chunksize, query)
             else:
-                df = pd.DataFrame(list(my_collection.find(query)))
+                df = pd.DataFrame(list(collection.find(query)))
                 df["_id"] = df["_id"].astype(str)
                 return df
         else:

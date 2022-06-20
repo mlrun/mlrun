@@ -590,6 +590,7 @@ class _RemoteRunner(_PipelineRunner):
                 source=project.spec.source,
                 # image='mlrun/mlrun',
             )
+            logger.info(f'workflow handler name {str(workflow_handler)}')
             fn.run(
                 handler=workflow_handler,
                 auto_build=True,

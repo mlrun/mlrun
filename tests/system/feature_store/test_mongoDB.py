@@ -6,7 +6,7 @@ from pymongo import MongoClient
 
 import mlrun.feature_store as fs
 from mlrun.datastore.sources import MongoDBSource
-from mlrun.datastore.targets import CSVTarget, MongoDBTarget
+from mlrun.datastore.targets import MongoDBTarget
 from mlrun.feature_store.steps import OneHotEncoder
 from tests.system.base import TestMLRunSystem
 

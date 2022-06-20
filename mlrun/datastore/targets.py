@@ -1473,19 +1473,19 @@ class MongoDBTarget(BaseStoreTarget):
                 pass
             else:
                 raise ValueError(f"DataBase named {db_name} is not exist")
-        my_db = mongodb_client[db_name]
-        all_collections = my_db.list_collection_names()
+        db = mongodb_client[db_name]
+        all_collections = db.list_collection_names()
         if collection_name not in all_collections:
             if create_collection:
-                my_collection = my_db[collection_name]
-                my_collection.insert_one({"test": "test"})
-                my_collection.delete_one({"test": "test"})
+                collection = db[collection_name]
+                collection.insert_one({"test": "test"})
+                collection.delete_one({"test": "test"})
             else:
                 raise ValueError(
                     f"Collection named {collection_name} is not exist in {db_name} database"
                 )
         elif override_collection:
-            my_db[collection_name].delete_many({})
+            db[collection_name].delete_many({})
         self.attributes = {
             "collection_name": collection_name,
             "db_name": db_name,
@@ -1557,11 +1557,11 @@ class MongoDBTarget(BaseStoreTarget):
         from pymongo import MongoClient
 
         mongodb_client = MongoClient(self.attributes["connection_string"])
-        my_db = mongodb_client[self.attributes["db_name"]]
-        my_collection = my_db[self.attributes["collection_name"]]
-        my_collection = my_collection.find(query)
+        db = mongodb_client[self.attributes["db_name"]]
+        collection = db[self.attributes["collection_name"]]
+        cursor = collection.find(query)
 
-        df = pd.DataFrame(list(my_collection))
+        df = pd.DataFrame(list(cursor))
         if "_id" in df.columns:
             df["_id"] = str(df["_id"])
         return df

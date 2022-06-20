@@ -42,3 +42,15 @@ def test_set_event_random_id():
     resp = server.test(body={"data": "123"}, event_id="XYZ")
     server.wait_for_completion()
     assert resp["id"] != "XYZ", "id was not overwritten"
+
+def test_set_event_with_():
+    function = mlrun.new_function("test2", kind="serving")
+    flow = function.set_topology("flow")
+    flow.to(SetEventMetadata(random_id=True)).to(
+        name="e", handler="extract_meta", full_event=True
+    ).respond()
+
+    server = function.to_mock_server()
+    resp = server.test(body={"data": "123"}, event_id="XYZ")
+    server.wait_for_completion()
+    assert resp["id"] != "XYZ", "id was not overwritten"

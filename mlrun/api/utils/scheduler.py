@@ -24,6 +24,10 @@ from mlrun.utils import logger
 
 
 class Scheduler:
+    """
+    When using scheduler for create/update/delete/invoke or any other method that effects the scheduler behavior
+    make sure you are only running them in chief. For more information head over to
+    """
 
     _secret_username_subtype = "username"
     _secret_access_key_subtype = "access_key"

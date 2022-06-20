@@ -23,6 +23,7 @@ import mlrun.api.db.session
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
+import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.project_member
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
@@ -196,6 +197,18 @@ async def build_function(
         mlrun.api.schemas.AuthorizationAction.update,
         auth_info,
     )
+
+    # schedules are meant to be run solely by the chief then if track_models is enabled, it means that schedules
+    # will be created as part of building the function, and if not chief then redirect to chief
+    # to reduce redundant load on the chief, we forward the request only if the user has permissions
+    if function.get("spec", {}).get("track_models", False):
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.api.schemas.ClusterizationRole.chief
+        ):
+            chief_client = mlrun.api.utils.clients.chief.Client()
+            return await chief_client.build_function(request=request)
+
     if isinstance(data.get("with_mlrun"), bool):
         with_mlrun = data.get("with_mlrun")
     else:

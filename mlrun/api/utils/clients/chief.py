@@ -48,14 +48,59 @@ class Client(
             "GET", f"background-tasks/{name}", **request_kwargs
         )
 
-    def get_migration_state(self):
-        return self._proxy_request_to_chief("GET", "operations/migrations")
-
     def trigger_migrations(self, request: fastapi.Request = None) -> fastapi.Response:
         request_kwargs = self._resolve_request_kwargs_from_request(request)
         return self._proxy_request_to_chief(
             method="POST", path="operations/migrations", **request_kwargs
         )
+
+    def create_schedule(
+        self, project: str, request: fastapi.Request
+    ) -> fastapi.Response:
+        request_kwargs = self._resolve_request_kwargs_from_request(request)
+        return self._proxy_request_to_chief(
+            "POST", f"projects/{project}/schedules", **request_kwargs
+        )
+
+    def update_schedule(
+        self, project: str, name: str, request: fastapi.Request
+    ) -> fastapi.Response:
+        request_kwargs = self._resolve_request_kwargs_from_request(request)
+        return self._proxy_request_to_chief(
+            "PUT", f"projects/{project}/schedules/{name}", **request_kwargs
+        )
+
+    def delete_schedule(
+        self, project: str, name: str, request: fastapi.Request
+    ) -> fastapi.Response:
+        request_kwargs = self._resolve_request_kwargs_from_request(request)
+        return self._proxy_request_to_chief(
+            "DELETE", f"projects/{project}/schedules/{name}", **request_kwargs
+        )
+
+    def delete_schedules(
+        self, project: str, request: fastapi.Request
+    ) -> fastapi.Response:
+        request_kwargs = self._resolve_request_kwargs_from_request(request)
+        return self._proxy_request_to_chief(
+            "DELETE", f"projects/{project}/schedules", **request_kwargs
+        )
+
+    async def invoke_schedule(
+        self, project: str, name: str, request: fastapi.Request
+    ) -> fastapi.Response:
+        request_kwargs = await self._resolve_request_kwargs_from_request_async(request)
+        return self._proxy_request_to_chief(
+            "POST", f"projects/{project}/schedules/{name}/invoke", **request_kwargs
+        )
+
+    async def submit_job(self, request: fastapi.Request) -> fastapi.Response:
+        request_kwargs = await self._resolve_request_kwargs_from_request_async(request)
+        return self._proxy_request_to_chief("POST", "submit_job", **request_kwargs)
+
+    async def build_function(self, request: fastapi.Request) -> fastapi.Response:
+        request_kwargs = await self._resolve_request_kwargs_from_request_async(request)
+        return self._proxy_request_to_chief("POST", "build/function", **request_kwargs)
 
     def _proxy_request_to_chief(
         self, method, path, raise_on_failure: bool = False, **kwargs
@@ -64,6 +109,19 @@ class Client(
             method=method, path=path, raise_on_failure=raise_on_failure, **kwargs
         )
         return self._convert_requests_response_to_fastapi_response(chief_response)
+
+    @staticmethod
+    async def _resolve_request_kwargs_from_request_async(
+        request: fastapi.Request = None,
+    ) -> dict:
+        kwargs = {}
+        if request:
+            data = await request.body()
+            kwargs.update({"data": data})
+            kwargs.update({"headers": dict(request.headers)})
+            kwargs.update({"params": dict(request.query_params)})
+            kwargs.update({"cookies": request.cookies})
+        return kwargs
 
     def _resolve_request_kwargs_from_request(
         self, request: fastapi.Request = None
@@ -78,9 +136,11 @@ class Client(
         return kwargs
 
     @staticmethod
-    def _get_request_body(request: fastapi.Request):
+    def _get_request_body(request: fastapi.Request) -> bytes:
+        """
+        when endpoint is not async, we need to open an event loop because the request.body() is an async method
+        """
         loop = asyncio.get_event_loop()
-        # body is an async function
         future = asyncio.ensure_future(request.body())
         loop.run_until_complete(future)
         return future.result()

@@ -588,7 +588,7 @@ class ModelEndpoints:
                 access_key,
             )
 
-        v3io = mlrun.utils.v3io_clients.get_v3io_client(
+        v3io_client = mlrun.utils.v3io_clients.get_v3io_client(
             endpoint=mlrun.mlconf.v3io_api, access_key=access_key
         )
 
@@ -611,7 +611,7 @@ class ModelEndpoints:
             address=mlrun.mlconf.v3io_framesd,
         )
         try:
-            all_records = v3io.kv.new_cursor(
+            all_records = v3io_client.kv.new_cursor(
                 container=container,
                 table_path=path,
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
@@ -622,7 +622,7 @@ class ModelEndpoints:
 
             # Cleanup KV
             for record in all_records:
-                v3io.kv.delete(
+                v3io_client.kv.delete(
                     container=container,
                     table_path=path,
                     key=record,

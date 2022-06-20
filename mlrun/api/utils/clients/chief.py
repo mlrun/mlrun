@@ -102,6 +102,12 @@ class Client(
         request_kwargs = await self._resolve_request_kwargs_from_request_async(request)
         return self._proxy_request_to_chief("POST", "build/function", **request_kwargs)
 
+    def delete_project(self, name, request: fastapi.Request) -> fastapi.Response:
+        request_kwargs = self._resolve_request_kwargs_from_request(request)
+        return self._proxy_request_to_chief(
+            "DELETE", f"projects/{name}", **request_kwargs
+        )
+
     def _proxy_request_to_chief(
         self, method, path, raise_on_failure: bool = False, **kwargs
     ):

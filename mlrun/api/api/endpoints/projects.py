@@ -8,6 +8,7 @@ import sqlalchemy.orm
 import mlrun.api.api.deps
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.clients.chief
 from mlrun.api.utils.singletons.project_member import get_project_member
 
 router = fastapi.APIRouter()
@@ -147,6 +148,7 @@ def get_project(
 )
 def delete_project(
     name: str,
+    request: fastapi.Request,
     deletion_strategy: mlrun.api.schemas.DeletionStrategy = fastapi.Header(
         mlrun.api.schemas.DeletionStrategy.default(),
         alias=mlrun.api.schemas.HeaderNames.deletion_strategy,
@@ -161,17 +163,24 @@ def delete_project(
         mlrun.api.api.deps.get_db_session
     ),
 ):
-    is_running_in_background = get_project_member().delete_project(
-        db_session,
-        name,
-        deletion_strategy,
-        auth_info.projects_role,
-        auth_info,
-        wait_for_completion=wait_for_completion,
-    )
-    if is_running_in_background:
-        return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
-    return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        == mlrun.api.schemas.ClusterizationRole.chief
+    ):
+        is_running_in_background = get_project_member().delete_project(
+            db_session,
+            name,
+            deletion_strategy,
+            auth_info.projects_role,
+            auth_info,
+            wait_for_completion=wait_for_completion,
+        )
+        if is_running_in_background:
+            return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
+        return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
+    else:
+        chief_client = mlrun.api.utils.clients.chief.Client()
+        return chief_client.delete_project(name=name, request=request)
 
 
 @router.get("/projects", response_model=mlrun.api.schemas.ProjectsOutput)

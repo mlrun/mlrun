@@ -50,6 +50,15 @@ class Member(
         self._synced_until_datetime = None
         # run one sync to start off on the right foot and fill out the cache but don't fail initialization on it
         try:
+            # Basically the delete operation in our projects mechanism is fully consistent, meaning the leader won't
+            # remove the project from its persistency (the source of truth) until it was successfully removed from all
+            # followers. Therefore, when syncing projects from the leader, we don't need to search for the deletions
+            # that may happened without us knowing about it (therefore full_sync by default is false). When we
+            # introduced the chief/worker mechanism, we needed to change the follower to keep its projects in the DB
+            # instead of in cache. On the switch, since we were using cache and the projects table in the DB was not
+            # maintained, we know we may have projects that shouldn't be there anymore, ideally we would have trigger
+            # the full sync only once on the switch, but since we don't have a good heuristic to identify the switch
+            # we're doing a full_sync on every initialization
             full_sync = (
                 mlrun.mlconf.httpdb.clusterization.role
                 == mlrun.api.schemas.ClusterizationRole.chief
@@ -248,6 +257,10 @@ class Member(
         mlrun.api.utils.periodic.cancel_periodic_function(self._sync_projects.__name__)
 
     def _sync_projects(self, full_sync=False):
+        """
+        :param full_sync: when set to true, in addition to syncing project creation/updates from the leader, we will
+        also sync deletions that may occur without updating us the follower
+        """
         projects, latest_updated_at = self._leader_client.list_projects(
             self._sync_session, self._synced_until_datetime
         )

@@ -166,12 +166,9 @@ class OneHotEncoder(StepToDict, MapClass):
         encoding = self.mapping.get(feature, [])
 
         if encoding:
-            one_hot_encoding = {
-                f"{feature}_{self._prepare_category(category)}": 0
-                for category in encoding
-            }
+            one_hot_encoding = {f"{feature}_{category}": 0 for category in encoding}
             if value in encoding:
-                one_hot_encoding[f"{feature}_{self._prepare_category(value)}"] = 1
+                one_hot_encoding[f"{feature}_{value}"] = 1
             else:
                 print(f"Warning, {value} is not a known value by the encoding")
             return one_hot_encoding
@@ -183,10 +180,6 @@ class OneHotEncoder(StepToDict, MapClass):
         for feature, val in event.items():
             encoded_values.update(self._encode(feature, val))
         return encoded_values
-
-    def _prepare_category(self, f_name: str):
-        """replace (" " and "-") -> "_" """
-        return "_".join(("_".join(f_name.split())).split("-"))
 
 
 class DateExtractor(StepToDict, MapClass):

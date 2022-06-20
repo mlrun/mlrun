@@ -579,9 +579,9 @@ class _RemoteRunner(_PipelineRunner):
         pipeline_context.set(project, workflow_spec)
         workflow_id = uuid.uuid4().hex
 
-        workflow_handler = cls._get_handler(
-            workflow_handler, workflow_spec, project, secrets
-        )
+        # workflow_handler = cls._get_handler(
+        #     workflow_handler, workflow_spec, project, secrets
+        # )
         try:
             fn = mlrun.new_function(
                 name=name,

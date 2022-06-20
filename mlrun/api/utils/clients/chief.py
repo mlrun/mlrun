@@ -142,8 +142,8 @@ class Client(
         """
         try:
             loop = asyncio.get_event_loop()
-        except RuntimeError as ex:
-            if "There is no current event loop in thread" in str(ex):
+        except RuntimeError as exc:
+            if "There is no current event loop in thread" in str(exc):
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
         future = asyncio.ensure_future(request.body())

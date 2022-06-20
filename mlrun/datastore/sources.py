@@ -19,6 +19,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Union
 
 import v3io
+import v3io.dataplane
 from nuclio import KafkaTrigger
 from nuclio.config import split_path
 

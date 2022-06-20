@@ -76,8 +76,8 @@ Regardless of the type of secret provider used, the executed code uses the same
 as shown in the above example.
 
 ### Secret providers
-MLRun provides several secret providers. Each of those providers functions differently and 
-has different traits with respect to what secrets can be passed and how they're handled. It's important to understand 
+MLRun provides several secret providers. Each of these providers functions differently and 
+have different traits with respect to what secrets can be passed and how they're handled. It's important to understand 
 these parameters to make sure secrets are not compromised and that their secrecy is maintained.
 
 ```{warning}
@@ -168,7 +168,7 @@ Azure key Vaults support 3 types of entities - `keys`, `secrets` and `certificat
 ```
 
 ##### Setting up access to Azure key vault
-To enable this functionality, a secret must first be created in the k8s cluster which contains the Azure key Vault 
+To enable this functionality, a secret must first be created in the k8s cluster that contains the Azure key Vault 
 credentials. This secret should include credentials providing access to your specific Azure key Vault. 
 To configure this, the following steps are needed:
 

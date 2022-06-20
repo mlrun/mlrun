@@ -260,7 +260,7 @@ class Member(
         :param full_sync: when set to true, in addition to syncing project creation/updates from the leader, we will
         also sync deletions that may occur without updating us the follower
         """
-        projects, latest_updated_at = self._leader_client.list_projects(
+        leader_projects, latest_updated_at = self._leader_client.list_projects(
             self._sync_session, self._synced_until_datetime
         )
         db_session = mlrun.api.db.session.create_session()
@@ -269,14 +269,14 @@ class Member(
         )
         # Don't add projects in non terminal state if they didn't exist before to prevent race conditions
         filtered_projects = []
-        for project in projects:
+        for leader_project in leader_projects:
             if (
-                project.status.state
+                leader_project.status.state
                 not in mlrun.api.schemas.ProjectState.terminal_states()
-                and project.metadata.name not in db_projects.projects
+                and leader_project.metadata.name not in db_projects.projects
             ):
                 continue
-            filtered_projects.append(project)
+            filtered_projects.append(leader_project)
 
         for project in filtered_projects:
             mlrun.api.crud.Projects().store_project(
@@ -284,7 +284,9 @@ class Member(
             )
         if full_sync:
             logger.info("Performing full sync")
-            leader_project_names = [project.metadata.name for project in projects]
+            leader_project_names = [
+                project.metadata.name for project in leader_projects
+            ]
             projects_to_remove = list(
                 set(db_projects.projects).difference(leader_project_names)
             )

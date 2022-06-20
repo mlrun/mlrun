@@ -132,7 +132,7 @@ def new_project(
     :param secrets:      key:secret dict or SecretsStore used to download sources
     :param description:  text describing the project
     :param subpath:      project subpath (relative to the context dir)
-    :param skip_save:    do not save the created project in the DB
+    :param skip_save:    do not save the created project to the DB
 
     :returns: project object
     """
@@ -182,6 +182,7 @@ def load_project(
     subpath: str = None,
     clone: bool = False,
     user_project: bool = False,
+    skip_save: bool = False,
 ) -> "MlrunProject":
     """Load an MLRun project from git or tar or dir
 
@@ -202,6 +203,7 @@ def load_project(
     :param subpath:      project subpath (within the archive)
     :param clone:        if True, always clone (delete any existing content)
     :param user_project: add the current user name to the project name (for db:// prefixes)
+    :param skip_save:    do not save the created project and artifact to the DB
 
     :returns: project object
     """
@@ -249,7 +251,9 @@ def load_project(
             project.spec.branch = repo.active_branch.name
         except Exception:
             pass
-    project.register_artifacts()
+    if not skip_save and mlrun.mlconf.dbpath:
+        project.save()
+        project.register_artifacts()
     mlrun.mlconf.default_project = project.metadata.name
     pipeline_context.set(project)
     return project
@@ -265,6 +269,7 @@ def get_or_create_project(
     clone: bool = False,
     user_project: bool = False,
     from_template: str = None,
+    skip_save: bool = False,
 ) -> "MlrunProject":
     """Load a project from MLRun DB, or create/import if doesnt exist
 
@@ -286,7 +291,7 @@ def get_or_create_project(
     :param clone:        if True, always clone (delete any existing content)
     :param user_project: add the current user name to the project name (for db:// prefixes)
     :param from_template:     path to project YAML file that will be used as from_template (for new projects)
-
+    :param skip_save:    do not save the created project to the DB
     :returns: project object
     """
 
@@ -301,6 +306,7 @@ def get_or_create_project(
             subpath=subpath,
             clone=clone,
             user_project=user_project,
+            skip_save=skip_save,
         )
         logger.info(f"loaded project {name} from MLRun DB")
         return project
@@ -318,6 +324,7 @@ def get_or_create_project(
                 subpath=subpath,
                 clone=clone,
                 user_project=user_project,
+                skip_save=skip_save,
             )
             logger.info(f"loaded project {name} from {url} or context")
         else:
@@ -330,9 +337,10 @@ def get_or_create_project(
                 from_template=from_template,
                 secrets=secrets,
                 subpath=subpath,
+                skip_save=skip_save,
             )
             logger.info(f"created and saved project {name}")
-        project.save_to_db()
+        # project.save_to_db()
         return project
 
 

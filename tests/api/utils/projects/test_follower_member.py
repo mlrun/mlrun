@@ -46,15 +46,23 @@ def test_sync_projects(
     projects_follower: mlrun.api.utils.projects.follower.Member,
     nop_leader: mlrun.api.utils.projects.remotes.leader.Member,
 ):
-    project_nothing_changed = _generate_project(name="name-1")
+    project_nothing_changed = _generate_project(name="project-nothing-changed")
     project_in_creation = _generate_project(
-        name="name-2", state=mlrun.api.schemas.ProjectState.creating
+        name="project-in-creation", state=mlrun.api.schemas.ProjectState.creating
     )
     project_in_deletion = _generate_project(
-        name="name-3", state=mlrun.api.schemas.ProjectState.deleting
+        name="project-in-deletion", state=mlrun.api.schemas.ProjectState.deleting
+    )
+    project_will_be_in_deleting = _generate_project(
+        name="project-will-be-in-deleting",
+        state=mlrun.api.schemas.ProjectState.creating,
+    )
+    project_moved_to_deletion = _generate_project(
+        name=project_will_be_in_deleting.metadata.name,
+        state=mlrun.api.schemas.ProjectState.deleting,
     )
     project_will_be_offline = _generate_project(
-        name="name-4", state=mlrun.api.schemas.ProjectState.online
+        name="project-will-be-offline", state=mlrun.api.schemas.ProjectState.online
     )
     project_offline = _generate_project(
         name=project_will_be_offline.metadata.name,
@@ -66,6 +74,7 @@ def test_sync_projects(
         project_in_creation,
         project_will_be_offline,
         project_only_in_db,
+        project_will_be_in_deleting,
     ]:
         projects_follower.create_project(db, _project)
     nop_leader_list_projects_mock = unittest.mock.Mock(
@@ -75,6 +84,7 @@ def test_sync_projects(
                 project_in_creation,
                 project_in_deletion,
                 project_offline,
+                project_moved_to_deletion,
             ],
             None,
         )
@@ -89,6 +99,7 @@ def test_sync_projects(
             project_in_creation,
             project_offline,
             project_only_in_db,
+            project_moved_to_deletion,
         ],
     )
 
@@ -100,7 +111,12 @@ def test_sync_projects(
     _assert_list_projects(
         db,
         projects_follower,
-        [project_nothing_changed, project_in_creation, project_offline],
+        [
+            project_nothing_changed,
+            project_in_creation,
+            project_offline,
+            project_moved_to_deletion,
+        ],
     )
 
 

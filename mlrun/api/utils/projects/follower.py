@@ -29,7 +29,6 @@ class Member(
 ):
     def initialize(self):
         logger.info("Initializing projects follower")
-        self._projects: typing.Dict[str, mlrun.api.schemas.Project] = {}
         self._leader_name = mlrun.mlconf.httpdb.projects.leader
         self._sync_session = None
         self._leader_client: mlrun.api.utils.projects.remotes.leader.Member
@@ -264,27 +263,27 @@ class Member(
         projects, latest_updated_at = self._leader_client.list_projects(
             self._sync_session, self._synced_until_datetime
         )
+        db_session = mlrun.api.db.session.create_session()
+        db_projects = mlrun.api.crud.Projects().list_projects(
+            db_session, format_=mlrun.api.schemas.ProjectsFormat.name_only
+        )
         # Don't add projects in non terminal state if they didn't exist before to prevent race conditions
         filtered_projects = []
         for project in projects:
             if (
                 project.status.state
                 not in mlrun.api.schemas.ProjectState.terminal_states()
-                and project.metadata.name not in self._projects
+                and project.metadata.name not in db_projects.projects
             ):
                 continue
             filtered_projects.append(project)
 
-        db_session = mlrun.api.db.session.create_session()
         for project in filtered_projects:
             mlrun.api.crud.Projects().store_project(
                 db_session, project.metadata.name, project
             )
         if full_sync:
             logger.info("Performing full sync")
-            db_projects = mlrun.api.crud.Projects().list_projects(
-                db_session, format_=mlrun.api.schemas.ProjectsFormat.name_only
-            )
             leader_project_names = [project.metadata.name for project in projects]
             projects_to_remove = list(
                 set(db_projects.projects).difference(leader_project_names)

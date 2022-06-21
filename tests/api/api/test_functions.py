@@ -143,17 +143,12 @@ def test_redirection_from_worker_to_chief_only_if_function_with_track_models(
         "Client",
         lambda *args, **kwargs: handler_mock,
     )
-    mlrun.api.api.endpoints.functions._build_function = unittest.mock.Mock(
-        return_value=(function, True)
-    )
 
     json_body = mlrun.utils.dict_to_json(_generate_build_function_request(function))
     client.post(endpoint, data=json_body)
     # no schedule inside job body, expecting to be run in worker
-    assert mlrun.api.api.endpoints.functions._build_function.call_count == 1
     assert handler_mock._proxy_request_to_chief.call_count == 0
 
-    mlrun.api.api.endpoints.functions._build_function.reset_mock()
     function_with_track_models = mlrun.new_function(
         name=function_name,
         project=PROJECT,
@@ -162,14 +157,10 @@ def test_redirection_from_worker_to_chief_only_if_function_with_track_models(
         image="mlrun/mlrun",
     )
     function_with_track_models.spec.track_models = True
-    mlrun.api.api.endpoints.functions._build_function = unittest.mock.Mock(
-        return_value=(function_with_track_models, True)
-    )
     json_body = mlrun.utils.dict_to_json(
         _generate_build_function_request(function_with_track_models)
     )
     client.post(endpoint, data=json_body)
-    assert mlrun.api.api.endpoints.functions._build_function.call_count == 0
     assert handler_mock._proxy_request_to_chief.call_count == 1
 
 

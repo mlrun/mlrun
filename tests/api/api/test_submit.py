@@ -262,14 +262,16 @@ def test_redirection_from_worker_to_chief_only_if_schedules_in_job(
 
     mlrun.api.api.utils._submit_run = unittest.mock.Mock(return_value=("", "", "", {}))
     submit_job_body = _create_submit_job_body_with_schedule(function, project)
-    client.post("submit_job", json=submit_job_body)
+    json_body = mlrun.utils.dict_to_json(submit_job_body)
+    client.post("submit_job", data=json_body)
     assert mlrun.api.api.utils._submit_run.call_count == 0
     assert handler_mock._proxy_request_to_chief.call_count == 1
 
     handler_mock._proxy_request_to_chief.reset_mock()
 
     submit_job_body = _create_submit_job_body(function, project)
-    client.post("submit_job", json=submit_job_body)
+    json_body = mlrun.utils.dict_to_json(submit_job_body)
+    client.post("submit_job", data=json_body)
     # no schedule inside job body, expecting to be run in worker
     assert mlrun.api.api.utils._submit_run.call_count == 1
     assert handler_mock._proxy_request_to_chief.call_count == 0

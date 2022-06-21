@@ -3,15 +3,17 @@ import http
 import unittest.mock
 from http import HTTPStatus
 
+import fastapi.testclient
 import httpx
 import kubernetes.client.rest
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
+import sqlalchemy.orm
 
 import mlrun.api.api.endpoints.functions
+import mlrun.api.api.utils
 import mlrun.api.crud
 import mlrun.api.schemas
+import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.artifacts.dataset
@@ -21,9 +23,12 @@ import tests.api.api.utils
 import tests.conftest
 
 PROJECT = "project-name"
+ORIGINAL_VERSIONED_API_PREFIX = mlrun.api.main.BASE_VERSIONED_API_PREFIX
 
 
-def test_build_status_pod_not_found(db: Session, client: TestClient):
+def test_build_status_pod_not_found(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+):
     tests.api.api.utils.create_project(client, PROJECT)
     function = {
         "kind": "job",
@@ -61,7 +66,7 @@ def test_build_status_pod_not_found(db: Session, client: TestClient):
 
 @pytest.mark.asyncio
 async def test_multiple_store_function_race_condition(
-    db: Session, async_client: httpx.AsyncClient
+    db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient
 ):
     """
     This is testing the case that the retry_on_conflict decorator is coming to solve, see its docstring for more details
@@ -109,7 +114,78 @@ async def test_multiple_store_function_race_condition(
     )
 
 
-def test_build_function_with_mlrun_bool(db: Session, client: TestClient):
+def test_redirection_from_worker_to_chief_only_if_function_with_track_models(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    httpserver,
+    monkeypatch,
+):
+    mlrun.mlconf.httpdb.clusterization.role = "worker"
+    endpoint = f"{ORIGINAL_VERSIONED_API_PREFIX}/build/function"
+    tests.api.api.utils.create_project(client, PROJECT)
+
+    function_name = "test-function"
+    function_tag = "latest"
+    function = mlrun.new_function(
+        name=function_name,
+        project=PROJECT,
+        tag=function_tag,
+        kind="serving",
+        image="mlrun/mlrun",
+    )
+
+    handler_mock = mlrun.api.utils.clients.chief.Client()
+    handler_mock._proxy_request_to_chief = unittest.mock.Mock(
+        return_value=fastapi.Response()
+    )
+    monkeypatch.setattr(
+        mlrun.api.utils.clients.chief,
+        "Client",
+        lambda *args, **kwargs: handler_mock,
+    )
+    mlrun.api.api.endpoints.functions._build_function = unittest.mock.Mock(
+        return_value=(function, True)
+    )
+
+    json_body = mlrun.utils.dict_to_json(_generate_build_function_request(function))
+    client.post(endpoint, data=json_body)
+    # no schedule inside job body, expecting to be run in worker
+    assert mlrun.api.api.endpoints.functions._build_function.call_count == 1
+    assert handler_mock._proxy_request_to_chief.call_count == 0
+
+    mlrun.api.api.endpoints.functions._build_function.reset_mock()
+    function_with_track_models = mlrun.new_function(
+        name=function_name,
+        project=PROJECT,
+        tag=function_tag,
+        kind="serving",
+        image="mlrun/mlrun",
+    )
+    function_with_track_models.spec.track_models = True
+    mlrun.api.api.endpoints.functions._build_function = unittest.mock.Mock(
+        return_value=(function_with_track_models, True)
+    )
+    json_body = mlrun.utils.dict_to_json(
+        _generate_build_function_request(function_with_track_models)
+    )
+    client.post(endpoint, data=json_body)
+    assert mlrun.api.api.endpoints.functions._build_function.call_count == 0
+    assert handler_mock._proxy_request_to_chief.call_count == 1
+
+
+def _generate_build_function_request(
+    func, with_mlrun: bool = True, skip_deployed: bool = False
+):
+    return {
+        "function": func.to_dict(),
+        "with_mlrun": "yes" if with_mlrun else "false",
+        "skip_deployed": skip_deployed,
+    }
+
+
+def test_build_function_with_mlrun_bool(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+):
     tests.api.api.utils.create_project(client, PROJECT)
 
     function_dict = {
@@ -142,7 +218,9 @@ def test_build_function_with_mlrun_bool(db: Session, client: TestClient):
     mlrun.api.api.endpoints.functions._build_function = original_build_function
 
 
-def test_start_function_succeeded(db: Session, client: TestClient, monkeypatch):
+def test_start_function_succeeded(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, monkeypatch
+):
     name = "dask"
     project = "test-dask"
     dask_cluster = mlrun.new_function(name, project=project, kind="dask")
@@ -177,7 +255,9 @@ def test_start_function_succeeded(db: Session, client: TestClient, monkeypatch):
     )
 
 
-def test_start_function_fails(db: Session, client: TestClient, monkeypatch):
+def test_start_function_fails(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, monkeypatch
+):
     def failing_func():
         raise mlrun.errors.MLRunRuntimeError()
 
@@ -213,7 +293,9 @@ def test_start_function_fails(db: Session, client: TestClient, monkeypatch):
     assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.failed
 
 
-def test_start_function(db: Session, client: TestClient, monkeypatch):
+def test_start_function(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, monkeypatch
+):
     def failing_func():
         raise mlrun.errors.MLRunRuntimeError()
 

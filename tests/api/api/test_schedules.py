@@ -95,7 +95,7 @@ def test_redirection_from_worker_to_chief_create_schedule(
     ]:
         expected_status = test_case.get("expected_status")
         expected_response = test_case.get("expected_body")
-        schedule = test_case.get("body")
+        body = test_case.get("body")
         create_project = test_case.get("create_project", True)
         expect_response_from_chief = test_case.get("expect_response_from_chief", True)
 
@@ -107,7 +107,6 @@ def test_redirection_from_worker_to_chief_create_schedule(
             ).respond_with_json(expected_response, status=expected_status)
             url = httpserver.url_for("")
             mlrun.mlconf.httpdb.clusterization.chief.url = url
-        body = mlrun.utils.dict_to_json(schedule.dict())
         response = client.post(endpoint, data=body)
         assert response.status_code == expected_status
         assert response.json() == expected_response
@@ -154,14 +153,13 @@ def test_redirection_from_worker_to_chief_update_schedule(
     ]:
         expected_status = test_case.get("expected_status")
         expected_response = test_case.get("expected_body")
-        schedule = test_case.get("body")
+        body = test_case.get("body")
 
         httpserver.expect_ordered_request(endpoint, method="PUT").respond_with_json(
             expected_response, status=expected_status
         )
         url = httpserver.url_for("")
         mlrun.mlconf.httpdb.clusterization.chief.url = url
-        body = mlrun.utils.dict_to_json(schedule.dict())
         response = client.put(endpoint, data=body)
         assert response.status_code == expected_status
         assert response.json() == expected_response
@@ -277,12 +275,15 @@ def _get_and_assert_single_schedule(
     assert result[0]["name"] == schedule_name
 
 
-def _create_schedule(schedule_name: str = None):
+def _create_schedule(schedule_name: str = None, to_json: bool = True):
     if not schedule_name:
         schedule_name = f"schedule-name-{str(uuid.uuid4())}"
-    return mlrun.api.schemas.ScheduleInput(
+    schedule = mlrun.api.schemas.ScheduleInput(
         name=schedule_name,
         kind=mlrun.api.schemas.ScheduleKinds.job,
         scheduled_object={"metadata": {"name": "something"}},
         cron_trigger=mlrun.api.schemas.ScheduleCronTrigger(year=1999),
     )
+    if not to_json:
+        return schedule
+    return mlrun.utils.dict_to_json(schedule.dict())

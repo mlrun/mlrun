@@ -95,22 +95,6 @@ def pod_create_mock():
     )
 
 
-def _create_submit_job_body(function, project):
-    return {
-        "task": {
-            "spec": {"output_path": "/some/fictive/path/to/make/everybody/happy"},
-            "metadata": {"name": "task1", "project": project},
-        },
-        "function": function.to_dict(),
-    }
-
-
-def _create_submit_job_body_with_schedule(function, project):
-    job_body = _create_submit_job_body(function, project)
-    job_body["schedule"] = mlrun.api.schemas.ScheduleCronTrigger(year=1999).dict()
-    return job_body
-
-
 def test_submit_job_auto_mount(
     db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock
 ) -> None:
@@ -325,6 +309,22 @@ def test_redirection_from_worker_to_chief_submit_job_with_schedule(
         response = client.post(endpoint, data=json_body)
         assert response.status_code == expected_status
         assert response.json() == expected_response
+
+
+def _create_submit_job_body(function, project):
+    return {
+        "task": {
+            "spec": {"output_path": "/some/fictive/path/to/make/everybody/happy"},
+            "metadata": {"name": "task1", "project": project},
+        },
+        "function": function.to_dict(),
+    }
+
+
+def _create_submit_job_body_with_schedule(function, project):
+    job_body = _create_submit_job_body(function, project)
+    job_body["schedule"] = mlrun.api.schemas.ScheduleCronTrigger(year=1999).dict()
+    return job_body
 
 
 def _assert_pod_env_vars(pod_create_mock, expected_env_vars):

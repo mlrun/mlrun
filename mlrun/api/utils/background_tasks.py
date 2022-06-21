@@ -96,7 +96,7 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
             str, mlrun.api.schemas.BackgroundTask
         ] = {}
 
-    @mlrun.api.utils.helpers.run_only_on_chief
+    @mlrun.api.utils.helpers.run_on_chief_only
     def create_background_task(
         self,
         background_tasks: fastapi.BackgroundTasks,
@@ -120,7 +120,7 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
 
         return self.get_background_task(name)
 
-    @mlrun.api.utils.helpers.run_only_on_chief
+    @mlrun.api.utils.helpers.run_on_chief_only
     def get_background_task(
         self,
         name: str,
@@ -133,7 +133,7 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         else:
             return self._generate_background_task_not_found_response(name)
 
-    @mlrun.api.utils.helpers.run_only_on_chief
+    @mlrun.api.utils.helpers.run_on_chief_only
     async def background_task_wrapper(self, name: str, function, *args, **kwargs):
         try:
             if asyncio.iscoroutinefunction(function):
@@ -152,7 +152,7 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
                 name, mlrun.api.schemas.BackgroundTaskState.succeeded
             )
 
-    @mlrun.api.utils.helpers.run_only_on_chief
+    @mlrun.api.utils.helpers.run_on_chief_only
     def _update_background_task(
         self,
         name: str,
@@ -163,7 +163,7 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         background_task.metadata.updated = datetime.datetime.utcnow()
 
     @staticmethod
-    @mlrun.api.utils.helpers.run_only_on_chief
+    @mlrun.api.utils.helpers.run_on_chief_only
     def _generate_background_task_not_found_response(
         name: str, project: typing.Optional[str] = None
     ):
@@ -181,7 +181,7 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         )
 
     @staticmethod
-    @mlrun.api.utils.helpers.run_only_on_chief
+    @mlrun.api.utils.helpers.run_on_chief_only
     def _generate_background_task(
         name: str, project: typing.Optional[str] = None
     ) -> mlrun.api.schemas.BackgroundTask:

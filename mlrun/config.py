@@ -152,7 +152,8 @@ default_config = {
                 "service": "mlrun-api-chief",
                 "port": 8080,
             },
-            "fail_on_running_chief_functions_in_worker_mode": "enabled",
+            # see mlrun.api.utils.helpers.run_on_chief_only
+            "raise_running_chief_functions_on_worker_mode": "enabled",
         },
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),

@@ -125,14 +125,7 @@ def test_redirection_from_worker_to_chief_only_if_function_with_track_models(
     tests.api.api.utils.create_project(client, PROJECT)
 
     function_name = "test-function"
-    function_tag = "latest"
-    function = mlrun.new_function(
-        name=function_name,
-        project=PROJECT,
-        tag=function_tag,
-        kind="serving",
-        image="mlrun/mlrun",
-    )
+    function = _generate_function(function_name)
 
     handler_mock = mlrun.api.utils.clients.chief.Client()
     handler_mock._proxy_request_to_chief = unittest.mock.Mock(
@@ -144,22 +137,14 @@ def test_redirection_from_worker_to_chief_only_if_function_with_track_models(
         lambda *args, **kwargs: handler_mock,
     )
 
-    json_body = mlrun.utils.dict_to_json(_generate_build_function_request(function))
+    json_body = _generate_build_function_request(function)
     client.post(endpoint, data=json_body)
     # no schedule inside job body, expecting to be run in worker
     assert handler_mock._proxy_request_to_chief.call_count == 0
 
-    function_with_track_models = mlrun.new_function(
-        name=function_name,
-        project=PROJECT,
-        tag=function_tag,
-        kind="serving",
-        image="mlrun/mlrun",
-    )
+    function_with_track_models = _generate_function(function_name)
     function_with_track_models.spec.track_models = True
-    json_body = mlrun.utils.dict_to_json(
-        _generate_build_function_request(function_with_track_models)
-    )
+    json_body = _generate_build_function_request(function_with_track_models)
     client.post(endpoint, data=json_body)
     assert handler_mock._proxy_request_to_chief.call_count == 1
 
@@ -172,19 +157,10 @@ def test_redirection_from_worker_to_chief_submit_job_with_schedule(
     tests.api.api.utils.create_project(client, PROJECT)
 
     function_name = "test-function"
-    function_tag = "latest"
-    function_with_track_models = mlrun.new_function(
-        name=function_name,
-        project=PROJECT,
-        tag=function_tag,
-        kind="serving",
-        image="mlrun/mlrun",
-    )
+    function_with_track_models = _generate_function(function_name)
     function_with_track_models.spec.track_models = True
 
-    json_body = mlrun.utils.dict_to_json(
-        _generate_build_function_request(function_with_track_models)
-    )
+    json_body = _generate_build_function_request(function_with_track_models)
 
     for test_case in [
         {
@@ -395,11 +371,27 @@ def test_start_function(
         assert background_task.status.state == expected_status_result
 
 
-def _generate_build_function_request(
-    func, with_mlrun: bool = True, skip_deployed: bool = False
+def _generate_function(
+    function_name: str, project: str = PROJECT, function_tag: str = "latest"
 ):
-    return {
+    return mlrun.new_function(
+        name=function_name,
+        project=project,
+        tag=function_tag,
+        kind="serving",
+        image="mlrun/mlrun",
+    )
+
+
+def _generate_build_function_request(
+    func, with_mlrun: bool = True, skip_deployed: bool = False, to_json: bool = True
+):
+
+    request = {
         "function": func.to_dict(),
         "with_mlrun": "yes" if with_mlrun else "false",
         "skip_deployed": skip_deployed,
     }
+    if not to_json:
+        return request
+    return mlrun.utils.dict_to_json(request)

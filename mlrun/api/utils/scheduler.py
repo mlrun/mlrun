@@ -27,7 +27,8 @@ from mlrun.utils import logger
 class Scheduler:
     """
     When using scheduler for create/update/delete/invoke or any other method that effects the scheduler behavior
-    make sure you are only running them in chief. For more information head over to
+    make sure you are only running them in chief.
+    For more information head over to https://github.com/mlrun/mlrun/pull/2059
     """
 
     _secret_username_subtype = "username"
@@ -43,7 +44,7 @@ class Scheduler:
         self._min_allowed_interval = config.httpdb.scheduling.min_allowed_interval
         self._secrets_provider = schemas.SecretProviderName.kubernetes
 
-    @mlrun.api.utils.helpers.run_only_on_chief
+    @mlrun.api.utils.helpers.run_on_chief_only
     async def start(self, db_session: Session):
         logger.info("Starting scheduler")
         self._scheduler.start()
@@ -64,7 +65,7 @@ class Scheduler:
         # https://github.com/agronholm/apscheduler/issues/360 - this sleep make them work
         await asyncio.sleep(0)
 
-    @mlrun.api.utils.helpers.run_only_on_chief
+    @mlrun.api.utils.helpers.run_on_chief_only
     def create_schedule(
         self,
         db_session: Session,
@@ -116,7 +117,7 @@ class Scheduler:
             auth_info,
         )
 
-    @mlrun.api.utils.helpers.run_only_on_chief
+    @mlrun.api.utils.helpers.run_on_chief_only
     def update_schedule(
         self,
         db_session: Session,
@@ -205,7 +206,7 @@ class Scheduler:
             db_session, db_schedule, include_last_run, include_credentials
         )
 
-    @mlrun.api.utils.helpers.run_only_on_chief
+    @mlrun.api.utils.helpers.run_on_chief_only
     def delete_schedule(
         self,
         db_session: Session,
@@ -216,7 +217,7 @@ class Scheduler:
         self._remove_schedule_scheduler_resources(project, name)
         get_db().delete_schedule(db_session, project, name)
 
-    @mlrun.api.utils.helpers.run_only_on_chief
+    @mlrun.api.utils.helpers.run_on_chief_only
     def delete_schedules(
         self,
         db_session: Session,
@@ -242,7 +243,7 @@ class Scheduler:
         if job:
             self._scheduler.remove_job(job_id)
 
-    @mlrun.api.utils.helpers.run_only_on_chief
+    @mlrun.api.utils.helpers.run_on_chief_only
     async def invoke_schedule(
         self,
         db_session: Session,
@@ -481,7 +482,7 @@ class Scheduler:
                     f"per {self._min_allowed_interval} is allowed"
                 )
 
-    @mlrun.api.utils.helpers.run_only_on_chief
+    @mlrun.api.utils.helpers.run_on_chief_only
     def _create_schedule_in_scheduler(
         self,
         project: str,
@@ -512,7 +513,7 @@ class Scheduler:
             max_instances=concurrency_limit,
         )
 
-    @mlrun.api.utils.helpers.run_only_on_chief
+    @mlrun.api.utils.helpers.run_on_chief_only
     def _update_schedule_in_scheduler(
         self,
         project: str,

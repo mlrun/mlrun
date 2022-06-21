@@ -199,7 +199,7 @@ async def build_function(
     )
 
     # schedules are meant to be run solely by the chief then if track_models is enabled, it means that schedules
-    # will be created as part of building the function, and if not chief then redirect to chief
+    # will be created as part of building the function, and if not chief then redirect to chief.
     # to reduce redundant load on the chief, we forward the request only if the user has permissions
     if function.get("spec", {}).get("track_models", False):
         if (

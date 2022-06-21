@@ -197,7 +197,7 @@ class Client(
             if raise_on_failure:
                 mlrun.errors.raise_for_status(response)
             return response
-        # there are some responses like NO-CONTENT which doesn't returns json body
+        # there are some responses like NO-CONTENT which doesn't return a json body
         try:
             data = response.json()
         except Exception:

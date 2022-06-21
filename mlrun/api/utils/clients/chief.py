@@ -110,7 +110,7 @@ class Client(
 
     def _proxy_request_to_chief(
         self, method, path, raise_on_failure: bool = False, **kwargs
-    ):
+    ) -> fastapi.Response:
         chief_response = self._send_request_to_api(
             method=method, path=path, raise_on_failure=raise_on_failure, **kwargs
         )
@@ -197,11 +197,16 @@ class Client(
             if raise_on_failure:
                 mlrun.errors.raise_for_status(response)
             return response
+        # there are some responses like NO-CONTENT which doesn't returns json body
+        try:
+            data = response.json()
+        except Exception:
+            data = response.text
         logger.debug(
             "Request to chief succeeded",
             method=method,
             url=url,
             **kwargs,
-            response=response.json(),
+            response=data,
         )
         return response

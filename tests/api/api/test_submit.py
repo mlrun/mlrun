@@ -1,18 +1,26 @@
+import http
 import unittest.mock
 from http import HTTPStatus
 
+import fastapi.testclient
 import pytest
+import sqlalchemy.orm
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun
+import mlrun.api.api.utils
+import mlrun.api.main
 import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.clients.chief
 import mlrun.api.utils.clients.iguazio
 import tests.api.api.utils
 from mlrun.api.schemas import AuthInfo
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config as mlconf
 from tests.api.conftest import K8sSecretsMock
+
+ORIGINAL_VERSIONED_API_PREFIX = mlrun.api.main.BASE_VERSIONED_API_PREFIX
 
 
 def test_submit_job_failure_function_not_found(db: Session, client: TestClient) -> None:
@@ -95,6 +103,12 @@ def _create_submit_job_body(function, project):
         },
         "function": function.to_dict(),
     }
+
+
+def _create_submit_job_body_with_schedule(function, project):
+    job_body = _create_submit_job_body(function, project)
+    job_body["schedule"] = mlrun.api.schemas.ScheduleCronTrigger(year=1999).dict()
+    return job_body
 
 
 def test_submit_job_auto_mount(
@@ -213,6 +227,105 @@ def test_submit_job_service_accounts(
     resp = client.post("submit_job", json=submit_job_body)
     assert resp
     _assert_pod_service_account(pod_create_mock, "sa3")
+
+
+def test_redirection_from_worker_to_chief_only_if_schedules_in_job(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    httpserver,
+    monkeypatch,
+):
+    mlrun.mlconf.httpdb.clusterization.role = "worker"
+
+    project = "test-project"
+    function_name = "test-function"
+    function_tag = "latest"
+
+    tests.api.api.utils.create_project(client, project)
+    function = mlrun.new_function(
+        name=function_name,
+        project=project,
+        tag=function_tag,
+        kind="job",
+        image="mlrun/mlrun",
+    )
+
+    handler_mock = mlrun.api.utils.clients.chief.Client()
+    handler_mock._proxy_request_to_chief = unittest.mock.Mock(
+        return_value=fastapi.Response()
+    )
+    monkeypatch.setattr(
+        mlrun.api.utils.clients.chief,
+        "Client",
+        lambda *args, **kwargs: handler_mock,
+    )
+
+    mlrun.api.api.utils._submit_run = unittest.mock.Mock(return_value=("", "", "", {}))
+    submit_job_body = _create_submit_job_body_with_schedule(function, project)
+    client.post("submit_job", json=submit_job_body)
+    assert mlrun.api.api.utils._submit_run.call_count == 0
+    assert handler_mock._proxy_request_to_chief.call_count == 1
+
+    handler_mock._proxy_request_to_chief.reset_mock()
+
+    submit_job_body = _create_submit_job_body(function, project)
+    client.post("submit_job", json=submit_job_body)
+    # no schedule inside job body, expecting to be run in worker
+    assert mlrun.api.api.utils._submit_run.call_count == 1
+    assert handler_mock._proxy_request_to_chief.call_count == 0
+
+
+def test_redirection_from_worker_to_chief_submit_job_with_schedule(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
+):
+    mlrun.mlconf.httpdb.clusterization.role = "worker"
+    endpoint = f"{ORIGINAL_VERSIONED_API_PREFIX}/submit_job"
+    project = "test-project"
+
+    function_name = "test-function"
+    function_tag = "latest"
+    function = mlrun.new_function(
+        name=function_name,
+        project=project,
+        tag=function_tag,
+        kind="job",
+        image="mlrun/mlrun",
+    )
+
+    tests.api.api.utils.create_project(client, project)
+    submit_job_body = _create_submit_job_body_with_schedule(function, project)
+
+    for test_case in [
+        {
+            "body": submit_job_body,
+            "expected_status": http.HTTPStatus.OK.value,
+            "expected_body": {
+                "data": {
+                    "schedule": submit_job_body["schedule"],
+                    "project": project,
+                    "name": function_name,
+                }
+            },
+        },
+        {
+            "body": submit_job_body,
+            "expected_status": http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
+            "expected_body": {"detail": {"reason": "Unknown error"}},
+        },
+    ]:
+        expected_status = test_case.get("expected_status")
+        expected_response = test_case.get("expected_body")
+        body = test_case.get("body")
+
+        httpserver.expect_ordered_request(endpoint, method="POST").respond_with_json(
+            expected_response, status=expected_status
+        )
+        url = httpserver.url_for("")
+        mlrun.mlconf.httpdb.clusterization.chief.url = url
+        json_body = mlrun.utils.dict_to_json(body)
+        response = client.post(endpoint, data=json_body)
+        assert response.status_code == expected_status
+        assert response.json() == expected_response
 
 
 def _assert_pod_env_vars(pod_create_mock, expected_env_vars):

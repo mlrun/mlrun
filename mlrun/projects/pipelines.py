@@ -562,6 +562,10 @@ class _LocalRunner(_PipelineRunner):
     def get_state(run_id, project=None):
         return ""
 
+    @staticmethod
+    def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
+        pass
+
 
 class _RemoteRunner(_PipelineRunner):
     """remote pipelines runner"""
@@ -571,7 +575,7 @@ class _RemoteRunner(_PipelineRunner):
     @classmethod
     def run(
         cls,
-        project,
+        project : mlrun.projects.MlrunProject,
         workflow_spec: WorkflowSpec,
         name=None,
         workflow_handler=None,
@@ -601,7 +605,7 @@ class _RemoteRunner(_PipelineRunner):
                 params=params,
                 handler=mlrun.projects.pipelines.load_and_run,
                 auto_build=True,
-                local=True,
+                local=False,
                 schedule=schedule,
             )
             state = mlrun.run.RunStatuses.succeeded
@@ -619,6 +623,10 @@ class _RemoteRunner(_PipelineRunner):
         return _PipelineRunStatus(
             workflow_id, cls, project=project, workflow=workflow_spec, state=state
         )
+
+    @staticmethod
+    def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
+        pass
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):

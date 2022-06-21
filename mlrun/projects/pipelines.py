@@ -397,6 +397,7 @@ class _PipelineRunner(abc.ABC):
         secrets=None,
         artifact_path=None,
         namespace=None,
+        schedule=None,
     ) -> _PipelineRunStatus:
         return None
 
@@ -459,6 +460,7 @@ class _KFPRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
+        schedule=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -522,6 +524,7 @@ class _LocalRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
+        schedule=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(

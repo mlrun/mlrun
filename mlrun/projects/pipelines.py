@@ -577,7 +577,6 @@ class _RemoteRunner(_PipelineRunner):
         namespace=None,
         schedule=None,
     ) -> _PipelineRunStatus:
-        # pipeline_context.set(project, workflow_spec)
         workflow_id = uuid.uuid4().hex
         logger.info(workflow_spec.to_dict())
         try:
@@ -593,9 +592,9 @@ class _RemoteRunner(_PipelineRunner):
             params = workflow_spec.args.copy() if workflow_spec.args else {}
             params['workflow_name'] = name
             params['local'] = workflow_spec.run_local
-            # params[]
+
             fn.run(
-                params=workflow_spec.args,
+                params=params,
                 handler='load_and_run',
                 auto_build=True,
                 local=False,

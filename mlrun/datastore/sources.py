@@ -812,7 +812,7 @@ class KafkaSource(OnlineSource):
     def add_nuclio_trigger(self, function):
         partitions = self.attributes.get("partitions")
         trigger = KafkaTrigger(
-            brokers=self.attributes["brokers"].split(","),
+            brokers=self.attributes["brokers"],
             topics=self.attributes["topics"],
             partitions=partitions,
             consumer_group=self.attributes["group"],

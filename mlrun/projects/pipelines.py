@@ -594,7 +594,7 @@ class _RemoteRunner(_PipelineRunner):
             logger.info('Running the function that invokes the workflow remotely')
             # Preparing parameters for load_and_run function:
             params = workflow_spec.args.copy() if workflow_spec.args else {}
-            params['workflow_name'] = name
+            params['workflow_name'] = name.split('-')[-1] if f'{project.name}-' in name else name
             params['local'] = workflow_spec.run_local
 
             fn.run(

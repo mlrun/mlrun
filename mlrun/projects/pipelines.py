@@ -596,13 +596,12 @@ class _RemoteRunner(_PipelineRunner):
             params = workflow_spec.args.copy() if workflow_spec.args else {}
             params['workflow_name'] = name
             params['local'] = workflow_spec.run_local
-            param_keys = [k for k in params.keys()]
-            logger.info(f'parameters for load_and_run: {param_keys}')
+
             fn.run(
                 params=params,
                 handler=mlrun.projects.pipelines.load_and_run,
                 auto_build=True,
-                local=False,
+                local=True,
                 schedule=schedule,
             )
             state = mlrun.run.RunStatuses.succeeded

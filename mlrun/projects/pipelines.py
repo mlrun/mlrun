@@ -577,7 +577,7 @@ class _RemoteRunner(_PipelineRunner):
     @classmethod
     def run(
         cls,
-        project : mlrun.projects.MlrunProject,
+        project,
         workflow_spec: WorkflowSpec,
         name=None,
         workflow_handler=None,

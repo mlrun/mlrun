@@ -178,4 +178,4 @@ child.spec.build.commands = ["python -m pip install spacy",
 graph.plot()
 ```
 
-> Currently queues only support iguazio v3io stream, Kafka support will soon be added.
+Currently queues support iguazio v3io streams and Kafka.

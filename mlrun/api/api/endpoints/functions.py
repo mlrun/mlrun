@@ -6,6 +6,7 @@ from http import HTTPStatus
 from typing import List, Optional
 
 import v3io
+import v3io.dataplane
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -248,12 +249,16 @@ async def start_function(
         mlrun.api.schemas.AuthorizationAction.update,
         auth_info,
     )
+    background_timeout = mlrun.mlconf.background_tasks.default_timeouts.runtimes.dask
 
     background_task = await run_in_threadpool(
-        mlrun.api.utils.background_tasks.Handler().create_project_background_task,
+        mlrun.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
+        db_session,
         function.metadata.project,
         background_tasks,
         _start_function,
+        background_timeout,
+        # args for _start_function
         function,
         auth_info,
         client_version,

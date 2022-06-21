@@ -10,7 +10,9 @@ import uvicorn.protocols.utils
 from fastapi.exception_handlers import http_exception_handler
 
 import mlrun.api.schemas
+import mlrun.api.utils.clients.chief
 import mlrun.errors
+import mlrun.utils
 import mlrun.utils.version
 from mlrun.api.api.api import api_router
 from mlrun.api.db.session import close_session, create_session

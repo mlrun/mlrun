@@ -7,7 +7,6 @@
 
 run-simple-jobs
 ../hyper-params
-mlrun_jobs
 <!-- track-results-artifacts
 compare-runs-artifacts --?
 ```

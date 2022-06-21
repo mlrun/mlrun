@@ -1839,6 +1839,7 @@ class MlrunProject(ModelObj):
         ttl=None,
         engine=None,
         local=None,
+        schedule=None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1859,7 +1860,10 @@ class MlrunProject(ModelObj):
         :param ttl:       pipeline ttl in secs (after that the pods will be removed)
         :param engine:    workflow engine running the workflow. supported values are 'kfp' (default) or 'local'
         :param local:     run local pipeline with local functions (set local=True in function.run())
-
+        :param schedule:  ScheduleCronTrigger class instance or a standard crontab expression string
+                          (which will be converted to the class using its `from_crontab` constructor),
+                          see this link for help:
+                          https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :returns: run id
         """
 
@@ -1908,6 +1912,7 @@ class MlrunProject(ModelObj):
             secrets=self._secrets,
             artifact_path=artifact_path,
             namespace=namespace,
+            schedule=schedule,
         )
         workflow_spec.clear_tmp()
         if watch and workflow_engine.engine == "kfp":

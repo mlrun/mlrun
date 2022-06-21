@@ -575,10 +575,11 @@ class _RemoteRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
+        schedule=None,
     ) -> _PipelineRunStatus:
         # pipeline_context.set(project, workflow_spec)
         workflow_id = uuid.uuid4().hex
-
+        logger.info(workflow_spec.to_dict())
         try:
             logger.info('Creating the function that invokes the workflow remotely')
             fn = mlrun.new_function(
@@ -588,11 +589,17 @@ class _RemoteRunner(_PipelineRunner):
                 source=project.spec.source,
             ).with_code(body=mlrun.projects.pipelines.load_and_run)
             logger.info('Running the function that invokes the workflow remotely')
+            # Preparing parameters for load_and_run function:
+            params = workflow_spec.args.copy() if workflow_spec.args else {}
+            params['workflow_name'] = name
+            params['local'] = workflow_spec.run_local
+            # params[]
             fn.run(
                 params=workflow_spec.args,
                 handler='load_and_run',
                 auto_build=True,
-                local=workflow_spec.run_local
+                local=False,
+                schedule=schedule,
             )
             state = mlrun.run.RunStatuses.succeeded
         except Exception as e:
@@ -670,7 +677,7 @@ def load_and_run(
         workflow_handler=None,
         namespace=None,
         sync: bool = False,
-        watch: bool = False,
+        # watch: bool = False,
         dirty: bool = False,
         ttl=None,
         engine=None,
@@ -697,7 +704,7 @@ def load_and_run(
         workflow_handler=workflow_handler,
         namespace=namespace,
         sync=sync,
-        watch=watch,
+        watch=True,
         dirty=dirty,
         ttl=ttl,
         engine=engine,

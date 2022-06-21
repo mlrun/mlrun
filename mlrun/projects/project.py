@@ -1899,7 +1899,7 @@ class MlrunProject(ModelObj):
         artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
         workflow_engine = get_workflow_engine(engine or workflow_spec.engine, local)
         workflow_spec.engine = workflow_engine.engine
-        print(f'workflow_spec\n{workflow_spec.to_yaml()}')
+
         run = workflow_engine.run(
             self,
             workflow_spec,

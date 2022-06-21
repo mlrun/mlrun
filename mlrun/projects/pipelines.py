@@ -576,23 +576,21 @@ class _RemoteRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
     ) -> _PipelineRunStatus:
-        pipeline_context.set(project, workflow_spec)
+        # pipeline_context.set(project, workflow_spec)
         workflow_id = uuid.uuid4().hex
 
-        # workflow_handler = cls._get_handler(
-        #     workflow_handler, workflow_spec, project, secrets
-        # )
         try:
+            logger.info('Creating the function that invokes the workflow remotely')
             fn = mlrun.new_function(
-                name=name,
+                name=f'remote_runner_{workflow_id}',
                 project=project.name,
                 kind="job",
                 source=project.spec.source,
-                # image='mlrun/mlrun',
-            )
-            logger.info(f'workflow handler name {str(workflow_handler)}')
+            ).with_code(body=mlrun.projects.pipelines.load_and_run)
+            logger.info('Running the function that invokes the workflow remotely')
             fn.run(
-                handler=workflow_handler,
+                params=workflow_spec.args,
+                handler='load_and_run',
                 auto_build=True,
                 local=workflow_spec.run_local
             )
@@ -653,3 +651,56 @@ def github_webhook(request):
         return {"msg": "Ok"}
 
     return {"msg": "pushed"}
+
+
+def load_and_run(
+        context,
+        project_context: str,
+        url: str = None,
+        project_name: str = '',
+        secrets: str = None,
+        init_git: bool = None,
+        subpath: str = None,
+        clone: bool = False,
+        user_project: bool = False,
+        workflow_name: str = None,
+        workflow_path: str = None,
+        workflow_arguments=None,
+        artifact_path: str = None,
+        workflow_handler=None,
+        namespace=None,
+        sync: bool = False,
+        watch: bool = False,
+        dirty: bool = False,
+        ttl=None,
+        engine=None,
+        local: bool = None,
+):
+    context.logger.info(f'Loading project {project_name}')
+    project = mlrun.load_project(
+        context=project_context,
+        url=url,
+        name=project_name,
+        secrets=secrets,
+        init_git=init_git,
+        subpath=subpath,
+        clone=clone,
+        user_project=user_project
+    )
+    wf_log_msg = workflow_name or workflow_path
+    context.logger.info(f'Running workflow {wf_log_msg}')
+    run = project.run(
+        name=workflow_name,
+        workflow_path=workflow_path,
+        arguments=workflow_arguments,
+        artifact_path=artifact_path,
+        workflow_handler=workflow_handler,
+        namespace=namespace,
+        sync=sync,
+        watch=watch,
+        dirty=dirty,
+        ttl=ttl,
+        engine=engine,
+        local=local
+    )
+    context

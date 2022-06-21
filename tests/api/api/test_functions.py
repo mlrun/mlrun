@@ -173,14 +173,55 @@ def test_redirection_from_worker_to_chief_only_if_function_with_track_models(
     assert handler_mock._proxy_request_to_chief.call_count == 1
 
 
-def _generate_build_function_request(
-    func, with_mlrun: bool = True, skip_deployed: bool = False
+def test_redirection_from_worker_to_chief_submit_job_with_schedule(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
 ):
-    return {
-        "function": func.to_dict(),
-        "with_mlrun": "yes" if with_mlrun else "false",
-        "skip_deployed": skip_deployed,
-    }
+    mlrun.mlconf.httpdb.clusterization.role = "worker"
+    endpoint = f"{ORIGINAL_VERSIONED_API_PREFIX}/build/function"
+    tests.api.api.utils.create_project(client, PROJECT)
+
+    function_name = "test-function"
+    function_tag = "latest"
+    function_with_track_models = mlrun.new_function(
+        name=function_name,
+        project=PROJECT,
+        tag=function_tag,
+        kind="serving",
+        image="mlrun/mlrun",
+    )
+    function_with_track_models.spec.track_models = True
+
+    json_body = mlrun.utils.dict_to_json(
+        _generate_build_function_request(function_with_track_models)
+    )
+
+    for test_case in [
+        {
+            "body": json_body,
+            "expected_status": http.HTTPStatus.OK.value,
+            "expected_body": {
+                "data": function_with_track_models.to_dict(),
+                "ready": True,
+            },
+        },
+        {
+            "body": json_body,
+            "expected_status": http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
+            "expected_body": {"detail": {"reason": "Unknown error"}},
+        },
+    ]:
+        expected_status = test_case.get("expected_status")
+        expected_response = test_case.get("expected_body")
+        body = test_case.get("body")
+
+        httpserver.expect_ordered_request(endpoint, method="POST").respond_with_json(
+            expected_response, status=expected_status
+        )
+        url = httpserver.url_for("")
+        mlrun.mlconf.httpdb.clusterization.chief.url = url
+        response = client.post(endpoint, data=body)
+        assert response.status_code == expected_status
+        assert response.json() == expected_response
 
 
 def test_build_function_with_mlrun_bool(
@@ -361,3 +402,13 @@ def test_start_function(
         assert response.status_code == http.HTTPStatus.OK.value
         background_task = mlrun.api.schemas.BackgroundTask(**response.json())
         assert background_task.status.state == expected_status_result
+
+
+def _generate_build_function_request(
+    func, with_mlrun: bool = True, skip_deployed: bool = False
+):
+    return {
+        "function": func.to_dict(),
+        "with_mlrun": "yes" if with_mlrun else "false",
+        "skip_deployed": skip_deployed,
+    }

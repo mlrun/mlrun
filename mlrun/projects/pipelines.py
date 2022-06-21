@@ -38,6 +38,8 @@ def get_workflow_engine(engine_kind, local=False):
             logger.warning(
                 "running kubeflow pipeline locally, note some ops may not run locally!"
             )
+        elif engine_kind == 'remote':
+            return _RemoteRunner
         return _LocalRunner
     if not engine_kind or engine_kind == "kfp":
         return _KFPRunner

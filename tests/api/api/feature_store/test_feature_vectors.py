@@ -367,7 +367,14 @@ def test_unversioned_feature_vector_actions(db: Session, client: TestClient) -> 
         client, project_name, feature_vector, versioned=False
     )
 
-    allowed_added_fields = ["uid", "created", "updated", "tag", "project", "publish_time"]
+    allowed_added_fields = [
+        "uid",
+        "created",
+        "updated",
+        "tag",
+        "project",
+        "publish_time",
+    ]
     _assert_diff_as_expected_except_for_specific_metadata(
         feature_vector, feature_vector_response, allowed_added_fields
     )

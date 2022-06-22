@@ -1,5 +1,6 @@
 import copy
 import datetime
+import http
 import os
 import typing
 import unittest.mock
@@ -7,13 +8,17 @@ from http import HTTPStatus
 from uuid import uuid4
 
 import deepdiff
+import fastapi.testclient
 import mergedeep
 import pytest
+import simplejson.errors
+import sqlalchemy.orm
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.api.api.utils
 import mlrun.api.crud
+import mlrun.api.main
 import mlrun.api.schemas
 import mlrun.api.utils.background_tasks
 import mlrun.api.utils.singletons.db
@@ -38,6 +43,8 @@ from mlrun.api.db.sqldb.models import (
     _classes,
 )
 
+ORIGINAL_VERSIONED_API_PREFIX = mlrun.api.main.BASE_VERSIONED_API_PREFIX
+
 
 @pytest.fixture(params=["leader", "follower"])
 def project_member_mode(request, db: Session) -> str:
@@ -55,6 +62,56 @@ def project_member_mode(request, db: Session) -> str:
             f"Provided project member mode is not supported. mode={request.param}"
         )
     yield request.param
+
+
+def test_redirection_from_worker_to_chief_delete_project(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
+):
+    mlrun.mlconf.httpdb.clusterization.role = "worker"
+    project = "test-project"
+    endpoint = f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}"
+    for strategy in mlrun.api.schemas.DeletionStrategy:
+        headers = {"x-mlrun-deletion-strategy": strategy.value}
+        for test_case in [
+            # deleting schedule failed for unknown reason
+            {
+                "expected_status": http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
+                "expected_body": {"detail": {"reason": "Unknown error"}},
+            },
+            # deleting project accepted and is running in background (in follower mode, forwarding request to leader)
+            {
+                "expected_status": http.HTTPStatus.ACCEPTED.value,
+                "expected_body": {},
+            },
+            # received request from leader and succeeded deleting
+            {
+                "expected_status": http.HTTPStatus.NO_CONTENT.value,
+                "expected_body": "",
+            },
+            {
+                "expected_status": http.HTTPStatus.PRECONDITION_FAILED.value,
+                "expected_body": {
+                    "detail": {
+                        "reason": f"Project {project} can not be deleted since related resources found: x"
+                    }
+                },
+            },
+        ]:
+            expected_status = test_case.get("expected_status")
+            expected_response = test_case.get("expected_body")
+
+            httpserver.expect_ordered_request(
+                endpoint, method="DELETE"
+            ).respond_with_json(expected_response, status=expected_status)
+            url = httpserver.url_for("")
+            mlrun.mlconf.httpdb.clusterization.chief.url = url
+            response = client.delete(endpoint, headers=headers)
+            assert response.status_code == expected_status
+            try:
+                assert response.json() == expected_response
+            except simplejson.errors.JSONDecodeError:
+                # NO_CONTENT response doesn't return json serializable response
+                assert response.text == expected_response
 
 
 def test_create_project_failure_already_exists(

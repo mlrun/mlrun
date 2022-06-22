@@ -42,7 +42,7 @@ def test_get_background_task_from_chief_success(
     requests_mock.get(
         f"{api_url}/api/v1/background-tasks/{task_name}", json=response_body
     )
-    response = chief_client.get_background_task(task_name)
+    response = chief_client.get_internal_background_task(task_name)
     assert response.status_code == http.HTTPStatus.OK
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
@@ -55,7 +55,7 @@ def test_get_background_task_from_chief_success(
     requests_mock.get(
         f"{api_url}/api/v1/background-tasks/{task_name}", json=response_body
     )
-    response = chief_client.get_background_task(task_name)
+    response = chief_client.get_internal_background_task(task_name)
     assert response.status_code == http.HTTPStatus.OK
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
@@ -77,7 +77,7 @@ def test_get_background_task_from_chief_failed(
         f"{api_url}/api/v1/background-tasks/{task_name}",
         status_code=http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
     )
-    response = chief_client.get_background_task(task_name)
+    response = chief_client.get_internal_background_task(task_name)
     assert response.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR.value
 
 
@@ -178,7 +178,7 @@ def test_trigger_migrations_chief_restarted_while_executing_migrations(
     requests_mock.get(
         f"{api_url}/api/v1/background-tasks/{task_name}", json=response_body
     )
-    response = chief_client.get_background_task(task_name)
+    response = chief_client.get_internal_background_task(task_name)
     assert response.status_code == http.HTTPStatus.OK
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name

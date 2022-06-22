@@ -19,6 +19,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Union
 
 import v3io
+import v3io.dataplane
 from nuclio import KafkaTrigger
 from nuclio.config import split_path
 
@@ -578,7 +579,7 @@ class SnowflakeSource(BaseSourceDriver):
             "sfDatabase": self.attributes.get("database"),
             "sfSchema": self.attributes.get("schema"),
             "sfWarehouse": self.attributes.get("warehouse"),
-            "application": "Iguazio",
+            "application": "Iguazio_Platform",
         }
 
 
@@ -811,7 +812,7 @@ class KafkaSource(OnlineSource):
     def add_nuclio_trigger(self, function):
         partitions = self.attributes.get("partitions")
         trigger = KafkaTrigger(
-            brokers=self.attributes["brokers"].split(","),
+            brokers=self.attributes["brokers"],
             topics=self.attributes["topics"],
             partitions=partitions,
             consumer_group=self.attributes["group"],

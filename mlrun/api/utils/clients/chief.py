@@ -1,4 +1,3 @@
-import asyncio
 import copy
 
 import fastapi
@@ -43,14 +42,10 @@ class Client(
     def get_internal_background_task(
         self, name: str, request: fastapi.Request = None
     ) -> fastapi.Response:
-        return self._proxy_request_to_chief(
-            "GET", f"background-tasks/{name}", request
-        )
+        return self._proxy_request_to_chief("GET", f"background-tasks/{name}", request)
 
     def trigger_migrations(self, request: fastapi.Request = None) -> fastapi.Response:
-        return self._proxy_request_to_chief(
-            "POST", "operations/migrations", request
-        )
+        return self._proxy_request_to_chief("POST", "operations/migrations", request)
 
     def create_schedule(
         self, project: str, request: fastapi.Request, body: dict
@@ -98,9 +93,7 @@ class Client(
         return self._proxy_request_to_chief("POST", "build/function", request, body)
 
     def delete_project(self, name, request: fastapi.Request) -> fastapi.Response:
-        return self._proxy_request_to_chief(
-            "DELETE", f"projects/{name}", request
-        )
+        return self._proxy_request_to_chief("DELETE", f"projects/{name}", request)
 
     def _proxy_request_to_chief(
         self,

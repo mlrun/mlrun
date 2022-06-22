@@ -6,10 +6,10 @@ on:
     - development
     - '[0-9]+.[0-9]+.x'
 
-  # Run CI also on push to master
+  # Run CI also on push to backport release branches
   push:
     branches:
-    - master
+    - '[0-9]+.[0-9]+.x'
 
 jobs:
   lint:

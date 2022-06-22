@@ -13,7 +13,7 @@ There are three ways to create/load a `project` object:
 Projects can also be loaded and workflows/pipelines can be executed using the CLI (using the `mlrun project` command).
 
 ```{admonition} Note
-Data-access permissions are given to the original owner of a project. If you transfer ownership to a user in a different data-access group, then you must give the new owner the relevant permissions on the data files and folders of the project (by modifying the POSIX permissions in the file-system on the project files). Otherwise, the user will not be able to work with the project.
+Data-access permissions are given to the original creator of files. If you transfer ownership on a project to a user in a different user group, then you must give the new owner the relevant permissions on the data files and folders of the project (by modifying the POSIX permissions in the file-system on the project files if possible). Otherwise, the user will not be able to work with the project data.
 ```
 
 **In this section**

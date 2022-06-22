@@ -1,16 +1,16 @@
 """add_publish_time_to_feature_set
 
-Revision ID: 26662f111d00
-Revises: e5594ed3ab53
-Create Date: 2022-06-01 15:13:33.691385
+Revision ID: 854890078c5e
+Revises: 64d90a1a69bc
+Create Date: 2022-06-22 10:34:25.839159
 
 """
 import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = "26662f111d00"
-down_revision = "e5594ed3ab53"
+revision = "854890078c5e"
+down_revision = "64d90a1a69bc"
 branch_labels = None
 depends_on = None
 

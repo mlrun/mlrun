@@ -2736,7 +2736,9 @@ class TestFeatureStore(TestMLRunSystem):
         finally:
             service.close()
 
-    @pytest.mark.skip("wait for full publish implementation (when feature flag enabled).")
+    @pytest.mark.skip(
+        "wait for full publish implementation (when feature flag enabled)."
+    )
     def test_publish(self):
         name = "publish-test"
         tag = f"tag-{time.time()}"
@@ -2767,7 +2769,9 @@ class TestFeatureStore(TestMLRunSystem):
             assert actual.metadata.tag == tag
             assert actual.metadata.project == self.project_name
 
-    @pytest.mark.skip("wait for full publish implementation (when feature flag enabled).")
+    @pytest.mark.skip(
+        "wait for full publish implementation (when feature flag enabled)."
+    )
     def test_targets_on_feature_set_publish(self):
 
         base_target_path = "v3io:///bigdata/system-test-project/publish_parquet_"

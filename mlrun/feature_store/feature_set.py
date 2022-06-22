@@ -868,8 +868,10 @@ class FeatureSet(ModelObj):
 
     def _verify_not_published(self):
         if self.metadata.publish_time:
-            raise mlrun.errors.MLRunBadRequestError("cannot be called on a published feature set"
-                                                    f"(published on: {self.get_publish_time}).")
+            raise mlrun.errors.MLRunBadRequestError(
+                "cannot be called on a published feature set"
+                f"(published on: {self.get_publish_time})."
+            )
 
 
 class SparkAggregateByKey(StepToDict):

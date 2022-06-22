@@ -1036,7 +1036,9 @@ def test_feature_set_forbidden_apis_after_publish(
         ),
     )
 
-    response = client.delete(f"projects/{project_name}/feature-sets/{name}/references/{tag}")
+    response = client.delete(
+        f"projects/{project_name}/feature-sets/{name}/references/{tag}"
+    )
     assert not response
     exc = json.loads(response.text)["detail"]["reason"]
     assert exc is not None

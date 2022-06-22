@@ -72,7 +72,7 @@ def get_internal_background_task(
             internal_background_task=name,
         )
         chief_client = mlrun.api.utils.clients.chief.Client()
-        return chief_client.get_background_task(name=name, request=request)
+        return chief_client.get_internal_background_task(name=name, request=request)
 
     return mlrun.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
         name=name

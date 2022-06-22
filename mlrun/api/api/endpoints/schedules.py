@@ -4,6 +4,7 @@ import fastapi.concurrency
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
+import mlrun.api.api.utils
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.project_member
@@ -44,7 +45,9 @@ def create_schedule(
             schedule=schedule.dict(),
         )
         chief_client = mlrun.api.utils.clients.chief.Client()
-        return chief_client.create_schedule(project=project, request=request)
+        return chief_client.create_schedule(
+            project=project, request=request, body=schedule.dict()
+        )
 
     if not auth_info.access_key:
         auth_info.access_key = schedule.credentials.access_key
@@ -90,7 +93,9 @@ def update_schedule(
             schedule=schedule.dict(),
         )
         chief_client = mlrun.api.utils.clients.chief.Client()
-        return chief_client.update_schedule(project=project, name=name, request=request)
+        return chief_client.update_schedule(
+            project=project, name=name, request=request, body=schedule.dict()
+        )
 
     if not auth_info.access_key:
         auth_info.access_key = schedule.credentials.access_key

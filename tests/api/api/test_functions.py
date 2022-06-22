@@ -114,7 +114,7 @@ async def test_multiple_store_function_race_condition(
     )
 
 
-def test_redirection_from_worker_to_chief_only_if_function_with_track_models(
+def test_redirection_from_worker_to_chief_only_if_serving_function_with_track_models(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
     httpserver,
@@ -149,7 +149,7 @@ def test_redirection_from_worker_to_chief_only_if_function_with_track_models(
     assert handler_mock._proxy_request_to_chief.call_count == 1
 
 
-def test_redirection_from_worker_to_chief_submit_job_with_schedule(
+def test_redirection_from_worker_to_chief_deploy_serving_function_with_track_models(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"

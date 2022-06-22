@@ -200,10 +200,12 @@ async def build_function(
         auth_info,
     )
 
-    # schedules are meant to be run solely by the chief then if track_models is enabled, it means that schedules
-    # will be created as part of building the function, and if not chief then redirect to chief.
+    # schedules are meant to be run solely by the chief then if serving function and track_models is enabled,
+    # it means that schedules will be created as part of building the function, and if not chief then redirect to chief.
     # to reduce redundant load on the chief, we re-route the request only if the user has permissions
-    if function.get("spec", {}).get("track_models", False):
+    if function.get("kind", "") == mlrun.runtimes.RuntimeKinds.serving and function.get(
+        "spec", {}
+    ).get("track_models", False):
         if (
             mlrun.mlconf.httpdb.clusterization.role
             != mlrun.api.schemas.ClusterizationRole.chief
@@ -215,7 +217,7 @@ async def build_function(
                 function=function,
             )
             chief_client = mlrun.api.utils.clients.chief.Client()
-            return await chief_client.build_function(request=request)
+            return await chief_client.build_function(request=request, body=data)
 
     if isinstance(data.get("with_mlrun"), bool):
         with_mlrun = data.get("with_mlrun")

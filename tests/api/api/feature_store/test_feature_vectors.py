@@ -70,7 +70,7 @@ def test_feature_vector_create(db: Session, client: TestClient) -> None:
     feature_vector_response = _create_and_assert_feature_vector(
         client, project_name, feature_vector, True
     )
-    allowed_added_fields = ["uid", "created", "updated", "tag"]
+    allowed_added_fields = ["uid", "created", "updated", "tag", "publish_time"]
     assert feature_vector_response["metadata"]["tag"] == "latest"
 
     _assert_diff_as_expected_except_for_specific_metadata(
@@ -367,7 +367,7 @@ def test_unversioned_feature_vector_actions(db: Session, client: TestClient) -> 
         client, project_name, feature_vector, versioned=False
     )
 
-    allowed_added_fields = ["uid", "created", "updated", "tag", "project"]
+    allowed_added_fields = ["uid", "created", "updated", "tag", "project", "publish_time"]
     _assert_diff_as_expected_except_for_specific_metadata(
         feature_vector, feature_vector_response, allowed_added_fields
     )

@@ -50,12 +50,18 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
 
         artifacts = project.list_artifacts().objects()
         assert len(artifacts) == 2
-        assert artifacts[0].metadata.key == "y"
-        assert artifacts[0]._get_file_body() == "123"
 
-        z_artifact = project.get_artifact("z")
-        assert z_artifact.metadata.key == "z"
-        assert z_artifact._get_file_body() == b"ABC"
+        expected_body_map = {"y": "123", "z": b"ABC"}
+        for artifact in artifacts:
+            assert artifact.metadata.key in expected_body_map
+            assert expected_body_map[artifact.metadata.key] == artifact._get_file_body()
+
+            some_artifact = project.get_artifact(artifact.metadata.key)
+            assert some_artifact.metadata.key == artifact.metadata.key
+            assert (
+                some_artifact._get_file_body()
+                == expected_body_map[artifact.metadata.key]
+            )
 
     def test_run_alone(self):
         mlrun.projects.pipeline_context.clear(with_project=True)

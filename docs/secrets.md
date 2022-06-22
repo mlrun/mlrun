@@ -53,7 +53,7 @@ function = mlrun.code_to_function(
 function.run()
 ```
 
-the handler defined in `my_code.py` accesses the `AWS_KEY` secret by using the 
+The handler defined in `my_code.py` accesses the `AWS_KEY` secret by using the 
 {py:func}`~mlrun.execution.MLClientCtx.get_secret()` API:
 ```python
 def test_function(context):

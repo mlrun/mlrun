@@ -2106,7 +2106,7 @@ class SQLDB(DBInterface):
 
     def delete_feature_set(self, session, project, name, tag=None, uid=None):
         feature_set_record = self._get_feature_set(session, project, name, tag, uid)
-        if feature_set_record.metadata.publish_time:
+        if feature_set_record.metadata and feature_set_record.metadata.publish_time:
             raise mlrun.errors.MLRunBadRequestError(
                 "Cannot delete a published Feature-set"
             )

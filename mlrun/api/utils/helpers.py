@@ -30,7 +30,7 @@ def ensure_running_on_chief(function):
         else:
             logger.warning(
                 f"running {function.__name__} chief function on worker",
-                fail_mode=mlrun.mlconf.raise_running_chief_functions_on_worker_mode,
+                fail_mode=mlrun.mlconf.httpdb.clusterization.ensure_function_running_on_chief_mode,
             )
 
     if asyncio.iscoroutinefunction(function):

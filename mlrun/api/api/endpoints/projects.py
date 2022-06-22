@@ -8,7 +8,9 @@ import sqlalchemy.orm
 import mlrun.api.api.deps
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.clients.chief
 from mlrun.api.utils.singletons.project_member import get_project_member
+from mlrun.utils import logger
 
 router = fastapi.APIRouter()
 
@@ -147,6 +149,7 @@ def get_project(
 )
 def delete_project(
     name: str,
+    request: fastapi.Request,
     deletion_strategy: mlrun.api.schemas.DeletionStrategy = fastapi.Header(
         mlrun.api.schemas.DeletionStrategy.default(),
         alias=mlrun.api.schemas.HeaderNames.deletion_strategy,
@@ -161,6 +164,20 @@ def delete_project(
         mlrun.api.api.deps.get_db_session
     ),
 ):
+    # delete project can be responsible for deleting schedules. Schedules are running only on chief,
+    # that is why we re-route requests to chief
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.api.schemas.ClusterizationRole.chief
+    ):
+        logger.info(
+            "Requesting to delete project, re-routing to chief",
+            project=name,
+            deletion_strategy=deletion_strategy,
+        )
+        chief_client = mlrun.api.utils.clients.chief.Client()
+        return chief_client.delete_project(name=name, request=request)
+
     is_running_in_background = get_project_member().delete_project(
         db_session,
         name,

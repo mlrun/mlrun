@@ -44,6 +44,7 @@ from ...utils import (
 from ..base import RunError
 from ..kubejob import KubejobRuntime
 from ..pod import KubeResourceSpec
+from ..utils import get_item_name
 
 _service_account = "sparkapp"
 _sparkjob_template = {
@@ -238,12 +239,16 @@ class AbstractSparkRuntime(KubejobRuntime):
         get_run_db().delete_function(name=sj.metadata.name)
 
     def _is_using_gpu(self):
-        _, driver_gpu = self._get_gpu_type_and_quantity(
-            resources=self.spec.driver_resources["limits"]
-        )
-        _, executor_gpu = self._get_gpu_type_and_quantity(
-            resources=self.spec.executor_resources["limits"]
-        )
+        driver_limits = self.spec.driver_resources.get("limits")
+        driver_gpu = None
+        if driver_limits:
+            _, driver_gpu = self._get_gpu_type_and_quantity(resources=driver_limits)
+
+        executor_limits = self.spec.executor_resources.get("limits")
+        executor_gpu = None
+        if executor_limits:
+            _, executor_gpu = self._get_gpu_type_and_quantity(resources=executor_limits)
+
         return bool(driver_gpu or executor_gpu)
 
     @property
@@ -306,8 +311,24 @@ class AbstractSparkRuntime(KubejobRuntime):
         return gpu_type[0] if gpu_type else None, gpu_quantity
 
     def _validate(self, runobj: RunObject):
-        # validating length limit for sparkjob's function name
-        verify_field_regex("run.metadata.name", runobj.metadata.name, sparkjob_name)
+        # validating correctness of sparkjob's function name
+        try:
+            verify_field_regex("run.metadata.name", runobj.metadata.name, sparkjob_name)
+
+        except mlrun.errors.MLRunInvalidArgumentError as err:
+            pattern_error = str(err).split(" ")[-1]
+            if pattern_error == sparkjob_name[-1]:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Job name '{runobj.metadata.name}' is not valid."
+                    f" The job name must be not longer than 29 characters"
+                )
+            elif pattern_error in sparkjob_name[:-1]:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "a valid label must be an empty string or consist of alphanumeric characters,"
+                    " '-', '_' or '.', and must start and end with an alphanumeric character"
+                )
+            else:
+                raise err
 
         # validating existence of required fields
         if "requests" not in self.spec.executor_resources:
@@ -603,9 +624,23 @@ with ctx:
                 self.spec.deps["files"] = []
             self.spec.deps["files"] += deps["files"]
 
-    def with_igz_spark(self):
+    def with_igz_spark(self, mount_v3io_to_executor=True):
         self._update_igz_jars(deps=self._get_igz_deps())
-        self.apply(mount_v3io_extended())
+        self.apply(mount_v3io_extended(name="v3io"))
+
+        # if we only want to mount v3io on the driver, move v3io
+        # mounts from common volume mounts to driver volume mounts
+        if not mount_v3io_to_executor:
+            v3io_mounts = []
+            non_v3io_mounts = []
+            for mount in self.spec.volume_mounts:
+                if get_item_name(mount) == "v3io":
+                    v3io_mounts.append(mount)
+                else:
+                    non_v3io_mounts.append(mount)
+            self.spec.volume_mounts = non_v3io_mounts
+            self.spec.driver_volume_mounts += v3io_mounts
+
         self.apply(
             mount_v3iod(
                 namespace=config.namespace,

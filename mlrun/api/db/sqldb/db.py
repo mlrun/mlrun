@@ -1015,6 +1015,7 @@ class SQLDB(DBInterface):
             source=project.spec.source,
             state=project.status.state,
             created=created,
+            owner=project.spec.owner,
             full_object=project.dict(),
         )
         labels = project.metadata.labels or {}
@@ -1287,6 +1288,7 @@ class SQLDB(DBInterface):
         project_record.full_object = project_dict
         project_record.description = project.spec.description
         project_record.source = project.spec.source
+        project_record.owner = project.spec.owner
         project_record.state = project.status.state
         labels = project.metadata.labels or {}
         update_labels(project_record, labels)
@@ -1316,7 +1318,7 @@ class SQLDB(DBInterface):
         project_record.full_object = project_record_full_object
         self._upsert(session, [project_record])
 
-    def is_project_exists(self, session: Session, name: str, **kwargs):
+    def is_project_exists(self, session: Session, name: str):
         project_record = self._get_project_record(
             session, name, raise_on_not_found=False
         )

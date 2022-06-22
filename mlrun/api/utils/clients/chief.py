@@ -75,19 +75,19 @@ class Client(
             "DELETE", f"projects/{project}/schedules", request
         )
 
-    async def invoke_schedule(
+    def invoke_schedule(
         self, project: str, name: str, request: fastapi.Request
     ) -> fastapi.Response:
         return self._proxy_request_to_chief(
             "POST", f"projects/{project}/schedules/{name}/invoke", request
         )
 
-    async def submit_job(
+    def submit_job(
         self, request: fastapi.Request, body: dict
     ) -> fastapi.Response:
         return self._proxy_request_to_chief("POST", "submit_job", request, body)
 
-    async def build_function(
+    def build_function(
         self, request: fastapi.Request, body: dict
     ) -> fastapi.Response:
         return self._proxy_request_to_chief("POST", "build/function", request, body)

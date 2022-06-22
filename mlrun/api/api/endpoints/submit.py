@@ -83,7 +83,7 @@ async def submit_job(
                 task=task,
             )
             chief_client = mlrun.api.utils.clients.chief.Client()
-            return await chief_client.submit_job(request=request, body=data)
+            return chief_client.submit_job(request=request, body=data)
 
     else:
         await fastapi.concurrency.run_in_threadpool(

@@ -194,7 +194,7 @@ async def invoke_schedule(
             name=name,
         )
         chief_client = mlrun.api.utils.clients.chief.Client()
-        return await chief_client.invoke_schedule(
+        return chief_client.invoke_schedule(
             project=project, name=name, request=request
         )
 

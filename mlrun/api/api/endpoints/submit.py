@@ -71,11 +71,17 @@ async def submit_job(
         )
         # schedules are meant to be run solely by the chief, then if run is configured to run as scheduled
         # and we are in worker then we forward the request to the chief.
-        # to reduce redundant load on the chief, we forward the request only if the user has permissions
+        # to reduce redundant load on the chief, we re-route the request only if the user has permissions
         if (
             mlrun.mlconf.httpdb.clusterization.role
             != mlrun.api.schemas.ClusterizationRole.chief
         ):
+            logger.info(
+                "Requesting to submit job with schedules, re-routing to chief",
+                function=function_dict,
+                url=function_url,
+                task=task,
+            )
             chief_client = mlrun.api.utils.clients.chief.Client()
             return await chief_client.submit_job(request=request)
 

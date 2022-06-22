@@ -65,12 +65,15 @@ def get_internal_background_task(
         )
     if (
         mlrun.mlconf.httpdb.clusterization.role
-        == mlrun.api.schemas.ClusterizationRole.chief
+        != mlrun.api.schemas.ClusterizationRole.chief
     ):
-        return mlrun.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
-            name=name
+        logger.info(
+            "Requesting internal background task, re-routing to chief",
+            internal_background_task=name,
         )
-    else:
-        logger.info("Requesting internal background task, redirecting to chief")
         chief_client = mlrun.api.utils.clients.chief.Client()
         return chief_client.get_background_task(name=name, request=request)
+
+    return mlrun.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+        name=name
+    )

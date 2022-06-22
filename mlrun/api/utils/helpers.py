@@ -5,7 +5,7 @@ import mlrun.api.schemas
 from mlrun.utils import logger
 
 
-def run_on_chief_only(function):
+def ensure_running_on_chief(function):
     """
     The motivation of this function is to catch development bugs in which we are accidentally using functions / flows
     that are supposed to run only in chief instance and by mistake got involved in a worker instance flow.

@@ -10,6 +10,7 @@ import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.chief
 from mlrun.api.utils.singletons.project_member import get_project_member
+from mlrun.utils import logger
 
 router = fastapi.APIRouter()
 
@@ -163,24 +164,31 @@ def delete_project(
         mlrun.api.api.deps.get_db_session
     ),
 ):
+    # delete project can be responsible for deleting schedules. Schedules are running only on chief,
+    # that is why we re-route requests to chief
     if (
         mlrun.mlconf.httpdb.clusterization.role
-        == mlrun.api.schemas.ClusterizationRole.chief
+        != mlrun.api.schemas.ClusterizationRole.chief
     ):
-        is_running_in_background = get_project_member().delete_project(
-            db_session,
-            name,
-            deletion_strategy,
-            auth_info.projects_role,
-            auth_info,
-            wait_for_completion=wait_for_completion,
+        logger.info(
+            "Requesting to delete project, re-routing to chief",
+            project=name,
+            deletion_strategy=deletion_strategy,
         )
-        if is_running_in_background:
-            return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
-        return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
-    else:
         chief_client = mlrun.api.utils.clients.chief.Client()
         return chief_client.delete_project(name=name, request=request)
+
+    is_running_in_background = get_project_member().delete_project(
+        db_session,
+        name,
+        deletion_strategy,
+        auth_info.projects_role,
+        auth_info,
+        wait_for_completion=wait_for_completion,
+    )
+    if is_running_in_background:
+        return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
+    return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 
 
 @router.get("/projects", response_model=mlrun.api.schemas.ProjectsOutput)

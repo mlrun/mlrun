@@ -82,14 +82,10 @@ class Client(
             "POST", f"projects/{project}/schedules/{name}/invoke", request
         )
 
-    def submit_job(
-        self, request: fastapi.Request, body: dict
-    ) -> fastapi.Response:
+    def submit_job(self, request: fastapi.Request, body: dict) -> fastapi.Response:
         return self._proxy_request_to_chief("POST", "submit_job", request, body)
 
-    def build_function(
-        self, request: fastapi.Request, body: dict
-    ) -> fastapi.Response:
+    def build_function(self, request: fastapi.Request, body: dict) -> fastapi.Response:
         return self._proxy_request_to_chief("POST", "build/function", request, body)
 
     def delete_project(self, name, request: fastapi.Request) -> fastapi.Response:

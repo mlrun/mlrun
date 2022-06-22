@@ -597,6 +597,7 @@ with ctx:
             logger.error(f"Exception when creating SparkJob ({crd}): {exc}")
             raise RunError(f"Exception when creating SparkJob: {exc}")
 
+
     def get_job(self, name, namespace=None):
         k8s = self._get_k8s()
         namespace = k8s.resolve_namespace(namespace)

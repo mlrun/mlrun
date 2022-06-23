@@ -2725,13 +2725,15 @@ class TestFeatureStore(TestMLRunSystem):
             resp = service.get([{"ticker": "AAPL"}])
             assert resp == [
                 {
+                    "new_alias_for_total_ask": 0.0,
                     "bids_min_1h": math.inf,
                     "bids_max_1h": -math.inf,
-                    "new_alias_for_total_ask": 0.0,
                     "name": "Apple Inc",
                     "exchange": "NASDAQ",
                 }
             ]
+            resp = service.get([{"ticker": "AAPL"}], as_list=True)
+            assert resp == [[0.0, math.inf, -math.inf, "Apple Inc", "NASDAQ"]]
         finally:
             service.close()
 

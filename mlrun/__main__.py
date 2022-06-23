@@ -819,6 +819,11 @@ def logs(uid, project, offset, db, watch):
 @click.option("--engine", default=None, help="workflow engine (kfp/local)")
 @click.option("--local", is_flag=True, help="try to run workflow functions locally")
 @click.option(
+    "--timeout",
+    default=None,
+    help="timeout in seconds for waiting for pipeline completion (used when watch=True)",
+)
+@click.option(
     "--env-file", default="", help="path to .env file to load config/variables from"
 )
 def project(
@@ -843,6 +848,7 @@ def project(
     engine,
     local,
     env_file,
+    timeout,
 ):
     """load and/or run a project"""
     if env_file:
@@ -923,7 +929,7 @@ def project(
             exit(1)
 
         if watch and run_result and run_result.workflow.engine == "kfp":
-            proj.get_run_status(run_result)
+            proj.get_run_status(run_result, timeout=timeout)
 
     elif sync:
         print("saving project functions to db ..")

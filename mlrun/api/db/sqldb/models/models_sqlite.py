@@ -382,7 +382,11 @@ with warnings.catch_warnings():
 
         @full_object.setter
         def full_object(self, value):
-            self._full_object = json.dumps(value)
+            def json_serial(obj):
+                if isinstance(obj, datetime):
+                    return obj.isoformat()
+                str(obj)
+            self._full_object = json.dumps(value, default=json_serial)
 
     class FeatureVector(Base, BaseModel):
         __tablename__ = "feature_vectors"

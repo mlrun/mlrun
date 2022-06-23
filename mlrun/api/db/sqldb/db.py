@@ -6,6 +6,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Tuple
 
+import deepdiff
 import fastapi.concurrency
 import mergedeep
 import pytz
@@ -1965,9 +1966,14 @@ class SQLDB(DBInterface):
             db_feature_set = FeatureSet(project=project, full_object=feature_set_dict)
 
         if existing_feature_set.publish_time:
-            raise mlrun.errors.MLRunBadRequestError(
-                "Cannot store and change an already published Feature-set"
-            )
+            # add validation that only feature set status can be changed
+            # also exclude metadata.tag which doesn't saved on the object itself
+            excluded_paths = ["root['metadata']['tag']", "root['status']"]
+            db_feature_set_schema = self._transform_feature_set_model_to_schema(db_feature_set)
+            if deepdiff.DeepDiff(feature_set_dict, db_feature_set_schema.dict(), exclude_paths=excluded_paths):
+                raise mlrun.errors.MLRunBadRequestError(
+                    "Cannot store and change an already published Feature-set"
+                )
 
         self._update_db_record_from_object_dict(db_feature_set, feature_set_dict, uid)
 

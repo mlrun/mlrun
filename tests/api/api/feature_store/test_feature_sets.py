@@ -1055,15 +1055,27 @@ def test_feature_set_forbidden_apis_after_publish(
     )
 
     db_feature_set = _get_feature_set(client, project_name, name, reference=publish_tag)
+    feature_set_with_changed_spec = db_feature_set
+    feature_set_with_changed_spec["spec"]["entities"] = []
     _patch_and_assert_feature_set(
         client,
         project_name,
         name,
-        db_feature_set,
+        feature_set_with_changed_spec,
         reference=publish_tag,
         exception=mlrun.errors.MLRunBadRequestError(
             "Cannot store and change an already published Feature-set"
         ),
+    )
+
+    # should succeed for changes under status
+    db_feature_set["status"]["state"] = "updated"
+    _store_and_assert_feature_set(
+        client,
+        project_name,
+        name,
+        publish_tag,
+        db_feature_set,
     )
 
     response = client.delete(

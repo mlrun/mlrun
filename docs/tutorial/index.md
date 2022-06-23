@@ -5,7 +5,7 @@ The following tutorials provide a hands-on introduction to using MLRun to implem
 
 Make sure you start with the [**Quick Start Tutorial**](./01-mlrun-basics.ipynb) to understand the basics.
 
-Each of the following tutorials is a dedicated Jupyter notebook, it can be downloaded by clicking on the `download` icon at the top.
+Each of the following tutorials is a dedicated Jupyter notebook. You can download them by clicking the `download` icon at the top of each page.
 
 ```{toctree}
 :maxdepth: 1
@@ -17,9 +17,8 @@ Each of the following tutorials is a dedicated Jupyter notebook, it can be downl
 ../feature-store/basic-demo
 ```
 
-You can find different end to end demos in MLRun demos repository at [github.com/mlrun/demos](https://github.com/mlrun/demos).
-Or go through interactive MLRun [**Katacoda Scenarios**](https://www.katacoda.com/mlrun) which teach how to install and use MLRun. 
-
+You can find different end-to-end demos in MLRun demos repository at [**github.com/mlrun/demos**](https://github.com/mlrun/demos).
+Alternatively, use the interactive MLRun [**Katacoda Scenarios**](https://www.katacoda.com/mlrun) that teach how to install and use MLRun.
 
 ```{toctree}
 :maxdepth: 1

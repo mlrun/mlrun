@@ -554,7 +554,7 @@ class OfflineVectorResponse:
 
     def to_csv(self, target_path, **kw):
         """return results as csv file"""
-        return self.to_csv(target_path, **kw)
+        return self._merger.to_csv(target_path, **kw)
 
 
 class FixedWindowType(Enum):

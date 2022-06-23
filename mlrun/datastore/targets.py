@@ -920,6 +920,9 @@ class CSVTarget(BaseStoreTarget):
     @staticmethod
     def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
         with fs.open(target_path, "wb") as fp:
+            # avoid writing the range index unless explicitly specified via kwargs
+            if isinstance(df.index, pd.RangeIndex):
+                kwargs["index"] = kwargs.get("index", False)
             df.to_csv(fp, **kwargs)
 
     def add_writer_state(

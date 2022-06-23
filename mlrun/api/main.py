@@ -240,8 +240,54 @@ def _cleanup_runtimes():
         close_session(db_session)
 
 
+def _get_chief_state():
+    chief_client = mlrun.api.utils.clients.chief.Client()
+    clusterization_spec = chief_client.get_clusterization_spec()
+    return clusterization_spec.chief_api_state
+
+
+def _is_chief_reached_online_state():
+    chief_state = _get_chief_state()
+    if not chief_state:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Were expecting to receive chief state but got : {chief_state}"
+        )
+    if chief_state == mlrun.api.schemas.APIStates.online:
+        mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.online
+        logger.info(
+            f"Chief state is {chief_state}, moving worker state to {chief_state}"
+        )
+        return True
+    else:
+        logger.debug(
+            f"Waiting for chief to reach {mlrun.api.schemas.APIStates.online}, got {chief_state}. Will retry again in {config.httpdb.clusterization.worker.sync_with_chief.backoff}",
+            chief_state=chief_state,
+        )
+        mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.waiting_for_chief
+        raise mlrun.errors.MLRunPreconditionFailedError()
+
+
+def wait_until_chief_state_is_online():
+    mlrun.utils.retry_until_successful(
+        backoff=int(config.httpdb.clusterization.worker.sync_with_chief.backoff),
+        timeout=int(config.httpdb.clusterization.worker.sync_with_chief.timeout),
+        logger=logger,
+        verbose=False,
+        _function=_is_chief_reached_online_state,
+    )
+
+
 def main():
-    init_data()
+    if config.httpdb.clusterization.role == mlrun.api.schemas.ClusterizationRole.chief:
+        init_data()
+    elif (
+        config.httpdb.clusterization.worker.sync_with_chief.mode
+        == mlrun.api.schemas.WaitForChiefToReachOnlineStateFeatureFlag.enabled
+        and config.httpdb.clusterization.role
+        == mlrun.api.schemas.ClusterizationRole.worker
+    ):
+        wait_until_chief_state_is_online()
+
     logger.info(
         "Starting API server",
         port=config.httpdb.port,

@@ -1,4 +1,6 @@
 import copy
+import http
+import typing
 
 import fastapi
 import requests.adapters
@@ -90,6 +92,24 @@ class Client(
 
     def delete_project(self, name, request: fastapi.Request) -> fastapi.Response:
         return self._proxy_request_to_chief("DELETE", f"projects/{name}", request)
+
+    def get_clusterization_spec(
+        self, proxy: bool = True, raise_on_failure: bool = False
+    ) -> typing.Union[fastapi.Response, mlrun.api.schemas.ClusterizationSpec]:
+        """
+        This method is used for both proxying requests from worker to chief and for aligning the worker state
+        with the clusterization spec brought from the chief
+        """
+        chief_response = self._send_request_to_api(
+            method="GET",
+            path="clusterization-spec",
+            raise_on_failure=raise_on_failure,
+        )
+
+        if proxy:
+            return self._convert_requests_response_to_fastapi_response(chief_response)
+
+        return mlrun.api.schemas.ClusterizationSpec(**chief_response.json())
 
     def _proxy_request_to_chief(
         self,

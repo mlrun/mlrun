@@ -147,6 +147,7 @@ class APIStates:
     migrations_failed = "migrations_failed"
     migrations_completed = "migrations_completed"
     offline = "offline"
+    waiting_for_chief = "waiting_for_chief"
 
 
 class ClusterizationRole:

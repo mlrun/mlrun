@@ -386,6 +386,7 @@ with warnings.catch_warnings():
                 if isinstance(obj, datetime):
                     return obj.isoformat()
                 str(obj)
+
             self._full_object = json.dumps(value, default=json_serial)
 
     class FeatureVector(Base, BaseModel):

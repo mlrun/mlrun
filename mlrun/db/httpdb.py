@@ -1776,39 +1776,35 @@ class HTTPRunDB(RunDBInterface):
 
     def publish_feature_set(
         self,
-        feature_set: Union[dict, schemas.FeatureSet],
-        name=None,
-        project="",
+        # feature_set: Union[dict, schemas.FeatureSet],
+        name,
+        publish_tag,
         tag=None,
         uid=None,
+        project="",
     ) -> dict:
         """Save a :py:class:`~mlrun.feature_store.FeatureSet` object in the :py:mod:`mlrun` DB. The
         feature-set can be either a new object or a modification to existing object referenced by the params of
         the function.
 
-        :param feature_set: The :py:class:`~mlrun.feature_store.FeatureSet` to store.
         :param name: The name of the feature set, if None uses the name from the metadata
-        :param project: Name of project this feature-set belongs to.
+        :param publish_tag: The tag to publish the feature set with.
         :param tag: The ``tag`` of the object to replace in the DB, for example ``latest``.
         :param uid: The ``uid`` of the object to replace in the DB. If using this parameter, the modified object
+        :param project: Name of project this feature-set belongs to.
             must have the same ``uid`` of the previously-existing object. This cannot be used for non-versioned objects.
         :returns: The :py:class:`~mlrun.feature_store.FeatureSet` object (as dict).
         """
 
         reference = self._resolve_reference(tag, uid)
 
-        if isinstance(feature_set, schemas.FeatureSet):
-            feature_set = feature_set.dict()
+        params = {
+            "publish_tag": publish_tag,
+        }
 
-        name = name or feature_set["metadata"]["name"]
-        project = (
-            project or feature_set["metadata"].get("project") or config.default_project
-        )
         path = f"projects/{project}/feature-sets/{name}/references/{reference}/publish"
         error_message = f"Failed publishing feature-set {project}/{name} with tag {tag}"
-        resp = self.api_call(
-            "POST", path, error_message, body=dict_to_json(feature_set)
-        )
+        resp = self.api_call("POST", path, error_message, params=params)
         return FeatureSet.from_dict(resp.json()["feature_set"])
 
     def delete_feature_set(self, name, project="", tag=None, uid=None):

@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 from http import HTTPStatus
 from typing import List, Optional
 
@@ -406,7 +405,7 @@ def publish_feature_set(
     project: str,
     name: str,
     reference: str,
-    feature_set: schemas.FeatureSet,
+    publish_tag: str = Query(None, alias="publish_tag"),
     versioned: bool = True,
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -426,45 +425,12 @@ def publish_feature_set(
     )
     tag, uid = parse_reference(reference)
 
-    # Make sure no feature set exist with those identifiers
-    try:
-        mlrun.api.crud.FeatureStore().get_feature_set(
-            db_session,
-            project,
-            feature_set.metadata.name,
-            tag,
-            uid,
-        )
-        raise mlrun.errors.MLRunBadRequestError(
-            f"Cannot publish tag: '{tag}', tag already exists."
-        )
-    except mlrun.errors.MLRunNotFoundError:
-        pass
-
-    if feature_set.metadata.publish_time:
-        raise mlrun.errors.MLRunBadRequestError(
-            f"Feature set was already published (published on: {feature_set.metadata.publish_time})."
-        )
-
-    feature_set.metadata.tag = tag
-    # datetime is not serializable by Json so setting it as str
-    feature_set.metadata.publish_time = datetime.now(timezone.utc)
-
-    uid = mlrun.api.crud.FeatureStore().store_feature_set(
-        db_session,
-        project,
-        name,
-        feature_set,
-        tag,
-        uid,
-        versioned,
-    )
-
     return mlrun.api.schemas.FeatureSetPublishOutput(
-        feature_set=mlrun.api.crud.FeatureStore().get_feature_set(
+        feature_set=mlrun.api.crud.FeatureStore().publish_feature_set(
             db_session,
             project,
             name,
+            publish_tag,
             tag,
             uid,
         )

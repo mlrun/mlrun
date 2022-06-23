@@ -850,6 +850,9 @@ class FeatureSet(ModelObj):
             raise MLRunBadRequestError(
                 f"Feature set was already published (published on: {self.get_publish_time})."
             )
+        # making sure there is a saved version of the feature set
+        self.save()
+
         db = self._get_run_db()
 
         as_dict = self.to_dict()
@@ -857,7 +860,13 @@ class FeatureSet(ModelObj):
             "features", []
         )  # bypass DB bug
 
-        resp = db.publish_feature_set(as_dict, tag=tag)
+        resp = db.publish_feature_set(
+            self.metadata.name,
+            tag,
+            self.metadata.tag,
+            self.metadata.uid,
+            self.metadata.project,
+        )
 
         self.status.targets = []
         self.save()

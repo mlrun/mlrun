@@ -306,7 +306,7 @@ def ingest(
 ) -> pd.DataFrame:
     """Read local DataFrame, file, URL, or source into the feature store
     Ingest reads from the source, run the graph transformations, infers  metadata and stats
-    and writes the results to the default of specified targets
+    and writes the results to the default or specified targets
 
     when targets are not specified data is stored in the configured default targets
     (will usually be NoSQL for real-time and Parquet for offline).

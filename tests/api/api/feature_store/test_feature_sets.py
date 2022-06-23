@@ -120,15 +120,31 @@ def _publish_and_assert_feature_set(
     project,
     name,
     reference,
-    feature_set,
+    publish_tag,
     versioned=True,
     exception=None,
 ):
     response = client.post(
         f"projects/{project}/feature-sets/{name}/references/{reference}/publish?versioned={versioned}",
-        json=feature_set,
+        params={
+            "publish_tag": publish_tag,
+        },
     )
 
+    return _assert_response(response, exception)
+
+
+def _get_feature_set(
+    client: TestClient,
+    project,
+    name,
+    reference,
+    versioned=True,
+    exception=None,
+):
+    response = client.get(
+        f"projects/{project}/feature-sets/{name}/references/{reference}?versioned={versioned}",
+    )
     return _assert_response(response, exception)
 
 
@@ -961,15 +977,17 @@ def test_feature_set_publish_enabled(db: Session, client: TestClient) -> None:
     mlrun.mlconf.feature_store.enable_publish_feature_set = True
 
     name = "feature_set_pub"
-    tag = "pub-tag"
+    tag = "tag"
+    publish_tag = "pub-tag"
     feature_set = _generate_feature_set(name)
+    _store_and_assert_feature_set(client, project_name, name, tag, feature_set)
 
     response = _publish_and_assert_feature_set(
-        client, project_name, name, tag, feature_set
+        client, project_name, name, tag, publish_tag
     )
     assert response["feature_set"]["metadata"]["publish_time"] is not None
     assert response["feature_set"]["metadata"]["name"] == name
-    assert response["feature_set"]["metadata"]["tag"] == tag
+    assert response["feature_set"]["metadata"]["tag"] == publish_tag
 
 
 def test_feature_set_forbidden_apis_after_publish(
@@ -980,35 +998,46 @@ def test_feature_set_forbidden_apis_after_publish(
     mlrun.mlconf.feature_store.enable_publish_feature_set = True
 
     name = "feature_set_pub"
-    tag = "pub-tag"
+    tag = "tag"
+    publish_tag = "pub-tag"
     feature_set = _generate_feature_set(name)
+    _store_and_assert_feature_set(client, project_name, name, tag, feature_set)
 
     response = _publish_and_assert_feature_set(
-        client, project_name, name, tag, feature_set
+        client, project_name, name, tag, publish_tag
     )
     assert response["feature_set"]["metadata"]["publish_time"] is not None
     assert response["feature_set"]["metadata"]["name"] == name
-    assert response["feature_set"]["metadata"]["tag"] == tag
-    publish_time = response["feature_set"]["metadata"]["publish_time"]
+    assert response["feature_set"]["metadata"]["tag"] == publish_tag
 
     _publish_and_assert_feature_set(
         client,
         project_name,
         name,
         tag,
-        feature_set,
+        publish_tag,
         exception=mlrun.errors.MLRunBadRequestError(
-            f"Cannot publish tag: '{tag}', tag already exists."
+            f"Feature set with tag={publish_tag} already exist, cannot publish."
         ),
     )
 
-    feature_set["metadata"]["publish_time"] = publish_time
     _publish_and_assert_feature_set(
         client,
         project_name,
         name,
         "other",
-        feature_set,
+        "another",
+        exception=mlrun.errors.MLRunNotFoundError(
+            "Publish must be called on an already stored feature set."
+        ),
+    )
+
+    _publish_and_assert_feature_set(
+        client,
+        project_name,
+        name,
+        publish_tag,
+        "new_tag",
         exception=mlrun.errors.MLRunBadRequestError(
             "Feature set was already published (published on:"
         ),
@@ -1018,26 +1047,27 @@ def test_feature_set_forbidden_apis_after_publish(
         client,
         project_name,
         name,
-        tag,
+        publish_tag,
         feature_set,
         exception=mlrun.errors.MLRunBadRequestError(
-            "Cannot store an already published Feature-set"
+            "Cannot store and change an already published Feature-set"
         ),
     )
 
+    db_feature_set = _get_feature_set(client, project_name, name, reference=publish_tag)
     _patch_and_assert_feature_set(
         client,
         project_name,
         name,
-        feature_set,
-        reference=tag,
+        db_feature_set,
+        reference=publish_tag,
         exception=mlrun.errors.MLRunBadRequestError(
-            "Cannot patch an already published Feature-set"
+            "Cannot store and change an already published Feature-set"
         ),
     )
 
     response = client.delete(
-        f"projects/{project_name}/feature-sets/{name}/references/{tag}"
+        f"projects/{project_name}/feature-sets/{name}/references/{publish_tag}"
     )
     assert not response
     exc = json.loads(response.text)["detail"]["reason"]

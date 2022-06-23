@@ -261,6 +261,18 @@ class FileDB(DBInterface):
     ) -> str:
         raise NotImplementedError()
 
+    def publish_feature_set(
+        self,
+        session,
+        project,
+        name,
+        publish_tag,
+        tag=None,
+        uid=None,
+        versioned=True,
+    ) -> schemas.FeatureSet:
+        raise NotImplementedError()
+
     def get_feature_set(
         self, session, project: str, name: str, tag: str = None, uid: str = None
     ) -> schemas.FeatureSet:

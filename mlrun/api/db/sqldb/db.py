@@ -1964,9 +1964,9 @@ class SQLDB(DBInterface):
         else:
             db_feature_set = FeatureSet(project=project, full_object=feature_set_dict)
 
-        if db_feature_set.publish_time:
+        if existing_feature_set.publish_time:
             raise mlrun.errors.MLRunBadRequestError(
-                "Cannot store an already published Feature-set"
+                "Cannot store and change an already published Feature-set"
             )
 
         self._update_db_record_from_object_dict(db_feature_set, feature_set_dict, uid)
@@ -1976,6 +1976,48 @@ class SQLDB(DBInterface):
         self.tag_objects_v2(session, [db_feature_set], project, tag)
 
         return uid
+
+    @retry_on_conflict
+    def publish_feature_set(
+        self,
+        session,
+        project,
+        name,
+        publish_tag,
+        tag=None,
+        uid=None,
+        versioned=True,
+    ) -> schemas.FeatureSet:
+        _, _, feature_set_with_publish_tag = self._get_record_by_name_tag_and_uid(
+            session, FeatureSet, project, name, publish_tag, uid
+        )
+        if feature_set_with_publish_tag:
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Feature set with tag={publish_tag} already exist, cannot publish."
+            )
+
+        feature_set = self._get_feature_set(session, project, name, tag, uid)
+        if not feature_set:
+            raise mlrun.errors.MLRunNotFoundError(
+                "Publish must be called on an already stored feature set."
+            )
+        if feature_set.metadata and feature_set.metadata.publish_time:
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Feature set was already published (published on: {feature_set.metadata.publish_time})."
+            )
+        feature_set.metadata.tag = publish_tag
+        # datetime is not serializable by Json so setting it as str
+        feature_set.metadata.publish_time = datetime.now(timezone.utc)
+        uid = self.store_feature_set(
+            session,
+            project,
+            name,
+            feature_set,
+            publish_tag,
+            uid,
+            versioned,
+        )
+        return self.get_feature_set(session, project, name, publish_tag, uid)
 
     def _validate_and_enrich_record_for_creation(
         self,
@@ -2045,11 +2087,6 @@ class SQLDB(DBInterface):
             feature_set_uri = generate_object_uri(project, name, tag)
             raise mlrun.errors.MLRunNotFoundError(
                 f"Feature-set not found {feature_set_uri}"
-            )
-
-        if feature_set_record.metadata.publish_time:
-            raise mlrun.errors.MLRunBadRequestError(
-                "Cannot patch an already published Feature-set"
             )
 
         feature_set_struct = feature_set_record.dict(exclude_none=True)

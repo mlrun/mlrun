@@ -69,6 +69,26 @@ class FeatureStore(
             patch_mode,
         )
 
+    def publish_feature_set(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: str,
+        name: str,
+        publish_tag: str,
+        tag: typing.Optional[str] = None,
+        uid: typing.Optional[str] = None,
+        versioned: bool = True,
+    ) -> mlrun.api.schemas.FeatureSet:
+        return mlrun.api.utils.singletons.db.get_db().publish_feature_set(
+            db_session,
+            project,
+            name,
+            publish_tag,
+            tag,
+            uid,
+            versioned,
+        )
+
     def get_feature_set(
         self,
         db_session: sqlalchemy.orm.Session,

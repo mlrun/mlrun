@@ -321,6 +321,19 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def publish_feature_set(
+        self,
+        session,
+        project,
+        name,
+        publish_tag,
+        tag=None,
+        uid=None,
+        versioned=True,
+    ) -> schemas.FeatureSet:
+        pass
+
+    @abstractmethod
     def get_feature_set(
         self, session, project: str, name: str, tag: str = None, uid: str = None
     ) -> schemas.FeatureSet:

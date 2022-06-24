@@ -76,6 +76,7 @@ jobs:
         MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
         MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
         MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+        MLRUN_PUSH_DOCKER_CACHE_IMAGE=true \
         make push-${{ matrix.image-name }}
     - name: Pull cache, build and push test image
       if: ${{ matrix.image-name == 'test' }}
@@ -84,4 +85,5 @@ jobs:
         MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
         MLRUN_VERSION=${{ steps.docker_cache.outputs.tag }} \
         MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+        MLRUN_PUSH_DOCKER_CACHE_IMAGE=true \
         make push-${{ matrix.image-name }}

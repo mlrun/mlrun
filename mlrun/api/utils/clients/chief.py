@@ -1,5 +1,4 @@
 import copy
-import http
 import typing
 
 import fastapi

@@ -245,7 +245,7 @@ def _synchronize_with_chief_clusterization_spec():
             if _is_chief_reached_online_state(clusterization_spec):
                 move_api_to_online()
                 mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.online
-                logger.info(f"Worker state reached online")
+                logger.info("Worker state reached online")
                 # at the moment we use this function to synchronize the worker state with the chief state,
                 # once we will use this for consistent periodic pulling we will have no need to cancel the
                 # periodic function when reaching online state
@@ -263,7 +263,7 @@ def _is_chief_reached_online_state(
         logger.warning("Chief didn't return any state")
         return False
     if chief_state == mlrun.api.schemas.APIStates.online:
-        logger.info(f"Chief reached online state! Switching worker state to online")
+        logger.info("Chief reached online state! Switching worker state to online")
         return True
     else:
         logger.debug(

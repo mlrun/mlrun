@@ -32,6 +32,7 @@ jobs:
         - api
         - base
         - models
+        - models-gpu
         - test
 # The GPU image is too big (~24GB) GH action runner has only 14GB
 #        - models-gpu

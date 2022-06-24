@@ -156,8 +156,7 @@ default_config = {
                 "sync_with_chief": {
                     # enabled / disabled
                     "mode": "enabled",
-                    "wait_for_chief_timeout": 86400,  # seconds
-                    "wait_for_chief_backoff": 60,  # seconds
+                    "interval": 60,  # seconds
                 }
             },
             # see mlrun.api.utils.helpers.ensure_running_on_chief

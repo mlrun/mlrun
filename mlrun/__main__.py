@@ -820,6 +820,7 @@ def logs(uid, project, offset, db, watch):
 @click.option("--local", is_flag=True, help="try to run workflow functions locally")
 @click.option(
     "--timeout",
+    type=int,
     default=None,
     help="timeout in seconds for waiting for pipeline completion (used when watch=True)",
 )

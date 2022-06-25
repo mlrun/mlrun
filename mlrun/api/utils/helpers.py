@@ -24,7 +24,7 @@ def ensure_running_on_chief(function):
         mlrun.mlconf.httpdb.clusterization.role
         != mlrun.api.schemas.ClusterizationRole.chief
     ):
-        if mlrun.mlconf.fail_on_running_chief_functions_in_worker_mode == "enabled":
+        if mlrun.mlconf.httpdb.clusterization.ensure_function_running_on_chief_mode == "enabled":
             message = f"{function.__name__} is supposed to run only on chief, re-route."
             raise mlrun.errors.MLRunConflictError(message)
         else:

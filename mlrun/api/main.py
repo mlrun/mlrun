@@ -174,7 +174,6 @@ async def startup_event():
         and config.httpdb.clusterization.role
         == mlrun.api.schemas.ClusterizationRole.worker
     ):
-        await initialize_scheduler()
         _start_periodic_pulling_of_clusterization_spec()
 
     if config.httpdb.state == mlrun.api.schemas.APIStates.online:
@@ -193,9 +192,10 @@ async def shutdown_event():
 async def move_api_to_online():
     logger.info("Moving api to online")
     initialize_project_member()
+
+    await initialize_scheduler()
     # maintenance periodic functions should only run on the chief instance
     if config.httpdb.clusterization.role == mlrun.api.schemas.ClusterizationRole.chief:
-        await initialize_scheduler()
         # runs cleanup/monitoring is not needed if we're not inside kubernetes cluster
         if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
             _start_periodic_cleanup()

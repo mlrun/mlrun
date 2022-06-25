@@ -326,7 +326,10 @@ def get_or_create_project(
                 user_project=user_project,
                 skip_save=skip_save,
             )
-            logger.info(f"loaded project {name} from {url} or context")
+            message = f"loaded project {name} from {url} or context"
+            if not skip_save:
+                message = f"{message} and saved in MLRun DB"
+            logger.info(message)
         else:
             # create a new project
             project = new_project(
@@ -339,8 +342,10 @@ def get_or_create_project(
                 subpath=subpath,
                 skip_save=skip_save,
             )
-            logger.info(f"created and saved project {name}")
-        # project.save_to_db()
+            message = f"created project {name}"
+            if not skip_save:
+                message = f"{message} and saved in MLRun DB"
+            logger.info(message)
         return project
 
 

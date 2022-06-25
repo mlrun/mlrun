@@ -331,9 +331,19 @@ class TestFeatureStore(TestMLRunSystem):
         ), "'ticker' column shouldn't be present"
 
         # with_indexes = False, entity_timestamp_column = "time"
-        df_no_time = fs.get_offline_features(
-            vector, entity_timestamp_column="time"
-        ).to_dataframe()
+        resp = fs.get_offline_features(vector, entity_timestamp_column="time")
+        df_no_time = resp.to_dataframe()
+
+        tmpdir = tempfile.mkdtemp()
+        pq_path = f"{tmpdir}/features.parquet"
+        resp.to_parquet(pq_path)
+        read_back_df = pd.read_parquet(pq_path)
+        assert read_back_df.equals(df_no_time)
+        csv_path = f"{tmpdir}/features.csv"
+        resp.to_csv(csv_path)
+        read_back_df = pd.read_csv(csv_path, parse_dates=[2])
+        assert read_back_df.equals(df_no_time)
+
         assert isinstance(
             df_no_time.index, pd.core.indexes.range.RangeIndex
         ), "index column is not of default type"
@@ -2725,13 +2735,15 @@ class TestFeatureStore(TestMLRunSystem):
             resp = service.get([{"ticker": "AAPL"}])
             assert resp == [
                 {
+                    "new_alias_for_total_ask": 0.0,
                     "bids_min_1h": math.inf,
                     "bids_max_1h": -math.inf,
-                    "new_alias_for_total_ask": 0.0,
                     "name": "Apple Inc",
                     "exchange": "NASDAQ",
                 }
             ]
+            resp = service.get([{"ticker": "AAPL"}], as_list=True)
+            assert resp == [[0.0, math.inf, -math.inf, "Apple Inc", "NASDAQ"]]
         finally:
             service.close()
 

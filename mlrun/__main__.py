@@ -165,7 +165,10 @@ def main():
 @click.argument("run_args", nargs=-1, type=click.UNPROCESSED)
 # this is not a flag because we want the default to be True and be able to override to False
 @click.option(
-    "--save-project", type=bool, default=True, help="save the project to MLRun DB when loading it"
+    "--save-project",
+    type=bool,
+    default=True,
+    help="save the project to MLRun DB when loading it",
 )
 def run(
     url,
@@ -541,10 +544,24 @@ def build(
 )
 # this is not a flag because we want the default to be True and be able to override to False
 @click.option(
-    "--save-project", type=bool, default=True, help="save the project to MLRun DB when loading it"
+    "--save-project",
+    type=bool,
+    default=True,
+    help="save the project to MLRun DB when loading it",
 )
 def deploy(
-    spec, source, func_url, dashboard, project, model, tag, kind, env, verbose, env_file, save_project
+    spec,
+    source,
+    func_url,
+    dashboard,
+    project,
+    model,
+    tag,
+    kind,
+    env,
+    verbose,
+    env_file,
+    save_project,
 ):
     """Deploy model or function"""
     if env_file:
@@ -1089,7 +1106,7 @@ def dict_to_str(struct: dict):
     return ",".join([f"{k}={v}" for k, v in struct.items()])
 
 
-def func_url_to_runtime(func_url, save_project:bool=True):
+def func_url_to_runtime(func_url, save_project: bool = True):
     try:
         if func_url.startswith("db://"):
             func_url = func_url[5:]

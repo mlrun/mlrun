@@ -488,6 +488,11 @@ class OnlineVectorService:
         for row in entity_rows:
             futures.append(self._controller.emit(row, return_awaitable_result=True))
 
+        requested_columns = list(self.vector.status.features.keys())
+        aliases = self.vector.get_feature_aliases()
+        for i, column in enumerate(requested_columns):
+            requested_columns[i] = aliases.get(column, column)
+
         for future in futures:
             result = future.await_result()
             data = result.body
@@ -497,7 +502,6 @@ class OnlineVectorService:
             if not data:
                 data = None
             else:
-                requested_columns = self.vector.status.features.keys()
                 actual_columns = data.keys()
                 for column in requested_columns:
                     if (
@@ -513,12 +517,9 @@ class OnlineVectorService:
                         data[name] = self._impute_values.get(name, v)
 
             if as_list and data:
-                keys = set(self.vector.status.features.keys()).union(
-                    set(self.vector.get_feature_aliases().values())
-                )
                 data = [
                     data.get(key, None)
-                    for key in keys
+                    for key in requested_columns
                     if key != self.vector.status.label_column
                 ]
             results.append(data)

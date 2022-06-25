@@ -822,7 +822,7 @@ def logs(uid, project, offset, db, watch):
     "--timeout",
     type=int,
     default=None,
-    help="timeout in seconds for waiting for pipeline completion (used when watch=True)",
+    help="timeout in seconds to wait for pipeline completion (used when watch=True)",
 )
 @click.option(
     "--env-file", default="", help="path to .env file to load config/variables from"

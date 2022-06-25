@@ -1860,7 +1860,7 @@ class MlrunProject(ModelObj):
         :param ttl:       pipeline ttl in secs (after that the pods will be removed)
         :param engine:    workflow engine running the workflow. supported values are 'kfp' (default) or 'local'
         :param local:     run local pipeline with local functions (set local=True in function.run())
-        :param timeout:   timeout in seconds for waiting for pipeline completion (used when watch=True)
+        :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
 
         :returns: run id
         """

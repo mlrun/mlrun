@@ -1,4 +1,3 @@
-import asyncio
 import copy
 
 import fastapi
@@ -40,50 +39,89 @@ class Client(
             self._api_url[:-1] if self._api_url.endswith("/") else self._api_url
         )
 
-    def get_background_task(
+    def get_internal_background_task(
         self, name: str, request: fastapi.Request = None
     ) -> fastapi.Response:
-        request_kwargs = self._resolve_request_kwargs_from_request(request)
-        return self._proxy_request_to_chief(
-            "GET", f"background-tasks/{name}", **request_kwargs
-        )
-
-    def get_migration_state(self):
-        return self._proxy_request_to_chief("GET", "operations/migrations")
+        return self._proxy_request_to_chief("GET", f"background-tasks/{name}", request)
 
     def trigger_migrations(self, request: fastapi.Request = None) -> fastapi.Response:
-        request_kwargs = self._resolve_request_kwargs_from_request(request)
+        return self._proxy_request_to_chief("POST", "operations/migrations", request)
+
+    def create_schedule(
+        self, project: str, request: fastapi.Request, body: dict
+    ) -> fastapi.Response:
         return self._proxy_request_to_chief(
-            method="POST", path="operations/migrations", **request_kwargs
+            "POST", f"projects/{project}/schedules", request, body
         )
+
+    def update_schedule(
+        self, project: str, name: str, request: fastapi.Request, body: dict
+    ) -> fastapi.Response:
+        return self._proxy_request_to_chief(
+            "PUT", f"projects/{project}/schedules/{name}", request, body
+        )
+
+    def delete_schedule(
+        self, project: str, name: str, request: fastapi.Request
+    ) -> fastapi.Response:
+        return self._proxy_request_to_chief(
+            "DELETE", f"projects/{project}/schedules/{name}", request
+        )
+
+    def delete_schedules(
+        self, project: str, request: fastapi.Request
+    ) -> fastapi.Response:
+        return self._proxy_request_to_chief(
+            "DELETE", f"projects/{project}/schedules", request
+        )
+
+    def invoke_schedule(
+        self, project: str, name: str, request: fastapi.Request
+    ) -> fastapi.Response:
+        return self._proxy_request_to_chief(
+            "POST", f"projects/{project}/schedules/{name}/invoke", request
+        )
+
+    def submit_job(self, request: fastapi.Request, body: dict) -> fastapi.Response:
+        return self._proxy_request_to_chief("POST", "submit_job", request, body)
+
+    def build_function(self, request: fastapi.Request, body: dict) -> fastapi.Response:
+        return self._proxy_request_to_chief("POST", "build/function", request, body)
+
+    def delete_project(self, name, request: fastapi.Request) -> fastapi.Response:
+        return self._proxy_request_to_chief("DELETE", f"projects/{name}", request)
 
     def _proxy_request_to_chief(
-        self, method, path, raise_on_failure: bool = False, **kwargs
-    ):
+        self,
+        method,
+        path,
+        request: fastapi.Request = None,
+        body: dict = None,
+        raise_on_failure: bool = False,
+    ) -> fastapi.Response:
+        request_kwargs = self._resolve_request_kwargs_from_request(request, body)
+
         chief_response = self._send_request_to_api(
-            method=method, path=path, raise_on_failure=raise_on_failure, **kwargs
+            method=method,
+            path=path,
+            raise_on_failure=raise_on_failure,
+            **request_kwargs,
         )
+
         return self._convert_requests_response_to_fastapi_response(chief_response)
 
+    @staticmethod
     def _resolve_request_kwargs_from_request(
-        self, request: fastapi.Request = None
+        request: fastapi.Request = None, body: dict = None
     ) -> dict:
         kwargs = {}
         if request:
-            data = self._get_request_body(request)
+            data = body if body else {}
             kwargs.update({"data": data})
             kwargs.update({"headers": dict(request.headers)})
             kwargs.update({"params": dict(request.query_params)})
             kwargs.update({"cookies": request.cookies})
         return kwargs
-
-    @staticmethod
-    def _get_request_body(request: fastapi.Request):
-        loop = asyncio.get_event_loop()
-        # body is an async function
-        future = asyncio.ensure_future(request.body())
-        loop.run_until_complete(future)
-        return future.result()
 
     @staticmethod
     def _convert_requests_response_to_fastapi_response(
@@ -100,6 +138,7 @@ class Client(
             media_type="application/json",
         )
 
+    # TODO change this to use async calls
     def _send_request_to_api(
         self, method, path, raise_on_failure: bool = False, **kwargs
     ):
@@ -126,11 +165,16 @@ class Client(
             if raise_on_failure:
                 mlrun.errors.raise_for_status(response)
             return response
+        # there are some responses like NO-CONTENT which doesn't return a json body
+        try:
+            data = response.json()
+        except Exception:
+            data = response.text
         logger.debug(
             "Request to chief succeeded",
             method=method,
             url=url,
             **kwargs,
-            response=response.json(),
+            response=data,
         )
         return response

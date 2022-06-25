@@ -34,6 +34,7 @@ def trigger_migrations(
         mlrun.mlconf.httpdb.clusterization.role
         != mlrun.api.schemas.ClusterizationRole.chief
     ):
+        logger.info("Requesting to trigger migrations, re-routing to chief")
         chief_client = mlrun.api.utils.clients.chief.Client()
         return chief_client.trigger_migrations(request)
 

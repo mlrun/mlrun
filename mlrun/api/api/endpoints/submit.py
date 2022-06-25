@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.api.utils
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.project_member
 import mlrun.utils.helpers
 from mlrun.api.api import deps
@@ -68,6 +69,22 @@ async def submit_job(
             mlrun.api.schemas.AuthorizationAction.create,
             auth_info,
         )
+        # schedules are meant to be run solely by the chief, then if run is configured to run as scheduled
+        # and we are in worker then we forward the request to the chief.
+        # to reduce redundant load on the chief, we re-route the request only if the user has permissions
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.api.schemas.ClusterizationRole.chief
+        ):
+            logger.info(
+                "Requesting to submit job with schedules, re-routing to chief",
+                function=function_dict,
+                url=function_url,
+                task=task,
+            )
+            chief_client = mlrun.api.utils.clients.chief.Client()
+            return chief_client.submit_job(request=request, body=data)
+
     else:
         await fastapi.concurrency.run_in_threadpool(
             mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,

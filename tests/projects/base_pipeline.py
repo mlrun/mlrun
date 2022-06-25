@@ -20,7 +20,7 @@ class TestPipeline:
         project_name,
     ):
         self.project = mlrun.new_project(
-            project_name, f"{self.project_dir}/{project_name}", skip_save=True
+            project_name, f"{self.project_dir}/{project_name}", save=False
         )
         self.project.set_artifact("data", target_path=self.data_url)
         self.project.spec.params = {"label_column": "label"}

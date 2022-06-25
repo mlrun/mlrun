@@ -36,6 +36,7 @@ def verify_api_state(request: Request):
         mlrun.api.schemas.APIStates.waiting_for_migrations,
         mlrun.api.schemas.APIStates.migrations_in_progress,
         mlrun.api.schemas.APIStates.migrations_failed,
+        mlrun.api.schemas.APIStates.waiting_for_chief,
     ]:
         enabled_endpoints = [
             "healthz",

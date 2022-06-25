@@ -18,6 +18,6 @@ def clusterization_spec():
             "Requesting clusterization spec from worker, re-routing to chief",
         )
         chief_client = mlrun.api.utils.clients.chief.Client()
-        return chief_client.get_internal_background_task()
+        return chief_client.get_clusterization_spec()
 
     return mlrun.api.crud.ClusterizationSpec().get_clusterization_spec()

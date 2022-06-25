@@ -6,6 +6,7 @@ from mlrun.api.api.endpoints import (
     auth,
     background_tasks,
     client_spec,
+    clusterization_spec,
     feature_store,
     files,
     frontend_spec,
@@ -53,6 +54,7 @@ api_router.include_router(
 )
 api_router.include_router(healthz.router, tags=["healthz"])
 api_router.include_router(client_spec.router, tags=["client-spec"])
+api_router.include_router(clusterization_spec.router, tags=["clusterization-spec"])
 api_router.include_router(
     logs.router,
     tags=["logs"],

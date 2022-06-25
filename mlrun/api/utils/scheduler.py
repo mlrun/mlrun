@@ -44,7 +44,6 @@ class Scheduler:
         self._min_allowed_interval = config.httpdb.scheduling.min_allowed_interval
         self._secrets_provider = schemas.SecretProviderName.kubernetes
 
-    @mlrun.api.utils.helpers.ensure_running_on_chief
     async def start(self, db_session: Session):
         logger.info("Starting scheduler")
         self._scheduler.start()
@@ -54,7 +53,11 @@ class Scheduler:
 
         # don't fail the start on re-scheduling failure
         try:
-            self._reload_schedules(db_session)
+            if (
+                mlrun.mlconf.httpdb.clusterization.role
+                == mlrun.api.schemas.ClusterizationRole.chief
+            ):
+                self._reload_schedules(db_session)
         except Exception as exc:
             logger.warning("Failed reloading schedules", exc=exc)
 

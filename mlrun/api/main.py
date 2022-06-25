@@ -231,7 +231,7 @@ def _start_periodic_pulling_of_clusterization_spec():
         )
 
 
-def _synchronize_with_chief_clusterization_spec():
+async def _synchronize_with_chief_clusterization_spec():
     try:
         chief_client = mlrun.api.utils.clients.chief.Client()
         clusterization_spec = chief_client.get_clusterization_spec(
@@ -243,7 +243,8 @@ def _synchronize_with_chief_clusterization_spec():
         # TODO: Do we want to pull chief state all the time?
         if config.httpdb.state != mlrun.api.schemas.APIStates.online:
             if _is_chief_reached_online_state(clusterization_spec):
-                move_api_to_online()
+                await move_api_to_online()
+
                 mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.online
                 logger.info("Worker state reached online")
                 # at the moment we use this function to synchronize the worker state with the chief state,

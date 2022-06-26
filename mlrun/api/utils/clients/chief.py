@@ -49,17 +49,17 @@ class Client(
         return self._proxy_request_to_chief("POST", "operations/migrations", request)
 
     def create_schedule(
-        self, project: str, request: fastapi.Request, body: dict
+        self, project: str, request: fastapi.Request, json: dict
     ) -> fastapi.Response:
         return self._proxy_request_to_chief(
-            "POST", f"projects/{project}/schedules", request, body
+            "POST", f"projects/{project}/schedules", request, json
         )
 
     def update_schedule(
-        self, project: str, name: str, request: fastapi.Request, body: dict
+        self, project: str, name: str, request: fastapi.Request, json: dict
     ) -> fastapi.Response:
         return self._proxy_request_to_chief(
-            "PUT", f"projects/{project}/schedules/{name}", request, body
+            "PUT", f"projects/{project}/schedules/{name}", request, json
         )
 
     def delete_schedule(
@@ -83,11 +83,11 @@ class Client(
             "POST", f"projects/{project}/schedules/{name}/invoke", request
         )
 
-    def submit_job(self, request: fastapi.Request, body: dict) -> fastapi.Response:
-        return self._proxy_request_to_chief("POST", "submit_job", request, body)
+    def submit_job(self, request: fastapi.Request, json: dict) -> fastapi.Response:
+        return self._proxy_request_to_chief("POST", "submit_job", request, json)
 
-    def build_function(self, request: fastapi.Request, body: dict) -> fastapi.Response:
-        return self._proxy_request_to_chief("POST", "build/function", request, body)
+    def build_function(self, request: fastapi.Request, json: dict) -> fastapi.Response:
+        return self._proxy_request_to_chief("POST", "build/function", request, json)
 
     def delete_project(self, name, request: fastapi.Request) -> fastapi.Response:
         return self._proxy_request_to_chief("DELETE", f"projects/{name}", request)
@@ -115,10 +115,10 @@ class Client(
         method,
         path,
         request: fastapi.Request = None,
-        body: dict = None,
+        json: dict = None,
         raise_on_failure: bool = False,
     ) -> fastapi.Response:
-        request_kwargs = self._resolve_request_kwargs_from_request(request, body)
+        request_kwargs = self._resolve_request_kwargs_from_request(request, json)
 
         chief_response = self._send_request_to_api(
             method=method,
@@ -131,12 +131,12 @@ class Client(
 
     @staticmethod
     def _resolve_request_kwargs_from_request(
-        request: fastapi.Request = None, body: dict = None
+        request: fastapi.Request = None, json: dict = None
     ) -> dict:
         kwargs = {}
         if request:
-            data = body if body else {}
-            kwargs.update({"data": data})
+            json = json if json else {}
+            kwargs.update({"json": json})
             kwargs.update({"headers": dict(request.headers)})
             kwargs.update({"params": dict(request.query_params)})
             kwargs.update({"cookies": request.cookies})
@@ -184,7 +184,7 @@ class Client(
             if raise_on_failure:
                 mlrun.errors.raise_for_status(response)
             return response
-        # there are some responses like NO-CONTENT which doesn't return a json body
+        # there are some responses like NO-CONTENT which doesn't return a json json
         try:
             data = response.json()
         except Exception:

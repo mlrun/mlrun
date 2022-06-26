@@ -156,7 +156,7 @@ default_config = {
                 "sync_with_chief": {
                     # enabled / disabled
                     "mode": "enabled",
-                    "interval": 60,  # seconds
+                    "interval": 15,  # seconds
                 }
             },
             # see mlrun.api.utils.helpers.ensure_running_on_chief

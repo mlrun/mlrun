@@ -174,9 +174,3 @@ def test_init_data_migration_required_recognition(monkeypatch) -> None:
         assert perform_schema_migrations_mock.call_count == 0, failure_message
         assert perform_database_migration_mock.call_count == 0, failure_message
         assert perform_data_migrations_mock.call_count == 0, failure_message
-
-
-def test_wait_for_chief(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
-) -> None:
-    mlrun.mlconf.httpdb.clusterization.worker.sync_with_chief.backoff = 60

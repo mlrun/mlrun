@@ -34,12 +34,10 @@ async def submit_job(
     try:
         data = await request.json()
     except ValueError:
-        body = await request.body()
-        logger.warning("Failed here is the body:", body=body)
         mlrun.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
         )
-    logger.warning("got submit job", data=data)
+
     await fastapi.concurrency.run_in_threadpool(
         mlrun.api.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,

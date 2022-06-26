@@ -96,7 +96,7 @@ class Client(
         self, proxy: bool = True, raise_on_failure: bool = False
     ) -> typing.Union[fastapi.Response, mlrun.api.schemas.ClusterizationSpec]:
         """
-        This method is used for both proxying requests from worker to chief and for aligning the worker state
+        This method is used both for proxying requests from worker to chief and for aligning the worker state
         with the clusterization spec brought from the chief
         """
         chief_response = self._send_request_to_api(
@@ -184,7 +184,7 @@ class Client(
             if raise_on_failure:
                 mlrun.errors.raise_for_status(response)
             return response
-        # there are some responses like NO-CONTENT which doesn't return a json json
+        # there are some responses like NO-CONTENT which doesn't return a json body
         try:
             data = response.json()
         except Exception:

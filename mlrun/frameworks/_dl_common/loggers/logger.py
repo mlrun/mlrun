@@ -2,7 +2,8 @@ from typing import Dict, List
 
 import mlrun
 
-from ..utils import DLTypes, LoggingMode
+from ..._common import LoggingMode
+from ..utils import DLTypes
 
 
 class Logger:

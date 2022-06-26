@@ -20,7 +20,6 @@ def get_model(
         return lgb.LGBMClassifier(
             params={"objective": "multiclass", "num_class": n_classes}
         )
-    # if algorithm_functionality.is_single_output():
     return lgb.LGBMRegressor()
 
 
@@ -33,7 +32,6 @@ def get_params(
         if algorithm_functionality.is_binary_classification():
             return {"objective": "multiclass", "num_class": 2}
         return {"objective": "multiclass", "num_class": n_classes}
-    # if algorithm_functionality.is_single_output():
     return {"objective": "regression"}
 
 
@@ -56,18 +54,20 @@ class LightGBMHandlers:
         )
         apply_mlrun(model_name=model_name)
 
-        model = lgb.train(
+        lgb.train(
             params=params,
             train_set=train_set,
             valid_sets=[validation_set_1, validation_set_2],
         )
 
+        # Remove the interface for next test to start from scratch:
         LGBMMLRunInterface.remove_interface(obj=lgb)
 
     @staticmethod
     def training_api_evaluate(
         context: mlrun.MLClientCtx, algorithm_functionality: str, model_path: str
     ):
+        # TODO: Finish handler once the evaluation is implemented.
         pass
 
     @staticmethod

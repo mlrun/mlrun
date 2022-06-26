@@ -6,7 +6,8 @@ from torch import Tensor
 import mlrun
 from mlrun.artifacts import Artifact
 
-from ..._dl_common.loggers import LoggingMode, MLRunLogger
+from ..._common import LoggingMode
+from ..._dl_common.loggers import MLRunLogger
 from ..model_handler import PyTorchModelHandler
 from ..utils import PyTorchTypes
 from .logging_callback import LoggingCallback

@@ -1,7 +1,7 @@
 import os
 from abc import abstractmethod
 from datetime import datetime
-from typing import Any, Callable, Dict, Generic, List, TypeVar, Union
+from typing import Any, Callable, Dict, Generic, List, Union
 
 import yaml
 

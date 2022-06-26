@@ -5,7 +5,7 @@ import pandas as pd
 
 import mlrun
 
-from .._ml_common import LoggingMode
+from .._common import LoggingMode
 from .metric import Metric
 from .utils import SKLearnUtils
 

@@ -3,8 +3,8 @@ from typing import List
 
 import mlrun
 
-from .._common import MLRunInterface
-from .._ml_common import LoggingMode, MLModelHandler, MLPlan, MLPlanStages, MLProducer
+from .._common import LoggingMode, MLRunInterface
+from .._ml_common import MLModelHandler, MLPlan, MLPlanStages, MLProducer
 from .estimator import Estimator
 from .metric import Metric
 from .utils import SKLearnTypes, SKLearnUtils

@@ -1,6 +1,5 @@
-from .._common import Producer
+from .._common import LoggingMode, Producer
 from .plan import MLPlanStages
-from .utils import LoggingMode
 
 
 class MLProducer(Producer):

@@ -57,7 +57,7 @@ def test_training(framework: str, algorithm_functionality: str):
         == AlgorithmFunctionality.MULTI_OUTPUT_MULTICLASS_CLASSIFICATION.value
     ):
         pytest.skip(
-            "Maybe bugged in 'lightgbm' and 'xgboost' for multiclass multi output classification."
+            "multiclass multi output classification are not supported in 'xgboost'."
         )
 
     # Run training:
@@ -101,7 +101,7 @@ def test_evaluation(framework: str, algorithm_functionality: str):
         == AlgorithmFunctionality.MULTI_OUTPUT_MULTICLASS_CLASSIFICATION.value
     ):
         pytest.skip(
-            "Maybe bugged in 'lightgbm' and 'xgboost' for multiclass multi output classification."
+            "multiclass multi output classification are not supported in 'xgboost'."
         )
 
     # Run training:

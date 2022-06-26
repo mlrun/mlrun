@@ -7,8 +7,9 @@ from tensorflow.keras.callbacks import Callback
 
 import mlrun
 
+from ..._common import LoggingMode
 from ..._dl_common.loggers import Logger
-from ..utils import LoggingMode, TFKerasTypes
+from ..utils import TFKerasTypes
 
 
 class LoggingCallback(Callback):

@@ -4,4 +4,4 @@ from .model_handler import MLModelHandler
 from .pkl_model_server import PickleModelServer
 from .plan import MLPlan, MLPlanStages, MLPlotPlan
 from .producer import MLProducer
-from .utils import AlgorithmFunctionality, LoggingMode, MLTypes, MLUtils
+from .utils import AlgorithmFunctionality, MLTypes, MLUtils

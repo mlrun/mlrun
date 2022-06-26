@@ -6,7 +6,8 @@ from torch.nn import Module, Parameter
 
 import mlrun
 
-from ..._dl_common.loggers import Logger, LoggingMode
+from ..._common import LoggingMode
+from ..._dl_common.loggers import Logger
 from ..utils import PyTorchTypes
 from .callback import Callback
 

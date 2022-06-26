@@ -3,9 +3,10 @@ from typing import Callable, Dict, List, Union
 import mlrun
 from mlrun.artifacts import Artifact
 
+from ..._common import LoggingMode
 from ..._dl_common.loggers import MLRunLogger
 from ..model_handler import TFKerasModelHandler
-from ..utils import LoggingMode, TFKerasTypes
+from ..utils import TFKerasTypes
 from .logging_callback import LoggingCallback
 
 

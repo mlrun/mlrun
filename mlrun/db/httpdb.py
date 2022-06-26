@@ -362,8 +362,8 @@ class HTTPRunDB(RunDBInterface):
                 "force_run_local"
             )
             config.enable_publish_feature_set = (
-                config.enable_publish_feature_set
-                or server_cfg.get("enable_publish_feature_set")
+                server_cfg.get("enable_publish_feature_set")
+                or config.enable_publish_feature_set
             )
 
         except Exception as exc:
@@ -1799,13 +1799,13 @@ class HTTPRunDB(RunDBInterface):
         reference = self._resolve_reference(tag, uid)
 
         params = {
-            "publish_tag": publish_tag,
+            "publish-tag": publish_tag,
         }
 
         path = f"projects/{project}/feature-sets/{name}/references/{reference}/publish"
         error_message = f"Failed publishing feature-set {project}/{name} with tag {tag}"
         resp = self.api_call("POST", path, error_message, params=params)
-        return FeatureSet.from_dict(resp.json()["feature_set"])
+        return FeatureSet.from_dict(resp.json())
 
     def delete_feature_set(self, name, project="", tag=None, uid=None):
         """Delete a :py:class:`~mlrun.feature_store.FeatureSet` object from the DB.

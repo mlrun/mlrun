@@ -127,7 +127,7 @@ def _publish_and_assert_feature_set(
     response = client.post(
         f"projects/{project}/feature-sets/{name}/references/{reference}/publish?versioned={versioned}",
         params={
-            "publish_tag": publish_tag,
+            "publish-tag": publish_tag,
         },
     )
 
@@ -985,9 +985,9 @@ def test_feature_set_publish_enabled(db: Session, client: TestClient) -> None:
     response = _publish_and_assert_feature_set(
         client, project_name, name, tag, publish_tag
     )
-    assert response["feature_set"]["metadata"]["publish_time"] is not None
-    assert response["feature_set"]["metadata"]["name"] == name
-    assert response["feature_set"]["metadata"]["tag"] == publish_tag
+    assert response["metadata"]["publish_time"] is not None
+    assert response["metadata"]["name"] == name
+    assert response["metadata"]["tag"] == publish_tag
 
 
 def test_feature_set_forbidden_apis_after_publish(
@@ -1006,9 +1006,9 @@ def test_feature_set_forbidden_apis_after_publish(
     response = _publish_and_assert_feature_set(
         client, project_name, name, tag, publish_tag
     )
-    assert response["feature_set"]["metadata"]["publish_time"] is not None
-    assert response["feature_set"]["metadata"]["name"] == name
-    assert response["feature_set"]["metadata"]["tag"] == publish_tag
+    assert response["metadata"]["publish_time"] is not None
+    assert response["metadata"]["name"] == name
+    assert response["metadata"]["tag"] == publish_tag
 
     _publish_and_assert_feature_set(
         client,
@@ -1039,7 +1039,7 @@ def test_feature_set_forbidden_apis_after_publish(
         publish_tag,
         "new_tag",
         exception=mlrun.errors.MLRunBadRequestError(
-            "Feature set was already published (published on:"
+            "Feature set was already published (published at:"
         ),
     )
 

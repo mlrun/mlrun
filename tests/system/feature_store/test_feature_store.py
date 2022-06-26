@@ -2760,9 +2760,9 @@ class TestFeatureStore(TestMLRunSystem):
 
         db = mlrun.get_run_db()
         fset_from_db = db.get_feature_set(name, tag=tag)
-        assert published_fset.get_publish_time is not None
-        assert fset_from_db.get_publish_time == str(published_fset.get_publish_time)
-        assert fset.get_publish_time is None
+        assert published_fset.publish_time is not None
+        assert fset_from_db.publish_time == str(published_fset.publish_time)
+        assert fset.publish_time is None
         for actual in [published_fset, fset_from_db]:
             assert actual is not None
             assert actual.metadata.name == fset.metadata.name

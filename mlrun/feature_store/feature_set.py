@@ -20,7 +20,6 @@ from storey import EmitEveryEvent, EmitPolicy
 
 import mlrun
 import mlrun.api.schemas
-from mlrun.errors import MLRunBadRequestError, MLRunNotFoundError
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri
@@ -335,7 +334,7 @@ class FeatureSet(ModelObj):
         return fullname
 
     @property
-    def get_publish_time(self):
+    def publish_time(self):
         return self.metadata.publish_time
 
     def _override_run_db(
@@ -353,15 +352,6 @@ class FeatureSet(ModelObj):
             return self._run_db
         else:
             return mlrun.get_run_db()
-
-    def _get_feature_set_for_tag(self, tag):
-        tag = tag or self.metadata.tag
-        try:
-            return self._get_run_db().get_feature_set(
-                self.metadata.name, self.metadata.project, tag
-            )
-        except MLRunNotFoundError:
-            return None
 
     def get_target_path(self, name=None):
         """get the url/path for an offline or specified data target"""
@@ -846,24 +836,14 @@ class FeatureSet(ModelObj):
         if not mlrun.mlconf.feature_store.enable_publish_feature_set:
             raise NotImplementedError("Publish of feature set is not supported.")
 
-        if self.get_publish_time:
-            raise MLRunBadRequestError(
-                f"Feature set was already published (published on: {self.get_publish_time})."
-            )
         # making sure there is a saved version of the feature set
         self.save()
 
         db = self._get_run_db()
-
-        as_dict = self.to_dict()
-        as_dict["spec"]["features"] = as_dict["spec"].get(
-            "features", []
-        )  # bypass DB bug
-
         resp = db.publish_feature_set(
             self.metadata.name,
             tag,
-            self.metadata.tag,
+            self.metadata.tag if self.metadata.uid else None,
             self.metadata.uid,
             self.metadata.project,
         )
@@ -879,7 +859,7 @@ class FeatureSet(ModelObj):
         if self.metadata and self.metadata.publish_time:
             raise mlrun.errors.MLRunBadRequestError(
                 "cannot be called on a published feature set"
-                f"(published on: {self.get_publish_time})."
+                f"(published at: {self.publish_time})."
             )
 
 

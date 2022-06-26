@@ -399,13 +399,13 @@ def ingest_feature_set(
 
 @router.post(
     "/projects/{project}/feature-sets/{name}/references/{reference}/publish",
-    response_model=schemas.FeatureSetPublishOutput,
+    response_model=schemas.FeatureSet,
 )
 def publish_feature_set(
     project: str,
     name: str,
     reference: str,
-    publish_tag: str = Query(None, alias="publish_tag"),
+    publish_tag: str = Query(None, alias="publish-tag"),
     versioned: bool = True,
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -425,15 +425,13 @@ def publish_feature_set(
     )
     tag, uid = parse_reference(reference)
 
-    return mlrun.api.schemas.FeatureSetPublishOutput(
-        feature_set=mlrun.api.crud.FeatureStore().publish_feature_set(
-            db_session,
-            project,
-            name,
-            publish_tag,
-            tag,
-            uid,
-        )
+    return mlrun.api.crud.FeatureStore().publish_feature_set(
+        db_session,
+        project,
+        name,
+        publish_tag,
+        tag,
+        uid,
     )
 
 

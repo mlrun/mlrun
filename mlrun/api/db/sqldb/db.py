@@ -2015,7 +2015,7 @@ class SQLDB(DBInterface):
             )
         if feature_set.metadata and feature_set.metadata.publish_time:
             raise mlrun.errors.MLRunBadRequestError(
-                f"Feature set was already published (published on: {feature_set.metadata.publish_time})."
+                f"Feature set was already published (published at: {feature_set.metadata.publish_time})."
             )
         feature_set.metadata.tag = publish_tag
         # datetime is not serializable by Json so setting it as str

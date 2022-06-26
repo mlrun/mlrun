@@ -12,8 +12,8 @@ from tensorflow.python.ops import summary_ops_v2
 
 import mlrun
 
-from ..utils import TFKerasTypes
 from ..._dl_common.loggers import TensorboardLogger
+from ..utils import TFKerasTypes
 from .logging_callback import LoggingCallback
 
 

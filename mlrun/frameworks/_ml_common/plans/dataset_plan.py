@@ -125,7 +125,9 @@ class DatasetPlan(MLPlan):
         :raise MLRunInvalidArgumentError: If no dataset parameters were passed.
         """
         # Merge x and y into a single dataset:
-        dataset, y_columns = MLUtils.concatenate_x_y(x=x, y=y, target_columns_names=target_columns_names)
+        dataset, y_columns = MLUtils.concatenate_x_y(
+            x=x, y=y, target_columns_names=target_columns_names
+        )
 
         # Create the dataset artifact:
         dataset_artifact = DatasetArtifact(

@@ -258,7 +258,9 @@ class Callback(ABC):
         """
         pass
 
-    def on_validation_metrics_end(self, metric_values: List[PyTorchTypes.MetricValueType]):
+    def on_validation_metrics_end(
+        self, metric_values: List[PyTorchTypes.MetricValueType]
+    ):
         """
         After the validating calculation of the metrics, this method will be called.
 

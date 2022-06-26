@@ -7,13 +7,14 @@ from sklearn.base import is_classifier, is_regressor
 
 import mlrun
 
-from .._common import Types, Utils, LoggingMode
+from .._common import LoggingMode, Types, Utils
 
 
 class MLTypes(Types, ABC):
     """
     Machine learning frameworks type hints.
     """
+
     # Type for a metric entry, can be passed as the metric function itself, as a callable object, a string of the name
     # of the function and the full module path to the function to import. Arguments to use when calling the metric can
     # be joined by wrapping it as a tuple:
@@ -28,6 +29,7 @@ class MLUtils(Utils, ABC):
     """
     Machine learning frameworks utilities.
     """
+
     @staticmethod
     def concatenate_x_y(
         x: Types.DatasetType,
@@ -63,7 +65,9 @@ class MLUtils(Utils, ABC):
         # Check if y's columns are given, if not set the default avoiding duplicates with x's columns:
         if target_columns_names is None:
             target_columns_names = [
-                column if column not in x.columns else f"{default_target_column_prefix}{column}"
+                column
+                if column not in x.columns
+                else f"{default_target_column_prefix}{column}"
                 for column in list(y.columns)
             ]
 

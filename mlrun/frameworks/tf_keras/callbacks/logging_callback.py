@@ -7,8 +7,8 @@ from tensorflow.keras.callbacks import Callback
 
 import mlrun
 
-from ..._dl_common import Logger, LoggingMode
-from ..utils import TFKerasTypes
+from ..._dl_common.loggers import Logger
+from ..utils import LoggingMode, TFKerasTypes
 
 
 class LoggingCallback(Callback):
@@ -116,7 +116,7 @@ class LoggingCallback(Callback):
         """
         return self._logger.validation_summaries
 
-    def get_static_hyperparameters(self) -> Dict[str, TrackableType]:
+    def get_static_hyperparameters(self) -> Dict[str, TFKerasTypes.TrackableType]:
         """
         Get the static hyperparameters logged. The hyperparameters will be stored in a dictionary where each key is the
         hyperparameter name and the value is his logged value.
@@ -125,7 +125,9 @@ class LoggingCallback(Callback):
         """
         return self._logger.static_hyperparameters
 
-    def get_dynamic_hyperparameters(self) -> Dict[str, List[TrackableType]]:
+    def get_dynamic_hyperparameters(
+        self,
+    ) -> Dict[str, List[TFKerasTypes.TrackableType]]:
         """
         Get the dynamic hyperparameters logged. The hyperparameters will be stored in a dictionary where each key is the
         hyperparameter name and the value is a list of his logged values per epoch.
@@ -379,8 +381,11 @@ class LoggingCallback(Callback):
                 pass
 
     def _get_hyperparameter(
-        self, key_chain: Union[Callable[[], TrackableType], List[Union[str, int]]]
-    ) -> TrackableType:
+        self,
+        key_chain: Union[
+            Callable[[], TFKerasTypes.TrackableType], List[Union[str, int]]
+        ],
+    ) -> TFKerasTypes.TrackableType:
         """
         Access the hyperparameter from the model stored in this callback using the given key chain.
 

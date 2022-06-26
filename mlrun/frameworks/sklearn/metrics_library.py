@@ -5,9 +5,10 @@ import sklearn
 from sklearn.preprocessing import LabelBinarizer
 
 import mlrun.errors
+
 from .._ml_common import AlgorithmFunctionality
-from .utils import SKLearnTypes
 from .metric import Metric
+from .utils import SKLearnTypes
 
 
 class MetricsLibrary(ABC):
@@ -143,9 +144,7 @@ class MetricsLibrary(ABC):
         :return: A list of metrics objects.
         """
         return [
-            cls._to_metric_class(
-                metric_entry=metric, metric_name=metric_name
-            )
+            cls._to_metric_class(metric_entry=metric, metric_name=metric_name)
             for metric_name, metric in metrics_dictionary.items()
         ]
 
@@ -270,9 +269,7 @@ class MetricsLibrary(ABC):
 
         # Check if the 'need_probabilities' attribute is given:
         if cls._NEED_PROBABILITIES_KEYWORD in arguments:
-            need_probabilities = arguments[
-                cls._NEED_PROBABILITIES_KEYWORD
-            ]
+            need_probabilities = arguments[cls._NEED_PROBABILITIES_KEYWORD]
             arguments.pop(cls._NEED_PROBABILITIES_KEYWORD)
         else:
             need_probabilities = False

@@ -11,7 +11,7 @@ from torch.utils.tensorboard.summary import hparams
 
 import mlrun
 
-from ..._dl_common import TensorboardLogger
+from ..._dl_common.loggers import TensorboardLogger
 from ..utils import PyTorchTypes
 from .logging_callback import LoggingCallback
 
@@ -240,7 +240,11 @@ class TensorboardLoggingCallback(LoggingCallback):
             Callable[[Union[Parameter, Tensor]], Union[float, Tensor]]
         ] = None,
         dynamic_hyperparameters: Dict[
-            str, Tuple[str, Union[List[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]]]
+            str,
+            Tuple[
+                str,
+                Union[List[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
+            ],
         ] = None,
         static_hyperparameters: Dict[
             str, Union[PyTorchTypes.TrackableType, Tuple[str, List[Union[str, int]]]]

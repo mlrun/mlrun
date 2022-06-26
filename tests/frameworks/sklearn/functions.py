@@ -5,8 +5,8 @@ from sklearn.multioutput import MultiOutputClassifier, MultiOutputRegressor
 from sklearn.svm import SVC, LinearSVC
 
 import mlrun
-from mlrun.frameworks.sklearn import apply_mlrun, SKLearnTypes
 from mlrun.frameworks._ml_common import AlgorithmFunctionality
+from mlrun.frameworks.sklearn import SKLearnTypes, apply_mlrun
 
 from ..ml_functions import MLFunctions
 
@@ -24,9 +24,7 @@ class SKLearnFunctions(MLFunctions):
             algorithm_functionality=algorithm_functionality, for_training=True
         )
 
-        apply_mlrun(
-            model=model, model_name=model_name, x_test=x_test, y_test=y_test
-        )
+        apply_mlrun(model=model, model_name=model_name, x_test=x_test, y_test=y_test)
         model.fit(x_train, y_train)
 
     @staticmethod
@@ -42,7 +40,9 @@ class SKLearnFunctions(MLFunctions):
         model.predict(x)
 
     @staticmethod
-    def get_model(algorithm_functionality: AlgorithmFunctionality) -> SKLearnTypes.ModelType:
+    def get_model(
+        algorithm_functionality: AlgorithmFunctionality,
+    ) -> SKLearnTypes.ModelType:
         if algorithm_functionality == AlgorithmFunctionality.BINARY_CLASSIFICATION:
             return RandomForestClassifier()
         if algorithm_functionality == AlgorithmFunctionality.MULTICLASS_CLASSIFICATION:

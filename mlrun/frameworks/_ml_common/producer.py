@@ -1,5 +1,6 @@
+from .._common import Producer
 from .plan import MLPlanStages
-from .._common import LoggingMode, Producer
+from .utils import LoggingMode
 
 
 class MLProducer(Producer):
@@ -15,7 +16,9 @@ class MLProducer(Producer):
         """
         return any(plan.need_probabilities for plan in self._plans)
 
-    def produce_stage(self, stage: MLPlanStages, is_probabilities: bool = False, **kwargs):
+    def produce_stage(
+        self, stage: MLPlanStages, is_probabilities: bool = False, **kwargs
+    ):
         """
         Produce the artifacts ready at the given stage and log them.
 

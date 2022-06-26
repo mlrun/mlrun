@@ -7,8 +7,8 @@ import plotly.graph_objects as go
 import mlrun
 from mlrun.artifacts import Artifact, PlotlyArtifact
 
-from ..utils import DLTypes, LoggingMode
 from ..model_handler import DLModelHandler
+from ..utils import DLTypes, LoggingMode
 from .logger import Logger
 
 

@@ -8,7 +8,7 @@ from sklearn.metrics import confusion_matrix
 from mlrun.artifacts import Artifact, PlotlyArtifact
 
 from ..plan import MLPlanStages, MLPlotPlan
-from ..utils import MLUtils, MLTypes
+from ..utils import MLTypes, MLUtils
 
 
 class ConfusionMatrixPlan(MLPlotPlan):

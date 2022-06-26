@@ -3,8 +3,8 @@ from typing import List
 
 import mlrun
 
-from .._common import LoggingMode, MLRunInterface
-from .._ml_common import MLModelHandler, MLPlan, MLPlanStages, MLProducer
+from .._common import MLRunInterface
+from .._ml_common import LoggingMode, MLModelHandler, MLPlan, MLPlanStages, MLProducer
 from .estimator import Estimator
 from .metric import Metric
 from .utils import SKLearnTypes, SKLearnUtils
@@ -49,7 +49,7 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
         restoration: SKLearnTypes.MLRunInterfaceRestorationType = None,
     ):
         """
-        Enrich the object with this interface properties, methods and functions so it will have this framework MLRun's
+        Enrich the object with this interface properties, methods and functions, so it will have SciKit-Learn MLRun's
         features.
 
         :param obj:                     The model object to enrich his interface.

@@ -6,7 +6,7 @@ from torch import Tensor
 import mlrun
 from mlrun.artifacts import Artifact
 
-from ..._dl_common import LoggingMode, MLRunLogger
+from ..._dl_common.loggers import LoggingMode, MLRunLogger
 from ..model_handler import PyTorchModelHandler
 from ..utils import PyTorchTypes
 from .logging_callback import LoggingCallback
@@ -40,9 +40,15 @@ class MLRunLoggingCallback(LoggingCallback):
         log_model_tag: str = "",
         log_model_labels: Dict[str, PyTorchTypes.TrackableType] = None,
         log_model_parameters: Dict[str, PyTorchTypes.TrackableType] = None,
-        log_model_extra_data: Dict[str, Union[PyTorchTypes.TrackableType, Artifact]] = None,
+        log_model_extra_data: Dict[
+            str, Union[PyTorchTypes.TrackableType, Artifact]
+        ] = None,
         dynamic_hyperparameters: Dict[
-            str, Tuple[str, Union[List[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]]]
+            str,
+            Tuple[
+                str,
+                Union[List[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
+            ],
         ] = None,
         static_hyperparameters: Dict[
             str, Union[PyTorchTypes.TrackableType, Tuple[str, List[Union[str, int]]]]

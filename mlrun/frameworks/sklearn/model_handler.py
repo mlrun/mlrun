@@ -7,8 +7,8 @@ import mlrun
 
 from .._common import without_mlrun_interface
 from .._ml_common import MLModelHandler
-from .utils import SKLearnTypes
 from .mlrun_interface import SKLearnMLRunInterface
+from .utils import SKLearnTypes
 
 
 class SKLearnModelHandler(MLModelHandler):

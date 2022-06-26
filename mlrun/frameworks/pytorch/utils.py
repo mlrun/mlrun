@@ -1,4 +1,4 @@
-from typing import Union, Callable
+from typing import Callable, Union
 
 import numpy as np
 import torch
@@ -7,7 +7,7 @@ from torch import Module, Tensor
 import mlrun
 from mlrun.data_types import ValueType
 
-from .._dl_common import DLUtils, DLTypes, LoggingMode
+from .._dl_common import DLTypes, DLUtils
 
 
 class PyTorchTypes(DLTypes):

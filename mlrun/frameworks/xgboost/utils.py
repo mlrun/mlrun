@@ -2,7 +2,7 @@ from typing import Union
 
 import xgboost as xgb
 
-from .._ml_common import MLUtils, MLTypes
+from .._ml_common import MLTypes, MLUtils
 
 
 class XGBoostTypes(MLTypes):

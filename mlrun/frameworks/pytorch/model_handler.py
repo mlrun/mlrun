@@ -21,7 +21,7 @@ class PyTorchModelHandler(DLModelHandler):
     # Framework name:
     FRAMEWORK_NAME = "torch"
 
-    # Declare a type of an input sample:
+    # Declare a type of input sample:
     IOSample = Union[torch.Tensor, np.ndarray]
 
     class _LabelKeys:
@@ -121,7 +121,7 @@ class PyTorchModelHandler(DLModelHandler):
                 model_class if isinstance(model_class, str) else model_class.__name__
             )
 
-        # Setup the base handler class:
+        # Set up the base handler class:
         super(PyTorchModelHandler, self).__init__(
             model=model,
             model_path=model_path,

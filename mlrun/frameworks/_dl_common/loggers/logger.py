@@ -38,7 +38,9 @@ class Logger:
 
         # Setup the dynamic hyperparameters dictionary - a dictionary of all tracked hyperparameters by epochs:
         # [Hyperparameter: str] -> [Epoch: int] -> [value: Union[str, bool, float, int]]
-        self._dynamic_hyperparameters = {}  # type: Dict[str, List[DLTypes.TrackableType]]
+        self._dynamic_hyperparameters = (
+            {}
+        )  # type: Dict[str, List[DLTypes.TrackableType]]
 
         # Setup the iterations counter:
         self._epochs = 0
@@ -231,7 +233,9 @@ class Logger:
         """
         self._validation_summaries[metric_name].append(result)
 
-    def log_static_hyperparameter(self, parameter_name: str, value: DLTypes.TrackableType):
+    def log_static_hyperparameter(
+        self, parameter_name: str, value: DLTypes.TrackableType
+    ):
         """
         Log the given parameter value in the static hyperparameters dictionary.
 
@@ -240,7 +244,9 @@ class Logger:
         """
         self._static_hyperparameters[parameter_name] = value
 
-    def log_dynamic_hyperparameter(self, parameter_name: str, value: DLTypes.TrackableType):
+    def log_dynamic_hyperparameter(
+        self, parameter_name: str, value: DLTypes.TrackableType
+    ):
         """
         Log the given parameter value in the dynamic hyperparameters dictionary at the current epoch (if its a new
         parameter it will be epoch 0). If the parameter appears in the static hyperparameters dictionary, it will be
@@ -266,12 +272,7 @@ class Logger:
         """
         for parameter_name, parameter_value in self._context.parameters.items():
             # Check if the parameter is a trackable value:
-            if (
-                isinstance(parameter_value, str)
-                or isinstance(parameter_value, bool)
-                or isinstance(parameter_value, float)
-                or isinstance(parameter_value, int)
-            ):
+            if isinstance(parameter_value, (str, bool, float, int)):
                 self.log_static_hyperparameter(
                     parameter_name=parameter_name, value=parameter_value
                 )

@@ -1,9 +1,9 @@
 from typing import Dict, List, Union
 
 import mlrun
-
-from .._ml_common import PickleModelServer, MLPlan, MLArtifactsLibrary
 from mlrun.frameworks.sklearn.metric import Metric
+
+from .._ml_common import MLArtifactsLibrary, MLPlan, PickleModelServer
 from .metrics_library import MetricsLibrary
 from .mlrun_interface import SKLearnMLRunInterface
 from .model_handler import SKLearnModelHandler
@@ -175,7 +175,7 @@ def apply_mlrun(
         ),
         x_test=x_test,
         y_test=y_test,
-        model_handler=handler
+        model_handler=handler,
     )
 
     return handler

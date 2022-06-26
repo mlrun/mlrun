@@ -9,10 +9,7 @@ from sklearn.datasets import (
 from sklearn.model_selection import train_test_split
 
 import mlrun
-from mlrun.frameworks._ml_common.utils import (
-    AlgorithmFunctionality,
-    MLTypes,
-)
+from mlrun.frameworks._ml_common.utils import AlgorithmFunctionality, MLTypes
 
 
 class MLFunctions(ABC):
@@ -40,7 +37,12 @@ class MLFunctions(ABC):
         algorithm_functionality: AlgorithmFunctionality, for_training: bool
     ) -> Union[
         Tuple[MLTypes.DatasetType, MLTypes.DatasetType],
-        Tuple[MLTypes.DatasetType, MLTypes.DatasetType, MLTypes.DatasetType, MLTypes.DatasetType],
+        Tuple[
+            MLTypes.DatasetType,
+            MLTypes.DatasetType,
+            MLTypes.DatasetType,
+            MLTypes.DatasetType,
+        ],
     ]:
         if algorithm_functionality.is_regression():
             n_targets = 1 if algorithm_functionality.is_single_output() else 5

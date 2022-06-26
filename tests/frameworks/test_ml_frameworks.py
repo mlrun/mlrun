@@ -1,23 +1,21 @@
 import json
-from typing import Dict, Tuple, List
+from typing import Dict, List, Tuple
+
 import pytest
 
 import mlrun
-from mlrun.frameworks._common import ArtifactsLibrary, MetricsLibrary
+from mlrun.frameworks._common import ArtifactsLibrary
 from mlrun.frameworks._ml_common import AlgorithmFunctionality, MLPlanStages
-from mlrun.frameworks.sklearn import SKLearnMetricsLibrary, SKLearnArtifactsLibrary
-from mlrun.frameworks.lgbm import LGBMMetricsLibrary, LGBMArtifactsLibrary
-from mlrun.frameworks.xgboost import XGBoostMetricsLibrary, XGBoostArtifactsLibrary
+from mlrun.frameworks.sklearn import MetricsLibrary, SKLearnArtifactsLibrary
+from mlrun.frameworks.xgboost import XGBoostArtifactsLibrary
 
 from .ml_functions import MLFunctions
-from .lgbm import LGBMFunctions
 from .sklearn import SKLearnFunctions
 from .xgboost import XGBoostFunctions
 
 
 class FrameworkKeys:
     XGBOOST = "xgboost"
-    LIGHTGBM = "lightgbm"
     SKLEARN = "sklearn"
 
 
@@ -25,18 +23,16 @@ FRAMEWORKS = {  # type: Dict[str, Tuple[MLFunctions, ArtifactsLibrary, MetricsLi
     FrameworkKeys.XGBOOST: (
         XGBoostFunctions,
         XGBoostArtifactsLibrary,
-        XGBoostMetricsLibrary,
+        MetricsLibrary,
     ),
-    FrameworkKeys.LIGHTGBM: (LGBMFunctions, LGBMArtifactsLibrary, LGBMMetricsLibrary),
     FrameworkKeys.SKLEARN: (
         SKLearnFunctions,
         SKLearnArtifactsLibrary,
-        SKLearnMetricsLibrary,
+        MetricsLibrary,
     ),
 }
 FRAMEWORKS_KEYS = [  # type: List[str]
     FrameworkKeys.XGBOOST,
-    FrameworkKeys.LIGHTGBM,
     FrameworkKeys.SKLEARN,
 ]
 ALGORITHM_FUNCTIONALITIES = [  # type: List[str]
@@ -56,7 +52,7 @@ def test_training(framework: str, algorithm_functionality: str):
 
     # Skips:
     if (
-        (functions is LGBMFunctions or functions is XGBoostFunctions)
+        functions is XGBoostFunctions
         and algorithm_functionality
         == AlgorithmFunctionality.MULTI_OUTPUT_MULTICLASS_CLASSIFICATION.value
     ):
@@ -100,7 +96,7 @@ def test_evaluation(framework: str, algorithm_functionality: str):
 
     # Skips:
     if (
-        (functions is LGBMFunctions or functions is XGBoostFunctions)
+        functions is XGBoostFunctions
         and algorithm_functionality
         == AlgorithmFunctionality.MULTI_OUTPUT_MULTICLASS_CLASSIFICATION.value
     ):
@@ -134,10 +130,10 @@ def test_evaluation(framework: str, algorithm_functionality: str):
     _, dummy_y = functions.get_dataset(
         algorithm_functionality=algorithm_functionality, for_training=False
     )
-    expected_artifacts = [  # Count only pre and post prediction artifacts (evaluation artifacts).
+    expected_artifacts = [
         plan
         for plan in artifacts_library.get_plans(model=dummy_model, y=dummy_y)
-        if not (
+        if not (  # Count only pre and post prediction artifacts (evaluation artifacts).
             plan.is_ready(stage=MLPlanStages.POST_FIT, is_probabilities=False)
             or plan.is_ready(stage=MLPlanStages.PRE_FIT, is_probabilities=False)
         )

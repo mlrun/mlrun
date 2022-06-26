@@ -93,7 +93,10 @@ class MLPlotPlan(MLPlan, ABC):
                 display(HTML(artifact.get_body()))
 
     def _calculate_predictions(
-        self, y_pred: MLTypes.DatasetType = None, model: MLTypes.ModelType = None, x: MLTypes.DatasetType = None
+        self,
+        y_pred: MLTypes.DatasetType = None,
+        model: MLTypes.ModelType = None,
+        x: MLTypes.DatasetType = None,
     ) -> MLTypes.DatasetType:
         """
         Calculate the predictions using the model and input dataset only if the predictions (y_pred) were not provided.

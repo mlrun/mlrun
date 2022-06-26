@@ -1,7 +1,8 @@
 from typing import Union
 
 import sklearn.base
-from .._ml_common import MLUtils, MLTypes, LoggingMode
+
+from .._ml_common import MLTypes, MLUtils
 
 
 class SKLearnTypes(MLTypes):

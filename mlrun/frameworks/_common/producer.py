@@ -94,9 +94,7 @@ class Producer:
         :param kwargs: All the required produce arguments to pass onto the plans.
         """
         # Produce all the artifacts according to the given stage:
-        self._produce_artifacts(
-            stage=stage, **kwargs
-        )
+        self._produce_artifacts(stage=stage, **kwargs)
 
         # Log if a context is available:
         if self._context is not None:
@@ -105,9 +103,7 @@ class Producer:
             # Commit:
             self._context.commit(completed=False)
 
-    def _produce_artifacts(
-        self, stage, **kwargs
-    ):
+    def _produce_artifacts(self, stage, **kwargs):
         """
         Go through the plans and check if they are ready to be produced in the given stage of the run. If they are,
         the logger will pass all the arguments to the 'plan.produce' method and collect the returned artifact.

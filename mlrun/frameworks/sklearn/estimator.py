@@ -5,7 +5,7 @@ import pandas as pd
 
 import mlrun
 
-from .._common.utils import LoggingMode
+from .._ml_common import LoggingMode
 from .metric import Metric
 from .utils import SKLearnUtils
 
@@ -86,9 +86,7 @@ class Estimator:
 
         :return: True if probabilities are required by at least one metric and False otherwise.
         """
-        return any(
-            metric.need_probabilities for metric in self._metrics
-        )
+        return any(metric.need_probabilities for metric in self._metrics)
 
     def estimate(
         self,

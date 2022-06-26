@@ -5,10 +5,10 @@ import xgboost as xgb
 import mlrun
 
 from .._ml_common import MLArtifactsLibrary, MLPlan, PickleModelServer
-from ..sklearn import MetricsLibrary, Metric
+from ..sklearn import Metric, MetricsLibrary
 from .mlrun_interface import XGBModelMLRunInterface
 from .model_handler import XGBoostModelHandler
-from .utils import XGBoostUtils, XGBoostTypes
+from .utils import XGBoostTypes, XGBoostUtils
 
 # Placeholders as the SciKit-Learn API is commonly used among all ML frameworks:
 XGBoostArtifactsLibrary = MLArtifactsLibrary
@@ -25,7 +25,11 @@ def apply_mlrun(
     custom_objects_directory: str = None,
     context: mlrun.MLClientCtx = None,
     artifacts: Union[List[MLPlan], List[str], Dict[str, dict]] = None,
-    metrics: Union[List[Metric], List[XGBoostTypes.MetricEntryType], Dict[str, XGBoostTypes.MetricEntryType]] = None,
+    metrics: Union[
+        List[Metric],
+        List[XGBoostTypes.MetricEntryType],
+        Dict[str, XGBoostTypes.MetricEntryType],
+    ] = None,
     x_test: XGBoostTypes.DatasetType = None,
     y_test: XGBoostTypes.DatasetType = None,
     sample_set: Union[XGBoostTypes.DatasetType, mlrun.DataItem, str] = None,
@@ -173,7 +177,7 @@ def apply_mlrun(
         ),
         x_test=x_test,
         y_test=y_test,
-        model_handler=handler
+        model_handler=handler,
     )
 
     return handler

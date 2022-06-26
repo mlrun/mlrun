@@ -16,7 +16,7 @@ from mlrun.execution import MLClientCtx
 from mlrun.features import Feature
 
 from .mlrun_interface import MLRunInterface
-from .utils import Utils, Types
+from .utils import Types, Utils
 
 
 class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
@@ -42,8 +42,12 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
         model: Types.ModelType = None,
         model_path: Types.PathType = None,
         model_name: str = None,
-        modules_map: Union[Dict[str, Union[None, str, List[str]]], Types.PathType] = None,
-        custom_objects_map: Union[Dict[str, Union[str, List[str]]], Types.PathType] = None,
+        modules_map: Union[
+            Dict[str, Union[None, str, List[str]]], Types.PathType
+        ] = None,
+        custom_objects_map: Union[
+            Dict[str, Union[str, List[str]]], Types.PathType
+        ] = None,
         custom_objects_directory: Types.PathType = None,
         context: MLClientCtx = None,
         **kwargs,
@@ -152,6 +156,7 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
         self._outputs = None  # type: List[Feature]
         self._labels = {}  # type: Dict[str, Union[str, int, float]]
         self._parameters = {}  # type: Dict[str, Union[str, int, float]]
+        self._metrics = {}  # type: Dict[str, float]
         self._registered_artifacts = {}  # type: Dict[str, Artifact]
 
         # Set a flag to know if the user logged the model so its artifact is cached:
@@ -243,7 +248,9 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
         """
         return self._parameters
 
-    def get_artifacts(self, committed_only: bool = False) -> Dict[str, Types.ExtraDataType]:
+    def get_artifacts(
+        self, committed_only: bool = False
+    ) -> Dict[str, Types.ExtraDataType]:
         """
         Get the registered artifacts of this model's artifact. By default all the artifacts (logged and to be logged -
         committed only) will be returned. To get only the artifacts registered in the current run whom are committed and
@@ -285,7 +292,10 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
         self._tag = tag
 
     def set_inputs(
-        self, from_sample: Types.IOSampleType = None, features: List[Feature] = None, **kwargs
+        self,
+        from_sample: Types.IOSampleType = None,
+        features: List[Feature] = None,
+        **kwargs,
     ):
         """
         Read the inputs property of this model to be logged along with it. The inputs can be set directly by passing the
@@ -311,7 +321,10 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
         )
 
     def set_outputs(
-        self, from_sample: Types.IOSampleType = None, features: List[Feature] = None, **kwargs
+        self,
+        from_sample: Types.IOSampleType = None,
+        features: List[Feature] = None,
+        **kwargs,
     ):
         """
         Read the outputs property of this model to be logged along with it. The outputs can be set directly by passing
@@ -376,6 +389,26 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
             for label in to_remove:
                 self._parameters.pop(label)
 
+    def set_metrics(
+        self,
+        to_add: Dict[str, Types.ExtraDataType] = None,
+        to_remove: List[str] = None,
+    ):
+        """
+        Update the metrics dictionary of this model artifact.
+
+        :param to_add:    The metrics to add.
+        :param to_remove: A list of metrics keys to remove.
+        """
+        # Update the extra data:
+        if to_add is not None:
+            self._metrics.update(to_add)
+
+        # Remove extra data:
+        if to_remove is not None:
+            for label in to_remove:
+                self._metrics.pop(label)
+
     def set_extra_data(
         self,
         to_add: Dict[str, Types.ExtraDataType] = None,
@@ -394,7 +427,7 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
         # Remove extra data:
         if to_remove is not None:
             for label in to_remove:
-                self._parameters.pop(label)
+                self._extra_data.pop(label)
 
     def register_artifacts(
         self, artifacts: Union[Artifact, List[Artifact], Dict[str, Artifact]]
@@ -539,9 +572,10 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
         if tag != "":
             self.set_tag(tag=tag)
 
-        # Update labels and parameters:
+        # Update labels, parameters and metrics:
         self.set_labels(to_add=labels)
         self.set_parameters(to_add=parameters)
+        self.set_metrics(to_add=metrics)
 
         # Update the extra data:
         self._extra_data = {
@@ -566,7 +600,7 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
             framework=self.FRAMEWORK_NAME,
             labels=self._labels,
             parameters=self._parameters,
-            metrics=metrics,
+            metrics=self._metrics,
             extra_data={
                 k: v
                 for k, v in self._extra_data.items()

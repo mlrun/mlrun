@@ -2,8 +2,8 @@ import copy
 import functools
 import inspect
 from abc import ABC
-from types import MethodType
-from typing import Any, Dict, Generic, List
+from types import FunctionType, MethodType
+from typing import Any, Dict, Generic, List, Tuple, Union
 
 from .utils import Types
 
@@ -78,7 +78,9 @@ class MLRunInterface(ABC, Generic[Types.MLRunInterfaceableType]):
         cls._replace_functions(obj=obj, functions=restoration[2])
 
     @classmethod
-    def remove_interface(cls, obj: Types.MLRunInterfaceableType) -> Types.MLRunInterfaceRestorationType:
+    def remove_interface(
+        cls, obj: Types.MLRunInterfaceableType
+    ) -> Types.MLRunInterfaceRestorationType:
         """
         Remove the MLRun features from the given object. The properties and replaced attributes found in the object will
         be returned.
@@ -392,3 +394,56 @@ class MLRunInterface(ABC, Generic[Types.MLRunInterfaceableType]):
         # Remove the original backup attribute:
         setattr(obj, original_attribute_name, None)
         delattr(obj, original_attribute_name)
+
+    @staticmethod
+    def _get_function_argument(
+        func: FunctionType,
+        argument_name: str,
+        passed_args: tuple = None,
+        passed_kwargs: dict = None,
+        default_value: Any = None,
+    ) -> Tuple[Any, Union[str, int, None]]:
+        """
+        Get a passed argument (from *args or **kwargs) to a function. If the argument was not found the default value
+        will be returned. In addition, the keyword of the argument in `kwargs` or the index of the argument in `args`
+        will be returned as well.
+
+        :param func:          The function that is being called.
+        :param argument_name: The argument name to get.
+        :param passed_args:   The passed arguments to the function (*args).
+        :param passed_kwargs: The passed keyword arguments to the function (*kwargs).
+        :param default_value: The default value to use in case it was not passed.
+
+        :return: A tuple of:
+                 [0] = The argument value or the default value if it was not found in any of the arguments.
+                 [1] = If it was found in `kwargs` - the keyword of the argument. If it was found in `args` - the index
+                       of the argument. If it was not found, None.
+        """
+        # Set default values for arguments data structures:
+        if passed_args is None:
+            passed_args = []
+        if passed_kwargs is None:
+            passed_kwargs = {}
+
+        # Check in the key word arguments first:
+        if argument_name in passed_kwargs:
+            return passed_kwargs[argument_name], argument_name
+
+        # Check in the arguments, inspecting the function's parameters to get the right index:
+        func_parameters = {
+            parameter_name: i
+            for i, parameter_name in enumerate(
+                inspect.signature(func).parameters.keys()
+            )
+        }
+        if (
+            argument_name in func_parameters
+            and len(passed_args) >= func_parameters[argument_name] + 1
+        ):
+            return (
+                passed_args[func_parameters[argument_name]],
+                func_parameters[argument_name],
+            )
+
+        # The argument name was not found:
+        return default_value, None

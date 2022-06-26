@@ -115,10 +115,10 @@ class TFKerasModelHandler(DLModelHandler):
                                          before loading the model). If the model path given is of a store object, the
                                          custom objects files will be read from the logged custom object artifact of the
                                          model.
-        :param save_traces:              Whether or not to use functions saving (only available for the 'SavedModel'
-                                         format) for loading the model later without the custom objects dictionary. Only
-                                         from tensorflow version >= 2.4.0. Using this setting will increase the model
-                                         saving size.
+        :param save_traces:              Whether to use functions saving (only available for the 'SavedModel' format)
+                                         for loading the model later without the custom objects dictionary. Only from
+                                         tensorflow version >= 2.4.0. Using this setting will increase the model saving
+                                         size.
 
         :raise MLRunInvalidArgumentError: In case the input was incorrect:
                                           * Model format is unrecognized.

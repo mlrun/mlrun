@@ -46,7 +46,9 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
 
     def __init__(
         self,
-        statistics_functions: List[Callable[[DLTypes.WeightType], Union[float, DLTypes.WeightType]]],
+        statistics_functions: List[
+            Callable[[DLTypes.WeightType], Union[float, DLTypes.WeightType]]
+        ],
         context: mlrun.MLClientCtx = None,
         tensorboard_directory: str = None,
         run_name: str = None,
@@ -397,7 +399,9 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         pass
 
     @abstractmethod
-    def _write_weight_image_to_tensorboard(self, name: str, weight: DLTypes.WeightType, step: int):
+    def _write_weight_image_to_tensorboard(
+        self, name: str, weight: DLTypes.WeightType, step: int
+    ):
         """
         Log the current state of the weights as images to tensorboard.
 

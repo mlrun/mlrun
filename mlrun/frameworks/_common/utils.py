@@ -1,15 +1,15 @@
+import re
 from abc import ABC
 from enum import Enum
 from pathlib import Path
-from typing import TypeVar, Union, Tuple, Dict, List, Any, Type
+from typing import Any, Dict, List, Tuple, TypeVar, Union
 
 import numpy as np
-import scipy.sparse.base as sp
 import pandas as pd
 
 import mlrun
-from mlrun.data_types import ValueType
 from mlrun.artifacts import Artifact
+from mlrun.data_types import ValueType
 from mlrun.datastore import DataItem
 
 
@@ -35,7 +35,15 @@ class Types(ABC):
     ]
 
     # Common dataset type to all frameworks:
-    DatasetType = Union[list, tuple, dict, np.ndarray, sp.spmatrix, pd.DataFrame, pd.Series]
+    DatasetType = Union[
+        list,
+        tuple,
+        dict,
+        np.ndarray,
+        pd.DataFrame,
+        pd.Series,
+        "scipy.sparse.base.spmatrix",
+    ]
 
     # A joined type for receiving a path from 'pathlib' or 'os.path':
     PathType = Union[str, Path]
@@ -77,12 +85,18 @@ class Utils(ABC):
             return dataset
         if isinstance(dataset, (pd.DataFrame, pd.Series)):
             return dataset.to_numpy()
-        if isinstance(dataset, sp.spmatrix):
-            return dataset.toarray()
         if isinstance(dataset, (list, tuple)):
             return np.array(dataset)
         if isinstance(dataset, dict):
             return np.array(list(dataset.values()))
+        try:
+            import scipy.sparse.base as sp
+
+            if isinstance(dataset, sp.spmatrix):
+                return dataset.toarray()
+        except ModuleNotFoundError:
+            pass
+
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"Could not convert the given dataset into a numpy ndarray. Supporting conversion from: "
             f"{Utils.get_union_typehint_string(Types.DatasetType)}. The given dataset was of type: '{type(dataset)}'"
@@ -104,15 +118,22 @@ class Utils(ABC):
             return dataset
         if isinstance(dataset, (np.ndarray, pd.Series, list, tuple, dict)):
             return pd.DataFrame(dataset)
-        if isinstance(dataset, sp.spmatrix):
-            return pd.DataFrame.sparse.from_spmatrix(dataset)
+        try:
+            import scipy.sparse.base as sp
+
+            if isinstance(dataset, sp.spmatrix):
+                return pd.DataFrame.sparse.from_spmatrix(dataset)
+        except ModuleNotFoundError:
+            pass
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"Could not convert the given dataset into a pandas DataFrame. Supporting conversion from: "
             f"{Utils.get_union_typehint_string(Types.DatasetType)}. The given dataset was of type: '{type(dataset)}'"
         )
 
     @staticmethod
-    def convert_value_type_to_np_dtype(value_type: str,) -> np.dtype:
+    def convert_value_type_to_np_dtype(
+        value_type: str,
+    ) -> np.dtype:
         """
         Get the 'numpy.dtype' equivalent to the given MLRun value type.
 
@@ -207,5 +228,4 @@ class Utils(ABC):
 
         :return: The union typehint's string.
         """
-        return str(union_typehint).split('[', 1)[1].rsplit(']', 1)[0]
-
+        return re.sub("typing.Union|[\[\]'\"()]|ForwardRef", "", str(union_typehint))

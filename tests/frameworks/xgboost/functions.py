@@ -3,8 +3,8 @@ from sklearn.multiclass import OneVsRestClassifier
 from sklearn.multioutput import MultiOutputClassifier, MultiOutputRegressor
 
 import mlrun
-from mlrun.frameworks.xgboost import apply_mlrun, XGBoostTypes
 from mlrun.frameworks._ml_common import AlgorithmFunctionality
+from mlrun.frameworks.xgboost import XGBoostTypes, apply_mlrun
 
 from ..ml_functions import MLFunctions
 
@@ -22,9 +22,7 @@ class XGBoostFunctions(MLFunctions):
             algorithm_functionality=algorithm_functionality, for_training=True
         )
 
-        apply_mlrun(
-            model=model, model_name=model_name, x_test=x_test, y_test=y_test
-        )
+        apply_mlrun(model=model, model_name=model_name, x_test=x_test, y_test=y_test)
         model.fit(x_train, y_train)
 
     @staticmethod
@@ -40,7 +38,9 @@ class XGBoostFunctions(MLFunctions):
         model.predict(x)
 
     @staticmethod
-    def get_model(algorithm_functionality: AlgorithmFunctionality) -> XGBoostTypes.ModelType:
+    def get_model(
+        algorithm_functionality: AlgorithmFunctionality,
+    ) -> XGBoostTypes.ModelType:
         if algorithm_functionality.is_classification():
             if algorithm_functionality.is_single_output():
                 return xgb.XGBClassifier()

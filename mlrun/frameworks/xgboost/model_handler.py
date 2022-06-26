@@ -3,7 +3,6 @@ import pickle
 from typing import Dict, List, Union
 
 import cloudpickle
-import xgboost as xgb
 
 import mlrun
 

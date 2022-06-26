@@ -12,7 +12,7 @@ from .callbacks_handler import CallbacksHandler
 from .mlrun_interface import PyTorchMLRunInterface
 from .model_handler import PyTorchModelHandler
 from .model_server import PyTorchModelServer
-from .utils import PyTorchUtils, PyTorchTypes
+from .utils import PyTorchTypes, PyTorchUtils
 
 
 def train(

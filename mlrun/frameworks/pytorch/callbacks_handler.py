@@ -480,7 +480,9 @@ class CallbacksHandler:
         )
 
     def on_train_metrics_end(
-        self, metric_values: List[PyTorchTypes.MetricValueType], callbacks: List[str] = None
+        self,
+        metric_values: List[PyTorchTypes.MetricValueType],
+        callbacks: List[str] = None,
     ) -> bool:
         """
         Call the 'on_train_metrics_end' method of every callback in the callbacks list. If the list is 'None'
@@ -512,7 +514,9 @@ class CallbacksHandler:
         )
 
     def on_validation_metrics_end(
-        self, metric_values: List[PyTorchTypes.MetricValueType], callbacks: List[str] = None
+        self,
+        metric_values: List[PyTorchTypes.MetricValueType],
+        callbacks: List[str] = None,
     ) -> bool:
         """
         Call the 'on_validation_metrics_end' method of every callback in the callbacks list. If the list is 'None'

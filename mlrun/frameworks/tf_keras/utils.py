@@ -4,7 +4,6 @@ from tensorflow import keras
 import mlrun
 from mlrun.data_types import ValueType
 
-from .._common import LoggingMode
 from .._dl_common import DLTypes, DLUtils
 
 

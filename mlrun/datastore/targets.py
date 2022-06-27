@@ -1428,7 +1428,6 @@ class MongoDBTarget(BaseStoreTarget):
         self,
         name: str = "",
         path=None,
-        attributes: typing.Dict[str, str] = None,
         after_step=None,
         columns=None,
         partitioned: bool = False,
@@ -1445,22 +1444,6 @@ class MongoDBTarget(BaseStoreTarget):
         create_collection: bool = False,
         override_collection: bool = False,
     ):
-
-        super().__init__(
-            name,
-            path,
-            attributes,
-            after_step,
-            columns,
-            partitioned,
-            key_bucketing_number,
-            partition_cols,
-            time_partitioning_granularity,
-            max_events=max_events,
-            flush_after_seconds=flush_after_seconds,
-            storage_options=storage_options,
-            after_state=after_state,
-        )
 
         if not all([db_name, collection_name, connection_string]):
             return
@@ -1487,11 +1470,27 @@ class MongoDBTarget(BaseStoreTarget):
                 )
         elif override_collection:
             db[collection_name].delete_many({})
-        self.attributes = {
+        attributes = {
             "collection_name": collection_name,
             "db_name": db_name,
             "connection_string": connection_string,
         }
+
+        super().__init__(
+            name,
+            path,
+            attributes,
+            after_step,
+            columns,
+            partitioned,
+            key_bucketing_number,
+            partition_cols,
+            time_partitioning_granularity,
+            max_events=max_events,
+            flush_after_seconds=flush_after_seconds,
+            storage_options=storage_options,
+            after_state=after_state,
+        )
 
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None

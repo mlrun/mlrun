@@ -14,24 +14,32 @@ def ensure_running_on_chief(function):
     cluster to get out of synchronization.
     """
 
+    def _ensure_running_on_chief():
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.api.schemas.ClusterizationRole.chief
+        ):
+            if (
+                mlrun.mlconf.httpdb.clusterization.ensure_function_running_on_chief_mode
+                == "enabled"
+            ):
+                message = (
+                    f"{function.__name__} is supposed to run only on chief, re-route."
+                )
+                raise mlrun.errors.MLRunConflictError(message)
+            else:
+                logger.warning(
+                    f"running {function.__name__} chief function on worker",
+                    fail_mode=mlrun.mlconf.httpdb.clusterization.ensure_function_running_on_chief_mode,
+                )
+
     def wrapper(*args, **kwargs):
+        _ensure_running_on_chief()
         return function(*args, **kwargs)
 
     async def async_wrapper(*args, **kwargs):
+        _ensure_running_on_chief()
         return await function(*args, **kwargs)
-
-    if (
-        mlrun.mlconf.httpdb.clusterization.role
-        != mlrun.api.schemas.ClusterizationRole.chief
-    ):
-        if mlrun.mlconf.fail_on_running_chief_functions_in_worker_mode == "enabled":
-            message = f"{function.__name__} is supposed to run only on chief, re-route."
-            raise mlrun.errors.MLRunConflictError(message)
-        else:
-            logger.warning(
-                f"running {function.__name__} chief function on worker",
-                fail_mode=mlrun.mlconf.httpdb.clusterization.ensure_function_running_on_chief_mode,
-            )
 
     if asyncio.iscoroutinefunction(function):
         return async_wrapper

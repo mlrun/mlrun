@@ -33,6 +33,7 @@ jobs:
         - base
         - models
         - models-gpu
+        - jupyter
         - test
 # The GPU image is too big (~24GB) GH action runner has only 14GB
 #        - models-gpu

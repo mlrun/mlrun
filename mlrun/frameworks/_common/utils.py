@@ -42,7 +42,7 @@ class Types(ABC):
         np.ndarray,
         pd.DataFrame,
         pd.Series,
-        "scipy.sparse.base.spmatrix",
+        "scipy.sparse.base.spmatrix",  # noqa: F821
     ]
 
     # A joined type for receiving a path from 'pathlib' or 'os.path':
@@ -228,4 +228,4 @@ class Utils(ABC):
 
         :return: The union typehint's string.
         """
-        return re.sub("typing.Union|[\[\]'\"()]|ForwardRef", "", str(union_typehint))
+        return re.sub(r"typing.Union|[\[\]'\"()]|ForwardRef", "", str(union_typehint))

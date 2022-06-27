@@ -1,4 +1,5 @@
 import typing
+import traceback
 
 import humanfriendly
 import mergedeep
@@ -64,7 +65,9 @@ class Member(
             )
             self._sync_projects(full_sync=full_sync)
         except Exception as exc:
-            logger.warning("Initial projects sync failed", exc=str(exc))
+            logger.warning("Initial projects sync failed",
+                           exc=str(exc),
+                           traceback=traceback.format_exc())
         self._start_periodic_sync()
 
     def shutdown(self):

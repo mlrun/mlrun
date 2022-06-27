@@ -1,7 +1,7 @@
 import datetime
 
 import mlrun
-from mlrun.feature_store.steps import OneHotEncoder, SetEventMetadata
+from mlrun.feature_store.steps import SetEventMetadata
 
 
 def extract_meta(event):

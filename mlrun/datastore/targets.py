@@ -1428,6 +1428,7 @@ class MongoDBTarget(BaseStoreTarget):
         self,
         name: str = "",
         path=None,
+        attributes: typing.Dict[str, str] = None,
         after_step=None,
         columns=None,
         partitioned: bool = False,
@@ -1446,35 +1447,40 @@ class MongoDBTarget(BaseStoreTarget):
     ):
 
         if not all([db_name, collection_name, connection_string]):
-            return
+            attr = {}
+        else:
 
-        from pymongo import MongoClient
+            from pymongo import MongoClient
 
-        mongodb_client = MongoClient(connection_string)
-        all_dbs = mongodb_client.list_database_names()
-        if db_name not in all_dbs:
-            if create_collection:
-                pass
-            else:
-                raise ValueError(f"DataBase named {db_name} is not exist")
-        db = mongodb_client[db_name]
-        all_collections = db.list_collection_names()
-        if collection_name not in all_collections:
-            if create_collection:
-                collection = db[collection_name]
-                collection.insert_one({"test": "test"})
-                collection.delete_one({"test": "test"})
-            else:
-                raise ValueError(
-                    f"Collection named {collection_name} is not exist in {db_name} database"
-                )
-        elif override_collection:
-            db[collection_name].delete_many({})
-        attributes = {
-            "collection_name": collection_name,
-            "db_name": db_name,
-            "connection_string": connection_string,
-        }
+            mongodb_client = MongoClient(connection_string)
+            all_dbs = mongodb_client.list_database_names()
+            if db_name not in all_dbs:
+                if create_collection:
+                    pass
+                else:
+                    raise ValueError(f"DataBase named {db_name} is not exist")
+            db = mongodb_client[db_name]
+            all_collections = db.list_collection_names()
+            if collection_name not in all_collections:
+                if create_collection:
+                    collection = db[collection_name]
+                    collection.insert_one({"test": "test"})
+                    collection.delete_one({"test": "test"})
+                else:
+                    raise ValueError(
+                        f"Collection named {collection_name} is not exist in {db_name} database"
+                    )
+            elif override_collection:
+                db[collection_name].delete_many({})
+            attr = {
+                "collection_name": collection_name,
+                "db_name": db_name,
+                "connection_string": connection_string,
+            }
+        if attributes:
+            attributes.update(attr)
+        else:
+            attributes = attr
 
         super().__init__(
             name,
@@ -1491,6 +1497,8 @@ class MongoDBTarget(BaseStoreTarget):
             storage_options=storage_options,
             after_state=after_state,
         )
+
+
 
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None

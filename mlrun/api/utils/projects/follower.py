@@ -1,5 +1,5 @@
-import typing
 import traceback
+import typing
 
 import humanfriendly
 import mergedeep
@@ -65,9 +65,11 @@ class Member(
             )
             self._sync_projects(full_sync=full_sync)
         except Exception as exc:
-            logger.warning("Initial projects sync failed",
-                           exc=str(exc),
-                           traceback=traceback.format_exc())
+            logger.warning(
+                "Initial projects sync failed",
+                exc=str(exc),
+                traceback=traceback.format_exc(),
+            )
         self._start_periodic_sync()
 
     def shutdown(self):
@@ -269,6 +271,12 @@ class Member(
         db_session = mlrun.api.db.session.create_session()
         db_projects = mlrun.api.crud.Projects().list_projects(
             db_session, format_=mlrun.api.schemas.ProjectsFormat.name_only
+        )
+        logger.info(
+            "DAFUCK",
+            projects=db_projects.projects,
+            latest_updated_at=latest_updated_at,
+            leader_projects=leader_projects,
         )
         # Don't add projects in non terminal state if they didn't exist before to prevent race conditions
         filtered_projects = []

@@ -272,12 +272,6 @@ class Member(
         db_projects = mlrun.api.crud.Projects().list_projects(
             db_session, format_=mlrun.api.schemas.ProjectsFormat.name_only
         )
-        logger.info(
-            "DAFUCK",
-            projects=db_projects.projects,
-            latest_updated_at=latest_updated_at,
-            leader_projects=leader_projects,
-        )
         # Don't add projects in non terminal state if they didn't exist before to prevent race conditions
         filtered_projects = []
         for leader_project in leader_projects:

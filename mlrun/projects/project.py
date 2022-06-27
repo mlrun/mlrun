@@ -1914,11 +1914,13 @@ class MlrunProject(ModelObj):
             secrets=self._secrets,
             artifact_path=artifact_path,
             namespace=namespace,
+            watch=watch,
+            timeout=timeout,
             schedule=schedule,
         )
         workflow_spec.clear_tmp()
-        if watch and workflow_engine.engine == "kfp":
-            self.get_run_status(run, timeout=timeout)
+        # if watch and workflow_engine.engine == "kfp":
+        #     self.get_run_status(run, timeout=timeout)
         return run
 
     def save_workflow(self, name, target, artifact_path=None, ttl=None):

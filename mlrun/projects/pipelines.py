@@ -16,6 +16,7 @@ import builtins
 import importlib.util as imputil
 import os
 import tempfile
+import time
 import traceback
 import typing
 import uuid
@@ -397,6 +398,8 @@ class _PipelineRunner(abc.ABC):
         secrets=None,
         artifact_path=None,
         namespace=None,
+        watch=None,
+        timeout=None,
         schedule=None,
     ) -> _PipelineRunStatus:
         return None
@@ -460,6 +463,8 @@ class _KFPRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
+        watch=None,
+        timeout=None,
         schedule=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
@@ -483,6 +488,8 @@ class _KFPRunner(_PipelineRunner):
             id,
             True,
         )
+        if watch:
+            cls.wait_for_completion(run_id=id, project=project, timeout=timeout)
         pipeline_context.clear()
         return _PipelineRunStatus(id, cls, project=project, workflow=workflow_spec)
 
@@ -524,6 +531,8 @@ class _LocalRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
+        watch=None,
+        timeout=None,
         schedule=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
@@ -582,6 +591,8 @@ class _RemoteRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
+        watch=None,
+        timeout=None,
         schedule=None,
     ) -> _PipelineRunStatus:
         # workflow_id = uuid.uuid4().hex
@@ -596,8 +607,10 @@ class _RemoteRunner(_PipelineRunner):
                 source=project.spec.source,
                 image="mlrun/mlrun",
             )
-            fn.spec.build.commands = ['pip uninstall -y mlrun',
-                                      'pip install git+https://github.com/yonishelach/mlrun.git@remote-runner']
+            fn.spec.build.commands = [
+                "pip uninstall -y mlrun",
+                "pip install git+https://github.com/yonishelach/mlrun.git@remote-runner",
+            ]
             logger.info("Running the function that invokes the workflow remotely")
             # Preparing parameters for load_and_run function:
             params = workflow_spec.args.copy() if workflow_spec.args else {}
@@ -605,6 +618,7 @@ class _RemoteRunner(_PipelineRunner):
                 name.split("-")[-1] if f"{project.name}-" in name else name
             )
             params["local"] = workflow_spec.run_local
+            run_id = None
 
             run_id = fn.run(
                 name=workflow_name,
@@ -614,6 +628,8 @@ class _RemoteRunner(_PipelineRunner):
                 local=False,
                 schedule=schedule,
             )
+            while not run_id:
+                time.sleep(1)
 
             state = mlrun.run.RunStatuses.succeeded
         except Exception as e:
@@ -624,7 +640,9 @@ class _RemoteRunner(_PipelineRunner):
             )
             state = mlrun.run.RunStatuses.failed
 
-        mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
+        if watch:
+            cls.wait_for_completion(run_id=run_id, project=project, timeout=timeout)
+        # mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
         project.notifiers.push_start_message(
             project.metadata.name,
         )
@@ -635,7 +653,17 @@ class _RemoteRunner(_PipelineRunner):
 
     @staticmethod
     def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
-        pass
+        project_name = project.metadata.name if project else ""
+        run_info = wait_for_pipeline_completion(
+            run_id,
+            timeout=timeout,
+            expected_statuses=expected_statuses,
+            project=project_name,
+        )
+        status = ""
+        if run_info:
+            status = run_info["run"].get("status")
+        return status
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):

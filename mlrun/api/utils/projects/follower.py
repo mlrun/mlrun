@@ -303,7 +303,8 @@ class Member(
                     project_to_remove,
                     mlrun.api.schemas.DeletionStrategy.cascading,
                 )
-        self._synced_until_datetime = latest_updated_at
+        if latest_updated_at:
+            self._synced_until_datetime = latest_updated_at
 
     def _is_request_from_leader(
         self, projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole]

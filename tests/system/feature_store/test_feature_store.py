@@ -2307,7 +2307,6 @@ class TestFeatureStore(TestMLRunSystem):
         with fs.get_online_feature_service(
             vector, impute_policy={"*": "$max", "data_avg_1h": "$mean", "data2": 4}
         ) as svc:
-
             print(svc.vector.status.to_yaml())
 
             resp = svc.get([{"name": "ab"}])
@@ -2488,6 +2487,41 @@ class TestFeatureStore(TestMLRunSystem):
         assert len(expected) == len(res.to_dataframe().to_dict().keys())
         for key in res.to_dataframe().to_dict().keys():
             assert key in expected
+
+    def test_set_event_with_spaces_or_hyphens(self):
+        from mlrun.feature_store.steps import OneHotEncoder
+
+        lst_1 = [
+            " Private",
+            " Private",
+            " Local-gov",
+            " Private",
+            " Private",
+            " Self-emp-not-inc",
+            " Private",
+            " Private",
+            " Private",
+            " Federal-gov",
+        ]
+        lst_2 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        lst_3 = [25, 38, 28, 44, 34, 63, 24, 55, 65, 36]
+        data = pd.DataFrame(
+            list(zip(lst_2, lst_1, lst_3)), columns=["id", "workclass", "age"]
+        )
+        # One Hot Encode the newly defined mappings
+        one_hot_encoder_mapping = {"workclass": list(data["workclass"].unique())}
+
+        # Define the corresponding FeatureSet
+        data_set = FeatureSet(
+            "test", entities=[Entity("id")], description="feature set"
+        )
+
+        data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
+        data_set.set_targets()
+
+        df = fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
+
+        assert len(df.columns) == 5
 
 
 def verify_purge(fset, targets):

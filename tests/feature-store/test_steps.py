@@ -43,20 +43,3 @@ def test_set_event_random_id():
     server.wait_for_completion()
     assert resp["id"] != "XYZ", "id was not overwritten"
 
-
-def test_set_event_with_spaces_or_hyphens():
-    function = mlrun.new_function("test2", kind="serving")
-    flow = function.set_topology("flow")
-    flow.to(OneHotEncoder(mapping={"class": ["-A", "B "]})).to(
-        name="e", handler="extract_meta", full_event=True
-    ).respond()
-
-    server = function.to_mock_server()
-    resp = server.test(body={"name": "Haim", "class": "-A"}, event_id="Haim")
-    server.wait_for_completion()
-    assert resp["id"] == "Haim"
-
-    server2 = function.to_mock_server()
-    resp2 = server2.test(body={"name": "Shalom", "class": "B "}, event_id="Shalom")
-    server2.wait_for_completion()
-    assert resp2["id"] == "Shalom"

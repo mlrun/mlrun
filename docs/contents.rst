@@ -4,8 +4,7 @@
 
    index
    mlops-dev-flow
-   quick-start/quick-start
-   howto/index
+   tutorial/index
    install
 
 .. toctree::

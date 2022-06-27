@@ -1,26 +1,23 @@
+import collections
 import json
 import os
-from collections import defaultdict
-from os import environ
-from typing import Any, Dict, List, Optional, Set, Union
+import typing
 
 import pandas as pd
-import v3io
 
 # Constants
-from storey import Event
-from v3io.dataplane import RaiseForStatus
+import storey
+import v3io
+import v3io.dataplane
 
+import mlrun.config
+import mlrun.datastore.targets
 import mlrun.feature_store as fs
-from mlrun.config import config
-from mlrun.datastore.targets import ParquetTarget
-from mlrun.feature_store.steps import MapClass
+import mlrun.feature_store.steps
+import mlrun.utils
+import mlrun.utils.model_monitoring
+import mlrun.utils.v3io_clients
 from mlrun.utils import logger
-from mlrun.utils.model_monitoring import (
-    create_model_endpoint_id,
-    parse_model_endpoint_store_prefix,
-)
-from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 
 ISO_8061_UTC = "%Y-%m-%d %H:%M:%S.%f%z"
 FUNCTION_URI = "function_uri"
@@ -69,13 +66,13 @@ class EventStreamProcessor:
         tsdb_batching_max_events: int = 10,
         tsdb_batching_timeout_secs: int = 60 * 5,  # Default 5 minutes
         parquet_batching_timeout_secs: int = 30 * 60,  # Default 30 minutes
-        aggregate_count_windows: Optional[List[str]] = None,
+        aggregate_count_windows: typing.Optional[typing.List[str]] = None,
         aggregate_count_period: str = "30s",
-        aggregate_avg_windows: Optional[List[str]] = None,
+        aggregate_avg_windows: typing.Optional[typing.List[str]] = None,
         aggregate_avg_period: str = "30s",
-        v3io_access_key: Optional[str] = None,
-        v3io_framesd: Optional[str] = None,
-        v3io_api: Optional[str] = None,
+        v3io_access_key: typing.Optional[str] = None,
+        v3io_framesd: typing.Optional[str] = None,
+        v3io_api: typing.Optional[str] = None,
         model_monitoring_access_key: str = None,
     ):
         self.project = project
@@ -89,29 +86,35 @@ class EventStreamProcessor:
         self.aggregate_avg_windows = aggregate_avg_windows or ["5m", "1h"]
         self.aggregate_avg_period = aggregate_avg_period
 
-        self.v3io_framesd = v3io_framesd or config.v3io_framesd
-        self.v3io_api = v3io_api or config.v3io_api
+        self.v3io_framesd = v3io_framesd or mlrun.mlconf.v3io_framesd
+        self.v3io_api = v3io_api or mlrun.mlconf.v3io_api
 
-        self.v3io_access_key = v3io_access_key or environ.get("V3IO_ACCESS_KEY")
+        self.v3io_access_key = v3io_access_key or os.environ.get("V3IO_ACCESS_KEY")
         self.model_monitoring_access_key = (
             model_monitoring_access_key
             or os.environ.get("MODEL_MONITORING_ACCESS_KEY")
             or self.v3io_access_key
         )
 
-        template = config.model_endpoint_monitoring.store_prefixes.default
+        template = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default
 
         kv_path = template.format(project=project, kind="endpoints")
-        _, self.kv_container, self.kv_path = parse_model_endpoint_store_prefix(kv_path)
+        (
+            _,
+            self.kv_container,
+            self.kv_path,
+        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(kv_path)
 
         tsdb_path = template.format(project=project, kind="events")
-        _, self.tsdb_container, self.tsdb_path = parse_model_endpoint_store_prefix(
-            tsdb_path
-        )
+        (
+            _,
+            self.tsdb_container,
+            self.tsdb_path,
+        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(tsdb_path)
         self.tsdb_path = f"{self.tsdb_container}/{self.tsdb_path}"
 
         self.parquet_path = (
-            config.model_endpoint_monitoring.store_prefixes.user_space.format(
+            mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
                 project=project, kind="parquet"
             )
         )
@@ -121,8 +124,8 @@ class EventStreamProcessor:
             parquet_batching_max_events=self.parquet_batching_max_events,
             v3io_access_key=self.v3io_access_key,
             model_monitoring_access_key=self.model_monitoring_access_key,
-            default_store_prefix=config.model_endpoint_monitoring.store_prefixes.default,
-            user_space_store_prefix=config.model_endpoint_monitoring.store_prefixes.user_space,
+            default_store_prefix=mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default,
+            user_space_store_prefix=mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space,
             v3io_api=self.v3io_api,
             v3io_framesd=self.v3io_framesd,
             kv_container=self.kv_container,
@@ -281,7 +284,7 @@ class EventStreamProcessor:
             v3io_access_key=self.model_monitoring_access_key, v3io_api=self.v3io_api
         )
 
-        pq_target = ParquetTarget(
+        pq_target = mlrun.datastore.targets.ParquetTarget(
             path=self.parquet_path,
             after_step="ProcessBeforeParquet",
             key_bucketing_number=0,
@@ -300,7 +303,7 @@ class EventStreamProcessor:
         return feature_set
 
 
-class ProcessBeforeKV(MapClass):
+class ProcessBeforeKV(mlrun.feature_store.steps.MapClass):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -335,7 +338,7 @@ class ProcessBeforeKV(MapClass):
         return e
 
 
-class ProcessBeforeTSDB(MapClass):
+class ProcessBeforeTSDB(mlrun.feature_store.steps.MapClass):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -378,7 +381,7 @@ class ProcessBeforeTSDB(MapClass):
         return processed
 
 
-class ProcessBeforeParquet(MapClass):
+class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -396,16 +399,16 @@ class ProcessBeforeParquet(MapClass):
         return event
 
 
-class ProcessEndpointEvent(MapClass):
+class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
     def __init__(self, kv_container: str, kv_path: str, v3io_access_key: str, **kwargs):
         super().__init__(**kwargs)
         self.kv_container: str = kv_container
         self.kv_path: str = kv_path
         self.v3io_access_key: str = v3io_access_key
-        self.first_request: Dict[str, str] = dict()
-        self.last_request: Dict[str, str] = dict()
-        self.error_count: Dict[str, int] = defaultdict(int)
-        self.endpoints: Set[str] = set()
+        self.first_request: typing.Dict[str, str] = dict()
+        self.last_request: typing.Dict[str, str] = dict()
+        self.error_count: typing.Dict[str, int] = collections.defaultdict(int)
+        self.endpoints: typing.Set[str] = set()
 
     def do(self, full_event):
         event = full_event.body
@@ -422,7 +425,7 @@ class ProcessEndpointEvent(MapClass):
         version = event.get(VERSION)
         versioned_model = f"{model}:{version}" if version else f"{model}:latest"
 
-        endpoint_id = create_model_endpoint_id(
+        endpoint_id = mlrun.utils.model_monitoring.create_model_endpoint_id(
             function_uri=function_uri,
             versioned_model=versioned_model,
         )
@@ -527,11 +530,13 @@ class ProcessEndpointEvent(MapClass):
                 }
             )
 
-        storey_event = Event(body=events, key=endpoint_id, time=timestamp)
+        storey_event = storey.Event(body=events, key=endpoint_id, time=timestamp)
         return storey_event
 
     def is_list_of_numerics(
-        self, field: List[Union[int, float, dict, list]], dict_path: List[str]
+        self,
+        field: typing.List[typing.Union[int, float, dict, list]],
+        dict_path: typing.List[str],
     ):
         if all(isinstance(x, int) or isinstance(x, float) for x in field):
             return True
@@ -561,7 +566,11 @@ class ProcessEndpointEvent(MapClass):
             self.endpoints.add(endpoint_id)
 
     def is_valid(
-        self, endpoint_id: str, validation_function, field: Any, dict_path: List[str]
+        self,
+        endpoint_id: str,
+        validation_function,
+        field: typing.Any,
+        dict_path: typing.List[str],
     ):
         if validation_function(field, dict_path):
             return True
@@ -576,7 +585,7 @@ class ProcessEndpointEvent(MapClass):
         return False
 
 
-def enrich_even_details(event) -> Optional[dict]:
+def enrich_even_details(event) -> typing.Optional[dict]:
     function_uri = event.get(FUNCTION_URI)
 
     if not is_not_none(function_uri, [FUNCTION_URI]):
@@ -589,7 +598,7 @@ def enrich_even_details(event) -> Optional[dict]:
     version = event.get(VERSION)
     versioned_model = f"{model}:{version}" if version else f"{model}:latest"
 
-    endpoint_id = create_model_endpoint_id(
+    endpoint_id = mlrun.utils.model_monitoring.create_model_endpoint_id(
         function_uri=function_uri,
         versioned_model=versioned_model,
     )
@@ -602,7 +611,7 @@ def enrich_even_details(event) -> Optional[dict]:
     return event
 
 
-def is_not_none(field: Any, dict_path: List[str]):
+def is_not_none(field: typing.Any, dict_path: typing.List[str]):
     if field is not None:
         return True
     logger.error(
@@ -611,7 +620,7 @@ def is_not_none(field: Any, dict_path: List[str]):
     return False
 
 
-class FilterAndUnpackKeys(MapClass):
+class FilterAndUnpackKeys(mlrun.feature_store.steps.MapClass):
     def __init__(self, keys, **kwargs):
         super().__init__(**kwargs)
         self.keys = keys
@@ -630,7 +639,7 @@ class FilterAndUnpackKeys(MapClass):
         return unpacked if unpacked else None
 
 
-class MapFeatureNames(MapClass):
+class MapFeatureNames(mlrun.feature_store.steps.MapClass):
     def __init__(
         self,
         kv_container: str,
@@ -659,7 +668,7 @@ class MapFeatureNames(MapClass):
                 return self.label_columns[endpoint_id]
         return None
 
-    def do(self, event: Dict):
+    def do(self, event: typing.Dict):
         endpoint_id = event[ENDPOINT_ID]
 
         if endpoint_id not in self.feature_names:
@@ -684,13 +693,13 @@ class MapFeatureNames(MapClass):
                     endpoint_id=endpoint_id,
                 )
                 feature_names = [f"f{i}" for i, _ in enumerate(event[FEATURES])]
-                get_v3io_client().kv.update(
+                mlrun.utils.v3io_clients.get_v3io_client().kv.update(
                     container=self.kv_container,
                     table_path=self.kv_path,
                     access_key=self.access_key,
                     key=event[ENDPOINT_ID],
                     attributes={FEATURE_NAMES: json.dumps(feature_names)},
-                    raise_for_status=RaiseForStatus.always,
+                    raise_for_status=v3io.dataplane.RaiseForStatus.always,
                 )
 
             if not label_columns and self._infer_columns_from_data:
@@ -702,13 +711,13 @@ class MapFeatureNames(MapClass):
                     endpoint_id=endpoint_id,
                 )
                 label_columns = [f"p{i}" for i, _ in enumerate(event[PREDICTION])]
-                get_v3io_client().kv.update(
+                mlrun.utils.v3io_clients.get_v3io_client().kv.update(
                     container=self.kv_container,
                     table_path=self.kv_path,
                     access_key=self.access_key,
                     key=event[ENDPOINT_ID],
                     attributes={LABEL_COLUMNS: json.dumps(label_columns)},
-                    raise_for_status=RaiseForStatus.always,
+                    raise_for_status=v3io.dataplane.RaiseForStatus.always,
                 )
 
             self.label_columns[endpoint_id] = label_columns
@@ -736,14 +745,14 @@ class MapFeatureNames(MapClass):
         return event
 
 
-class WriteToKV(MapClass):
+class WriteToKV(mlrun.feature_store.steps.MapClass):
     def __init__(self, container: str, table: str, **kwargs):
         super().__init__(**kwargs)
         self.container = container
         self.table = table
 
-    def do(self, event: Dict):
-        get_v3io_client().kv.update(
+    def do(self, event: typing.Dict):
+        mlrun.utils.v3io_clients.get_v3io_client().kv.update(
             container=self.container,
             table_path=self.table,
             key=event[ENDPOINT_ID],
@@ -752,7 +761,7 @@ class WriteToKV(MapClass):
         return event
 
 
-class InferSchema(MapClass):
+class InferSchema(mlrun.feature_store.steps.MapClass):
     def __init__(
         self,
         v3io_access_key: str,
@@ -768,11 +777,11 @@ class InferSchema(MapClass):
         self.table = table
         self.keys = set()
 
-    def do(self, event: Dict):
+    def do(self, event: typing.Dict):
         key_set = set(event.keys())
         if not key_set.issubset(self.keys):
             self.keys.update(key_set)
-            get_frames_client(
+            mlrun.utils.v3io_clients.get_frames_client(
                 token=self.v3io_access_key,
                 container=self.container,
                 address=self.v3io_framesd,
@@ -785,7 +794,7 @@ class InferSchema(MapClass):
 
 def get_endpoint_record(
     kv_container: str, kv_path: str, endpoint_id: str, access_key: str
-) -> Optional[dict]:
+) -> typing.Optional[dict]:
     logger.info(
         "Grabbing endpoint data",
         container=kv_container,
@@ -794,7 +803,7 @@ def get_endpoint_record(
     )
     try:
         endpoint_record = (
-            get_v3io_client()
+            mlrun.utils.v3io_clients.get_v3io_client()
             .kv.get(
                 container=kv_container,
                 table_path=kv_path,

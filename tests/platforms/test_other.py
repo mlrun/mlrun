@@ -66,3 +66,37 @@ def test_mount_hostpath():
         )
         == {}
     )
+
+
+def test_mount_s3():
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    function.apply(
+        mlrun.platforms.mount_s3(
+            aws_access_key="xx", aws_secret_key="yy", endpoint_url="a.b"
+        )
+    )
+    env_dict = {var["name"]: var["value"] for var in function.spec.env}
+    assert env_dict == {
+        "S3_ENDPOINT_URL": "a.b",
+        "AWS_ACCESS_KEY_ID": "xx",
+        "AWS_SECRET_ACCESS_KEY": "yy",
+    }
+
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    function.apply(mlrun.platforms.mount_s3(secret_name="s", endpoint_url="a.b"))
+    env_dict = {
+        var["name"]: var.get("value", var.get("valueFrom")) for var in function.spec.env
+    }
+    assert env_dict == {
+        "S3_ENDPOINT_URL": "a.b",
+        "AWS_ACCESS_KEY_ID": {
+            "secretKeyRef": {"key": "AWS_ACCESS_KEY_ID", "name": "s"}
+        },
+        "AWS_SECRET_ACCESS_KEY": {
+            "secretKeyRef": {"key": "AWS_SECRET_ACCESS_KEY", "name": "s"}
+        },
+    }

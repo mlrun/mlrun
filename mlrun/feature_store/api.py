@@ -31,6 +31,7 @@ from ..datastore.targets import (
     get_target_driver,
     kind_to_driver,
     validate_target_list,
+    validate_target_paths_for_engine,
 )
 from ..db import RunDBError
 from ..model import DataSource, DataTargetBase
@@ -264,10 +265,28 @@ def get_online_feature_service(
 
     # todo: support remote service (using remote nuclio/mlrun function if run_config)
 
-    for old_name in service.vector.get_feature_aliases().keys():
-        if old_name in service.vector.status.features.keys():
-            del service.vector.status.features[old_name]
     return service
+
+
+def _rename_source_dataframe_columns(df):
+    rename_mapping = {}
+    column_set = set(df.columns)
+    for column in df.columns:
+        if isinstance(column, str):
+            rename_to = column.replace(" ", "_").replace("(", "").replace(")", "")
+            if rename_to != column:
+                if rename_to in column_set:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f'column "{column}" cannot be renamed to "{rename_to}" because such a column already exists'
+                    )
+                rename_mapping[column] = rename_to
+                column_set.add(rename_to)
+    if rename_mapping:
+        logger.warn(
+            f"the following dataframe columns have been renamed due to unsupported characters: {rename_mapping}"
+        )
+        df = df.rename(rename_mapping, axis=1)
+    return df
 
 
 def ingest(
@@ -327,6 +346,9 @@ def ingest(
                                     False for scheduled ingest - does not delete the target)
 
     """
+    if isinstance(source, pd.DataFrame):
+        source = _rename_source_dataframe_columns(source)
+
     if featureset:
         if isinstance(featureset, str):
             # need to strip store prefix from the uri
@@ -422,6 +444,8 @@ def ingest(
 
     targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
     targets_to_ingest = copy.deepcopy(targets_to_ingest)
+
+    validate_target_paths_for_engine(targets_to_ingest, featureset.spec.engine, source)
 
     if overwrite is None:
         if isinstance(source, BaseSourceDriver) and source.schedule:
@@ -816,7 +840,11 @@ def _ingest_with_spark(
             if overwrite:
                 df_to_write.write.mode("overwrite").save(**spark_options)
             else:
-                df_to_write.write.mode("append").save(**spark_options)
+                # appending an empty dataframe may cause an empty file to be created (e.g. when writing to parquet)
+                # we would like to avoid that
+                df_to_write.persist()
+                if len(df_to_write) > 0:
+                    df_to_write.write.mode("append").save(**spark_options)
             target.set_resource(featureset)
             target.update_resource_status("ready")
 

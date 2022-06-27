@@ -1,5 +1,6 @@
 from .artifacts import Artifacts  # noqa: F401
 from .client_spec import ClientSpec  # noqa: F401
+from .clusterization_spec import ClusterizationSpec  # noqa: F401
 from .feature_store import FeatureStore  # noqa: F401
 from .functions import Functions  # noqa: F401
 from .logs import Logs  # noqa: F401

@@ -9,8 +9,8 @@ on:
 
   workflow_dispatch:
     inputs:
-      docker_registry:
-        description: 'Docker registry to push images to (default: ghcr.io/, use registry.hub.docker.com/ for docker hub)'
+      docker_registries:
+        description: 'Comma separated list of docker registries to push images to (default: ghcr.io/, use registry.hub.docker.com/ for docker hub)'
         required: true
         default: 'ghcr.io/'
       docker_repo:
@@ -60,29 +60,47 @@ jobs:
           input_docker_repo=${{ github.event.inputs.docker_repo }} && \
           default_docker_repo=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]') && \
           echo ${input_docker_repo:-`echo $default_docker_repo`})"
-        echo "::set-output name=mlrun_docker_registry::$( \
-          input_docker_registry=${{ github.event.inputs.docker_registry }} && \
-          echo ${input_docker_registry:-ghcr.io/})"
+        echo "::set-output name=mlrun_docker_registries::$( \
+          input_docker_registries=${{ github.event.inputs.docker_registries }} && \
+          echo ${input_docker_registries:-ghcr.io/})"
     - name: Docker login
+      # all suffixed with "| true" to allow failures if secrets are not defined (fork)
       run: |
-        echo ${{ secrets.DOCKER_REGISTRY_PASSWORD }} | \
-        docker login ${{ steps.computed_params.outputs.mlrun_docker_registry }} -u ${{ secrets.DOCKER_REGISTRY_USERNAME }} --password-stdin
+        echo ${{ secrets.GHCR_DOCKER_REGISTRY_PASSWORD }} | \
+          docker login ghcr.io -u ${{ secrets.GHCR_DOCKER_REGISTRY_USERNAME }} --password-stdin | true
+        echo ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }} | \
+          docker login registry.hub.docker.com -u ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }} \
+          --password-stdin | true
+        echo ${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }} | \
+          docker login quay.io -u ${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }} \
+          --password-stdin | true
+
     - name: Pull cache, build and push image
 
       # we don't really want per-commit test image we just want to build and push the cache image so CI will be able
       # to use it and run much faster
       if: ${{ matrix.image-name != 'test' }}
       run: |
-        MLRUN_DOCKER_REGISTRY=${{ steps.computed_params.outputs.mlrun_docker_registry }} \
-        MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
-        MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
-        MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-        make push-${{ matrix.image-name }}
+        for registry in $(echo ${{ steps.computed_params.outputs.mlrun_docker_registries }} | sed "s/,/ /g"); \
+          do \
+            MLRUN_DOCKER_REGISTRY=$registry \
+            MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
+            MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
+            MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
+            MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+            MLRUN_PUSH_DOCKER_CACHE_IMAGE=true \
+            make push-${{ matrix.image-name }}; \
+          done;
     - name: Pull cache, build and push test image
       if: ${{ matrix.image-name == 'test' }}
       run: |
-        MLRUN_DOCKER_REGISTRY=${{ steps.computed_params.outputs.mlrun_docker_registry }} \
-        MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
-        MLRUN_VERSION=${{ steps.docker_cache.outputs.tag }} \
-        MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-        make push-${{ matrix.image-name }}
+        for registry in $(echo ${{ steps.computed_params.outputs.mlrun_docker_registries }} | sed "s/,/ /g"); \
+          do \
+            MLRUN_DOCKER_REGISTRY=$registry \
+            MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
+            MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
+            MLRUN_VERSION=${{ steps.docker_cache.outputs.tag }} \
+            MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+            MLRUN_PUSH_DOCKER_CACHE_IMAGE=true \
+            make push-${{ matrix.image-name }}; \
+          done;

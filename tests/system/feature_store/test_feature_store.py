@@ -2580,15 +2580,9 @@ class TestFeatureStore(TestMLRunSystem):
             " Private",
             " Local-gov",
             " Private",
-            " Private",
-            " Self-emp-not-inc",
-            " Private",
-            " Private",
-            " Private",
-            " Federal-gov",
         ]
-        lst_2 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-        lst_3 = [25, 38, 28, 44, 34, 63, 24, 55, 65, 36]
+        lst_2 = [0, 1, 2, 3]
+        lst_3 = [25, 38, 28, 44]
         data = pd.DataFrame(
             list(zip(lst_2, lst_1, lst_3)), columns=["id", "workclass", "age"]
         )
@@ -2603,9 +2597,16 @@ class TestFeatureStore(TestMLRunSystem):
         data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
         data_set.set_targets()
 
-        df = fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
+        df_res = fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
 
-        assert len(df.columns) == 5
+        df = pd.DataFrame(
+            list(zip([0, 1, 2, 3], [1, 1, 0, 1], [0, 0, 1, 0], lst_3)),
+            columns=["id", "workclass__Private", "workclass__Local_gov", "age"],
+        )
+        df.set_index("id")
+        df = df[["workclass__Private", "workclass__Local_gov", "age"]]
+
+        assert df_res.equals(df)
 
     @pytest.mark.skipif(kafka_brokers == "", reason="KAFKA_BROKERS must be set")
     def test_kafka_target(self, kafka_consumer):

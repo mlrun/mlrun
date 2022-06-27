@@ -223,7 +223,7 @@ def _start_periodic_runs_monitoring():
 def _start_chief_clusterization_spec_sync_loop():
     interval = int(config.httpdb.clusterization.worker.sync_with_chief.interval)
     if interval > 0:
-        logger.info("Starting chief state sync loop", interval=interval)
+        logger.info("Starting chief clusterization spec sync loop", interval=interval)
         run_function_periodically(
             interval,
             _synchronize_with_chief_clusterization_spec.__name__,

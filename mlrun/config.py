@@ -152,6 +152,15 @@ default_config = {
                 "service": "mlrun-api-chief",
                 "port": 8080,
             },
+            "worker": {
+                "sync_with_chief": {
+                    # enabled / disabled
+                    "mode": "enabled",
+                    "interval": 15,  # seconds
+                }
+            },
+            # see mlrun.api.utils.helpers.ensure_running_on_chief
+            "ensure_function_running_on_chief_mode": "enabled",
         },
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),

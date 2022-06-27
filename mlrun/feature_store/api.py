@@ -265,9 +265,6 @@ def get_online_feature_service(
 
     # todo: support remote service (using remote nuclio/mlrun function if run_config)
 
-    for old_name in service.vector.get_feature_aliases().keys():
-        if old_name in service.vector.status.features.keys():
-            del service.vector.status.features[old_name]
     return service
 
 

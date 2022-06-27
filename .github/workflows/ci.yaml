@@ -6,10 +6,14 @@ on:
     - development
     - '[0-9]+.[0-9]+.x'
 
-  # Run CI also on push to master
+  # Run CI also on push to backport release branches - we sometimes push code there by cherry-picking, meaning it
+  # doesn't go through CI (no PR)
+  # For master all code is coming from development where it's coming from PRs (meaning it's passing CI) but there's the
+  # rare scenario where the combination of merged PRs won't pass CI
   push:
     branches:
     - master
+    - '[0-9]+.[0-9]+.x'
 
 jobs:
   lint:

@@ -1839,6 +1839,7 @@ class MlrunProject(ModelObj):
         ttl=None,
         engine=None,
         local=None,
+        timeout=None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1859,6 +1860,7 @@ class MlrunProject(ModelObj):
         :param ttl:       pipeline ttl in secs (after that the pods will be removed)
         :param engine:    workflow engine running the workflow. supported values are 'kfp' (default) or 'local'
         :param local:     run local pipeline with local functions (set local=True in function.run())
+        :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
 
         :returns: run id
         """
@@ -1911,7 +1913,7 @@ class MlrunProject(ModelObj):
         )
         workflow_spec.clear_tmp()
         if watch and workflow_engine.engine == "kfp":
-            self.get_run_status(run)
+            self.get_run_status(run, timeout=timeout)
         return run
 
     def save_workflow(self, name, target, artifact_path=None, ttl=None):

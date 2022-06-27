@@ -263,7 +263,7 @@ async def _align_worker_state_with_chief_state(
 
     if chief_state not in mlrun.api.schemas.APIStates.terminal_states():
         logger.debug(
-            f"Chief didn't reach online state yet, will try again later",
+            "Chief didn't reach online state yet, will try again later",
             interval=config.httpdb.clusterization.worker.sync_with_chief.interval,
             chief_state=chief_state,
         )

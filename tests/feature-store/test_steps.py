@@ -42,4 +42,3 @@ def test_set_event_random_id():
     resp = server.test(body={"data": "123"}, event_id="XYZ")
     server.wait_for_completion()
     assert resp["id"] != "XYZ", "id was not overwritten"
-

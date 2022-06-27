@@ -2572,7 +2572,6 @@ class TestFeatureStore(TestMLRunSystem):
         for key in res.to_dataframe().to_dict().keys():
             assert key in expected
 
-
     def test_set_event_with_spaces_or_hyphens(self):
         from mlrun.feature_store.steps import OneHotEncoder
 
@@ -2607,7 +2606,7 @@ class TestFeatureStore(TestMLRunSystem):
         df = fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
 
         assert len(df.columns) == 5
-=======
+
     @pytest.mark.skipif(kafka_brokers == "", reason="KAFKA_BROKERS must be set")
     def test_kafka_target(self, kafka_consumer):
 
@@ -2782,7 +2781,6 @@ class TestFeatureStore(TestMLRunSystem):
             assert resp == [[0.0, math.inf, -math.inf, "Apple Inc", "NASDAQ"]]
         finally:
             service.close()
-
 
 
 def verify_purge(fset, targets):

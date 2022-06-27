@@ -93,7 +93,7 @@ class Client(
         return self._proxy_request_to_chief("DELETE", f"projects/{name}", request)
 
     def get_clusterization_spec(
-        self, proxy: bool = True, raise_on_failure: bool = False
+        self, return_fastapi_response: bool = True, raise_on_failure: bool = False
     ) -> typing.Union[fastapi.Response, mlrun.api.schemas.ClusterizationSpec]:
         """
         This method is used both for proxying requests from worker to chief and for aligning the worker state
@@ -105,7 +105,7 @@ class Client(
             raise_on_failure=raise_on_failure,
         )
 
-        if proxy:
+        if return_fastapi_response:
             return self._convert_requests_response_to_fastapi_response(chief_response)
 
         return mlrun.api.schemas.ClusterizationSpec(**chief_response.json())

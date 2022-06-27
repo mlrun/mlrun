@@ -149,6 +149,10 @@ class APIStates:
     offline = "offline"
     waiting_for_chief = "waiting_for_chief"
 
+    @staticmethod
+    def terminal_states():
+        return [APIStates.online, APIStates.offline]
+
 
 class ClusterizationRole:
     chief = "chief"

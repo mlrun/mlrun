@@ -29,11 +29,13 @@ def verify_api_state(request: Request):
     )
     path = path_with_query_string.split("?")[0]
     if mlrun.mlconf.httpdb.state == mlrun.api.schemas.APIStates.offline:
-        # we want the workers to be able to pull chief state even if the state is offline
-        if "clusterization-spec" in path:
-            pass
-        # we do want to stay healthy
-        elif "healthz" not in path:
+        enabled_endpoints = [
+            # we want to stay healthy
+            "healthz",
+            # we want the workers to be able to pull chief state even if the state is offline
+            "clusterization-spec",
+        ]
+        if not any(enabled_endpoint in path for enabled_endpoint in enabled_endpoints):
             raise mlrun.errors.MLRunPreconditionFailedError("API is in offline state")
     if mlrun.mlconf.httpdb.state in [
         mlrun.api.schemas.APIStates.waiting_for_migrations,

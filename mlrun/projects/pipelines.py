@@ -714,7 +714,7 @@ def load_and_run(
     )
     wf_log_msg = workflow_name or workflow_path
     context.logger.info(f"Running workflow {wf_log_msg}")
-    run = project.run(
+    project.run(
         name=workflow_name,
         workflow_path=workflow_path,
         arguments=workflow_arguments,

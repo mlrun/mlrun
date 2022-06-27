@@ -1840,6 +1840,7 @@ class MlrunProject(ModelObj):
         engine=None,
         local=None,
         schedule=None,
+        timeout=None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1864,6 +1865,7 @@ class MlrunProject(ModelObj):
                           (which will be converted to the class using its `from_crontab` constructor),
                           see this link for help:
                           https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
+        :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
         :returns: run id
         """
 
@@ -1916,7 +1918,7 @@ class MlrunProject(ModelObj):
         )
         workflow_spec.clear_tmp()
         if watch and workflow_engine.engine == "kfp":
-            self.get_run_status(run)
+            self.get_run_status(run, timeout=timeout)
         return run
 
     def save_workflow(self, name, target, artifact_path=None, ttl=None):

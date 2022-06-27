@@ -24,6 +24,7 @@ import mlrun.api.db.session
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
+import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.project_member
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
@@ -183,20 +184,42 @@ async def build_function(
 
     logger.info(f"build_function:\n{data}")
     function = data.get("function")
+    project = function.get("metadata", {}).get("project", mlrun.mlconf.default_project)
+    function_name = function.get("metadata", {}).get("name")
     await run_in_threadpool(
         mlrun.api.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
-        function.get("metadata", {}).get("project", mlrun.mlconf.default_project),
+        project,
         auth_info=auth_info,
     )
     await run_in_threadpool(
         mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.function,
-        function.get("metadata", {}).get("project", mlrun.mlconf.default_project),
-        function.get("metadata", {}).get("name"),
+        project,
+        function_name,
         mlrun.api.schemas.AuthorizationAction.update,
         auth_info,
     )
+
+    # schedules are meant to be run solely by the chief then if serving function and track_models is enabled,
+    # it means that schedules will be created as part of building the function, and if not chief then redirect to chief.
+    # to reduce redundant load on the chief, we re-route the request only if the user has permissions
+    if function.get("kind", "") == mlrun.runtimes.RuntimeKinds.serving and function.get(
+        "spec", {}
+    ).get("track_models", False):
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.api.schemas.ClusterizationRole.chief
+        ):
+            logger.info(
+                "Requesting to deploy serving function with track models, re-routing to chief",
+                function_name=function_name,
+                project=project,
+                function=function,
+            )
+            chief_client = mlrun.api.utils.clients.chief.Client()
+            return chief_client.build_function(request=request, body=data)
+
     if isinstance(data.get("with_mlrun"), bool):
         with_mlrun = data.get("with_mlrun")
     else:

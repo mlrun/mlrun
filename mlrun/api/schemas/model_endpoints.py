@@ -32,6 +32,7 @@ class ModelEndpointSpec(ObjectSpec):
     algorithm: Optional[str]
     monitor_configuration: Optional[dict]
     active: Optional[bool]
+    monitoring: Optional[bool]
 
 
 class Metric(BaseModel):

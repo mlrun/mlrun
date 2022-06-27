@@ -11,7 +11,6 @@ import mlrun.feature_store as fs
 import mlrun.model_monitoring.stream_processing_fs
 import mlrun.runtimes
 import mlrun.utils.helpers
-from mlrun.utils import logger
 
 _CURRENT_FILE_PATH = pathlib.Path(__file__)
 _STREAM_PROCESSING_FUNCTION_PATH = _CURRENT_FILE_PATH.parent / "stream_processing_fs.py"
@@ -41,11 +40,7 @@ def get_model_monitoring_stream_processing_function(
         parquet_batching_max_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
     )
 
-    # create feature set for this project
-    fset = stream_processor.create_feature_set()
-    fset._override_run_db(db_session)
     http_source = mlrun.datastore.sources.HttpSource()
-    fset.spec.source = http_source
 
     # create a new serving function for the streaming process
     function = mlrun.code_to_function(
@@ -55,6 +50,9 @@ def get_model_monitoring_stream_processing_function(
         kind="serving",
         image="mlrun/mlrun",
     )
+
+    # create monitoring serving graph
+    stream_processor.create_serving_graph(function)
 
     # set the project to the serving function
     function.metadata.project = project
@@ -78,20 +76,13 @@ def get_model_monitoring_stream_processing_function(
     )
 
     run_config = fs.RunConfig(function=function, local=False)
-    _, run_config.parameters = fs.api.set_task_params(
-        fset, http_source, fset.spec.targets, run_config.parameters
-    )
-
-    function.spec.graph = fset.spec.graph
     function.spec.parameters = run_config.parameters
-    function.spec.graph_initializer = (
-        "mlrun.feature_store.ingestion.featureset_initializer"
-    )
-    function = http_source.add_nuclio_trigger(function)
-    function.metadata.credentials.access_key = model_monitoring_access_key
-    function.apply(mlrun.v3io_cred())
 
-    return function
+    func = http_source.add_nuclio_trigger(function)
+    func.metadata.credentials.access_key = model_monitoring_access_key
+    func.apply(mlrun.v3io_cred())
+
+    return func
 
 
 def get_model_monitoring_batch_function(
@@ -111,28 +102,13 @@ def get_model_monitoring_batch_function(
 
     """
 
-    logger.info(
-        f"Checking deployment status for model monitoring batch processing function [{project}]"
-    )
-    function_list = mlrun.api.utils.singletons.db.get_db().list_functions(
-        session=db_session, name="model-monitoring-batch", project=project
-    )
-
-    if function_list:
-        logger.info(
-            f"Detected model monitoring batch processing function [{project}] already deployed"
-        )
-        return
-
-    logger.info(f"Deploying model monitoring batch processing function [{project}]")
-
     # create job function runtime for the model monitoring batch
     function: mlrun.runtimes.KubejobRuntime = mlrun.code_to_function(
         name="model-monitoring-batch",
         project=project,
         filename=str(_MONIOTINRG_BATCH_FUNCTION_PATH),
         kind="job",
-        image="mlrun/mlrun",
+        image=mlrun / mlrun,
         handler="handler",
     )
     function.set_db_connection(mlrun.api.api.utils.get_run_db_instance(db_session))

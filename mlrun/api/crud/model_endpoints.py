@@ -18,6 +18,7 @@ import mlrun.artifacts
 import mlrun.config
 import mlrun.datastore.store_resources
 import mlrun.errors
+import mlrun.feature_store
 import mlrun.model_monitoring.helpers
 import mlrun.runtimes.function
 import mlrun.utils.helpers
@@ -27,6 +28,8 @@ from mlrun.utils import logger
 
 
 class ModelEndpoints:
+    """Provide different methods for handling model endpoints such as listing, writing and deleting"""
+
     def create_or_patch(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -35,6 +38,11 @@ class ModelEndpoints:
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ):
         """
+        :param db_session:             A session that manages the current dialog with the database
+        :param access_key:             Access key with permission to write to KV table
+        :param model_endpoint:         Model endpoint object to update
+        :param auth_info:              The auth info of the request
+
         Creates or patch a KV record with the given model_endpoint record
         """
 
@@ -47,7 +55,7 @@ class ModelEndpoints:
                 model_uri=model_endpoint.spec.model_uri,
             )
 
-        # If model artifact was supplied, grab model meta data from artifact
+        # If model artifact was supplied, grab model metadata from artifact
         if model_endpoint.spec.model_uri:
             logger.info(
                 "Getting model object, inferring column names and collecting feature stats"
@@ -59,19 +67,28 @@ class ModelEndpoints:
                 )
             )
 
+            # get stats from model object if not found in model endpoint object
             if not model_endpoint.status.feature_stats and hasattr(
                 model_obj, "feature_stats"
             ):
                 model_endpoint.status.feature_stats = model_obj.feature_stats
 
+            # get labels from model object if not found in model endpoint object
             if not model_endpoint.spec.label_names and hasattr(model_obj, "outputs"):
                 model_label_names = [
                     self._clean_feature_name(f.name) for f in model_obj.outputs
                 ]
                 model_endpoint.spec.label_names = model_label_names
 
+            # get algorithm from model object if not found in model endpoint object
             if not model_endpoint.spec.algorithm and hasattr(model_obj, "algorithm"):
                 model_endpoint.spec.algorithm = model_obj.algorithm
+
+            # Create monitoring feature set if monitoring found in model endpoint object
+            if model_endpoint.spec.monitoring:
+                self.create_monitoring_feature_set(
+                    model_endpoint, model_obj, db_session
+                )
 
         # If feature_stats was either populated by model_uri or by manual input, make sure to keep the names
         # of the features. If feature_names was supplied, replace the names set in feature_stats, otherwise - make
@@ -120,7 +137,65 @@ class ModelEndpoints:
 
         logger.info("Model endpoint updated", endpoint_id=model_endpoint.metadata.uid)
 
-        return model_endpoint
+    def create_monitoring_feature_set(
+        self,
+        model_endpoint: mlrun.api.schemas.ModelEndpoint,
+        model_obj: mlrun.artifacts.ModelArtifact,
+        db_session: sqlalchemy.orm.Session,
+    ):
+        """
+        Create monitoring feature set with the relevant parquet target.
+
+        :param model_endpoint:    An object representing the model endpoint
+        :param model_obj:         An object representing the deployed model
+        :param db_session:        A session that manages the current dialog with the database
+
+        """
+
+        # define a new feature set
+        serving_function_name = model_endpoint.spec.function_uri.replace(
+            model_endpoint.metadata.project + "/", ""
+        )
+        model_name = model_endpoint.spec.model.replace(":", "-")
+
+        feature_set = mlrun.feature_store.FeatureSet(
+            f"monitoring-{serving_function_name}-{model_name}",
+            entities=["endpoint_id"],
+            timestamp_key="timestamp",
+            description=f"Monitoring feature set for endpoint: {model_endpoint.spec.model}",
+        )
+        feature_set.metadata.project = model_endpoint.metadata.project
+
+        # add features to the feature set according to the model object
+        for feature in model_obj.inputs.to_dict():
+            feature_set.add_feature(
+                mlrun.feature_store.Feature(
+                    name=feature["name"], value_type=feature["value_type"]
+                )
+            )
+
+        # define parquet target for this feature set
+
+        parquet_path = (
+            f"v3io:///projects/{model_endpoint.metadata.project}"
+            f"/model-endpoints/parquet/key={model_endpoint.metadata.uid}"
+        )
+        parquet_target = mlrun.datastore.targets.ParquetTarget("parquet", parquet_path)
+        driver = mlrun.datastore.targets.get_target_driver(parquet_target, feature_set)
+        driver.update_resource_status("created")
+        feature_set.set_targets(
+            [mlrun.datastore.targets.ParquetTarget(path=parquet_path)],
+            with_defaults=False,
+        )
+
+        # save the new feature set
+        feature_set._override_run_db(db_session)
+        feature_set.save()
+        logger.info(
+            "Monitoring feature set created",
+            model_endpoint=model_endpoint.spec.model,
+            parquet_target=parquet_path,
+        )
 
     def delete_endpoint_record(
         self,
@@ -365,6 +440,7 @@ class ModelEndpoints:
                 algorithm=endpoint.get("algorithm") or None,
                 monitor_configuration=monitor_configuration or None,
                 active=endpoint.get("active") or None,
+                monitoring=endpoint.get("monitoring") or None,
             ),
             status=mlrun.api.schemas.ModelEndpointStatus(
                 state=endpoint.get("state") or None,
@@ -409,7 +485,7 @@ class ModelEndpoints:
         self,
         project: str,
         model_monitoring_access_key: str,
-        db_session,
+        db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.api.schemas.AuthInfo,
     ):
         self.deploy_model_monitoring_stream_processing(
@@ -441,7 +517,6 @@ class ModelEndpoints:
 
         labels = endpoint.metadata.labels or {}
         searchable_labels = {f"_{k}": v for k, v in labels.items()} if labels else {}
-
         feature_names = endpoint.spec.feature_names or []
         label_names = endpoint.spec.label_names or []
         feature_stats = endpoint.status.feature_stats or {}
@@ -481,6 +556,7 @@ class ModelEndpoints:
                 "model_uri": endpoint.spec.model_uri or "",
                 "stream_path": endpoint.spec.stream_path or "",
                 "active": endpoint.spec.active or "",
+                "monitoring": endpoint.spec.monitoring or "",
                 "state": endpoint.status.state or "",
                 "feature_stats": json.dumps(feature_stats),
                 "current_stats": json.dumps(current_stats),
@@ -660,7 +736,7 @@ class ModelEndpoints:
     def deploy_model_monitoring_stream_processing(
         project: str,
         model_monitoring_access_key: str,
-        db_session,
+        db_session: sqlalchemy.orm.Session,
         auto_info: mlrun.api.schemas.AuthInfo,
     ):
         logger.info(
@@ -694,6 +770,21 @@ class ModelEndpoints:
         db_session,
         auth_info: mlrun.api.schemas.AuthInfo,
     ):
+
+        logger.info(
+            f"Checking deployment status for model monitoring batch processing function [{project}]"
+        )
+        function_list = mlrun.api.utils.singletons.db.get_db().list_functions(
+            session=db_session, name="model-monitoring-batch", project=project
+        )
+
+        if function_list:
+            logger.info(
+                f"Detected model monitoring batch processing function [{project}] already deployed"
+            )
+            return
+
+        logger.info(f"Deploying model monitoring batch processing function [{project}]")
 
         fn = mlrun.model_monitoring.helpers.get_model_monitoring_batch_function(
             project=project,

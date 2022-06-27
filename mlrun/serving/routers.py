@@ -727,6 +727,7 @@ def _init_endpoint_record(graph_server, voting_ensemble: VotingEnsemble):
                     project=project, kind="stream"
                 ),
                 active=True,
+                monitoring=voting_ensemble.context.server.track_models,
             ),
             status=ModelEndpointStatus(
                 children=list(voting_ensemble.routes.keys()),

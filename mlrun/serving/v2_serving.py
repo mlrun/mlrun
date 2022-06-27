@@ -473,6 +473,7 @@ def _init_endpoint_record(graph_server, model: V2ModelServer):
                     project=project, kind="stream"
                 ),
                 active=True,
+                monitoring=model.context.server.track_models,
             ),
             status=ModelEndpointStatus(endpoint_type=EndpointType.NODE_EP),
         )

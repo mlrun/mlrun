@@ -258,12 +258,12 @@ async def _align_worker_state_with_chief_state(
 ):
     chief_state = clusterization_spec.chief_api_state
     if not chief_state:
-        logger.warning("Chief didn't return any state")
+        logger.warning("Chief did not return any state")
         return
 
     if chief_state not in mlrun.api.schemas.APIStates.terminal_states():
         logger.debug(
-            "Chief didn't reach online state yet, will try again later",
+            "Chief did not reach online state yet, will retry after sync interval",
             interval=config.httpdb.clusterization.worker.sync_with_chief.interval,
             chief_state=chief_state,
         )

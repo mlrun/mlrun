@@ -1868,6 +1868,9 @@ class MlrunProject(ModelObj):
         :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
         :returns: run id
         """
+        if local and engine == 'remote':
+            logger.warning("WARNING!, using remote engine, setting local to False")
+            local = False
 
         arguments = arguments or {}
         need_repo = self.spec._need_repo()

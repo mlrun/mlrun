@@ -29,6 +29,7 @@ from mlrun.api.db.sqldb.helpers import (
 )
 from mlrun.api.db.sqldb.models import (
     Artifact,
+    BackgroundTask,
     DataVersion,
     Entity,
     Feature,
@@ -61,7 +62,6 @@ from mlrun.utils import (
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 unversioned_tagged_object_uid_prefix = "unversioned-"
-
 
 conflict_messages = [
     "(sqlite3.IntegrityError) UNIQUE constraint failed",
@@ -1015,6 +1015,7 @@ class SQLDB(DBInterface):
             source=project.spec.source,
             state=project.status.state,
             created=created,
+            owner=project.spec.owner,
             full_object=project.dict(),
         )
         labels = project.metadata.labels or {}
@@ -1287,6 +1288,7 @@ class SQLDB(DBInterface):
         project_record.full_object = project_dict
         project_record.description = project.spec.description
         project_record.source = project.spec.source
+        project_record.owner = project.spec.owner
         project_record.state = project.status.state
         labels = project.metadata.labels or {}
         update_labels(project_record, labels)
@@ -1316,7 +1318,7 @@ class SQLDB(DBInterface):
         project_record.full_object = project_record_full_object
         self._upsert(session, [project_record])
 
-    def is_project_exists(self, session: Session, name: str, **kwargs):
+    def is_project_exists(self, session: Session, name: str):
         project_record = self._get_project_record(
             session, name, raise_on_not_found=False
         )
@@ -1381,6 +1383,7 @@ class SQLDB(DBInterface):
         self._delete_functions(session, name)
         self._delete_feature_sets(session, name)
         self._delete_feature_vectors(session, name)
+        self._delete_background_tasks(session, project=name)
 
         # resources deletion should remove their tags and labels as well, but doing another try in case there are
         # orphan resources
@@ -3030,3 +3033,142 @@ class SQLDB(DBInterface):
         now = datetime.now(timezone.utc)
         data_version_record = DataVersion(version=version, created=now)
         self._upsert(session, [data_version_record])
+
+    @retry_on_conflict
+    def store_background_task(
+        self,
+        session,
+        name: str,
+        project: str,
+        state: str = mlrun.api.schemas.BackgroundTaskState.running,
+        timeout: int = None,
+    ):
+        background_task_record = self._query(
+            session,
+            BackgroundTask,
+            name=name,
+            project=project,
+        ).one_or_none()
+        now = datetime.now(timezone.utc)
+        if background_task_record:
+            # we don't want to be able to change state after it reached terminal state
+            if (
+                background_task_record.state
+                in mlrun.api.schemas.BackgroundTaskState.terminal_states()
+                and state != background_task_record.state
+            ):
+                raise mlrun.errors.MLRunRuntimeError(
+                    "Background task already reached terminal state, can not change to another state. Failing"
+                )
+
+            if timeout and mlrun.mlconf.background_tasks.timeout_mode == "enabled":
+                background_task_record.timeout = int(timeout)
+            background_task_record.state = state
+            background_task_record.updated = now
+        else:
+            if mlrun.mlconf.background_tasks.timeout_mode == "disabled":
+                timeout = None
+
+            background_task_record = BackgroundTask(
+                name=name,
+                project=project,
+                state=state,
+                created=now,
+                updated=now,
+                timeout=int(timeout) if timeout else None,
+            )
+        self._upsert(session, [background_task_record])
+
+    def get_background_task(
+        self, session, name: str, project: str
+    ) -> schemas.BackgroundTask:
+        background_task_record = self._get_background_task_record(
+            session, name, project
+        )
+        if self._is_background_task_timeout_exceeded(background_task_record):
+            # lazy update of state, only if get background task was requested and the timeout for the update passed
+            # and the task still in progress then we change to failed
+            self.store_background_task(
+                session,
+                name,
+                project,
+                mlrun.api.schemas.background_task.BackgroundTaskState.failed,
+            )
+            background_task_record = self._get_background_task_record(
+                session, name, project
+            )
+
+        return self._transform_background_task_record_to_schema(background_task_record)
+
+    @staticmethod
+    def _transform_background_task_record_to_schema(
+        background_task_record: BackgroundTask,
+    ) -> schemas.BackgroundTask:
+        return schemas.BackgroundTask(
+            metadata=schemas.BackgroundTaskMetadata(
+                name=background_task_record.name,
+                project=background_task_record.project,
+                created=background_task_record.created,
+                updated=background_task_record.updated,
+                timeout=background_task_record.timeout,
+            ),
+            spec=schemas.BackgroundTaskSpec(),
+            status=schemas.BackgroundTaskStatus(
+                state=background_task_record.state,
+            ),
+        )
+
+    def _list_project_background_tasks(
+        self, session: Session, project: str
+    ) -> typing.List[str]:
+        return [
+            name
+            for name, in self._query(
+                session, distinct(BackgroundTask.name), project=project
+            ).all()
+        ]
+
+    def _delete_background_tasks(self, session: Session, project: str):
+        logger.debug("Removing background tasks from db", project=project)
+        for background_task_name in self._list_project_background_tasks(
+            session, project
+        ):
+            self.delete_background_task(session, background_task_name, project)
+
+    def delete_background_task(self, session: Session, name: str, project: str):
+        self._delete(session, BackgroundTask, name=name, project=project)
+
+    def _get_background_task_record(
+        self,
+        session: Session,
+        name: str,
+        project: str,
+        raise_on_not_found: bool = True,
+    ) -> BackgroundTask:
+        background_task_record = self._query(
+            session, BackgroundTask, name=name, project=project
+        ).one_or_none()
+        if not background_task_record:
+            if not raise_on_not_found:
+                return None
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Background task not found: name={name}, project={project}"
+            )
+        return background_task_record
+
+    @staticmethod
+    def _is_background_task_timeout_exceeded(background_task_record) -> bool:
+        # We don't verify if timeout_mode is enabled because if timeout is defined and
+        # mlrun.mlconf.background_tasks.timeout_mode == "disabled",
+        # it signifies that the background task was initiated while timeout mode was enabled,
+        # and we intend to verify it as if timeout mode was enabled
+        timeout = background_task_record.timeout
+        if (
+            timeout
+            and background_task_record.state
+            not in mlrun.api.schemas.BackgroundTaskState.terminal_states()
+            and datetime.utcnow()
+            > timedelta(seconds=int(timeout)) + background_task_record.updated
+        ):
+            return True
+        return False

@@ -4,6 +4,7 @@ import humanfriendly
 import mergedeep
 import sqlalchemy.orm
 
+import mlrun.api.crud
 import mlrun.api.db.session
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
@@ -26,43 +27,8 @@ class Member(
     mlrun.api.utils.projects.member.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
-    class ProjectsStoreMode:
-        none = "none"
-        cache = "cache"
-
-        @staticmethod
-        def all():
-            return [
-                Member.ProjectsStoreMode.none,
-                Member.ProjectsStoreMode.cache,
-            ]
-
-    class ProjectsStore:
-        """
-        See mlrun.api.crud.projects.delete_project for explanation for this ugly thing
-        """
-
-        def __init__(self, project_member):
-            self.project_member = project_member
-
-        def is_project_exists(
-            self, session, name: str, leader_session: typing.Optional[str] = None
-        ):
-            return name in self.project_member._projects
-
-        def delete_project(
-            self,
-            session,
-            name: str,
-            deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
-        ):
-            if name in self.project_member._projects:
-                del self.project_member._projects[name]
-
     def initialize(self):
         logger.info("Initializing projects follower")
-        self._projects: typing.Dict[str, mlrun.api.schemas.Project] = {}
-        self._projects_store_for_deletion = self.ProjectsStore(self)
         self._leader_name = mlrun.mlconf.httpdb.projects.leader
         self._sync_session = None
         self._leader_client: mlrun.api.utils.projects.remotes.leader.Member
@@ -83,7 +49,20 @@ class Member(
         self._synced_until_datetime = None
         # run one sync to start off on the right foot and fill out the cache but don't fail initialization on it
         try:
-            self._sync_projects()
+            # Basically the delete operation in our projects mechanism is fully consistent, meaning the leader won't
+            # remove the project from its persistency (the source of truth) until it was successfully removed from all
+            # followers. Therefore, when syncing projects from the leader, we don't need to search for the deletions
+            # that may happened without us knowing about it (therefore full_sync by default is false). When we
+            # introduced the chief/worker mechanism, we needed to change the follower to keep its projects in the DB
+            # instead of in cache. On the switch, since we were using cache and the projects table in the DB was not
+            # maintained, we know we may have projects that shouldn't be there anymore, ideally we would have trigger
+            # the full sync only once on the switch, but since we don't have a good heuristic to identify the switch
+            # we're doing a full_sync on every initialization
+            full_sync = (
+                mlrun.mlconf.httpdb.clusterization.role
+                == mlrun.api.schemas.ClusterizationRole.chief
+            )
+            self._sync_projects(full_sync=full_sync)
         except Exception as exc:
             logger.warning("Initial projects sync failed", exc=str(exc))
         self._start_periodic_sync()
@@ -101,9 +80,7 @@ class Member(
         wait_for_completion: bool = True,
     ) -> typing.Tuple[typing.Optional[mlrun.api.schemas.Project], bool]:
         if self._is_request_from_leader(projects_role):
-            if project.metadata.name in self._projects:
-                raise mlrun.errors.MLRunConflictError("Project already exists")
-            self._projects[project.metadata.name] = project
+            mlrun.api.crud.Projects().create_project(db_session, project)
             return project, False
         else:
             is_running_in_background = self._leader_client.create_project(
@@ -126,7 +103,7 @@ class Member(
         wait_for_completion: bool = True,
     ) -> typing.Tuple[typing.Optional[mlrun.api.schemas.Project], bool]:
         if self._is_request_from_leader(projects_role):
-            self._projects[project.metadata.name] = project
+            mlrun.api.crud.Projects().store_project(db_session, name, project)
             return project, False
         else:
             try:
@@ -181,15 +158,8 @@ class Member(
         wait_for_completion: bool = True,
     ) -> bool:
         if self._is_request_from_leader(projects_role):
-            # importing here to avoid circular import (db using project member using mlrun follower using db)
-            import mlrun.api.crud
-
             mlrun.api.crud.Projects().delete_project(
-                db_session,
-                name,
-                deletion_strategy,
-                auth_info,
-                self._projects_store_for_deletion,
+                db_session, name, deletion_strategy
             )
         else:
             return self._leader_client.delete_project(
@@ -206,9 +176,7 @@ class Member(
         name: str,
         leader_session: typing.Optional[str] = None,
     ) -> mlrun.api.schemas.Project:
-        if name not in self._projects:
-            raise mlrun.errors.MLRunNotFoundError(f"Project not found {name}")
-        return self._projects[name]
+        return mlrun.api.crud.Projects().get_project(db_session, name)
 
     def get_project_owner(
         self,
@@ -229,42 +197,24 @@ class Member(
         leader_session: typing.Optional[str] = None,
         names: typing.Optional[typing.List[str]] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
-        projects = []
-        if format_ == mlrun.api.schemas.ProjectsFormat.leader:
-            if not self._is_request_from_leader(projects_role):
-                raise mlrun.errors.MLRunAccessDeniedError(
-                    "Leader format is allowed only to the leader"
-                )
-            # importing here to avoid circular import (db using project member using mlrun follower using db)
-            from mlrun.api.utils.singletons.db import get_db
-
-            # Basically in follower mode our projects source of truth is the leader and the data in the DB is not
-            # relevant or maintained. The leader format purpose is a specific upgrade scenario where we're moving from
-            # leader mode (in which the projects are maintained in the DB) to follower mode in which the leader needs
-            # to be aware of the already existing projects so we're allowing only to the leader, to read from the DB,
-            # and return it in the leader's format
-            projects = get_db().list_projects(
-                db_session, owner, format_, labels, state, names
+        if (
+            format_ == mlrun.api.schemas.ProjectsFormat.leader
+            and not self._is_request_from_leader(projects_role)
+        ):
+            raise mlrun.errors.MLRunAccessDeniedError(
+                "Leader format is allowed only to the leader"
             )
+
+        projects_output = mlrun.api.crud.Projects().list_projects(
+            db_session, owner, format_, labels, state, names
+        )
+        if format_ == mlrun.api.schemas.ProjectsFormat.leader:
             leader_projects = [
                 self._leader_client.format_as_leader_project(project)
-                for project in projects.projects
+                for project in projects_output.projects
             ]
-            return mlrun.api.schemas.ProjectsOutput(projects=leader_projects)
-
-        projects = self._list_projects(leader_session, owner, labels, state, names)
-
-        project_names = list(map(lambda project: project.metadata.name, projects))
-        # format output
-        if format_ == mlrun.api.schemas.ProjectsFormat.name_only:
-            projects = project_names
-        elif format_ == mlrun.api.schemas.ProjectsFormat.full:
-            pass
-        else:
-            raise NotImplementedError(
-                f"Provided format is not supported. format={format_}"
-            )
-        return mlrun.api.schemas.ProjectsOutput(projects=projects)
+            projects_output.projects = leader_projects
+        return projects_output
 
     async def list_project_summaries(
         self,
@@ -276,18 +226,8 @@ class Member(
         leader_session: typing.Optional[str] = None,
         names: typing.Optional[typing.List[str]] = None,
     ) -> mlrun.api.schemas.ProjectSummariesOutput:
-        projects = self._list_projects(leader_session, owner, labels, state, names)
-        project_names = list(map(lambda project: project.metadata.name, projects))
-
-        # importing here to avoid circular import (db using project member using mlrun follower using db)
-        import mlrun.api.crud
-
-        project_summaries = await mlrun.api.crud.Projects().generate_projects_summaries(
-            project_names
-        )
-
-        return mlrun.api.schemas.ProjectSummariesOutput(
-            project_summaries=project_summaries
+        return await mlrun.api.crud.Projects().list_project_summaries(
+            db_session, owner, labels, state, names
         )
 
     async def get_project_summary(
@@ -296,58 +236,7 @@ class Member(
         name: str,
         leader_session: typing.Optional[str] = None,
     ) -> mlrun.api.schemas.ProjectSummary:
-        # Call get project so we'll explode if project doesn't exists
-        self.get_project(db_session, name, leader_session)
-
-        # importing here to avoid circular import (db using project member using mlrun follower using db)
-        import mlrun.api.crud
-
-        project_summaries = await mlrun.api.crud.Projects().generate_projects_summaries(
-            [name]
-        )
-
-        return project_summaries[0]
-
-    def _list_projects(
-        self,
-        leader_session: typing.Optional[str] = None,
-        owner: str = None,
-        labels: typing.List[str] = None,
-        state: mlrun.api.schemas.ProjectState = None,
-        names: typing.Optional[typing.List[str]] = None,
-    ) -> typing.List[mlrun.api.schemas.Project]:
-        projects = list(self._projects.values())
-        projects = self._filter_projects(projects, owner, labels, state, names)
-        return projects
-
-    def _filter_projects(
-        self,
-        projects: typing.List[mlrun.api.schemas.Project],
-        owner: str = None,
-        labels: typing.List[str] = None,
-        state: mlrun.api.schemas.ProjectState = None,
-        names: typing.Optional[typing.List[str]] = None,
-    ) -> typing.List[mlrun.api.schemas.Project]:
-        if names is not None:
-            projects = [
-                project for project in projects if project.metadata.name in names
-            ]
-        if owner:
-            projects = list(
-                filter(lambda project: project.spec.owner == owner, projects)
-            )
-        if state:
-            projects = list(
-                filter(lambda project: project.status.state == state, projects)
-            )
-        if labels:
-            projects = list(
-                filter(
-                    lambda project: self._is_project_matching_labels(labels, project),
-                    projects,
-                )
-            )
-        return projects
+        return await mlrun.api.crud.Projects().get_project_summary(db_session, name)
 
     def _start_periodic_sync(self):
         # the > 0 condition is to allow ourselves to disable the sync from configuration
@@ -366,22 +255,51 @@ class Member(
     def _stop_periodic_sync(self):
         mlrun.api.utils.periodic.cancel_periodic_function(self._sync_projects.__name__)
 
-    def _sync_projects(self):
-        projects, latest_updated_at = self._leader_client.list_projects(
+    def _sync_projects(self, full_sync=False):
+        """
+        :param full_sync: when set to true, in addition to syncing project creation/updates from the leader, we will
+        also sync deletions that may occur without updating us the follower
+        """
+        leader_projects, latest_updated_at = self._leader_client.list_projects(
             self._sync_session, self._synced_until_datetime
+        )
+        db_session = mlrun.api.db.session.create_session()
+        db_projects = mlrun.api.crud.Projects().list_projects(
+            db_session, format_=mlrun.api.schemas.ProjectsFormat.name_only
         )
         # Don't add projects in non terminal state if they didn't exist before to prevent race conditions
         filtered_projects = []
-        for project in projects:
+        for leader_project in leader_projects:
             if (
-                project.status.state
+                leader_project.status.state
                 not in mlrun.api.schemas.ProjectState.terminal_states()
-                and project.metadata.name not in self._projects
+                and leader_project.metadata.name not in db_projects.projects
             ):
                 continue
-            filtered_projects.append(project)
+            filtered_projects.append(leader_project)
+
         for project in filtered_projects:
-            self._projects[project.metadata.name] = project
+            mlrun.api.crud.Projects().store_project(
+                db_session, project.metadata.name, project
+            )
+        if full_sync:
+            logger.info("Performing full sync")
+            leader_project_names = [
+                project.metadata.name for project in leader_projects
+            ]
+            projects_to_remove = list(
+                set(db_projects.projects).difference(leader_project_names)
+            )
+            for project_to_remove in projects_to_remove:
+                logger.info(
+                    "Found project in the DB that is not in leader. Removing",
+                    name=project_to_remove,
+                )
+                mlrun.api.crud.Projects().delete_project(
+                    db_session,
+                    project_to_remove,
+                    mlrun.api.schemas.DeletionStrategy.cascading,
+                )
         self._synced_until_datetime = latest_updated_at
 
     def _is_request_from_leader(

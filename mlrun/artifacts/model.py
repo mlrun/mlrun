@@ -428,7 +428,7 @@ class ModelArtifact(Artifact):
         return mlrun.get_dataitem(target_model_path).get()
 
 
-class LegacyModelArtifact(Artifact):
+class LegacyModelArtifact(LegacyArtifact):
     """ML Model artifact
 
     Store link to ML model file(s) along with the model metrics, parameters, schema, and stats

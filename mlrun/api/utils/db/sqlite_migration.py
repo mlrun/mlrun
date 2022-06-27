@@ -11,7 +11,8 @@ from .mysql import MySQLUtil
 
 class SQLiteMigrationUtil(object):
 
-    # All tables except 'alembic_version' so the sqlite migration tree doesn't override the mysql migration tree
+    # All sqlite tables except 'alembic_version' so the sqlite migration tree doesn't override the mysql migration tree
+    # Tables that are only relevant for MYSQL shouldn't be added here
     sqlite_tables = [
         "artifacts",
         "functions",
@@ -41,6 +42,7 @@ class SQLiteMigrationUtil(object):
         "feature_vectors_tags",
         "projects_labels",
         "data_versions",
+        "background_tasks",
     ]
 
     def __init__(self):

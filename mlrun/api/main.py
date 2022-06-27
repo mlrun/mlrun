@@ -258,6 +258,7 @@ async def _align_worker_state_with_chief_state(
 
     elif chief_state in mlrun.api.schemas.APIStates.terminal_states():
         if chief_state == mlrun.api.schemas.APIStates.online:
+            logger.info("Chief reached online state! Switching worker state to online")
             await move_api_to_online()
 
             config.httpdb.state = chief_state

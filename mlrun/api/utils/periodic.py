@@ -50,6 +50,7 @@ def cancel_periodic_function(name: str):
     logger.debug("Canceling periodic function", name=name)
     if name in tasks:
         task = tasks[name]
+        # to enable periodic functions to cancel themselves we first remove the task and then cancel it
         del tasks[name]
         task.cancel()
 

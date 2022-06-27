@@ -244,7 +244,11 @@ async def _synchronize_with_chief_clusterization_spec():
             return_fastapi_response=False, raise_on_failure=True
         )
     except Exception as exc:
-        logger.debug("Were unable receive clusterization spec", exc=str(exc))
+        logger.debug(
+            "Failed receiving clusterization spec",
+            exc=str(exc),
+            traceback=traceback.format_exc(),
+        )
     else:
         await _align_worker_state_with_chief_state(clusterization_spec)
 
@@ -255,30 +259,32 @@ async def _align_worker_state_with_chief_state(
     chief_state = clusterization_spec.chief_api_state
     if not chief_state:
         logger.warning("Chief didn't return any state")
+        return
 
-    elif chief_state in mlrun.api.schemas.APIStates.terminal_states():
-        if chief_state == mlrun.api.schemas.APIStates.online:
-            logger.info("Chief reached online state! Switching worker state to online")
-            await move_api_to_online()
-
-            config.httpdb.state = chief_state
-            logger.info("Worker state reached online")
-        else:
-            config.httpdb.state = chief_state
-            logger.info(
-                "Chief state is offline, canceling worker periodic chief clusterization spec pulling"
-            )
-        # if reached terminal state we cancel the periodic function
-        # assumption: we can't get out of a terminal api state, so no need to continue pulling when reached one
-        cancel_periodic_function(_synchronize_with_chief_clusterization_spec.__name__)
-    else:
+    if chief_state not in mlrun.api.schemas.APIStates.terminal_states():
         logger.debug(
-            f"Waiting for chief to reach {mlrun.api.schemas.APIStates.online}, got {chief_state}. "
-            f"Will retry again in {config.httpdb.clusterization.worker.sync_with_chief.interval}",
+            f"Chief didn't reach online state yet, will try again later",
+            interval=config.httpdb.clusterization.worker.sync_with_chief.interval,
             chief_state=chief_state,
         )
         # we want the worker to be aligned with chief state
         config.httpdb.state = chief_state
+        return
+
+    if chief_state == mlrun.api.schemas.APIStates.online:
+        logger.info("Chief reached online state! Switching worker state to online")
+        await move_api_to_online()
+        logger.info("Worker state reached online")
+
+    else:
+        logger.info(
+            "Chief state is terminal, canceling worker periodic chief clusterization spec pulling",
+            state=config.httpdb.state,
+        )
+    config.httpdb.state = chief_state
+    # if reached terminal state we cancel the periodic function
+    # assumption: we can't get out of a terminal api state, so no need to continue pulling when reached one
+    cancel_periodic_function(_synchronize_with_chief_clusterization_spec.__name__)
 
 
 def _monitor_runs():
@@ -320,7 +326,7 @@ def main():
         and config.httpdb.clusterization.role
         == mlrun.api.schemas.ClusterizationRole.worker
     ):
-        # this is being set only being set once to trigger the periodic chief state pulling
+        # we set this state to mark the phase between the startup of the instance until we able to pull the chief state
         config.httpdb.state = mlrun.api.schemas.APIStates.waiting_for_chief
 
     logger.info(

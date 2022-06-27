@@ -38,8 +38,6 @@ def get_workflow_engine(engine_kind, local=False):
             logger.warning(
                 "running kubeflow pipeline locally, note some ops may not run locally!"
             )
-        elif engine_kind == 'remote':
-            return _RemoteRunner
         return _LocalRunner
     if not engine_kind or engine_kind == "kfp":
         return _KFPRunner
@@ -586,44 +584,51 @@ class _RemoteRunner(_PipelineRunner):
         namespace=None,
         schedule=None,
     ) -> _PipelineRunStatus:
-        workflow_id = uuid.uuid4().hex
+        # workflow_id = uuid.uuid4().hex
+        workflow_name = "workflow_runner"
         logger.info(workflow_spec.to_dict())
         try:
-            logger.info('Creating the function that invokes the workflow remotely')
+            logger.info("Creating the function that invokes the workflow remotely")
             fn = mlrun.new_function(
-                name=f'remote_runner_{workflow_id}',
+                name=workflow_name,
                 project=project.name,
                 kind="job",
                 source=project.spec.source,
-                image='mlrun/mlrun',
+                image="mlrun/mlrun",
             )
-            logger.info('Running the function that invokes the workflow remotely')
+            logger.info("Running the function that invokes the workflow remotely")
             # Preparing parameters for load_and_run function:
             params = workflow_spec.args.copy() if workflow_spec.args else {}
-            params['workflow_name'] = name.split('-')[-1] if f'{project.name}-' in name else name
-            params['local'] = workflow_spec.run_local
+            params["workflow_name"] = (
+                name.split("-")[-1] if f"{project.name}-" in name else name
+            )
+            params["local"] = workflow_spec.run_local
 
-            fn.run(
+            run_id = fn.run(
+                name=workflow_name,
                 params=params,
-                handler=mlrun.projects.pipelines.load_and_run,
+                handler="mlrun.projects.pipelines.load_and_run",
                 auto_build=True,
                 local=False,
                 schedule=schedule,
             )
+
             state = mlrun.run.RunStatuses.succeeded
         except Exception as e:
             trace = traceback.format_exc()
             logger.error(trace)
             project.notifiers.push(
-                f"Workflow {workflow_id} run failed!, error: {e}\n{trace}"
+                f"Workflow {workflow_name} run failed!, error: {e}\n{trace}"
             )
             state = mlrun.run.RunStatuses.failed
 
         mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
-        project.notifiers.push_start_message(project.metadata.name, id=workflow_id)
+        project.notifiers.push_start_message(
+            project.metadata.name,
+        )
         pipeline_context.clear()
         return _PipelineRunStatus(
-            workflow_id, cls, project=project, workflow=workflow_spec, state=state
+            run_id, cls, project=project, workflow=workflow_spec, state=state
         )
 
     @staticmethod
@@ -674,29 +679,29 @@ def github_webhook(request):
 
 
 def load_and_run(
-        context,
-        project_context: str,
-        url: str = None,
-        project_name: str = '',
-        secrets: str = None,
-        init_git: bool = None,
-        subpath: str = None,
-        clone: bool = False,
-        user_project: bool = False,
-        workflow_name: str = None,
-        workflow_path: str = None,
-        workflow_arguments=None,
-        artifact_path: str = None,
-        workflow_handler=None,
-        namespace=None,
-        sync: bool = False,
-        # watch: bool = False,
-        dirty: bool = False,
-        ttl=None,
-        engine=None,
-        local: bool = None,
+    context,
+    project_context: str,
+    url: str = None,
+    project_name: str = "",
+    secrets: str = None,
+    init_git: bool = None,
+    subpath: str = None,
+    clone: bool = False,
+    user_project: bool = False,
+    workflow_name: str = None,
+    workflow_path: str = None,
+    workflow_arguments=None,
+    artifact_path: str = None,
+    workflow_handler=None,
+    namespace=None,
+    sync: bool = False,
+    # watch: bool = False,
+    dirty: bool = False,
+    ttl=None,
+    engine=None,
+    local: bool = None,
 ):
-    context.logger.info(f'Loading project {project_name}')
+    context.logger.info(f"Loading project {project_name}")
     project = mlrun.load_project(
         context=project_context,
         url=url,
@@ -705,10 +710,10 @@ def load_and_run(
         init_git=init_git,
         subpath=subpath,
         clone=clone,
-        user_project=user_project
+        user_project=user_project,
     )
     wf_log_msg = workflow_name or workflow_path
-    context.logger.info(f'Running workflow {wf_log_msg}')
+    context.logger.info(f"Running workflow {wf_log_msg}")
     run = project.run(
         name=workflow_name,
         workflow_path=workflow_path,
@@ -721,5 +726,5 @@ def load_and_run(
         dirty=dirty,
         ttl=ttl,
         engine=engine,
-        local=local
+        local=local,
     )

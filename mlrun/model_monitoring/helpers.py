@@ -108,7 +108,7 @@ def get_model_monitoring_batch_function(
         project=project,
         filename=str(_MONIOTINRG_BATCH_FUNCTION_PATH),
         kind="job",
-        image=mlrun / mlrun,
+        image="mlrun/mlrun",
         handler="handler",
     )
     function.set_db_connection(mlrun.api.api.utils.get_run_db_instance(db_session))

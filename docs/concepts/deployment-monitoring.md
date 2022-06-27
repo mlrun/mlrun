@@ -18,9 +18,9 @@ MLRun graph capabilities include:
 - Built-in monitoring for performance, resources, errors, data, model behaviour, and custom metrics
 - Debug in the IDE/Notebook
 
-The serving graphs are used by [MLRun’s Feature Store](../feature-store/feature-store) to build real-time feature engineering pipelines. 
+The serving graphs are used by [MLRun’s Feature Store](../feature-store/feature-store.html) to build real-time feature engineering pipelines. 
 
-See full details and examples in [Real-time serving pipelines (graphs)](../serving/serving-graph).
+See full details and examples in [Real-time serving pipelines (graphs)](../serving/serving-graph.html).
 
 ## Model serving
 
@@ -33,7 +33,7 @@ handle any type of structured or unstructured data, and run complex computation 
 
 Graphs are used to deploy and serve ML/DL models. Graphs can be deployed into a production serverless pipeline with a single command. 
 
-See full details and examples in [model serving using the graphs](../serving/build-graph-model-serving).
+See full details and examples in [model serving using the graphs](../serving/build-graph-model-serving.html).
 
 
 ## Model monitoring
@@ -42,7 +42,7 @@ Model performance monitoring is a basic operational task that is implemented aft
 - Monitors your models in production, and identifies and mitigates drift on the fly.
 - Detects model drift based on feature drift via the integrated feature store, and auto-triggers retraining.
 
-See full details and examples in [Model monitoring](../model_monitoring/index).
+See full details and examples in [Model monitoring](../model_monitoring/index.html).
 
 
 ## CI/CD and automation
@@ -57,4 +57,4 @@ with the CI systems.
 - Extensive function marketplace 
 
 
-See full details and examples in [Github/Gitlab and CI/CD Integration](../projects/ci-integration).
+See full details and examples in [Github/Gitlab and CI/CD Integration](../projects/ci-integration.html).

@@ -3,7 +3,7 @@
 
 A feature set contains an execution graph of operations that are performed when data is ingested, or 
 when simulating data flow for inferring its metadata. This graph utilizes MLRun's
-[serving graph](../serving/serving-graph.md).
+[serving graph](../serving/serving-graph.html).
 
 The graph contains steps that represent data sources and targets, and may also contain steps whose
 purpose is transformations and enrichment of the data passed through the feature set. These transformations
@@ -33,7 +33,7 @@ UI, where the full graph can be seen and specific step properties can be observe
 <br><img src="../_static/images/mlrun-ui-feature-set-graph.png" alt="ui-feature-set-graph" width="800"/><br>
 
 For a full end-to-end example of feature-store and usage of the functionality described in this page, refer
-to the [feature store example](./basic-demo).
+to the [feature store example](./basic-demo.html).
 
 **In this section**
 - [Aggregations](#aggregations)

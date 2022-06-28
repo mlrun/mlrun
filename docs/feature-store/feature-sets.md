@@ -190,10 +190,11 @@ To learn more about deploy_ingestion_service go to {py:class}`~mlrun.feature_sto
 You can schedule an ingestion job for a feature set on an ongoing basis. The first scheduled job runs on all the data in the source and the subsequent jobs ingest only the deltas since the previous run (from the last timestamp of the previous run until `datetime.now`). 
 Example:
 
-`cron_trigger = "* */1 * * *" #will run every hour
+```cron_trigger = "* */1 * * *" #will run every hour
 source = ParquetSource("myparquet", path=path, time_field="time", schedule=cron_trigger)
 feature_set = fs.FeatureSet(name=name, entities=[fs.Entity("first_name")], timestamp_key="time",)
-fs.ingest(feature_set, source, run_config=fs.RunConfig())`
+fs.ingest(feature_set, source, run_config=fs.RunConfig())
+```
 
 The default value for the `overwrite` parameter in the ingest function for scheduled ingest is `False`, meaning that the target from the previous ingest is not deleted.
 For the storey engine, the feature is currently implemented for ParquetSource only. (CsvSource will be supported in a future release). For Spark engine, other sources are also supported. 

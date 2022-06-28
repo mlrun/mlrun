@@ -21,40 +21,26 @@ import mlrun.runtimes
 
 
 @pytest.mark.parametrize(
-    "run_type,mpi_version,selector_fmt",
+    "run_type,mpi_version,extra_selector",
     [
-        (
-            "job",
-            mlrun.runtimes.constants.MPIJobCRDVersions.v1,
-            "mlrun/class,mlrun/project={project},mlrun/uid={uid}",
-        ),
-        (
-            "spark",
-            mlrun.runtimes.constants.MPIJobCRDVersions.v1,
-            "mlrun/class,mlrun/project={project},mlrun/uid={uid},spark-role=driver",
-        ),
-        (
-            "mpijob",
-            mlrun.runtimes.constants.MPIJobCRDVersions.v1,
-            "mlrun/class,mlrun/project={project},mlrun/uid={uid},mpi-job-role=launcher",
-        ),
-        (
-            "mpijob",
-            mlrun.runtimes.constants.MPIJobCRDVersions.v1alpha1,
-            "mlrun/class,mlrun/project={project},mlrun/uid={uid},mpi_role_type=launcher",
-        ),
+        ("job", "", ""),
+        ("spark", "", "spark-role=driver"),
+        ("mpijob", "v1", "mpi-job-role=launcher"),
+        ("mpijob", "v1alpha1", "mpi_role_type=launcher"),
     ],
 )
-def test_get_logger_pods(monkeypatch, run_type, mpi_version, selector_fmt):
+def test_get_logger_pods(monkeypatch, run_type, mpi_version, extra_selector):
     monkeypatch.setattr(
         mlrun.runtimes.utils,
         "cached_mpijob_crd_version",
-        mpi_version,
+        mpi_version or mlrun.runtimes.constants.MPIJobCRDVersions.default(),
     )
     uid = "test-uid"
     project = "test-project"
     namespace = "test-namespace"
-    selector = selector_fmt.format(project=project, uid=uid)
+    selector = f"mlrun/class,mlrun/project={project},mlrun/uid={uid}"
+    if extra_selector:
+        selector += f",{extra_selector}"
 
     k8s_helper = mlrun.k8s_utils.K8sHelper(namespace, silent=True)
     k8s_helper.list_pods = unittest.mock.MagicMock()

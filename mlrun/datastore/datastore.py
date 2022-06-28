@@ -49,7 +49,7 @@ def parse_url(url):
 
 def schema_to_store(schema):
     # import store classes inside to enable making their dependencies optional (package extras)
-    if not schema or schema in ["file", "c", "d"]:
+    if not schema or schema in ["file", "c", "d", 'mdb']:
         return FileStore
     elif schema == "s3":
         try:

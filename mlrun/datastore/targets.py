@@ -1477,6 +1477,7 @@ class MongoDBTarget(BaseStoreTarget):
                 "db_name": db_name,
                 "connection_string": connection_string,
             }
+            path = f'MDB:///{connection_string}///{db_name}///{collection_name}'
         if attributes:
             attributes.update(attr)
         else:
@@ -1563,10 +1564,10 @@ class MongoDBTarget(BaseStoreTarget):
                 query = time_query
 
         from pymongo import MongoClient
-
-        mongodb_client = MongoClient(self.attributes["connection_string"])
-        db = mongodb_client[self.attributes["db_name"]]
-        collection = db[self.attributes["collection_name"]]
+        connection_string, db_name, collection_string = self._parse_url()
+        mongodb_client = MongoClient(connection_string)
+        db = mongodb_client[db_name]
+        collection = db[collection_string]
         cursor = collection.find(query)
 
         df = pd.DataFrame(list(cursor))
@@ -1582,12 +1583,17 @@ class MongoDBTarget(BaseStoreTarget):
         else:
             from pymongo import MongoClient
 
-            mongodb_client = MongoClient(self.attributes["connection_string"])
-            db = mongodb_client[self.attributes["db_name"]]
-            collection = db[self.attributes["collection_name"]]
+            connection_string, db_name, collection_string = self._parse_url()
+            mongodb_client = MongoClient(connection_string)
+            db = mongodb_client[db_name]
+            collection = db[collection_string]
 
             data = df.to_dict(orient="records")
             collection.insert_many(data)
+
+    def _parse_url(self):
+        path = self.path[len('MDB:///'):]
+        return path.split('///')
 
 
 kind_to_driver = {

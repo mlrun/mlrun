@@ -25,4 +25,4 @@ functions-overview
 nuclio-real-time-functions
 ```
 
-See also [Creating and using functions](../runtimes/functions).
+See also [Creating and using functions](../runtimes/functions.html).

@@ -88,7 +88,7 @@ the function/model deployment.
 ## predict() method
 
 The predict method is called when you access the `/infer` or `/predict` url suffix (operation).
-The method accepts the request object (as dict), see [Model server API](#model-api).
+The method accepts the request object (as dict), see [Model server API](model-api.html#infer-predict).
 And it should return the specified response object.
 
 ## explain() method

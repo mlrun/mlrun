@@ -112,7 +112,7 @@ task = mlrun.new_task('training',
 run = fn.run(task)
 ```
 
-You can see a full example of using the offline feature vector to create an ML model in [part 2 of the end-to-end demo](./end-to-end-demo/02-create-training-model.ipynb).
+You can see a full example of using the offline feature vector to create an ML model in [part 2 of the end-to-end demo](./end-to-end-demo/02-create-training-model.html).
 
 ### Creating an online feature vector
 
@@ -157,4 +157,4 @@ list correspond to the entity values (e.g. `entities = [["Joe"], ["Mike"]]`). Th
 If you want to return an ordered list of values, set the `as_list` parameter to `True`. The list input is required by many ML 
 frameworks and this eliminates additional glue logic.  
 
-See a full example of using the online feature service inside a serving function in [part 3 of the end-to-end demo](./end-to-end-demo/03-deploy-serving-model.ipynb).
+See a full example of using the online feature service inside a serving function in [part 3 of the end-to-end demo](./end-to-end-demo/03-deploy-serving-model.html).

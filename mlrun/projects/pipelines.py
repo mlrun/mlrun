@@ -720,7 +720,7 @@ def github_webhook(request):
 
 
 def load_and_run(
-    context: mlrun.MLClientCtx,
+    context,
     project_context: str,
     url: str = None,
     project_name: str = "",

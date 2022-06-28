@@ -46,7 +46,7 @@ def create_schedule(
         )
         chief_client = mlrun.api.utils.clients.chief.Client()
         return chief_client.create_schedule(
-            project=project, request=request, body=schedule.dict()
+            project=project, request=request, json=schedule.dict()
         )
 
     if not auth_info.access_key:
@@ -94,7 +94,7 @@ def update_schedule(
         )
         chief_client = mlrun.api.utils.clients.chief.Client()
         return chief_client.update_schedule(
-            project=project, name=name, request=request, body=schedule.dict()
+            project=project, name=name, request=request, json=schedule.dict()
         )
 
     if not auth_info.access_key:

@@ -271,30 +271,42 @@ class K8sHelper:
             items.append(i)
         return items
 
-    def get_logger_pods(self, project, uid, namespace=""):
+    def get_logger_pods(self, project, uid, run_kind, namespace=""):
+
+        # As this file is imported in mlrun.runtimes, we sadly cannot have this import in the top level imports
+        # as that will create an import loop.
+        # TODO: Fix the import loops already!
+        import mlrun.runtimes
+
         namespace = self.resolve_namespace(namespace)
+        mpijob_crd_version = mlrun.runtimes.utils.resolve_mpijob_crd_version()
+        mpijob_role_label = (
+            mlrun.runtimes.constants.MPIJobCRDVersions.role_label_by_version(
+                mpijob_crd_version
+            )
+        )
+        extra_selectors = {
+            "spark": "spark-role=driver",
+            "mpijob": f"{mpijob_role_label}=launcher",
+        }
+
         # TODO: all mlrun labels are sprinkled in a lot of places - they need to all be defined in a central,
         #  inclusive place.
-        selector = f"mlrun/class,mlrun/project={project},mlrun/uid={uid}"
+        selectors = [
+            "mlrun/class",
+            f"mlrun/project={project}",
+            f"mlrun/uid={uid}",
+        ]
+        if run_kind in extra_selectors:
+            selectors.append(extra_selectors[run_kind])
+
+        selector = ",".join(selectors)
         pods = self.list_pods(namespace, selector=selector)
         if not pods:
             logger.error("no pod matches that uid", uid=uid)
             return
 
-        kind = pods[0].metadata.labels.get("mlrun/class")
-        results = {}
-        for p in pods:
-            if (
-                (kind not in ["spark", "mpijob"])
-                or (p.metadata.labels.get("spark-role", "") == "driver")
-                # v1alpha1
-                or (p.metadata.labels.get("mpi_role_type", "") == "launcher")
-                # v1
-                or (p.metadata.labels.get("mpi-job-role", "") == "launcher")
-            ):
-                results[p.metadata.name] = p.status.phase
-
-        return results
+        return {p.metadata.name: p.status.phase for p in pods}
 
     def create_project_service_account(self, project, service_account, namespace=""):
         namespace = self.resolve_namespace(namespace)

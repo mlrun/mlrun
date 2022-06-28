@@ -606,26 +606,15 @@ class _RemoteRunner(_PipelineRunner):
                 project=project.name,
                 kind="job",
                 source=project.spec.source,
-                # image="mlrun/mlrun",
+                image="yonishelach/mlrun-remote-runner",
             )
-            # load_and_run = mlrun.code_to_function(name="load_and_run", project=project.name, filename="mlrun.projects.pipelines",
-            #                                       handler="load_and_run", kind="job", image="mlrun/mlrun")
-            # Replace to code to function
-            load_and_run_fn.spec.build.base_image = "mlrun/mlrun"
-            load_and_run_fn.spec.build.commands += [
-                "pip uninstall -y mlrun",
-                "pip install git+https://github.com/yonishelach/mlrun.git@remote-runner",
-            ]
-            # context = mlrun.get_or_create_ctx(name='default')
-            # context.log_result(key=workflow_name, value=)
-            load_and_run_fn.deploy()
+
             logger.info("Running the function that invokes the workflow remotely")
             # Preparing parameters for load_and_run function:
             params = workflow_spec.args.copy() if workflow_spec.args else {}
             params["workflow_name"] = (
                 name.split("-")[-1] if f"{project.name}-" in name else name
             )
-            params["local"] = workflow_spec.run_local
 
             run = load_and_run_fn.run(
                 name=workflow_name,

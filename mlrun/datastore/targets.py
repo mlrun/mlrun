@@ -1512,6 +1512,17 @@ class MongoDBTarget(BaseStoreTarget):
         """add storey writer state to graph"""
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
+    def get_table_object(self):
+        from storey import Table, V3ioDriver
+
+        # TODO use options/cred
+        endpoint, uri, _, = self._parse_url()
+        return Table(
+            uri,
+            V3ioDriver(webapi=endpoint),
+            flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
+        )
+
     def add_writer_step(
         self,
         graph,
@@ -1525,7 +1536,7 @@ class MongoDBTarget(BaseStoreTarget):
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
-
+        table = self._resource.uri
         graph.add_step(
             name=self.name or "MongoDBTarget",
             after=after,
@@ -1533,6 +1544,7 @@ class MongoDBTarget(BaseStoreTarget):
             class_name="storey.MongoDBTarget",
             columns=column_list,
             header=True,
+            table=table,
             index_cols=key_columns,
             # storage_options=self._get_store().get_storage_options(),
             **self.attributes,

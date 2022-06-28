@@ -1420,7 +1420,7 @@ class MongoDBTarget(BaseStoreTarget):
     """
 
     kind = TargetTypes.mongodb
-    is_offline = True
+    is_online = True
     support_spark = False
     support_storey = True
 
@@ -1477,7 +1477,7 @@ class MongoDBTarget(BaseStoreTarget):
                 "db_name": db_name,
                 "connection_string": connection_string,
             }
-            path = f'http://MDB:///{connection_string}///{db_name}///{collection_name}'
+            path = f'mdb:///{connection_string}///{db_name}///{collection_name}'
         if attributes:
             attributes.update(attr)
         else:
@@ -1534,7 +1534,7 @@ class MongoDBTarget(BaseStoreTarget):
             columns=column_list,
             header=True,
             index_cols=key_columns,
-            storage_options=self._get_store().get_storage_options(),
+            # storage_options=self._get_store().get_storage_options(),
             **self.attributes,
         )
 
@@ -1592,8 +1592,11 @@ class MongoDBTarget(BaseStoreTarget):
             collection.insert_many(data)
 
     def _parse_url(self):
-        path = self.path[len('http://MDB:///'):]
+        path = self.path[len('mdb:///'):]
         return path.split('///')
+
+    def purge(self):
+        pass
 
 
 kind_to_driver = {

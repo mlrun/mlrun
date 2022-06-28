@@ -269,44 +269,47 @@ class Member(
             self._sync_session, self._synced_until_datetime
         )
         db_session = mlrun.api.db.session.create_session()
-        db_projects = mlrun.api.crud.Projects().list_projects(
-            db_session, format_=mlrun.api.schemas.ProjectsFormat.name_only
-        )
-        # Don't add projects in non terminal state if they didn't exist before to prevent race conditions
-        filtered_projects = []
-        for leader_project in leader_projects:
-            if (
-                leader_project.status.state
-                not in mlrun.api.schemas.ProjectState.terminal_states()
-                and leader_project.metadata.name not in db_projects.projects
-            ):
-                continue
-            filtered_projects.append(leader_project)
+        try:
+            db_projects = mlrun.api.crud.Projects().list_projects(
+                db_session, format_=mlrun.api.schemas.ProjectsFormat.name_only
+            )
+            # Don't add projects in non terminal state if they didn't exist before to prevent race conditions
+            filtered_projects = []
+            for leader_project in leader_projects:
+                if (
+                    leader_project.status.state
+                    not in mlrun.api.schemas.ProjectState.terminal_states()
+                    and leader_project.metadata.name not in db_projects.projects
+                ):
+                    continue
+                filtered_projects.append(leader_project)
 
-        for project in filtered_projects:
-            mlrun.api.crud.Projects().store_project(
-                db_session, project.metadata.name, project
-            )
-        if full_sync:
-            logger.info("Performing full sync")
-            leader_project_names = [
-                project.metadata.name for project in leader_projects
-            ]
-            projects_to_remove = list(
-                set(db_projects.projects).difference(leader_project_names)
-            )
-            for project_to_remove in projects_to_remove:
-                logger.info(
-                    "Found project in the DB that is not in leader. Removing",
-                    name=project_to_remove,
+            for project in filtered_projects:
+                mlrun.api.crud.Projects().store_project(
+                    db_session, project.metadata.name, project
                 )
-                mlrun.api.crud.Projects().delete_project(
-                    db_session,
-                    project_to_remove,
-                    mlrun.api.schemas.DeletionStrategy.cascading,
+            if full_sync:
+                logger.info("Performing full sync")
+                leader_project_names = [
+                    project.metadata.name for project in leader_projects
+                ]
+                projects_to_remove = list(
+                    set(db_projects.projects).difference(leader_project_names)
                 )
-        if latest_updated_at:
-            self._synced_until_datetime = latest_updated_at
+                for project_to_remove in projects_to_remove:
+                    logger.info(
+                        "Found project in the DB that is not in leader. Removing",
+                        name=project_to_remove,
+                    )
+                    mlrun.api.crud.Projects().delete_project(
+                        db_session,
+                        project_to_remove,
+                        mlrun.api.schemas.DeletionStrategy.cascading,
+                    )
+            if latest_updated_at:
+                self._synced_until_datetime = latest_updated_at
+        finally:
+            mlrun.api.db.session.close_session(db_session)
 
     def _is_request_from_leader(
         self, projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole]

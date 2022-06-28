@@ -1868,7 +1868,7 @@ class MlrunProject(ModelObj):
         :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
         :returns: run id
         """
-        if local and engine == 'remote':
+        if local and engine == "remote":
             logger.warning("WARNING!, using remote engine, setting local to False")
             local = False
 

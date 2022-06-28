@@ -596,8 +596,9 @@ class _RemoteRunner(_PipelineRunner):
         schedule=None,
     ) -> _PipelineRunStatus:
         # workflow_id = uuid.uuid4().hex
-        workflow_name = "workflow_runner"
+        workflow_name = "workflow-runner"
         logger.info(workflow_spec.to_dict())
+        run_id = None
         try:
             logger.info("Creating the function that invokes the workflow remotely")
             fn = mlrun.new_function(
@@ -607,10 +608,13 @@ class _RemoteRunner(_PipelineRunner):
                 source=project.spec.source,
                 image="mlrun/mlrun",
             )
+            # Replace to code to function
             fn.spec.build.commands += [
                 "pip uninstall -y mlrun",
                 "pip install git+https://github.com/yonishelach/mlrun.git@remote-runner",
             ]
+            # context = mlrun.get_or_create_ctx(name='default')
+            # context.log_result(key=workflow_name, value=)
 
             logger.info("Running the function that invokes the workflow remotely")
             # Preparing parameters for load_and_run function:
@@ -619,9 +623,8 @@ class _RemoteRunner(_PipelineRunner):
                 name.split("-")[-1] if f"{project.name}-" in name else name
             )
             params["local"] = workflow_spec.run_local
-            run_id = None
 
-            run_id = fn.run(
+            run = fn.run(
                 name=workflow_name,
                 params=params,
                 handler="mlrun.projects.pipelines.load_and_run",
@@ -629,9 +632,12 @@ class _RemoteRunner(_PipelineRunner):
                 local=False,
                 schedule=schedule,
             )
+            logger.info("Waiting for workflow id")
             while not run_id:
+                run.refresh()
+                run_id = run.status.results.get("workflow_id", None)
                 time.sleep(1)
-
+            logger.info(f"fetched workflow id {run_id}")
             state = mlrun.run.RunStatuses.succeeded
         except Exception as e:
             trace = traceback.format_exc()
@@ -710,7 +716,7 @@ def github_webhook(request):
 
 
 def load_and_run(
-    context,
+    context: mlrun.MLClientCtx,
     project_context: str,
     url: str = None,
     project_name: str = "",
@@ -745,7 +751,7 @@ def load_and_run(
     )
     wf_log_msg = workflow_name or workflow_path
     context.logger.info(f"Running workflow {wf_log_msg}")
-    project.run(
+    run = project.run(
         name=workflow_name,
         workflow_path=workflow_path,
         arguments=workflow_arguments,
@@ -753,9 +759,10 @@ def load_and_run(
         workflow_handler=workflow_handler,
         namespace=namespace,
         sync=sync,
-        watch=True,
+        watch=False,
         dirty=dirty,
         ttl=ttl,
         engine=engine,
         local=local,
     )
+    context.log_result(key="workflow_id", value=run.run_id)

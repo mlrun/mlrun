@@ -64,7 +64,7 @@ The MLRun feature store supports three processing engines (storey, pandas, spark
 
 The data pipeline is defined using MLRun graph (DAG) language. Graph steps can be pre-defined operators 
 (such as aggregate, filter, encode, map, join, impute, etc) or custom python classes/functions. 
-Read more about the graph in [Real-time serving pipelines (graphs)](../serving/serving-graph.md).
+Read more about the graph in [Real-time serving pipelines (graphs)](../serving/serving-graph.html).
 
 The `pandas` and `spark` engines are good for simple batch transformations, while the `storey` stream processing engine (the default engine)
 can handle complex workflows and real-time sources.
@@ -98,7 +98,7 @@ df = fstore.ingest(stocks_set, stocks_df)
 
 The graph steps can use built-in transformation classes, simple python classes, or function handlers. 
 
-See more details in [Feature set transformations](transformations.md).
+See more details in [Feature set transformations](transformations.html).
 
 ## Simulate and debug the data pipeline with a small dataset
 During the development phase it's pretty common to check the feature set definition and to simulate the creation of the feature set before ingesting the entire dataset, since ingesting the entire feature set can take time. <br>

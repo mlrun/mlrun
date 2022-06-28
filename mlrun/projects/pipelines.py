@@ -597,25 +597,28 @@ class _RemoteRunner(_PipelineRunner):
     ) -> _PipelineRunStatus:
         # workflow_id = uuid.uuid4().hex
         workflow_name = "workflow-runner"
-        logger.info(workflow_spec.to_dict())
+        # logger.info(workflow_spec.to_dict())
         run_id = None
         try:
             logger.info("Creating the function that invokes the workflow remotely")
-            fn = mlrun.new_function(
+            load_and_run_fn = mlrun.new_function(
                 name=workflow_name,
                 project=project.name,
                 kind="job",
                 source=project.spec.source,
-                image="mlrun/mlrun",
+                # image="mlrun/mlrun",
             )
+            # load_and_run = mlrun.code_to_function(name="load_and_run", project=project.name, filename="mlrun.projects.pipelines",
+            #                                       handler="load_and_run", kind="job", image="mlrun/mlrun")
             # Replace to code to function
-            fn.spec.build.commands += [
+            load_and_run_fn.spec.build.base_image = "mlrun/mlrun"
+            load_and_run_fn.spec.build.commands += [
                 "pip uninstall -y mlrun",
                 "pip install git+https://github.com/yonishelach/mlrun.git@remote-runner",
             ]
             # context = mlrun.get_or_create_ctx(name='default')
             # context.log_result(key=workflow_name, value=)
-
+            load_and_run_fn.deploy()
             logger.info("Running the function that invokes the workflow remotely")
             # Preparing parameters for load_and_run function:
             params = workflow_spec.args.copy() if workflow_spec.args else {}
@@ -624,7 +627,7 @@ class _RemoteRunner(_PipelineRunner):
             )
             params["local"] = workflow_spec.run_local
 
-            run = fn.run(
+            run = load_and_run_fn.run(
                 name=workflow_name,
                 params=params,
                 handler="mlrun.projects.pipelines.load_and_run",
@@ -639,6 +642,7 @@ class _RemoteRunner(_PipelineRunner):
                 time.sleep(1)
             logger.info(f"fetched workflow id {run_id}")
             state = mlrun.run.RunStatuses.succeeded
+
         except Exception as e:
             trace = traceback.format_exc()
             logger.error(trace)

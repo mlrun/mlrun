@@ -29,7 +29,9 @@ import mlrun.runtimes
         ("mpijob", "v1alpha1", "mpi_role_type=launcher"),
     ],
 )
-def test_get_logger_pods_label_selector(monkeypatch, run_type, mpi_version, extra_selector):
+def test_get_logger_pods_label_selector(
+    monkeypatch, run_type, mpi_version, extra_selector
+):
     monkeypatch.setattr(
         mlrun.runtimes.utils,
         "cached_mpijob_crd_version",

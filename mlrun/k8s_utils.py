@@ -279,7 +279,9 @@ class K8sHelper:
         import mlrun.runtimes
 
         namespace = self.resolve_namespace(namespace)
-        mpijob_crd_version = mlrun.runtimes.utils.resolve_mpijob_crd_version()
+        mpijob_crd_version = mlrun.runtimes.utils.resolve_mpijob_crd_version(
+            api_context=True
+        )
         mpijob_role_label = (
             mlrun.runtimes.constants.MPIJobCRDVersions.role_label_by_version(
                 mpijob_crd_version

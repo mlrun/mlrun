@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 import unittest.mock
 
-import mlrun.runtimes
+import pytest
+
 import mlrun.k8s_utils
+import mlrun.runtimes
 
 
 @pytest.mark.parametrize(
@@ -55,7 +56,7 @@ def test_get_logger_pods(monkeypatch, run_type, mpi_version, selector_fmt):
     namespace = "test-namespace"
     selector = selector_fmt.format(project=project, uid=uid)
 
-    k8s_helper = mlrun.k8s_utils.K8sHelper(namespace)
+    k8s_helper = mlrun.k8s_utils.K8sHelper(namespace, silent=True)
     k8s_helper.list_pods = unittest.mock.MagicMock()
 
     k8s_helper.get_logger_pods(project, uid, run_type)

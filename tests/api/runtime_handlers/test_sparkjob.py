@@ -320,6 +320,12 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             self.driver_pod.metadata.name,
         )
 
+    def _generate_get_logger_pods_label_selector(self, runtime_handler):
+        logger_pods_label_selector = super()._generate_get_logger_pods_label_selector(
+            runtime_handler
+        )
+        return f"{logger_pods_label_selector},spark-role=driver"
+
     def _mock_list_resources_pods(self):
         mocked_responses = self._mock_list_namespaced_pods(
             [[self.executor_pod, self.driver_pod]]

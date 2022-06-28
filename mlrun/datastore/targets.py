@@ -1477,7 +1477,7 @@ class MongoDBTarget(BaseStoreTarget):
                 "db_name": db_name,
                 "connection_string": connection_string,
             }
-            path = f'MDB:///{connection_string}///{db_name}///{collection_name}'
+            path = f'http:///MDB:///{connection_string}///{db_name}///{collection_name}'
         if attributes:
             attributes.update(attr)
         else:
@@ -1592,7 +1592,7 @@ class MongoDBTarget(BaseStoreTarget):
             collection.insert_many(data)
 
     def _parse_url(self):
-        path = self.path[len('MDB:///'):]
+        path = self.path[len('http:///MDB:///'):]
         return path.split('///')
 
 

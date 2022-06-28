@@ -1,4 +1,5 @@
 import copy
+import typing
 
 import fastapi
 import requests.adapters
@@ -48,17 +49,17 @@ class Client(
         return self._proxy_request_to_chief("POST", "operations/migrations", request)
 
     def create_schedule(
-        self, project: str, request: fastapi.Request, body: dict
+        self, project: str, request: fastapi.Request, json: dict
     ) -> fastapi.Response:
         return self._proxy_request_to_chief(
-            "POST", f"projects/{project}/schedules", request, body
+            "POST", f"projects/{project}/schedules", request, json
         )
 
     def update_schedule(
-        self, project: str, name: str, request: fastapi.Request, body: dict
+        self, project: str, name: str, request: fastapi.Request, json: dict
     ) -> fastapi.Response:
         return self._proxy_request_to_chief(
-            "PUT", f"projects/{project}/schedules/{name}", request, body
+            "PUT", f"projects/{project}/schedules/{name}", request, json
         )
 
     def delete_schedule(
@@ -82,24 +83,42 @@ class Client(
             "POST", f"projects/{project}/schedules/{name}/invoke", request
         )
 
-    def submit_job(self, request: fastapi.Request, body: dict) -> fastapi.Response:
-        return self._proxy_request_to_chief("POST", "submit_job", request, body)
+    def submit_job(self, request: fastapi.Request, json: dict) -> fastapi.Response:
+        return self._proxy_request_to_chief("POST", "submit_job", request, json)
 
-    def build_function(self, request: fastapi.Request, body: dict) -> fastapi.Response:
-        return self._proxy_request_to_chief("POST", "build/function", request, body)
+    def build_function(self, request: fastapi.Request, json: dict) -> fastapi.Response:
+        return self._proxy_request_to_chief("POST", "build/function", request, json)
 
     def delete_project(self, name, request: fastapi.Request) -> fastapi.Response:
         return self._proxy_request_to_chief("DELETE", f"projects/{name}", request)
+
+    def get_clusterization_spec(
+        self, return_fastapi_response: bool = True, raise_on_failure: bool = False
+    ) -> typing.Union[fastapi.Response, mlrun.api.schemas.ClusterizationSpec]:
+        """
+        This method is used both for proxying requests from worker to chief and for aligning the worker state
+        with the clusterization spec brought from the chief
+        """
+        chief_response = self._send_request_to_api(
+            method="GET",
+            path="clusterization-spec",
+            raise_on_failure=raise_on_failure,
+        )
+
+        if return_fastapi_response:
+            return self._convert_requests_response_to_fastapi_response(chief_response)
+
+        return mlrun.api.schemas.ClusterizationSpec(**chief_response.json())
 
     def _proxy_request_to_chief(
         self,
         method,
         path,
         request: fastapi.Request = None,
-        body: dict = None,
+        json: dict = None,
         raise_on_failure: bool = False,
     ) -> fastapi.Response:
-        request_kwargs = self._resolve_request_kwargs_from_request(request, body)
+        request_kwargs = self._resolve_request_kwargs_from_request(request, json)
 
         chief_response = self._send_request_to_api(
             method=method,
@@ -112,12 +131,12 @@ class Client(
 
     @staticmethod
     def _resolve_request_kwargs_from_request(
-        request: fastapi.Request = None, body: dict = None
+        request: fastapi.Request = None, json: dict = None
     ) -> dict:
         kwargs = {}
         if request:
-            data = body if body else {}
-            kwargs.update({"data": data})
+            json = json if json else {}
+            kwargs.update({"json": json})
             kwargs.update({"headers": dict(request.headers)})
             kwargs.update({"params": dict(request.query_params)})
             kwargs.update({"cookies": request.cookies})

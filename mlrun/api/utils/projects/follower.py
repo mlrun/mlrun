@@ -88,6 +88,7 @@ class Member(
             )
             created_project = None
             if not is_running_in_background:
+                db_session.commit()
                 created_project = self.get_project(
                     db_session, project.metadata.name, leader_session
                 )

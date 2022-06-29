@@ -137,9 +137,12 @@ class ModelArtifact(Artifact):
     ):
 
         super().__init__(key, body, format=format, target_path=target_path, **kwargs)
+        print(f"I AM MODEL FILE BEFORE: {model_file}")  # CHANGED!
         if model_file and "://" in model_file:
             model_dir = path.dirname(model_file)
             model_file = path.basename(model_file)
+            print(f"I AM MODEL FILE NOW: {model_file}")  # CHANGED!
+            print(f"AND I AM MODEL DIR: {model_dir}")  # CHANGED!
 
         self.spec.model_file = model_file
         self.spec.src_path = model_dir
@@ -402,6 +405,7 @@ class ModelArtifact(Artifact):
     def upload(self):
 
         target_model_path = path.join(self.spec.target_path, self.spec.model_file)
+        print(f"I AM TARGET_MODEL_PATH: {target_model_path}")  # CHANGED!
         body = self.spec.get_body()
         if body:
             self._upload_body(body, target=target_model_path)
@@ -409,6 +413,7 @@ class ModelArtifact(Artifact):
             src_model_path = _get_src_path(self, self.spec.model_file)
             if not path.isfile(src_model_path):
                 raise ValueError(f"model file {src_model_path} not found")
+            print(f"I AM SRC_MODEL_PATH: {src_model_path}")  # CHANGED!
             self._upload_file(src_model_path, target=target_model_path)
 
         upload_extra_data(self, self.spec.extra_data)
@@ -629,8 +634,7 @@ def get_model(model_dir, suffix=""):
     obj = store_manager.object(url=model_file)
     if obj.kind == "file":
         return model_file, model_spec, extra_dataitems
-
-    temp_path = tempfile.NamedTemporaryFile(suffix=suffix, delete=False).name
+    temp_path = tempfile.NamedTemporaryFile(suffix=suffix, delete=False).name  # f".{model_file.rsplit('.', 1)[1]}"
     obj.download(temp_path)
     return temp_path, model_spec, extra_dataitems
 

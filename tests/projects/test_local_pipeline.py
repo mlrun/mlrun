@@ -20,7 +20,7 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
         )
 
     def test_set_artifact(self):
-        self.project = mlrun.new_project("test-sa", skip_save=True)
+        self.project = mlrun.new_project("test-sa", save=False)
         self.project.set_artifact(
             "data1", mlrun.artifacts.Artifact(target_path=self.data_url)
         )
@@ -39,7 +39,7 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
     def test_import_artifacts(self):
         results_path = str(pathlib.Path(tests.conftest.results) / "project")
         project = mlrun.new_project(
-            "test-sa2", context=str(self.assets_path), skip_save=True
+            "test-sa2", context=str(self.assets_path), save=False
         )
         project.spec.artifact_path = results_path
         # use inline body (in the yaml)

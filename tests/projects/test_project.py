@@ -1,5 +1,6 @@
 import os
 import pathlib
+import unittest.mock
 import zipfile
 
 import deepdiff
@@ -14,23 +15,39 @@ import tests.conftest
 
 def test_sync_functions():
     project_name = "project-name"
-    project = mlrun.new_project(project_name, skip_save=True)
+    project = mlrun.new_project(project_name, save=False)
     project.set_function("hub://describe", "describe")
     project_function_object = project.spec._function_objects
     project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
     project.export(str(project_file_path))
-    imported_project = mlrun.load_project("./", str(project_file_path))
+    imported_project = mlrun.load_project("./", str(project_file_path), save=False)
     assert imported_project.spec._function_objects == {}
     imported_project.sync_functions()
     _assert_project_function_objects(imported_project, project_function_object)
 
-    fn = project.func("describe")
+    fn = project.get_function("describe")
     assert fn.metadata.name == "describe", "func did not return"
 
     # test that functions can be fetched from the DB (w/o set_function)
     mlrun.import_function("hub://sklearn_classifier", new_name="train").save()
-    fn = project.func("train")
+    fn = project.get_function("train")
     assert fn.metadata.name == "train", "train func did not return"
+
+
+def test_load_save_project(monkeypatch):
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    project.set_function("hub://describe", "describe")
+    project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
+
+    project.save = unittest.mock.Mock()
+    monkeypatch.setattr(
+        mlrun.projects.project, "_load_project_file", lambda *args, **kwargs: project
+    )
+
+    loaded_project = mlrun.load_project("./", str(project_file_path), save=True)
+    assert project.save.call_count == 1
+    assert loaded_project == project
 
 
 def test_create_project_from_file_with_legacy_structure():
@@ -62,7 +79,7 @@ def test_create_project_from_file_with_legacy_structure():
     legacy_project.artifacts = [artifact_dict]
     legacy_project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
     legacy_project.save(str(legacy_project_file_path))
-    project = mlrun.load_project("./", str(legacy_project_file_path))
+    project = mlrun.load_project("./", str(legacy_project_file_path), save=False)
     assert project.kind == "project"
     assert project.metadata.name == project_name
     assert project.spec.description == description
@@ -122,7 +139,7 @@ def test_export_project_dir_doesnt_exist():
         / "another-new-dir"
         / "project.yaml"
     )
-    project = mlrun.projects.project.new_project(project_name, skip_save=True)
+    project = mlrun.projects.project.new_project(project_name, save=False)
     project.export(filepath=project_file_path)
 
 
@@ -131,18 +148,18 @@ def test_new_project_context_doesnt_exist():
     project_dir_path = (
         pathlib.Path(tests.conftest.results) / "new-dir" / "another-new-dir"
     )
-    mlrun.projects.project.new_project(project_name, project_dir_path, skip_save=True)
+    mlrun.projects.project.new_project(project_name, project_dir_path, save=False)
 
 
 def test_create_project_with_invalid_name():
     invalid_name = "project_name"
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        mlrun.projects.project.new_project(invalid_name, init_git=False, skip_save=True)
+        mlrun.projects.project.new_project(invalid_name, init_git=False, save=False)
 
 
 def test_get_set_params():
     project_name = "project-name"
-    project = mlrun.new_project(project_name, skip_save=True)
+    project = mlrun.new_project(project_name, save=False)
     param_key = "param-key"
     param_value = "param-value"
     project.params[param_key] = param_value
@@ -157,7 +174,7 @@ def test_user_project():
     usernames = ["valid-username", "require_Normalization"]
     for username in usernames:
         os.environ["V3IO_USERNAME"] = username
-        project = mlrun.new_project(project_name, user_project=True, skip_save=True)
+        project = mlrun.new_project(project_name, user_project=True, save=False)
         assert (
             project.metadata.name
             == f"{project_name}-{inflection.dasherize(username.lower())}"
@@ -226,7 +243,7 @@ def test_function_run_cli():
     # run function stored in the project spec
     project_dir_path = pathlib.Path(tests.conftest.results) / "project-run-func"
     function_path = pathlib.Path(__file__).parent / "assets" / "handler.py"
-    project = mlrun.new_project("run-cli", str(project_dir_path), skip_save=True)
+    project = mlrun.new_project("run-cli", str(project_dir_path), save=False)
     project.set_function(
         str(function_path),
         "my-func",
@@ -235,14 +252,14 @@ def test_function_run_cli():
     )
     project.export()
 
-    args = "-f my-func --local --dump -p x=3".split()
+    args = "-f my-func --local --save-project=False --dump -p x=3".split()
     out = tests.conftest.exec_mlrun(args, str(project_dir_path))
     assert out.find("state: completed") != -1, out
     assert out.find("y: 6") != -1, out  # = x * 2
 
 
 def test_get_artifact_uri():
-    project = mlrun.new_project("arti", skip_save=True)
+    project = mlrun.new_project("arti", save=False)
     uri = project.get_artifact_uri("x")
     assert uri == "store://artifacts/arti/x"
     uri = project.get_artifact_uri("y", category="model", tag="prod")
@@ -252,7 +269,7 @@ def test_get_artifact_uri():
 def test_export_to_zip():
     project_dir_path = pathlib.Path(tests.conftest.results) / "zip-project"
     project = mlrun.new_project(
-        "tozip", context=str(project_dir_path / "code"), skip_save=True
+        "tozip", context=str(project_dir_path / "code"), save=False
     )
     project.set_function("hub://describe", "desc")
     with (project_dir_path / "code" / "f.py").open("w") as f:

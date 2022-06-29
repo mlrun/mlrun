@@ -629,7 +629,8 @@ def get_model(model_dir, suffix=""):
     obj = store_manager.object(url=model_file)
     if obj.kind == "file":
         return model_file, model_spec, extra_dataitems
-    temp_path = tempfile.NamedTemporaryFile(suffix=suffix, delete=False).name  # f".{model_file.rsplit('.', 1)[1]}"
+
+    temp_path = tempfile.NamedTemporaryFile(suffix=suffix, delete=False).name
     obj.download(temp_path)
     return temp_path, model_spec, extra_dataitems
 

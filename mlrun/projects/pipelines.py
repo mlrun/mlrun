@@ -620,7 +620,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=workflow_name,
                 params=params,
                 handler="mlrun.projects.pipelines.load_and_run",
-                auto_build=True,
+                # auto_build=True,
                 local=False,
                 schedule=schedule,
             )

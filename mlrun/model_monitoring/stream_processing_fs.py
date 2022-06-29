@@ -428,7 +428,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
     def do(self, full_event):
         event = full_event.body
-        print("event at the beginning of ProcessEndpointEvent: ", event)
 
         # code that calculates the endppint id. should be
         function_uri = event.get(FUNCTION_URI)

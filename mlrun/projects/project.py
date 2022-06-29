@@ -1868,9 +1868,14 @@ class MlrunProject(ModelObj):
         :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
         :returns: run id
         """
-        if local and engine == "remote":
-            logger.warning("WARNING!, using remote engine, setting local to False")
-            local = False
+        if engine == "remote":
+            if local:
+                logger.warning("WARNING!, using remote engine, setting local to False")
+                local = False
+        elif schedule:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "scheduling workflow is available only with remote engine"
+            )
 
         arguments = arguments or {}
         need_repo = self.spec._need_repo()
@@ -1926,8 +1931,6 @@ class MlrunProject(ModelObj):
             schedule=schedule,
         )
         workflow_spec.clear_tmp()
-        # if watch and workflow_engine.engine == "kfp":
-        #     self.get_run_status(run, timeout=timeout)
         return run
 
     def save_workflow(self, name, target, artifact_path=None, ttl=None):

@@ -594,13 +594,14 @@ class _RemoteRunner(_PipelineRunner):
         watch=None,
         timeout=None,
         schedule=None,
-    ) -> _PipelineRunStatus:
-        # workflow_id = uuid.uuid4().hex
+    ) -> typing.Union[_PipelineRunStatus, None]:
+
         workflow_name = "workflow-runner"
-        # logger.info(workflow_spec.to_dict())
         run_id = None
         try:
             logger.info("Creating the function that invokes the workflow remotely")
+            # Creating the load project and workflow running function:
+            # After merged to development, need to set image to mlrun/mlrun
             load_and_run_fn = mlrun.new_function(
                 name=workflow_name,
                 project=project.name,
@@ -616,23 +617,21 @@ class _RemoteRunner(_PipelineRunner):
             )
             params["project_context"] = project.context
             params["engine"] = workflow_spec.engine
-            logger.info(
-                f"Running the function that invokes the workflow remotely with {params['engine']} engine"
-            )
+            logger.info(f"executing workflow remotely with {params['engine']} engine")
             run = load_and_run_fn.run(
                 name=workflow_name,
                 params=params,
                 handler="mlrun.projects.load_and_run",
-                # auto_build=True,
                 local=False,
                 schedule=schedule,
             )
-            logger.info("Waiting for workflow id")
+            if schedule:
+                return
+            # Fetching workflow id:
             while not run_id:
                 run.refresh()
                 run_id = run.status.results.get("workflow_id", None)
                 time.sleep(1)
-            logger.info(f"fetched workflow id {run_id}")
             state = mlrun.run.RunStatuses.succeeded
 
         except Exception as e:
@@ -645,7 +644,7 @@ class _RemoteRunner(_PipelineRunner):
 
         if watch:
             cls.wait_for_completion(run_id=run_id, project=project, timeout=timeout)
-        # mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
+
         project.notifiers.push_start_message(
             project.metadata.name,
         )
@@ -728,13 +727,12 @@ def load_and_run(
     workflow_handler=None,
     namespace=None,
     sync: bool = False,
-    # watch: bool = False,
     dirty: bool = False,
     ttl=None,
     engine=None,
     local: bool = None,
 ):
-    context.logger.info(f"Loading project {project_name}")
+    # Loading the project:
     project = mlrun.load_project(
         context=project_context,
         url=url,
@@ -745,6 +743,8 @@ def load_and_run(
         clone=clone,
         user_project=user_project,
     )
+    context.logger.info(f"Loaded project {project.name} successfully")
+
     wf_log_msg = workflow_name or workflow_path
     context.logger.info(f"Running workflow {wf_log_msg}")
     run = project.run(
@@ -755,7 +755,7 @@ def load_and_run(
         workflow_handler=workflow_handler,
         namespace=namespace,
         sync=sync,
-        watch=False,
+        watch=False,  # Required for fetching the workflow_id
         dirty=dirty,
         ttl=ttl,
         engine=engine,

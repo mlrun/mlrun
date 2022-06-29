@@ -167,12 +167,29 @@ class ModelEndpoints:
         feature_set.metadata.project = model_endpoint.metadata.project
 
         # add features to the feature set according to the model object
-        for feature in model_obj.inputs.to_dict():
-            feature_set.add_feature(
-                mlrun.feature_store.Feature(
-                    name=feature["name"], value_type=feature["value_type"]
+        if len(model_obj.inputs.to_dict()) > 0:
+            for feature in model_obj.inputs.to_dict():
+                feature_set.add_feature(
+                    mlrun.feature_store.Feature(
+                        name=feature["name"], value_type=feature["value_type"]
+                    )
                 )
+        # check if features can be found within the feature vector
+        elif model_obj.feature_vector:
+            fv = mlrun.feature_store.common.get_feature_vector_by_uri(
+                model_obj.feature_vector, project=model_endpoint.metadata.project
             )
+            for feature in fv.status.features.to_dict():
+                feature_set.add_feature(
+                    mlrun.feature_store.Feature(
+                        name=feature["name"], value_type=feature["value_type"]
+                    )
+                )
+        else:
+            logger.info(
+                "Could not find any features in the model object and in the Feature Vector"
+            )
+            return
 
         # define parquet target for this feature set
 
@@ -196,6 +213,7 @@ class ModelEndpoints:
             model_endpoint=model_endpoint.spec.model,
             parquet_target=parquet_path,
         )
+        return
 
     def delete_endpoint_record(
         self,

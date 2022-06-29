@@ -481,12 +481,16 @@ class BatchProcessor:
                 if len(df) == 0:
                     continue
 
+                feature_names = [
+                    feature_name["name"]
+                    for feature_name in m_fs.spec.features.to_dict()
+                ]
+
                 # create DataFrame based on the input features
                 stats_columns = [
                     "timestamp",
-                    *endpoint.spec.feature_names,
+                    *feature_names,
                     "prediction",
-                    "labels",
                 ]
 
                 named_features_df = df[stats_columns].copy()

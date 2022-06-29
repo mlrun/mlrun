@@ -344,9 +344,6 @@ class Artifact(ModelObj):
         if calc_hash:
             self.metadata.hash = calculate_local_file_hash(src)
         self.spec.size = os.stat(src).st_size
-        print(f"I AM IN UPLOAD SRC {src}")  # changed
-        print(f"target: {target}")  # changed
-        print(f"self.spec.target_path: {self.spec.target_path}")  # changed
         store_manager.object(url=target or self.spec.target_path).upload(src)
 
     # Following properties are for backwards compatibility with the ArtifactLegacy class. They should be

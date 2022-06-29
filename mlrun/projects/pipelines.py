@@ -606,7 +606,7 @@ class _RemoteRunner(_PipelineRunner):
                 project=project.name,
                 kind="job",
                 # source=project.spec.source, TODO: load_source_on_run does not go into verify_base_image()
-                image="yonishelach/mlrun-remote-runner:0.0.3",
+                image="yonishelach/mlrun-remote-runner:0.0.4",
             )
 
             # Preparing parameters for load_and_run function:

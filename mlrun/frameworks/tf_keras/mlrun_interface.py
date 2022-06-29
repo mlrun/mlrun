@@ -15,12 +15,12 @@ from tensorflow.keras.callbacks import (
     TensorBoard,
 )
 from tensorflow.keras.optimizers import Optimizer
-from utils import TFKerasTypes
 
 import mlrun
 
 from .._common import MLRunInterface
 from .callbacks import LoggingCallback
+from .utils import TFKerasTypes
 
 
 class TFKerasMLRunInterface(MLRunInterface, ABC):

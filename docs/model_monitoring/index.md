@@ -21,7 +21,7 @@ application visualization tool that can be added as a service in the Iguazio pla
 **In this section**
   
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 1
 
 model-monitoring-deployment
 initial-setup-configuration

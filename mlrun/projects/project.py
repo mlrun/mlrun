@@ -1907,7 +1907,11 @@ class MlrunProject(ModelObj):
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name
         artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
         workflow_engine = get_workflow_engine(engine or workflow_spec.engine, local)
-        workflow_spec.engine = workflow_engine.engine
+        workflow_spec.engine = (
+            workflow_engine.engine
+            if workflow_engine.engine != "remote"
+            else (workflow_spec.engine or "kfp")
+        )
 
         run = workflow_engine.run(
             self,

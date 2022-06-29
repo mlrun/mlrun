@@ -609,13 +609,16 @@ class _RemoteRunner(_PipelineRunner):
                 image="yonishelach/mlrun-remote-runner:0.0.3",
             )
 
-            logger.info("Running the function that invokes the workflow remotely")
             # Preparing parameters for load_and_run function:
             params = workflow_spec.args.copy() if workflow_spec.args else {}
             params["workflow_name"] = (
                 name.split("-")[-1] if f"{project.name}-" in name else name
             )
+            params["project_context"] = project.context
 
+            logger.info(
+                f"Running the function that invokes the workflow remotely with {params.engine} engine"
+            )
             run = load_and_run_fn.run(
                 name=workflow_name,
                 params=params,

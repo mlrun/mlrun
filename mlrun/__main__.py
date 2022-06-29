@@ -163,6 +163,13 @@ def main():
     help="when set functions will be built prior to run if needed",
 )
 @click.argument("run_args", nargs=-1, type=click.UNPROCESSED)
+# this is not a flag because we want the default to be True and be able to override to False
+@click.option(
+    "--save-project",
+    type=bool,
+    default=True,
+    help="save the project to MLRun DB when loading it",
+)
 def run(
     url,
     param,
@@ -204,6 +211,7 @@ def run(
     env_file,
     auto_build,
     run_args,
+    save_project,
 ):
     """Execute a task and inject parameters."""
 
@@ -251,7 +259,7 @@ def run(
 
     if func_url or kind or image:
         if func_url:
-            runtime = func_url_to_runtime(func_url)
+            runtime = func_url_to_runtime(func_url, save_project)
             kind = get_in(runtime, "kind", kind or "job")
             if runtime is None:
                 exit(1)
@@ -534,15 +542,33 @@ def build(
 @click.option(
     "--env-file", default="", help="path to .env file to load config/variables from"
 )
+# this is not a flag because we want the default to be True and be able to override to False
+@click.option(
+    "--save-project",
+    type=bool,
+    default=True,
+    help="save the project to MLRun DB when loading it",
+)
 def deploy(
-    spec, source, func_url, dashboard, project, model, tag, kind, env, verbose, env_file
+    spec,
+    source,
+    func_url,
+    dashboard,
+    project,
+    model,
+    tag,
+    kind,
+    env,
+    verbose,
+    env_file,
+    save_project,
 ):
     """Deploy model or function"""
     if env_file:
         mlrun.set_env_from_file(env_file)
 
     if func_url:
-        runtime = func_url_to_runtime(func_url)
+        runtime = func_url_to_runtime(func_url, save_project)
         if runtime is None:
             exit(1)
     elif spec:
@@ -1087,7 +1113,7 @@ def dict_to_str(struct: dict):
     return ",".join([f"{k}={v}" for k, v in struct.items()])
 
 
-def func_url_to_runtime(func_url):
+def func_url_to_runtime(func_url, save_project: bool = True):
     try:
         if func_url.startswith("db://"):
             func_url = func_url[5:]
@@ -1098,7 +1124,7 @@ def func_url_to_runtime(func_url):
             func_url = "function.yaml" if func_url == "." else func_url
             runtime = import_function_to_dict(func_url, {})
         else:
-            mlrun_project = load_project(".")
+            mlrun_project = load_project(".", save=save_project)
             function = mlrun_project.get_function(func_url, enrich=True)
             if function.kind == "local":
                 command, function = load_func_code(function)

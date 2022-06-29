@@ -1,3 +1,4 @@
+import traceback
 import typing
 
 import humanfriendly
@@ -64,7 +65,11 @@ class Member(
             )
             self._sync_projects(full_sync=full_sync)
         except Exception as exc:
-            logger.warning("Initial projects sync failed", exc=str(exc))
+            logger.warning(
+                "Initial projects sync failed",
+                exc=str(exc),
+                traceback=traceback.format_exc(),
+            )
         self._start_periodic_sync()
 
     def shutdown(self):
@@ -88,6 +93,22 @@ class Member(
             )
             created_project = None
             if not is_running_in_background:
+                # as part of the store_project flow we encountered an error related to the isolation level we use.
+                # We use the default isolation level, I wasn't able to find exactly what is the default that sql alchemy
+                # sets but its serializable(once you SELECT a series of rows in a transaction, you will get the
+                # identical data back each time you re-emit that SELECT) or repeatable read isolation (you’ll see newly
+                # added rows (and no longer see deleted rows), but for rows that you’ve already loaded, you won’t see
+                # any change). Eventually, in the store_project flow, we already queried get_project and at the second
+                # time(below), after the project created, we failed because we got the same result from first query.
+                # Using session.commit ends the current transaction and start a new one which will result in a
+                # new query to the DB.
+                # for further read: https://docs-sqlalchemy.readthedocs.io/ko/latest/faq/sessions.html
+                # https://docs-sqlalchemy.readthedocs.io/ko/latest/dialects/mysql.html#transaction-isolation-level
+                # https://dev.mysql.com/doc/refman/8.0/en/innodb-transaction-isolation-levels.html
+                # TODO: there are multiple isolation level we can choose, READ COMMITTED seems to solve our issue
+                #  but will require deeper investigation and more test coverage
+                db_session.commit()
+
                 created_project = self.get_project(
                     db_session, project.metadata.name, leader_session
                 )
@@ -264,43 +285,47 @@ class Member(
             self._sync_session, self._synced_until_datetime
         )
         db_session = mlrun.api.db.session.create_session()
-        db_projects = mlrun.api.crud.Projects().list_projects(
-            db_session, format_=mlrun.api.schemas.ProjectsFormat.name_only
-        )
-        # Don't add projects in non terminal state if they didn't exist before to prevent race conditions
-        filtered_projects = []
-        for leader_project in leader_projects:
-            if (
-                leader_project.status.state
-                not in mlrun.api.schemas.ProjectState.terminal_states()
-                and leader_project.metadata.name not in db_projects.projects
-            ):
-                continue
-            filtered_projects.append(leader_project)
+        try:
+            db_projects = mlrun.api.crud.Projects().list_projects(
+                db_session, format_=mlrun.api.schemas.ProjectsFormat.name_only
+            )
+            # Don't add projects in non terminal state if they didn't exist before to prevent race conditions
+            filtered_projects = []
+            for leader_project in leader_projects:
+                if (
+                    leader_project.status.state
+                    not in mlrun.api.schemas.ProjectState.terminal_states()
+                    and leader_project.metadata.name not in db_projects.projects
+                ):
+                    continue
+                filtered_projects.append(leader_project)
 
-        for project in filtered_projects:
-            mlrun.api.crud.Projects().store_project(
-                db_session, project.metadata.name, project
-            )
-        if full_sync:
-            logger.info("Performing full sync")
-            leader_project_names = [
-                project.metadata.name for project in leader_projects
-            ]
-            projects_to_remove = list(
-                set(db_projects.projects).difference(leader_project_names)
-            )
-            for project_to_remove in projects_to_remove:
-                logger.info(
-                    "Found project in the DB that is not in leader. Removing",
-                    name=project_to_remove,
+            for project in filtered_projects:
+                mlrun.api.crud.Projects().store_project(
+                    db_session, project.metadata.name, project
                 )
-                mlrun.api.crud.Projects().delete_project(
-                    db_session,
-                    project_to_remove,
-                    mlrun.api.schemas.DeletionStrategy.cascading,
+            if full_sync:
+                logger.info("Performing full sync")
+                leader_project_names = [
+                    project.metadata.name for project in leader_projects
+                ]
+                projects_to_remove = list(
+                    set(db_projects.projects).difference(leader_project_names)
                 )
-        self._synced_until_datetime = latest_updated_at
+                for project_to_remove in projects_to_remove:
+                    logger.info(
+                        "Found project in the DB that is not in leader. Removing",
+                        name=project_to_remove,
+                    )
+                    mlrun.api.crud.Projects().delete_project(
+                        db_session,
+                        project_to_remove,
+                        mlrun.api.schemas.DeletionStrategy.cascading,
+                    )
+            if latest_updated_at:
+                self._synced_until_datetime = latest_updated_at
+        finally:
+            mlrun.api.db.session.close_session(db_session)
 
     def _is_request_from_leader(
         self, projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole]

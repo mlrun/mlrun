@@ -606,7 +606,7 @@ class _RemoteRunner(_PipelineRunner):
                 project=project.name,
                 kind="job",
                 # source=project.spec.source, TODO: load_source_on_run does not go into verify_base_image()
-                image="yonishelach/mlrun-remote-runner:0.0.4",
+                image="yonishelach/mlrun-remote-runner:0.0.5",
             )
 
             # Preparing parameters for load_and_run function:
@@ -615,7 +615,7 @@ class _RemoteRunner(_PipelineRunner):
                 name.split("-")[-1] if f"{project.name}-" in name else name
             )
             params["project_context"] = project.context
-
+            params["engine"] = workflow_spec.engine
             logger.info(
                 f"Running the function that invokes the workflow remotely with {params.engine} engine"
             )

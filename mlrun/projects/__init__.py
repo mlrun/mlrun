@@ -24,10 +24,11 @@ __all__ = [
     "run_function",
     "build_function",
     "deploy_function",
+    "load_and_run"
 ]
 
 from .operations import build_function, deploy_function, run_function  # noqa
-from .pipelines import pipeline_context  # noqa
+from .pipelines import pipeline_context, load_and_run  # noqa
 from .project import (
     MlrunProject,
     ProjectMetadata,

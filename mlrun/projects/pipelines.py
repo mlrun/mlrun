@@ -606,7 +606,7 @@ class _RemoteRunner(_PipelineRunner):
                 project=project.name,
                 kind="job",
                 source=project.spec.source,
-                image="yonishelach/mlrun-remote-runner",
+                image="yonishelach/mlrun-remote-runner:0.0.2",
             )
 
             logger.info("Running the function that invokes the workflow remotely")
@@ -619,7 +619,7 @@ class _RemoteRunner(_PipelineRunner):
             run = load_and_run_fn.run(
                 name=workflow_name,
                 params=params,
-                handler="mlrun.projects.pipelines.load_and_run",
+                handler="mlrun.projects.load_and_run",
                 # auto_build=True,
                 local=False,
                 schedule=schedule,

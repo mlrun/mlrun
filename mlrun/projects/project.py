@@ -192,12 +192,12 @@ def load_project(
         project = load_project("./", "git://github.com/mlrun/project-demo.git")
         project.run("main", arguments={'data': data_url})
 
-    :param name:         project name
     :param context:      project local directory path
     :param url:          name (in DB) or git or tar.gz or .zip sources archive path e.g.:
                          git://github.com/mlrun/demo-xgb-project.git
                          http://mysite/archived-project.zip
                          <project-name>
+    :param name:         project name
     :param secrets:      key:secret dict or SecretsStore used to download sources
     :param init_git:     if True, will git init the context dir
     :param subpath:      project subpath (within the archive)

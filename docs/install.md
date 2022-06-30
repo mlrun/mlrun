@@ -1,6 +1,6 @@
 # Installation and setup guide <!-- omit in toc -->
 
-This guide outlines the steps for installing and running MLRun. 
+This guide lists the prerpequisites, and outlines the steps for installing and running MLRun. 
 
 ## Overview
 
@@ -34,3 +34,24 @@ Starting from MLRun 0.10.0, the MLRun client and images are compatible with mino
 ```
 
 See also [Images and their usage in MLRun](https://docs.mlrun.org/en/latest/runtimes/images.html#mlrun-images-and-how-to-build-them).
+
+<a id="pre-reqs"></a>
+## Prerequisites
+
+### SDK
+
+- python: supported versions 3.7, 3.8
+- pip: recommended pip 22.x+
+- pip and conda supported 
+- There are a few options for installing requirements
+   - to install the requirements in the [requirements.txt](https://github.com/mlrun/mlrun/blob/development/requirements.txt) fil, run:
+     `pip install mlrun` 
+   - to install the the extras [described here](https://github.com/mlrun/mlrun/blob/development/setup.py#L75): run
+     `pip install mlrun[complete]`
+   
+### Local MLRun using Docker
+
+- OS: 
+- Storage: 7GB
+
+MLRun-API, MLRun-UI, Jupyter, Nuclio are given the default cluster/namespace resource limits. These can be modified if required.

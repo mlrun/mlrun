@@ -33,9 +33,10 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
             mlrun.load_project(".", f"db://{loaded_project_name}", save=False)
 
         # loaded project and auto saved
-        mlrun.load_project(".", f"db://{project_name}", name=loaded_project_name)
+        loaded_project = mlrun.load_project(".", f"db://{project_name}", name=loaded_project_name)
+        print(loaded_project.name, loaded_project, loaded_project)
         # load project expects to succeed because already saved in DB
-        mlrun.load_project(".", f"db://{loaded_project_name}")
+        mlrun.load_project("./", f"db://{loaded_project_name}")
 
     # def test_get_or_create_project(self):
     #     project_name = "some-project"

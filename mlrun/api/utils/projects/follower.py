@@ -108,7 +108,8 @@ class Member(
                 # https://dev.mysql.com/doc/refman/8.0/en/innodb-transaction-isolation-levels.html
                 # TODO: there are multiple isolation level we can choose, READ COMMITTED seems to solve our issue
                 #  but will require deeper investigation and more test coverage
-                db_session.commit()
+                if commit_before_get:
+                    db_session.commit()
 
                 created_project = self.get_project(
                     db_session, project.metadata.name, leader_session

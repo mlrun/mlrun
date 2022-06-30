@@ -35,8 +35,6 @@ jobs:
         - models-gpu
         - jupyter
         - test
-# The GPU image is too big (~24GB) GH action runner has only 14GB
-#        - models-gpu
     steps:
     - uses: actions/checkout@v2
     - name: Install curl and jq

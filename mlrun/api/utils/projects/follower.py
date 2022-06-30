@@ -83,6 +83,7 @@ class Member(
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
+        commit_before_get: bool = False,
     ) -> typing.Tuple[typing.Optional[mlrun.api.schemas.Project], bool]:
         if self._is_request_from_leader(projects_role):
             mlrun.api.crud.Projects().create_project(db_session, project)
@@ -136,6 +137,7 @@ class Member(
                     projects_role,
                     leader_session,
                     wait_for_completion,
+                    commit_before_get=True,
                 )
             else:
                 self._leader_client.update_project(leader_session, name, project)

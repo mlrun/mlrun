@@ -168,7 +168,7 @@ def main():
     "--ensure-project",
     type=bool,
     default=True,
-    help="ensure the project exists, if not create project",
+    help="ensure the project exists, if not, create project",
 )
 def run(
     url,
@@ -417,7 +417,7 @@ def run(
     "--ensure-project",
     type=bool,
     default=True,
-    help="ensure the project exists, if not create project",
+    help="ensure the project exists, if not, create project",
 )
 def build(
     func_url,
@@ -562,7 +562,7 @@ def build(
     "--ensure-project",
     type=bool,
     default=True,
-    help="ensure the project exists, if not create project",
+    help="ensure the project exists, if not, create project",
 )
 def deploy(
     spec,
@@ -873,7 +873,7 @@ def logs(uid, project, offset, db, watch):
     "--ensure-project",
     type=bool,
     default=True,
-    help="ensure the project exists, if not create project",
+    help="ensure the project exists, if not, create project",
 )
 def project(
     context,

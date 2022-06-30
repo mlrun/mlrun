@@ -299,6 +299,9 @@ class K8sHelper:
             f"mlrun/project={project}",
             f"mlrun/uid={uid}",
         ]
+
+        # In order to make the `list_pods` request return a lighter and quicker result, we narrow the search for
+        # the relevant pods using the proper label selector according to the run kind
         if run_kind in extra_selectors:
             selectors.append(extra_selectors[run_kind])
 

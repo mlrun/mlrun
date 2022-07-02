@@ -85,7 +85,9 @@ def test_spark_job_name_regex():
         {"value": "t012312-asdasd", "valid": True},
         {
             # Starts with alphanumeric number
-            "value": "012312-asdasd", "valid": False},
+            "value": "012312-asdasd",
+            "valid": False,
+        },
         {"value": "As-123_2.8A", "valid": False},
         {"value": "1As-123_2.8A5", "valid": False},
         {

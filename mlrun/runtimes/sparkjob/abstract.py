@@ -22,12 +22,12 @@ from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
 import mlrun.errors
+import mlrun.utils.regex
 from mlrun.api.db.base import DBInterface
 from mlrun.config import config
 from mlrun.db import get_run_db
 from mlrun.runtimes.base import BaseRuntimeHandler
 from mlrun.runtimes.constants import RunStates, SparkApplicationStates
-import mlrun.utils.regex
 
 from ...execution import MLClientCtx
 from ...k8s_utils import get_k8s_helper
@@ -313,7 +313,11 @@ class AbstractSparkRuntime(KubejobRuntime):
     def _validate(self, runobj: RunObject):
         # validating correctness of sparkjob's function name
         try:
-            verify_field_regex("run.metadata.name", runobj.metadata.name, mlrun.utils.regex.sparkjob_name)
+            verify_field_regex(
+                "run.metadata.name",
+                runobj.metadata.name,
+                mlrun.utils.regex.sparkjob_name,
+            )
 
         except mlrun.errors.MLRunInvalidArgumentError as err:
             pattern_error = str(err).split(" ")[-1]

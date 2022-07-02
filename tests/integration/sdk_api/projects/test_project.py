@@ -49,8 +49,6 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         loaded_project_from_db = mlrun.load_project(
             ".", f"db://{imported_project_name}", save=False
         )
-        print(expected_project.to_dict())
-        print(loaded_project_from_db.to_dict())
         _assert_projects(expected_project, loaded_project_from_db)
 
 

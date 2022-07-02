@@ -1,4 +1,5 @@
 import pathlib
+import unittest
 
 import pytest
 
@@ -47,4 +48,6 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         load_project_from_db = mlrun.load_project(
             ".", f"db://{imported_project_name}", save=False
         )
-        assert expected_project == load_project_from_db
+        print(expected_project.to_dict())
+        print(load_project_from_db.to_dict())
+        assert expected_project.to_dict() == load_project_from_db.to_dict()

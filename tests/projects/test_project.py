@@ -1,6 +1,5 @@
 import os
 import pathlib
-import unittest.mock
 import zipfile
 
 import deepdiff

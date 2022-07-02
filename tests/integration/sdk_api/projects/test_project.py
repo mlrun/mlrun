@@ -1,9 +1,10 @@
 import pathlib
-import unittest
 
+import deepdiff
 import pytest
 
 import mlrun
+import mlrun.api.schemas
 import tests.conftest
 import tests.integration.sdk_api.base
 
@@ -45,9 +46,27 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
 
         # loading project from db, expected to succeed
-        load_project_from_db = mlrun.load_project(
+        loaded_project_from_db = mlrun.load_project(
             ".", f"db://{imported_project_name}", save=False
         )
         print(expected_project.to_dict())
-        print(load_project_from_db.to_dict())
-        assert expected_project.to_dict() == load_project_from_db.to_dict()
+        print(loaded_project_from_db.to_dict())
+        _assert_projects(expected_project, loaded_project_from_db)
+
+
+def _assert_projects(expected_project, project):
+    assert (
+        deepdiff.DeepDiff(
+            expected_project.to_dict(),
+            project.to_dict(),
+            ignore_order=True,
+            exclude_paths={
+                "root['metadata']['created']",
+                "root['spec']['desired_state']",
+                "root['status']",
+            },
+        )
+        == {}
+    )
+    assert expected_project.spec.desired_state == project.spec.desired_state
+    assert expected_project.spec.desired_state == project.status.state

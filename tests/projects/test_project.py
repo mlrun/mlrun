@@ -34,22 +34,6 @@ def test_sync_functions():
     assert fn.metadata.name == "train", "train func did not return"
 
 
-def test_load_save_project(monkeypatch):
-    project_name = "project-name"
-    project = mlrun.new_project(project_name, save=False)
-    project.set_function("hub://describe", "describe")
-    project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
-
-    project.save = unittest.mock.Mock()
-    monkeypatch.setattr(
-        mlrun.projects.project, "_load_project_file", lambda *args, **kwargs: project
-    )
-
-    loaded_project = mlrun.load_project("./", str(project_file_path), save=True)
-    assert project.save.call_count == 1
-    assert loaded_project == project
-
-
 def test_create_project_from_file_with_legacy_structure():
     project_name = "project-name"
     description = "project description"

@@ -2,7 +2,8 @@ from typing import Callable, Union
 
 import numpy as np
 import torch
-from torch import Module, Tensor
+from torch.nn import Module
+from torch import Tensor
 
 import mlrun
 from mlrun.data_types import ValueType
@@ -16,7 +17,7 @@ class PyTorchTypes(DLTypes):
     """
 
     # Every model in PyTorch must inherit from torch.nn.Module:
-    ModelType = torch.Module
+    ModelType = Module
 
     # Supported types of loss and metrics values:
     MetricValueType = Union[int, float, np.ndarray, Tensor]

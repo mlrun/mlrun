@@ -153,9 +153,10 @@ class ModelEndpoints:
         """
 
         # define a new feature set
-        serving_function_name = model_endpoint.spec.function_uri.replace(
-            model_endpoint.metadata.project + "/", ""
-        )
+        serving_function_name = mlrun.utils.helpers.parse_versioned_object_uri(
+            model_endpoint.spec.function_uri
+        )[1]
+
         model_name = model_endpoint.spec.model.replace(":", "-")
 
         feature_set = mlrun.feature_store.FeatureSet(
@@ -166,12 +167,17 @@ class ModelEndpoints:
         )
         feature_set.metadata.project = model_endpoint.metadata.project
 
+        feature_set.metadata.labels = {
+            "endpoint_id": model_endpoint.metadata.uid,
+            "model_class": model_endpoint.spec.model_class,
+        }
+
         # add features to the feature set according to the model object
-        if len(model_obj.inputs.to_dict()) > 0:
-            for feature in model_obj.inputs.to_dict():
+        if model_obj.inputs.values():
+            for feature in model_obj.inputs.values():
                 feature_set.add_feature(
                     mlrun.feature_store.Feature(
-                        name=feature["name"], value_type=feature["value_type"]
+                        name=feature.name, value_type=feature.value_type
                     )
                 )
         # check if features can be found within the feature vector
@@ -179,10 +185,10 @@ class ModelEndpoints:
             fv = mlrun.feature_store.common.get_feature_vector_by_uri(
                 model_obj.feature_vector, project=model_endpoint.metadata.project
             )
-            for feature in fv.status.features.to_dict():
+            for feature in fv.status.features.values():
                 feature_set.add_feature(
                     mlrun.feature_store.Feature(
-                        name=feature["name"], value_type=feature["value_type"]
+                        name=feature.name, value_type=feature.value_type
                     )
                 )
         else:

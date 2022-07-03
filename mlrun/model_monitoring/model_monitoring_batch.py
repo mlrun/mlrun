@@ -15,6 +15,7 @@ import mlrun.api.schemas
 import mlrun.data_types.infer
 import mlrun.feature_store as fstore
 import mlrun.run
+import mlrun.utils.helpers
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
 from mlrun.utils import logger
@@ -463,9 +464,10 @@ class BatchProcessor:
                     continue
 
                 # convert feature set into dataframe and get the latest dataset
-                serving_function_name = endpoint.spec.function_uri.replace(
-                    endpoint.metadata.project + "/", ""
-                )
+                serving_function_name = mlrun.utils.helpers.parse_versioned_object_uri(
+                    endpoint.spec.function_uri
+                )[1]
+
                 model_name = endpoint.spec.model.replace(":", "-")
 
                 m_fs = fstore.get_feature_set(

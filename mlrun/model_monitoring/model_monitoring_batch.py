@@ -464,9 +464,14 @@ class BatchProcessor:
                     continue
 
                 # convert feature set into dataframe and get the latest dataset
-                serving_function_name = mlrun.utils.helpers.parse_versioned_object_uri(
+                (
+                    _,
+                    serving_function_name,
+                    _,
+                    _,
+                ) = mlrun.utils.helpers.parse_versioned_object_uri(
                     endpoint.spec.function_uri
-                )[1]
+                )
 
                 model_name = endpoint.spec.model.replace(":", "-")
 

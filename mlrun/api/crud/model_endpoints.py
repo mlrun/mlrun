@@ -153,9 +153,9 @@ class ModelEndpoints:
         """
 
         # define a new feature set
-        serving_function_name = mlrun.utils.helpers.parse_versioned_object_uri(
+        _, serving_function_name, _, _ = mlrun.utils.helpers.parse_versioned_object_uri(
             model_endpoint.spec.function_uri
-        )[1]
+        )
 
         model_name = model_endpoint.spec.model.replace(":", "-")
 

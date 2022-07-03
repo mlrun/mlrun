@@ -257,6 +257,11 @@ def run(
         if len(split) > 1:
             url_args = split[1]
 
+    if ensure_project:
+        mlrun.get_or_create_project(
+            name=project,
+            context=".",
+        )
     if func_url or kind or image:
         if func_url:
             runtime = func_url_to_runtime(func_url, ensure_project)
@@ -507,7 +512,7 @@ def build(
     if ensure_project:
         mlrun.get_or_create_project(
             name=project,
-            context="./",
+            context=".",
         )
 
     if hasattr(func, "deploy"):
@@ -581,6 +586,12 @@ def deploy(
     """Deploy model or function"""
     if env_file:
         mlrun.set_env_from_file(env_file)
+
+    if ensure_project:
+        mlrun.get_or_create_project(
+            name=project,
+            context=".",
+        )
 
     if func_url:
         runtime = func_url_to_runtime(func_url, ensure_project)

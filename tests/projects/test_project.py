@@ -239,6 +239,13 @@ def test_set_func_requirements():
     ]
 
 
+def test_set_empty_serving():
+    project = mlrun.projects.MlrunProject("newproj")
+    project.set_function(name="srv", kind="serving", image="mlrun/mlrun")
+    function = project.get_function("srv", enrich=True)
+    assert function.kind == "serving"
+
+
 def test_function_run_cli():
     # run function stored in the project spec
     project_dir_path = pathlib.Path(tests.conftest.results) / "project-run-func"

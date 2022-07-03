@@ -1491,9 +1491,10 @@ class MlrunProject(ModelObj):
                               image='myrepo/ing:latest', with_repo=True)
             proj.set_function('http://.../mynb.ipynb', 'train')
             proj.set_function('./func.yaml')
-            proj.set_function('hub://get_toy_data', 'getdata')
+            proj.set_function('hub://get_toy_data', 'getdata')  # use hub function
+            proj.set_function('.', 'my-notebook', kind="job", image="mlrun/mlrun")  # read the current notebook
 
-        :param func:      function object or spec/code url, None refers to current Notebook
+        :param func:      function object or spec/code url, "." refers to current Notebook
         :param name:      name of the function (under the project)
         :param kind:      runtime kind e.g. job, nuclio, spark, dask, mpijob
                           default: job
@@ -1505,7 +1506,11 @@ class MlrunProject(ModelObj):
 
         :returns: project object
         """
-        if func is None and not _has_module(handler, kind):
+        is_empty_serving = (kind == RuntimeKinds.serving) and func is None
+        is_notebook_code = (func and func == ".") or (
+            func is None and not _has_module(handler, kind) and not is_empty_serving
+        )
+        if is_notebook_code:
             # if function path is not provided and it is not a module (no ".")
             # use the current notebook as default
             if not is_ipython:
@@ -2646,6 +2651,7 @@ class MlrunProjectLegacy(ModelObj):
 
 
 def _init_function_from_dict(f, project):
+
     name = f.get("name", "")
     url = f.get("url", "")
     kind = f.get("kind", "")
@@ -2654,9 +2660,15 @@ def _init_function_from_dict(f, project):
     with_repo = f.get("with_repo", False)
     requirements = f.get("requirements", None)
 
+    def raise_no_image():
+        if not image and kind != "local":
+            raise ValueError(
+                "image must be provided when using remote (non 'local') runtime engines"
+            )
+
     in_context = False
-    has_module = _has_module(handler, kind)
-    if not url and "spec" not in f and not has_module:
+    can_be_empty = _has_module(handler, kind) or kind == RuntimeKinds.serving
+    if not url and "spec" not in f and not can_be_empty:
         # function must point to a file or a module or have a spec
         raise ValueError("function missing a url or a spec or a module")
 
@@ -2670,7 +2682,8 @@ def _init_function_from_dict(f, project):
 
     if "spec" in f:
         func = new_function(name, runtime=f["spec"])
-    elif not url and has_module:
+    elif not url and can_be_empty:
+        raise_no_image()
         func = new_function(name, image=image, kind=kind or "job", handler=handler)
     elif url.endswith(".yaml") or url.startswith("db://") or url.startswith("hub://"):
         func = import_function(url)
@@ -2678,15 +2691,12 @@ def _init_function_from_dict(f, project):
             func.spec.image = image
     elif url.endswith(".ipynb"):
         # not defaulting kind to job here cause kind might come from magic annotations in the notebook
+        raise_no_image()
         func = code_to_function(
             name, filename=url, image=image, kind=kind, handler=handler
         )
     elif url.endswith(".py"):
-        if not image and kind != "local":
-            raise ValueError(
-                "image must be provided with py code files which do not "
-                "run on 'local' engine kind"
-            )
+        raise_no_image()
         if in_context and with_repo:
             func = new_function(
                 name,

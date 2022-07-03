@@ -35,8 +35,6 @@ jobs:
         - models-gpu
         - jupyter
         - test
-# The GPU image is too big (~24GB) GH action runner has only 14GB
-#        - models-gpu
     steps:
     - uses: actions/checkout@v2
     - name: Install curl and jq
@@ -90,6 +88,22 @@ jobs:
             MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
             MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
             MLRUN_PUSH_DOCKER_CACHE_IMAGE=true \
+            make push-${{ matrix.image-name }}; \
+          done;
+
+    - name: Build and push unstable tag
+
+      # we don't need to have unstable tag for the test image
+      # And we don't need to run this when trigger manually (workflow dispatch)
+      if: matrix.image-name != 'test' && github.event_name != 'workflow_dispatch' && steps.git_info.outputs.branch == 'development'
+      run: |
+        for registry in "ghcr.io/" "quay.io/" "registry.hub.docker.com/"; \
+          do \
+            MLRUN_DOCKER_REGISTRY=$registry \
+            MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
+            MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
+            MLRUN_VERSION=unstable \
+            MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
             make push-${{ matrix.image-name }}; \
           done;
     - name: Pull cache, build and push test image

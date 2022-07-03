@@ -147,7 +147,9 @@ class KubeResourceSpec(FunctionSpec):
         self.replicas = replicas
         self.image_pull_policy = image_pull_policy
         self.service_account = service_account
-        self.image_pull_secret = image_pull_secret
+        self.image_pull_secret = (  # TODO: check which runtimes override this value
+            image_pull_secret or mlrun.mlconf.builder.docker_registry_secret
+        )
         self.node_name = node_name
         self.node_selector = (
             node_selector or mlrun.mlconf.get_default_function_node_selector()

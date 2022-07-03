@@ -80,6 +80,7 @@ def make_kaniko_pod(
     verbose=False,
     builder_env=None,
     runtime_spec=None,
+    registry=None,
 ):
     extra_runtime_spec = {}
     # set kaniko's spec attributes from the runtime spec
@@ -129,10 +130,6 @@ def make_kaniko_pod(
     )
     kpod.env = builder_env
 
-    if secret_name:
-        items = [{"key": ".dockerconfigjson", "path": "config.json"}]
-        kpod.mount_secret(secret_name, "/kaniko/.docker", items=items)
-
     if config.is_pip_ca_configured():
         items = [
             {
@@ -171,13 +168,54 @@ def make_kaniko_pod(
                 "\n".join(requirements).encode("utf-8")
             ).decode("utf-8")
 
-        kpod.set_init_container(
+        kpod.append_init_container(
             config.httpdb.builder.kaniko_init_container_image,
             args=["sh", "-c", "; ".join(commands)],
             env=env,
+            name="create-dockerfile",
         )
 
+    # when using ECR we need init container to create the image repository
+    if ".ecr." in registry and registry.endswith(".amazonaws.com"):
+        configure_kaniko_ecr_init_container(kpod)
+
+    # mount regular docker config secret
+    elif secret_name:
+        items = [{"key": ".dockerconfigjson", "path": "config.json"}]
+        kpod.mount_secret(secret_name, "/kaniko/.docker", items=items)
+
     return kpod
+
+
+def configure_kaniko_ecr_init_container(kpod):
+    if not config.httpdb.builder.aws_secret:
+
+        # assume instance role has permissions to register and store a container image
+        # https://github.com/GoogleContainerTools/kaniko#pushing-to-amazon-ecr
+        kpod.env["AWS_SDK_LOAD_CONFIG"] = "true"
+        kpod.env["AWS_EC2_METADATA_DISABLED"] = "true"
+    else:
+        command = (
+            "aws ecr create-repository --region {0} --repository-name {1} "
+            "|| if [ $? -eq 254 ]; then echo 'Ignoring repository already exits'; else exit $?; fi".format(
+                "", ""
+            )
+        )
+        kpod.mount_secret(
+            config.httpdb.builder.aws_secret,
+            path="/tmp",
+        )
+        kpod.append_init_container(
+            config.httpdb.builder.kaniko_aws_cli_image,
+            args=["/bin/sh", "-c", "; ".join(command)],
+            env={
+                "AWS_SHARED_CREDENTIALS_FILE": "/tmp/credentials",
+            },
+            name="create-repo",
+        )
+
+        # set the kaniko container AWS credentials location to the mount's path
+        kpod.env["AWS_SHARED_CREDENTIALS_FILE"] = "/tmp/credentials"
 
 
 def upload_tarball(source_dir, target, secrets=None):
@@ -305,6 +343,7 @@ def build_image(
         verbose=verbose,
         builder_env=builder_env,
         runtime_spec=runtime_spec,
+        registry=registry,
     )
 
     if to_mount:

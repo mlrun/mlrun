@@ -277,6 +277,10 @@ default_config = {
             "mlrun_version_specifier": "",
             "kaniko_image": "gcr.io/kaniko-project/executor:v1.8.0",  # kaniko builder image
             "kaniko_init_container_image": "alpine:3.13.1",
+            # image for kaniko init container when docker registry is ECR
+            "kaniko_aws_cli_image": "amazon/aws-cli:2.7.10",
+            # secret from aws credentials file for ECR permissions
+            "aws_secret": "",
             # additional docker build args in json encoded base64 format
             "build_args": "",
             "pip_ca_secret_name": "",

@@ -34,7 +34,7 @@ from mlrun.utils import (
 )
 
 from ..config import config
-from ..run import RunStatuses, run_pipeline, wait_for_pipeline_completion
+from ..run import run_pipeline, wait_for_pipeline_completion
 from ..runtimes.pod import AutoMountType
 
 
@@ -433,7 +433,6 @@ class _PipelineRunner(abc.ABC):
         return workflow_handler
 
     @staticmethod
-    @abc.abstractmethod
     def get_run_status(
         project,
         run,
@@ -441,7 +440,38 @@ class _PipelineRunner(abc.ABC):
         expected_statuses=None,
         notifiers: RunNotifications = None,
     ):
-        pass
+        state = ""
+        raise_error = None
+        try:
+            if timeout:
+                logger.info("waiting for pipeline run completion")
+                state = run.wait_for_completion(
+                    timeout=timeout, expected_statuses=expected_statuses
+                )
+        except RuntimeError as exc:
+            # push runs table also when we have errors
+            raise_error = exc
+
+        mldb = mlrun.db.get_run_db(secrets=project._secrets)
+        runs = mldb.list_runs(project=project.name, labels=f"workflow={run.run_id}")
+
+        had_errors = 0
+        for r in runs:
+            if r["status"].get("state", "") == "error":
+                had_errors += 1
+
+        text = f"Workflow {run.run_id} finished"
+        if had_errors:
+            text += f" with {had_errors} errors"
+        if state:
+            text += f", state={state}"
+
+        notifiers = notifiers or project.notifiers
+        notifiers.push(text, runs)
+
+        if raise_error:
+            raise raise_error
+        return state, had_errors, text
 
 
 class _KFPRunner(_PipelineRunner):
@@ -525,47 +555,6 @@ class _KFPRunner(_PipelineRunner):
         if resp:
             return resp["run"].get("status", "")
         return ""
-
-    @staticmethod
-    def get_run_status(
-        project,
-        run,
-        timeout=None,
-        expected_statuses=None,
-        notifiers: RunNotifications = None,
-    ):
-        state = ""
-        raise_error = None
-        try:
-            if timeout:
-                logger.info("waiting for pipeline run completion")
-                state = run.wait_for_completion(
-                    timeout=timeout, expected_statuses=expected_statuses
-                )
-        except RuntimeError as exc:
-            # push runs table also when we have errors
-            raise_error = exc
-
-        mldb = mlrun.db.get_run_db(secrets=project._secrets)
-        runs = mldb.list_runs(project=project.name, labels=f"workflow={run.run_id}")
-
-        had_errors = 0
-        for r in runs:
-            if r["status"].get("state", "") == "error":
-                had_errors += 1
-
-        text = f"Workflow {run.run_id} finished"
-        if had_errors:
-            text += f" with {had_errors} errors"
-        if state:
-            text += f", state={state}"
-
-        notifiers = notifiers or project.notifiers
-        notifiers.push(text, runs)
-
-        if raise_error:
-            raise raise_error
-        return state, had_errors, text
 
 
 class _LocalRunner(_PipelineRunner):
@@ -665,7 +654,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=workflow_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:0.0.18",
+                image="yonishelach/mlrun-remote-runner:0.0.19",
             )
 
             # Preparing parameters for load_and_run function:
@@ -733,51 +722,6 @@ class _RemoteRunner(_PipelineRunner):
         if run_info:
             status = run_info["run"].get("status")
         return status
-
-    @staticmethod
-    def get_run_status(
-        project,
-        run,
-        timeout=None,
-        expected_statuses=[
-            RunStatuses.succeeded,
-            RunStatuses.failed,
-            RunStatuses.error,
-        ],
-        notifiers: RunNotifications = None,
-    ):
-        state = ""
-        raise_error = None
-        try:
-            if timeout:
-                logger.info("waiting for pipeline run completion")
-                state = run.wait_for_completion(
-                    timeout=timeout, expected_statuses=expected_statuses
-                )
-        except RuntimeError as exc:
-            # push runs table also when we have errors
-            raise_error = exc
-
-        mldb = mlrun.db.get_run_db(secrets=project._secrets)
-        runs = mldb.list_runs(project=project.name, labels=f"workflow={run.run_id}")
-
-        had_errors = 0
-        for r in runs:
-            if r["status"].get("state", "") == "error":
-                had_errors += 1
-
-        text = f"Workflow {run.run_id} finished"
-        if had_errors:
-            text += f" with {had_errors} errors"
-        if state:
-            text += f", state={state}"
-
-        notifiers = notifiers or project.notifiers
-        notifiers.push(text, runs)
-
-        if raise_error:
-            raise raise_error
-        return state, had_errors, text
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):
@@ -854,8 +798,7 @@ def load_and_run(
 
     wf_log_msg = workflow_name or workflow_path
     context.logger.info(f"Running workflow {wf_log_msg}")
-    # if workflow_path:
-    #     workflow_path = os.path.join(project_name, workflow_path)
+
     run = project.run(
         name=workflow_name,
         workflow_path=workflow_path,

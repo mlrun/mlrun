@@ -213,7 +213,7 @@ def configure_kaniko_ecr_init_container(kpod, registry, repo):
         )
         kpod.append_init_container(
             config.httpdb.builder.kaniko_aws_cli_image,
-            args=["/bin/sh", "-c", "; ".join(command)],
+            args=["/bin/sh", "-c", command],
             env={
                 "AWS_SHARED_CREDENTIALS_FILE": "/tmp/credentials",
             },

@@ -182,7 +182,7 @@ def make_kaniko_pod(
 
     # when using ECR we need init container to create the image repository
     if ".ecr." in registry and registry.endswith(".amazonaws.com"):
-        repo = dest[dest.find("/") : dest.find(":") + 1]
+        repo = dest[dest.find("/") + 1 : dest.find(":")]
         configure_kaniko_ecr_init_container(kpod, registry, repo)
 
     # mount regular docker config secret

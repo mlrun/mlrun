@@ -47,7 +47,7 @@ jobs:
     - name: Resolve docker cache tag for branch ref
       id: docker_cache
       run: |
-        if [ ${{ github.ref_type }}=="branch" ]; then
+        if [ "${{ github.ref_type }}" = "branch" ]; then
           export version_suffix=$(echo "$GITHUB_REF_NAME" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.');
           export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi);
         else
@@ -59,7 +59,7 @@ jobs:
     - name: Set computed versions params
       id: computed_params
       run: |
-        if [ ${{ github.ref_type }}=="branch" ]; then
+        if [ "${{ github.ref_type }}" = "branch" ]; then
           echo "::set-output name=mlrun_version::${{ steps.git_info.outputs.latest_version }}+${{ steps.git_info.outputs.mlrun_commit_hash }}";
         else
           echo "::set-output name=mlrun_version::$(echo $GITHUB_REF_NAME#v)";

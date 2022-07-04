@@ -1931,6 +1931,7 @@ class MlrunProject(ModelObj):
         )
         workflow_spec.clear_tmp()
         if watch:
+            logger.info(f"engine = {type(workflow_engine)}, run_id = {run.run_id}")
             workflow_engine.get_run_status(project=self, run=run, timeout=timeout)
         return run
 

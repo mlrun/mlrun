@@ -2606,10 +2606,19 @@ class TestFeatureStore(TestMLRunSystem):
             engine=engine,
             engine_args=engine_args,
         )
-        df = train_dataset.to_dataframe()
+        df_res = train_dataset.to_dataframe()
+        expected_df = pd.DataFrame(
+            {
+                "name": ["C"],
+                "age": [76],
+                "department_RD": [1],
+                "department_IT": [0],
+                "department_Marketing": [0],
+            },
+            index=[0],
+        )
 
-        assert not df["department_RD"].astype(str).str.contains("0")[0]
-        assert not df.shape[0] != 1
+        assert df_res.equals(expected_df)
 
     @pytest.mark.skipif(kafka_brokers == "", reason="KAFKA_BROKERS must be set")
     def test_kafka_target(self, kafka_consumer):

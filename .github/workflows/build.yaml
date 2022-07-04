@@ -17,6 +17,10 @@ on:
         description: 'Docker repo to push images to (default: lowercase github repository owner name)'
         required: false
         default: ''
+      version:
+        description: 'The version to build, without prefix v (e.g. 1.1.0), if not provided version will be <latest-release>-<commit-hash>'
+        required: false
+        default: ''
 jobs:
   build-images:
     name: Build and push image - ${{ matrix.image-name }}
@@ -44,26 +48,19 @@ jobs:
       run: |
         echo "::set-output name=mlrun_commit_hash::$(git rev-parse --short=8 $GITHUB_SHA)"
         echo "::set-output name=latest_version::$(curl -sf https://pypi.org/pypi/mlrun/json | jq -r '.info.version')"
-    - name: Resolve docker cache tag for branch ref
+    - name: Resolve docker cache tag
       id: docker_cache
       run: |
-        if [ "${{ github.ref_type }}" = "branch" ]; then
-          export version_suffix=$(echo "$GITHUB_REF_NAME" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.');
-          export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi);
-        else
-          export tag=$(echo "$GITHUB_REF_NAME" | grep --color=never -E "^v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$");
-          export version_suffix=$(echo ${tag#v} | cut -f1,2 -d'.' | tr -d '.');
-          export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-${version_suffix}x";fi);
-        fi
+        export version_suffix=$(echo "$GITHUB_REF_NAME" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.');
+        export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi);
         echo "::set-output name=tag::$(echo $unstable_tag)"
     - name: Set computed versions params
       id: computed_params
       run: |
-        if [ "${{ github.ref_type }}" = "branch" ]; then
-          echo "::set-output name=mlrun_version::${{ steps.git_info.outputs.latest_version }}+${{ steps.git_info.outputs.mlrun_commit_hash }}";
-        else
-          echo "::set-output name=mlrun_version::$(echo $GITHUB_REF_NAME#v)";
-        fi
+        echo "::set-output name=mlrun_version::$( \
+          input_mlrun_version=${{ github.event.inputs.version }} && \
+          default_mlrun_version=$(echo ${{ steps.git_info.outputs.latest_version }}+${{ steps.git_info.outputs.mlrun_commit_hash }}) && \
+          echo ${input_mlrun_version:-`echo $default_mlrun_version`})"
         echo "::set-output name=mlrun_docker_repo::$( \
           input_docker_repo=${{ github.event.inputs.docker_repo }} && \
           default_docker_repo=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]') && \
@@ -89,11 +86,6 @@ jobs:
       # to use it and run much faster
       if: ${{ matrix.image-name != 'test' }}
       run: |
-        if [ "${{ github.ref_type }}" = "branch" ]; then
-          export push_cache=true
-        else
-          export push_cache=""
-        fi
         for registry in $(echo ${{ steps.computed_params.outputs.mlrun_docker_registries }} | sed "s/,/ /g"); \
           do \
             MLRUN_DOCKER_REGISTRY=$registry \
@@ -101,7 +93,7 @@ jobs:
             MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
             MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
             MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-            MLRUN_PUSH_DOCKER_CACHE_IMAGE="$push_cache" \
+            MLRUN_PUSH_DOCKER_CACHE_IMAGE="true" \
             make push-${{ matrix.image-name }}; \
           done;
 
@@ -121,7 +113,7 @@ jobs:
             make push-${{ matrix.image-name }}; \
           done;
     - name: Pull cache, build and push test image
-      if: matrix.image-name == 'test' && github.ref_type == "branch"
+      if: matrix.image-name == 'test' && github.event.inputs.version == ""
       run: |
         MLRUN_DOCKER_REGISTRY=ghcr.io/ \
         MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \

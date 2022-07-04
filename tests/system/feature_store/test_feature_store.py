@@ -2603,8 +2603,8 @@ class TestFeatureStore(TestMLRunSystem):
             list(zip([0, 1, 2, 3], [1, 1, 0, 1], [0, 0, 1, 0], lst_3)),
             columns=["id", "workclass__Private", "workclass__Local_gov", "age"],
         )
-        df.set_index("id")
-        df = df[["workclass__Private", "workclass__Local_gov", "age"]]
+        expected_df.set_index("id")
+        df = expected_df[["workclass__Private", "workclass__Local_gov", "age"]]
 
         assert df_res.equals(df)
 

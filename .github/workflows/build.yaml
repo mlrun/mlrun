@@ -118,10 +118,10 @@ jobs:
     - name: Pull cache, build and push test image
       if: matrix.image-name == 'test' && github.ref_type == "branch"
       run: |
-          MLRUN_DOCKER_REGISTRY=ghcr.io/ \
-          MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
-          MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
-          MLRUN_VERSION=${{ steps.docker_cache.outputs.tag }} \
-          MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-          MLRUN_PUSH_DOCKER_CACHE_IMAGE=true \
-          make push-${{ matrix.image-name }}
+        MLRUN_DOCKER_REGISTRY=ghcr.io/ \
+        MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
+        MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
+        MLRUN_VERSION=${{ steps.docker_cache.outputs.tag }} \
+        MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+        MLRUN_PUSH_DOCKER_CACHE_IMAGE=true \
+        make push-${{ matrix.image-name }}

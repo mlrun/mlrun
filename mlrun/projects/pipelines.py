@@ -668,14 +668,14 @@ class _RemoteRunner(_PipelineRunner):
                 name=workflow_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:0.0.11",
+                image="yonishelach/mlrun-remote-runner:0.0.12",
             )
 
             # Preparing parameters for load_and_run function:
             params = {
                 "url": project.spec.source,
                 "project_name": project.name,
-                "secrets": project._secrets,
+                # "secrets": project._secrets,
                 "workflow_name": name.split("-")[-1]
                 if f"{project.name}-" in name
                 else name,

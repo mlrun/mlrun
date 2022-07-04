@@ -89,6 +89,11 @@ jobs:
       # to use it and run much faster
       if: ${{ matrix.image-name != 'test' }}
       run: |
+        if [ "${{ github.ref_type }}" = "branch" ]; then
+          export push_cache=true
+        else
+          export push_cache=""
+        fi
         for registry in $(echo ${{ steps.computed_params.outputs.mlrun_docker_registries }} | sed "s/,/ /g"); \
           do \
             MLRUN_DOCKER_REGISTRY=$registry \
@@ -96,7 +101,7 @@ jobs:
             MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
             MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
             MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-            MLRUN_PUSH_DOCKER_CACHE_IMAGE=true \
+            MLRUN_PUSH_DOCKER_CACHE_IMAGE="$push_cache" \
             make push-${{ matrix.image-name }}; \
           done;
 

@@ -24,7 +24,6 @@ __all__ = [
     "run_function",
     "build_function",
     "deploy_function",
-    "load_and_run",
 ]
 
 from .operations import build_function, deploy_function, run_function  # noqa

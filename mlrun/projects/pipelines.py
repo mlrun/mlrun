@@ -26,7 +26,12 @@ from kfp import dsl
 from kfp.compiler import compiler
 
 import mlrun
-from mlrun.utils import logger, new_pipe_meta, parse_versioned_object_uri
+from mlrun.utils import (
+    RunNotifications,
+    logger,
+    new_pipe_meta,
+    parse_versioned_object_uri,
+)
 
 from ..config import config
 from ..run import run_pipeline, wait_for_pipeline_completion
@@ -398,7 +403,6 @@ class _PipelineRunner(abc.ABC):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        watch=None,
         timeout=None,
         schedule=None,
     ) -> _PipelineRunStatus:
@@ -428,6 +432,17 @@ class _PipelineRunner(abc.ABC):
         else:
             builtins.funcs = pipeline_context.functions
         return workflow_handler
+
+    @staticmethod
+    @abc.abstractmethod
+    def get_run_status(
+        project,
+        run,
+        timeout=60 * 60,
+        expected_statuses=None,
+        notifiers: RunNotifications = None,
+    ):
+        pass
 
 
 class _KFPRunner(_PipelineRunner):
@@ -463,7 +478,6 @@ class _KFPRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        watch=None,
         timeout=None,
         schedule=None,
     ) -> _PipelineRunStatus:
@@ -488,8 +502,7 @@ class _KFPRunner(_PipelineRunner):
             id,
             True,
         )
-        if watch:
-            cls.wait_for_completion(run_id=id, project=project, timeout=timeout)
+
         pipeline_context.clear()
         return _PipelineRunStatus(id, cls, project=project, workflow=workflow_spec)
 
@@ -515,6 +528,47 @@ class _KFPRunner(_PipelineRunner):
             return resp["run"].get("status", "")
         return ""
 
+    @staticmethod
+    def get_run_status(
+        project,
+        run,
+        timeout=60 * 60,
+        expected_statuses=None,
+        notifiers: RunNotifications = None,
+    ):
+        state = ""
+        raise_error = None
+        try:
+            if timeout:
+                logger.info("waiting for pipeline run completion")
+                state = run.wait_for_completion(
+                    timeout=timeout, expected_statuses=expected_statuses
+                )
+        except RuntimeError as exc:
+            # push runs table also when we have errors
+            raise_error = exc
+
+        mldb = mlrun.db.get_run_db(secrets=project._secrets)
+        runs = mldb.list_runs(project=project.name, labels=f"workflow={run.run_id}")
+
+        had_errors = 0
+        for r in runs:
+            if r["status"].get("state", "") == "error":
+                had_errors += 1
+
+        text = f"Workflow {run.run_id} finished"
+        if had_errors:
+            text += f" with {had_errors} errors"
+        if state:
+            text += f", state={state}"
+
+        notifiers = notifiers or project.notifiers
+        notifiers.push(text, runs)
+
+        if raise_error:
+            raise raise_error
+        return state, had_errors, text
+
 
 class _LocalRunner(_PipelineRunner):
     """local pipelines runner"""
@@ -531,7 +585,6 @@ class _LocalRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        watch=None,
         timeout=None,
         schedule=None,
     ) -> _PipelineRunStatus:
@@ -575,6 +628,16 @@ class _LocalRunner(_PipelineRunner):
     def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
         pass
 
+    @staticmethod
+    def get_run_status(
+        project,
+        run,
+        timeout=60 * 60,
+        expected_statuses=None,
+        notifiers: RunNotifications = None,
+    ):
+        pass
+
 
 class _RemoteRunner(_PipelineRunner):
     """remote pipelines runner"""
@@ -591,7 +654,6 @@ class _RemoteRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        watch=None,
         timeout=None,
         schedule=None,
     ) -> typing.Union[_PipelineRunStatus, None]:
@@ -601,23 +663,34 @@ class _RemoteRunner(_PipelineRunner):
         try:
             logger.info("Creating the function that invokes the workflow remotely")
             # Creating the load project and workflow running function:
-            # After merged to development, need to set image to mlrun/mlrun
+            # TODO: set image to mlrun/mlrun After merged to development
             load_and_run_fn = mlrun.new_function(
                 name=workflow_name,
                 project=project.name,
                 kind="job",
-                # source=project.spec.source, TODO: load_source_on_run does not go into verify_base_image()
-                image="yonishelach/mlrun-remote-runner:0.0.7",
+                image="yonishelach/mlrun-remote-runner:0.0.8",
             )
 
             # Preparing parameters for load_and_run function:
-            params = workflow_spec.args.copy() if workflow_spec.args else {}
-            params["workflow_name"] = (
-                name.split("-")[-1] if f"{project.name}-" in name else name
-            )
-            params["project_context"] = project.context
-            params["engine"] = workflow_spec.engine
+            params = {
+                "url": project.spec.source,
+                "project_name": project.name,
+                "secrets": project._secrets,
+                "workflow_name": name.split("-")[-1]
+                if f"{project.name}-" in name
+                else name,
+                "workflow_path": workflow_spec.path,
+                "workflow_arguments": workflow_spec.args,
+                "artifact_path": artifact_path,
+                "workflow_handler": workflow_handler,
+                "namespace": namespace,
+                "ttl": workflow_spec.ttl,
+                "engine": workflow_spec.engine,
+                "local": workflow_spec.run_local,
+            }
+
             logger.info(f"executing workflow remotely with {params['engine']} engine")
+
             run = load_and_run_fn.run(
                 name=workflow_name,
                 params=params,
@@ -642,9 +715,6 @@ class _RemoteRunner(_PipelineRunner):
             )
             state = mlrun.run.RunStatuses.failed
 
-        if watch:
-            cls.wait_for_completion(run_id=run_id, project=project, timeout=timeout)
-
         project.notifiers.push_start_message(
             project.metadata.name,
         )
@@ -666,6 +736,47 @@ class _RemoteRunner(_PipelineRunner):
         if run_info:
             status = run_info["run"].get("status")
         return status
+
+    @staticmethod
+    def get_run_status(
+        project,
+        run,
+        timeout=60 * 60,
+        expected_statuses=None,
+        notifiers: RunNotifications = None,
+    ):
+        state = ""
+        raise_error = None
+        try:
+            if timeout:
+                logger.info("waiting for pipeline run completion")
+                state = run.wait_for_completion(
+                    timeout=timeout, expected_statuses=expected_statuses
+                )
+        except RuntimeError as exc:
+            # push runs table also when we have errors
+            raise_error = exc
+
+        mldb = mlrun.db.get_run_db(secrets=project._secrets)
+        runs = mldb.list_runs(project=project.name, labels=f"workflow={run.run_id}")
+
+        had_errors = 0
+        for r in runs:
+            if r["status"].get("state", "") == "error":
+                had_errors += 1
+
+        text = f"Workflow {run.run_id} finished"
+        if had_errors:
+            text += f" with {had_errors} errors"
+        if state:
+            text += f", state={state}"
+
+        notifiers = notifiers or project.notifiers
+        notifiers.push(text, runs)
+
+        if raise_error:
+            raise raise_error
+        return state, had_errors, text
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):
@@ -712,36 +823,31 @@ def github_webhook(request):
 
 def load_and_run(
     context,
-    project_context: str,
     url: str = None,
     project_name: str = "",
-    secrets: str = None,
     init_git: bool = None,
     subpath: str = None,
     clone: bool = False,
-    user_project: bool = False,
-    workflow_name: str = None,
+    workflow_name: str = None,  # from WorkflowSpec
     workflow_path: str = None,
-    workflow_arguments=None,
-    artifact_path: str = None,
-    workflow_handler=None,
-    namespace=None,
+    workflow_arguments=None,  # from WorkflowSpec
+    artifact_path: str = None,  # from artifact_path
+    workflow_handler=None,  # from workflow_handler
+    namespace=None,  # from namespace
     sync: bool = False,
     dirty: bool = False,
-    ttl=None,
-    engine=None,
-    local: bool = None,
+    ttl=None,  # from WorkflowSpec
+    engine=None,  # from WorkflowSpec
+    local: bool = None,  # from WorkflowSpec
 ):
     # Loading the project:
     project = mlrun.load_project(
-        context=project_context,
+        context="./project",
         url=url,
         name=project_name,
-        secrets=secrets,
         init_git=init_git,
         subpath=subpath,
         clone=clone,
-        user_project=user_project,
     )
     context.logger.info(f"Loaded project {project.name} successfully")
 

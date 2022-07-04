@@ -1859,7 +1859,8 @@ class MlrunProject(ModelObj):
         :param watch:     wait for pipeline completion
         :param dirty:     allow running the workflow when the git repo is dirty
         :param ttl:       pipeline ttl in secs (after that the pods will be removed)
-        :param engine:    workflow engine running the workflow. supported values are 'kfp' (default) or 'local'
+        :param engine:    workflow engine running the workflow. supported values are 'kfp' (default), 'local' or 'remote'.
+                            for setting engine for remote running use 'remote:local' or 'remote:kfp'.
         :param local:     run local pipeline with local functions (set local=True in function.run())
         :param schedule:  ScheduleCronTrigger class instance or a standard crontab expression string
                           (which will be converted to the class using its `from_crontab` constructor),
@@ -1868,14 +1869,6 @@ class MlrunProject(ModelObj):
         :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
         :returns: run id
         """
-        if engine == "remote":
-            if local:
-                logger.warning("WARNING!, using remote engine, setting local to False")
-                local = False
-        elif schedule:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "scheduling workflow is available only with remote engine"
-            )
 
         arguments = arguments or {}
         need_repo = self.spec._need_repo()
@@ -1911,12 +1904,19 @@ class MlrunProject(ModelObj):
 
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name
         artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
+
+        inner_engine = None
+        if engine and engine.startswith("remote"):
+            if ":" in engine:
+                inner_engine = engine.split(":")[-1]
+        elif schedule:
+            logger.info(
+                f"setting 'remote' engine for workflow scheduling with {engine} engine"
+            )
+            inner_engine = engine
+            engine = "remote"
         workflow_engine = get_workflow_engine(engine or workflow_spec.engine, local)
-        workflow_spec.engine = (
-            workflow_engine.engine
-            if workflow_engine.engine != "remote"
-            else (workflow_spec.engine or "kfp")
-        )
+        workflow_spec.engine = inner_engine or workflow_engine.engine
 
         run = workflow_engine.run(
             self,
@@ -1931,6 +1931,8 @@ class MlrunProject(ModelObj):
             schedule=schedule,
         )
         workflow_spec.clear_tmp()
+        if watch:
+            workflow_engine.get_run_status(project=self, run=run, timeout=timeout)
         return run
 
     def save_workflow(self, name, target, artifact_path=None, ttl=None):

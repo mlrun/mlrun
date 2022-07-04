@@ -1908,7 +1908,7 @@ class MlrunProject(ModelObj):
         inner_engine = None
         if engine and engine.startswith("remote"):
             if ":" in engine:
-                inner_engine = engine.split(":")[-1]
+                engine, inner_engine = engine.split(":")[-1]
         elif schedule:
             logger.info(
                 f"setting 'remote' engine for workflow scheduling with {engine} engine"

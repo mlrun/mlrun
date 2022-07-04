@@ -194,7 +194,7 @@ def make_kaniko_pod(
 
 
 def configure_kaniko_ecr_init_container(kpod, registry, repo):
-    if not config.httpdb.builder.aws_secret:
+    if not config.httpdb.builder.kaniko_registry_provider_auth_secret:
 
         # assume instance role has permissions to register and store a container image
         # https://github.com/GoogleContainerTools/kaniko#pushing-to-amazon-ecr
@@ -208,7 +208,7 @@ def configure_kaniko_ecr_init_container(kpod, registry, repo):
             )
         )
         kpod.mount_secret(
-            config.httpdb.builder.aws_secret,
+            config.httpdb.builder.kaniko_registry_provider_auth_secret,
             path="/tmp",
         )
         kpod.append_init_container(

@@ -48,6 +48,7 @@ def test_new_function_from_runtime():
     expected_runtime["spec"][
         "preemption_mode"
     ] = mlrun.mlconf.function_defaults.preemption_mode
+    expected_runtime["spec"]["image_pull_secret"] = ""
     assert (
         DeepDiff(
             function.to_dict(),
@@ -66,6 +67,7 @@ def test_new_function_args_without_command():
     expected_runtime["spec"][
         "preemption_mode"
     ] = mlrun.mlconf.function_defaults.preemption_mode
+    expected_runtime["spec"]["image_pull_secret"] = ""
     assert (
         DeepDiff(
             function.to_dict(),
@@ -121,6 +123,7 @@ def test_new_function_with_resources():
         expected_runtime["spec"][
             "preemption_mode"
         ] = mlrun.mlconf.function_defaults.preemption_mode
+        expected_runtime["spec"]["image_pull_secret"] = ""
         runtime["spec"]["resources"] = test_case.get("resources", None)
         mlrun.mlconf.default_function_pod_resources = test_case.get("default_resources")
         function = mlrun.new_function(runtime=runtime)

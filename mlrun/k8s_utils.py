@@ -533,10 +533,6 @@ class BasePod:
         return self._get_spec()
 
     @property
-    def mounts(self):
-        return self._mounts
-
-    @property
     def init_containers(self):
         return self._init_containers
 

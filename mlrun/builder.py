@@ -198,8 +198,8 @@ def configure_kaniko_ecr_init_container(kpod, registry, repo):
 
         # assume instance role has permissions to register and store a container image
         # https://github.com/GoogleContainerTools/kaniko#pushing-to-amazon-ecr
-        kpod.env["AWS_SDK_LOAD_CONFIG"] = "true"
-        kpod.env["AWS_EC2_METADATA_DISABLED"] = "true"
+        kpod.env.append(client.V1EnvVar(name="AWS_SDK_LOAD_CONFIG", value="true"))
+        kpod.env.append(client.V1EnvVar(name="AWS_EC2_METADATA_DISABLED", value="true"))
     else:
         command = (
             "aws ecr create-repository --region {0} --repository-name {1} "
@@ -221,7 +221,11 @@ def configure_kaniko_ecr_init_container(kpod, registry, repo):
         )
 
         # set the kaniko container AWS credentials location to the mount's path
-        kpod.env["AWS_SHARED_CREDENTIALS_FILE"] = "/tmp/credentials"
+        kpod.env.append(
+            client.V1EnvVar(
+                name="AWS_SHARED_CREDENTIALS_FILE", value="/tmp/credentials"
+            )
+        )
 
 
 def upload_tarball(source_dir, target, secrets=None):

@@ -1916,7 +1916,12 @@ class MlrunProject(ModelObj):
             inner_engine = engine
             engine = "remote"
         workflow_engine = get_workflow_engine(engine or workflow_spec.engine, local)
-        workflow_spec.engine = inner_engine or workflow_engine.engine
+        if inner_engine:
+            workflow_spec.engine = inner_engine
+        elif engine == "remote":
+            workflow_spec.engine = None
+        else:
+            workflow_spec.engine = workflow_engine.engine
 
         run = workflow_engine.run(
             self,

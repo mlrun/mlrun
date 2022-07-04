@@ -34,7 +34,7 @@ from mlrun.utils import (
 )
 
 from ..config import config
-from ..run import run_pipeline, wait_for_pipeline_completion
+from ..run import RunStatuses, run_pipeline, wait_for_pipeline_completion
 from ..runtimes.pod import AutoMountType
 
 
@@ -665,7 +665,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=workflow_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:0.0.17",
+                image="yonishelach/mlrun-remote-runner:0.0.18",
             )
 
             # Preparing parameters for load_and_run function:
@@ -739,7 +739,11 @@ class _RemoteRunner(_PipelineRunner):
         project,
         run,
         timeout=None,
-        expected_statuses=None,
+        expected_statuses=[
+            RunStatuses.succeeded,
+            RunStatuses.failed,
+            RunStatuses.error,
+        ],
         notifiers: RunNotifications = None,
     ):
         state = ""

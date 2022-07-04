@@ -668,7 +668,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=workflow_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:0.0.12",
+                image="yonishelach/mlrun-remote-runner:0.0.13",
             )
 
             # Preparing parameters for load_and_run function:
@@ -842,7 +842,7 @@ def load_and_run(
 ):
     # Loading the project:
     project = mlrun.load_project(
-        context="./project",
+        context="./",
         url=url,
         name=project_name,
         init_git=init_git,

@@ -1926,7 +1926,6 @@ class MlrunProject(ModelObj):
             secrets=self._secrets,
             artifact_path=artifact_path,
             namespace=namespace,
-            watch=watch,
             timeout=timeout,
             schedule=schedule,
         )

@@ -2651,7 +2651,6 @@ class MlrunProjectLegacy(ModelObj):
 
 
 def _init_function_from_dict(f, project):
-
     name = f.get("name", "")
     url = f.get("url", "")
     kind = f.get("kind", "")
@@ -2690,8 +2689,8 @@ def _init_function_from_dict(f, project):
         if image:
             func.spec.image = image
     elif url.endswith(".ipynb"):
-        # not defaulting kind to job here cause kind might come from magic annotations in the notebook
         raise_no_image()
+        # not defaulting kind to job here cause kind might come from magic annotations in the notebook
         func = code_to_function(
             name, filename=url, image=image, kind=kind, handler=handler
         )

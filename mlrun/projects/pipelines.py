@@ -403,7 +403,6 @@ class _PipelineRunner(abc.ABC):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        timeout=None,
         schedule=None,
     ) -> _PipelineRunStatus:
         return None
@@ -478,7 +477,6 @@ class _KFPRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        timeout=None,
         schedule=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
@@ -532,7 +530,7 @@ class _KFPRunner(_PipelineRunner):
     def get_run_status(
         project,
         run,
-        timeout=60 * 60,
+        timeout=None,
         expected_statuses=None,
         notifiers: RunNotifications = None,
     ):
@@ -585,7 +583,6 @@ class _LocalRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        timeout=None,
         schedule=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
@@ -632,7 +629,7 @@ class _LocalRunner(_PipelineRunner):
     def get_run_status(
         project,
         run,
-        timeout=60 * 60,
+        timeout=None,
         expected_statuses=None,
         notifiers: RunNotifications = None,
     ):
@@ -668,7 +665,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=workflow_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:0.0.16",
+                image="yonishelach/mlrun-remote-runner:0.0.17",
             )
 
             # Preparing parameters for load_and_run function:
@@ -741,7 +738,7 @@ class _RemoteRunner(_PipelineRunner):
     def get_run_status(
         project,
         run,
-        timeout=60 * 60,
+        timeout=None,
         expected_statuses=None,
         notifiers: RunNotifications = None,
     ):

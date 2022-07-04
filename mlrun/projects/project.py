@@ -1840,7 +1840,7 @@ class MlrunProject(ModelObj):
         engine=None,
         local=None,
         schedule=None,
-        timeout=None,
+        timeout=60 * 60,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1926,12 +1926,10 @@ class MlrunProject(ModelObj):
             secrets=self._secrets,
             artifact_path=artifact_path,
             namespace=namespace,
-            timeout=timeout,
             schedule=schedule,
         )
         workflow_spec.clear_tmp()
         if watch:
-            logger.info(f"engine = {type(workflow_engine)}, run_id = {run.run_id}")
             workflow_engine.get_run_status(project=self, run=run, timeout=timeout)
         return run
 

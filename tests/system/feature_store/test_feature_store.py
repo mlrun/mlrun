@@ -2600,13 +2600,11 @@ class TestFeatureStore(TestMLRunSystem):
         df_res = fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
 
         expected_df = pd.DataFrame(
-            list(zip([0, 1, 2, 3], [1, 1, 0, 1], [0, 0, 1, 0], lst_3)),
-            columns=["id", "workclass__Private", "workclass__Local_gov", "age"],
+            list(zip([1, 1, 0, 1], [0, 0, 1, 0], lst_3)),
+            columns=["workclass__Private", "workclass__Local_gov", "age"],
         )
-        expected_df.set_index("id")
-        df = expected_df[["workclass__Private", "workclass__Local_gov", "age"]]
 
-        assert df_res.equals(df)
+        assert df_res.equals(expected_df)
 
     @pytest.mark.skipif(kafka_brokers == "", reason="KAFKA_BROKERS must be set")
     def test_kafka_target(self, kafka_consumer):

@@ -197,8 +197,8 @@ def test_build_runtime_target_image(monkeypatch):
 
     # assert it raises if we don't stick to the prefix
     for invalid_image in [
-        f"{mlrun.builder.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}username/without-prefix:{function.metadata.tag}"
-        f"{registry}/without-prefix:{function.metadata.tag}"
+        f"{mlrun.builder.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}username/without-prefix:{function.metadata.tag}",
+        f"{registry}/without-prefix:{function.metadata.tag}",
     ]:
         function.spec.build.image = invalid_image
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):

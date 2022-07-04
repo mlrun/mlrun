@@ -83,6 +83,11 @@ def make_kaniko_pod(
     registry=None,
 ):
     extra_runtime_spec = {}
+    if not registry:
+
+        # if registry was not given, infer it from the image destination
+        registry = dest.partition("/")[0]
+
     # set kaniko's spec attributes from the runtime spec
     for attribute in get_kaniko_spec_attributes_from_runtime():
         attr_value = getattr(runtime_spec, attribute, None)
@@ -177,7 +182,8 @@ def make_kaniko_pod(
 
     # when using ECR we need init container to create the image repository
     if ".ecr." in registry and registry.endswith(".amazonaws.com"):
-        configure_kaniko_ecr_init_container(kpod)
+        repo = dest[dest.find("/") : dest.find(":")]
+        configure_kaniko_ecr_init_container(kpod, registry, repo)
 
     # mount regular docker config secret
     elif secret_name:
@@ -187,7 +193,7 @@ def make_kaniko_pod(
     return kpod
 
 
-def configure_kaniko_ecr_init_container(kpod):
+def configure_kaniko_ecr_init_container(kpod, registry, repo):
     if not config.httpdb.builder.aws_secret:
 
         # assume instance role has permissions to register and store a container image
@@ -198,7 +204,7 @@ def configure_kaniko_ecr_init_container(kpod):
         command = (
             "aws ecr create-repository --region {0} --repository-name {1} "
             "|| if [ $? -eq 254 ]; then echo 'Ignoring repository already exits'; else exit $?; fi".format(
-                "", ""
+                registry.split(".")[3], repo
             )
         )
         kpod.mount_secret(

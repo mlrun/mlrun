@@ -45,7 +45,6 @@ jobs:
         echo "::set-output name=mlrun_commit_hash::$(git rev-parse --short=8 $GITHUB_SHA)"
         echo "::set-output name=latest_version::$(curl -sf https://pypi.org/pypi/mlrun/json | jq -r '.info.version')"
     - name: Resolve docker cache tag for branch ref
-      if: github.ref_type == 'branch'
       id: docker_cache
       run: |
         if [ ${{ github.ref_type }}=="branch" ]; then

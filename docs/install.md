@@ -8,22 +8,21 @@ MLRun comprises of two parts: MLRun Server and MLRUN client.
 
 
 There are several deployment options:
-- [Local deployment:](https://docs.mlrun.org/en/latest/install/local-docker.html) Deploy a docker on your laptop or on a single server.
-   This option is good for testing the water or when working in a small scale enviroenment. It's limited in terms of compute resources and scale but simpler for
-   deployment.
+- [Local deployment](https://docs.mlrun.org/en/latest/install/local-docker.html): Deploy a Docker on your laptop or on a single server.
+   This option is good for testing the waters or when working in a small scale environment. It's limited in terms of computing resources and scale, but
+   simpler for deployment.
 
-- [Kubernetes cluster:](https://docs.mlrun.org/en/latest/install/kubernetes.html) Deploy MLrun server on kuberentes.
-   This option deployed MLRun on kubernetes cluster which support elastic scaling yet it is more complex to install as it requires users to install kuberenetes on
-   their own.
+- [Kubernetes cluster](https://docs.mlrun.org/en/latest/install/kubernetes.html): Deploy an MLRun server on Kubernetes.
+   This option deploys MLRun on a Kubernetes cluster, which supports elastic scaling. Yet, it is more complex to install as it requires you to install Kubernetes on your own.
   
-- [Iguazio's Managed  Service](https://www.iguazio.com) - A commerical offering by Iguazio. This is the fastest way to explore the full set of MLRun functionalities.
-  Note that Iguazio provides a 14 days free trial.
+- [Iguazio's Managed  Service](https://www.iguazio.com): A commerical offering by Iguazio. This is the fastest way to explore the full set of MLRun functionalities.<br>
+  Note that Iguazio provides a 14 day free trial.
 
 
 ## Set up your client
 
-- Users can work with their favorite IDE (e.g. Pycharm, VScode, Jupyter , Colab etc..). in this section you'll find how to configure your client against the deployed
-  MLRUN server [How to configure your client](https://docs.mlrun.org/en/latest/install/remote.html) 
+- You can work with your favorite IDE (e.g. Pycharm, VScode, Jupyter , Colab etc..). Read how to configure your client against the deployed
+MLRun server in [How to configure your client](https://docs.mlrun.org/en/latest/install/remote.html).
 
 Once you have installed and configured MLRun, follow the [Quick Start tutorial](https://docs.mlrun.org/en/latest/tutorial/01-mlrun-basics.html) and additional [Tutorials and Examples](https://docs.mlrun.org/en/latest/tutorial/index.html) to learn how to use MLRun to develop and deploy machine 
 learning applications to production.

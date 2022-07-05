@@ -1513,13 +1513,13 @@ class MongoDBTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def get_table_object(self):
-        from storey import Table, V3ioDriver
+        from storey import Table, MongoDBDriver
 
         # TODO use options/cred
-        endpoint, uri, _, = self._parse_url()
+        endpoint, db, collection, = self._parse_url()
         return Table(
-            uri,
-            V3ioDriver(webapi=endpoint),
+            f'{db}/{collection}',
+            MongoDBDriver(webapi=endpoint),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
         )
 
@@ -1541,7 +1541,7 @@ class MongoDBTarget(BaseStoreTarget):
             name=self.name or "MongoDBTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="storey.MongoDBTarget",
+            class_name="storey.NoSqlTarget",
             columns=column_list,
             header=True,
             table=table,

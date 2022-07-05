@@ -85,7 +85,7 @@ class ModelEndpoints:
                 model_endpoint.spec.algorithm = model_obj.algorithm
 
             # Create monitoring feature set if monitoring found in model endpoint object
-            if model_endpoint.spec.monitoring:
+            if model_endpoint.spec.monitoring_mode == 'enabled':
                 self.create_monitoring_feature_set(
                     model_endpoint, model_obj, db_session
                 )
@@ -464,7 +464,7 @@ class ModelEndpoints:
                 algorithm=endpoint.get("algorithm") or None,
                 monitor_configuration=monitor_configuration or None,
                 active=endpoint.get("active") or None,
-                monitoring=endpoint.get("monitoring") or None,
+                monitoring_mode=endpoint.get("monitoring_mode") or None,
             ),
             status=mlrun.api.schemas.ModelEndpointStatus(
                 state=endpoint.get("state") or None,
@@ -512,6 +512,13 @@ class ModelEndpoints:
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.api.schemas.AuthInfo,
     ):
+        """
+        Invoking monitoring deploying functions.
+        :param project:                     The name of the project
+        :param model_monitoring_access_key: Access key to apply the model monitoring process
+        :param db_session:                  A session that manages the current dialog with the database.
+        :param auth_info:                   The auth info of the request
+        """
         self.deploy_model_monitoring_stream_processing(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
@@ -580,7 +587,7 @@ class ModelEndpoints:
                 "model_uri": endpoint.spec.model_uri or "",
                 "stream_path": endpoint.spec.stream_path or "",
                 "active": endpoint.spec.active or "",
-                "monitoring": endpoint.spec.monitoring or "",
+                "monitoring_mode": endpoint.spec.monitoring_mode or "",
                 "state": endpoint.status.state or "",
                 "feature_stats": json.dumps(feature_stats),
                 "current_stats": json.dumps(current_stats),
@@ -763,20 +770,31 @@ class ModelEndpoints:
         db_session: sqlalchemy.orm.Session,
         auto_info: mlrun.api.schemas.AuthInfo,
     ):
+        """
+        Deploying model monitoring stream real time nuclio function. The goal of this real time function is
+        to monitor the log of the data stream. It is triggered when a new log entry is detected.
+        It processes the new events into statistics that are then written to statistics databases.
+        :param project:                     The name of the project
+        :param model_monitoring_access_key: Access key to apply the model monitoring process
+        :param db_session:                  A session that manages the current dialog with the database.
+        :param auth_info:                   The auth info of the request
+        """
+
         logger.info(
-            f"Checking deployment status for model monitoring stream processing function [{project}]"
+            "Checking deployment status for model monitoring stream processing function", project=project
         )
         try:
+            # validate that the model monitoring stream has not yet been deployed
             mlrun.runtimes.function.get_nuclio_deploy_status(
                 name="model-monitoring-stream", project=project, tag=""
             )
             logger.info(
-                f"Detected model monitoring stream processing function [{project}] already deployed"
+                "Detected model monitoring stream processing function already deployed", project=project
             )
             return
         except nuclio.utils.DeployError:
             logger.info(
-                f"Deploying model monitoring stream processing function [{project}]"
+                "Deploying model monitoring stream processing function", project=project
             )
 
         fn = mlrun.model_monitoring.helpers.get_model_monitoring_stream_processing_function(
@@ -791,25 +809,37 @@ class ModelEndpoints:
     def deploy_model_monitoring_batch_processing(
         project: str,
         model_monitoring_access_key: str,
-        db_session,
+        db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.api.schemas.AuthInfo,
     ):
+        """
+        Deploying model monitoring batch job. The goal of this job is to identify drift in the data
+        based on the latest batch of events. By default, this job is executed on the hour every hour.
+        Note that if the monitoring batch job was already deployed then you will have to delete the
+        old monitoring batch job before deploying a new one.
+        :param project:                     The name of the project
+        :param model_monitoring_access_key: Access key to apply the model monitoring process
+        :param db_session:                  A session that manages the current dialog with the database.
+        :param auth_info:                   The auth info of the request
+        """
 
         logger.info(
-            f"Checking deployment status for model monitoring batch processing function [{project}]"
+            "Checking deployment status for model monitoring batch processing function", project=project
         )
+
+        # try to list functions that named model monitoring batch
+        # to make sure that this job has not yet been deployed
         function_list = mlrun.api.utils.singletons.db.get_db().list_functions(
             session=db_session, name="model-monitoring-batch", project=project
         )
 
         if function_list:
             logger.info(
-                f"Detected model monitoring batch processing function [{project}] already deployed"
+                "Detected model monitoring batch processing function already deployed", project=project
             )
             return
 
-        logger.info(f"Deploying model monitoring batch processing function [{project}]")
-
+        # create a monitoring batch job function object
         fn = mlrun.model_monitoring.helpers.get_model_monitoring_batch_function(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
@@ -817,9 +847,11 @@ class ModelEndpoints:
             auth_info=auth_info,
         )
 
+        # get the function uri
         function_uri = fn.save(versioned=True)
         function_uri = function_uri.replace("db://", "")
 
+        logger.info(f"Deploying model monitoring batch processing function", project=project)
         task = mlrun.new_task(name="model-monitoring-batch", project=project)
         task.spec.function = function_uri
 
@@ -828,6 +860,7 @@ class ModelEndpoints:
             "schedule": "0 */1 * * *",
         }
 
+        # add job schedule policy (every hour by default)
         mlrun.api.api.utils._submit_run(
             db_session=db_session, auth_info=auth_info, data=data
         )

@@ -606,7 +606,9 @@ class ProjectSpec(ModelObj):
 
         workflows_dict = {}
         for workflow in workflows:
-            if not isinstance(workflow, dict) and not isinstance(workflow, WorkflowSpec):
+            if not isinstance(workflow, dict) and not isinstance(
+                workflow, WorkflowSpec
+            ):
                 raise ValueError("workflow must be a dict or WorkflowSpec object")
             if isinstance(workflow, dict):
                 workflow = WorkflowSpec.from_dict(workflow)

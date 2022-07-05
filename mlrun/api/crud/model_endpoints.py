@@ -85,7 +85,7 @@ class ModelEndpoints:
                 model_endpoint.spec.algorithm = model_obj.algorithm
 
             # Create monitoring feature set if monitoring found in model endpoint object
-            if model_endpoint.spec.monitoring_mode == 'enabled':
+            if model_endpoint.spec.monitoring_mode == "enabled":
                 self.create_monitoring_feature_set(
                     model_endpoint, model_obj, db_session
                 )
@@ -781,7 +781,8 @@ class ModelEndpoints:
         """
 
         logger.info(
-            "Checking deployment status for model monitoring stream processing function", project=project
+            "Checking deployment status for model monitoring stream processing function",
+            project=project,
         )
         try:
             # validate that the model monitoring stream has not yet been deployed
@@ -789,7 +790,8 @@ class ModelEndpoints:
                 name="model-monitoring-stream", project=project, tag=""
             )
             logger.info(
-                "Detected model monitoring stream processing function already deployed", project=project
+                "Detected model monitoring stream processing function already deployed",
+                project=project,
             )
             return
         except nuclio.utils.DeployError:
@@ -824,7 +826,8 @@ class ModelEndpoints:
         """
 
         logger.info(
-            "Checking deployment status for model monitoring batch processing function", project=project
+            "Checking deployment status for model monitoring batch processing function",
+            project=project,
         )
 
         # try to list functions that named model monitoring batch
@@ -835,7 +838,8 @@ class ModelEndpoints:
 
         if function_list:
             logger.info(
-                "Detected model monitoring batch processing function already deployed", project=project
+                "Detected model monitoring batch processing function already deployed",
+                project=project,
             )
             return
 
@@ -851,7 +855,9 @@ class ModelEndpoints:
         function_uri = fn.save(versioned=True)
         function_uri = function_uri.replace("db://", "")
 
-        logger.info(f"Deploying model monitoring batch processing function", project=project)
+        logger.info(
+            f"Deploying model monitoring batch processing function", project=project
+        )
         task = mlrun.new_task(name="model-monitoring-batch", project=project)
         task.spec.function = function_uri
 

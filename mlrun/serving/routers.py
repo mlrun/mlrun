@@ -727,7 +727,9 @@ def _init_endpoint_record(graph_server, voting_ensemble: VotingEnsemble):
                     project=project, kind="stream"
                 ),
                 active=True,
-                monitoring_mode="enabled" if voting_ensemble.context.server.track_models else "disabled",
+                monitoring_mode="enabled"
+                if voting_ensemble.context.server.track_models
+                else "disabled",
             ),
             status=ModelEndpointStatus(
                 children=list(voting_ensemble.routes.keys()),

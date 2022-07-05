@@ -1,5 +1,5 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
-
+import enum
 from pydantic import BaseModel, Field
 from pydantic.main import Extra
 
@@ -21,6 +21,11 @@ class ModelEndpointMetadata(BaseModel):
         extra = Extra.allow
 
 
+class ModelMonitoringFlag(str, enum.Enum):
+    enabled = "enabled"
+    disabled = "disabled"
+
+
 class ModelEndpointSpec(ObjectSpec):
     function_uri: Optional[str]  # <project_name>/<function_name>:<tag>
     model: Optional[str]  # <model_name>:<version>
@@ -32,7 +37,7 @@ class ModelEndpointSpec(ObjectSpec):
     algorithm: Optional[str]
     monitor_configuration: Optional[dict]
     active: Optional[bool]
-    monitoring_mode: Optional[str] = "disabled"
+    monitoring_mode: ModelMonitoringFlag = ModelMonitoringFlag.disabled
 
 
 class Metric(BaseModel):

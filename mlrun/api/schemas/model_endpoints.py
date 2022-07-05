@@ -1,5 +1,6 @@
-from typing import Any, Dict, List, Optional, Tuple, Union
 import enum
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 from pydantic import BaseModel, Field
 from pydantic.main import Extra
 

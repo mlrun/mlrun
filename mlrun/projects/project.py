@@ -606,20 +606,26 @@ class ProjectSpec(ModelObj):
 
         workflows_dict = {}
         for workflow in workflows:
-            if not isinstance(workflow, dict):
-                raise ValueError("workflow must be a dict")
-            name = workflow.get("name", "")
+            if not isinstance(workflow, dict) or not isinstance(workflow, WorkflowSpec):
+                raise ValueError("workflow must be a dict or WorkflowSpec object")
+            if isinstance(workflow, dict):
+                workflow = WorkflowSpec.from_dict(workflow)
+            name = workflow.name
             # todo: support steps dsl as code alternative
             if not name:
                 raise ValueError('workflow "name" must be specified')
             if "path" not in workflow and "code" not in workflow:
                 raise ValueError('workflow source "path" or "code" must be specified')
-            workflows_dict[name] = workflow
+            workflows_dict[name] = WorkflowSpec.from_dict(workflow)
 
         self._workflows = workflows_dict
 
     def set_workflow(self, name, workflow):
-        self._workflows[name] = workflow
+        self._workflows[name] = (
+            workflow
+            if isinstance(workflow, WorkflowSpec)
+            else WorkflowSpec.from_dict(workflow)
+        )
 
     def remove_workflow(self, name):
         if name in self._workflows:
@@ -1859,8 +1865,9 @@ class MlrunProject(ModelObj):
         :param watch:     wait for pipeline completion
         :param dirty:     allow running the workflow when the git repo is dirty
         :param ttl:       pipeline ttl in secs (after that the pods will be removed)
-        :param engine:    workflow engine running the workflow. supported values are 'kfp' (default), 'local' or 'remote'.
-                            for setting engine for remote running use 'remote:local' or 'remote:kfp'.
+        :param engine:    workflow engine running the workflow.
+                          supported values are 'kfp' (default), 'local' or 'remote'.
+                          for setting engine for remote running use 'remote:local' or 'remote:kfp'.
         :param local:     run local pipeline with local functions (set local=True in function.run())
         :param schedule:  ScheduleCronTrigger class instance or a standard crontab expression string
                           (which will be converted to the class using its `from_crontab` constructor),
@@ -1897,7 +1904,7 @@ class MlrunProject(ModelObj):
         if workflow_path or (workflow_handler and callable(workflow_handler)):
             workflow_spec = WorkflowSpec(path=workflow_path, args=arguments)
         else:
-            workflow_spec = WorkflowSpec.from_dict(self.spec._workflows[name])
+            workflow_spec = self.spec._workflows[name]
             workflow_spec.merge_args(arguments)
             workflow_spec.ttl = ttl or workflow_spec.ttl
         workflow_spec.run_local = local
@@ -1905,6 +1912,7 @@ class MlrunProject(ModelObj):
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name
         artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
 
+        schedule = schedule or workflow_spec.schedule
         inner_engine = None
         if engine and engine.startswith("remote"):
             if ":" in engine:
@@ -1955,7 +1963,7 @@ class MlrunProject(ModelObj):
         if not name or name not in self.spec._workflows:
             raise ValueError(f"workflow {name} not found")
 
-        workflow_spec = WorkflowSpec.from_dict(self.spec._workflows[name])
+        workflow_spec = self.spec._workflows[name]
         self.sync_functions()
         workflow_engine = get_workflow_engine(workflow_spec.engine)
         workflow_engine.save(self, workflow_spec, target, artifact_path=artifact_path)

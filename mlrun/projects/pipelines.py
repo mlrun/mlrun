@@ -69,6 +69,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         handler=None,
         ttl=None,
         args_schema: dict = None,
+        schedule: str = None,
     ):
         self.engine = engine
         self.code = code
@@ -80,6 +81,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         self.args_schema = args_schema
         self.run_local = False
         self._tmp_path = None
+        self.schedule = schedule
 
     def get_source_file(self, context=""):
         if not self.code and not self.path:
@@ -654,7 +656,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=workflow_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:0.0.20",
+                image="yonishelach/mlrun-remote-runner:0.0.21",
             )
 
             # Preparing parameters for load_and_run function:
@@ -773,17 +775,17 @@ def load_and_run(
     init_git: bool = None,
     subpath: str = None,
     clone: bool = False,
-    workflow_name: str = None,  # from WorkflowSpec
+    workflow_name: str = None,
     workflow_path: str = None,
-    workflow_arguments=None,  # from WorkflowSpec
-    artifact_path: str = None,  # from artifact_path
-    workflow_handler=None,  # from workflow_handler
-    namespace=None,  # from namespace
+    workflow_arguments=None,
+    artifact_path: str = None,
+    workflow_handler=None,
+    namespace=None,
     sync: bool = False,
     dirty: bool = False,
-    ttl=None,  # from WorkflowSpec
-    engine=None,  # from WorkflowSpec
-    local: bool = None,  # from WorkflowSpec
+    ttl=None,
+    engine=None,
+    local: bool = None,
 ):
     # Loading the project:
     project = mlrun.load_project(

@@ -61,21 +61,21 @@ class WorkflowSpec(mlrun.model.ModelObj):
 
     def __init__(
         self,
+        name=None,
+        path=None,
         engine=None,
         code=None,
-        path=None,
         args=None,
-        name=None,
         handler=None,
         ttl=None,
         args_schema: dict = None,
         schedule: str = None,
     ):
+        self.name = name
+        self.path = path
         self.engine = engine
         self.code = code
-        self.path = path
         self.args = args
-        self.name = name
         self.handler = handler
         self.ttl = ttl
         self.args_schema = args_schema
@@ -656,7 +656,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=workflow_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:0.0.24",
+                image="yonishelach/mlrun-remote-runner:0.0.25",
             )
 
             # Preparing parameters for load_and_run function:

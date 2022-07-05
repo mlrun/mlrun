@@ -655,7 +655,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:0.0.30",
+                image="yonishelach/mlrun-remote-runner:0.0.31",
             )
 
             # Preparing parameters for load_and_run function:
@@ -799,8 +799,14 @@ def load_and_run(
             clone=clone,
         )
     else:
-        logger.info("Trying to fetch current project..")
-        project = mlrun.get_current_project()
+        logger.info("Getting project..")
+        project = mlrun.get_or_create_project(
+            name=project_name,
+            context=f"./{project_name}",
+            init_git=init_git,
+            subpath=subpath,
+            clone=clone,
+        )
     context.logger.info(f"Loaded project {project.name} successfully")
 
     wf_log_msg = workflow_name or workflow_path

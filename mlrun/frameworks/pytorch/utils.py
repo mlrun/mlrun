@@ -2,8 +2,8 @@ from typing import Callable, Union
 
 import numpy as np
 import torch
-from torch.nn import Module
 from torch import Tensor
+from torch.nn import Module
 
 import mlrun
 from mlrun.data_types import ValueType

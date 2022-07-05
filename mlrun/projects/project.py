@@ -595,7 +595,7 @@ class ProjectSpec(ModelObj):
     @property
     def workflows(self) -> list:
         """list of workflows specs used in this project"""
-        return [workflow for workflow in self._workflows.values()]
+        return [workflow.to_dict() for workflow in self._workflows.values()]
 
     @workflows.setter
     def workflows(self, workflows):

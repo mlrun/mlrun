@@ -1827,20 +1827,20 @@ class MlrunProject(ModelObj):
 
     def run(
         self,
-        name=None,
-        workflow_path=None,
-        arguments=None,
-        artifact_path=None,
-        workflow_handler=None,
-        namespace=None,
-        sync=False,
-        watch=False,
-        dirty=False,
-        ttl=None,
-        engine=None,
-        local=None,
-        schedule=None,
-        timeout=60 * 60,
+        name: str = None,
+        workflow_path: str = None,
+        arguments: typing.Dict[str, typing.Any] = None,
+        artifact_path: str = None,
+        workflow_handler: str = None,
+        namespace: str = None,
+        sync: bool = False,
+        watch: bool = False,
+        dirty: bool = False,
+        ttl: int = None,
+        engine: str = None,
+        local: bool = None,
+        schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+        timeout: int = None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1916,13 +1916,15 @@ class MlrunProject(ModelObj):
             inner_engine = engine
             engine = "remote"
         workflow_engine = get_workflow_engine(engine or workflow_spec.engine, local)
-        if inner_engine:
-            workflow_spec.engine = inner_engine
-        elif engine == "remote":
-            workflow_spec.engine = None
+        if inner_engine or engine == "remote":
+            workflow_spec.engine = (
+                inner_engine
+                or get_workflow_engine(
+                    inner_engine or workflow_spec.engine, local
+                ).engine
+            )
         else:
             workflow_spec.engine = workflow_engine.engine
-
         run = workflow_engine.run(
             self,
             workflow_spec,
@@ -1935,7 +1937,9 @@ class MlrunProject(ModelObj):
         )
         workflow_spec.clear_tmp()
         if watch and not schedule:
-            workflow_engine.get_run_status(project=self, run=run, timeout=timeout)
+            workflow_engine.get_run_status(
+                project=self, run=run, timeout=timeout or 60 * 60
+            )
         return run
 
     def save_workflow(self, name, target, artifact_path=None, ttl=None):

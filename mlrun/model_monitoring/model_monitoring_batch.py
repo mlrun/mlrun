@@ -488,6 +488,7 @@ class BatchProcessor:
                 if len(df) == 0:
                     continue
 
+                # get feature names from monitoring feature set
                 feature_names = [
                     feature_name["name"]
                     for feature_name in m_fs.spec.features.to_dict()

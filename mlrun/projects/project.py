@@ -614,7 +614,7 @@ class ProjectSpec(ModelObj):
             # todo: support steps dsl as code alternative
             if not name:
                 raise ValueError('workflow "name" must be specified')
-            if "path" not in workflow and "code" not in workflow:
+            if not workflow.path and not workflow.code:
                 raise ValueError('workflow source "path" or "code" must be specified')
             workflows_dict[name] = WorkflowSpec.from_dict(workflow)
 

@@ -90,6 +90,7 @@ from .model_endpoints import (
     ModelEndpointSpec,
     ModelEndpointStatus,
     ModelMonitoringStoreKinds,
+    ModelMonitoringFlag,
 )
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 from .pipeline import PipelinesFormat, PipelinesOutput, PipelinesPagination

@@ -473,9 +473,9 @@ def _init_endpoint_record(graph_server, model: V2ModelServer):
                     project=project, kind="stream"
                 ),
                 active=True,
-                monitoring_mode=mlrun.api.schemas.model_endpoints.ModelMonitoringFlag.enabled
+                monitoring_mode="enabled"
                 if model.context.server.track_models
-                else mlrun.api.schemas.model_endpoints.ModelMonitoringFlag.disabled,
+                else "disabled",
             ),
             status=ModelEndpointStatus(endpoint_type=EndpointType.NODE_EP),
         )

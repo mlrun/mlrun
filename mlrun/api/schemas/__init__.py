@@ -89,7 +89,6 @@ from .model_endpoints import (
     ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpointStatus,
-    ModelMonitoringFlag,
     ModelMonitoringStoreKinds,
 )
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus

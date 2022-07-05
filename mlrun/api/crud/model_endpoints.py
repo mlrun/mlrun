@@ -85,10 +85,7 @@ class ModelEndpoints:
                 model_endpoint.spec.algorithm = model_obj.algorithm
 
             # Create monitoring feature set if monitoring found in model endpoint object
-            if (
-                model_endpoint.spec.monitoring_mode
-                == mlrun.api.schemas.model_endpoints.ModelMonitoringFlag.enabled
-            ):
+            if model_endpoint.spec.monitoring_mode == "enabled":
                 self.create_monitoring_feature_set(
                     model_endpoint, model_obj, db_session
                 )
@@ -784,7 +781,7 @@ class ModelEndpoints:
         """
 
         logger.info(
-            "Checking deployment status for model monitoring stream processing function",
+            "Checking if model monitoring stream is already deployed",
             project=project,
         )
         try:
@@ -829,7 +826,7 @@ class ModelEndpoints:
         """
 
         logger.info(
-            "Checking deployment status for model monitoring batch processing function",
+            "Checking if model monitoring batch processing function is already deployed",
             project=project,
         )
 

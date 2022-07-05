@@ -139,7 +139,7 @@ class EventStreamProcessor:
             parquet_path=self.parquet_path,
         )
 
-    def create_serving_graph(self, fn):
+    def apply_serving_graph(self, fn):
         """
         Apply monitoring serving graph to a given serving function
 

@@ -52,7 +52,7 @@ def get_model_monitoring_stream_processing_function(
     )
 
     # create monitoring serving graph
-    stream_processor.create_serving_graph(function)
+    stream_processor.apply_serving_graph(function)
 
     # set the project to the serving function
     function.metadata.project = project

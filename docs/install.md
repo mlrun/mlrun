@@ -44,3 +44,12 @@ Starting from MLRun 0.10.0, the MLRun client and images are compatible with mino
 ```
 
 See also [Images and their usage in MLRun](https://docs.mlrun.org/en/latest/runtimes/images.html#mlrun-images-and-how-to-build-them).
+
+```{toctree}
+:hidden:
+:maxdepth: 1
+
+install/local-docker
+install/kubernetes
+install/remote
+```

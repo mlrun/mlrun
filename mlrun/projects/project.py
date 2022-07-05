@@ -616,7 +616,7 @@ class ProjectSpec(ModelObj):
                 raise ValueError('workflow "name" must be specified')
             if not workflow.path and not workflow.code:
                 raise ValueError('workflow source "path" or "code" must be specified')
-            workflows_dict[name] = WorkflowSpec.from_dict(workflow)
+            workflows_dict[name] = workflow
 
         self._workflows = workflows_dict
 

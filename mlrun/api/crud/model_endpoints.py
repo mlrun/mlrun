@@ -856,7 +856,7 @@ class ModelEndpoints:
         function_uri = function_uri.replace("db://", "")
 
         logger.info(
-            f"Deploying model monitoring batch processing function", project=project
+            "Deploying model monitoring batch processing function", project=project
         )
         task = mlrun.new_task(name="model-monitoring-batch", project=project)
         task.spec.function = function_uri

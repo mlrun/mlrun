@@ -645,18 +645,17 @@ class _RemoteRunner(_PipelineRunner):
         timeout=None,
         schedule=None,
     ) -> typing.Union[_PipelineRunStatus, None]:
-
-        workflow_name = "workflow-runner"
+        workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
+        runner_name = f"workflow-runner-{workflow_name}"
         run_id = None
         try:
-            logger.info("Creating the function that invokes the workflow remotely")
             # Creating the load project and workflow running function:
             # TODO: set image to mlrun/mlrun After merged to development
             load_and_run_fn = mlrun.new_function(
-                name=workflow_name,
+                name=runner_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:0.0.26",
+                image="yonishelach/mlrun-remote-runner:0.0.27",
             )
 
             # Preparing parameters for load_and_run function:
@@ -676,8 +675,10 @@ class _RemoteRunner(_PipelineRunner):
                 "engine": workflow_spec.engine,
                 "local": workflow_spec.run_local,
             }
-
-            logger.info(f"executing workflow remotely with {params['engine']} engine")
+            msg = f"executing workflow "
+            if schedule:
+                msg += "scheduling "
+            logger.info(f"{msg}'{runner_name}' remotely with {params['engine']} engine")
 
             run = load_and_run_fn.run(
                 name=workflow_name,

@@ -235,7 +235,7 @@ def test_function_run_cli():
     )
     project.export()
 
-    args = "-f my-func --local --ensure-project=False --dump -p x=3".split()
+    args = "-f my-func --local --dump -p x=3".split()
     out = tests.conftest.exec_mlrun(args, str(project_dir_path))
     assert out.find("state: completed") != -1, out
     assert out.find("y: 6") != -1, out  # = x * 2

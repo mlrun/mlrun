@@ -45,6 +45,7 @@ jobs:
   publish-to-pypi:
     name: Publish package to pypi
     runs-on: ubuntu-latest
+    # publishing to pypi is (kind of) irreversible, therefore do it only if both previous steps finished successfully
     needs: [trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building]
     steps:
       - name: Set up python

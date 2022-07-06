@@ -68,6 +68,7 @@ jobs:
         echo "::set-output name=mlrun_docker_registries::$( \
           input_docker_registries=${{ github.event.inputs.docker_registries }} && \
           echo ${input_docker_registries:-ghcr.io/})"
+        echo "::set-output name=mlrun_cache_date::$(date +%s)"
     - name: Docker login
       # all suffixed with "| true" to allow failures if secrets are not defined (fork)
       run: |
@@ -88,6 +89,7 @@ jobs:
       run: |
         for registry in $(echo ${{ steps.computed_params.outputs.mlrun_docker_registries }} | sed "s/,/ /g"); \
           do \
+            MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
             MLRUN_DOCKER_REGISTRY=$registry \
             MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
             MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
@@ -105,6 +107,7 @@ jobs:
       run: |
         for registry in "ghcr.io/" "quay.io/" "registry.hub.docker.com/"; \
           do \
+            MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
             MLRUN_DOCKER_REGISTRY=$registry \
             MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
             MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
@@ -116,6 +119,7 @@ jobs:
       # When version is given we're probably in a release process, we don't need the test image in that case
       if: matrix.image-name == 'test' && github.event.inputs.version == ''
       run: |
+        MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
         MLRUN_DOCKER_REGISTRY=ghcr.io/ \
         MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
         MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \

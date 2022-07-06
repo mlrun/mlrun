@@ -1826,10 +1826,13 @@ class MlrunProject(ModelObj):
     def get_run_status(
         self,
         run,
-        timeout=60 * 60,
+        timeout=None,
         expected_statuses=None,
         notifiers: RunNotifications = None,
     ):
+        if timeout is None:
+            timeout = 60 * 60
+
         state = ""
         raise_error = None
         try:

@@ -667,14 +667,6 @@ class BaseRuntime(ModelObj):
             if schedule:
                 logger.info(f"task scheduled, {resp}")
                 return
-
-            if resp:
-                txt = get_in(resp, "status.status_text")
-                if txt:
-                    logger.info(txt)
-            if watch or self.kfp:
-                runspec.logs(True, self._get_db())
-                resp = self._get_db_run(runspec)
         except Exception as err:
             logger.error(f"got remote run err, {err}")
             result = None
@@ -683,6 +675,16 @@ class BaseRuntime(ModelObj):
             if not schedule:
                 result = self._update_run_state(task=runspec, err=err)
             return self._wrap_run_result(result, runspec, schedule=schedule, err=err)
+
+        if resp:
+            txt = get_in(resp, "status.status_text")
+            if txt:
+                logger.info(txt)
+
+        if watch or self.kfp:
+            runspec.logs(True, self._get_db())
+            resp = self._get_db_run(runspec)
+
         return self._wrap_run_result(resp, runspec, schedule=schedule)
 
     def _store_function(self, runspec, meta, db):

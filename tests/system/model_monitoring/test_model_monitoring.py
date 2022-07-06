@@ -14,6 +14,7 @@ from sklearn.datasets import load_iris
 
 import mlrun
 import mlrun.api.schemas
+import mlrun.feature_store
 from mlrun.api.schemas import (
     ModelEndpoint,
     ModelEndpointMetadata,
@@ -158,7 +159,6 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         simulation_time = 90  # 90 seconds
         # Deploy Model Servers
         project = mlrun.get_run_db().get_project(self.project_name)
-        project.set_model_monitoring_credentials(os.environ.get("V3IO_ACCESS_KEY"))
 
         iris = load_iris()
         train_set = pd.DataFrame(
@@ -228,8 +228,6 @@ class TestModelMonitoringAPI(TestMLRunSystem):
     @pytest.mark.timeout(300)
     def test_model_monitoring_voting_ensemble(self):
         simulation_time = 120  # 120 seconds to allow tsdb batching
-        project = mlrun.get_run_db().get_project(self.project_name)
-        project.set_model_monitoring_credentials(os.environ.get("V3IO_ACCESS_KEY"))
 
         iris = load_iris()
         columns = [
@@ -241,13 +239,14 @@ class TestModelMonitoringAPI(TestMLRunSystem):
 
         label_column = "label"
 
+        # preparing training set
         train_set = pd.DataFrame(
             iris["data"],
             columns=columns,
         )
 
         train_set[label_column] = iris["target"]
-
+        # store training set as parquet which will be used in the training function
         path = "v3io:///bigdata/bla.parquet"
         fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
         train_set.to_parquet(path=path, filesystem=fsys)
@@ -263,8 +262,11 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         serving_fn.set_topology(
             "router", "mlrun.serving.VotingEnsemble", name="VotingEnsemble"
         )
+
+        # enable model monitoring
         serving_fn.set_tracking()
 
+        # define different models
         model_names = {
             "sklearn_RandomForestClassifier": "sklearn.ensemble.RandomForestClassifier",
             "sklearn_LogisticRegression": "sklearn.linear_model.LogisticRegression",
@@ -290,9 +292,24 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         # Enable model monitoring
         serving_fn.deploy()
 
+        # checking that monitoring feature sets were created
+        fs_list = mlrun.get_run_db().list_feature_sets()
+        assert len(fs_list) == 3
+
+        # validate monitoring feature set features and target
+        m_fs = fs_list[0]
+        assert list(m_fs.spec.features.keys()) == [
+            "sepal_length_cm",
+            "sepal_width_cm",
+            "petal_length_cm",
+            "petal_width_cm",
+        ]
+        assert m_fs.status.to_dict()["targets"][0]["kind"] == "parquet"
+
         # checking that stream processing and batch monitoring were successfully deployed
         mlrun.get_run_db().get_schedule(self.project_name, "model-monitoring-batch")
 
+        # get the runtime object and check the build process of the monitoring stream
         base_runtime = BaseRuntime(
             BaseMetadata(
                 name="model-monitoring-stream", project=self.project_name, tag=""
@@ -302,6 +319,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
 
         assert base_runtime.status.state == "ready", stat
 
+        # invoke the model before running the model monitoring batch job
         iris_data = iris["data"].tolist()
 
         t_end = monotonic() + simulation_time
@@ -312,7 +330,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             serving_fn.invoke(
                 "v2/models/VotingEnsemble/infer", json.dumps({"inputs": [data_point]})
             )
-            sleep(uniform(0.2, 1.7))
+            sleep(uniform(0.2, 0.3))
             data_sent += 1
 
         # sleep to allow TSDB to be written (10/m)
@@ -349,6 +367,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         for child in endpoints_children_list.endpoints:
             assert child.status.endpoint_type == EndpointType.LEAF_EP
 
+        # list model endpoints and perform analysis for each endpoint
         endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)
 
         for endpoint in endpoints_list.endpoints:
@@ -403,7 +422,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
                         <= actual[feature]["mean"]
                         <= actual[feature]["max"]
                     )
-                # overall dritf analysis (details dashboard)
+                # overall drift analysis (details dashboard)
                 for measure in measures:
                     assert measure in drift_measures
                     assert type(drift_measures[measure]) == float

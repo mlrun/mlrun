@@ -163,11 +163,9 @@ def main():
     help="when set functions will be built prior to run if needed",
 )
 @click.argument("run_args", nargs=-1, type=click.UNPROCESSED)
-# this is not a flag because we want the default to be True and be able to override to False
 @click.option(
     "--ensure-project",
-    type=bool,
-    default=True,
+    is_flag=True,
     help="ensure the project exists, if not, create project",
 )
 def run(
@@ -417,11 +415,9 @@ def run(
 @click.option(
     "--env-file", default="", help="path to .env file to load config/variables from"
 )
-# this is not a flag because we want the default to be True and be able to override to False
 @click.option(
     "--ensure-project",
-    type=bool,
-    default=True,
+    is_flag=True,
     help="ensure the project exists, if not, create project",
 )
 def build(
@@ -562,11 +558,9 @@ def build(
 @click.option(
     "--env-file", default="", help="path to .env file to load config/variables from"
 )
-# this is not a flag because we want the default to be True and be able to override to False
 @click.option(
     "--ensure-project",
-    type=bool,
-    default=True,
+    is_flag=True,
     help="ensure the project exists, if not, create project",
 )
 def deploy(
@@ -879,11 +873,9 @@ def logs(uid, project, offset, db, watch):
 @click.option(
     "--env-file", default="", help="path to .env file to load config/variables from"
 )
-# this is not a flag because we want the default to be True and be able to override to False
 @click.option(
     "--ensure-project",
-    type=bool,
-    default=True,
+    is_flag=True,
     help="ensure the project exists, if not, create project",
 )
 def project(
@@ -1149,7 +1141,7 @@ def dict_to_str(struct: dict):
     return ",".join([f"{k}={v}" for k, v in struct.items()])
 
 
-def func_url_to_runtime(func_url, ensure_project: bool = True):
+def func_url_to_runtime(func_url, ensure_project: bool = False):
     try:
         if func_url.startswith("db://"):
             func_url = func_url[5:]

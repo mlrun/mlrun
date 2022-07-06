@@ -257,10 +257,10 @@ def run(
         if len(split) > 1:
             url_args = split[1]
 
-    if ensure_project:
+    if ensure_project and project:
         mlrun.get_or_create_project(
             name=project,
-            context=".",
+            context="./",
         )
     if func_url or kind or image:
         if func_url:
@@ -509,10 +509,10 @@ def build(
 
     with_mlrun = True if with_mlrun else None  # False will map to None
 
-    if ensure_project:
+    if ensure_project and project:
         mlrun.get_or_create_project(
             name=project,
-            context=".",
+            context="./",
         )
 
     if hasattr(func, "deploy"):
@@ -587,10 +587,10 @@ def deploy(
     if env_file:
         mlrun.set_env_from_file(env_file)
 
-    if ensure_project:
+    if ensure_project and project:
         mlrun.get_or_create_project(
             name=project,
-            context=".",
+            context="./",
         )
 
     if func_url:

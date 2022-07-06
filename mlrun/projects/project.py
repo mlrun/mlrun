@@ -366,7 +366,9 @@ def _load_project_dir(context, name="", subpath=""):
             functions=[{"url": "function.yaml", "name": func.metadata.name}],
         )
     else:
-        raise ValueError("project or function YAML not found in path")
+        raise mlrun.errors.MLRunNotFoundError(
+            "project or function YAML not found in path"
+        )
 
     project.spec.context = context
     project.metadata.name = name or project.metadata.name

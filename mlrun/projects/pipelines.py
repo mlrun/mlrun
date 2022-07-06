@@ -655,7 +655,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:0.0.34",
+                image="yonishelach/mlrun-remote-runner:0.0.35",
             )
 
             # Preparing parameters for load_and_run function:
@@ -703,6 +703,9 @@ class _RemoteRunner(_PipelineRunner):
                 f"Workflow {workflow_name} run failed!, error: {e}\n{trace}"
             )
             state = mlrun.run.RunStatuses.failed
+            return _PipelineRunStatus(
+                run_id, cls, project=project, workflow=workflow_spec, state=state
+            )
 
         project.notifiers.push_start_message(
             project.metadata.name,

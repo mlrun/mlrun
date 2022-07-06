@@ -148,7 +148,7 @@ class KubeResourceSpec(FunctionSpec):
         self.image_pull_policy = image_pull_policy
         self.service_account = service_account
         self.image_pull_secret = (
-            image_pull_secret or mlrun.mlconf.httpdb.builder.docker_registry_secret
+            image_pull_secret or mlrun.mlconf.function.spec.image_pull_secret.default
         )
         self.node_name = node_name
         self.node_selector = (

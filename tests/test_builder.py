@@ -451,6 +451,130 @@ def test_resolve_mlrun_install_command():
         ), f"Test supposed to pass {case.get('test_description')}"
 
 
+def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
+    _patch_k8s_helper(monkeypatch)
+    mlrun.mlconf.httpdb.builder.docker_registry = (
+        "aws_account_id.dkr.ecr.region.amazonaws.com"
+    )
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind="job",
+        requirements=["some-package"],
+    )
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    pod_spec = _create_pod_mock_pod_spec()
+    assert {"name": "AWS_SDK_LOAD_CONFIG", "value": "true", "value_from": None} in [
+        env.to_dict() for env in pod_spec.containers[0].env
+    ]
+    assert len(pod_spec.init_containers) == 2
+    for init_container in pod_spec.init_containers:
+        if init_container.name == "create-repo":
+            assert (
+                "aws ecr create-repository --region region --repository-name mlrun/func-some-project-some-function"
+                in init_container.args[1]
+            )
+            break
+    else:
+        pytest.fail("no create-repo init container")
+
+
+def test_build_runtime_resolve_ecr_registry(monkeypatch):
+    registry = "aws_account_id.dkr.ecr.us-east-2.amazonaws.com"
+    tag = "some-tag"
+    for repo in [
+        "some-repo",
+        "mlrun/some-repo",
+    ]:
+        _patch_k8s_helper(monkeypatch)
+        mlrun.mlconf.httpdb.builder.docker_registry = ""
+        function = mlrun.new_function(
+            "some-function",
+            "some-project",
+            "some-tag",
+            image="mlrun/mlrun",
+            kind="job",
+            requirements=["some-package"],
+        )
+        function.spec.build.image = f"{registry}/{repo}:{tag}"
+        mlrun.builder.build_runtime(
+            mlrun.api.schemas.AuthInfo(),
+            function,
+        )
+        pod_spec = _create_pod_mock_pod_spec()
+        for init_container in pod_spec.init_containers:
+            if init_container.name == "create-repo":
+                assert (
+                    f"aws ecr create-repository --region us-east-2 --repository-name {repo}"
+                    in init_container.args[1]
+                )
+                break
+        else:
+            pytest.fail("no create-repo init container")
+
+
+def test_build_runtime_ecr_with_aws_secret(monkeypatch):
+    _patch_k8s_helper(monkeypatch)
+    mlrun.mlconf.httpdb.builder.docker_registry = (
+        "aws_account_id.dkr.ecr.region.amazonaws.com"
+    )
+    mlrun.mlconf.httpdb.builder.docker_registry_secret = "aws-secret"
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind="job",
+        requirements=["some-package"],
+    )
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    pod_spec = _create_pod_mock_pod_spec()
+    assert "aws-secret" in [
+        volume.secret.to_dict()["secret_name"]
+        for volume in pod_spec.volumes
+        if volume.secret
+    ]
+    aws_mount = {
+        "mount_path": "/tmp",
+        "mount_propagation": None,
+        "name": "aws-secret",
+        "read_only": None,
+        "sub_path": None,
+        "sub_path_expr": None,
+    }
+    assert aws_mount in [
+        volume_mount.to_dict() for volume_mount in pod_spec.containers[0].volume_mounts
+    ]
+
+    aws_creds_location_env = {
+        "name": "AWS_SHARED_CREDENTIALS_FILE",
+        "value": "/tmp/credentials",
+        "value_from": None,
+    }
+    assert aws_creds_location_env in [
+        env.to_dict() for env in pod_spec.containers[0].env
+    ]
+    for init_container in pod_spec.init_containers:
+        if init_container.name == "create-repo":
+            assert aws_mount in [
+                volume_mount.to_dict() for volume_mount in init_container.volume_mounts
+            ]
+            assert aws_creds_location_env in [
+                env.to_dict() for env in init_container.env
+            ]
+            break
+    else:
+        pytest.fail("no create-repo init container")
+
+
 def _get_target_image_from_create_pod_mock():
     return _create_pod_mock_pod_spec().containers[0].args[5]
 

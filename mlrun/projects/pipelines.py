@@ -656,7 +656,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:0.0.32",
+                image="yonishelach/mlrun-remote-runner:0.0.33",
             )
 
             # Preparing parameters for load_and_run function:
@@ -730,8 +730,8 @@ class _RemoteRunner(_PipelineRunner):
     @staticmethod
     def _save_local_functions_to_db(project, workflow_spec: WorkflowSpec):
         new_project = project.copy()
-        url = new_project.spec.url
-        if url and url.endswith(".yaml"):
+        source = new_project.spec.source
+        if not source or source.endswith(".yaml"):
             if not workflow_spec.code:
                 raise ValueError(
                     "Workflow must be embedded for local projects. Use project.set_workflow(embed=True)"

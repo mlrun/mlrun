@@ -406,6 +406,7 @@ class _PipelineRunner(abc.ABC):
         artifact_path=None,
         namespace=None,
         schedule=None,
+        with_archive=None,
     ) -> _PipelineRunStatus:
         return None
 
@@ -510,6 +511,7 @@ class _KFPRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         schedule=None,
+        with_archive=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -575,6 +577,7 @@ class _LocalRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         schedule=None,
+        with_archive=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -644,25 +647,35 @@ class _RemoteRunner(_PipelineRunner):
         namespace=None,
         timeout=None,
         schedule=None,
+        with_archive=None,
     ) -> typing.Union[_PipelineRunStatus, None]:
         workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
         runner_name = f"workflow-runner-{workflow_name}"
         run_id = None
         try:
+            if with_archive:
+                v3io_target = f"v3io:///projects/{project.name}/{with_archive}"
+                if not v3io_target.endswith(".zip"):
+                    v3io_target += ".zip"
+                logger.info(f"exporting project to {v3io_target}")
+                with_archive = (
+                    (with_archive,) if isinstance(with_archive, str) else with_archive
+                )
+                project.export(*with_archive)
+                project.spec.source = v3io_target
             # Creating the load project and workflow running function:
             # TODO: set image to mlrun/mlrun After merged to development
             load_and_run_fn = mlrun.new_function(
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:0.0.35",
+                image="yonishelach/mlrun-remote-runner:0.0.36",
             )
 
             # Preparing parameters for load_and_run function:
             params = {
                 "url": project.spec.source,
                 "project_name": project.name,
-                # "secrets": project._secrets,
                 "workflow_name": name.split("-")[-1]
                 if f"{project.name}-" in name
                 else name,
@@ -791,8 +804,8 @@ def load_and_run(
     engine=None,
     local: bool = None,
 ):
-    if not url or not url.startswith("git://"):
-        raise ValueError("Remote engine support only git projects")
+    # if not url or not url.startswith("git://"):
+    #     raise ValueError("Remote engine support only git projects")
     # Loading the project:
     project = mlrun.load_project(
         context=f"./{project_name}",

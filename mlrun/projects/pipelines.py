@@ -649,13 +649,14 @@ class _RemoteRunner(_PipelineRunner):
         runner_name = f"workflow-runner-{workflow_name}"
         run_id = None
         try:
+            project = cls._save_local_functions_to_db(project, workflow_spec)
             # Creating the load project and workflow running function:
             # TODO: set image to mlrun/mlrun After merged to development
             load_and_run_fn = mlrun.new_function(
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:0.0.31",
+                image="yonishelach/mlrun-remote-runner:0.0.32",
             )
 
             # Preparing parameters for load_and_run function:
@@ -726,6 +727,25 @@ class _RemoteRunner(_PipelineRunner):
             status = run_info["run"].get("status")
         return status
 
+    @staticmethod
+    def _save_local_functions_to_db(project, workflow_spec: WorkflowSpec):
+        new_project = project.copy()
+        url = new_project.spec.url
+        if url and url.endswith(".yaml"):
+            if not workflow_spec.code:
+                raise ValueError(
+                    "Workflow must be embedded for local projects. Use project.set_workflow(embed=True)"
+                )
+            for func in new_project.functions:
+                if "url" in func and func["url"].endswith(".py"):
+                    func_to_import = func.copy()
+                    # Replacing key for code_to_function:
+                    func_to_import["filename"] = func_to_import.pop("url")
+                    db_url = mlrun.code_to_function(**func_to_import).save()
+                    func["url"] = db_url
+
+        return new_project
+
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):
     spec = imputil.spec_from_file_location("workflow", pipeline)
@@ -789,24 +809,14 @@ def load_and_run(
     local: bool = None,
 ):
     # Loading the project:
-    if url.startswith("git://"):
-        project = mlrun.load_project(
-            context=f"./{project_name}",
-            url=url,
-            name=project_name,
-            init_git=init_git,
-            subpath=subpath,
-            clone=clone,
-        )
-    else:
-        logger.info("Getting project..")
-        project = mlrun.get_or_create_project(
-            name=project_name,
-            context=f"./{project_name}",
-            init_git=init_git,
-            subpath=subpath,
-            clone=clone,
-        )
+    project = mlrun.load_project(
+        context=f"./{project_name}",
+        url=url,
+        name=project_name,
+        init_git=init_git,
+        subpath=subpath,
+        clone=clone,
+    )
     context.logger.info(f"Loaded project {project.name} successfully")
 
     wf_log_msg = workflow_name or workflow_path

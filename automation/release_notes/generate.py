@@ -57,6 +57,7 @@ class ReleaseNotesGenerator:
             "Nick Brown": "ihs-nick",
             "Oded Messer": "omesser",
             "Tom Tankilevitch": "tankilevitch",
+            "Adam": "quaark",
         }
 
     def run(self):
@@ -87,7 +88,7 @@ class ReleaseNotesGenerator:
                 args=[
                     "log",
                     '--pretty=format:"%h {%an} %s"',
-                    f"{self._previous_release}..HEAD",
+                    f"{self._previous_release}..{self._release}",
                 ],
                 cwd=repo_dir,
             )
@@ -97,7 +98,7 @@ class ReleaseNotesGenerator:
                 args=[
                     "log",
                     '--pretty=format:"%h %s"',
-                    f"{self._previous_release}..HEAD",
+                    f"{self._previous_release}..{self._release}",
                 ],
                 cwd=repo_dir,
             )

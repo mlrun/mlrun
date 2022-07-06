@@ -1839,7 +1839,7 @@ class MlrunProject(ModelObj):
         workflow_path: str = None,
         arguments: typing.Dict[str, typing.Any] = None,
         artifact_path: str = None,
-        workflow_handler: str = None,
+        workflow_handler: typing.Union[str, typing.Callable] = None,
         namespace: str = None,
         sync: bool = False,
         watch: bool = False,

@@ -288,6 +288,9 @@ class TestProject(TestMLRunSystem):
     def test_kfp_pipeline(self):
         self._test_new_pipeline("kfppipe", engine="kfp")
 
+    def test_remote_pipeline(self):
+        self._test_new_pipeline("rmtpipe", engine="remote")
+
     def test_local_cli(self):
         # load project from git
         name = "lclclipipe"

@@ -1906,7 +1906,7 @@ class MlrunProject(ModelObj):
         if workflow_path or (workflow_handler and callable(workflow_handler)):
             workflow_spec = WorkflowSpec(path=workflow_path, args=arguments)
         else:
-            workflow_spec = self.spec._workflows[name]
+            workflow_spec = self.spec._workflows[name].copy()
             workflow_spec.merge_args(arguments)
             workflow_spec.ttl = ttl or workflow_spec.ttl
         workflow_spec.run_local = local
@@ -1938,7 +1938,7 @@ class MlrunProject(ModelObj):
             schedule=schedule,
         )
         workflow_spec.clear_tmp()
-        if watch and not schedule and not run.state == mlrun.run.RunStatuses.failed:
+        if watch and not schedule and run.state != mlrun.run.RunStatuses.failed:
             workflow_engine.get_run_status(
                 project=self, run=run, timeout=timeout or 60 * 60
             )

@@ -1849,7 +1849,6 @@ class MlrunProject(ModelObj):
         local: bool = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
         timeout: int = None,
-        with_archive: typing.Union[str, typing.Tuple[str, str]] = "",
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1877,8 +1876,6 @@ class MlrunProject(ModelObj):
                           see this link for help:
                           https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
-        :param with_archive:
-                          project.export() arguments for using remote engine on local projects
         :returns: run id
         """
 
@@ -1926,15 +1923,10 @@ class MlrunProject(ModelObj):
             inner_engine = engine
             engine = "remote"
         workflow_engine = get_workflow_engine(engine or workflow_spec.engine, local)
-        if inner_engine or engine == "remote":
-            workflow_spec.engine = (
-                inner_engine
-                or get_workflow_engine(
-                    inner_engine or workflow_spec.engine, local
-                ).engine
-            )
-        else:
-            workflow_spec.engine = workflow_engine.engine
+        if not inner_engine and engine == "remote":
+            inner_engine = get_workflow_engine(workflow_spec.engine, local).engine
+        workflow_spec.engine = inner_engine or workflow_engine.engine
+
         run = workflow_engine.run(
             self,
             workflow_spec,
@@ -1944,7 +1936,6 @@ class MlrunProject(ModelObj):
             artifact_path=artifact_path,
             namespace=namespace,
             schedule=schedule,
-            with_archive=with_archive,
         )
         workflow_spec.clear_tmp()
         if watch and not schedule and not run.state == mlrun.run.RunStatuses.failed:

@@ -33,7 +33,8 @@ The following commands install MLRun + Nuclio for work with your own IDE or note
    ```
 ````
 
-````{tabbed} Linux/Mac
+`````{tab-set}
+````{tab-item} Linux/Mac
 ```sh
 export HOST_IP=<your host IP address>
 export SHARED_DIR=~/mlrun-data
@@ -44,7 +45,7 @@ docker-compose -f compose.yaml up
 Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands. It is recomended to select an address that does not change dynamically (for example the IP of the bridge interface).
 ````
 
-````{tabbed} Windows (cmd)
+````{tab-item} Windows (cmd)
 ```sh
 set HOST_IP=<your host IP address>
 set SHARED_DIR=c:\mlrun-data
@@ -54,6 +55,7 @@ docker-compose -f compose.yaml up
 
 Your `HOST_IP` address can be found using the `ipconfig` shell command, it is recomended to select an address which does not change dynamically (for example the IP of the `vEthernet` interface).
 ````
+`````
 
 This creates 3 services:
 - MLRun API (in [http://localhost:8080](http://localhost:8080))
@@ -74,7 +76,8 @@ For the quickest experience with MLRun you can deploy MLRun with a pre integrate
    ```
 ````
 
-````{tabbed} Linux/Mac
+`````{tab-set}
+````{tab-item} Linux/Mac
 ```sh
 export HOST_IP=<your host IP address>
 export SHARED_DIR=~/mlrun-data
@@ -85,7 +88,7 @@ docker-compose -f compose.with-jupyter.yaml up
 Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands. It is recomended to select an address that does not change dynamically (for example the IP of the bridge interface). 
 ````
 
-````{tabbed} Windows (cmd)
+````{tab-item} Windows (cmd)
 ```sh
 set HOST_IP=<your host IP address>
 set SHARED_DIR=c:\mlrun-data
@@ -95,6 +98,7 @@ docker-compose -f compose.with-jupyter.yaml up
 
 Your `HOST_IP` address can be found using the `ipconfig` shell command, it is recomended to select an address which does not change dynamically (for example the IP of the `vEthernet` interface).
 ````
+`````
 
 This creates 4 services:
 - Jupyter lab (in [http://localhost:8888](http://localhost:8888))

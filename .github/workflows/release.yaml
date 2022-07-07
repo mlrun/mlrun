@@ -6,10 +6,6 @@ on:
       version:
         description: 'The version to release, without prefix v (e.g. 1.1.0)'
         required: true
-      branch:
-        description: 'The branch to release from (e.g. 1.0.x)'
-        required: true
-        default: 'master'
 
 jobs:
   trigger-and-wait-for-mlrun-image-building:
@@ -23,7 +19,7 @@ jobs:
           repo: mlrun
           github_token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
           workflow_file_name: build.yaml
-          ref: ${{ github.event.inputs.branch }}
+          ref: ${{ github.ref_name }}
           wait_interval: 60
           client_payload: '{"docker_registries": "ghcr.io/,quay.io/,registry.hub.docker.com/", "version": "${{ github.event.inputs.version }}"}'
 
@@ -38,7 +34,7 @@ jobs:
           repo: ui
           github_token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
           workflow_file_name: build.yaml
-          ref: ${{ github.event.inputs.branch }}
+          ref: ${{ github.ref_name }}
           wait_interval: 60
           client_payload: '{"docker_registries": "ghcr.io/,quay.io/,registry.hub.docker.com/", "version": "${{ github.event.inputs.version }}"}'
 
@@ -69,11 +65,11 @@ jobs:
       - uses: ncipollo/release-action@v1
         with:
           tag: v${{ github.event.inputs.version }}
-          commit: ${{ github.event.inputs.branch }}
+          commit: ${{ github.ref_name }}
           token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
       - uses: ncipollo/release-action@v1
         with:
           repo: ui
           tag: v${{ github.event.inputs.version }}
-          commit: ${{ github.event.inputs.branch }}
+          commit: ${{ github.ref_name }}
           token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}

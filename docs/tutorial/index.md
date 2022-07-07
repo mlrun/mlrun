@@ -29,10 +29,10 @@ MLRun Katakoda Scenarios <https://www.katacoda.com/mlrun>
 ## Running the demos in Open Source MLRun
 
 These demos have no limitations when running in the Open Source MLRun:
-- Mask detection: Note that the **Mask Detection Demo - Automatic Pipeline** requires deployment of kubeflow pipeline to build the automated pipeline.
-- News-article
+- mask-detection: Note that the **Mask Detection Demo - Automatic Pipeline** requires deployment of kubeflow pipeline to build the automated pipeline.
+- news-article-nlp
 
 By default, these demos work with the online feature store, which is currently not part of the Open Source MLRun default deployment:
-- Fraud prevention 
-- Network operation
-- Azureml_demo
+- fraud-prevention-feature-store 
+- network-operations
+- azureml_demo

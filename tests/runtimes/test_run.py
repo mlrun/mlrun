@@ -48,7 +48,6 @@ def test_new_function_from_runtime():
     expected_runtime["spec"][
         "preemption_mode"
     ] = mlrun.mlconf.function_defaults.preemption_mode
-    expected_runtime["spec"]["image_pull_secret"] = ""
     assert (
         DeepDiff(
             function.to_dict(),
@@ -67,7 +66,6 @@ def test_new_function_args_without_command():
     expected_runtime["spec"][
         "preemption_mode"
     ] = mlrun.mlconf.function_defaults.preemption_mode
-    expected_runtime["spec"]["image_pull_secret"] = ""
     assert (
         DeepDiff(
             function.to_dict(),
@@ -123,7 +121,6 @@ def test_new_function_with_resources():
         expected_runtime["spec"][
             "preemption_mode"
         ] = mlrun.mlconf.function_defaults.preemption_mode
-        expected_runtime["spec"]["image_pull_secret"] = ""
         runtime["spec"]["resources"] = test_case.get("resources", None)
         mlrun.mlconf.default_function_pod_resources = test_case.get("default_resources")
         function = mlrun.new_function(runtime=runtime)
@@ -177,6 +174,49 @@ def test_with_limits():
         DeepDiff(
             function.spec.resources,
             expected,
+            ignore_order=True,
+        )
+        == {}
+    )
+
+
+def test_new_function_args_with_default_image_pull_secret():
+    default_secret = "my_secret"
+    mlrun.mlconf.function.spec.image_pull_secret.default = default_secret
+    runtime = _get_runtime()
+    function = mlrun.new_function(runtime=runtime)
+    expected_runtime = runtime
+    expected_runtime["spec"][
+        "image_pull_secret"
+    ] = mlrun.mlconf.function.spec.image_pull_secret.default
+    expected_runtime["spec"][
+        "preemption_mode"
+    ] = mlrun.mlconf.function_defaults.preemption_mode
+    assert (
+        DeepDiff(
+            function.to_dict(),
+            expected_runtime,
+            ignore_order=True,
+        )
+        == {}
+    )
+
+
+def test_new_function_override_default_image_pull_secret():
+    default_secret = "my_secret"
+    mlrun.mlconf.function.spec.image_pull_secret.default = default_secret
+    runtime = _get_runtime()
+    runtime["spec"]["image_pull_secret"] = "another_secret"
+    function = mlrun.new_function(runtime=runtime)
+    expected_runtime = runtime
+    expected_runtime["spec"]["image_pull_secret"] = "another_secret"
+    expected_runtime["spec"][
+        "preemption_mode"
+    ] = mlrun.mlconf.function_defaults.preemption_mode
+    assert (
+        DeepDiff(
+            function.to_dict(),
+            expected_runtime,
             ignore_order=True,
         )
         == {}

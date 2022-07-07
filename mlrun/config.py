@@ -131,7 +131,7 @@ default_config = {
     },
     "function": {
         "spec": {
-            "image_pull_secret": {"default": ""},
+            "image_pull_secret": {"default": None},
         },
     },
     "function_defaults": {

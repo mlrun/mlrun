@@ -59,7 +59,7 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx_copybutton",
     "sphinx_togglebutton",
-    "sphinx_design"
+    "sphinx_design",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -129,7 +129,7 @@ myst_enable_extensions = [
     "smartquotes",
     "replacements",
     "linkify",
-    "substitution"
+    "substitution",
 ]
 myst_url_schemes = ("http", "https", "mailto")
 myst_heading_anchors = 2

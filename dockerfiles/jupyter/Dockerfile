@@ -29,10 +29,6 @@ COPY --chown=$NB_UID:$NB_GID ./docs/tutorial $HOME/tutorial
 COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/tutorial $HOME/_static/images/tutorial
 COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/MLRun-logo.png $HOME/_static/images
 
-ARG MLRUN_CACHE_DATE=initial
-RUN git clone --branch 1.0.x https://github.com/mlrun/demos.git $HOME/demos
-RUN git clone --branch master https://github.com/mlrun/functions.git $HOME/functions
-
 RUN mkdir data
 
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/requirements.txt /tmp/requirements/jupyter-requirements.txt
@@ -47,6 +43,11 @@ RUN python -m pip install \
 
 COPY --chown=$NB_UID:$NB_GID . /tmp/mlrun
 RUN cd /tmp/mlrun && python -m pip install ".[complete-api]"
+
+# This will usually cause a cache miss - so keep it in the last layers
+ARG MLRUN_CACHE_DATE=initial
+RUN git clone --branch 1.0.x https://github.com/mlrun/demos.git $HOME/demos
+RUN git clone --branch master https://github.com/mlrun/functions.git $HOME/functions
 
 ENV JUPYTER_ENABLE_LAB=yes \
     MLRUN_HTTPDB__DATA_VOLUME=$HOME/data \

@@ -181,8 +181,7 @@ def test_with_limits():
 
 
 def test_new_function_args_with_default_image_pull_secret():
-    default_secret = "my_secret"
-    mlrun.mlconf.function.spec.image_pull_secret.default = default_secret
+    mlrun.mlconf.function.spec.image_pull_secret.default = "my_secret"
     runtime = _get_runtime()
     function = mlrun.new_function(runtime=runtime)
     expected_runtime = runtime
@@ -203,13 +202,13 @@ def test_new_function_args_with_default_image_pull_secret():
 
 
 def test_new_function_override_default_image_pull_secret():
-    default_secret = "my_secret"
-    mlrun.mlconf.function.spec.image_pull_secret.default = default_secret
+    mlrun.mlconf.function.spec.image_pull_secret.default = "my_secret"
     runtime = _get_runtime()
-    runtime["spec"]["image_pull_secret"] = "another_secret"
+    new_secret = "another_secret"
+    runtime["spec"]["image_pull_secret"] = new_secret
     function = mlrun.new_function(runtime=runtime)
     expected_runtime = runtime
-    expected_runtime["spec"]["image_pull_secret"] = "another_secret"
+    expected_runtime["spec"]["image_pull_secret"] = new_secret
     expected_runtime["spec"][
         "preemption_mode"
     ] = mlrun.mlconf.function_defaults.preemption_mode

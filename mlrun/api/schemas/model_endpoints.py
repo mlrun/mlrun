@@ -32,7 +32,6 @@ class ModelEndpointSpec(ObjectSpec):
     algorithm: Optional[str]
     monitor_configuration: Optional[dict]
     active: Optional[bool]
-    monitoring_mode: Optional[str] = "disabled"
 
 
 class Metric(BaseModel):

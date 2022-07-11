@@ -497,7 +497,7 @@ class OnlineVectorService:
             if not data:
                 data = None
             else:
-                requested_columns = self.vector.status.features.keys()
+                requested_columns = [v.name for v in self.vector.status.features.values()]
                 actual_columns = data.keys()
                 for column in requested_columns:
                     if (
@@ -514,9 +514,9 @@ class OnlineVectorService:
 
             if as_list and data:
                 data = [
-                    data.get(key, None)
-                    for key in self.vector.status.features.keys()
-                    if key != self.vector.status.label_column
+                    data.get(name, None)
+                    for name in requested_columns
+                    if name != self.vector.status.label_column
                 ]
             results.append(data)
 

@@ -267,7 +267,8 @@ def get_online_feature_service(
 
     for old_name in service.vector.get_feature_aliases().keys():
         if old_name in service.vector.status.features.keys():
-            del service.vector.status.features[old_name]
+            service.vector.status.features[old_name].name = \
+            service.vector.get_feature_aliases()[old_name]
     return service
 
 

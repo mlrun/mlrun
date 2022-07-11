@@ -8,7 +8,7 @@ import mlrun.feature_store as fs
 import mlrun.feature_store as fstore
 from mlrun.datastore.sources import MongoDBSource
 from mlrun.datastore.targets import MongoDBTarget
-from mlrun.feature_store.steps import *
+from mlrun.feature_store.steps import FeaturesetValidator, MapClass, OneHotEncoder
 from mlrun.features import MinMaxValidator
 from tests.system.base import TestMLRunSystem
 

@@ -1,6 +1,6 @@
 # Installation and setup guide <!-- omit in toc -->
 
-This guide lists the prerpequisites, and outlines the steps for installing and running MLRun. 
+This guide outlines the steps for installing and running MLRun. 
 
 ## Overview
 

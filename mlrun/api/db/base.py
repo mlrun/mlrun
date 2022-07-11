@@ -235,9 +235,7 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    # adding **kwargs to leave room for other projects store implementations see mlrun.api.crud.projects.delete_project
-    # for explanations
-    def is_project_exists(self, session, name: str, **kwargs):
+    def is_project_exists(self, session, name: str):
         pass
 
     @abstractmethod
@@ -500,4 +498,19 @@ class DBInterface(ABC):
         pass
 
     def get_marketplace_source(self, session, name) -> schemas.IndexedMarketplaceSource:
+        pass
+
+    def store_background_task(
+        self,
+        session,
+        name: str,
+        project: str,
+        state: str = schemas.BackgroundTaskState.running,
+        timeout: int = None,
+    ):
+        pass
+
+    def get_background_task(
+        self, session, name: str, project: str
+    ) -> schemas.BackgroundTask:
         pass

@@ -18,13 +18,14 @@ import typing
 import warnings
 from collections import Counter
 from copy import copy
+from typing import Union
 
 import pandas as pd
 
 import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
-from mlrun.model import DataTarget, DataTargetBase, TargetPathObject
+from mlrun.model import DataSource, DataTarget, DataTargetBase, TargetPathObject
 from mlrun.utils import now_date
 from mlrun.utils.v3io_clients import get_frames_client
 
@@ -72,7 +73,8 @@ def default_target_names():
 def get_default_targets():
     """initialize the default feature set targets list"""
     return [
-        DataTargetBase(target, name=str(target)) for target in default_target_names()
+        DataTargetBase(target, name=str(target), partitioned=(target == "parquet"))
+        for target in default_target_names()
     ]
 
 
@@ -97,7 +99,9 @@ def get_default_prefix_for_source(kind):
     return get_default_prefix_for_target(kind)
 
 
-def validate_target_paths_for_engine(targets, engine, source):
+def validate_target_paths_for_engine(
+    targets, engine, source: Union[DataSource, pd.DataFrame]
+):
     """Validating that target paths are suitable for the required engine.
     validate for single file targets only (parquet and csv).
 
@@ -110,11 +114,19 @@ def validate_target_paths_for_engine(targets, engine, source):
                      else can be both single file or directory
 
     pandas:
-        if suorce contains chunksize attribute - path must be a directory
+        if source contains chunksize attribute - path must be a directory
+        else if parquet - if partitioned(=True) - path must be a directory
         else - path must be a single file
+
+
+    :param targets:       list of data target objects
+    :param engine:        name of the processing engine (storey, pandas, or spark), defaults to storey
+    :param source:        source dataframe or other sources (e.g. parquet source see:
+                          :py:class:`~mlrun.datastore.ParquetSource` and other classes in
+                          mlrun.datastore with suffix Source)
     """
     for base_target in targets:
-        if (
+        if hasattr(base_target, "kind") and (
             base_target.kind == TargetTypes.parquet
             or base_target.kind == TargetTypes.csv
         ):
@@ -125,14 +137,24 @@ def validate_target_paths_for_engine(targets, engine, source):
                     f"spark CSV/Parquet targets must be directories, got path:'{target.path}'"
                 )
             elif engine == "pandas":
-                if source.attributes.get("chunksize"):
+                # check if source is DataSource (not DataFrame) and if contains chunk size
+                if isinstance(source, DataSource) and source.attributes.get(
+                    "chunksize"
+                ):
                     if is_single_file:
                         raise mlrun.errors.MLRunInvalidArgumentError(
                             "pandas CSV/Parquet targets must be a directory "
                             f"for a chunked source, got path:'{target.path}'"
                         )
+                elif target.kind == TargetTypes.parquet and target.partitioned:
+                    if is_single_file:
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            "partitioned Parquet target for pandas engine must be a directory, "
+                            f"got path:'{target.path}'"
+                        )
                 elif not is_single_file:
                     raise mlrun.errors.MLRunInvalidArgumentError(
+                        "When using a non chunked source, "
                         f"pandas CSV/Parquet targets must be a single file, got path:'{target.path}'"
                     )
             elif not engine or engine == "storey":
@@ -900,6 +922,9 @@ class CSVTarget(BaseStoreTarget):
     @staticmethod
     def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
         with fs.open(target_path, "wb") as fp:
+            # avoid writing the range index unless explicitly specified via kwargs
+            if isinstance(df.index, pd.RangeIndex):
+                kwargs["index"] = kwargs.get("index", False)
             df.to_csv(fp, **kwargs)
 
     def add_writer_state(

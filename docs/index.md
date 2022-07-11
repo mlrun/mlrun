@@ -73,16 +73,16 @@ When one of the components detailed above is updated, it immediately impacts the
 MLRun has the following main components that are used throughout the system:
 
 - <a id="def-project"></a>**Project** &mdash; a container for organizing all of your work on a particular activity.
-    Projects consist of metadata, source code, workflows, data and artifacts, models, triggers, and member management for user collaboration. Read more in [Projects](./projects/project.md).
+    Projects consist of metadata, source code, workflows, data and artifacts, models, triggers, and member management for user collaboration. Read more in [Projects](./projects/project.html).
 
-- <a id="def-function"></a>**Function** &mdash; a software package with one or more methods and runtime-specific attributes (such as image, command, arguments, and environment). Read more in [MLRun serverless functions](./concepts/functions-concepts) and [Creating and using functions](./runtimes/functions).
+- <a id="def-function"></a>**Function** &mdash; a software package with one or more methods and runtime-specific attributes (such as image, command, arguments, and environment). Read more in [MLRun serverless functions](./concepts/functions-concepts.html) and [Creating and using functions](./runtimes/functions.html).
 
 - <a id="def-run"></a>**Run** &mdash; an object that contains information about an executed function.
-    The run object is created as a result of running a function, and contains the function attributes (such as arguments, inputs, and outputs), as well the execution status and results (including links to output artifacts). Read more in [Runs, functions, and workflows](./concepts/runs-experiments-workflows).
+    The run object is created as a result of running a function, and contains the function attributes (such as arguments, inputs, and outputs), as well the execution status and results (including links to output artifacts). Read more in [Runs, functions, and workflows](./concepts/runs-experiments-workflows.html).
 
-- <a id="def-artifact"></a>**Artifact** &mdash; versioned data artifacts (such as data sets, files and models) are produced or consumed by functions, runs, and workflows. Read more in [Artifacts and models](./store/artifacts.md).
+- <a id="def-artifact"></a>**Artifact** &mdash; versioned data artifacts (such as data sets, files and models) are produced or consumed by functions, runs, and workflows. Read more in [Artifacts and models](./store/artifacts.html).
 
 - <a id="def-workflow"></a>**Workflow** &mdash; defines a functions pipeline or a directed acyclic graph (DAG) to execute using [Kubeflow Pipelines](https://www.kubeflow.org/docs/pipelines/pipelines-quickstart/)
-  or MLRun [Real-time serving pipelines](./serving/serving-graph.md). Read more in [Project workflows and automation](./projects/workflows.md)
+  or MLRun [Real-time serving pipelines](./serving/serving-graph.html). Read more in [Project workflows and automation](./projects/workflows.html).
   
 - **UI** &mdash; a graphical user interface (dashboard) for displaying and managing projects and their contained experiments, artifacts, and code.

@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 import v3io
+import v3io.dataplane
 
 import mlrun
 import mlrun.api.schemas

@@ -183,7 +183,7 @@ class FileDB(DBInterface):
     def verify_project_has_no_related_resources(self, session, name: str):
         raise NotImplementedError()
 
-    def is_project_exists(self, session, name: str, **kwargs):
+    def is_project_exists(self, session, name: str):
         raise NotImplementedError()
 
     def list_projects(

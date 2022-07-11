@@ -7,10 +7,9 @@
 
 run-simple-jobs
 ../hyper-params
-mlrun_jobs
 <!-- track-results-artifacts
 compare-runs-artifacts --?
 ```
 
 See also:
-- [Automated Logging and MLOps with apply_mlrun()](../concepts/auto-logging-mlops)
+- [Automated Logging and MLOps with apply_mlrun()](../concepts/auto-logging-mlops.html)

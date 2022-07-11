@@ -488,6 +488,11 @@ class OnlineVectorService:
         for row in entity_rows:
             futures.append(self._controller.emit(row, return_awaitable_result=True))
 
+        requested_columns = list(self.vector.status.features.keys())
+        aliases = self.vector.get_feature_aliases()
+        for i, column in enumerate(requested_columns):
+            requested_columns[i] = aliases.get(column, column)
+
         for future in futures:
             result = future.await_result()
             data = result.body
@@ -497,9 +502,11 @@ class OnlineVectorService:
             if not data:
                 data = None
             else:
+
                 requested_columns = [
                     v.name for v in self.vector.status.features.values()
                 ]
+
                 actual_columns = data.keys()
                 for column in requested_columns:
                     if (
@@ -553,7 +560,7 @@ class OfflineVectorResponse:
 
     def to_csv(self, target_path, **kw):
         """return results as csv file"""
-        return self.to_csv(target_path, **kw)
+        return self._merger.to_csv(target_path, **kw)
 
 
 class FixedWindowType(Enum):

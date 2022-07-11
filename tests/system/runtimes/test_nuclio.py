@@ -162,17 +162,19 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
             kind="serving",
             project=self.project_name,
             filename=code_path,
+            image="mlrun/mlrun",
         )
 
         graph = function.set_topology("flow", engine="async")
 
-        graph.to(">>", "q1", path=self.topic, kafka_bootstrap_servers=self.brokers).to(
+        graph.to(">>", "q1", path=f"kafka://{self.brokers}/{self.topic}").to(
             name="child", class_name="Identity", function="child"
         ).to(">>", "out", path=self.topic_out, kafka_bootstrap_servers=self.brokers)
 
         function.add_child_function(
             "child",
             child_code_path,
+            image="mlrun/mlrun",
         )
 
         self._logger.debug("Deploying nuclio function")

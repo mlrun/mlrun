@@ -82,7 +82,7 @@ def test_requirement_specifiers_convention():
         "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
         "aioitertools": {"<0.9"},
-        "storey": {"~=1.1.3"},
+        "storey": {"~=1.1.5"},
         "bokeh": {"~=2.4, >=2.4.2"},
         "typing-extensions": {">=3.10.0,<4"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
@@ -112,7 +112,8 @@ def test_requirement_specifiers_convention():
         "azure-core": {"<1.23"},
         "azure-storage-blob": {"~=12.0, <12.7.0"},
         "dask-ml": {"~=1.4,<1.9.0"},
-        "pyarrow": {">=1,<6"},
+        "pyarrow": {">=1,<7"},
+        "nbclassic": {">=0.2.8"},
     }
 
     for (

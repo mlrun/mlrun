@@ -22,7 +22,7 @@ or a range (for auto scaling in Dask or Nuclio:</br>
 spec.min_replicas = 1
 spec.max_replicas = 4
 ```
-See more details in [Dask](../runtimes/dask-overview), [MPIJob and Horovod](../runtimes/horovod), [Spark](../runtimes/spark-operator), [Nuclio](../concepts/nuclio-real-time-functions).
+See more details in [Dask](../runtimes/dask-overview.html), [MPIJob and Horovod](../runtimes/horovod.html), [Spark](../runtimes/spark-operator.html), [Nuclio](../concepts/nuclio-real-time-functions.html).
 
 ## CPU, GPU, and memory limits for user jobs  
 
@@ -68,7 +68,7 @@ For each of the options, a name needs to be assigned to the volume, as well as a
 
 See more about [Kubernetes Volumes](https://kubernetes.io/docs/concepts/storage/volumes/).
 
-MLRun supports the concept of volume auto-mount which automatically mounts the most commonly used type of volume to all pods, unless disabled. See more about [MLRun auto mount](function-storage).
+MLRun supports the concept of volume auto-mount which automatically mounts the most commonly used type of volume to all pods, unless disabled. See more about [MLRun auto mount](../runtimes/function-storage.html).
 
 ### UI configuration
 

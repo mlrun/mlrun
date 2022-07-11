@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import typing
-from copy import copy, deepcopy
+from copy import deepcopy
 from datetime import datetime
 from typing import Dict, Optional, Tuple
 
@@ -22,12 +22,12 @@ from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
 import mlrun.errors
+import mlrun.utils.regex
 from mlrun.api.db.base import DBInterface
 from mlrun.config import config
 from mlrun.db import get_run_db
 from mlrun.runtimes.base import BaseRuntimeHandler
 from mlrun.runtimes.constants import RunStates, SparkApplicationStates
-from mlrun.utils.regex import sparkjob_name
 
 from ...execution import MLClientCtx
 from ...k8s_utils import get_k8s_helper
@@ -44,6 +44,7 @@ from ...utils import (
 from ..base import RunError
 from ..kubejob import KubejobRuntime
 from ..pod import KubeResourceSpec
+from ..utils import get_item_name
 
 _service_account = "sparkapp"
 _sparkjob_template = {
@@ -238,12 +239,16 @@ class AbstractSparkRuntime(KubejobRuntime):
         get_run_db().delete_function(name=sj.metadata.name)
 
     def _is_using_gpu(self):
-        _, driver_gpu = self._get_gpu_type_and_quantity(
-            resources=self.spec.driver_resources["limits"]
-        )
-        _, executor_gpu = self._get_gpu_type_and_quantity(
-            resources=self.spec.executor_resources["limits"]
-        )
+        driver_limits = self.spec.driver_resources.get("limits")
+        driver_gpu = None
+        if driver_limits:
+            _, driver_gpu = self._get_gpu_type_and_quantity(resources=driver_limits)
+
+        executor_limits = self.spec.executor_resources.get("limits")
+        executor_gpu = None
+        if executor_limits:
+            _, executor_gpu = self._get_gpu_type_and_quantity(resources=executor_limits)
+
         return bool(driver_gpu or executor_gpu)
 
     @property
@@ -308,19 +313,28 @@ class AbstractSparkRuntime(KubejobRuntime):
     def _validate(self, runobj: RunObject):
         # validating correctness of sparkjob's function name
         try:
-            verify_field_regex("run.metadata.name", runobj.metadata.name, sparkjob_name)
+            verify_field_regex(
+                "run.metadata.name",
+                runobj.metadata.name,
+                mlrun.utils.regex.sparkjob_name,
+            )
 
         except mlrun.errors.MLRunInvalidArgumentError as err:
             pattern_error = str(err).split(" ")[-1]
-            if pattern_error == sparkjob_name[-1]:
+            if pattern_error == mlrun.utils.regex.sprakjob_length:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Job name '{runobj.metadata.name}' is not valid."
                     f" The job name must be not longer than 29 characters"
                 )
-            elif pattern_error in sparkjob_name[:-1]:
+            elif pattern_error in mlrun.utils.regex.label_value:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "a valid label must be an empty string or consist of alphanumeric characters,"
                     " '-', '_' or '.', and must start and end with an alphanumeric character"
+                )
+            elif pattern_error in mlrun.utils.regex.sparkjob_service_name:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "a valid label must consist of lower case alphanumeric characters or '-', start with "
+                    "an alphabetic character, and end with an alphanumeric character"
                 )
             else:
                 raise err
@@ -621,16 +635,21 @@ with ctx:
 
     def with_igz_spark(self, mount_v3io_to_executor=True):
         self._update_igz_jars(deps=self._get_igz_deps())
-        additional_executor_volume_mounts = copy(self.spec.volume_mounts)
-        self.apply(mount_v3io_extended())
+        self.apply(mount_v3io_extended(name="v3io"))
 
-        # move volume_mounts to driver and executor specific fields and leave v3io mounts
-        # out of executor mounts if mount_v3io_to_executor=False
-        self.spec.driver_volume_mounts += self.spec.volume_mounts
-        if mount_v3io_to_executor:
-            additional_executor_volume_mounts = self.spec.volume_mounts
-        self.spec.executor_volume_mounts += additional_executor_volume_mounts
-        self.spec.volume_mounts = []
+        # if we only want to mount v3io on the driver, move v3io
+        # mounts from common volume mounts to driver volume mounts
+        if not mount_v3io_to_executor:
+            v3io_mounts = []
+            non_v3io_mounts = []
+            for mount in self.spec.volume_mounts:
+                if get_item_name(mount) == "v3io":
+                    v3io_mounts.append(mount)
+                else:
+                    non_v3io_mounts.append(mount)
+            self.spec.volume_mounts = non_v3io_mounts
+            self.spec.driver_volume_mounts += v3io_mounts
+
         self.apply(
             mount_v3iod(
                 namespace=config.namespace,

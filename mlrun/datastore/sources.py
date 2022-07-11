@@ -21,6 +21,7 @@ from typing import Dict, List, Optional, Union
 import bson
 import pandas as pd
 import v3io
+import v3io.dataplane
 from nuclio import KafkaTrigger
 from nuclio.config import split_path
 from pymongo import MongoClient
@@ -242,10 +243,7 @@ class ParquetSource(BaseSourceDriver):
 
     @start_time.setter
     def start_time(self, start_time):
-        if isinstance(start_time, str):
-            self._start_time = self._convert_to_datetime(start_time)
-        else:
-            self._start_time = start_time
+        self._start_time = self._convert_to_datetime(start_time)
 
     @property
     def end_time(self):
@@ -253,16 +251,16 @@ class ParquetSource(BaseSourceDriver):
 
     @end_time.setter
     def end_time(self, end_time):
-        if isinstance(end_time, str):
-            self._end_time = self._convert_to_datetime(end_time)
-        else:
-            self._end_time = end_time
+        self._end_time = self._convert_to_datetime(end_time)
 
     @staticmethod
-    def _convert_to_datetime(time: str):
-        if time.endswith("Z"):
-            return datetime.fromisoformat(time.replace("Z", "+00:00"))
-        return datetime.fromisoformat(time)
+    def _convert_to_datetime(time):
+        if time and isinstance(time, str):
+            if time.endswith("Z"):
+                return datetime.fromisoformat(time.replace("Z", "+00:00"))
+            return datetime.fromisoformat(time)
+        else:
+            return time
 
     def to_step(
         self,
@@ -581,7 +579,7 @@ class SnowflakeSource(BaseSourceDriver):
             "sfDatabase": self.attributes.get("database"),
             "sfSchema": self.attributes.get("schema"),
             "sfWarehouse": self.attributes.get("warehouse"),
-            "application": "Iguazio",
+            "application": "iguazio_platform",
         }
 
 
@@ -814,7 +812,7 @@ class KafkaSource(OnlineSource):
     def add_nuclio_trigger(self, function):
         partitions = self.attributes.get("partitions")
         trigger = KafkaTrigger(
-            brokers=self.attributes["brokers"].split(","),
+            brokers=self.attributes["brokers"],
             topics=self.attributes["topics"],
             partitions=partitions,
             consumer_group=self.attributes["group"],

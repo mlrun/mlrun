@@ -61,7 +61,7 @@ This creates 3 services:
 - Nuclio Dashboard/controller (in [http://localhost:8070](http://localhost:8070))
 
 After installing MLRun service, set your client environment to work with the service, by setting the MLRun path env variable to 
-`MLRUN_DBPATH=http://localhost:8080` or using `.env` files (see [setting client environment](./remote.md)).
+`MLRUN_DBPATH=http://localhost:8080` or using `.env` files (see [setting client environment](./remote.html)).
 
 ## Use MLRun with MLRun Jupyter image
 
@@ -102,7 +102,7 @@ This creates 4 services:
 - MLRun UI (in [http://localhost:8060](http://localhost:8060))
 - Nuclio Dashboard/controller (in [http://localhost:8070](http://localhost:8070))
 
-After the installation, access the Jupyter server (in [http://localhost:8888](http://localhost:8888)) and run through the [`quick-start` tutorial](./quick-start/quick-start.html) and `demos`.
+After the installation, access the Jupyter server (in [http://localhost:8888](http://localhost:8888)) and run through the [`quick-start` tutorial](../quick-start/quick-start.html) and `demos`.
 You can see the projects, tasks, and artifacts in MLRun UI (in [http://localhost:8060](http://localhost:8060))
 
 The Jupyter environment is pre-configured to work with the local MLRun and Nuclio services. 

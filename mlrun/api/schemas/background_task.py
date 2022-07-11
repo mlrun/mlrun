@@ -25,6 +25,7 @@ class BackgroundTaskMetadata(pydantic.BaseModel):
     project: typing.Optional[str]
     created: typing.Optional[datetime.datetime]
     updated: typing.Optional[datetime.datetime]
+    timeout: typing.Optional[int]
 
 
 class BackgroundTaskSpec(pydantic.BaseModel):

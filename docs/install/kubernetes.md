@@ -19,7 +19,6 @@ instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more 
 - Helm CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
 - An accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret.
 - Storage: 7Gi
-- Storage - 7Gi
 
 ```{admonition} Note
 The MLRun kit resources (MLRun-API, MLRun-UI, Jupyter, and Nuclio) are configured initially with the default cluster/namespace resources limits. You can modify the resources from outside if needed.

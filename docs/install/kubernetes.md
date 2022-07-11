@@ -18,9 +18,11 @@ on Windows or Mac, [Docker Desktop](https://www.docker.com/products/docker-deskt
 instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more information.
 - Helm CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
 - An accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret.
+- Storage: 7Gi
+- Storage - 7Gi
 
 ```{admonition} Note
-These instructions use `mlrun` as the namespace (`-n` parameter). You can choose a different namespace in your kubernetes cluster.
+The MLRun kit resources (MLRun-API, MLRun-UI, Jupyter, and Nuclio) are configured initially with the default cluster/namespace resources limits. You can modify the resources from outside if needed.
 ```
 
 <a id="docker-desktop-installation"></a>
@@ -54,6 +56,10 @@ To learn about the various UI options and their usage, see:
 
 <a id="installing-the-chart"></a>
 ## Installing the chart
+
+```{admonition} Note
+These instructions use `mlrun` as the namespace (`-n` parameter). You can choose a different namespace in your kubernetes cluster.
+```
 
 Create a namespace for the deployed components:
 

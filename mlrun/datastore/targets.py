@@ -1521,6 +1521,7 @@ class MongoDBTarget(BaseStoreTarget):
             f'{db}/{collection}',
             MongoDBDriver(webapi=endpoint),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
+            support_aggr=False
         )
 
     def add_writer_step(

@@ -5,13 +5,12 @@ import pytest
 from pymongo import MongoClient
 
 import mlrun.feature_store as fs
+import mlrun.feature_store as fstore
 from mlrun.datastore.sources import MongoDBSource
 from mlrun.datastore.targets import MongoDBTarget
 from mlrun.feature_store.steps import *
-from tests.system.base import TestMLRunSystem
-
-import mlrun.feature_store as fstore
 from mlrun.features import MinMaxValidator
+from tests.system.base import TestMLRunSystem
 
 CREDENTIALS_ENV = "MLRUN_SYSTEM_TESTS_MONGODB_CONNECTION_STRING"
 
@@ -65,7 +64,9 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
             create_collection=True,
             override_collection=True,
         )
-        self._test_mongodb_source_and_target(source, target, 10, self.cancellation_policy_val)
+        self._test_mongodb_source_and_target(
+            source, target, 10, self.cancellation_policy_val
+        )
 
     def test_mongodb_source_query_with_chunk_size(self):
         query_dict = {"author": {"$regex": "machine"}}
@@ -83,7 +84,9 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
             create_collection=True,
             override_collection=True,
         )
-        self._test_mongodb_source_and_target(source, target, 10, self.cancellation_policy_val)
+        self._test_mongodb_source_and_target(
+            source, target, 10, self.cancellation_policy_val
+        )
 
     def test_mongodb_source_query_with_time_filter(self):
         query_dict = {"author": {"$regex": "machine"}}
@@ -105,43 +108,61 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
             create_collection=True,
             override_collection=True,
         )
-        self._test_mongodb_source_and_target(source, target, 10, self.cancellation_policy_val)
+        self._test_mongodb_source_and_target(
+            source, target, 10, self.cancellation_policy_val
+        )
 
     def test_get_online_features(self):
         self.prepare_data()
-        DB_S = 'my_dataset'
+        DB_S = "my_dataset"
         stocks_set = fs.FeatureSet("stocks", entities=[fs.Entity("ticker")])
-        stocks_target = MongoDBTarget(connection_string=self.mongodb_connection_string,
-                                      db_name=DB_S,
-                                      collection_name='stocks_fs',
-                                      create_collection=True,
-                                      override_collection=True)
+        stocks_target = MongoDBTarget(
+            connection_string=self.mongodb_connection_string,
+            db_name=DB_S,
+            collection_name="stocks_fs",
+            create_collection=True,
+            override_collection=True,
+        )
 
         stocks_set.set_targets(targets=[stocks_target])
         stocks_set.plot(rankdir="LR", with_targets=True)
-        fs.ingest(stocks_set, self.stocks, infer_options=fs.InferOptions.default(), targets=[stocks_target])
+        fs.ingest(
+            stocks_set,
+            self.stocks,
+            infer_options=fs.InferOptions.default(),
+            targets=[stocks_target],
+        )
 
         quotes_set = fs.FeatureSet("stock-quotes", entities=[fs.Entity("ticker")])
-        quotes_set.graph.to("MyMap", multiplier=3) \
-            .to("storey.Extend", _fn="({'extra': event['bid'] * 77})") \
-            .to("storey.Filter", "filter", _fn="(event['bid'] > 51.92)") \
-            .to(FeaturesetValidator())
+        quotes_set.graph.to("MyMap", multiplier=3).to(
+            "storey.Extend", _fn="({'extra': event['bid'] * 77})"
+        ).to("storey.Filter", "filter", _fn="(event['bid'] > 51.92)").to(
+            FeaturesetValidator()
+        )
 
         quotes_set.add_aggregation("ask", ["sum", "max"], "1h", "10m", name="asks1")
         quotes_set.add_aggregation("ask", ["sum", "max"], "5h", "10m", name="asks5")
         quotes_set.add_aggregation("bid", ["min", "max"], "1h", "10m", name="bids")
 
-        quotes_set["bid"] = fstore.Feature(validator=MinMaxValidator(min=52, severity="info"),
-                                           value_type=fstore.ValueType.FLOAT)
-        quotes_target = MongoDBTarget(connection_string=self.mongodb_connection_string,
-                                      db_name=DB_S,
-                                      collection_name='quotes_fs',
-                                      create_collection=True,
-                                      override_collection=True)
+        quotes_set["bid"] = fstore.Feature(
+            validator=MinMaxValidator(min=52, severity="info"),
+            value_type=fstore.ValueType.FLOAT,
+        )
+        quotes_target = MongoDBTarget(
+            connection_string=self.mongodb_connection_string,
+            db_name=DB_S,
+            collection_name="quotes_fs",
+            create_collection=True,
+            override_collection=True,
+        )
 
         # add default target definitions and plot
         quotes_set.set_targets(targets=[quotes_target])
-        fstore.ingest(quotes_set, self.quotes, targets=[quotes_target], )
+        fstore.ingest(
+            quotes_set,
+            self.quotes,
+            targets=[quotes_target],
+        )
 
         features = [
             "stock-quotes.multi",
@@ -151,27 +172,46 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
             "stocks.*",
         ]
 
-        vector = fstore.FeatureVector("stocks-vec", features, description="stocks demo feature vector")
+        vector = fstore.FeatureVector(
+            "stocks-vec", features, description="stocks demo feature vector"
+        )
         vector.save()
         service = fs.get_online_feature_service("stocks-vec")
-        assert service.get([{"ticker": "AAPL"}], as_list=True) == [[293.96999999999997, 98.01, 97.99, 97.99, 'Apple Inc'
-                                                                    , 'NASDAQ']]
-        assert service.get([{"ticker": "AAPL"}], ) == [{'bids_min_1h': 97.99, 'bids_max_1h': 97.99, 'total_ask': 98.01,
-                                                        'multi': 293.96999999999997, 'name': 'Apple Inc',
-                                                        'exchange': 'NASDAQ'}]
-        assert service.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}], as_list=True) == [[2161.5, 2162.74, 720.5, 720.5,
-                                                                                        'Alphabet Inc', 'NASDAQ'],
-                                                                                       [156.03, 207.97, 51.95, 52.01,
-                                                                                        'Microsoft Corporation',
-                                                                                        'NASDAQ']]
-        assert service.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}], ) == [{'bids_min_1h': 720.5, 'bids_max_1h': 720.5,
-                                                                            'total_ask': 2162.74, 'multi': 2161.5,
-                                                                            'name': 'Alphabet Inc',
-                                                                            'exchange': 'NASDAQ'},
-                                                                           {'bids_min_1h': 51.95, 'bids_max_1h': 52.01,
-                                                                            'total_ask': 207.97, 'multi': 156.03,
-                                                                            'name': 'Microsoft Corporation',
-                                                                            'exchange': 'NASDAQ'}]
+        assert service.get([{"ticker": "AAPL"}], as_list=True) == [
+            [293.96999999999997, 98.01, 97.99, 97.99, "Apple Inc", "NASDAQ"]
+        ]
+        assert service.get([{"ticker": "AAPL"}],) == [
+            {
+                "bids_min_1h": 97.99,
+                "bids_max_1h": 97.99,
+                "total_ask": 98.01,
+                "multi": 293.96999999999997,
+                "name": "Apple Inc",
+                "exchange": "NASDAQ",
+            }
+        ]
+        assert service.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}], as_list=True) == [
+            [2161.5, 2162.74, 720.5, 720.5, "Alphabet Inc", "NASDAQ"],
+            [156.03, 207.97, 51.95, 52.01, "Microsoft Corporation", "NASDAQ"],
+        ]
+        assert service.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}],) == [
+            {
+                "bids_min_1h": 720.5,
+                "bids_max_1h": 720.5,
+                "total_ask": 2162.74,
+                "multi": 2161.5,
+                "name": "Alphabet Inc",
+                "exchange": "NASDAQ",
+            },
+            {
+                "bids_min_1h": 51.95,
+                "bids_max_1h": 52.01,
+                "total_ask": 207.97,
+                "multi": 156.03,
+                "name": "Microsoft Corporation",
+                "exchange": "NASDAQ",
+            },
+        ]
 
     def prepare_data(self):
         import pandas as pd
@@ -186,7 +226,7 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
                     pd.Timestamp("2016-05-25 13:30:00.048"),
                     pd.Timestamp("2016-05-25 13:30:00.049"),
                     pd.Timestamp("2016-05-25 13:30:00.072"),
-                    pd.Timestamp("2016-05-25 13:30:00.075")
+                    pd.Timestamp("2016-05-25 13:30:00.075"),
                 ],
                 "ticker": [
                     "GOOG",
@@ -196,10 +236,10 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
                     "GOOG",
                     "AAPL",
                     "GOOG",
-                    "MSFT"
+                    "MSFT",
                 ],
                 "bid": [720.50, 51.95, 51.97, 51.99, 720.50, 97.99, 720.50, 52.01],
-                "ask": [720.93, 51.96, 51.98, 52.00, 720.93, 98.01, 720.88, 52.03]
+                "ask": [720.93, 51.96, 51.98, 52.00, 720.93, 98.01, 720.88, 52.03],
             }
         )
 
@@ -210,11 +250,11 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
                     pd.Timestamp("2016-05-25 13:30:00.038"),
                     pd.Timestamp("2016-05-25 13:30:00.048"),
                     pd.Timestamp("2016-05-25 13:30:00.048"),
-                    pd.Timestamp("2016-05-25 13:30:00.048")
+                    pd.Timestamp("2016-05-25 13:30:00.048"),
                 ],
                 "ticker": ["MSFT", "MSFT", "GOOG", "GOOG", "AAPL"],
                 "price": [51.95, 51.95, 720.77, 720.92, 98.0],
-                "quantity": [75, 155, 100, 100, 100]
+                "quantity": [75, 155, 100, 100, 100],
             }
         )
 
@@ -222,13 +262,13 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
             {
                 "ticker": ["MSFT", "GOOG", "AAPL"],
                 "name": ["Microsoft Corporation", "Alphabet Inc", "Apple Inc"],
-                "exchange": ["NASDAQ", "NASDAQ", "NASDAQ"]
+                "exchange": ["NASDAQ", "NASDAQ", "NASDAQ"],
             }
         )
 
     @staticmethod
     def _test_mongodb_source_and_target(
-            source: MongoDBSource, target: MongoDBTarget, column_amount: int, map: list
+        source: MongoDBSource, target: MongoDBTarget, column_amount: int, map: list
     ):
         targets = [target]
         feature_set = fs.FeatureSet(

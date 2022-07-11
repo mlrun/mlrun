@@ -497,7 +497,9 @@ class OnlineVectorService:
             if not data:
                 data = None
             else:
-                requested_columns = [v.name for v in self.vector.status.features.values()]
+                requested_columns = [
+                    v.name for v in self.vector.status.features.values()
+                ]
                 actual_columns = data.keys()
                 for column in requested_columns:
                     if (

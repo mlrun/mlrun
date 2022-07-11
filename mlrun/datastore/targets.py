@@ -1477,7 +1477,7 @@ class MongoDBTarget(BaseStoreTarget):
                 "db_name": db_name,
                 "connection_string": connection_string,
             }
-            path = f'mdb:///{connection_string}///{db_name}///{collection_name}'
+            path = f"mdb:///{connection_string}///{db_name}///{collection_name}"
         if attributes:
             attributes.update(attr)
         else:
@@ -1499,8 +1499,6 @@ class MongoDBTarget(BaseStoreTarget):
             after_state=after_state,
         )
 
-
-
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
     ):
@@ -1513,15 +1511,19 @@ class MongoDBTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def get_table_object(self):
-        from storey import Table, MongoDBDriver
+        from storey import MongoDBDriver, Table
 
         # TODO use options/cred
-        endpoint, db, collection, = self._parse_url()
+        (
+            endpoint,
+            db,
+            collection,
+        ) = self._parse_url()
         return Table(
-            f'{db}/{collection}',
+            f"{db}/{collection}",
             MongoDBDriver(webapi=endpoint),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
-            support_aggr=False
+            support_aggr=False,
         )
 
     def add_writer_step(
@@ -1577,6 +1579,7 @@ class MongoDBTarget(BaseStoreTarget):
                 query = time_query
 
         from pymongo import MongoClient
+
         connection_string, db_name, collection_string = self._parse_url()
         mongodb_client = MongoClient(connection_string)
         db = mongodb_client[db_name]
@@ -1605,8 +1608,8 @@ class MongoDBTarget(BaseStoreTarget):
             collection.insert_many(data)
 
     def _parse_url(self):
-        path = self.path[len('mdb:///'):]
-        return path.split('///')
+        path = self.path[len("mdb:///") :]
+        return path.split("///")
 
     def purge(self):
         pass

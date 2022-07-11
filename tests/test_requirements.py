@@ -114,7 +114,7 @@ def test_requirement_specifiers_convention():
         "dask-ml": {"~=1.4,<1.9.0"},
         "pyarrow": {">=1,<7"},
         "nbclassic": {">=0.2.8"},
-        "pymongo": {">=4.1.1"}
+        "pymongo": {">=4.1.1"},
     }
 
     for (

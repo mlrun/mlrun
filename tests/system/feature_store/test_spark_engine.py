@@ -645,7 +645,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
                 fs.ingest(fset, source=stocks, targets=[target])
 
-    def test_error(self):
+    def test_error_is_properly_propagated(self):
         key = "patient_id"
         measurements = fs.FeatureSet(
             "measurements",

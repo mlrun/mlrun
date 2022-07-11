@@ -288,8 +288,49 @@ class TestProject(TestMLRunSystem):
     def test_kfp_pipeline(self):
         self._test_new_pipeline("kfppipe", engine="kfp")
 
-    def test_remote_pipeline(self):
-        self._test_new_pipeline("rmtpipe", engine="remote")
+    def _test_remote_pipeline_from_github(
+        self, name, workflow_name, engine=None, local=None
+    ):
+        project_dir = f"{projects_dir}/{name}"
+        shutil.rmtree(project_dir, ignore_errors=True)
+
+        project = mlrun.load_project(
+            project_dir, "git://github.com/yonishelach/project-demo.git", name=name
+        )
+        print(project.to_yaml())
+        workflow_dict = project.spec._workflows[workflow_name].to_dict()
+        run = project.run(
+            workflow_name,
+            watch=False,
+            local=local,
+            engine=engine,
+        )
+
+        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert run.run_id, "workflow's run id failed to fetch"
+        assert (
+            workflow_dict.items() <= run.workflow.to_dict().items()
+        ), "workflow executed with wrong parameters"
+        self._delete_test_project()
+
+    def test_remote_pipeline_with_kfp_engine_from_github(self):
+        self._test_remote_pipeline_from_github(
+            name="rmtpipe-kfp-github-3", workflow_name="main", engine="remote"
+        )
+        self._test_remote_pipeline_from_github(
+            name="rmtpipe-kfp-github-3", workflow_name="main", engine="remote:kfp"
+        )
+
+    def test_remote_pipeline_with_local_engine_from_github(self):
+        # self._test_remote_pipeline_from_github(
+        #     name="rmtpipe-local-github", workflow_name="newflow", engine="local"
+        # )
+        self._test_remote_pipeline_from_github(
+            name="rmtpipe-local-github", workflow_name="newflow", engine="remote"
+        )
+        self._test_remote_pipeline_from_github(
+            name="rmtpipe-local-github", workflow_name="newflow", engine="remote", local=True
+        )
 
     def test_local_cli(self):
         # load project from git

@@ -659,16 +659,14 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:0.0.39",
+                image="yonishelach/mlrun-remote-runner:0.0.40",
             )
 
             # Preparing parameters for load_and_run function:
             params = {
                 "url": project.spec.source,
                 "project_name": project.name,
-                "workflow_name": name.split("-")[-1]
-                if f"{project.name}-" in name
-                else name,
+                "workflow_name": workflow_name,
                 "workflow_path": workflow_spec.path,
                 "workflow_arguments": workflow_spec.args,
                 "artifact_path": artifact_path,
@@ -678,6 +676,7 @@ class _RemoteRunner(_PipelineRunner):
                 "engine": workflow_spec.engine,
                 "local": workflow_spec.run_local,
             }
+            print(params)
             msg = "executing workflow "
             if schedule:
                 msg += "scheduling "

@@ -280,11 +280,11 @@ def get_or_create_project(
         project.pull("development")  # pull the latest code from git
         project.run("main", arguments={'data': data_url})  # run the workflow "main"
 
+    :param name:         project name
     :param context:      project local directory path
     :param url:          name (in DB) or git or tar.gz or .zip sources archive path e.g.:
                          git://github.com/mlrun/demo-xgb-project.git
                          http://mysite/archived-project.zip
-    :param name:         project name
     :param secrets:      key:secret dict or SecretsStore used to download sources
     :param init_git:     if True, will git init the context dir
     :param subpath:      project subpath (within the archive/context)
@@ -366,7 +366,9 @@ def _load_project_dir(context, name="", subpath=""):
             functions=[{"url": "function.yaml", "name": func.metadata.name}],
         )
     else:
-        raise ValueError("project or function YAML not found in path")
+        raise mlrun.errors.MLRunNotFoundError(
+            "project or function YAML not found in path"
+        )
 
     project.spec.context = context
     project.metadata.name = name or project.metadata.name
@@ -1950,10 +1952,13 @@ class MlrunProject(ModelObj):
     def get_run_status(
         self,
         run,
-        timeout=60 * 60,
+        timeout=None,
         expected_statuses=None,
         notifiers: RunNotifications = None,
     ):
+        if timeout is None:
+            timeout = 60 * 60
+
         state = ""
         raise_error = None
         try:

@@ -28,3 +28,4 @@ plotly~=5.4
 google-cloud-bigquery~=3.0
 kafka-python~=2.0
 pymongo~=4.1.1
+bson

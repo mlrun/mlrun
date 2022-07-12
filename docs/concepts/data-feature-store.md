@@ -13,7 +13,7 @@ Working with the abstractions enable you to securely access different data sourc
 
 **In this section**
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 1
 ../store/datastore
 data-items
 ```

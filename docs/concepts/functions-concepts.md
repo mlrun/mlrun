@@ -18,7 +18,7 @@ use in your projects.
 **In this section**
 
 ```{toctree}
-   :maxdepth: 2
+   :maxdepth: 1
 
 functions-overview
 ../runtimes/distributed

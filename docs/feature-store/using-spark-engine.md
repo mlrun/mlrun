@@ -1,7 +1,7 @@
 # Using the Spark execution engine
 
-The feature store supports using Spark for ingesting, transforming and writing results to data targets. When 
-using Spark, the internal execution graph is executed synchronously, by utilizing a Spark session to perform read and
+The feature store supports using Spark for ingesting, transforming, and writing results to data targets. When 
+using Spark, the internal execution graph is executed synchronously by utilizing a Spark session to perform read and
 write operations, as well as potential transformations on the data. Executing synchronously means that the 
 source data is fully read into a data-frame that is processed, writing the output to the targets defined.
 
@@ -49,7 +49,7 @@ from mlrun.datastore.sources import CSVSource
 import mlrun.feature_store as fstore
 from pyspark.sql import SparkSession
 
-mlrun.set_environment(project="stocks")
+mlrun.get_or_create_project(name="stocks")
 feature_set = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")], engine="spark")
 
 # add_aggregation can be used in conjunction with Spark
@@ -283,7 +283,7 @@ from mlrun.datastore.sources import SnowflakeSource
 
 spark = SparkSession.builder.appName("snowy").getOrCreate()
 
-mlrun.set_environment(project="feature-store")
+mlrun.get_or_create_project("feature_store")
 feature_set = fstore.FeatureSet(
     name="customer", entities=[fstore.Entity("C_CUSTKEY")], engine="spark"
 )

@@ -7,7 +7,7 @@ Simple model serving classes can be written in Python or be taken from a set of 
 **In this section**
 
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 1
 model-serving-get-started
 <!--- advanced-routing --->
 custom-model-serving-class

@@ -67,7 +67,9 @@ class MLRunLogger(Logger):
             else:
                 # See if its string representation length is below the maximum value length:
                 string_value = str(parameter_value)
-                if len(string_value) < 30:
+                if (
+                    len(string_value) < 30
+                ):  # Temporary to no log to long variables into the UI.
                     # TODO: Make the user specify the parameters and take them all by default.
                     self.log_static_hyperparameter(
                         parameter_name=parameter_name, value=parameter_value

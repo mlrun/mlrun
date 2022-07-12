@@ -674,7 +674,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:1.0.0",
+                image="yonishelach/mlrun-remote-runner:1.0.1",
             )
 
             # Preparing parameters for load_and_run function:

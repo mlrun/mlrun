@@ -1953,7 +1953,7 @@ class MlrunProject(ModelObj):
             schedule=schedule,
         )
         workflow_spec.clear_tmp()
-        if watch and not schedule and run.state != mlrun.run.RunStatuses.failed:
+        if watch and not schedule:
             workflow_engine.get_run_status(project=self, run=run, timeout=timeout)
         return run
 

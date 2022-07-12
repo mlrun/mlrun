@@ -630,9 +630,7 @@ class Spark3Runtime(AbstractSparkRuntime):
         self, security_context: kubernetes.client.V1SecurityContext
     ):
         """
-        Enables to specify security settings for a Pod
-
-        :param security_context:         The security settings for the Pod
+        Use with_driver_security_context / with_executor_security_context to setup security_context for spark operator
         """
         raise mlrun.errors.MLRunInvalidArgumentTypeError(
             "with_security_context is not supported use with_driver_security_context / with_executor_security_context"

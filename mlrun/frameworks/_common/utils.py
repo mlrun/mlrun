@@ -13,7 +13,7 @@ from mlrun.data_types import ValueType
 from mlrun.datastore import DataItem
 
 
-class Types(ABC):
+class CommonTypes(ABC):
     """
     Common type hints to all frameworks.
     """
@@ -21,7 +21,7 @@ class Types(ABC):
     # A generic model type in a handler / interface (examples: tf.keras.Model, torch.Module):
     ModelType = TypeVar("ModelType")
 
-    # A generic inout / output samples for reading the inputs / outputs properties:
+    # A generic input / output samples for reading the inputs / outputs properties:
     IOSampleType = TypeVar("IOSampleType")
 
     # A generic object type for what can be wrapped with a framework MLRun interface (examples: xgb, xgb.XGBModel):
@@ -64,13 +64,13 @@ class LoggingMode(Enum):
     EVALUATION = "Evaluation"
 
 
-class Utils(ABC):
+class CommonUtils(ABC):
     """
     Common utilities functions to all frameworks.
     """
 
     @staticmethod
-    def to_array(dataset: Types.DatasetType) -> np.ndarray:
+    def to_array(dataset: CommonTypes.DatasetType) -> np.ndarray:
         """
         Convert the given dataset to np.ndarray.
 
@@ -90,20 +90,22 @@ class Utils(ABC):
         if isinstance(dataset, dict):
             return np.array(list(dataset.values()))
         try:
+            # SciPy is not in MLRun's requirements but common to all frameworks.
             import scipy.sparse.base as sp
 
             if isinstance(dataset, sp.spmatrix):
                 return dataset.toarray()
         except ModuleNotFoundError:
+            # SciPy is not installed.
             pass
 
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"Could not convert the given dataset into a numpy ndarray. Supporting conversion from: "
-            f"{Utils.get_union_typehint_string(Types.DatasetType)}. The given dataset was of type: '{type(dataset)}'"
+            f"{CommonUtils.get_union_typehint_string(CommonTypes.DatasetType)}. The given dataset was of type: '{type(dataset)}'"
         )
 
     @staticmethod
-    def to_dataframe(dataset: Types.DatasetType) -> pd.DataFrame:
+    def to_dataframe(dataset: CommonTypes.DatasetType) -> pd.DataFrame:
         """
         Convert the given dataset to pd.DataFrame.
 
@@ -119,15 +121,17 @@ class Utils(ABC):
         if isinstance(dataset, (np.ndarray, pd.Series, list, tuple, dict)):
             return pd.DataFrame(dataset)
         try:
+            # SciPy is not in MLRun's requirements but common to all frameworks.
             import scipy.sparse.base as sp
 
             if isinstance(dataset, sp.spmatrix):
                 return pd.DataFrame.sparse.from_spmatrix(dataset)
         except ModuleNotFoundError:
+            # SciPy is not installed.
             pass
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"Could not convert the given dataset into a pandas DataFrame. Supporting conversion from: "
-            f"{Utils.get_union_typehint_string(Types.DatasetType)}. The given dataset was of type: '{type(dataset)}'"
+            f"{CommonUtils.get_union_typehint_string(CommonTypes.DatasetType)}. The given dataset was of type: '{type(dataset)}'"
         )
 
     @staticmethod
@@ -163,7 +167,7 @@ class Utils(ABC):
         if value_type in conversion_map:
             return conversion_map[value_type]
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"The ValueType given is not supported in numpy: '{value_type}'."
+            f"The ValueType given is not supported in numpy: '{value_type}'"
         )
 
     @staticmethod
@@ -216,7 +220,7 @@ class Utils(ABC):
         if np_dtype in conversion_map:
             return conversion_map[np_dtype]
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"MLRun value type is not supporting the given numpy data type: '{np_dtype}'."
+            f"MLRun value type is not supporting the given numpy data type: '{np_dtype}'"
         )
 
     @staticmethod

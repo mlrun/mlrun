@@ -1,10 +1,10 @@
 from abc import ABC
 from typing import TypeVar
 
-from .._common import Types, Utils
+from .._common import CommonTypes, CommonUtils
 
 
-class DLTypes(Types, ABC):
+class DLTypes(CommonTypes, ABC):
     """
     Deep learning frameworks type hints.
     """
@@ -13,7 +13,7 @@ class DLTypes(Types, ABC):
     WeightType = TypeVar("WeightType")
 
 
-class DLUtils(Utils, ABC):
+class DLUtils(CommonUtils, ABC):
     """
     Deep learning frameworks utilities.
     """

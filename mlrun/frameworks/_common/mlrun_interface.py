@@ -5,10 +5,10 @@ from abc import ABC
 from types import FunctionType, MethodType
 from typing import Any, Dict, Generic, List, Tuple, Union
 
-from .utils import Types
+from .utils import CommonTypes
 
 
-class MLRunInterface(ABC, Generic[Types.MLRunInterfaceableType]):
+class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
     """
     An abstract class for enriching an object interface with the properties, methods and functions written below.
 
@@ -47,8 +47,8 @@ class MLRunInterface(ABC, Generic[Types.MLRunInterfaceableType]):
     @classmethod
     def add_interface(
         cls,
-        obj: Types.MLRunInterfaceableType,
-        restoration: Types.MLRunInterfaceRestorationType = None,
+        obj: CommonTypes.MLRunInterfaceableType,
+        restoration: CommonTypes.MLRunInterfaceRestorationType = None,
     ):
         """
         Enrich the object with this interface properties, methods and functions so it will have this framework MLRun's
@@ -79,8 +79,8 @@ class MLRunInterface(ABC, Generic[Types.MLRunInterfaceableType]):
 
     @classmethod
     def remove_interface(
-        cls, obj: Types.MLRunInterfaceableType
-    ) -> Types.MLRunInterfaceRestorationType:
+        cls, obj: CommonTypes.MLRunInterfaceableType
+    ) -> CommonTypes.MLRunInterfaceRestorationType:
         """
         Remove the MLRun features from the given object. The properties and replaced attributes found in the object will
         be returned.
@@ -132,7 +132,7 @@ class MLRunInterface(ABC, Generic[Types.MLRunInterfaceableType]):
         return properties, replaced_properties, replaced_functions
 
     @classmethod
-    def is_applied(cls, obj: Types.MLRunInterfaceableType) -> bool:
+    def is_applied(cls, obj: CommonTypes.MLRunInterfaceableType) -> bool:
         """
         Check if the given object has MLRun interface attributes in it. Interface is applied if all of its attributes
         are found in the object. If only replaced attributes are configured in the interface, then the interface is
@@ -158,7 +158,7 @@ class MLRunInterface(ABC, Generic[Types.MLRunInterfaceableType]):
     @classmethod
     def _insert_properties(
         cls,
-        obj: Types.MLRunInterfaceableType,
+        obj: CommonTypes.MLRunInterfaceableType,
         properties: Dict[str, Any] = None,
     ):
         """
@@ -199,7 +199,7 @@ class MLRunInterface(ABC, Generic[Types.MLRunInterfaceableType]):
             setattr(obj, property_name, value)
 
     @classmethod
-    def _insert_functions(cls, obj: Types.MLRunInterfaceableType):
+    def _insert_functions(cls, obj: CommonTypes.MLRunInterfaceableType):
         """
         Insert the functions / methods of the interface to the object.
 
@@ -224,7 +224,7 @@ class MLRunInterface(ABC, Generic[Types.MLRunInterfaceableType]):
 
     @classmethod
     def _replace_properties(
-        cls, obj: Types.MLRunInterfaceableType, properties: Dict[str, Any] = None
+        cls, obj: CommonTypes.MLRunInterfaceableType, properties: Dict[str, Any] = None
     ):
         """
         Replace the properties of the given object according to the configuration in the MLRun interface.
@@ -268,7 +268,7 @@ class MLRunInterface(ABC, Generic[Types.MLRunInterfaceableType]):
 
     @classmethod
     def _replace_functions(
-        cls, obj: Types.MLRunInterfaceableType, functions: List[str] = None
+        cls, obj: CommonTypes.MLRunInterfaceableType, functions: List[str] = None
     ):
         """
         Replace the functions / methods of the given object according to the configuration in the MLRun interface.
@@ -307,7 +307,7 @@ class MLRunInterface(ABC, Generic[Types.MLRunInterfaceableType]):
     @classmethod
     def _replace_property(
         cls,
-        obj: Types.MLRunInterfaceableType,
+        obj: CommonTypes.MLRunInterfaceableType,
         property_name: str,
         property_value: Any = None,
         include_none: bool = False,
@@ -338,7 +338,9 @@ class MLRunInterface(ABC, Generic[Types.MLRunInterfaceableType]):
         setattr(obj, property_name, property_value)
 
     @classmethod
-    def _replace_function(cls, obj: Types.MLRunInterfaceableType, function_name: str):
+    def _replace_function(
+        cls, obj: CommonTypes.MLRunInterfaceableType, function_name: str
+    ):
         """
         Replace the method / function in the object with the configured method / function in this interface. The
         original method / function will be stored in a backup attribute with the prefix noted in
@@ -376,7 +378,9 @@ class MLRunInterface(ABC, Generic[Types.MLRunInterfaceableType]):
         setattr(obj, function_name, replacing_function)
 
     @classmethod
-    def _restore_attribute(cls, obj: Types.MLRunInterfaceableType, attribute_name: str):
+    def _restore_attribute(
+        cls, obj: CommonTypes.MLRunInterfaceableType, attribute_name: str
+    ):
         """
         Restore the replaced attribute (property, method or function) in the object, removing the backup attribute as
         well.

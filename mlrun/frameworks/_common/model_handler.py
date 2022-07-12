@@ -16,10 +16,10 @@ from mlrun.execution import MLClientCtx
 from mlrun.features import Feature
 
 from .mlrun_interface import MLRunInterface
-from .utils import Types, Utils
+from .utils import CommonTypes, CommonUtils
 
 
-class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
+class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]):
     """
     An abstract interface for handling a model of the supported frameworks. The handler will support loading, saving
     and logging a model with all the required modules, custom objects and collected information about it.
@@ -39,16 +39,16 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
 
     def __init__(
         self,
-        model: Types.ModelType = None,
-        model_path: Types.PathType = None,
+        model: CommonTypes.ModelType = None,
+        model_path: CommonTypes.PathType = None,
         model_name: str = None,
         modules_map: Union[
-            Dict[str, Union[None, str, List[str]]], Types.PathType
+            Dict[str, Union[None, str, List[str]]], CommonTypes.PathType
         ] = None,
         custom_objects_map: Union[
-            Dict[str, Union[str, List[str]]], Types.PathType
+            Dict[str, Union[str, List[str]]], CommonTypes.PathType
         ] = None,
-        custom_objects_directory: Types.PathType = None,
+        custom_objects_directory: CommonTypes.PathType = None,
         context: MLClientCtx = None,
         **kwargs,
     ):
@@ -145,7 +145,7 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
         # If the model path is of a store model object, this will be the extra data as DataItems ready to be downloaded.
         self._extra_data = kwargs.get(
             "extra_data", {}
-        )  # type: Dict[str, Types.ExtraDataType]
+        )  # type: Dict[str, CommonTypes.ExtraDataType]
 
         # If the model key is passed, override the default:
         self._model_key = kwargs.get("model_key", "model")
@@ -176,7 +176,7 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
         return self._model_name
 
     @property
-    def model(self) -> Types.ModelType:
+    def model(self) -> CommonTypes.ModelType:
         """
         Get the handled model. Will return None in case the model is not initialized.
 
@@ -250,7 +250,7 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
 
     def get_artifacts(
         self, committed_only: bool = False
-    ) -> Dict[str, Types.ExtraDataType]:
+    ) -> Dict[str, CommonTypes.ExtraDataType]:
         """
         Get the registered artifacts of this model's artifact. By default all the artifacts (logged and to be logged -
         committed only) will be returned. To get only the artifacts registered in the current run whom are committed and
@@ -293,7 +293,7 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
 
     def set_inputs(
         self,
-        from_sample: Types.IOSampleType = None,
+        from_sample: CommonTypes.IOSampleType = None,
         features: List[Feature] = None,
         **kwargs,
     ):
@@ -322,7 +322,7 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
 
     def set_outputs(
         self,
-        from_sample: Types.IOSampleType = None,
+        from_sample: CommonTypes.IOSampleType = None,
         features: List[Feature] = None,
         **kwargs,
     ):
@@ -391,7 +391,7 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
 
     def set_metrics(
         self,
-        to_add: Dict[str, Types.ExtraDataType] = None,
+        to_add: Dict[str, CommonTypes.ExtraDataType] = None,
         to_remove: List[str] = None,
     ):
         """
@@ -411,7 +411,7 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
 
     def set_extra_data(
         self,
-        to_add: Dict[str, Types.ExtraDataType] = None,
+        to_add: Dict[str, CommonTypes.ExtraDataType] = None,
         to_remove: List[str] = None,
     ):
         """
@@ -453,7 +453,7 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
 
     @abstractmethod
     def save(
-        self, output_path: Types.PathType = None, **kwargs
+        self, output_path: CommonTypes.PathType = None, **kwargs
     ) -> Union[Dict[str, Artifact], None]:
         """
         Save the handled model at the given output path.
@@ -519,7 +519,7 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
         outputs: List[Feature] = None,
         metrics: Dict[str, Union[int, float]] = None,
         artifacts: Dict[str, Artifact] = None,
-        extra_data: Dict[str, Types.ExtraDataType] = None,
+        extra_data: Dict[str, CommonTypes.ExtraDataType] = None,
         **kwargs,
     ):
         """
@@ -624,7 +624,7 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
         outputs: List[Feature] = None,
         metrics: Dict[str, Union[int, float]] = None,
         artifacts: Dict[str, Artifact] = None,
-        extra_data: Dict[str, Types.ExtraDataType] = None,
+        extra_data: Dict[str, CommonTypes.ExtraDataType] = None,
         **kwargs,
     ):
         """
@@ -990,7 +990,7 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
 
     def _read_io_samples(
         self,
-        samples: Union[Types.IOSampleType, List[Types.IOSampleType]],
+        samples: Union[CommonTypes.IOSampleType, List[CommonTypes.IOSampleType]],
     ) -> List[Feature]:
         """
         Read the given inputs / output sample to / from the model into a list of MLRun Features (ports) to log in
@@ -1006,7 +1006,7 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
 
         return [self._read_sample(sample=sample) for sample in samples]
 
-    def _read_sample(self, sample: Types.IOSampleType) -> Feature:
+    def _read_sample(self, sample: CommonTypes.IOSampleType) -> Feature:
         """
         Read the sample into a MLRun Feature. This abstract class is reading samples of 'numpy.ndarray'. For further
         types of samples, please inherit this method.
@@ -1020,7 +1020,9 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
         # Supported types:
         if isinstance(sample, np.ndarray):
             return Feature(
-                value_type=Utils.convert_np_dtype_to_value_type(np_dtype=sample.dtype),
+                value_type=CommonUtils.convert_np_dtype_to_value_type(
+                    np_dtype=sample.dtype
+                ),
                 dims=list(sample.shape),
             )
 
@@ -1031,7 +1033,7 @@ class ModelHandler(ABC, Generic[Types.ModelType, Types.IOSampleType]):
         )
 
     @staticmethod
-    def _validate_model_parameters(model_path: str, model: Types.ModelType):
+    def _validate_model_parameters(model_path: str, model: CommonTypes.ModelType):
         """
         Validate the given model parameters.
 

@@ -77,7 +77,7 @@ class MLRunLogger(Logger):
 
         :param epoch: The epoch number that has just ended.
         """
-        # Log the collected hyperparameters and values as results to the epoch's child context:
+        # Log the collected hyperparameters and values as results (the most recent value collected (-1 index)):
         for static_parameter, value in self._static_hyperparameters.items():
             self._context.log_result(static_parameter, value)
         if self._mode == LoggingMode.TRAINING:
@@ -210,7 +210,7 @@ class MLRunLogger(Logger):
                 artifacts=self._artifacts,
             )
 
-        # Commit:
+        # Commit to update the changes, so they will be available in the MLRun UI:
         self._context.commit(completed=False)
 
     def _generate_metrics_summary(self) -> Dict[str, float]:

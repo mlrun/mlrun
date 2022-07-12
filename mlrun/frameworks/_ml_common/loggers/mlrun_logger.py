@@ -68,6 +68,7 @@ class MLRunLogger(Logger):
                 # See if its string representation length is below the maximum value length:
                 string_value = str(parameter_value)
                 if len(string_value) < 30:
+                    # TODO: Make the user specify the parameters and take them all by default.
                     self.log_static_hyperparameter(
                         parameter_name=parameter_name, value=parameter_value
                     )
@@ -92,7 +93,7 @@ class MLRunLogger(Logger):
         for static_parameter, value in self._static_hyperparameters.items():
             self._context.log_result(static_parameter, value)
         for dynamic_parameter, values in self._dynamic_hyperparameters.items():
-            # Log as a result to the context:
+            # Log as a result to the context (take the most recent result in the training history (-1 index):
             self._context.log_result(dynamic_parameter, values[-1])
             # Create the plotly artifact:
             artifact = self._produce_convergence_plot_artifact(
@@ -122,7 +123,7 @@ class MLRunLogger(Logger):
             # Collect it for later adding it to the model logging as extra data:
             self._artifacts[artifact.metadata.key] = artifact
 
-        # Commit:
+        # Commit to update the changes, so they will be available in the MLRun UI:
         self._context.commit(completed=False)
 
     @staticmethod

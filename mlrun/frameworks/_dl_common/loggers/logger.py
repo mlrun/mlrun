@@ -266,6 +266,7 @@ class Logger:
         else:
             self._dynamic_hyperparameters[parameter_name].append(value)
 
+    # TODO: Move to MLRun logger
     def log_context_parameters(self):
         """
         Log the context given parameters as static hyperparameters. Should be called once as the context parameters do
@@ -281,6 +282,7 @@ class Logger:
                 # See if its string representation length is below the maximum value length:
                 string_value = str(parameter_value)
                 if len(string_value) < 30:
+                    # TODO: Make the user specify the parameters and take them all by default.
                     self.log_static_hyperparameter(
                         parameter_name=parameter_name, value=parameter_value
                     )

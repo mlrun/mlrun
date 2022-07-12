@@ -7,10 +7,10 @@ from sklearn.base import is_classifier, is_regressor
 
 import mlrun
 
-from .._common import Types, Utils
+from .._common import CommonTypes, CommonUtils
 
 
-class MLTypes(Types, ABC):
+class MLTypes(CommonTypes, ABC):
     """
     Machine learning frameworks type hints.
     """
@@ -25,15 +25,15 @@ class MLTypes(Types, ABC):
     TargetColumnsNamesType = Union[List[str], List[int]]
 
 
-class MLUtils(Utils, ABC):
+class MLUtils(CommonUtils, ABC):
     """
     Machine learning frameworks utilities.
     """
 
     @staticmethod
     def concatenate_x_y(
-        x: Types.DatasetType,
-        y: Types.DatasetType = None,
+        x: CommonTypes.DatasetType,
+        y: CommonTypes.DatasetType = None,
         target_columns_names: MLTypes.TargetColumnsNamesType = None,
         default_target_column_prefix: str = "y_",
     ) -> Tuple[pd.DataFrame, Union[MLTypes.TargetColumnsNamesType, None]]:

@@ -293,7 +293,7 @@ class TestProject(TestMLRunSystem):
     ):
         project_dir = f"{projects_dir}/{name}"
         shutil.rmtree(project_dir, ignore_errors=True)
-
+        # TODO: Need to replace with git://github.com/mlrun/project-demo.git
         project = mlrun.load_project(
             project_dir, "git://github.com/yonishelach/project-demo.git", name=name
         )

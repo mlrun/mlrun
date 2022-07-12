@@ -1954,9 +1954,7 @@ class MlrunProject(ModelObj):
         )
         workflow_spec.clear_tmp()
         if watch and not schedule and run.state != mlrun.run.RunStatuses.failed:
-            workflow_engine.get_run_status(
-                project=self, run=run, timeout=timeout or 60 * 60
-            )
+            workflow_engine.get_run_status(project=self, run=run, timeout=timeout)
         return run
 
     def save_workflow(self, name, target, artifact_path=None, ttl=None):

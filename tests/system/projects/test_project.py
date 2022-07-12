@@ -289,7 +289,7 @@ class TestProject(TestMLRunSystem):
         self._test_new_pipeline("kfppipe", engine="kfp")
 
     def _test_remote_pipeline_from_github(
-        self, name, workflow_name, engine=None, local=None
+        self, name, workflow_name, engine=None, local=None, watch=False
     ):
         project_dir = f"{projects_dir}/{name}"
         shutil.rmtree(project_dir, ignore_errors=True)
@@ -300,7 +300,7 @@ class TestProject(TestMLRunSystem):
         workflow_dict = project.spec._workflows[workflow_name].to_dict()
         run = project.run(
             workflow_name,
-            watch=False,
+            watch=watch,
             local=local,
             engine=engine,
         )
@@ -314,7 +314,10 @@ class TestProject(TestMLRunSystem):
 
     def test_remote_pipeline_with_kfp_engine_from_github(self):
         self._test_remote_pipeline_from_github(
-            name="rmtpipe-kfp-github-3", workflow_name="main", engine="remote"
+            name="rmtpipe-kfp-github-3",
+            workflow_name="main",
+            engine="remote",
+            watch=True,
         )
         self._test_remote_pipeline_from_github(
             name="rmtpipe-kfp-github-3", workflow_name="main", engine="remote:kfp"
@@ -325,6 +328,7 @@ class TestProject(TestMLRunSystem):
             name="rmtpipe-local-github",
             workflow_name="newflow",
             engine="remote:local",
+            watch=True,
         )
         try:
             self._test_remote_pipeline_from_github(

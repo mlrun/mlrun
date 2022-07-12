@@ -76,7 +76,6 @@ class WorkflowSpec(mlrun.model.ModelObj):
         args_schema: dict = None,
         run_local: bool = None,
         schedule: str = None,
-        inner_engine=None,
     ):
         self.name = name
         self.path = path
@@ -88,7 +87,6 @@ class WorkflowSpec(mlrun.model.ModelObj):
         self.args_schema = args_schema
         self.run_local = run_local
         self._tmp_path = None
-        self.inner_engine = inner_engine
         self.schedule = schedule
 
     def get_source_file(self, context=""):
@@ -414,7 +412,6 @@ class _PipelineRunner(abc.ABC):
         artifact_path=None,
         namespace=None,
         schedule=None,
-        with_archive=None,
     ) -> _PipelineRunStatus:
         return None
 
@@ -444,45 +441,15 @@ class _PipelineRunner(abc.ABC):
         return workflow_handler
 
     @staticmethod
+    @abc.abstractmethod
     def get_run_status(
         project,
         run,
-        timeout=60 * 60,
+        timeout=None,
         expected_statuses=None,
         notifiers: RunNotifications = None,
     ):
-        state = ""
-        raise_error = None
-        try:
-            if timeout:
-                logger.info("waiting for pipeline run completion")
-                state = run.wait_for_completion(
-                    timeout=timeout, expected_statuses=expected_statuses
-                )
-        except RuntimeError as exc:
-            # push runs table also when we have errors
-            raise_error = exc
-
-        mldb = mlrun.db.get_run_db(secrets=project._secrets)
-        runs = mldb.list_runs(project=project.name, labels=f"workflow={run.run_id}")
-
-        had_errors = 0
-        for r in runs:
-            if r["status"].get("state", "") == "error":
-                had_errors += 1
-
-        text = f"Workflow {run.run_id} finished"
-        if had_errors:
-            text += f" with {had_errors} errors"
-        if state:
-            text += f", state={state}"
-
-        notifiers = notifiers or project.notifiers
-        notifiers.push(text, runs)
-
-        if raise_error:
-            raise raise_error
-        return state, had_errors, text
+        pass
 
 
 class _KFPRunner(_PipelineRunner):
@@ -519,7 +486,6 @@ class _KFPRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         schedule=None,
-        with_archive=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -542,7 +508,6 @@ class _KFPRunner(_PipelineRunner):
             id,
             True,
         )
-
         pipeline_context.clear()
         return _PipelineRunStatus(id, cls, project=project, workflow=workflow_spec)
 
@@ -568,6 +533,50 @@ class _KFPRunner(_PipelineRunner):
             return resp["run"].get("status", "")
         return ""
 
+    @staticmethod
+    def get_run_status(
+        project,
+        run,
+        timeout=None,
+        expected_statuses=None,
+        notifiers: RunNotifications = None,
+    ):
+        if timeout is None:
+            timeout = 60 * 60
+
+        state = ""
+        raise_error = None
+        try:
+            if timeout:
+                logger.info("waiting for pipeline run completion")
+                state = run.wait_for_completion(
+                    timeout=timeout, expected_statuses=expected_statuses
+                )
+        except RuntimeError as exc:
+            # push runs table also when we have errors
+            raise_error = exc
+
+        mldb = mlrun.db.get_run_db(secrets=project._secrets)
+        runs = mldb.list_runs(project=project.name, labels=f"workflow={run.run_id}")
+
+        had_errors = 0
+        for r in runs:
+            if r["status"].get("state", "") == "error":
+                had_errors += 1
+
+        text = f"Workflow {run.run_id} finished"
+        if had_errors:
+            text += f" with {had_errors} errors"
+        if state:
+            text += f", state={state}"
+
+        notifiers = notifiers or project.notifiers
+        notifiers.push(text, runs)
+
+        if raise_error:
+            raise raise_error
+        return state, had_errors, text
+
 
 class _LocalRunner(_PipelineRunner):
     """local pipelines runner"""
@@ -585,7 +594,6 @@ class _LocalRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         schedule=None,
-        with_archive=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -666,7 +674,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:0.0.42",
+                image="yonishelach/mlrun-remote-runner:1.0.0",
             )
 
             # Preparing parameters for load_and_run function:
@@ -683,7 +691,7 @@ class _RemoteRunner(_PipelineRunner):
                 "engine": workflow_spec.engine,
                 "local": workflow_spec.run_local,
             }
-            print(params)
+
             msg = "executing workflow "
             if schedule:
                 msg += "scheduling "
@@ -726,17 +734,23 @@ class _RemoteRunner(_PipelineRunner):
 
     @staticmethod
     def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
-        project_name = project.metadata.name if project else ""
-        run_info = wait_for_pipeline_completion(
-            run_id,
+        pass
+
+    @staticmethod
+    def get_run_status(
+        project,
+        run,
+        timeout=None,
+        expected_statuses=None,
+        notifiers: RunNotifications = None,
+    ):
+        return get_workflow_engine(run.workflow.engine).get_run_status(
+            project=project,
+            run=run,
             timeout=timeout,
             expected_statuses=expected_statuses,
-            project=project_name,
+            notifiers=notifiers,
         )
-        status = ""
-        if run_info:
-            status = run_info["run"].get("status")
-        return status
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):

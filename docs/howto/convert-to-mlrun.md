@@ -31,7 +31,7 @@ The code includes the following components:
 ## Notebooks and Code
 
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 1
 
 convert-original-code
 convert-mlrun-code

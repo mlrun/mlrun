@@ -297,7 +297,6 @@ class TestProject(TestMLRunSystem):
         project = mlrun.load_project(
             project_dir, "git://github.com/yonishelach/project-demo.git", name=name
         )
-        print(project.to_yaml())
         workflow_dict = project.spec._workflows[workflow_name].to_dict()
         run = project.run(
             workflow_name,
@@ -323,11 +322,19 @@ class TestProject(TestMLRunSystem):
 
     def test_remote_pipeline_with_local_engine_from_github(self):
         self._test_remote_pipeline_from_github(
-            name="rmtpipe-local-github", workflow_name="newflow", engine="remote:local",
+            name="rmtpipe-local-github",
+            workflow_name="newflow",
+            engine="remote:local",
         )
-        self._test_remote_pipeline_from_github(
-            name="rmtpipe-local-github", workflow_name="newflow", engine="remote", local=True
-        )
+        try:
+            self._test_remote_pipeline_from_github(
+                name="rmtpipe-local-github",
+                workflow_name="newflow",
+                engine="remote",
+                local=True,
+            )
+        except Exception as e:
+            assert isinstance(e, mlrun.errors.MLRunInvalidArgumentError), str(e)
 
     def test_local_cli(self):
         # load project from git

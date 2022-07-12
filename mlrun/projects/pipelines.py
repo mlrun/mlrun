@@ -44,6 +44,11 @@ def get_workflow_engine(engine_kind, local=False):
             logger.warning(
                 "running kubeflow pipeline locally, note some ops may not run locally!"
             )
+        elif engine_kind == "remote":
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "running remote pipeline locally is not possible. "
+                "for running local pipeline remotely, use 'remote:local' engine"
+            )
         return _LocalRunner
     if not engine_kind or engine_kind == "kfp":
         return _KFPRunner
@@ -71,6 +76,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         args_schema: dict = None,
         run_local: bool = None,
         schedule: str = None,
+        inner_engine=None,
     ):
         self.name = name
         self.path = path
@@ -82,6 +88,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         self.args_schema = args_schema
         self.run_local = run_local
         self._tmp_path = None
+        self.inner_engine = inner_engine
         self.schedule = schedule
 
     def get_source_file(self, context=""):

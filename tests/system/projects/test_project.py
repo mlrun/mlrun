@@ -322,11 +322,8 @@ class TestProject(TestMLRunSystem):
         )
 
     def test_remote_pipeline_with_local_engine_from_github(self):
-        # self._test_remote_pipeline_from_github(
-        #     name="rmtpipe-local-github", workflow_name="newflow", engine="local"
-        # )
         self._test_remote_pipeline_from_github(
-            name="rmtpipe-local-github", workflow_name="newflow", engine="remote"
+            name="rmtpipe-local-github", workflow_name="newflow", engine="remote:local",
         )
         self._test_remote_pipeline_from_github(
             name="rmtpipe-local-github", workflow_name="newflow", engine="remote", local=True

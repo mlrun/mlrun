@@ -650,6 +650,7 @@ class _RemoteRunner(_PipelineRunner):
     """remote pipelines runner"""
 
     engine = "remote"
+    # inner_engine = None
 
     @classmethod
     def run(
@@ -674,7 +675,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:1.0.1",
+                image="yonishelach/mlrun-remote-runner:1.0.2",
             )
 
             # Preparing parameters for load_and_run function:
@@ -691,7 +692,7 @@ class _RemoteRunner(_PipelineRunner):
                 "engine": workflow_spec.engine,
                 "local": workflow_spec.run_local,
             }
-
+            # cls.inner_engine = params['engine']
             msg = "executing workflow "
             if schedule:
                 msg += "scheduling "
@@ -735,6 +736,13 @@ class _RemoteRunner(_PipelineRunner):
     @staticmethod
     def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
         pass
+        # mlrun.ge
+        # return get_workflow_engine(run.workflow.engine).wait_for_completion(
+        #     project=project,
+        #     run=run_id,
+        #     timeout=timeout,
+        #     expected_statuses=expected_statuses,
+        # )
 
     @staticmethod
     def get_run_status(
@@ -744,13 +752,17 @@ class _RemoteRunner(_PipelineRunner):
         expected_statuses=None,
         notifiers: RunNotifications = None,
     ):
-        return get_workflow_engine(run.workflow.engine).get_run_status(
+        inner_engine = get_workflow_engine(run.workflow.engine)
+        run._engine = inner_engine
+        run_status = inner_engine.get_run_status(
             project=project,
             run=run,
             timeout=timeout,
             expected_statuses=expected_statuses,
             notifiers=notifiers,
         )
+        run._engine = _RemoteRunner
+        return run_status
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):

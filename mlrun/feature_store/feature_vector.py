@@ -245,7 +245,25 @@ class FeatureVector(ModelObj):
     def get_stats_table(self):
         """get feature statistics table (as dataframe)"""
         if self.status.stats:
+            feature_aliases = self.get_feature_aliases()
+            for old_name, new_name in feature_aliases.items():
+                if old_name in self.status.stats:
+                    self.status.stats[new_name] = self.status.stats[old_name]
+                    del self.status.stats[old_name]
             return pd.DataFrame.from_dict(self.status.stats, orient="index")
+
+    def get_feature_aliases(self):
+        feature_aliases = {}
+        for feature in self.spec.features:
+            column_names = feature.split(" as ")
+            # split 'feature_set.old_name as new_name'
+            if len(column_names) == 2:
+                old_name_with_feature_set, new_name = column_names
+                # split 'feature_set.old_name'
+                feature_set, old_name = column_names[0].split(".")
+                if new_name != old_name:
+                    feature_aliases[old_name] = new_name
+        return feature_aliases
 
     def get_target_path(self, name=None):
         target = get_offline_target(self, name=name)
@@ -290,10 +308,14 @@ class FeatureVector(ModelObj):
         index_keys = []
         feature_set_fields = collections.defaultdict(list)
         features = copy(self.spec.features)
+        label_column_name = None
+        label_column_fset = None
         if offline and self.spec.label_feature:
             features.append(self.spec.label_feature)
-            _, name, alias = parse_feature_string(self.spec.label_feature)
-            self.status.label_column = alias or name
+            feature_set, name, _ = parse_feature_string(self.spec.label_feature)
+            self.status.label_column = name
+            label_column_name = name
+            label_column_fset = feature_set
 
         def add_feature(name, alias, feature_set_object, feature_set_full_name):
             if alias in processed_features.keys():
@@ -318,7 +340,9 @@ class FeatureVector(ModelObj):
             feature_fields = feature_set_object.spec.features.keys()
             if feature_name == "*":
                 for field in feature_fields:
-                    if field != feature_set_object.spec.timestamp_key:
+                    if field != feature_set_object.spec.timestamp_key and not (
+                        feature_set == label_column_fset and field == label_column_name
+                    ):
                         if alias:
                             add_feature(
                                 field,
@@ -340,14 +364,13 @@ class FeatureVector(ModelObj):
             for key in feature_set.spec.entities.keys():
                 if key not in index_keys:
                     index_keys.append(key)
-            for name, alias in fields:
-                field_name = alias or name
+            for name, _ in fields:
                 if name in feature_set.status.stats and update_stats:
-                    self.status.stats[field_name] = feature_set.status.stats[name]
+                    self.status.stats[name] = feature_set.status.stats[name]
                 if name in feature_set.spec.features.keys():
                     feature = feature_set.spec.features[name].copy()
                     feature.origin = f"{feature_set.fullname}.{name}"
-                    self.status.features[field_name] = feature
+                    self.status.features[name] = feature
 
         self.status.index_keys = index_keys
         return feature_set_objects, feature_set_fields
@@ -363,6 +386,12 @@ class OnlineVectorService:
         self._controller = graph.controller
         self._index_columns = index_columns
         self._impute_values = {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
     def initialize(self):
         """internal, init the feature service and prep the imputing logic"""
@@ -458,6 +487,12 @@ class OnlineVectorService:
 
         for row in entity_rows:
             futures.append(self._controller.emit(row, return_awaitable_result=True))
+
+        requested_columns = list(self.vector.status.features.keys())
+        aliases = self.vector.get_feature_aliases()
+        for i, column in enumerate(requested_columns):
+            requested_columns[i] = aliases.get(column, column)
+
         for future in futures:
             result = future.await_result()
             data = result.body
@@ -467,7 +502,6 @@ class OnlineVectorService:
             if not data:
                 data = None
             else:
-                requested_columns = self.vector.status.features.keys()
                 actual_columns = data.keys()
                 for column in requested_columns:
                     if (
@@ -485,7 +519,7 @@ class OnlineVectorService:
             if as_list and data:
                 data = [
                     data.get(key, None)
-                    for key in self.vector.status.features.keys()
+                    for key in requested_columns
                     if key != self.vector.status.label_column
                 ]
             results.append(data)
@@ -521,7 +555,7 @@ class OfflineVectorResponse:
 
     def to_csv(self, target_path, **kw):
         """return results as csv file"""
-        return self.to_csv(target_path, **kw)
+        return self._merger.to_csv(target_path, **kw)
 
 
 class FixedWindowType(Enum):

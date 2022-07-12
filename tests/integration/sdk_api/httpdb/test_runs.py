@@ -18,7 +18,8 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         This test verifies it's working
         """
         project_name = "runs-project"
-        mlrun.new_project(project_name)
+        project = mlrun.new_project(project_name)
+        project.save()
         uid = "some-uid"
         run_body_path = str(self.assets_path / "big-run.json")
         with open(run_body_path) as run_body_file:
@@ -31,6 +32,8 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         projects = ["run-project-1", "run-project-2", "run-project-3"]
         run_names = ["run-name-1", "run-name-2", "run-name-3"]
         for project in projects:
+            project_obj = mlrun.new_project(project)
+            project_obj.save()
             for name in run_names:
                 for suffix in ["first", "second", "third"]:
                     uid = f"{name}-uid-{suffix}"
@@ -87,6 +90,31 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
             partition_order=mlrun.api.schemas.OrderType.desc,
             rows_per_partition=5,
             iter=True,
+        )
+
+        # partitioned list, specific project, 5 rows per partition, max of 2 partitions, so 2 names * 5 rows = 10
+        runs = _list_and_assert_objects(
+            10,
+            project=projects[0],
+            partition_by=mlrun.api.schemas.RunPartitionByField.name,
+            partition_sort_by=mlrun.api.schemas.SortField.updated,
+            partition_order=mlrun.api.schemas.OrderType.desc,
+            rows_per_partition=5,
+            max_partitions=2,
+            iter=True,
+        )
+
+        # partitioned list, specific project, 4 rows per partition, max of 2 partitions, but only iter=0 so each
+        # partition has 3 rows, so 2 * 3 = 6
+        runs = _list_and_assert_objects(
+            6,
+            project=projects[0],
+            partition_by=mlrun.api.schemas.RunPartitionByField.name,
+            partition_sort_by=mlrun.api.schemas.SortField.updated,
+            partition_order=mlrun.api.schemas.OrderType.desc,
+            rows_per_partition=4,
+            max_partitions=2,
+            iter=False,
         )
 
         # Some negative testing - no sort by field

@@ -22,27 +22,35 @@ def test_build_kv_cursor_filter_expression():
     with pytest.raises(MLRunInvalidArgumentError):
         mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression("")
 
-    filter_expression = mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression(
-        project=TEST_PROJECT
+    filter_expression = (
+        mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression(
+            project=TEST_PROJECT
+        )
     )
     assert filter_expression == f"project=='{TEST_PROJECT}'"
 
-    filter_expression = mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression(
-        project=TEST_PROJECT, function="test_function", model="test_model"
+    filter_expression = (
+        mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression(
+            project=TEST_PROJECT, function="test_function", model="test_model"
+        )
     )
     expected = f"project=='{TEST_PROJECT}' AND function=='test_function' AND model=='test_model'"
     assert filter_expression == expected
 
-    filter_expression = mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression(
-        project=TEST_PROJECT, labels=["lbl1", "lbl2"]
+    filter_expression = (
+        mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression(
+            project=TEST_PROJECT, labels=["lbl1", "lbl2"]
+        )
     )
     assert (
         filter_expression
         == f"project=='{TEST_PROJECT}' AND exists(_lbl1) AND exists(_lbl2)"
     )
 
-    filter_expression = mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression(
-        project=TEST_PROJECT, labels=["lbl1=1", "lbl2=2"]
+    filter_expression = (
+        mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression(
+            project=TEST_PROJECT, labels=["lbl1=1", "lbl2=2"]
+        )
     )
     assert (
         filter_expression == f"project=='{TEST_PROJECT}' AND _lbl1=='1' AND _lbl2=='2'"

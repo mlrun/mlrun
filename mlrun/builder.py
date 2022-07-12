@@ -19,6 +19,8 @@ from base64 import b64decode, b64encode
 from os import path
 from urllib.parse import urlparse
 
+from kubernetes import client
+
 import mlrun.api.schemas
 import mlrun.errors
 import mlrun.runtimes.utils
@@ -27,6 +29,8 @@ from .config import config
 from .datastore import store_manager
 from .k8s_utils import BasePod, get_k8s_helper
 from .utils import enrich_image_url, get_parsed_docker_registry, logger, normalize_name
+
+IMAGE_NAME_ENRICH_REGISTRY_PREFIX = "."
 
 
 def make_dockerfile(
@@ -75,7 +79,20 @@ def make_kaniko_pod(
     name="",
     verbose=False,
     builder_env=None,
+    runtime_spec=None,
+    registry=None,
 ):
+    extra_runtime_spec = {}
+    if not registry:
+
+        # if registry was not given, infer it from the image destination
+        registry = dest.partition("/")[0]
+
+    # set kaniko's spec attributes from the runtime spec
+    for attribute in get_kaniko_spec_attributes_from_runtime():
+        attr_value = getattr(runtime_spec, attribute, None)
+        if attr_value:
+            extra_runtime_spec[attribute] = attr_value
 
     if not dockertext and not dockerfile:
         raise ValueError("docker file or text must be specified")
@@ -84,24 +101,39 @@ def make_kaniko_pod(
         dockerfile = "/empty/Dockerfile"
 
     args = ["--dockerfile", dockerfile, "--context", context, "--destination", dest]
-    if not secret_name:
-        args.append("--insecure")
-        args.append("--insecure-pull")
+    for value, flag in [
+        (config.httpdb.builder.insecure_pull_registry_mode, "--insecure-pull"),
+        (config.httpdb.builder.insecure_push_registry_mode, "--insecure"),
+    ]:
+        if value == "disabled":
+            continue
+        if value == "enabled" or (value == "auto" and not secret_name):
+            args.append(flag)
     if verbose:
         args += ["--verbosity", "debug"]
 
+    # While requests mainly affect scheduling, setting a limit may prevent Kaniko
+    # from finishing successfully (destructive), since we're not allowing to override the default
+    # specifically for the Kaniko pod, we're setting only the requests
+    # we cannot specify gpu requests without specifying gpu limits, so we set requests without gpu field
+    default_requests = config.get_default_function_pod_requirement_resources(
+        "requests", with_gpu=False
+    )
+    resources = {
+        "requests": mlrun.runtimes.utils.generate_resources(
+            mem=default_requests.get("memory"), cpu=default_requests.get("cpu")
+        )
+    }
     kpod = BasePod(
         name or "mlrun-build",
         config.httpdb.builder.kaniko_image,
         args=args,
         kind="build",
         project=project,
+        default_pod_spec_attributes=extra_runtime_spec,
+        resources=resources,
     )
     kpod.env = builder_env
-
-    if secret_name:
-        items = [{"key": ".dockerconfigjson", "path": "config.json"}]
-        kpod.mount_secret(secret_name, "/kaniko/.docker", items=items)
 
     if config.is_pip_ca_configured():
         items = [
@@ -141,13 +173,69 @@ def make_kaniko_pod(
                 "\n".join(requirements).encode("utf-8")
             ).decode("utf-8")
 
-        kpod.set_init_container(
+        kpod.append_init_container(
             config.httpdb.builder.kaniko_init_container_image,
             args=["sh", "-c", "; ".join(commands)],
             env=env,
+            name="create-dockerfile",
         )
 
+    # when using ECR we need init container to create the image repository
+    # example URL: <aws_account_id>.dkr.ecr.<region>.amazonaws.com
+    if ".ecr." in registry and registry.endswith(".amazonaws.com"):
+        repo = dest[dest.find("/") + 1 : dest.find(":")]
+        configure_kaniko_ecr_init_container(kpod, registry, repo)
+
+    # mount regular docker config secret
+    elif secret_name:
+        items = [{"key": ".dockerconfigjson", "path": "config.json"}]
+        kpod.mount_secret(secret_name, "/kaniko/.docker", items=items)
+
     return kpod
+
+
+def configure_kaniko_ecr_init_container(kpod, registry, repo):
+    region = registry.split(".")[3]
+    command = (
+        f"aws ecr create-repository --region {region} --repository-name {repo} "
+        f"|| if [ $? -eq 254 ]; then echo 'Ignoring repository already exits'; else exit $?; fi"
+    )
+    init_container_env = {}
+
+    if not config.httpdb.builder.docker_registry_secret:
+
+        # assume instance role has permissions to register and store a container image
+        # https://github.com/GoogleContainerTools/kaniko#pushing-to-amazon-ecr
+        # we only need this in the kaniko container
+        kpod.env.append(client.V1EnvVar(name="AWS_SDK_LOAD_CONFIG", value="true"))
+    else:
+        aws_credentials_file_env_key = "AWS_SHARED_CREDENTIALS_FILE"
+        aws_credentials_file_env_value = "/tmp/credentials"
+
+        # set the credentials file location in the init container
+        init_container_env[
+            aws_credentials_file_env_key
+        ] = aws_credentials_file_env_value
+
+        # set the kaniko container AWS credentials location to the mount's path
+        kpod.env.append(
+            client.V1EnvVar(
+                name=aws_credentials_file_env_key, value=aws_credentials_file_env_value
+            )
+        )
+        # mount the AWS credentials secret
+        kpod.mount_secret(
+            config.httpdb.builder.docker_registry_secret,
+            path="/tmp",
+        )
+
+    kpod.append_init_container(
+        config.httpdb.builder.kaniko_aws_cli_image,
+        command=["/bin/sh"],
+        args=["-c", command],
+        env=init_container_env,
+        name="create-repo",
+    )
 
 
 def upload_tarball(source_dir, target, secrets=None):
@@ -183,11 +271,12 @@ def build_image(
     verbose=False,
     builder_env=None,
     client_version=None,
+    runtime_spec=None,
 ):
-
+    builder_env = builder_env or {}
     if registry:
         dest = "/".join([registry, dest])
-    elif dest.startswith("."):
+    elif dest.startswith(IMAGE_NAME_ENRICH_REGISTRY_PREFIX):
         dest = dest[1:]
         registry, _ = get_parsed_docker_registry()
         secret_name = secret_name or config.httpdb.builder.docker_registry_secret
@@ -227,21 +316,27 @@ def build_image(
         if source
         else None
     )
+    access_key = builder_env.get(
+        "V3IO_ACCESS_KEY", auth_info.data_session or auth_info.access_key
+    )
+    username = builder_env.get("V3IO_USERNAME", auth_info.username)
 
+    builder_env = _generate_builder_env(project, builder_env)
+
+    parsed_url = urlparse(source)
     if inline_code:
         context = "/empty"
     elif source and "://" in source and not v3io:
-        context = source
-    elif source:
-        parsed_url = urlparse(source)
-        if v3io:
-            source = parsed_url.path
-        elif source.startswith("git://"):
+        if source.startswith("git://"):
             # if the user provided branch (w/o refs/..) we add the "refs/.."
             fragment = parsed_url.fragment or ""
             if not fragment.startswith("refs/"):
                 source = source.replace("#" + fragment, f"#refs/heads/{fragment}")
-        to_mount = True
+        context = source
+    elif source:
+        if v3io:
+            source = parsed_url.path
+            to_mount = True
         if source.endswith(".tar.gz"):
             source, src_dir = path.split(source)
     else:
@@ -267,14 +362,16 @@ def build_image(
         name=name,
         verbose=verbose,
         builder_env=builder_env,
+        runtime_spec=runtime_spec,
+        registry=registry,
     )
 
     if to_mount:
         kpod.mount_v3io(
             remote=source,
             mount_path="/context",
-            access_key=auth_info.data_session or auth_info.access_key,
-            user=auth_info.username,
+            access_key=access_key,
+            user=username,
         )
 
     k8s = get_k8s_helper()
@@ -286,6 +383,17 @@ def build_image(
         pod, ns = k8s.create_pod(kpod)
         logger.info(f'started build, to watch build logs use "mlrun watch {pod} {ns}"')
         return f"build:{pod}"
+
+
+def get_kaniko_spec_attributes_from_runtime():
+    """get the names of Kaniko spec attributes that are defined for runtime but should also be applied to kaniko"""
+    return [
+        "node_name",
+        "node_selector",
+        "affinity",
+        "tolerations",
+        "priority_class_name",
+    ]
 
 
 def resolve_mlrun_install_command(mlrun_version_specifier=None, client_version=None):
@@ -316,9 +424,9 @@ def resolve_mlrun_install_command(mlrun_version_specifier=None, client_version=N
 def build_runtime(
     auth_info: mlrun.api.schemas.AuthInfo,
     runtime,
-    with_mlrun,
-    mlrun_version_specifier,
-    skip_deployed,
+    with_mlrun=True,
+    mlrun_version_specifier=None,
+    skip_deployed=False,
     interactive=False,
     builder_env=None,
     client_version=None,
@@ -326,7 +434,7 @@ def build_runtime(
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
     project = runtime.metadata.project
-    if skip_deployed and runtime.is_deployed:
+    if skip_deployed and runtime.is_deployed():
         runtime.status.state = mlrun.api.schemas.FunctionState.ready
         return True
     if build.base_image:
@@ -344,9 +452,9 @@ def build_runtime(
             if build.base_image:
                 runtime.spec.image = build.base_image
             elif runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict():
-                runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[
-                    runtime.kind
-                ]
+                runtime.spec.image = (
+                    mlrun.mlconf.function_defaults.image_by_kind.to_dict()[runtime.kind]
+                )
         if not runtime.spec.image:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "The deployment was not successful because no image was specified or there are missing build parameters"
@@ -355,9 +463,7 @@ def build_runtime(
         runtime.status.state = mlrun.api.schemas.FunctionState.ready
         return True
 
-    build.image = build.image or mlrun.runtimes.utils.generate_function_image_name(
-        runtime
-    )
+    build.image = mlrun.runtimes.utils.resolve_function_image_name(runtime, build.image)
     runtime.status.state = ""
 
     inline = None  # noqa: F841
@@ -392,6 +498,7 @@ def build_runtime(
         verbose=runtime.verbose,
         builder_env=builder_env,
         client_version=client_version,
+        runtime_spec=runtime.spec,
     )
     runtime.status.build_pod = None
     if status == "skipped":
@@ -413,3 +520,21 @@ def build_runtime(
     runtime.spec.image = local + build.image
     runtime.status.state = mlrun.api.schemas.FunctionState.ready
     return True
+
+
+def _generate_builder_env(project, builder_env):
+    k8s = get_k8s_helper()
+    secret_name = k8s.get_project_secret_name(project)
+    existing_secret_keys = k8s.get_project_secret_keys(project, filter_internal=True)
+
+    # generate env list from builder env and project secrets
+    env = []
+    for key in existing_secret_keys:
+        if key not in builder_env:
+            value_from = client.V1EnvVarSource(
+                secret_key_ref=client.V1SecretKeySelector(name=secret_name, key=key)
+            )
+            env.append(client.V1EnvVar(name=key, value_from=value_from))
+    for key, value in builder_env.items():
+        env.append(client.V1EnvVar(name=key, value=value))
+    return env

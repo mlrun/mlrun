@@ -48,7 +48,6 @@ class SystemTestPreparer:
         access_key: str,
         iguazio_version: str,
         spark_service: str,
-        google_big_query_credentials_json: str,
         password: str = None,
         debug: bool = False,
     ):
@@ -76,7 +75,6 @@ class SystemTestPreparer:
             "V3IO_USERNAME": username,
             "V3IO_ACCESS_KEY": access_key,
             "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE": spark_service,
-            "MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON": google_big_query_credentials_json,
         }
         if password:
             self._env_config["V3IO_PASSWORD"] = password
@@ -289,13 +287,17 @@ class SystemTestPreparer:
     def _prepare_test_env(self):
 
         self._run_command(
-            "mkdir", args=["-p", str(self.Constants.workdir)],
+            "mkdir",
+            args=["-p", str(self.Constants.workdir)],
         )
         contents = yaml.safe_dump(self._env_config)
         filepath = str(self.Constants.system_tests_env_yaml)
         self._logger.debug("Populating system tests env.yml", filepath=filepath)
         self._run_command(
-            "cat > ", args=[filepath], stdin=contents, local=True,
+            "cat > ",
+            args=[filepath],
+            stdin=contents,
+            local=True,
         )
 
     def _override_mlrun_api_env(self):
@@ -328,7 +330,8 @@ class SystemTestPreparer:
         )
 
         self._run_command(
-            "kubectl", args=["apply", "-f", manifest_file_name],
+            "kubectl",
+            args=["apply", "-f", manifest_file_name],
         )
 
     def _download_provctl(self):
@@ -435,7 +438,6 @@ def main():
 @click.argument("access-key", type=str, required=True)
 @click.argument("iguazio-version", type=str, default=None, required=True)
 @click.argument("spark-service", type=str, required=True)
-@click.argument("google_big_query_credentials_json", type=str, required=True)
 @click.argument("password", type=str, default=None, required=False)
 @click.option(
     "--debug",
@@ -460,7 +462,6 @@ def run(
     access_key: str,
     iguazio_version: str,
     spark_service: str,
-    google_big_query_credentials_json: str,
     password: str,
     debug: bool,
 ):
@@ -481,7 +482,6 @@ def run(
         access_key,
         iguazio_version,
         spark_service,
-        google_big_query_credentials_json,
         password,
         debug,
     )

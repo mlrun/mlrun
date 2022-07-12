@@ -101,7 +101,7 @@ def test_kfp_function_run(kfp_dirs):
     result = new_function(kfp=True).run(task, handler=my_job)
     _assert_meta_dir(meta_dir, expected_accuracy, expected_loss)
     _assert_artifacts_dir(artifacts_dir, expected_accuracy, expected_loss)
-    _assert_output_dir(output_dir)
+    _assert_output_dir(output_dir, result.metadata.name)
     assert result.output("accuracy") == expected_accuracy
     assert result.output("loss") == expected_loss
     assert result.status.state == "completed"
@@ -118,20 +118,18 @@ def test_kfp_function_run_with_hyper_params(kfp_dirs):
     result = new_function(kfp=True).run(task, handler=my_job)
     _assert_meta_dir(meta_dir, expected_accuracy, expected_loss, best_iteration)
     _assert_artifacts_dir(artifacts_dir, expected_accuracy, expected_loss)
-    _assert_output_dir(output_dir, iterations=len(p1))
+    _assert_output_dir(output_dir, result.metadata.name, iterations=len(p1))
     assert result.output("accuracy") == expected_accuracy
     assert result.output("loss") == expected_loss
     assert result.status.state == "completed"
 
 
-def _assert_output_dir(output_dir, iterations=1):
+def _assert_output_dir(output_dir, name, iterations=1):
+    output_prefix = f"{output_dir}/{name}/"
     for iteration in range(1, iterations):
-        iteration_output_dir = output_dir
-        if iterations > 1:
-            iteration_output_dir = output_dir + f"/{iteration}"
-        _assert_iteration_output_dir_files(iteration_output_dir)
+        _assert_iteration_output_dir_files(output_prefix, iteration)
     if iterations > 1:
-        iteration_results_file = output_dir + "/iteration_results.csv"
+        iteration_results_file = output_prefix + "0/iteration_results.csv"
         with open(iteration_results_file) as file:
             count = 0
             for row in csv.DictReader(file):
@@ -140,15 +138,18 @@ def _assert_output_dir(output_dir, iterations=1):
         assert count == 3, "didnt see expected iterations file output"
 
 
-def _assert_iteration_output_dir_files(output_dir):
-    with open(output_dir + "/model.txt") as model_file:
+def _assert_iteration_output_dir_files(output_dir, iteration):
+    def file_path(key):
+        return output_dir + f"{iteration}/{key}"
+
+    with open(file_path("model.txt")) as model_file:
         contents = model_file.read()
         assert contents == model_body
-    with open(output_dir + "/results.html") as results_file:
+    with open(file_path("results.html")) as results_file:
         contents = results_file.read()
         assert contents == results_body
-    assert os.path.exists(output_dir + "/chart.html")
-    assert os.path.exists(output_dir + "/mydf.parquet")
+    assert os.path.exists(file_path("chart.html"))
+    assert os.path.exists(file_path("mydf.parquet"))
 
 
 def _assert_artifacts_dir(artifacts_dir, expected_accuracy, expected_loss):
@@ -189,5 +190,7 @@ def _assert_metrics_file(
 
 def _generate_task(p1, out_path):
     return new_task(
-        params={"p1": p1}, out_path=out_path, outputs=["accuracy", "loss"],
+        params={"p1": p1},
+        out_path=out_path,
+        outputs=["accuracy", "loss"],
     ).set_label("tests", "kfp")

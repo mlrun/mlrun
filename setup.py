@@ -81,9 +81,15 @@ extras_require = {
         "boto3~=1.9, <1.17.107",
         "botocore>=1.20.106,<1.20.107",
         "aiobotocore~=1.4.0",
+        "aioitertools<0.9",
         "s3fs~=2021.8.1",
     ],
-    "azure-blob-storage": ["azure-storage-blob~=12.0", "adlfs~=2021.8.1"],
+    "azure-blob-storage": [
+        "msrest~=0.6.21",
+        "azure-storage-blob~=12.0",
+        "azure-core<1.23",
+        "adlfs~=2021.8.1",
+    ],
     "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
     "bokeh": [
         # >=2.4.2 to force having a security fix done in 2.4.2
@@ -91,6 +97,8 @@ extras_require = {
     ],
     "plotly": ["plotly~=5.4"],
     "google-cloud-storage": ["gcsfs~=2021.8.1"],
+    "google-cloud-bigquery": ["google-cloud-bigquery~=3.0"],
+    "kafka": ["kafka-python~=2.0"],
 }
 extras_require["complete"] = sorted(
     {
@@ -182,6 +190,7 @@ setup(
         "Operating System :: MacOS",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
         "Programming Language :: Python",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: Software Development :: Libraries",

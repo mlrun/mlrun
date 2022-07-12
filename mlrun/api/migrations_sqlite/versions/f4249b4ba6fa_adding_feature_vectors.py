@@ -60,7 +60,10 @@ def upgrade():
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["parent"], ["feature_vectors.id"],),
+        sa.ForeignKeyConstraint(
+            ["parent"],
+            ["feature_vectors.id"],
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("name", "parent", name="_feature_vectors_labels_uc"),
     )
@@ -83,8 +86,14 @@ def upgrade():
             sa.String(255, collation=SQLCollationUtil.collation()),
             nullable=True,
         ),
-        sa.ForeignKeyConstraint(["obj_id"], ["feature_vectors.id"],),
-        sa.ForeignKeyConstraint(["obj_name"], ["feature_vectors.name"],),
+        sa.ForeignKeyConstraint(
+            ["obj_id"],
+            ["feature_vectors.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["obj_name"],
+            ["feature_vectors.name"],
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
             "project", "name", "obj_name", name="_feature_vectors_tags_uc"

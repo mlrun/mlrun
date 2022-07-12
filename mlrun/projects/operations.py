@@ -47,7 +47,7 @@ def run_function(
     labels: dict = None,
     base_task: mlrun.model.RunTemplate = None,
     watch: bool = True,
-    local: bool = False,
+    local: bool = None,
     verbose: bool = None,
     selector: str = None,
     project_object=None,
@@ -106,6 +106,7 @@ def run_function(
     :param watch:           watch/follow run log, True by default
     :param local:           run the function locally vs on the runtime/cluster
     :param verbose:         add verbose prints/logs
+    :param project_object:  override the project object to use, will default to the project set in the runtime context.
     :param auto_build:      when set to True and the function require build it will be built on the first
                             function run, use only if you dont plan on changing the build config between runs
 
@@ -113,7 +114,6 @@ def run_function(
     """
     engine, function = _get_engine_and_function(function, project_object)
     task = mlrun.new_task(
-        name,
         handler=handler,
         params=params,
         hyper_params=hyperparams,
@@ -126,18 +126,21 @@ def run_function(
 
     if engine == "kfp":
         return function.as_step(
-            runspec=task, workdir=workdir, outputs=outputs, labels=labels
+            name=name, runspec=task, workdir=workdir, outputs=outputs, labels=labels
         )
     else:
-        if pipeline_context.workflow:
-            local = local or pipeline_context.workflow.run_local
+        project = project_object or pipeline_context.project
+        local = pipeline_context.is_run_local(local)
         task.metadata.labels = task.metadata.labels or labels or {}
         if pipeline_context.workflow_id:
             task.metadata.labels["workflow"] = pipeline_context.workflow_id
         if function.kind == "local":
             command, function = mlrun.run.load_func_code(function)
             function.spec.command = command
+        if local and project and function.spec.build.source:
+            workdir = workdir or project.spec.get_code_path()
         run_result = function.run(
+            name=name,
             runspec=task,
             workdir=workdir,
             verbose=verbose,
@@ -158,9 +161,10 @@ def run_function(
 class BuildStatus:
     """returned status from build operation"""
 
-    def __init__(self, ready, outputs={}):
+    def __init__(self, ready, outputs={}, function=None):
         self.ready = ready
         self.outputs = outputs
+        self.function = function
 
     def after(self, step):
         """nil function, for KFP compatibility"""
@@ -196,15 +200,18 @@ def build_function(
     :param mlrun_version_specifier:  which mlrun package version to include (if not current)
     :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
                             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
+    :param project_object:  override the project object to use, will default to the project set in the runtime context.
+    :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
+                            e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
     """
     engine, function = _get_engine_and_function(function, project_object)
     if requirements:
         function.with_requirements(requirements)
-        if commands and function.spec.build.commands:
-            # merge requirements with commands
-            for command in function.spec.build.commands:
-                if command not in commands:
-                    commands.append(command)
+    if commands and function.spec.build.commands:
+        # add commands to existing build commands
+        for command in commands:
+            if command not in function.spec.build.commands:
+                function.spec.build.commands.append(command)
 
     if function.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -231,15 +238,16 @@ def build_function(
             builder_env=builder_env,
         )
         # return object with the same outputs as the KFP op (allow using the same pipeline)
-        return BuildStatus(ready, {"image": function.spec.image})
+        return BuildStatus(ready, {"image": function.spec.image}, function=function)
 
 
 class DeployStatus:
     """returned status from deploy operation"""
 
-    def __init__(self, state, outputs={}):
+    def __init__(self, state, outputs={}, function=None):
         self.state = state
         self.outputs = outputs
+        self.function = function
 
     def after(self, step):
         """nil function, for KFP compatibility"""
@@ -256,6 +264,7 @@ def deploy_function(
     env: dict = None,
     tag: str = None,
     verbose: bool = None,
+    builder_env: dict = None,
     project_object=None,
 ):
     """deploy real-time (nuclio based) functions
@@ -266,6 +275,8 @@ def deploy_function(
     :param env:        dict of extra environment variables
     :param tag:        extra version tag
     :param verbose     add verbose prints/logs
+    :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
+    :param project_object:  override the project object to use, will default to the project set in the runtime context.
     """
     engine, function = _get_engine_and_function(function, project_object)
     if function.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
@@ -282,9 +293,12 @@ def deploy_function(
         if models:
             for model_args in models:
                 function.add_model(**model_args)
-        address = function.deploy(dashboard=dashboard, tag=tag, verbose=verbose)
+        address = function.deploy(
+            dashboard=dashboard, tag=tag, verbose=verbose, builder_env=builder_env
+        )
         # return object with the same outputs as the KFP op (allow using the same pipeline)
         return DeployStatus(
             state=function.status.state,
             outputs={"endpoint": address, "name": function.status.nuclio_name},
+            function=function,
         )

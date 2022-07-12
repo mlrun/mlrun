@@ -24,6 +24,7 @@ from typing import Union
 
 from ..config import config
 from ..datastore import get_stream_pusher
+from ..datastore.utils import parse_kafka_url
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj, ObjectDict
 from ..platforms.iguazio import parse_v3io_path
@@ -534,6 +535,7 @@ class RouterStep(TaskStep):
         :param class_name: class name to build the route step from (when route is not provided)
         :param class_args: class init arguments
         :param handler:    class handler to invoke on run/event
+        :param function:   function this step should run in
         """
 
         if not route and not class_name:
@@ -585,7 +587,14 @@ class RouterStep(TaskStep):
         yield from self._routes.keys()
 
     def plot(self, filename=None, format=None, source=None, **kw):
-        """plot/save a graphviz plot"""
+        """plot/save graph using graphviz
+
+        :param filename:  target filepath for the image (None for the notebook)
+        :param format:    The output format used for rendering (``'pdf'``, ``'png'``, etc.)
+        :param source:    source step to add to the graph
+        :param kw:        kwargs passed to graphviz, e.g. rankdir="LR" (see: https://graphviz.org/doc/info/attrs.html)
+        :return: graphviz graph object
+        """
         return _generate_graphviz(
             self, _add_graphviz_router, filename, format, source=source, **kw
         )
@@ -609,15 +618,11 @@ class QueueStep(BaseStep):
         name: str = None,
         path: str = None,
         after: list = None,
-        shards: int = None,
-        retention_in_hours: int = None,
         trigger_args: dict = None,
         **options,
     ):
         super().__init__(name, after)
         self.path = path
-        self.shards = shards
-        self.retention_in_hours = retention_in_hours
         self.options = options
         self.trigger_args = trigger_args
         self._stream = None
@@ -628,8 +633,7 @@ class QueueStep(BaseStep):
         if self.path:
             self._stream = get_stream_pusher(
                 self.path,
-                shards=self.shards,
-                retention_in_hours=self.retention_in_hours,
+                **self.options,
             )
         self._set_error_handler()
 
@@ -895,6 +899,7 @@ class FlowStep(BaseStep):
         yield from self._steps.keys()
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+        """initialize graph objects and classes"""
         self.context = context
         self.check_and_process_graph()
 
@@ -1075,6 +1080,18 @@ class FlowStep(BaseStep):
             if step.kind == StepKinds.queue:
                 step.init_object(self.context, None)
 
+    def list_child_functions(self):
+        """return a list of child function names referred to in the steps"""
+        functions = []
+        for step in self.get_children():
+            if (
+                hasattr(step, "function")
+                and step.function
+                and step.function not in functions
+            ):
+                functions.append(step.function)
+        return functions
+
     def is_empty(self):
         """is the graph empty (no child steps)"""
         return len(self.steps) == 0
@@ -1140,7 +1157,15 @@ class FlowStep(BaseStep):
             return self._controller.await_termination()
 
     def plot(self, filename=None, format=None, source=None, targets=None, **kw):
-        """plot/save graph using graphviz"""
+        """plot/save graph using graphviz
+
+        :param filename:  target filepath for the image (None for the notebook)
+        :param format:    The output format used for rendering (``'pdf'``, ``'png'``, etc.)
+        :param source:    source step to add to the graph
+        :param targets:   list of target steps to add to the graph
+        :param kw:        kwargs passed to graphviz, e.g. rankdir="LR" (see: https://graphviz.org/doc/info/attrs.html)
+        :return: graphviz graph object
+        """
         return _generate_graphviz(
             self,
             _add_graphviz_flow,
@@ -1192,7 +1217,10 @@ def _add_graphviz_router(graph, step, source=None, **kwargs):
 
 
 def _add_graphviz_flow(
-    graph, step, source=None, targets=None,
+    graph,
+    step,
+    source=None,
+    targets=None,
 ):
     start_steps, default_final_step, responders = step.check_and_process_graph(
         allow_empty=True
@@ -1229,7 +1257,13 @@ def _add_graphviz_flow(
 
 
 def _generate_graphviz(
-    step, renderer, filename=None, format=None, source=None, targets=None, **kw,
+    step,
+    renderer,
+    filename=None,
+    format=None,
+    source=None,
+    targets=None,
+    **kw,
 ):
     try:
         from graphviz import Digraph
@@ -1380,12 +1414,33 @@ def _init_async_objects(context, steps):
                 if step.path and not skip_stream:
                     stream_path = step.path
                     endpoint = None
-                    if "://" in stream_path:
-                        endpoint, stream_path = parse_v3io_path(step.path)
-                        stream_path = stream_path.strip("/")
-                    step._async_object = storey.StreamTarget(
-                        storey.V3ioDriver(endpoint), stream_path, context=context,
+                    kafka_bootstrap_servers = step.options.get(
+                        "kafka_bootstrap_servers"
                     )
+                    if stream_path.startswith("kafka://") or kafka_bootstrap_servers:
+                        topic, bootstrap_servers = parse_kafka_url(
+                            stream_path, kafka_bootstrap_servers
+                        )
+
+                        kafka_producer_options = step.options.get(
+                            "kafka_producer_options"
+                        )
+
+                        step._async_object = storey.KafkaTarget(
+                            topic=topic,
+                            bootstrap_servers=bootstrap_servers,
+                            producer_options=kafka_producer_options,
+                            context=context,
+                        )
+                    else:
+                        if stream_path.startswith("v3io://"):
+                            endpoint, stream_path = parse_v3io_path(step.path)
+                            stream_path = stream_path.strip("/")
+                        step._async_object = storey.StreamTarget(
+                            storey.V3ioDriver(endpoint),
+                            stream_path,
+                            context=context,
+                        )
                 else:
                     step._async_object = storey.Map(lambda x: x)
 

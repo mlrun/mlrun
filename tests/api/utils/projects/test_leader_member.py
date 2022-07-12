@@ -63,7 +63,8 @@ def test_projects_sync_follower_project_adoption(
         spec=mlrun.api.schemas.ProjectSpec(description=project_description),
     )
     nop_follower.create_project(
-        None, project,
+        None,
+        project,
     )
     _assert_project_in_followers([nop_follower], project, enriched=False)
     _assert_no_projects_in_followers([leader_follower, second_nop_follower])
@@ -86,7 +87,7 @@ def test_projects_sync_mid_deletion(
     The sync starts after the project was removed from followers, but before it was removed from the leader, meaning the
     sync will recognize the project is missing in the followers, and create it in them, so finally after the delete
     process ends, the project exists in the followers, and not in the leader, on the next sync, the project will be
-    created back in the leader causing the the project to practically not being deleted.
+    created back in the leader causing the project to practically not being deleted.
     """
     project_name = "project-name"
     project_description = "some description"
@@ -130,13 +131,17 @@ def test_projects_sync_leader_project_syncing(
         metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
         spec=mlrun.api.schemas.ProjectSpec(description=project_description),
     )
-    leader_follower.create_project(None, project)
+    enriched_project = project.copy(deep=True)
+    # simulate project enrichment
+    enriched_project.status.state = enriched_project.spec.desired_state
+    leader_follower.create_project(None, enriched_project)
     invalid_project_name = "invalid_name"
     invalid_project = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=invalid_project_name),
     )
     leader_follower.create_project(
-        None, invalid_project,
+        None,
+        invalid_project,
     )
     _assert_project_in_followers([leader_follower], project, enriched=False)
     _assert_project_in_followers([leader_follower], invalid_project, enriched=False)
@@ -147,7 +152,8 @@ def test_projects_sync_leader_project_syncing(
         [leader_follower, nop_follower, second_nop_follower], project
     )
     _assert_project_not_in_followers(
-        [nop_follower, second_nop_follower], invalid_project_name,
+        [nop_follower, second_nop_follower],
+        invalid_project_name,
     )
 
 
@@ -175,13 +181,16 @@ def test_projects_sync_multiple_follower_project_adoption(
         ),
     )
     nop_follower.create_project(
-        None, both_followers_project,
+        None,
+        both_followers_project,
     )
     second_nop_follower.create_project(
-        None, both_followers_project,
+        None,
+        both_followers_project,
     )
     second_nop_follower.create_project(
-        None, second_follower_project,
+        None,
+        second_follower_project,
     )
     leader_follower.create_project = unittest.mock.Mock(
         wraps=leader_follower.create_project
@@ -223,7 +232,8 @@ def test_create_project(
         ),
     )
     projects_leader.create_project(
-        None, project,
+        None,
+        project,
     )
     _assert_project_in_followers([leader_follower, nop_follower], project)
 
@@ -272,21 +282,27 @@ def test_create_and_store_project_failure_invalid_name(
         )
         if case["valid"]:
             projects_leader.create_project(
-                None, project,
+                None,
+                project,
             )
             _assert_project_in_followers([leader_follower], project)
             projects_leader.store_project(
-                None, project_name, project,
+                None,
+                project_name,
+                project,
             )
             _assert_project_in_followers([leader_follower], project)
         else:
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
                 projects_leader.create_project(
-                    None, project,
+                    None,
+                    project,
                 )
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
                 projects_leader.store_project(
-                    None, project_name, project,
+                    None,
+                    project_name,
+                    project,
                 )
             _assert_project_not_in_followers([leader_follower], project_name)
 
@@ -298,20 +314,29 @@ def test_ensure_project(
     leader_follower: mlrun.api.utils.projects.remotes.follower.Member,
 ):
     project_name = "project-name"
-    projects_leader.ensure_project(
-        None, project_name,
-    )
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        projects_leader.ensure_project(
+            None,
+            project_name,
+        )
+
     project = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+    )
+    projects_leader.create_project(
+        None,
+        project,
     )
     _assert_project_in_followers([leader_follower, nop_follower], project)
 
     # further calls should do nothing
     projects_leader.ensure_project(
-        None, project_name,
+        None,
+        project_name,
     )
     projects_leader.ensure_project(
-        None, project_name,
+        None,
+        project_name,
     )
 
 
@@ -330,7 +355,9 @@ def test_store_project_creation(
     _assert_no_projects_in_followers([leader_follower, nop_follower])
 
     projects_leader.store_project(
-        None, project_name, project,
+        None,
+        project_name,
+        project,
     )
     _assert_project_in_followers([leader_follower, nop_follower], project)
 
@@ -348,7 +375,8 @@ def test_store_project_update(
         spec=mlrun.api.schemas.ProjectSpec(description=project_description),
     )
     projects_leader.create_project(
-        None, project,
+        None,
+        project,
     )
     _assert_project_in_followers([leader_follower, nop_follower], project)
 
@@ -361,7 +389,9 @@ def test_store_project_update(
     )
 
     projects_leader.store_project(
-        None, project_name, updated_project,
+        None,
+        project_name,
+        updated_project,
     )
     _assert_project_in_followers([leader_follower, nop_follower], updated_project)
 
@@ -377,7 +407,8 @@ def test_patch_project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
     )
     projects_leader.create_project(
-        None, project,
+        None,
+        project,
     )
     _assert_project_in_followers(
         [leader_follower, nop_follower], project, enriched=False
@@ -412,7 +443,8 @@ def test_store_and_patch_project_failure_conflict_body_path_name(
         metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
     )
     projects_leader.create_project(
-        None, project,
+        None,
+        project,
     )
     _assert_project_in_followers([leader_follower, nop_follower], project)
 
@@ -426,7 +458,9 @@ def test_store_and_patch_project_failure_conflict_body_path_name(
         )
     with pytest.raises(mlrun.errors.MLRunConflictError):
         projects_leader.patch_project(
-            None, project_name, {"metadata": {"name": "different-name"}},
+            None,
+            project_name,
+            {"metadata": {"name": "different-name"}},
         )
     _assert_project_in_followers([leader_follower, nop_follower], project)
 
@@ -442,7 +476,8 @@ def test_delete_project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
     )
     projects_leader.create_project(
-        None, project,
+        None,
+        project,
     )
     _assert_project_in_followers([leader_follower, nop_follower], project)
 
@@ -464,7 +499,8 @@ def test_delete_project_follower_failure(
         metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
     )
     projects_leader.create_project(
-        None, project,
+        None,
+        project,
     )
     _assert_project_in_followers([leader_follower, nop_follower], project)
 
@@ -488,7 +524,8 @@ def test_list_projects(
         metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
     )
     projects_leader.create_project(
-        None, project,
+        None,
+        project,
     )
     _assert_project_in_followers([leader_follower, nop_follower], project)
 
@@ -519,13 +556,16 @@ def test_get_project(
         spec=mlrun.api.schemas.ProjectSpec(description=project_description),
     )
     projects_leader.create_project(
-        None, project,
+        None,
+        project,
     )
     _assert_project_in_followers([leader_follower, nop_follower], project)
 
     # change project description in follower
     nop_follower.patch_project(
-        None, project_name, {"spec": {"description": "updated description"}},
+        None,
+        project_name,
+        {"spec": {"description": "updated description"}},
     )
 
     # assert get considers only the leader

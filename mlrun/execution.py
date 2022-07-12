@@ -36,6 +36,7 @@ from .utils import (
     dict_to_json,
     dict_to_yaml,
     get_in,
+    is_relative_path,
     logger,
     now_date,
     run_keys,
@@ -198,7 +199,7 @@ class MLClientCtx(object):
             feature_vector = context.get_store_resource("store://feature-vectors/default/myvec")
             dataset = context.get_store_resource("store://artifacts/default/mydata")
 
-        :param uri:    store resource uri/path, store://<type>/<project>/<name>:<version>
+        :param url:    store resource uri/path, store://<type>/<project>/<name>:<version>
                        types: artifacts | feature-sets | feature-vectors
         """
         return get_store_resource(url, db=self._rundb, secrets=self._secrets_manager)
@@ -321,7 +322,7 @@ class MLClientCtx(object):
 
     @property
     def iteration(self):
-        """child iteration index, for hyper parameters """
+        """child iteration index, for hyper parameters"""
         return self._iteration
 
     @property
@@ -475,7 +476,7 @@ class MLClientCtx(object):
             return
         if not url:
             url = key
-        if self.in_path and not (url.startswith("/") or "://" in url):
+        if self.in_path and is_relative_path(url):
             url = os.path.join(self._in_path, url)
         obj = self._data_stores.object(
             url,
@@ -539,16 +540,19 @@ class MLClientCtx(object):
             self._results["best_iteration"] = best
             for k, v in get_in(task, ["status", "results"], {}).items():
                 self._results[k] = v
-            for a in get_in(task, ["status", run_keys.artifacts], []):
-                self._artifacts_manager.artifacts[a["key"]] = a
+            for artifact in get_in(task, ["status", run_keys.artifacts], []):
+                self._artifacts_manager.artifacts[
+                    artifact["metadata"]["key"]
+                ] = artifact
                 self._artifacts_manager.link_artifact(
                     self.project,
                     self.name,
                     self.tag,
-                    a["key"],
+                    artifact["metadata"]["key"],
                     self.iteration,
-                    a["target_path"],
+                    artifact["spec"]["target_path"],
                     link_iteration=best,
+                    db_key=artifact["spec"]["db_key"],
                 )
 
         if summary is not None:
@@ -613,6 +617,7 @@ class MLClientCtx(object):
         :param src_path:      deprecated, use local_path
         :param upload:        upload to datastore (default is True)
         :param labels:        a set of key/value labels to tag the artifact with
+        :param format:        optional, format to use (e.g. csv, parquet, ..)
         :param db_key:        the key to use in the artifact DB table, by default
                               its run name + '_' + key
                               db_key=False will not register it in the artifacts table
@@ -633,6 +638,7 @@ class MLClientCtx(object):
             labels=labels,
             db_key=db_key,
             format=format,
+            **kwargs,
         )
         self._update_db()
         return item
@@ -652,6 +658,7 @@ class MLClientCtx(object):
         db_key=None,
         target_path="",
         extra_data=None,
+        label_column: str = None,
         **kwargs,
     ):
         """log a dataset artifact and optionally upload it to datastore
@@ -669,6 +676,7 @@ class MLClientCtx(object):
 
         :param key:           artifact key
         :param df:            dataframe object
+        :param label_column:  name of the label column (the one holding the target (y) values)
         :param local_path:    path to the local file we upload, will also be use
                               as the destination subpath (under "artifact_path")
         :param artifact_path: target artifact path (when not using the default)
@@ -695,6 +703,7 @@ class MLClientCtx(object):
             extra_data=extra_data,
             format=format,
             stats=stats,
+            label_column=label_column,
             **kwargs,
         )
 
@@ -751,6 +760,7 @@ class MLClientCtx(object):
         :param key:             artifact key or artifact class ()
         :param body:            will use the body as the artifact content
         :param model_file:      path to the local model file we upload (see also model_dir)
+                                or to a model file data url (e.g. http://host/path/model.pkl)
         :param model_dir:       path to the local dir holding the model file and extra files
         :param artifact_path:   target artifact path (when not using the default)
                                 to define a subpath under the default location use:
@@ -769,7 +779,7 @@ class MLClientCtx(object):
         :param training_set:    training set dataframe, used to infer inputs & outputs
         :param label_column:    which columns in the training set are the label (target) columns
         :param extra_data:      key/value list of extra files/charts to link with this dataset
-                                value can be abs/relative path string | bytes | artifact object
+                                value can be absolute path | relative path (to model dir) | bytes | artifact object
         :param db_key:          the key to use in the artifact DB table, by default
                                 its run name + '_' + key
                                 db_key=False will not register it in the artifacts table
@@ -786,6 +796,7 @@ class MLClientCtx(object):
             key,
             body,
             model_file=model_file,
+            model_dir=model_dir,
             metrics=metrics,
             parameters=parameters,
             inputs=inputs,
@@ -803,7 +814,6 @@ class MLClientCtx(object):
         item = self._artifacts_manager.log_artifact(
             self,
             model,
-            local_path=model_dir,
             artifact_path=extend_artifact_path(artifact_path, self.artifact_path),
             tag=tag,
             upload=upload,

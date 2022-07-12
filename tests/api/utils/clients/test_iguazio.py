@@ -24,7 +24,9 @@ async def api_url() -> str:
 
 
 @pytest.fixture()
-async def iguazio_client(api_url: str,) -> mlrun.api.utils.clients.iguazio.Client:
+async def iguazio_client(
+    api_url: str,
+) -> mlrun.api.utils.clients.iguazio.Client:
     client = mlrun.api.utils.clients.iguazio.Client()
     # force running init again so the configured api url will be used
     client.__init__()
@@ -184,7 +186,11 @@ def test_get_or_create_access_key_success(
             }
         }
         assert (
-            deepdiff.DeepDiff(expected_request_body, request.json(), ignore_order=True,)
+            deepdiff.DeepDiff(
+                expected_request_body,
+                request.json(),
+                ignore_order=True,
+            )
             == {}
         )
         return {"data": {"id": access_key_id}}
@@ -235,9 +241,13 @@ def test_get_project_owner(
 
     # mock project response so store will update
     requests_mock.get(
-        f"{api_url}/api/projects/__name__/{project.metadata.name}", json=verify_get,
+        f"{api_url}/api/projects/__name__/{project.metadata.name}",
+        json=verify_get,
     )
-    project_owner = iguazio_client.get_project_owner(session, project.metadata.name,)
+    project_owner = iguazio_client.get_project_owner(
+        session,
+        project.metadata.name,
+    )
     assert project_owner.username == owner_username
     assert project_owner.session == owner_access_key
 
@@ -269,10 +279,12 @@ def test_list_project_with_updated_after(
 
     # mock project response so store will update
     requests_mock.get(
-        f"{api_url}/api/projects", json=verify_list,
+        f"{api_url}/api/projects",
+        json=verify_list,
     )
     iguazio_client.list_projects(
-        session, updated_after,
+        session,
+        updated_after,
     )
 
 
@@ -381,7 +393,8 @@ def test_create_project_failures(
         mlrun.errors.MLRunBadRequestError, match=rf"(.*){error_message}(.*)"
     ):
         iguazio_client.create_project(
-            session, project,
+            session,
+            project,
         )
 
     # mock job failure - with nice error message in result
@@ -410,7 +423,8 @@ def test_create_project_failures(
         mlrun.errors.MLRunBadRequestError, match=rf"(.*){error_message}(.*)"
     ):
         iguazio_client.create_project(
-            session, project,
+            session,
+            project,
         )
 
     # mock job failure - without nice error message (shouldn't happen, but let's test)
@@ -424,7 +438,8 @@ def test_create_project_failures(
 
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
         iguazio_client.create_project(
-            session, project,
+            session,
+            project,
         )
 
 
@@ -434,7 +449,9 @@ def test_create_project_minimal_project(
     requests_mock: requests_mock_package.Mocker,
 ):
     project = mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(name="some-name",),
+        metadata=mlrun.api.schemas.ProjectMetadata(
+            name="some-name",
+        ),
     )
     _create_project_and_assert(api_url, iguazio_client, requests_mock, project)
 
@@ -479,7 +496,57 @@ def test_update_project(
         json=verify_store_update,
     )
     iguazio_client.update_project(
-        session, project.metadata.name, project,
+        session,
+        project.metadata.name,
+        project,
+    )
+
+
+def test_update_project_remove_labels_and_annotations(
+    api_url: str,
+    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    project = _generate_project(name="empty-labels", labels={}, annotations={})
+    project_without_labels = _generate_project(name="no-labels")
+    project_without_labels.metadata.labels = None
+    project_without_labels.metadata.annotations = None
+    session = "1234"
+
+    def verify_empty_labels_and_annotations(request, context):
+        request_body = request.json()
+        assert request_body["data"]["attributes"]["labels"] == []
+        assert request_body["data"]["attributes"]["annotations"] == []
+
+        context.status_code = http.HTTPStatus.OK.value
+        return {"data": _build_project_response(iguazio_client, project)}
+
+    def verify_no_labels_and_annotations_in_request(request, context):
+        request_body = request.json()
+        assert "labels" not in request_body["data"]["attributes"]
+        assert "annotations" not in request_body["data"]["attributes"]
+
+        context.status_code = http.HTTPStatus.OK.value
+        return {"data": _build_project_response(iguazio_client, project)}
+
+    requests_mock.put(
+        f"{api_url}/api/projects/__name__/{project.metadata.name}",
+        json=verify_empty_labels_and_annotations,
+    )
+    requests_mock.put(
+        f"{api_url}/api/projects/__name__/{project_without_labels.metadata.name}",
+        json=verify_no_labels_and_annotations_in_request,
+    )
+
+    iguazio_client.update_project(
+        session,
+        project.metadata.name,
+        project,
+    )
+    iguazio_client.update_project(
+        session,
+        project_without_labels.metadata.name,
+        project_without_labels,
     )
 
 
@@ -538,7 +605,8 @@ def test_delete_project_without_wait(
 
 
 def test_format_as_leader_project(
-    api_url: str, iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    api_url: str,
+    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
 ):
     project = _generate_project()
     iguazio_project = iguazio_client.format_as_leader_project(project)
@@ -623,7 +691,10 @@ def _create_project_and_assert(
         f"{api_url}/api/projects/__name__/{project.metadata.name}",
         json={"data": _build_project_response(iguazio_client, project)},
     )
-    is_running_in_background = iguazio_client.create_project(session, project,)
+    is_running_in_background = iguazio_client.create_project(
+        session,
+        project,
+    )
     assert is_running_in_background is False
     assert mocker.call_count == num_of_calls_until_completion
 
@@ -724,7 +795,9 @@ def _generate_project(
             owner=owner,
             some_extra_field="some value",
         ),
-        status=mlrun.api.schemas.ProjectStatus(some_extra_field="some value",),
+        status=mlrun.api.schemas.ProjectStatus(
+            some_extra_field="some value",
+        ),
     )
 
 

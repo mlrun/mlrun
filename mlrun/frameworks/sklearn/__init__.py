@@ -60,21 +60,29 @@ def apply_mlrun(
                                      modules will be imported globally. If multiple objects needed to be imported
                                      from the same module a list can be given. The map can be passed as a path to a
                                      json file as well. For example:
-                                     {
-                                         "module1": None,  # => import module1
-                                         "module2": ["func1", "func2"],  # => from module2 import func1, func2
-                                         "module3.sub_module": "func3",  # => from module3.sub_module import func3
-                                     }
+
+                                     .. code-block:: python
+
+                                         {
+                                             "module1": None,  # import module1
+                                             "module2": ["func1", "func2"],  # from module2 import func1, func2
+                                             "module3.sub_module": "func3",  # from module3.sub_module import func3
+                                         }
+
                                      If the model path given is of a store object, the modules map will be read from
                                      the logged modules map artifact of the model.
     :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key is
                                      a path to a python file and its value is the custom object name to import from it.
                                      If multiple objects needed to be imported from the same py file a list can be
                                      given. The map can be passed as a path to a json file as well. For example:
-                                     {
-                                         "/.../custom_model.py": "MyModel",
-                                         "/.../custom_objects.py": ["object1", "object2"]
-                                     }
+
+                                     .. code-block:: python
+
+                                         {
+                                             "/.../custom_model.py": "MyModel",
+                                             "/.../custom_objects.py": ["object1", "object2"]
+                                         }
+
                                      All the paths will be accessed from the given 'custom_objects_directory', meaning
                                      each py file will be read from 'custom_objects_directory/<MAP VALUE>'. If the model
                                      path given is of a store object, the custom objects map will be read from the
@@ -95,11 +103,10 @@ def apply_mlrun(
     :param y_test:                   The test data ground truth for producing and calculating artifacts and metrics post
                                      training or post predict / predict_proba.
     :param sample_set:               A sample set of inputs for the model for logging its stats along the model in
-                                     favour of model monitoring.
+                                     favour of model monitoring. If not given the 'x_train' will be used by default.
     :param y_columns:                List of names of all the columns in the ground truth labels in case its a
                                      pd.DataFrame or a list of integers in case the dataset is a np.ndarray. If not
-                                     given but 'y_train' / 'y_test' is given then the labels / indices in it will be
-                                     used by default.
+                                     given 'y_train' is given then the labels / indices in it will be used by default.
     :param feature_vector:           Feature store feature vector uri (store://feature-vectors/<project>/<name>[:tag])
     :param feature_weights:          List of feature weights, one per input column.
     :param labels:                   Labels to log with the model.

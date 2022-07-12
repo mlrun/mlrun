@@ -49,7 +49,12 @@ async def store_run(
 
     logger.info("Storing run", data=data)
     await run_in_threadpool(
-        mlrun.api.crud.Runs().store_run, db_session, data, uid, iter, project,
+        mlrun.api.crud.Runs().store_run,
+        db_session,
+        data,
+        uid,
+        iter,
+        project,
     )
     return {}
 
@@ -78,7 +83,12 @@ async def update_run(
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
     await run_in_threadpool(
-        mlrun.api.crud.Runs().update_run, db_session, project, uid, iter, data,
+        mlrun.api.crud.Runs().update_run,
+        db_session,
+        project,
+        uid,
+        iter,
+        data,
     )
     return {}
 
@@ -120,7 +130,10 @@ def delete_run(
         auth_info,
     )
     mlrun.api.crud.Runs().delete_run(
-        db_session, uid, iter, project,
+        db_session,
+        uid,
+        iter,
+        project,
     )
     return {}
 
@@ -149,12 +162,15 @@ def list_runs(
     partition_order: mlrun.api.schemas.OrderType = Query(
         mlrun.api.schemas.OrderType.desc, alias="partition-order"
     ),
+    max_partitions: int = Query(0, alias="max-partitions", ge=0),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     if project != "*":
         mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
+            project,
+            mlrun.api.schemas.AuthorizationAction.read,
+            auth_info,
         )
     runs = mlrun.api.crud.Runs().list_runs(
         db_session,
@@ -174,6 +190,7 @@ def list_runs(
         rows_per_partition,
         partition_sort_by,
         partition_order,
+        max_partitions,
     )
     filtered_runs = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.run,
@@ -221,6 +238,11 @@ def delete_runs(
         auth_info,
     )
     mlrun.api.crud.Runs().delete_runs(
-        db_session, name, project, labels, state, days_ago,
+        db_session,
+        name,
+        project,
+        labels,
+        state,
+        days_ago,
     )
     return {}

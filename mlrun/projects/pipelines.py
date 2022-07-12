@@ -17,8 +17,11 @@ import importlib.util as imputil
 import os
 import tempfile
 import traceback
+import typing
 import uuid
 
+import kfp.compiler
+from kfp import dsl
 from kfp.compiler import compiler
 
 import mlrun
@@ -30,7 +33,7 @@ from ..runtimes.pod import AutoMountType
 
 
 def get_workflow_engine(engine_kind, local=False):
-    if local:
+    if pipeline_context.is_run_local(local):
         if engine_kind == "kfp":
             logger.warning(
                 "running kubeflow pipeline locally, note some ops may not run locally!"
@@ -132,7 +135,7 @@ class FunctionsDict:
 
     def load_or_set_function(self, key, default=None) -> mlrun.runtimes.BaseRuntime:
         try:
-            function = self.project.get_function(key)
+            function = self.project.get_function(key, sync=False)
         except Exception as e:
             if not default:
                 raise e
@@ -181,6 +184,18 @@ class _PipelineContext:
         self.workflow_artifact_path = None
         self.runs_map = {}
 
+    def is_run_local(self, local=None):
+        if local is not None:
+            # if the user specified an explicit value in local we use it
+            return local
+        force_run_local = mlrun.mlconf.force_run_local
+        if force_run_local is None or force_run_local == "auto":
+            force_run_local = not mlrun.mlconf.is_api_running_on_k8s()
+        if self.workflow:
+            force_run_local = force_run_local or self.workflow.run_local
+
+        return force_run_local
+
     def set(self, project, workflow=None):
         self.project = project
         self.workflow = workflow
@@ -209,6 +224,76 @@ class _PipelineContext:
 pipeline_context = _PipelineContext()
 
 
+def _set_priority_class_name_on_kfp_pod(kfp_pod_template, function):
+    if kfp_pod_template.get("container") and kfp_pod_template.get("name").startswith(
+        function.metadata.name
+    ):
+        priority_class_name = getattr(function.spec, "priority_class_name", None)
+        if priority_class_name:
+            kfp_pod_template["PriorityClassName"] = priority_class_name
+
+
+# When we run pipelines, the kfp.compile.Compile.compile() method takes the decorated function with @dsl.pipeline and
+# converts it to a k8s object. As part of the flow in the Compile.compile() method,
+# we call _create_and_write_workflow, which builds a dictionary from the workflow and then writes it to a file.
+# Unfortunately, the kfp sdk does not provide an API for configuring priority_class_name and other attributes.
+# I ran across the following problem when seeking for a method to set the priority_class_name:
+# https://github.com/kubeflow/pipelines/issues/3594
+# When we patch the _create_and_write_workflow, we can eventually obtain the dictionary right before we write it
+# to a file and enrich it with argo compatible fields, make sure you looking for the same argo version we use
+# https://github.com/argoproj/argo-workflows/blob/release-2.7/pkg/apis/workflow/v1alpha1/workflow_types.go
+def _create_enriched_mlrun_workflow(
+    self,
+    pipeline_func: typing.Callable,
+    pipeline_name: typing.Optional[typing.Text] = None,
+    pipeline_description: typing.Optional[typing.Text] = None,
+    params_list: typing.Optional[typing.List[dsl.PipelineParam]] = None,
+    pipeline_conf: typing.Optional[dsl.PipelineConf] = None,
+):
+    """Call internal implementation of create_workflow and enrich with mlrun functions attributes"""
+    workflow = self._original_create_workflow(
+        pipeline_func, pipeline_name, pipeline_description, params_list, pipeline_conf
+    )
+    # We don't want to interrupt the original flow and don't know all the scenarios the function could be called.
+    # that's why we have try/except on all the code of the enrichment and also specific try/except for errors that
+    # we know can be raised.
+    try:
+        functions = []
+        if pipeline_context.functions:
+            try:
+                functions = pipeline_context.functions.values()
+            except Exception as err:
+                logger.debug(
+                    "Unable to retrieve project functions, not enriching workflow with mlrun",
+                    error=str(err),
+                )
+                return workflow
+
+        # enrich each pipeline step with your desire k8s attribute
+        for kfp_step_template in workflow["spec"]["templates"]:
+            if kfp_step_template.get("container"):
+                for function_obj in functions:
+                    # we condition within each function since the comparison between the function and
+                    # the kfp pod may change depending on the attribute type.
+                    try:
+                        _set_priority_class_name_on_kfp_pod(
+                            kfp_step_template, function_obj
+                        )
+                    except Exception as err:
+                        kfp_pod_name = kfp_step_template.get("name")
+                        logger.warning(
+                            f"Unable to enrich kfp pod {kfp_pod_name}", error=str(err)
+                        )
+    except Exception as err:
+        logger.debug("Something in the enrichment of kfp pods failed", error=str(err))
+    return workflow
+
+
+# patching function as class method
+kfp.compiler.Compiler._original_create_workflow = kfp.compiler.Compiler._create_workflow
+kfp.compiler.Compiler._create_workflow = _create_enriched_mlrun_workflow
+
+
 def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:
     project_instance, name, tag, hash_key = parse_versioned_object_uri(
         key, project.metadata.name
@@ -227,10 +312,9 @@ def enrich_function_object(
     setattr(f, "_enriched", True)
     src = f.spec.build.source
     if src and src in [".", "./"]:
-
-        if not project.spec.source:
-            raise ValueError(
-                "project source must be specified when cloning context to a function"
+        if not project.spec.source and not project.spec.mountdir:
+            logger.warning(
+                "project.spec.source should be specified when function is using code from project context"
             )
 
         if project.spec.mountdir:
@@ -239,6 +323,7 @@ def enrich_function_object(
         else:
             f.spec.build.source = project.spec.source
             f.spec.build.load_source_on_run = project.spec.load_source_on_run
+            f.spec.workdir = project.spec.workdir or project.spec.subpath
             f.verify_base_image()
 
     if project.spec.default_requirements:
@@ -346,16 +431,21 @@ class _KFPRunner(_PipelineRunner):
 
     @classmethod
     def save(cls, project, workflow_spec: WorkflowSpec, target, artifact_path=None):
+        pipeline_context.set(project, workflow_spec)
         workflow_file = workflow_spec.get_source_file(project.spec.context)
         functions = FunctionsDict(project)
         pipeline = create_pipeline(
-            project, workflow_file, functions, secrets=project._secrets,
+            project,
+            workflow_file,
+            functions,
+            secrets=project._secrets,
         )
         artifact_path = artifact_path or project.spec.artifact_path
 
         conf = new_pipe_meta(artifact_path, ttl=workflow_spec.ttl)
         compiler.Compiler().compile(pipeline, target, pipeline_conf=conf)
         workflow_spec.clear_tmp()
+        pipeline_context.clear()
 
     @classmethod
     def run(
@@ -384,7 +474,10 @@ class _KFPRunner(_PipelineRunner):
             ttl=workflow_spec.ttl,
         )
         project.notifiers.push_start_message(
-            project.metadata.name, project.get_param("commit_id", None), id, True,
+            project.metadata.name,
+            project.get_param("commit_id", None),
+            id,
+            True,
         )
         pipeline_context.clear()
         return _PipelineRunStatus(id, cls, project=project, workflow=workflow_spec)

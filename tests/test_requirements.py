@@ -81,10 +81,10 @@ def test_requirement_specifiers_convention():
         "kfp": {"~=1.8.0"},
         "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
-        "storey": {"~=0.8.11, <0.8.12"},
+        "aioitertools": {"<0.9"},
+        "storey": {"~=1.1.5"},
         "bokeh": {"~=2.4, >=2.4.2"},
-        # Black is not stable yet and does not have a release that is not beta, so can't be used with ~=
-        "black": {"<=19.10b0"},
+        "typing-extensions": {">=3.10.0,<4"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},
         "python-dotenv": {""},
@@ -100,22 +100,26 @@ def test_requirement_specifiers_convention():
         "gcsfs": {"~=2021.8.1"},
         "distributed": {"~=2021.11.2"},
         "dask": {"~=2021.11.2"},
+        "click": {"~=8.0.0"},
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that
         # TODO: make test smart enough to understand that
         "urllib3": {">=1.25.4, <1.27"},
         "cryptography": {"~=3.0, <3.4"},
         "chardet": {">=3.0.2, <4.0"},
-        "google-auth": {">=1.25.0, <2.0dev"},
-        "numpy": {">=1.16.5, <1.22.0"},
-        "orjson": {">=3,<3.4"},
+        "numpy": {">=1.16.5, <1.23.0"},
         "alembic": {"~=1.4,<1.6.0"},
         "boto3": {"~=1.9, <1.17.107"},
+        "azure-core": {"<1.23"},
         "azure-storage-blob": {"~=12.0, <12.7.0"},
         "dask-ml": {"~=1.4,<1.9.0"},
-        "pyarrow": {">=1,<6"},
+        "pyarrow": {">=1,<7"},
+        "nbclassic": {">=0.2.8"},
     }
 
-    for (ignored_requirement_name, ignored_specifiers,) in ignored_invalid_map.items():
+    for (
+        ignored_requirement_name,
+        ignored_specifiers,
+    ) in ignored_invalid_map.items():
         if ignored_requirement_name in invalid_requirement_specifiers_map:
             diff = deepdiff.DeepDiff(
                 invalid_requirement_specifiers_map[ignored_requirement_name],

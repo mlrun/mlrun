@@ -151,6 +151,13 @@ class RuntimeKinds(object):
             RuntimeKinds.handler,
         ]
 
+    @staticmethod
+    def is_local_runtime(kind):
+        # "" or None counted as local
+        if not kind or kind in RuntimeKinds.local_runtimes():
+            return True
+        return False
+
 
 runtime_resources_map = {RuntimeKinds.dask: get_dask_resource()}
 

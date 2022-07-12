@@ -26,6 +26,10 @@ ENV PATH /opt/conda/bin:$PATH
 # Set default shell to /bin/bash
 SHELL ["/bin/bash", "-cu"]
 
+RUN apt-key del 7fa2af80 && \
+    apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub && \
+    apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/7fa2af80.pub
+
 RUN apt-get update && \
     apt-mark hold libcublas-dev libcublas10 && \
     apt-get upgrade -y && \
@@ -45,11 +49,12 @@ RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86
     echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
     echo "conda activate base" >> ~/.bashrc
 
+ARG MLRUN_PIP_VERSION=22.0.0
 RUN conda config --add channels conda-forge && \
     conda update -n base -c defaults conda && \
     conda install -n base \
         python=3.7 \
-        pip~=21.2.0 \
+        pip~=${MLRUN_PIP_VERSION} \
     && conda clean -aqy
 
 RUN conda install -n base cmake cython \
@@ -61,7 +66,7 @@ RUN conda install -n base -c rapidsai -c nvidia -c conda-forge rapids=21.06 pyth
 RUN conda install -n base pytorch::pytorch==1.7.0 pytorch::torchvision==0.8.0 \
     && conda clean -aqy
 
-ARG TENSORFLOW_VERSION=2.7.0
+ARG TENSORFLOW_VERSION=2.4.1
 RUN python -m pip install tensorflow~=${TENSORFLOW_VERSION}
 
 ARG OMPI=4.1.0
@@ -81,7 +86,7 @@ RUN mkdir /tmp/openmpi && \
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
-ARG HOROVOD_VERSION=0.23.0
+ARG HOROVOD_VERSION=0.22.1
 # TODO: MAKEFLAGS="-j1" work around some transient concurrency problem with installing horovod remove it when
     #   possible (should be safe to remove if it works ~5 times without it)
 RUN ldconfig /usr/local/cuda-11.0/targets/x86_64-linux/lib/stubs && \

@@ -78,11 +78,24 @@ class StorePrefix:
 
 
 def get_artifact_target(item: dict, project=None):
-    kind = item.get("kind")
-    if kind in ["dataset", "model"] and item.get("db_key"):
+    if is_legacy_artifact(item):
+        db_key = item.get("db_key")
         project_str = project or item.get("project")
-        return f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{item.get('db_key')}:{item.get('tree')}"
-    return item.get("target_path")
+        tree = item.get("tree")
+    else:
+        db_key = item["spec"].get("db_key")
+        project_str = project or item["metadata"].get("project")
+        tree = item["metadata"].get("tree")
+
+    kind = item.get("kind")
+    if kind in ["dataset", "model"] and db_key:
+        return f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}:{tree}"
+
+    return (
+        item.get("target_path")
+        if is_legacy_artifact(item)
+        else item["spec"].get("target_path")
+    )
 
 
 logger = create_logger(config.log_level, config.log_formatter, "mlrun", sys.stdout)
@@ -445,23 +458,6 @@ def dict_to_json(struct):
     return json.dumps(struct, cls=MyEncoder)
 
 
-def uxjoin(base, local_path, key="", iter=None, is_dir=False):
-    if is_dir and (not local_path or local_path in [".", "./"]):
-        local_path = ""
-    elif not local_path:
-        local_path = key
-
-    if iter:
-        local_path = path.join(str(iter), local_path).replace("\\", "/")
-
-    if base and not base.endswith("/"):
-        base += "/"
-    base_str = base or ""
-    if local_path.startswith("./"):
-        local_path = local_path[len("./") :]
-    return f"{base_str}{local_path}"
-
-
 def parse_versioned_object_uri(uri, default_project=""):
     project = default_project
     tag = ""
@@ -750,12 +746,6 @@ def fill_function_hash(function_dict, tag=""):
     return fill_object_hash(function_dict, "hash", tag)
 
 
-class FatalFailureException(Exception):
-    def __init__(self, original_exception: Exception, *args: object) -> None:
-        super().__init__(*args)
-        self.original_exception = original_exception
-
-
 def create_linear_backoff(base=2, coefficient=2, stop_value=120):
     """
     Create a generator of linear backoff. Check out usage example in test_helpers.py
@@ -810,7 +800,7 @@ def create_exponential_backoff(base=2, max_value=120, scale_factor=1):
 
         # This "complex" implementation (unlike the one in linear backoff) is to avoid exponent growing too fast and
         # risking going behind max_int
-        next_value = scale_factor * (base ** exponent)
+        next_value = scale_factor * (base**exponent)
         if next_value < max_value:
             exponent += 1
             yield next_value
@@ -849,8 +839,7 @@ def retry_until_successful(
             result = _function(*args, **kwargs)
             return result
 
-        except FatalFailureException as exc:
-            logger.debug("Fatal failure exception raised. Not retrying")
+        except mlrun.errors.MLRunFatalFailureError as exc:
             raise exc.original_exception
         except Exception as exc:
             last_exception = exc
@@ -897,6 +886,16 @@ def get_workflow_url(project, id=None):
             mlrun.mlconf.resolve_ui_url(), mlrun.mlconf.ui.projects_prefix, project, id
         )
     return url
+
+
+def are_strings_in_exception_chain_messages(
+    exception: Exception, strings_list=typing.List[str]
+) -> bool:
+    while exception is not None:
+        if any([string in str(exception) for string in strings_list]):
+            return True
+        exception = exception.__cause__
+    return False
 
 
 class RunNotifications:
@@ -1300,3 +1299,27 @@ def str_to_timestamp(time_str: str, now_time: Timestamp = None):
         return timestamp
 
     return Timestamp(time_str)
+
+
+def is_legacy_artifact(artifact):
+    if isinstance(artifact, dict):
+        return "metadata" not in artifact
+    else:
+        return not hasattr(artifact, "metadata")
+
+
+def set_paths(pythonpath=""):
+    """update the sys path"""
+    if not pythonpath:
+        return
+    paths = pythonpath.split(":")
+    for p in paths:
+        abspath = path.abspath(p)
+        if abspath not in sys.path:
+            sys.path.append(abspath)
+
+
+def is_relative_path(path):
+    if not path:
+        return False
+    return not (path.startswith("/") or ":\\" in path or "://" in path)

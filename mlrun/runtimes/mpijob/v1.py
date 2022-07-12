@@ -18,6 +18,7 @@ from datetime import datetime
 from kubernetes import client
 from sqlalchemy.orm import Session
 
+import mlrun.runtimes.pod
 from mlrun.api.db.base import DBInterface
 from mlrun.config import config as mlconf
 from mlrun.execution import MLClientCtx
@@ -58,6 +59,8 @@ class MPIV1ResourceSpec(MPIResourceSpec):
         priority_class_name=None,
         disable_auto_mount=False,
         pythonpath=None,
+        tolerations=None,
+        preemption_mode=None,
     ):
         super().__init__(
             command=command,
@@ -84,6 +87,8 @@ class MPIV1ResourceSpec(MPIResourceSpec):
             priority_class_name=priority_class_name,
             disable_auto_mount=disable_auto_mount,
             pythonpath=pythonpath,
+            tolerations=tolerations,
+            preemption_mode=preemption_mode,
         )
         self.clean_pod_policy = clean_pod_policy or MPIJobV1CleanPodPolicies.default()
 
@@ -120,6 +125,9 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
         self._spec = self._verify_dict(spec, "spec", MPIV1ResourceSpec)
 
     def _generate_mpi_job_template(self, launcher_pod_template, worker_pod_template):
+        # https://github.com/kubeflow/mpi-operator/blob/master/pkg/apis/kubeflow/v1/types.go#L25
+        # MPI job consists of Launcher and Worker which both are of type ReplicaSet
+        # https://github.com/kubeflow/common/blob/master/pkg/apis/common/v1/types.go#L74
         return {
             "apiVersion": "kubeflow.org/v1",
             "kind": "MPIJob",
@@ -147,6 +155,11 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
             "command",
             ["mpirun", *quoted_mpi_args, *quoted_args],
         )
+        self._update_container(
+            launcher_pod_template,
+            "resources",
+            mlconf.get_default_function_pod_resources(),
+        )
 
     def _enrich_worker_configurations(self, worker_pod_template):
         if self.spec.resources:
@@ -155,7 +168,10 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
             )
 
     def _generate_mpi_job(
-        self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta,
+        self,
+        runobj: RunObject,
+        execution: MLClientCtx,
+        meta: client.V1ObjectMeta,
     ) -> dict:
         pod_labels = deepcopy(meta.labels)
         pod_labels["mlrun/job"] = meta.name
@@ -185,7 +201,9 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
             self._update_container(pod_template, "env", extra_env + self.spec.env)
             if self.spec.image_pull_policy:
                 self._update_container(
-                    pod_template, "imagePullPolicy", self.spec.image_pull_policy,
+                    pod_template,
+                    "imagePullPolicy",
+                    self.spec.image_pull_policy,
                 )
             if self.spec.workdir:
                 self._update_container(pod_template, "workingDir", self.spec.workdir)
@@ -200,7 +218,14 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
             update_in(pod_template, "spec.nodeName", self.spec.node_name)
             update_in(pod_template, "spec.nodeSelector", self.spec.node_selector)
             update_in(
-                pod_template, "spec.affinity", self.spec._get_sanitized_affinity()
+                pod_template,
+                "spec.affinity",
+                mlrun.runtimes.pod.get_sanitized_attribute(self.spec, "affinity"),
+            )
+            update_in(
+                pod_template,
+                "spec.tolerations",
+                mlrun.runtimes.pod.get_sanitized_attribute(self.spec, "tolerations"),
             )
             if self.spec.priority_class_name and len(
                 mlconf.get_valid_function_priority_class_names()
@@ -226,16 +251,22 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
 
         # update the replicas only for workers
         update_in(
-            job, "spec.mpiReplicaSpecs.Worker.replicas", self.spec.replicas or 1,
+            job,
+            "spec.mpiReplicaSpecs.Worker.replicas",
+            self.spec.replicas or 1,
         )
 
         update_in(
-            job, "spec.cleanPodPolicy", self.spec.clean_pod_policy,
+            job,
+            "spec.cleanPodPolicy",
+            self.spec.clean_pod_policy,
         )
 
         if execution.get_param("slots_per_worker"):
             update_in(
-                job, "spec.slotsPerWorker", execution.get_param("slots_per_worker"),
+                job,
+                "spec.slotsPerWorker",
+                execution.get_param("slots_per_worker"),
             )
 
         update_in(job, "metadata", meta.to_dict())
@@ -271,6 +302,8 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
 
 
 class MpiV1RuntimeHandler(BaseRuntimeHandler):
+    kind = "mpijob"
+
     def _resolve_crd_object_status_info(
         self, db: DBInterface, db_session: Session, crd_object
     ) -> typing.Tuple[bool, typing.Optional[datetime], typing.Optional[str]]:

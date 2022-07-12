@@ -1,6 +1,6 @@
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-from .artifact import ArtifactCategories
+from .artifact import ArtifactCategories, ArtifactsFormat
 from .auth import (
     AuthInfo,
     AuthorizationAction,
@@ -17,8 +17,13 @@ from .background_task import (
     BackgroundTaskStatus,
 )
 from .client_spec import ClientSpec
+from .clusterization_spec import (
+    ClusterizationSpec,
+    WaitForChiefToReachOnlineStateFeatureFlag,
+)
 from .constants import (
     APIStates,
+    ClusterizationRole,
     DeletionStrategy,
     FeatureStorePartitionByField,
     HeaderNames,
@@ -54,9 +59,12 @@ from .frontend_spec import (
     AuthenticationFeatureFlag,
     FeatureFlags,
     FrontendSpec,
+    NuclioStreamsFeatureFlag,
+    PreemptionNodesFeatureFlag,
     ProjectMembershipFeatureFlag,
 )
-from .function import FunctionState
+from .function import FunctionState, PreemptionModes
+from .k8s import NodeSelectorOperator, Resources, ResourceSpec
 from .marketplace import (
     IndexedMarketplaceSource,
     MarketplaceCatalog,
@@ -118,6 +126,7 @@ from .schedule import (
     ScheduleUpdate,
 )
 from .secret import (
+    AuthSecretData,
     SecretKeysData,
     SecretProviderName,
     SecretsData,

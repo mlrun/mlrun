@@ -75,7 +75,10 @@ def _assert_diff_as_expected_except_for_specific_metadata(
     for field in allowed_metadata_fields:
         exclude_paths.append(f"root['metadata']['{field}']")
     diff = DeepDiff(
-        expected_object, actual_object, ignore_order=True, exclude_paths=exclude_paths,
+        expected_object,
+        actual_object,
+        ignore_order=True,
+        exclude_paths=exclude_paths,
     )
     assert diff == expected_diff
 

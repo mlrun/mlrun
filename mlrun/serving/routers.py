@@ -813,7 +813,13 @@ class EnrichmentModelRouter(ModelRouter):
         :param kwargs:        extra arguments
         """
         super().__init__(
-            context, name, routes, protocol, url_prefix, health_prefix, **kwargs,
+            context,
+            name,
+            routes,
+            protocol,
+            url_prefix,
+            health_prefix,
+            **kwargs,
         )
 
         self.feature_vector_uri = feature_vector_uri
@@ -824,7 +830,8 @@ class EnrichmentModelRouter(ModelRouter):
     def post_init(self, mode="sync"):
         super().post_init(mode)
         self._feature_service = mlrun.feature_store.get_online_feature_service(
-            feature_vector=self.feature_vector_uri, impute_policy=self.impute_policy,
+            feature_vector=self.feature_vector_uri,
+            impute_policy=self.impute_policy,
         )
 
     def preprocess(self, event):
@@ -966,7 +973,8 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
     def post_init(self, mode="sync"):
         super().post_init(mode)
         self._feature_service = mlrun.feature_store.get_online_feature_service(
-            feature_vector=self.feature_vector_uri, impute_policy=self.impute_policy,
+            feature_vector=self.feature_vector_uri,
+            impute_policy=self.impute_policy,
         )
 
     def preprocess(self, event):

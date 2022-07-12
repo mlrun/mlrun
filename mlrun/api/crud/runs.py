@@ -15,7 +15,9 @@ import mlrun.utils.singleton
 from mlrun.utils import logger
 
 
-class Runs(metaclass=mlrun.utils.singleton.Singleton,):
+class Runs(
+    metaclass=mlrun.utils.singleton.Singleton,
+):
     def store_run(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -27,7 +29,11 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
         project = project or mlrun.mlconf.default_project
         logger.info("Storing run", data=data)
         mlrun.api.utils.singletons.db.get_db().store_run(
-            db_session, data, uid, project, iter=iter,
+            db_session,
+            data,
+            uid,
+            project,
+            iter=iter,
         )
 
     def update_run(
@@ -104,6 +110,7 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.api.schemas.SortField = None,
         partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
+        max_partitions: int = 0,
     ):
         project = project or mlrun.mlconf.default_project
         return mlrun.api.utils.singletons.db.get_db().list_runs(
@@ -124,6 +131,7 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
             rows_per_partition,
             partition_sort_by,
             partition_order,
+            max_partitions,
         )
 
     def delete_run(

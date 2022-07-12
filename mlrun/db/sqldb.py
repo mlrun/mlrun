@@ -35,7 +35,9 @@ from .base import RunDBError, RunDBInterface
 
 class SQLDB(RunDBInterface):
     def __init__(
-        self, dsn, session=None,
+        self,
+        dsn,
+        session=None,
     ):
         self.session = session
         self.dsn = dsn
@@ -51,28 +53,47 @@ class SQLDB(RunDBInterface):
         import mlrun.api.crud
 
         return self._transform_db_error(
-            mlrun.api.crud.Logs().store_log, body, project, uid, append,
+            mlrun.api.crud.Logs().store_log,
+            body,
+            project,
+            uid,
+            append,
         )
 
     def get_log(self, uid, project="", offset=0, size=0):
         import mlrun.api.crud
 
         return self._transform_db_error(
-            mlrun.api.crud.Logs().get_logs, self.session, project, uid, size, offset,
+            mlrun.api.crud.Logs().get_logs,
+            self.session,
+            project,
+            uid,
+            size,
+            offset,
         )
 
     def store_run(self, struct, uid, project="", iter=0):
         import mlrun.api.crud
 
         return self._transform_db_error(
-            mlrun.api.crud.Runs().store_run, self.session, struct, uid, iter, project,
+            mlrun.api.crud.Runs().store_run,
+            self.session,
+            struct,
+            uid,
+            iter,
+            project,
         )
 
     def update_run(self, updates: dict, uid, project="", iter=0):
         import mlrun.api.crud
 
         return self._transform_db_error(
-            mlrun.api.crud.Runs().update_run, self.session, project, uid, iter, updates,
+            mlrun.api.crud.Runs().update_run,
+            self.session,
+            project,
+            uid,
+            iter,
+            updates,
         )
 
     def abort_run(self, uid, project="", iter=0):
@@ -82,7 +103,11 @@ class SQLDB(RunDBInterface):
         import mlrun.api.crud
 
         return self._transform_db_error(
-            mlrun.api.crud.Runs().get_run, self.session, uid, iter, project,
+            mlrun.api.crud.Runs().get_run,
+            self.session,
+            uid,
+            iter,
+            project,
         )
 
     def list_runs(
@@ -103,6 +128,7 @@ class SQLDB(RunDBInterface):
         rows_per_partition: int = 1,
         partition_sort_by: Union[schemas.SortField, str] = None,
         partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
+        max_partitions: int = 0,
     ):
         import mlrun.api.crud
 
@@ -125,13 +151,18 @@ class SQLDB(RunDBInterface):
             rows_per_partition,
             partition_sort_by,
             partition_order,
+            max_partitions,
         )
 
     def del_run(self, uid, project=None, iter=None):
         import mlrun.api.crud
 
         return self._transform_db_error(
-            mlrun.api.crud.Runs().delete_run, self.session, uid, iter, project,
+            mlrun.api.crud.Runs().delete_run,
+            self.session,
+            uid,
+            iter,
+            project,
         )
 
     def del_runs(self, name=None, project=None, labels=None, state=None, days_ago=0):
@@ -210,7 +241,11 @@ class SQLDB(RunDBInterface):
         import mlrun.api.crud
 
         return self._transform_db_error(
-            mlrun.api.crud.Artifacts().delete_artifact, self.session, key, tag, project,
+            mlrun.api.crud.Artifacts().delete_artifact,
+            self.session,
+            key,
+            tag,
+            project,
         )
 
     def del_artifacts(self, name="", project="", tag="", labels=None):
@@ -254,7 +289,10 @@ class SQLDB(RunDBInterface):
         import mlrun.api.crud
 
         return self._transform_db_error(
-            mlrun.api.crud.Functions().delete_function, self.session, project, name,
+            mlrun.api.crud.Functions().delete_function,
+            self.session,
+            project,
+            name,
         )
 
     def list_functions(self, name=None, project=None, tag=None, labels=None):
@@ -281,7 +319,9 @@ class SQLDB(RunDBInterface):
         return self._transform_db_error(self.db.list_schedules, self.session)
 
     def store_project(
-        self, name: str, project: mlrun.api.schemas.Project,
+        self,
+        name: str,
+        project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -294,7 +334,8 @@ class SQLDB(RunDBInterface):
         raise NotImplementedError()
 
     def create_project(
-        self, project: mlrun.api.schemas.Project,
+        self,
+        project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -373,7 +414,11 @@ class SQLDB(RunDBInterface):
         )
 
     def list_entities(
-        self, project: str, name: str = None, tag: str = None, labels: List[str] = None,
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: List[str] = None,
     ):
         import mlrun.api.crud
 
@@ -527,7 +572,13 @@ class SQLDB(RunDBInterface):
         )
 
     def store_feature_vector(
-        self, feature_vector, name=None, project="", tag=None, uid=None, versioned=True,
+        self,
+        feature_vector,
+        name=None,
+        project="",
+        tag=None,
+        uid=None,
+        versioned=True,
     ):
         import mlrun.api.crud
 

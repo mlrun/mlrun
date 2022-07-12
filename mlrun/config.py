@@ -70,7 +70,7 @@ default_config = {
     "igz_version": "",  # the version of the iguazio system the API is running on
     "iguazio_api_url": "",  # the url to iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
-    "spark_app_image_tag": "",  # image tag to use for spark opeartor app runtime
+    "spark_app_image_tag": "",  # image tag to use for spark operator app runtime
     "spark_history_server_path": "",  # spark logs directory for spark history server
     "spark_operator_version": "spark-2",  # the version of the spark operator in use
     "builder_alpine_image": "alpine:3.13.1",  # builder alpine image (as kaniko's initContainer)
@@ -89,6 +89,9 @@ default_config = {
     "runtimes_cleanup_interval": "300",
     # runs monitoring interval in seconds
     "runs_monitoring_interval": "30",
+    # runs monitoring debouncing interval in seconds for run with non-terminal state without corresponding k8s resource
+    # by default the interval will be - (runs_monitoring_interval * 2 ), if set will override the default
+    "runs_monitoring_missing_runtime_resources_debouncing_interval": None,
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them
     "runtime_resources_deletion_grace_period": "14400",
@@ -115,6 +118,22 @@ default_config = {
     "default_tensorboard_logs_path": "/User/.tensorboard/{{project}}",
     # ";" separated list of notebook cell tag names to ignore e.g. "ignore-this;ignore-that"
     "ignored_notebook_tags": "",
+    # when set it will force the local=True in run_function(), set to "auto" will run local if there is no k8s
+    "force_run_local": "auto",
+    "background_tasks": {
+        # enabled / disabled
+        "timeout_mode": "enabled",
+        # timeout in seconds to wait for background task to be updated / finished by the worker responsible for the task
+        "default_timeouts": {
+            "operations": {"migrations": "3600"},
+            "runtimes": {"dask": "600"},
+        },
+    },
+    "function": {
+        "spec": {
+            "image_pull_secret": {"default": None},
+        },
+    },
     "function_defaults": {
         "image_by_kind": {
             "job": "mlrun/mlrun",
@@ -123,9 +142,31 @@ default_config = {
             "remote": "mlrun/mlrun",
             "dask": "mlrun/ml-base",
             "mpijob": "mlrun/ml-models",
-        }
+        },
+        # see enrich_function_preemption_spec for more info,
+        # and mlrun.api.schemas.functionPreemptionModes for available options
+        "preemption_mode": "prevent",
     },
     "httpdb": {
+        "clusterization": {
+            # one of chief/worker
+            "role": "chief",
+            "chief": {
+                # when url is specified, it takes precedence over service and port
+                "url": "",
+                "service": "mlrun-api-chief",
+                "port": 8080,
+            },
+            "worker": {
+                "sync_with_chief": {
+                    # enabled / disabled
+                    "mode": "enabled",
+                    "interval": 15,  # seconds
+                }
+            },
+            # see mlrun.api.utils.helpers.ensure_running_on_chief
+            "ensure_function_running_on_chief_mode": "enabled",
+        },
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
         "dsn": "sqlite:///db/mlrun.db?check_same_thread=false",
@@ -138,12 +179,14 @@ default_config = {
         "data_volume": "",
         "real_path": "",
         "db_type": "sqldb",
-        "max_workers": "",
+        "max_workers": 64,
         # See mlrun.api.schemas.APIStates for options
         "state": "online",
         "db": {
             "commit_retry_timeout": 30,
             "commit_retry_interval": 3,
+            "conflict_retry_timeout": 15,
+            "conflict_retry_interval": None,
             # Whether to perform data migrations on initialization. enabled or disabled
             "data_migrations_mode": "enabled",
             # Whether or not to perform database migration from sqlite to mysql on initialization
@@ -155,8 +198,9 @@ default_config = {
                 "use_rotation": True,
                 "rotation_limit": 3,
             },
-            "connections_pool_size": 20,
-            "connections_pool_max_overflow": 50,
+            # None will set this to be equal to the httpdb.max_workers
+            "connections_pool_size": None,
+            "connections_pool_max_overflow": None,
         },
         "jobs": {
             # whether to allow to run local runtimes in the API - configurable to allow the scheduler testing to work
@@ -225,18 +269,32 @@ default_config = {
             # setting the docker registry to be used for built images, can include the repository as well, e.g.
             # index.docker.io/<username>, if not included repository will default to mlrun
             "docker_registry": "",
+            # dockerconfigjson type secret to attach to kaniko pod.
+            # For amazon ECR, the secret is expected to provide AWS credentials. Leave empty to use EC2 IAM policy.
+            # https://github.com/GoogleContainerTools/kaniko#pushing-to-amazon-ecr
             "docker_registry_secret": "",
+            # whether to allow the docker registry we're pulling from to be insecure. "enabled", "disabled" or "auto"
+            # which will resolve by the existence of secret
+            "insecure_pull_registry_mode": "auto",
+            # whether to allow the docker registry we're pushing to, to be insecure. "enabled", "disabled" or "auto"
+            # which will resolve by the existence of secret
+            "insecure_push_registry_mode": "auto",
             # the requirement specifier used by the builder when installing mlrun in images when it runs
             # pip install <requirement_specifier>, e.g. mlrun==0.5.4, mlrun~=0.5,
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
             "mlrun_version_specifier": "",
-            "kaniko_image": "gcr.io/kaniko-project/executor:v1.6.0",  # kaniko builder image
+            "kaniko_image": "gcr.io/kaniko-project/executor:v1.8.0",  # kaniko builder image
             "kaniko_init_container_image": "alpine:3.13.1",
+            # image for kaniko init container when docker registry is ECR
+            "kaniko_aws_cli_image": "amazon/aws-cli:2.7.10",
             # additional docker build args in json encoded base64 format
             "build_args": "",
             "pip_ca_secret_name": "",
             "pip_ca_secret_key": "",
             "pip_ca_path": "/etc/ssl/certs/mlrun/pip-ca-certificates.crt",
+            # template for the prefix that the function target image will be enforced to have (as long as it's targeted
+            # to be in the configured registry). Supported template values are: {project} {name}
+            "function_target_image_name_prefix_template": "func-{project}-{name}",
         },
         "v3io_api": "",
         "v3io_framesd": "",
@@ -274,6 +332,7 @@ default_config = {
             # unless user asks for a specific list of secrets.
             "auto_add_project_secrets": True,
             "project_secret_name": "mlrun-project-secrets-{project}",
+            "auth_secret_name": "mlrun-auth-secrets.{hashed_access_key}",
             "env_variable_prefix": "MLRUN_K8S_SECRET__",
         },
     },
@@ -284,7 +343,7 @@ default_config = {
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
-        "flush_interval": None,
+        "flush_interval": 300,
     },
     "ui": {
         "projects_prefix": "projects",  # The UI link prefix for projects
@@ -303,7 +362,7 @@ default_config = {
         },
     },
     "storage": {
-        # What type of auto-mount to use for functions. Can be one of: none, auto, v3io_credentials, v3io_fuse, pvc.
+        # What type of auto-mount to use for functions. Can be one of: none, auto, v3io_credentials, v3io_fuse, pvc, s3.
         # Default is auto - which is v3io_credentials when running on Iguazio. If not Iguazio: pvc if the
         # MLRUN_PVC_MOUNT env is configured or auto_mount_params contain "pvc_name". Otherwise will do nothing (none).
         "auto_mount_type": "auto",
@@ -311,6 +370,17 @@ default_config = {
         # 1. A string of comma-separated parameters, using this format: "param1=value1,param2=value2"
         # 2. A base-64 encoded json dictionary containing the list of parameters
         "auto_mount_params": "",
+    },
+    "default_function_pod_resources": {
+        "requests": {"cpu": None, "memory": None, "gpu": None},
+        "limits": {"cpu": None, "memory": None, "gpu": None},
+    },
+    # preemptible node selector and tolerations to be added when running on spot nodes
+    "preemptible_nodes": {
+        # encoded empty dict
+        "node_selector": "e30=",
+        # encoded empty list
+        "tolerations": "W10=",
     },
 }
 
@@ -392,17 +462,63 @@ class Config:
         return config.hub_url
 
     @staticmethod
-    def get_default_function_node_selector():
-        default_function_node_selector = {}
-        if config.default_function_node_selector:
-            default_function_node_selector_json_string = base64.b64decode(
-                config.default_function_node_selector
-            ).decode()
-            default_function_node_selector = json.loads(
-                default_function_node_selector_json_string
-            )
+    def decode_base64_config_and_load_to_object(
+        attribute_path: str, expected_type=dict
+    ):
+        """
+        decodes and loads the config attribute to expected type
+        :param attribute_path: the path in the default_config e.g. preemptible_nodes.node_selector
+        :param expected_type: the object type valid values are : `dict`, `list` etc...
+        :return: the expected type instance
+        """
+        attributes = attribute_path.split(".")
+        raw_attribute_value = config
+        for part in attributes:
+            try:
+                raw_attribute_value = raw_attribute_value.__getattr__(part)
+            except AttributeError:
+                raise mlrun.errors.MLRunNotFoundError(
+                    "Attribute does not exist in config"
+                )
+        # There is a bug in the installer component in iguazio system that causes the configured value to be base64 of
+        # null (without conditioning it we will end up returning None instead of empty dict)
+        if raw_attribute_value and raw_attribute_value != "bnVsbA==":
+            try:
+                decoded_attribute_value = base64.b64decode(raw_attribute_value).decode()
+            except Exception:
+                raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                    f"Unable to decode {attribute_path}"
+                )
+            parsed_attribute_value = json.loads(decoded_attribute_value)
+            if type(parsed_attribute_value) != expected_type:
+                raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                    f"Expected type {expected_type}, got {type(parsed_attribute_value)}"
+                )
+            return parsed_attribute_value
+        return expected_type()
 
-        return default_function_node_selector
+    def get_default_function_node_selector(self) -> dict:
+        return self.decode_base64_config_and_load_to_object(
+            "default_function_node_selector", dict
+        )
+
+    def get_preemptible_node_selector(self) -> dict:
+        return self.decode_base64_config_and_load_to_object(
+            "preemptible_nodes.node_selector", dict
+        )
+
+    def get_preemptible_tolerations(self) -> list:
+        return self.decode_base64_config_and_load_to_object(
+            "preemptible_nodes.tolerations", list
+        )
+
+    def is_preemption_nodes_configured(self):
+        if (
+            not self.get_preemptible_tolerations()
+            and not self.get_preemptible_node_selector()
+        ):
+            return False
+        return True
 
     @staticmethod
     def get_valid_function_priority_class_names():
@@ -435,19 +551,38 @@ class Config:
         if config.kfp_url:
             return config.kfp_url
         igz_version = self.get_parsed_igz_version()
-        if namespace is None:
-            if not config.namespace:
-                raise mlrun.errors.MLRunNotFoundError(
-                    "For KubeFlow Pipelines to function, a namespace must be configured"
-                )
-            namespace = config.namespace
         # TODO: When Iguazio 3.4 will deprecate we can remove this line
         if igz_version and igz_version <= semver.VersionInfo.parse("3.6.0-b1"):
+            if namespace is None:
+                if not config.namespace:
+                    raise mlrun.errors.MLRunNotFoundError(
+                        "For KubeFlow Pipelines to function, a namespace must be configured"
+                    )
+                namespace = config.namespace
             # When instead of host we provided namespace we tackled this issue
             # https://github.com/canonical/bundle-kubeflow/issues/412
             # TODO: When we'll move to kfp 1.4.0 (server side) it should be resolved
             return f"http://ml-pipeline.{namespace}.svc.cluster.local:8888"
         return None
+
+    def resolve_chief_api_url(self) -> str:
+        if self.httpdb.clusterization.chief.url:
+            return self.httpdb.clusterization.chief.url
+        if not self.httpdb.clusterization.chief.service:
+            raise mlrun.errors.MLRunNotFoundError(
+                "For resolving chief url, chief service name must be provided"
+            )
+        if self.namespace is None:
+            raise mlrun.errors.MLRunNotFoundError(
+                "For resolving chief url, namespace must be provided"
+            )
+
+        chief_api_url = f"http://{self.httpdb.clusterization.chief.service}.{self.namespace}.svc.cluster.local"
+        if config.httpdb.clusterization.chief.port:
+            chief_api_url = f"{chief_api_url}:{self.httpdb.clusterization.chief.port}"
+
+        self.httpdb.clusterization.chief.url = chief_api_url
+        return self.httpdb.clusterization.chief.url
 
     @staticmethod
     def get_storage_auto_mount_params():
@@ -471,6 +606,50 @@ class Config:
             )
 
         return auto_mount_params
+
+    def get_default_function_pod_resources(
+        self, with_gpu_requests=False, with_gpu_limits=False
+    ):
+        resources = {}
+        resource_requirements = ["requests", "limits"]
+        for requirement in resource_requirements:
+            with_gpu = (
+                with_gpu_requests if requirement == "requests" else with_gpu_limits
+            )
+            resources[
+                requirement
+            ] = self.get_default_function_pod_requirement_resources(
+                requirement, with_gpu
+            )
+        return resources
+
+    def resolve_runs_monitoring_missing_runtime_resources_debouncing_interval(self):
+        return (
+            float(self.runs_monitoring_missing_runtime_resources_debouncing_interval)
+            if self.runs_monitoring_missing_runtime_resources_debouncing_interval
+            else float(config.runs_monitoring_interval) * 2.0
+        )
+
+    @staticmethod
+    def get_default_function_pod_requirement_resources(
+        requirement: str, with_gpu: bool = True
+    ):
+        """
+        :param requirement: kubernetes requirement resource one of the following : requests, limits
+        :param with_gpu: whether to return requirement resources with nvidia.com/gpu field (e.g. you cannot specify
+         GPU requests without specifying GPU limits) https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
+        :return: a dict containing the defaults resources (cpu, memory, nvidia.com/gpu)
+        """
+        resources: dict = copy.deepcopy(config.default_function_pod_resources.to_dict())
+        gpu_type = "nvidia.com/gpu"
+        gpu = "gpu"
+        resource_requirement = resources.get(requirement, {})
+        resource_requirement.setdefault(gpu)
+        if with_gpu:
+            resource_requirement[gpu_type] = resource_requirement.pop(gpu)
+        else:
+            resource_requirement.pop(gpu)
+        return resource_requirement
 
     def to_dict(self):
         return copy.copy(self._cfg)
@@ -571,6 +750,11 @@ class Config:
     def iguazio_api_url(self, value):
         self._iguazio_api_url = value
 
+    def is_api_running_on_k8s(self):
+        # determine if the API service is attached to K8s cluster
+        # when there is a cluster the .namespace is set
+        return True if mlrun.mlconf.namespace else False
+
 
 # Global configuration
 config = Config.from_dict(default_config)
@@ -621,6 +805,40 @@ def _do_populate(env=None):
     del config._cfg["dask_kfp_image"]
     config._cfg["_iguazio_api_url"] = config._cfg["iguazio_api_url"]
     del config._cfg["iguazio_api_url"]
+
+    _validate_config(config)
+
+
+def _validate_config(config):
+    import mlrun.k8s_utils
+
+    try:
+        limits_gpu = config.default_function_pod_resources.limits.gpu
+        requests_gpu = config.default_function_pod_resources.requests.gpu
+        mlrun.k8s_utils.verify_gpu_requests_and_limits(
+            requests_gpu=requests_gpu,
+            limits_gpu=limits_gpu,
+        )
+    except AttributeError:
+        pass
+
+
+def _convert_resources_to_str(config: dict = None):
+    resources_types = ["cpu", "memory", "gpu"]
+    resource_requirements = ["requests", "limits"]
+    if not config.get("default_function_pod_resources"):
+        return
+    for requirement in resource_requirements:
+        resource_requirement = config.get("default_function_pod_resources").get(
+            requirement
+        )
+        if not resource_requirement:
+            continue
+        for resource_type in resources_types:
+            value = resource_requirement.setdefault(resource_type, None)
+            if value is None:
+                continue
+            resource_requirement[resource_type] = str(value)
 
 
 def _convert_str(value, typ):
@@ -712,7 +930,9 @@ def read_env(env=None, prefix=env_prefix):
         # logger created (because of imports mess) before the config is loaded (in tests), therefore we're changing its
         # level manually
         mlrun.utils.logger.set_logger_level(config["log_level"])
-
+    # The default function pod resource values are of type str; however, when reading from environment variable numbers,
+    # it converts them to type int if contains only number, so we want to convert them to str.
+    _convert_resources_to_str(config)
     return config
 
 

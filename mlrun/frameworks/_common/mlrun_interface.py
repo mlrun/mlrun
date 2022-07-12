@@ -68,7 +68,8 @@ class MLRunInterface(ABC, Generic[MLRunInterfaceableType]):
 
         # Add the MLRun properties:
         cls._insert_properties(
-            obj=obj, properties=restoration_information[0],
+            obj=obj,
+            properties=restoration_information[0],
         )
 
         # Replace the object's properties in MLRun's properties:
@@ -158,7 +159,9 @@ class MLRunInterface(ABC, Generic[MLRunInterfaceableType]):
 
     @classmethod
     def _insert_properties(
-        cls, obj: MLRunInterfaceableType, properties: Dict[str, Any] = None,
+        cls,
+        obj: MLRunInterfaceableType,
+        properties: Dict[str, Any] = None,
     ):
         """
         Insert the properties of the interface to the object. The properties default values are being copied (not deep
@@ -313,7 +316,7 @@ class MLRunInterface(ABC, Generic[MLRunInterfaceableType]):
     ):
         """
         Replace the property in the object with the configured property in this interface. The original property will be
-        stored in a backup attribute with the the prefix noted in '_ORIGINAL_ATTRIBUTE_NAME' and the replacing property
+        stored in a backup attribute with the prefix noted in '_ORIGINAL_ATTRIBUTE_NAME' and the replacing property
         will be the one with the prefix noted in '_REPLACING_ATTRIBUTE_NAME'. If the property value should be None, set
         'include_none' to True, otherwise the interface default will be copied if 'property_value' is None.
 
@@ -340,7 +343,7 @@ class MLRunInterface(ABC, Generic[MLRunInterfaceableType]):
     def _replace_function(cls, obj: MLRunInterfaceableType, function_name: str):
         """
         Replace the method / function in the object with the configured method / function in this interface. The
-        original method / function will be stored in a backup attribute with the the prefix noted in
+        original method / function will be stored in a backup attribute with the prefix noted in
         '_ORIGINAL_ATTRIBUTE_NAME' and the replacing method / function will be the one with the prefix noted in
         '_REPLACING_ATTRIBUTE_NAME'.
 

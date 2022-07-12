@@ -28,7 +28,10 @@ class ReleaseNotesGenerator:
     )
 
     def __init__(
-        self, release: str, previous_release: str, release_branch: str,
+        self,
+        release: str,
+        previous_release: str,
+        release_branch: str,
     ):
         self._logger = logger
         self._release = release
@@ -54,6 +57,7 @@ class ReleaseNotesGenerator:
             "Nick Brown": "ihs-nick",
             "Oded Messer": "omesser",
             "Tom Tankilevitch": "tankilevitch",
+            "Adam": "quaark",
         }
 
     def run(self):
@@ -84,7 +88,7 @@ class ReleaseNotesGenerator:
                 args=[
                     "log",
                     '--pretty=format:"%h {%an} %s"',
-                    f"{self._previous_release}..HEAD",
+                    f"{self._previous_release}..{self._release}",
                 ],
                 cwd=repo_dir,
             )
@@ -94,7 +98,7 @@ class ReleaseNotesGenerator:
                 args=[
                     "log",
                     '--pretty=format:"%h %s"',
-                    f"{self._previous_release}..HEAD",
+                    f"{self._previous_release}..{self._release}",
                 ],
                 cwd=repo_dir,
             )
@@ -217,7 +221,9 @@ def main():
 @click.argument("previous-release", type=str, required=True)
 @click.argument("release-branch", type=str, required=False, default="master")
 def run(
-    release: str, previous_release: str, release_branch: str,
+    release: str,
+    previous_release: str,
+    release_branch: str,
 ):
     release_notes_generator = ReleaseNotesGenerator(
         release, previous_release, release_branch

@@ -89,8 +89,6 @@ def docker_fixture():
             "build",
             "-f",
             "dockerfiles/mlrun-api/Dockerfile",
-            "--build-arg",
-            "MLRUN_PYTHON_VERSION=3.7.11",
             "--tag",
             docker_tag,
             ".",
@@ -189,6 +187,9 @@ def test_log(create_server):
     server: Server = create_server()
     db = server.conn
     prj, uid, body = "p19", "3920", b"log data"
+    proj_obj = mlrun.new_project(prj, save=False)
+    db.create_project(proj_obj)
+
     db.store_run({"metadata": {"name": "run-name"}, "asd": "asd"}, uid, prj)
     db.store_log(uid, prj, body)
 
@@ -200,6 +201,9 @@ def test_run(create_server):
     server: Server = create_server()
     db = server.conn
     prj, uid = "p18", "3i920"
+    proj_obj = mlrun.new_project(prj, save=False)
+    db.create_project(proj_obj)
+
     run_as_dict = RunObject().to_dict()
     run_as_dict["metadata"].update({"name": "run-name", "algorithm": "svm", "C": 3})
     db.store_run(run_as_dict, uid, prj)
@@ -230,12 +234,14 @@ def test_run(create_server):
 def test_runs(create_server):
     server: Server = create_server()
     db = server.conn
+    prj = "p180"
+    proj_obj = mlrun.new_project(prj, save=False)
+    db.create_project(proj_obj)
 
     runs = db.list_runs()
     assert not runs, "found runs in new db"
     count = 7
 
-    prj = "p180"
     run_as_dict = RunObject().to_dict()
     for i in range(count):
         uid = f"uid_{i}"
@@ -292,6 +298,9 @@ def test_set_get_function(create_server):
 
     func, name, proj = {"x": 1, "y": 2}, "f1", "p2"
     tag = uuid4().hex
+    proj_obj = mlrun.new_project(proj, save=False)
+    db.create_project(proj_obj)
+
     db.store_function(func, name, proj, tag=tag)
     db_func = db.get_function(name, proj, tag=tag)
 
@@ -306,13 +315,20 @@ def test_list_functions(create_server):
     db: HTTPRunDB = server.conn
 
     proj = "p4"
+    proj_obj = mlrun.new_project(proj, save=False)
+    db.create_project(proj_obj)
+
     count = 5
     for i in range(count):
         name = f"func{i}"
         func = {"fid": i}
         tag = uuid4().hex
         db.store_function(func, name, proj, tag=tag)
-    db.store_function({}, "f2", "p7", tag=uuid4().hex)
+    proj_p7 = "p7"
+    proj_p7_obj = mlrun.new_project(proj_p7, save=False)
+    db.create_project(proj_p7_obj)
+
+    db.store_function({}, "f2", proj_p7, tag=uuid4().hex)
 
     functions = db.list_functions(project=proj)
     for function in functions:
@@ -394,6 +410,9 @@ def test_feature_sets(create_server):
     db: HTTPRunDB = server.conn
 
     project = "newproj"
+    proj_obj = mlrun.new_project(project, save=False)
+    db.create_project(proj_obj)
+
     count = 5
     for i in range(count):
         name = f"fs_{i}"
@@ -480,6 +499,9 @@ def test_feature_vectors(create_server):
     db: HTTPRunDB = server.conn
 
     project = "newproj"
+    proj_obj = mlrun.new_project(project, save=False)
+    db.create_project(proj_obj)
+
     count = 5
     for i in range(count):
         name = f"fs_{i}"
@@ -551,7 +573,9 @@ def test_project_file_db_roundtrip(create_server):
     labels = {"key": "value"}
     annotations = {"annotation-key": "annotation-value"}
     project_metadata = mlrun.projects.project.ProjectMetadata(
-        project_name, labels=labels, annotations=annotations,
+        project_name,
+        labels=labels,
+        annotations=annotations,
     )
     project_spec = mlrun.projects.project.ProjectSpec(
         description,

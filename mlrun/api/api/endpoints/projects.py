@@ -8,7 +8,9 @@ import sqlalchemy.orm
 import mlrun.api.api.deps
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.clients.chief
 from mlrun.api.utils.singletons.project_member import get_project_member
+from mlrun.utils import logger
 
 router = fastapi.APIRouter()
 
@@ -131,7 +133,9 @@ def get_project(
     # skip permission check if it's the leader
     if not _is_request_from_leader(auth_info.projects_role):
         mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            name, mlrun.api.schemas.AuthorizationAction.read, auth_info,
+            name,
+            mlrun.api.schemas.AuthorizationAction.read,
+            auth_info,
         )
     return project
 
@@ -145,6 +149,7 @@ def get_project(
 )
 def delete_project(
     name: str,
+    request: fastapi.Request,
     deletion_strategy: mlrun.api.schemas.DeletionStrategy = fastapi.Header(
         mlrun.api.schemas.DeletionStrategy.default(),
         alias=mlrun.api.schemas.HeaderNames.deletion_strategy,
@@ -159,6 +164,20 @@ def delete_project(
         mlrun.api.api.deps.get_db_session
     ),
 ):
+    # delete project can be responsible for deleting schedules. Schedules are running only on chief,
+    # that is why we re-route requests to chief
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.api.schemas.ClusterizationRole.chief
+    ):
+        logger.info(
+            "Requesting to delete project, re-routing to chief",
+            project=name,
+            deletion_strategy=deletion_strategy,
+        )
+        chief_client = mlrun.api.utils.clients.chief.Client()
+        return chief_client.delete_project(name=name, request=request)
+
     is_running_in_background = get_project_member().delete_project(
         db_session,
         name,
@@ -199,8 +218,11 @@ def list_projects(
             auth_info.projects_role,
             auth_info.session,
         )
-        allowed_project_names = mlrun.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
-            projects_output.projects, auth_info,
+        allowed_project_names = (
+            mlrun.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
+                projects_output.projects,
+                auth_info,
+            )
         )
     return get_project_member().list_projects(
         db_session,

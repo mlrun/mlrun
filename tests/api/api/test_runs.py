@@ -112,7 +112,7 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
         updated=run_1_update_time,
     )
     run.struct = run_1
-    get_db()._upsert(db, run, ignore=True)
+    get_db()._upsert(db, [run], ignore=True)
 
     between_run_1_and_2 = datetime.now(timezone.utc)
 
@@ -138,7 +138,7 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
         updated=run_2_update_time,
     )
     run.struct = run_2
-    get_db()._upsert(db, run, ignore=True)
+    get_db()._upsert(db, [run], ignore=True)
 
     # all start time range
     assert_time_range_request(client, [run_1_uid, run_2_uid])
@@ -149,7 +149,9 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
         start_time_to=run_2_update_time.isoformat(),
     )
     assert_time_range_request(
-        client, [run_1_uid, run_2_uid], start_time_from=run_1_start_time.isoformat(),
+        client,
+        [run_1_uid, run_2_uid],
+        start_time_from=run_1_start_time.isoformat(),
     )
 
     # all last update time range
@@ -160,10 +162,14 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
         last_update_time_to=run_2_update_time,
     )
     assert_time_range_request(
-        client, [run_1_uid, run_2_uid], last_update_time_from=run_1_update_time,
+        client,
+        [run_1_uid, run_2_uid],
+        last_update_time_from=run_1_update_time,
     )
     assert_time_range_request(
-        client, [run_1_uid, run_2_uid], last_update_time_to=run_2_update_time,
+        client,
+        [run_1_uid, run_2_uid],
+        last_update_time_to=run_2_update_time,
     )
 
     # catch only first
@@ -174,7 +180,9 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
         start_time_to=between_run_1_and_2,
     )
     assert_time_range_request(
-        client, [run_1_uid], start_time_to=between_run_1_and_2,
+        client,
+        [run_1_uid],
+        start_time_to=between_run_1_and_2,
     )
     assert_time_range_request(
         client,
@@ -191,7 +199,9 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
         start_time_to=run_2_update_time,
     )
     assert_time_range_request(
-        client, [run_2_uid], last_update_time_from=run_2_start_time,
+        client,
+        [run_2_uid],
+        last_update_time_from=run_2_start_time,
     )
 
 
@@ -215,10 +225,18 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
                     mlrun.api.crud.Runs().store_run(db, run, uid, iteration, project)
 
     # basic list, all projects, all iterations so 3 projects * 3 names * 3 uids * 3 iterations = 81
-    runs = _list_and_assert_objects(client, {"project": "*"}, 81,)
+    runs = _list_and_assert_objects(
+        client,
+        {"project": "*"},
+        81,
+    )
 
     # basic list, specific project, only iteration 0, so 3 names * 3 uids = 9
-    runs = _list_and_assert_objects(client, {"project": projects[0], "iter": False}, 9,)
+    runs = _list_and_assert_objects(
+        client,
+        {"project": projects[0], "iter": False},
+        9,
+    )
 
     # partioned list, specific project, 1 row per partition by default, so 3 names * 1 row = 3
     runs = _list_and_assert_objects(
@@ -262,6 +280,41 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
         },
         15,
     )
+
+    # partitioned list, specific project, 5 rows per partition, max of 2 partitions, so 2 names * 5 rows = 10
+    runs = _list_and_assert_objects(
+        client,
+        {
+            "project": projects[0],
+            "partition-by": mlrun.api.schemas.RunPartitionByField.name,
+            "partition-sort-by": mlrun.api.schemas.SortField.updated,
+            "partition-order": mlrun.api.schemas.OrderType.desc,
+            "rows-per-partition": 5,
+            "max-partitions": 2,
+        },
+        10,
+    )
+    for run in runs:
+        # Partitions are ordered from latest updated to oldest, which means that 3,2 must be here.
+        assert run["metadata"]["name"] in ["run-name-2", "run-name-3"]
+
+    # Complex query, with partitioning and filtering over iter==0
+    runs = _list_and_assert_objects(
+        client,
+        {
+            "project": projects[0],
+            "iter": False,
+            "partition-by": mlrun.api.schemas.RunPartitionByField.name,
+            "partition-sort-by": mlrun.api.schemas.SortField.updated,
+            "partition-order": mlrun.api.schemas.OrderType.desc,
+            "rows-per-partition": 2,
+            "max-partitions": 1,
+        },
+        2,
+    )
+
+    for run in runs:
+        assert run["metadata"]["name"] == "run-name-3" and run["metadata"]["iter"] == 0
 
     # Some negative testing - no sort by field
     response = client.get("/api/runs?partition-by=name")

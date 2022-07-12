@@ -23,12 +23,12 @@ class MLMLRunInterface(MLRunInterface, ABC):
     _PROPERTIES = {
         # A model handler instance with the model for logging / updating the model (if not provided the model won't be
         # logged / updated at the end of training / testing):
-        "_model_handler": None,  # type: MLModelHandler
+        "_model_handler": None,  # > type: MLModelHandler
         # The logger that is logging this model's training / evaluation:
-        "_logger": None,  # type: Logger
+        "_logger": None,  # > type: Logger
         # The test set (For validation post training or evaluation post prediction):
-        "_x_test": None,  # type: DatasetType
-        "_y_test": None,  # type: DatasetType
+        "_x_test": None,  # > type: DatasetType
+        "_y_test": None,  # > type: DatasetType
     }
     _METHODS = [
         "set_model_handler",
@@ -44,7 +44,9 @@ class MLMLRunInterface(MLRunInterface, ABC):
 
     @classmethod
     def add_interface(
-        cls, obj: ModelType, restoration_information: RestorationInformation = None,
+        cls,
+        obj: ModelType,
+        restoration_information: RestorationInformation = None,
     ):
         """
         Enrich the object with this interface properties, methods and functions so it will have this framework MLRun's
@@ -218,18 +220,21 @@ class MLMLRunInterface(MLRunInterface, ABC):
             )
             y_pred = self.predict(self._x_test)
             self._post_predict(
-                x=self._x_test, y=self._y_test, y_pred=y_pred, is_predict_proba=False,
+                x=self._x_test,
+                y=self._y_test,
+                y_pred=y_pred,
+                is_predict_proba=False,
             )
 
         # Log the model with the given attributes:
         if self._model_handler is not None:
             # Set the sample set to the training set if None:
             if self._model_handler.sample_set is None:
-                self._model_handler.set_sample_set(
-                    sample_set=concatenate_x_y(
-                        x=x, y=y, y_columns=self._model_handler.y_columns
-                    )[0]
+                sample_set, y_columns = concatenate_x_y(
+                    x=x, y=y, y_columns=self._model_handler.y_columns
                 )
+                self._model_handler.set_y_columns(y_columns=y_columns)
+                self._model_handler.set_sample_set(sample_set=sample_set)
             # Log the model:
             self._logger.log_run(model_handler=self._model_handler)
 

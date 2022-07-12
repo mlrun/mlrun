@@ -51,6 +51,7 @@ from .secrets import SecretsStore
 from .utils import (
     dict_to_yaml,
     get_in,
+    is_relative_path,
     list2dict,
     logger,
     parse_versioned_object_uri,
@@ -72,7 +73,7 @@ def main():
 @click.option(
     "--param",
     "-p",
-    default="",
+    default=[],
     multiple=True,
     help="parameter name and value tuples, e.g. -p x=37 -p y='text'",
 )
@@ -81,7 +82,10 @@ def main():
 @click.option("--in-path", help="default input path/url (prefix) for artifact")
 @click.option("--out-path", help="default output path/url (prefix) for artifact")
 @click.option(
-    "--secrets", "-s", multiple=True, help="secrets file=<filename> or env=ENV_KEY1,.."
+    "--secrets",
+    "-s",
+    multiple=True,
+    help="secrets file=<filename> or env=ENV_KEY1,..",
 )
 @click.option("--uid", help="unique run ID")
 @click.option("--name", help="run name")
@@ -97,7 +101,7 @@ def main():
 @click.option(
     "--hyperparam",
     "-x",
-    default="",
+    default=[],
     multiple=True,
     help="hyper parameters (will expand to multiple tasks) e.g. --hyperparam p2=[1,2,3]",
 )
@@ -115,7 +119,9 @@ def main():
     help="hyperparam tuning strategy list | grid | random",
 )
 @click.option(
-    "--hyper-param-options", default="", help="hyperparam options json string",
+    "--hyper-param-options",
+    default="",
+    help="hyperparam options json string",
 )
 @click.option(
     "--func-url",
@@ -157,6 +163,11 @@ def main():
     help="when set functions will be built prior to run if needed",
 )
 @click.argument("run_args", nargs=-1, type=click.UNPROCESSED)
+@click.option(
+    "--ensure-project",
+    is_flag=True,
+    help="ensure the project exists, if not, create project",
+)
 def run(
     url,
     param,
@@ -198,6 +209,7 @@ def run(
     env_file,
     auto_build,
     run_args,
+    ensure_project,
 ):
     """Execute a task and inject parameters."""
 
@@ -243,9 +255,14 @@ def run(
         if len(split) > 1:
             url_args = split[1]
 
+    if ensure_project and project:
+        mlrun.get_or_create_project(
+            name=project,
+            context="./",
+        )
     if func_url or kind or image:
         if func_url:
-            runtime = func_url_to_runtime(func_url)
+            runtime = func_url_to_runtime(func_url, ensure_project)
             kind = get_in(runtime, "kind", kind or "job")
             if runtime is None:
                 exit(1)
@@ -379,7 +396,7 @@ def run(
 @click.option(
     "--command",
     "-c",
-    default="",
+    default=[],
     multiple=True,
     help="build commands, e.g. '-c pip install pandas'",
 )
@@ -397,6 +414,11 @@ def run(
 @click.option("--skip", is_flag=True, help="skip if already deployed")
 @click.option(
     "--env-file", default="", help="path to .env file to load config/variables from"
+)
+@click.option(
+    "--ensure-project",
+    is_flag=True,
+    help="ensure the project exists, if not, create project",
 )
 def build(
     func_url,
@@ -416,6 +438,7 @@ def build(
     kfp,
     skip,
     env_file,
+    ensure_project,
 ):
     """Build a container image from code and requirements."""
 
@@ -480,6 +503,14 @@ def build(
         # todo: replace function.yaml inside the tar
         b.source = target
 
+    with_mlrun = True if with_mlrun else None  # False will map to None
+
+    if ensure_project and project:
+        mlrun.get_or_create_project(
+            name=project,
+            context="./",
+        )
+
     if hasattr(func, "deploy"):
         logger.info("remote deployment started")
         try:
@@ -527,15 +558,37 @@ def build(
 @click.option(
     "--env-file", default="", help="path to .env file to load config/variables from"
 )
+@click.option(
+    "--ensure-project",
+    is_flag=True,
+    help="ensure the project exists, if not, create project",
+)
 def deploy(
-    spec, source, func_url, dashboard, project, model, tag, kind, env, verbose, env_file
+    spec,
+    source,
+    func_url,
+    dashboard,
+    project,
+    model,
+    tag,
+    kind,
+    env,
+    verbose,
+    env_file,
+    ensure_project,
 ):
     """Deploy model or function"""
     if env_file:
         mlrun.set_env_from_file(env_file)
 
+    if ensure_project and project:
+        mlrun.get_or_create_project(
+            name=project,
+            context="./",
+        )
+
     if func_url:
-        runtime = func_url_to_runtime(func_url)
+        runtime = func_url_to_runtime(func_url, ensure_project)
         if runtime is None:
             exit(1)
     elif spec:
@@ -773,7 +826,7 @@ def logs(uid, project, offset, db, watch):
 @click.option(
     "--arguments",
     "-a",
-    default="",
+    default=[],
     multiple=True,
     help="Kubeflow pipeline arguments name and value tuples (with -r flag), e.g. -a x=6",
 )
@@ -781,12 +834,15 @@ def logs(uid, project, offset, db, watch):
 @click.option(
     "--param",
     "-x",
-    default="",
+    default=[],
     multiple=True,
     help="mlrun project parameter name and value tuples, e.g. -p x=37 -p y='text'",
 )
 @click.option(
-    "--secrets", "-s", multiple=True, help="secrets file=<filename> or env=ENV_KEY1,.."
+    "--secrets",
+    "-s",
+    multiple=True,
+    help="secrets file=<filename> or env=ENV_KEY1,..",
 )
 @click.option("--namespace", help="k8s namespace")
 @click.option("--db", help="api and db service path/url")
@@ -809,7 +865,18 @@ def logs(uid, project, offset, db, watch):
 @click.option("--engine", default=None, help="workflow engine (kfp/local)")
 @click.option("--local", is_flag=True, help="try to run workflow functions locally")
 @click.option(
+    "--timeout",
+    type=int,
+    default=None,
+    help="timeout in seconds to wait for pipeline completion (used when watch=True)",
+)
+@click.option(
     "--env-file", default="", help="path to .env file to load config/variables from"
+)
+@click.option(
+    "--ensure-project",
+    is_flag=True,
+    help="ensure the project exists, if not, create project",
 )
 def project(
     context,
@@ -833,6 +900,8 @@ def project(
     engine,
     local,
     env_file,
+    timeout,
+    ensure_project,
 ):
     """load and/or run a project"""
     if env_file:
@@ -841,11 +910,13 @@ def project(
     if db:
         mlconf.dbpath = db
 
-    proj = load_project(context, url, name, init_git=init_git, clone=clone)
+    proj = load_project(
+        context, url, name, init_git=init_git, clone=clone, save=ensure_project
+    )
     url_str = " from " + url if url else ""
     print(f"Loading project {proj.name}{url_str} into {context}:\n")
 
-    if artifact_path and not ("://" in artifact_path or artifact_path.startswith("/")):
+    if is_relative_path(artifact_path):
         artifact_path = path.abspath(artifact_path)
     if param:
         proj.spec.params = fill_params(param, proj.spec.params)
@@ -913,7 +984,7 @@ def project(
             exit(1)
 
         if watch and run_result and run_result.workflow.engine == "kfp":
-            proj.get_run_status(run_result)
+            proj.get_run_status(run_result, timeout=timeout)
 
     elif sync:
         print("saving project functions to db ..")
@@ -1070,7 +1141,7 @@ def dict_to_str(struct: dict):
     return ",".join([f"{k}={v}" for k, v in struct.items()])
 
 
-def func_url_to_runtime(func_url):
+def func_url_to_runtime(func_url, ensure_project: bool = False):
     try:
         if func_url.startswith("db://"):
             func_url = func_url[5:]
@@ -1081,7 +1152,7 @@ def func_url_to_runtime(func_url):
             func_url = "function.yaml" if func_url == "." else func_url
             runtime = import_function_to_dict(func_url, {})
         else:
-            mlrun_project = load_project(".")
+            mlrun_project = load_project(".", save=ensure_project)
             function = mlrun_project.get_function(func_url, enrich=True)
             if function.kind == "local":
                 command, function = load_func_code(function)

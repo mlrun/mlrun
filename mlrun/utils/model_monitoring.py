@@ -20,7 +20,10 @@ class FunctionURI:
     def from_string(cls, function_uri):
         project, uri, tag, hash_key = parse_versioned_object_uri(function_uri)
         return cls(
-            project=project, function=uri, tag=tag or None, hash_key=hash_key or None,
+            project=project,
+            function=uri,
+            tag=tag or None,
+            hash_key=hash_key or None,
         )
 
 
@@ -97,7 +100,7 @@ def parse_model_endpoint_store_prefix(store_prefix: str):
 def set_project_model_monitoring_credentials(
     access_key: str, project: Optional[str] = None
 ):
-    """ Set the credentials that will be used by the project's model monitoring
+    """Set the credentials that will be used by the project's model monitoring
     infrastructure functions.
     The supplied credentials must have data access
 

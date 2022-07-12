@@ -101,7 +101,8 @@ class CommonUtils(ABC):
 
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"Could not convert the given dataset into a numpy ndarray. Supporting conversion from: "
-            f"{CommonUtils.get_union_typehint_string(CommonTypes.DatasetType)}. The given dataset was of type: '{type(dataset)}'"
+            f"{CommonUtils.get_union_typehint_string(CommonTypes.DatasetType)}. "
+            f"The given dataset was of type: '{type(dataset)}'"
         )
 
     @staticmethod
@@ -131,7 +132,8 @@ class CommonUtils(ABC):
             pass
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"Could not convert the given dataset into a pandas DataFrame. Supporting conversion from: "
-            f"{CommonUtils.get_union_typehint_string(CommonTypes.DatasetType)}. The given dataset was of type: '{type(dataset)}'"
+            f"{CommonUtils.get_union_typehint_string(CommonTypes.DatasetType)}. "
+            f"The given dataset was of type: '{type(dataset)}'"
         )
 
     @staticmethod

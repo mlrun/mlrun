@@ -67,6 +67,12 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         expected_driver_resources: dict = None,
         expected_executor_resources: dict = None,
         expected_cores: dict = None,
+        expected_driver_security_context: typing.Optional[
+            kubernetes.client.V1SecurityContext
+        ] = None,
+        expected_executor_security_context: typing.Optional[
+            kubernetes.client.V1SecurityContext
+        ] = None,
     ):
         if assert_create_custom_object_called:
             mlrun.api.utils.singletons.k8s.get_k8s().crdapi.create_namespaced_custom_object.assert_called_once()
@@ -95,6 +101,26 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
 
         if expected_cores:
             self._assert_cores(body["spec"], expected_cores)
+
+        if expected_driver_security_context:
+            assert (
+                deepdiff.DeepDiff(
+                    body["spec"]["driver"]["securityContext"],
+                    expected_driver_security_context,
+                    ignore_order=True,
+                )
+                == {}
+            )
+
+        if expected_executor_security_context:
+            assert (
+                deepdiff.DeepDiff(
+                    body["spec"]["executor"]["securityContext"],
+                    expected_executor_security_context,
+                    ignore_order=True,
+                )
+                == {}
+            )
 
     def _assert_volume_and_mounts(
         self,
@@ -220,6 +246,28 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             expected_driver_resources=expected_driver,
             expected_executor_resources=expected_executor,
             expected_cores=expected_cores,
+        )
+
+    def test_run_with_security_context(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=True
+        )
+
+        driver_security_context = self._generate_security_context(1000, 3000)
+        executor_security_context = self._generate_security_context(2000, 2000)
+
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError):
+            runtime.with_security_context(driver_security_context)
+
+        runtime.with_executor_security_context(executor_security_context)
+        runtime.with_driver_security_context(driver_security_context)
+
+        self.execute_function(runtime)
+        self._assert_custom_object_creation_config(
+            expected_driver_security_context=driver_security_context,
+            expected_executor_security_context=executor_security_context,
         )
 
     def test_run_with_host_path_volume(

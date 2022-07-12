@@ -313,3 +313,38 @@ class TestDaskRuntime(TestRuntimeBase):
             assert_namespace_env_variable=False,
             expected_node_selector=node_selector,
         )
+
+    def test_dask_with_security_context(self, db: Session, client: TestClient):
+        default_security_context = self._generate_security_context(
+            1000,
+            3000,
+        )
+        mlrun.mlconf.function.spec.security_context.default = default_security_context
+        runtime = self._generate_runtime()
+
+        _ = runtime.client
+
+        self.kube_cluster_mock.assert_called_once()
+
+        self._assert_pod_creation_config(
+            expected_runtime_class_name="dask",
+            assert_create_pod_called=False,
+            assert_namespace_env_variable=False,
+            expected_security_context=default_security_context,
+        )
+
+        runtime = self._generate_runtime()
+        other_security_context = self._generate_security_context(
+            2000,
+            2000,
+        )
+        runtime.with_security_context(other_security_context)
+
+        _ = runtime.client
+
+        self._assert_pod_creation_config(
+            expected_runtime_class_name="dask",
+            assert_create_pod_called=False,
+            assert_namespace_env_variable=False,
+            expected_security_context=other_security_context,
+        )

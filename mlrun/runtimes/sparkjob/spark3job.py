@@ -43,6 +43,8 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         "executor_java_options",
         "driver_cores",
         "executor_cores",
+        "driver_security_context",
+        "executor_security_context",
     ]
 
     def __init__(
@@ -99,6 +101,8 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         executor_java_options=None,
         driver_cores=None,
         executor_cores=None,
+        driver_security_context=None,
+        executor_security_context=None,
     ):
 
         super().__init__(
@@ -158,6 +162,8 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         self.executor_java_options = executor_java_options
         self.driver_cores = driver_cores
         self.executor_cores = executor_cores
+        self.driver_security_context = driver_security_context
+        self.executor_security_context = executor_security_context
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(
@@ -165,8 +171,10 @@ class Spark3JobSpec(AbstractSparkJobSpec):
             exclude=[
                 "executor_affinity",
                 "executor_tolerations",
+                "executor_security_context",
                 "driver_affinity",
                 "driver_tolerations",
+                "driver_security_context",
             ],
         )
         api = kubernetes.client.ApiClient()
@@ -179,6 +187,12 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         )
         struct["driver_tolerations"] = api.sanitize_for_serialization(
             self.driver_tolerations
+        )
+        struct["executor_security_context"] = api.sanitize_for_serialization(
+            self.executor_security_context
+        )
+        struct["driver_security_context"] = api.sanitize_for_serialization(
+            self.driver_security_context
         )
         return struct
 
@@ -260,6 +274,30 @@ class Spark3JobSpec(AbstractSparkJobSpec):
             tolerations_field_name="executor_tolerations",
             affinity_field_name="executor_affinity",
             node_selector_field_name="executor_node_selector",
+        )
+
+    @property
+    def executor_security_context(self) -> kubernetes.client.V1SecurityContext:
+        return self._executor_security_context
+
+    @executor_security_context.setter
+    def executor_security_context(self, security_context):
+        self._executor_security_context = (
+            mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
+                "executor_security_context", security_context
+            )
+        )
+
+    @property
+    def driver_security_context(self) -> kubernetes.client.V1SecurityContext:
+        return self._driver_security_context
+
+    @driver_security_context.setter
+    def driver_security_context(self, security_context):
+        self._driver_security_context = (
+            mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
+                "executor_security_context", security_context
+            )
         )
 
     @property
@@ -369,6 +407,17 @@ class Spark3Runtime(AbstractSparkRuntime):
             update_in(job, "spec.driver.affinity", self.spec.driver_affinity)
         if self.spec.executor_affinity:
             update_in(job, "spec.executor.affinity", self.spec.executor_affinity)
+
+        if self.spec.driver_security_context:
+            update_in(
+                job, "spec.driver.securityContext", self.spec.driver_security_context
+            )
+        if self.spec.executor_security_context:
+            update_in(
+                job,
+                "spec.executor.securityContext",
+                self.spec.executor_security_context,
+            )
 
         if self.spec.monitoring:
             if "enabled" in self.spec.monitoring and self.spec.monitoring["enabled"]:
@@ -576,6 +625,39 @@ class Spark3Runtime(AbstractSparkRuntime):
         """
         preemption_mode = mlrun.api.schemas.function.PreemptionModes(mode)
         self.spec.executor_preemption_mode = preemption_mode.value
+
+    def with_security_context(
+        self, security_context: kubernetes.client.V1SecurityContext
+    ):
+        """
+        Enables to specify security settings for a Pod
+
+        :param security_context:         The security settings for the Pod
+        """
+        raise mlrun.errors.MLRunInvalidArgumentTypeError(
+            "with_security_context is not supported use with_driver_security_context / with_executor_security_context"
+            " to set security context for spark operator"
+        )
+
+    def with_driver_security_context(
+        self, security_context: kubernetes.client.V1SecurityContext
+    ):
+        """
+        Enables to specify security settings for a Pod
+
+        :param security_context:         The security settings for the driver Pod
+        """
+        self.spec.driver_security_context = security_context
+
+    def with_executor_security_context(
+        self, security_context: kubernetes.client.V1SecurityContext
+    ):
+        """
+        Enables to specify security settings for a Pod
+
+        :param security_context:         The security settings for the executor Pod
+        """
+        self.spec.executor_security_context = security_context
 
     def with_driver_host_path_volume(
         self,

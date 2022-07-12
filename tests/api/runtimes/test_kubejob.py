@@ -223,6 +223,32 @@ class TestKubejobRuntime(TestRuntimeBase):
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             runtime.with_priority_class(medium_priority_class_name)
 
+    def test_run_with_security_context(self, db: Session, client: TestClient):
+        default_security_context = self._generate_security_context(
+            1000,
+            3000,
+        )
+        mlrun.mlconf.function.spec.security_context.default = default_security_context
+        runtime = self._generate_runtime()
+
+        self.execute_function(runtime)
+        self._assert_pod_creation_config(
+            expected_security_context=default_security_context
+        )
+
+        # override default
+        other_security_context = self._generate_security_context(
+            2000,
+            2000,
+        )
+        runtime = self._generate_runtime()
+
+        runtime.with_security_context(other_security_context)
+        self.execute_function(runtime)
+        self._assert_pod_creation_config(
+            expected_security_context=other_security_context
+        )
+
     def test_run_with_mounts(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
 

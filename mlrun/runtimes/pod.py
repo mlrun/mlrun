@@ -64,6 +64,15 @@ sanitized_types = {
         "not_sanitized_class": list,
         "sanitized": "tolerationSeconds",
     },
+    "security_context": {
+        "attribute_type_name": "V1SecurityContext",
+        "attribute_type": k8s_client.V1SecurityContext,
+        "sub_attribute_type": None,
+        "contains_many": False,
+        "not_sanitized": "run_as_user",
+        "not_sanitized_class": dict,
+        "sanitized": "runAsUser",
+    },
 }
 
 sanitized_attributes = {
@@ -73,6 +82,9 @@ sanitized_attributes = {
     "driver_tolerations": sanitized_types["tolerations"],
     "executor_affinity": sanitized_types["affinity"],
     "driver_affinity": sanitized_types["affinity"],
+    "security_context": sanitized_types["security_context"],
+    "executor_security_context": sanitized_types["security_context"],
+    "driver_security_context": sanitized_types["security_context"],
 }
 
 
@@ -92,6 +104,7 @@ class KubeResourceSpec(FunctionSpec):
         "priority_class_name",
         "tolerations",
         "preemption_mode",
+        "security_context",
     ]
 
     def __init__(
@@ -121,6 +134,7 @@ class KubeResourceSpec(FunctionSpec):
         priority_class_name=None,
         tolerations=None,
         preemption_mode=None,
+        security_context=None,
     ):
         super().__init__(
             command=command,
@@ -160,6 +174,9 @@ class KubeResourceSpec(FunctionSpec):
         )
         self._tolerations = tolerations
         self.preemption_mode = preemption_mode
+        self._security_context = (
+            security_context or mlrun.mlconf.function.spec.security_context.default
+        )
 
     @property
     def volumes(self) -> list:
@@ -220,11 +237,26 @@ class KubeResourceSpec(FunctionSpec):
         self._preemption_mode = mode or mlconf.function_defaults.preemption_mode
         self.enrich_function_preemption_spec()
 
+    @property
+    def security_context(self) -> k8s_client.V1SecurityContext:
+        return self._security_context
+
+    @security_context.setter
+    def security_context(self, security_context):
+        self._security_context = transform_attribute_to_k8s_class_instance(
+            "security_context", security_context
+        )
+
     def to_dict(self, fields=None, exclude=None):
-        struct = super().to_dict(fields, exclude=["affinity", "tolerations"])
+        struct = super().to_dict(
+            fields, exclude=["affinity", "tolerations", "security_context"]
+        )
         api = k8s_client.ApiClient()
         struct["affinity"] = api.sanitize_for_serialization(self.affinity)
         struct["tolerations"] = api.sanitize_for_serialization(self.tolerations)
+        struct["security_context"] = api.sanitize_for_serialization(
+            self.security_context
+        )
         return struct
 
     def update_vols_and_mounts(
@@ -1062,6 +1094,14 @@ class KubeResource(BaseRuntime):
         preemptible_mode = PreemptionModes(mode)
         self.spec.preemption_mode = preemptible_mode.value
 
+    def with_security_context(self, security_context: k8s_client.V1SecurityContext):
+        """
+        Enables to specify security settings for a Pod
+
+        :param security_context:         The security settings for the Pod
+        """
+        self.spec.security_context = security_context
+
     def list_valid_priority_class_names(self):
         return mlconf.get_valid_function_priority_class_names()
 
@@ -1268,6 +1308,7 @@ def kube_resource_spec_to_pod_spec(
         if len(mlconf.get_valid_function_priority_class_names())
         else None,
         tolerations=kube_resource_spec.tolerations,
+        security_context=kube_resource_spec.security_context,
     )
 
 

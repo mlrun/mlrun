@@ -280,6 +280,16 @@ class TestRuntimeBase:
             ),
         )
 
+    def _generate_security_context(
+        self,
+        run_as_user: typing.Optional[int] = None,
+        run_as_group: typing.Optional[int] = None,
+    ) -> k8s_client.V1SecurityContext:
+        return k8s_client.V1SecurityContext(
+            run_as_user=run_as_user,
+            run_as_group=run_as_group,
+        )
+
     def _mock_create_namespaced_pod(self):
         def _generate_pod(namespace, pod):
             terminated_container_state = client.V1ContainerStateTerminated(
@@ -628,6 +638,7 @@ class TestRuntimeBase:
         expected_node_selector=None,
         expected_affinity=None,
         expected_priority_class_name=None,
+        expected_security_context=None,
         assert_create_pod_called=True,
         assert_namespace_env_variable=True,
         expected_labels=None,
@@ -704,6 +715,16 @@ class TestRuntimeBase:
 
         if expected_priority_class_name:
             assert pod.spec.priority_class_name == expected_priority_class_name
+
+        if expected_security_context:
+            assert (
+                deepdiff.DeepDiff(
+                    pod.spec.security_context.to_dict(),
+                    expected_security_context.to_dict(),
+                    ignore_order=True,
+                )
+                == {}
+            )
 
         assert pod.spec.containers[0].image == self.image_name
 

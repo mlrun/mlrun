@@ -129,6 +129,11 @@ default_config = {
             "runtimes": {"dask": "600"},
         },
     },
+    "function": {
+        "spec": {
+            "image_pull_secret": {"default": None},
+        },
+    },
     "function_defaults": {
         "image_by_kind": {
             "job": "mlrun/mlrun",
@@ -151,6 +156,13 @@ default_config = {
                 "url": "",
                 "service": "mlrun-api-chief",
                 "port": 8080,
+            },
+            "worker": {
+                "sync_with_chief": {
+                    # enabled / disabled
+                    "mode": "enabled",
+                    "interval": 15,  # seconds
+                }
             },
             # see mlrun.api.utils.helpers.ensure_running_on_chief
             "ensure_function_running_on_chief_mode": "enabled",
@@ -257,6 +269,9 @@ default_config = {
             # setting the docker registry to be used for built images, can include the repository as well, e.g.
             # index.docker.io/<username>, if not included repository will default to mlrun
             "docker_registry": "",
+            # dockerconfigjson type secret to attach to kaniko pod.
+            # For amazon ECR, the secret is expected to provide AWS credentials. Leave empty to use EC2 IAM policy.
+            # https://github.com/GoogleContainerTools/kaniko#pushing-to-amazon-ecr
             "docker_registry_secret": "",
             # whether to allow the docker registry we're pulling from to be insecure. "enabled", "disabled" or "auto"
             # which will resolve by the existence of secret
@@ -270,6 +285,8 @@ default_config = {
             "mlrun_version_specifier": "",
             "kaniko_image": "gcr.io/kaniko-project/executor:v1.8.0",  # kaniko builder image
             "kaniko_init_container_image": "alpine:3.13.1",
+            # image for kaniko init container when docker registry is ECR
+            "kaniko_aws_cli_image": "amazon/aws-cli:2.7.10",
             # additional docker build args in json encoded base64 format
             "build_args": "",
             "pip_ca_secret_name": "",

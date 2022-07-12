@@ -163,6 +163,11 @@ def main():
     help="when set functions will be built prior to run if needed",
 )
 @click.argument("run_args", nargs=-1, type=click.UNPROCESSED)
+@click.option(
+    "--ensure-project",
+    is_flag=True,
+    help="ensure the project exists, if not, create project",
+)
 def run(
     url,
     param,
@@ -204,6 +209,7 @@ def run(
     env_file,
     auto_build,
     run_args,
+    ensure_project,
 ):
     """Execute a task and inject parameters."""
 
@@ -249,9 +255,14 @@ def run(
         if len(split) > 1:
             url_args = split[1]
 
+    if ensure_project and project:
+        mlrun.get_or_create_project(
+            name=project,
+            context="./",
+        )
     if func_url or kind or image:
         if func_url:
-            runtime = func_url_to_runtime(func_url)
+            runtime = func_url_to_runtime(func_url, ensure_project)
             kind = get_in(runtime, "kind", kind or "job")
             if runtime is None:
                 exit(1)
@@ -404,6 +415,11 @@ def run(
 @click.option(
     "--env-file", default="", help="path to .env file to load config/variables from"
 )
+@click.option(
+    "--ensure-project",
+    is_flag=True,
+    help="ensure the project exists, if not, create project",
+)
 def build(
     func_url,
     name,
@@ -422,6 +438,7 @@ def build(
     kfp,
     skip,
     env_file,
+    ensure_project,
 ):
     """Build a container image from code and requirements."""
 
@@ -487,6 +504,13 @@ def build(
         b.source = target
 
     with_mlrun = True if with_mlrun else None  # False will map to None
+
+    if ensure_project and project:
+        mlrun.get_or_create_project(
+            name=project,
+            context="./",
+        )
+
     if hasattr(func, "deploy"):
         logger.info("remote deployment started")
         try:
@@ -534,15 +558,37 @@ def build(
 @click.option(
     "--env-file", default="", help="path to .env file to load config/variables from"
 )
+@click.option(
+    "--ensure-project",
+    is_flag=True,
+    help="ensure the project exists, if not, create project",
+)
 def deploy(
-    spec, source, func_url, dashboard, project, model, tag, kind, env, verbose, env_file
+    spec,
+    source,
+    func_url,
+    dashboard,
+    project,
+    model,
+    tag,
+    kind,
+    env,
+    verbose,
+    env_file,
+    ensure_project,
 ):
     """Deploy model or function"""
     if env_file:
         mlrun.set_env_from_file(env_file)
 
+    if ensure_project and project:
+        mlrun.get_or_create_project(
+            name=project,
+            context="./",
+        )
+
     if func_url:
-        runtime = func_url_to_runtime(func_url)
+        runtime = func_url_to_runtime(func_url, ensure_project)
         if runtime is None:
             exit(1)
     elif spec:
@@ -827,6 +873,11 @@ def logs(uid, project, offset, db, watch):
 @click.option(
     "--env-file", default="", help="path to .env file to load config/variables from"
 )
+@click.option(
+    "--ensure-project",
+    is_flag=True,
+    help="ensure the project exists, if not, create project",
+)
 def project(
     context,
     name,
@@ -850,6 +901,7 @@ def project(
     local,
     env_file,
     timeout,
+    ensure_project,
 ):
     """load and/or run a project"""
     if env_file:
@@ -858,7 +910,9 @@ def project(
     if db:
         mlconf.dbpath = db
 
-    proj = load_project(context, url, name, init_git=init_git, clone=clone)
+    proj = load_project(
+        context, url, name, init_git=init_git, clone=clone, save=ensure_project
+    )
     url_str = " from " + url if url else ""
     print(f"Loading project {proj.name}{url_str} into {context}:\n")
 
@@ -1087,7 +1141,7 @@ def dict_to_str(struct: dict):
     return ",".join([f"{k}={v}" for k, v in struct.items()])
 
 
-def func_url_to_runtime(func_url):
+def func_url_to_runtime(func_url, ensure_project: bool = False):
     try:
         if func_url.startswith("db://"):
             func_url = func_url[5:]
@@ -1098,7 +1152,7 @@ def func_url_to_runtime(func_url):
             func_url = "function.yaml" if func_url == "." else func_url
             runtime = import_function_to_dict(func_url, {})
         else:
-            mlrun_project = load_project(".")
+            mlrun_project = load_project(".", save=ensure_project)
             function = mlrun_project.get_function(func_url, enrich=True)
             if function.kind == "local":
                 command, function = load_func_code(function)

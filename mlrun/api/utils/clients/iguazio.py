@@ -164,7 +164,9 @@ class Client(
     ) -> bool:
         logger.debug("Creating project in Iguazio", project=project)
         body = self._transform_mlrun_project_to_iguazio_project(project)
-        return self._create_project_in_iguazio(session, body, wait_for_completion)
+        return self._create_project_in_iguazio(
+            session, project.metadata.name, body, wait_for_completion
+        )
 
     def update_project(
         self,
@@ -217,6 +219,11 @@ class Client(
         else:
             if wait_for_completion:
                 job_id = response.json()["data"]["id"]
+                logger.debug(
+                    "Waiting for project deletion job in Iguazio",
+                    name=name,
+                    job_id=job_id,
+                )
                 self._wait_for_job_completion(
                     session, job_id, "Project deletion job failed"
                 )
@@ -300,10 +307,15 @@ class Client(
         return latest_updated_at
 
     def _create_project_in_iguazio(
-        self, session: str, body: dict, wait_for_completion: bool
+        self, session: str, name: str, body: dict, wait_for_completion: bool
     ) -> bool:
         _, job_id = self._post_project_to_iguazio(session, body)
         if wait_for_completion:
+            logger.debug(
+                "Waiting for project creation job in Iguazio",
+                name=name,
+                job_id=job_id,
+            )
             self._wait_for_job_completion(
                 session, job_id, "Project creation job failed"
             )

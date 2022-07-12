@@ -120,8 +120,8 @@ def test_generate_target_path():
 
 
 def test_export_import():
-    project = mlrun.new_project("log-mod", skip_save=True)
-    target_project = mlrun.new_project("log-mod2", skip_save=True)
+    project = mlrun.new_project("log-mod", save=False)
+    target_project = mlrun.new_project("log-mod2", save=False)
     model = project.log_model(
         "mymod",
         body=b"123",
@@ -149,7 +149,7 @@ def test_export_import():
 
 
 def test_inline_body():
-    project = mlrun.new_project("inline", skip_save=True)
+    project = mlrun.new_project("inline", save=False)
 
     # log an artifact and save the content/body in the object (inline)
     artifact = project.log_artifact(

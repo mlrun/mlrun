@@ -96,7 +96,7 @@ def new_project(
     secrets: dict = None,
     description: str = None,
     subpath: str = None,
-    skip_save: bool = False,
+    save: bool = True,
 ) -> "MlrunProject":
     """Create a new MLRun project, optionally load it from a yaml/zip/git template
 
@@ -132,7 +132,7 @@ def new_project(
     :param secrets:      key:secret dict or SecretsStore used to download sources
     :param description:  text describing the project
     :param subpath:      project subpath (relative to the context dir)
-    :param skip_save:    do not save the created project in the DB
+    :param save:         whether to save the created project in the DB
 
     :returns: project object
     """
@@ -168,7 +168,7 @@ def new_project(
         project.spec.description = description
     mlrun.mlconf.default_project = project.metadata.name
     pipeline_context.set(project)
-    if not skip_save and mlrun.mlconf.dbpath:
+    if save and mlrun.mlconf.dbpath:
         project.save()
     return project
 
@@ -182,6 +182,7 @@ def load_project(
     subpath: str = None,
     clone: bool = False,
     user_project: bool = False,
+    save: bool = True,
 ) -> "MlrunProject":
     """Load an MLRun project from git or tar or dir
 
@@ -202,6 +203,7 @@ def load_project(
     :param subpath:      project subpath (within the archive)
     :param clone:        if True, always clone (delete any existing content)
     :param user_project: add the current user name to the project name (for db:// prefixes)
+    :param save:         whether to save the created project and artifact in the DB
 
     :returns: project object
     """
@@ -249,7 +251,9 @@ def load_project(
             project.spec.branch = repo.active_branch.name
         except Exception:
             pass
-    project.register_artifacts()
+    if save and mlrun.mlconf.dbpath:
+        project.save()
+        project.register_artifacts()
     mlrun.mlconf.default_project = project.metadata.name
     pipeline_context.set(project)
     return project
@@ -265,6 +269,7 @@ def get_or_create_project(
     clone: bool = False,
     user_project: bool = False,
     from_template: str = None,
+    save: bool = True,
 ) -> "MlrunProject":
     """Load a project from MLRun DB, or create/import if doesnt exist
 
@@ -275,18 +280,18 @@ def get_or_create_project(
         project.pull("development")  # pull the latest code from git
         project.run("main", arguments={'data': data_url})  # run the workflow "main"
 
+    :param name:         project name
     :param context:      project local directory path
     :param url:          name (in DB) or git or tar.gz or .zip sources archive path e.g.:
                          git://github.com/mlrun/demo-xgb-project.git
                          http://mysite/archived-project.zip
-    :param name:         project name
     :param secrets:      key:secret dict or SecretsStore used to download sources
     :param init_git:     if True, will git init the context dir
     :param subpath:      project subpath (within the archive/context)
     :param clone:        if True, always clone (delete any existing content)
     :param user_project: add the current user name to the project name (for db:// prefixes)
     :param from_template:     path to project YAML file that will be used as from_template (for new projects)
-
+    :param save:         whether to save the created project in the DB
     :returns: project object
     """
 
@@ -301,6 +306,7 @@ def get_or_create_project(
             subpath=subpath,
             clone=clone,
             user_project=user_project,
+            save=save,
         )
         logger.info(f"loaded project {name} from MLRun DB")
         return project
@@ -318,8 +324,12 @@ def get_or_create_project(
                 subpath=subpath,
                 clone=clone,
                 user_project=user_project,
+                save=save,
             )
-            logger.info(f"loaded project {name} from {url} or context")
+            message = f"loaded project {name} from {url} or context"
+            if save:
+                message = f"{message} and saved in MLRun DB"
+            logger.info(message)
         else:
             # create a new project
             project = new_project(
@@ -330,9 +340,12 @@ def get_or_create_project(
                 from_template=from_template,
                 secrets=secrets,
                 subpath=subpath,
+                save=save,
             )
-            logger.info(f"created and saved project {name}")
-        project.save_to_db()
+            message = f"created project {name}"
+            if save:
+                message = f"{message} and saved in MLRun DB"
+            logger.info(message)
         return project
 
 
@@ -353,7 +366,9 @@ def _load_project_dir(context, name="", subpath=""):
             functions=[{"url": "function.yaml", "name": func.metadata.name}],
         )
     else:
-        raise ValueError("project or function YAML not found in path")
+        raise mlrun.errors.MLRunNotFoundError(
+            "project or function YAML not found in path"
+        )
 
     project.spec.context = context
     project.metadata.name = name or project.metadata.name
@@ -1965,10 +1980,13 @@ class MlrunProject(ModelObj):
     def get_run_status(
         self,
         run,
-        timeout=60 * 60,
+        timeout=None,
         expected_statuses=None,
         notifiers: RunNotifications = None,
     ):
+        if timeout is None:
+            timeout = 60 * 60
+
         state = ""
         raise_error = None
         try:

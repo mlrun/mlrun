@@ -64,7 +64,7 @@ The MLRun feature store supports three processing engines (storey, pandas, spark
 
 The data pipeline is defined using MLRun graph (DAG) language. Graph steps can be pre-defined operators 
 (such as aggregate, filter, encode, map, join, impute, etc) or custom python classes/functions. 
-Read more about the graph in [Real-time serving pipelines (graphs)](../serving/serving-graph.md).
+Read more about the graph in [Real-time serving pipelines (graphs)](../serving/serving-graph.html).
 
 The `pandas` and `spark` engines are good for simple batch transformations, while the `storey` stream processing engine (the default engine)
 can handle complex workflows and real-time sources.
@@ -98,7 +98,7 @@ df = fstore.ingest(stocks_set, stocks_df)
 
 The graph steps can use built-in transformation classes, simple python classes, or function handlers. 
 
-See more details in [Feature set transformations](transformations.md).
+See more details in [Feature set transformations](transformations.html).
 
 ## Simulate and debug the data pipeline with a small dataset
 During the development phase it's pretty common to check the feature set definition and to simulate the creation of the feature set before ingesting the entire dataset, since ingesting the entire feature set can take time. <br>
@@ -190,10 +190,11 @@ To learn more about deploy_ingestion_service go to {py:class}`~mlrun.feature_sto
 You can schedule an ingestion job for a feature set on an ongoing basis. The first scheduled job runs on all the data in the source and the subsequent jobs ingest only the deltas since the previous run (from the last timestamp of the previous run until `datetime.now`). 
 Example:
 
-`cron_trigger = "* */1 * * *" #will run every hour
+```cron_trigger = "* */1 * * *" #will run every hour
 source = ParquetSource("myparquet", path=path, time_field="time", schedule=cron_trigger)
 feature_set = fs.FeatureSet(name=name, entities=[fs.Entity("first_name")], timestamp_key="time",)
-fs.ingest(feature_set, source, run_config=fs.RunConfig())`
+fs.ingest(feature_set, source, run_config=fs.RunConfig())
+```
 
 The default value for the `overwrite` parameter in the ingest function for scheduled ingest is `False`, meaning that the target from the previous ingest is not deleted.
 For the storey engine, the feature is currently implemented for ParquetSource only. (CsvSource will be supported in a future release). For Spark engine, other sources are also supported. 

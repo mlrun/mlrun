@@ -682,7 +682,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:1.0.13",
+                image="yonishelach/mlrun-remote-runner:1.0.14",
             )
 
             msg = "executing workflow "
@@ -703,9 +703,11 @@ class _RemoteRunner(_PipelineRunner):
                     "artifact_path": artifact_path,
                     "workflow_handler": workflow_handler or workflow_spec.handler,
                     "namespace": namespace,
+                    "watch": watch,
                     "ttl": workflow_spec.ttl,
                     "engine": workflow_spec.engine,
                     "local": workflow_spec.run_local,
+                    "timeout": timeout,
                 },
                 handler="mlrun.projects.load_and_run",
                 local=False,
@@ -713,8 +715,6 @@ class _RemoteRunner(_PipelineRunner):
             )
             if schedule:
                 return
-            if watch:
-                run.wait_for_completion(timeout=timeout)
             # Fetching workflow id:
             while not run_id:
                 run.refresh()
@@ -752,11 +752,12 @@ class _RemoteRunner(_PipelineRunner):
     @staticmethod
     def get_run_status(
         project,
-        run,
+        run,  # type: _PipelineRunStatus
         timeout=None,
         expected_statuses=None,
         notifiers: RunNotifications = None,
     ):
+        # run.wait_for_completion(timeout=timeout)
         pass
 
 
@@ -816,10 +817,12 @@ def load_and_run(
     workflow_handler=None,
     namespace=None,
     sync: bool = False,
+    watch: bool = False,
     dirty: bool = False,
     ttl=None,
     engine=None,
     local: bool = None,
+    timeout: int = None,
 ):
     # Loading the project:
     project = mlrun.load_project(
@@ -848,7 +851,8 @@ def load_and_run(
         engine=engine,
         local=local,
     )
-    print(type(run), run)
     context.log_result(key="workflow_id", value=run.run_id)
     context.commit()
-    run.wait_for_completion(timeout=60 * 60)
+
+    if watch:
+        run.wait_for_completion(timeout=timeout)

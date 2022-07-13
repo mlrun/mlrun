@@ -682,12 +682,12 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:1.0.10",
+                image="yonishelach/mlrun-remote-runner:1.0.11",
             )
 
             msg = "executing workflow "
             if schedule:
-                msg += f"scheduling "
+                msg += "scheduling "
             logger.info(
                 f"{msg}'{runner_name}' remotely with {workflow_spec.engine} engine"
             )
@@ -855,4 +855,4 @@ def load_and_run(
 
     if watch:
         context.logger.info("waiting for pipeline completion")
-        run.wait_for_completion(timeout=timeout)
+        run._engine.get_run_status(project=project, run=run, timeout=timeout)

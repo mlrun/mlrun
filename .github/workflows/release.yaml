@@ -58,7 +58,7 @@ jobs:
           MLRUN_VERSION=${{ github.event.inputs.version }} make publish-package
 
   create-releases:
-    name: Create release & tag
+    name: Create release & tag v${{ github.event.inputs.version }}
     runs-on: ubuntu-latest
     needs: publish-to-pypi
     steps:

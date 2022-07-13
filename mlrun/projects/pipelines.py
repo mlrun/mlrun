@@ -682,7 +682,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:1.0.6",
+                image="yonishelach/mlrun-remote-runner:1.0.7",
             )
 
             msg = "executing workflow "
@@ -735,7 +735,6 @@ class _RemoteRunner(_PipelineRunner):
                 project=project,
                 workflow=workflow_spec,
                 state=state,
-                run=run,
             )
 
         project.notifiers.push_start_message(
@@ -743,7 +742,7 @@ class _RemoteRunner(_PipelineRunner):
         )
         pipeline_context.clear()
         return _PipelineRunStatus(
-            run_id, cls, project=project, workflow=workflow_spec, state=state, run=run
+            run_id, cls, project=project, workflow=workflow_spec, state=state
         )
 
     @staticmethod

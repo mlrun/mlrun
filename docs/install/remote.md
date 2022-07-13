@@ -1,3 +1,4 @@
+(install-remote)=
 # Set up your client environment <!-- omit in toc -->
 
 You can write your code on a local machine while running your functions on a remote cluster. This tutorial explains how to set this up.

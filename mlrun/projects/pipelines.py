@@ -682,7 +682,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:1.0.12",
+                image="yonishelach/mlrun-remote-runner:1.0.13",
             )
 
             msg = "executing workflow "
@@ -706,16 +706,15 @@ class _RemoteRunner(_PipelineRunner):
                     "ttl": workflow_spec.ttl,
                     "engine": workflow_spec.engine,
                     "local": workflow_spec.run_local,
-                    # "watch": watch,
-                    "timeout": timeout,
                 },
                 handler="mlrun.projects.load_and_run",
                 local=False,
                 schedule=schedule,
-                watch=watch,
             )
             if schedule:
                 return
+            if watch:
+                run.wait_for_completion(timeout=timeout)
             # Fetching workflow id:
             while not run_id:
                 run.refresh()
@@ -817,8 +816,6 @@ def load_and_run(
     workflow_handler=None,
     namespace=None,
     sync: bool = False,
-    watch: bool = False,
-    timeout: int = None,
     dirty: bool = False,
     ttl=None,
     engine=None,
@@ -851,9 +848,7 @@ def load_and_run(
         engine=engine,
         local=local,
     )
+    print(type(run), run)
     context.log_result(key="workflow_id", value=run.run_id)
     context.commit()
-
-    # if watch:
-    #     context.logger.info("waiting for pipeline completion")
-    #     run._engine.get_run_status(project=project, run=run, timeout=timeout)
+    run.wait_for_completion(timeout=60 * 60)

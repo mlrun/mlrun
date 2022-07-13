@@ -31,9 +31,7 @@ jobs:
     runs-on: ubuntu-latest
 
     # let's not run this on every fork, change to your fork when developing
-    if: |
-      (github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch')
-        && contains(',matrix.image-name,', ',github.event.inputs.skip_images,')
+    if: (github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch') && contains(',matrix.image-name,', ',github.event.inputs.skip_images,')
 
     strategy:
       matrix:

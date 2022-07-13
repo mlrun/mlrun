@@ -1951,6 +1951,8 @@ class MlrunProject(ModelObj):
             artifact_path=artifact_path,
             namespace=namespace,
             schedule=schedule,
+            watch=watch,
+            timeout=timeout,
         )
         run_msg = "started run workflow "
         run_msg += run.workflow.name + " " if run.workflow.name else name + " "

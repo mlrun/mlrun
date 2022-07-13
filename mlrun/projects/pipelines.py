@@ -359,13 +359,12 @@ def enrich_function_object(
 class _PipelineRunStatus:
     """pipeline run result (status)"""
 
-    def __init__(self, run_id, engine, project, workflow=None, state="", run=None):
+    def __init__(self, run_id, engine, project, workflow=None, state=""):
         self.run_id = run_id
         self.project = project
         self.workflow = workflow
         self._engine = engine
         self._state = state
-        self._run = run
 
     @property
     def state(self):
@@ -662,8 +661,9 @@ class _RemoteRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        timeout=None,
         schedule=None,
+        watch=None,
+        timeout=None,
     ) -> typing.Union[_PipelineRunStatus, None]:
         workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
         runner_name = f"workflow-runner-{workflow_name}"
@@ -676,32 +676,33 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:1.0.4",
+                image="yonishelach/mlrun-remote-runner:1.0.5",
             )
-
-            # Preparing parameters for load_and_run function:
-            params = {
-                "url": project.spec.source,
-                "project_name": project.name,
-                "workflow_name": workflow_name or workflow_spec.name,
-                "workflow_path": workflow_spec.path,
-                "workflow_arguments": workflow_spec.args,
-                "artifact_path": artifact_path,
-                "workflow_handler": workflow_handler or workflow_spec.handler,
-                "namespace": namespace,
-                "ttl": workflow_spec.ttl,
-                "engine": workflow_spec.engine,
-                "local": workflow_spec.run_local,
-            }
 
             msg = "executing workflow "
             if schedule:
                 msg += "scheduling "
-            logger.info(f"{msg}'{runner_name}' remotely with {params['engine']} engine")
+            logger.info(
+                f"{msg}'{runner_name}' remotely with {workflow_spec.engine} engine"
+            )
 
             run = load_and_run_fn.run(
                 name=workflow_name,
-                params=params,
+                params={
+                    "url": project.spec.source,
+                    "project_name": project.name,
+                    "workflow_name": workflow_name or workflow_spec.name,
+                    "workflow_path": workflow_spec.path,
+                    "workflow_arguments": workflow_spec.args,
+                    "artifact_path": artifact_path,
+                    "workflow_handler": workflow_handler or workflow_spec.handler,
+                    "namespace": namespace,
+                    "ttl": workflow_spec.ttl,
+                    "engine": workflow_spec.engine,
+                    "local": workflow_spec.run_local,
+                    "watch": watch,
+                    "timeout": timeout,
+                },
                 handler="mlrun.projects.load_and_run",
                 local=False,
                 schedule=schedule,
@@ -751,7 +752,7 @@ class _RemoteRunner(_PipelineRunner):
         expected_statuses=None,
         notifiers: RunNotifications = None,
     ):
-        state = run._run.wait_for_completion(timeout=timeout)
+        state = run.wait_for_completion(timeout=timeout)
         return state
 
 
@@ -811,6 +812,8 @@ def load_and_run(
     workflow_handler=None,
     namespace=None,
     sync: bool = False,
+    watch: bool = False,
+    timeout: int = None,
     dirty: bool = False,
     ttl=None,
     engine=None,
@@ -844,3 +847,7 @@ def load_and_run(
         local=local,
     )
     context.log_result(key="workflow_id", value=run.run_id)
+    context.commit()
+
+    if watch:
+        _RemoteRunner.get_run_status(project, run, timeout=timeout)

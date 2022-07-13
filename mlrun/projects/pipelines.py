@@ -682,7 +682,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:1.0.7",
+                image="yonishelach/mlrun-remote-runner:1.0.8",
             )
 
             msg = "executing workflow "

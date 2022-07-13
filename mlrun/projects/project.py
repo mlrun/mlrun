@@ -1941,6 +1941,8 @@ class MlrunProject(ModelObj):
         if not inner_engine and engine == "remote":
             inner_engine = get_workflow_engine(workflow_spec.engine, local).engine
         workflow_spec.engine = inner_engine or workflow_engine.engine
+        if timeout is None:
+            timeout = 60 * 60
 
         run = workflow_engine.run(
             self,
@@ -1962,8 +1964,6 @@ class MlrunProject(ModelObj):
         logger.info(run_msg)
         workflow_spec.clear_tmp()
         if watch and not schedule:
-            if timeout is None:
-                timeout = 60 * 60
             workflow_engine.get_run_status(project=self, run=run, timeout=timeout)
         return run
 

@@ -412,6 +412,8 @@ class _PipelineRunner(abc.ABC):
         artifact_path=None,
         namespace=None,
         schedule=None,
+        watch=None,
+        timeout=None,
     ) -> _PipelineRunStatus:
         return None
 
@@ -486,6 +488,8 @@ class _KFPRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         schedule=None,
+        watch=None,
+        timeout=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -594,6 +598,8 @@ class _LocalRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         schedule=None,
+        watch=None,
+        timeout=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -676,7 +682,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:1.0.5",
+                image="yonishelach/mlrun-remote-runner:1.0.6",
             )
 
             msg = "executing workflow "

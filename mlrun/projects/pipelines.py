@@ -674,7 +674,7 @@ class _RemoteRunner(_PipelineRunner):
         workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
         runner_name = f"workflow-runner-{workflow_name}"
         run_id = None
-        run = None
+
         try:
             # Creating the load project and workflow running function:
             # TODO: set image to mlrun/mlrun After merged to development
@@ -682,12 +682,12 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:1.0.8",
+                image="yonishelach/mlrun-remote-runner:1.0.9",
             )
 
             msg = "executing workflow "
             if schedule:
-                msg += "scheduling "
+                msg += f"scheduling "
             logger.info(
                 f"{msg}'{runner_name}' remotely with {workflow_spec.engine} engine"
             )
@@ -757,8 +757,7 @@ class _RemoteRunner(_PipelineRunner):
         expected_statuses=None,
         notifiers: RunNotifications = None,
     ):
-        state = run.wait_for_completion(timeout=timeout)
-        return state
+        pass
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):
@@ -855,4 +854,5 @@ def load_and_run(
     context.commit()
 
     if watch:
-        _RemoteRunner.get_run_status(project, run, timeout=timeout)
+        context.logger.info("waiting for pipeline completion")
+        run.wait_for_completion(timeout=timeout)

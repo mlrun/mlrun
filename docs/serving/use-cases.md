@@ -1,3 +1,4 @@
+(use-cases-serving)=
 # Use cases
 
 <!-- ## Data preparation, ## Model serving -->

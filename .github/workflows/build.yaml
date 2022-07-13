@@ -21,13 +21,19 @@ on:
         description: 'The version to build, without prefix v (e.g. 1.1.0), if not provided version will be <latest-release>-<commit-hash>'
         required: false
         default: ''
+      skip_images:
+        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,api,base,models,models-gpu,jupyter,test'
+        required: false
+        default: ''
 jobs:
   build-images:
     name: Build and push image - ${{ matrix.image-name }}
     runs-on: ubuntu-latest
 
     # let's not run this on every fork, change to your fork when developing
-    if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
+    if: |
+      (github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch') &&
+      contains(",${{ matrix.image-name }},", ",${{ github.event.inputs.skip_images }},")
 
     strategy:
       matrix:

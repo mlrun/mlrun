@@ -132,7 +132,10 @@ default_config = {
     "function": {
         "spec": {
             "image_pull_secret": {"default": None},
-            "security_context": {"default": None},
+            "security_context": {
+                # default security context to be applied to all functions - json string base64 encoded format
+                "default": "e30=",
+            },
         },
     },
     "function_defaults": {
@@ -511,6 +514,11 @@ class Config:
     def get_preemptible_tolerations(self) -> list:
         return self.decode_base64_config_and_load_to_object(
             "preemptible_nodes.tolerations", list
+        )
+
+    def get_default_function_security_context(self) -> dict:
+        return self.decode_base64_config_and_load_to_object(
+            "function.spec.security_context.default", dict
         )
 
     def is_preemption_nodes_configured(self):

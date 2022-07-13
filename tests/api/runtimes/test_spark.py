@@ -1,3 +1,5 @@
+import json
+import base64
 import os
 import typing
 
@@ -12,6 +14,7 @@ import mlrun.api.utils.singletons.k8s
 import mlrun.errors
 import mlrun.runtimes.pod
 import tests.api.runtimes.base
+from mlrun.config import config as mlconf
 
 
 class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
@@ -251,11 +254,25 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
     def test_run_with_security_context(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):
+
+        default_security_context = self._generate_security_context(1000, 3000)
+        mlconf.function.spec.security_context.default = base64.b64encode(
+            json.dumps(default_security_context.to_dict()).encode("utf-8")
+        )
+
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
             set_resources=True
         )
 
-        driver_security_context = self._generate_security_context(1000, 3000)
+        self.execute_function(runtime)
+
+        # both should default to driver_security_context
+        self._assert_custom_object_creation_config(
+            expected_driver_security_context=default_security_context,
+            expected_executor_security_context=default_security_context,
+        )
+
+        driver_security_context = self._generate_security_context(3000, 4000)
         executor_security_context = self._generate_security_context(2000, 2000)
 
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError):

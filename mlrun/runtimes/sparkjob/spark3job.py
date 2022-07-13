@@ -101,6 +101,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         executor_java_options=None,
         driver_cores=None,
         executor_cores=None,
+        security_context=None,
         driver_security_context=None,
         executor_security_context=None,
     ):
@@ -131,6 +132,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
             affinity=affinity,
             tolerations=tolerations,
             preemption_mode=preemption_mode,
+            security_context=security_context,
         )
 
         self.driver_resources = driver_resources or {}
@@ -162,8 +164,12 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         self.executor_java_options = executor_java_options
         self.driver_cores = driver_cores
         self.executor_cores = executor_cores
-        self.driver_security_context = driver_security_context
-        self.executor_security_context = executor_security_context
+        self.driver_security_context = (
+            driver_security_context or mlrun.mlconf.get_default_function_security_context()
+        )
+        self.executor_security_context = (
+            executor_security_context or mlrun.mlconf.get_default_function_security_context()
+        )
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(
@@ -641,9 +647,10 @@ class Spark3Runtime(AbstractSparkRuntime):
         self, security_context: kubernetes.client.V1SecurityContext
     ):
         """
-        Enables to specify security settings for a Pod
+        Set security context for driver pod
+        More info https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
 
-        :param security_context:         The security settings for the driver Pod
+        :param security_context:         The security context for driver pod
         """
         self.spec.driver_security_context = security_context
 
@@ -651,9 +658,10 @@ class Spark3Runtime(AbstractSparkRuntime):
         self, security_context: kubernetes.client.V1SecurityContext
     ):
         """
-        Enables to specify security settings for a Pod
+        Set security context for executor pod
+        More info https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
 
-        :param security_context:         The security settings for the executor Pod
+        :param security_context:         The security context for executor pod
         """
         self.spec.executor_security_context = security_context
 

@@ -174,8 +174,8 @@ class KubeResourceSpec(FunctionSpec):
         )
         self._tolerations = tolerations
         self.preemption_mode = preemption_mode
-        self._security_context = (
-            security_context or mlrun.mlconf.function.spec.security_context.default
+        self.security_context = (
+            security_context or mlrun.mlconf.get_default_function_security_context()
         )
 
     @property
@@ -1096,9 +1096,10 @@ class KubeResource(BaseRuntime):
 
     def with_security_context(self, security_context: k8s_client.V1SecurityContext):
         """
-        Enables to specify security settings for a Pod
+        Set security context for the pod
+        More info https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
 
-        :param security_context:         The security settings for the Pod
+        :param security_context:         The security context for the pod
         """
         self.spec.security_context = security_context
 

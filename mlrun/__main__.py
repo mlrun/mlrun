@@ -947,7 +947,7 @@ def project(
             args = fill_params(arguments)
 
         print(f"running workflow {run} file: {workflow_path}")
-        message = run_result = ""
+        message = ""
         had_error = False
         gitops = (
             git_issue
@@ -959,19 +959,20 @@ def project(
                 git_repo, git_issue, token=proj.get_secret("GITHUB_TOKEN")
             )
         try:
-            run_result = proj.run(
+            proj.run(
                 run,
                 workflow_path,
                 arguments=args,
                 artifact_path=artifact_path,
                 namespace=namespace,
                 sync=sync,
+                watch=watch,
                 dirty=dirty,
                 workflow_handler=handler,
                 engine=engine,
                 local=local,
             )
-            print(f"run id: {run_result.run_id}")
+            # print(f"run id: {run_result.run_id}")
         except Exception as exc:
             print(traceback.format_exc())
             message = f"failed to run pipeline, {exc}"
@@ -982,9 +983,6 @@ def project(
             proj.notifiers.push(message)
         if had_error:
             exit(1)
-
-        if watch and run_result and run_result.workflow.engine == "kfp":
-            proj.get_run_status(run_result, timeout=timeout)
 
     elif sync:
         print("saving project functions to db ..")

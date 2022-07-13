@@ -359,12 +359,13 @@ def enrich_function_object(
 class _PipelineRunStatus:
     """pipeline run result (status)"""
 
-    def __init__(self, run_id, engine, project, workflow=None, state=""):
+    def __init__(self, run_id, engine, project, workflow=None, state="", run=None):
         self.run_id = run_id
         self.project = project
         self.workflow = workflow
         self._engine = engine
         self._state = state
+        self._run = run
 
     @property
     def state(self):
@@ -667,6 +668,7 @@ class _RemoteRunner(_PipelineRunner):
         workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
         runner_name = f"workflow-runner-{workflow_name}"
         run_id = None
+        run = None
         try:
             # Creating the load project and workflow running function:
             # TODO: set image to mlrun/mlrun After merged to development
@@ -674,7 +676,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:1.0.3",
+                image="yonishelach/mlrun-remote-runner:1.0.4",
             )
 
             # Preparing parameters for load_and_run function:
@@ -721,7 +723,12 @@ class _RemoteRunner(_PipelineRunner):
             )
             state = mlrun.run.RunStatuses.failed
             return _PipelineRunStatus(
-                run_id, cls, project=project, workflow=workflow_spec, state=state
+                run_id,
+                cls,
+                project=project,
+                workflow=workflow_spec,
+                state=state,
+                run=run,
             )
 
         project.notifiers.push_start_message(
@@ -729,7 +736,7 @@ class _RemoteRunner(_PipelineRunner):
         )
         pipeline_context.clear()
         return _PipelineRunStatus(
-            run_id, cls, project=project, workflow=workflow_spec, state=state
+            run_id, cls, project=project, workflow=workflow_spec, state=state, run=run
         )
 
     @staticmethod
@@ -744,20 +751,8 @@ class _RemoteRunner(_PipelineRunner):
         expected_statuses=None,
         notifiers: RunNotifications = None,
     ):
-        # The remote engine runs an inner engine (local or kfp).
-        # So this function will call to the same function of the right PipelineRunner.
-        # Afterwards the run engine value is restored to the RemoteRunner engine.
-        inner_engine = get_workflow_engine(run.workflow.engine)
-        run._engine = inner_engine
-        run_status = inner_engine.get_run_status(
-            project=project,
-            run=run,
-            timeout=timeout,
-            expected_statuses=expected_statuses,
-            notifiers=notifiers,
-        )
-        run._engine = _RemoteRunner
-        return run_status
+        state = run._run.wait_for_completion(timeout=timeout)
+        return state
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):

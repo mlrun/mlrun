@@ -314,13 +314,13 @@ class TestProject(TestMLRunSystem):
 
     def test_remote_pipeline_with_kfp_engine_from_github(self):
         self._test_remote_pipeline_from_github(
-            name="rmtpipe-kfp-github-3",
+            name="rmtpipe-kfp-github",
             workflow_name="main",
             engine="remote",
             watch=True,
         )
         self._test_remote_pipeline_from_github(
-            name="rmtpipe-kfp-github-3", workflow_name="main", engine="remote:kfp"
+            name="rmtpipe-kfp-github", workflow_name="main", engine="remote:kfp"
         )
 
     def test_remote_pipeline_with_local_engine_from_github(self):

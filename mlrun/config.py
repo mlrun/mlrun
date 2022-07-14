@@ -288,12 +288,10 @@ default_config = {
             # image for kaniko init container when docker registry is ECR
             "kaniko_aws_cli_image": "amazon/aws-cli:2.7.10",
             "kaniko_security_context": {
-
                 # fill these to override the kaniko builder security context
                 # "fs_group": 1000,
                 # "run_as_user": 1000,
                 # "run_as_group": 1000,
-
                 # security profile to use for the builder to gain access to docker daemon when rootless
                 # "seccomp_profile": "runtime/default",
             },

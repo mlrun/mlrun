@@ -214,6 +214,8 @@ class AbstractSparkRuntime(KubejobRuntime):
     apiVersion = group + "/" + version
     kind = "spark"
     plural = "sparkapplications"
+
+    # the dot will make the api prefix the configured registry to the image name
     default_mlrun_image = ".spark-job-default-image"
     gpu_suffix = "-cuda"
     code_script = "spark-function-code.py"

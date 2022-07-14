@@ -1014,6 +1014,67 @@ class TestNuclioRuntime(TestRuntimeBase):
     ):
         self.assert_run_preemption_mode_with_preemptible_node_selector_without_preemptible_tolerations_with_extra_settings()  # noqa: E501
 
+    def test_deploy_with_security_context(self, db: Session, client: TestClient):
+        function = self._generate_runtime(self.runtime_kind)
+
+        default_security_context_dict = {
+            "runAsUser": 1000,
+            "runAsGroup": 3000,
+        }
+        self.execute_function(function)
+        self._assert_deploy_called_basic_config(expected_class=self.class_name)
+        args, _ = nuclio.deploy.deploy_config.call_args
+        deploy_spec = args[0]["spec"]
+
+        assert "securityContext" not in deploy_spec
+
+        mlrun.mlconf.function.spec.security_context.default = base64.b64encode(
+            json.dumps(default_security_context_dict).encode("utf-8")
+        )
+        function = self._generate_runtime(self.runtime_kind)
+        self.execute_function(function)
+
+        self._assert_deploy_called_basic_config(
+            call_count=2, expected_class=self.class_name
+        )
+        args, _ = nuclio.deploy.deploy_config.call_args
+        deploy_spec = args[0]["spec"]
+        assert (
+            deploy_spec["securityContext"]["runAsUser"]
+            == default_security_context_dict["runAsUser"]
+        )
+        assert (
+            deploy_spec["securityContext"]["runAsGroup"]
+            == default_security_context_dict["runAsGroup"]
+        )
+
+        function = self._generate_runtime(self.runtime_kind)
+        other_security_context_dict = {
+            "runAsUser": 2000,
+            "runAsGroup": 2000,
+        }
+        other_security_context = self._generate_security_context(
+            other_security_context_dict["runAsUser"],
+            other_security_context_dict["runAsGroup"],
+        )
+
+        function.with_security_context(other_security_context)
+        self.execute_function(function)
+
+        self._assert_deploy_called_basic_config(
+            call_count=3, expected_class=self.class_name
+        )
+        args, _ = nuclio.deploy.deploy_config.call_args
+        deploy_spec = args[0]["spec"]
+        assert (
+            deploy_spec["securityContext"]["runAsUser"]
+            == other_security_context_dict["runAsUser"]
+        )
+        assert (
+            deploy_spec["securityContext"]["runAsGroup"]
+            == other_security_context_dict["runAsGroup"]
+        )
+
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well
 class TestNuclioMLRunRuntime(TestNuclioRuntime):

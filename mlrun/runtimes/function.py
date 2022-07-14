@@ -1220,7 +1220,12 @@ def compile_function_config(
         nuclio_spec.set_config("spec.serviceAccount", function.spec.service_account)
 
     if function.spec.security_context:
-        nuclio_spec.set_config("spec.securityContext", function.spec.security_context)
+        nuclio_spec.set_config(
+            "spec.securityContext",
+            mlrun.runtimes.pod.get_sanitized_attribute(
+                function.spec, "security_context"
+            ),
+        )
 
     if (
         function.spec.base_spec

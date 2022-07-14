@@ -1097,7 +1097,8 @@ class KubeResource(BaseRuntime):
     def with_security_context(self, security_context: k8s_client.V1SecurityContext):
         """
         Set security context for the pod
-        More info https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
+        For more info:
+        https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
 
         :param security_context:         The security context for the pod
         """

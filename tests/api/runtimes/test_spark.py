@@ -14,7 +14,6 @@ import mlrun.api.utils.singletons.k8s
 import mlrun.errors
 import mlrun.runtimes.pod
 import tests.api.runtimes.base
-from mlrun.config import config as mlconf
 
 
 class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):

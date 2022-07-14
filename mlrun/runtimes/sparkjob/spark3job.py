@@ -650,7 +650,8 @@ class Spark3Runtime(AbstractSparkRuntime):
     ):
         """
         Set security context for driver pod
-        More info https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
+        For more info:
+        https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
 
         :param security_context:         The security context for driver pod
         """
@@ -661,7 +662,8 @@ class Spark3Runtime(AbstractSparkRuntime):
     ):
         """
         Set security context for executor pod
-        More info https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
+        For more info:
+        https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
 
         :param security_context:         The security context for executor pod
         """

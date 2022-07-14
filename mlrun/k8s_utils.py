@@ -532,7 +532,7 @@ class BasePod:
         # if security context is not provided, use the default one.
         # if default security context is empty, use None.
         self.security_context = (
-            security_context or mlconfig.builder.kaniko_security_context or None
+            security_context or mlconfig.get_kaniko_security_context() or None
         )
 
     @property

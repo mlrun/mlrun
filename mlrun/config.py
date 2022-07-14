@@ -287,14 +287,9 @@ default_config = {
             "kaniko_init_container_image": "alpine:3.13.1",
             # image for kaniko init container when docker registry is ECR
             "kaniko_aws_cli_image": "amazon/aws-cli:2.7.10",
-            "kaniko_security_context": {
-                # fill these to override the kaniko builder security context
-                # "fs_group": 1000,
-                # "run_as_user": 1000,
-                # "run_as_group": 1000,
-                # security profile to use for the builder to gain access to docker daemon when rootless
-                # "seccomp_profile": "runtime/default",
-            },
+            # When setting the kaniko builder security context to be rootless, it might be needed to set
+            # the `seccomp_profile` to `runtime/default` to allow the builder to gain access to the docker daemon.
+            "kaniko_security_context": "e30=",  # encoded empty dict
             # additional docker build args in json encoded base64 format
             "build_args": "",
             "pip_ca_secret_name": "",
@@ -518,6 +513,11 @@ class Config:
     def get_preemptible_tolerations(self) -> list:
         return self.decode_base64_config_and_load_to_object(
             "preemptible_nodes.tolerations", list
+        )
+
+    def get_kaniko_security_context(self) -> dict:
+        return self.decode_base64_config_and_load_to_object(
+            "httpdb.builder.kaniko_security_context", dict
         )
 
     def is_preemption_nodes_configured(self):

@@ -278,14 +278,17 @@ def build_image(
         dest = "/".join([registry, dest])
     elif dest.startswith(IMAGE_NAME_ENRICH_REGISTRY_PREFIX):
         dest = dest[1:]
-        registry, _ = get_parsed_docker_registry()
+        registry, repository = get_parsed_docker_registry()
         secret_name = secret_name or config.httpdb.builder.docker_registry_secret
         if not registry:
             raise ValueError(
                 "Default docker registry is not defined, set "
                 "MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY/MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY_SECRET env vars"
             )
-        dest = "/".join([registry, dest])
+        if repository:
+            dest = "/".join([registry, repository, dest])
+        else:
+            dest = "/".join([registry, dest])
 
     if isinstance(requirements, list):
         requirements_list = requirements

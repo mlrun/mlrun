@@ -24,7 +24,6 @@ import v3io
 import v3io.dataplane
 from nuclio import KafkaTrigger
 from nuclio.config import split_path
-from pymongo import MongoClient
 
 import mlrun
 from mlrun.secrets import SecretsStore
@@ -50,6 +49,30 @@ def get_source_step(source, key_fields=None, time_field=None, context=None):
     if not key_fields and not source.key_field:
         raise mlrun.errors.MLRunInvalidArgumentError("key column is not defined")
     return source.to_step(key_fields, time_field, context)
+
+
+class _MongoDBiter:
+    def __init__(self, collection, iter_chunksize, iter_query):
+        """
+        Iterate over given collection
+
+        :param query: dictionary query for mongodb
+        :param chunksize: number of rows per chunk
+        :param collection: a mongodb collection
+        """
+        self.my_collection_iter = collection.find_raw_batches(
+            iter_query, batch_size=iter_chunksize
+        )
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        batch = next(self.my_collection_iter)
+        decode_batch = bson.decode_all(batch)
+        curr_df = pd.DataFrame(decode_batch)
+        curr_df["_id"] = curr_df["_id"].astype(str)
+        return curr_df
 
 
 class BaseSourceDriver(DataSource):
@@ -830,31 +853,6 @@ class KafkaSource(OnlineSource):
 
 
 class MongoDBSource(BaseSourceDriver):
-    """
-    Reads MongoDB as input source for a flow.
-
-    example::
-         connection_string = "???"
-         query = {age: {"$gt: 5}}
-         MongoDBSource(connection_string=connection_string, collection_name="coll",
-         db_name="my_dataset", chunksize=5, query=query)
-
-    :parameter name:  source name
-    :parameter query: dictionary query for mongodb
-    :parameter chunksize: number of rows per chunk (default large single chunk)
-    :parameter key_field: the column to be used as the key for events. Can be a list of keys.
-    :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
-    :parameter start_time: filters out data before this time
-    :parameter end_time: filters out data after this time
-    :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
-         cause the job to run every 30 minutes
-    :parameter db_name: the name of the database to access
-    :parameter connection_string: your mongodb connection string
-    :parameter collection_name: the name of the collection to access,
-                                    from the current database
-    :parameter spark_options: additional spark read options
-    """
-
     kind = "mongodb"
     support_storey = True
     support_spark = False
@@ -875,21 +873,45 @@ class MongoDBSource(BaseSourceDriver):
         collection_name: str = None,
         spark_options: dict = None,
     ):
-        key = "MONGO_CONNECTION_STRING"
-        connection_string = connection_string or os.getenv(key)
+        """
+        Reads MongoDB as input source for a flow.
+
+        example::
+             connection_string = "???"
+             query = {age: {"$gt: 5}}
+             MongoDBSource(connection_string=connection_string, collection_name="coll",
+             db_name="my_dataset", chunksize=5, query=query)
+
+        :param name:  source name
+        :param query: dictionary query for mongodb
+        :param chunksize: number of rows per chunk (default large single chunk)
+        :param key_field: the column to be used as the key for events. Can be a list of keys.
+        :param time_field: the column to be parsed as the timestamp for events. Defaults to None
+        :param start_time: filters out data before this time
+        :param end_time: filters out data after this time
+        :param schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
+             cause the job to run every 30 minutes
+        :param db_name: the name of the database to access
+        :param connection_string: your mongodb connection string
+        :param collection_name: the name of the collection to access,
+                                        from the current database
+        :param spark_options: additional spark read options
+        """
+
+        MONGO_CONNECTION_STRING_ENV_VAR = "MONGO_CONNECTION_STRING"
+        connection_string = connection_string or os.getenv(
+            MONGO_CONNECTION_STRING_ENV_VAR
+        )
         if connection_string is None:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"cannot specify without connection_string arg or secret {key}"
+                f"cannot specify without connection_string arg or secret {MONGO_CONNECTION_STRING_ENV_VAR}"
             )
-        else:
-            mongodb_client = MongoClient(connection_string)
         attrs = {
             "query": query,
             "collection_name": collection_name,
             "db_name": db_name,
             "max_results": max_results_for_table,
             "chunksize": chunksize,
-            "mongodb_client": mongodb_client,
             "spark_options": spark_options,
             "connection_string": connection_string,
         }
@@ -905,41 +927,32 @@ class MongoDBSource(BaseSourceDriver):
         )
 
     def to_dataframe(self):
-        class MongoDBiter:
-            def __init__(self, collection, iter_chunksize, iter_query):
-                self.my_collection_iter = collection.find_raw_batches(
-                    iter_query, batch_size=iter_chunksize
-                )
-
-            def __iter__(self):
-                return self
-
-            def __next__(self):
-                batch = next(self.my_collection_iter)
-                decode_batch = bson.decode_all(batch)
-                curr_df = pd.DataFrame(decode_batch)
-                df["_id"] = df["_id"].astype(str)
-                return curr_df
+        from pymongo import MongoClient
 
         query = self.attributes.get("query")
         db_name = self.attributes.get("db_name")
-        mongodb_client = self.attributes.get("mongodb_client")
         collection_name = self.attributes.get("collection_name")
+        connection_string = self.attributes.get("connection_string")
         chunksize = self.attributes.get("chunksize")
+
         if collection_name and db_name:
+            # connect and read the desired collection
+            mongodb_client = MongoClient(connection_string)
             db = mongodb_client[db_name]
             collection = db[collection_name]
 
             if chunksize:
-                return MongoDBiter(collection, chunksize, query)
+                return_val = _MongoDBiter(collection, chunksize, query)
             else:
                 df = pd.DataFrame(list(collection.find(query)))
                 df["_id"] = df["_id"].astype(str)
-                return df
+                return_val = df
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "collection_name and db_name args must be specified"
             )
+        mongodb_client.close()
+        return return_val
 
     def to_step(self, key_field=None, time_field=None, context=None):
         import storey

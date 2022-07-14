@@ -1432,18 +1432,6 @@ class DFTarget(BaseStoreTarget):
 
 
 class MongoDBTarget(BaseStoreTarget):
-    """
-    :parameter db_name: the name of the database to access
-    :parameter connection_string: your mongodb connection string
-    :parameter collection_name: the name of the collection to access,
-                                from the current database
-    :parameter query: dictionary query for mongodb
-    :parameter create_collection: pass True if you want to create new collection named by
-                                  collection_name on current database.
-    :parameter override_collection: pass True if you want to override all the documents on the
-                                    collection named by collection_name on current database.
-    """
-
     kind = TargetTypes.mongodb
     is_online = True
     support_spark = False
@@ -1470,11 +1458,26 @@ class MongoDBTarget(BaseStoreTarget):
         create_collection: bool = False,
         override_collection: bool = False,
     ):
+        """
+        Write to MongoDB as output target for a flow.
 
+        :param db_name:             the name of the database to access
+        :param connection_string:   your mongodb connection string
+        :param collection_name:     the name of the collection to access,
+                                    from the current database
+        :param create_collection:   pass True if you want to create new collection named by
+                                    collection_name on current database.
+        :param override_collection: pass True if you want to override all the documents on the
+                                    collection named by collection_name on current database.
+        """
+        MONGO_CONNECTION_STRING_ENV_VAR = "MONGO_CONNECTION_STRING"
+        connection_string = connection_string or os.getenv(
+            MONGO_CONNECTION_STRING_ENV_VAR
+        )
         if not all([db_name, collection_name, connection_string]):
             attr = {}
         else:
-
+            # check for collection existence and acts according to the user input
             from pymongo import MongoClient
 
             mongodb_client = MongoClient(connection_string)
@@ -1488,6 +1491,7 @@ class MongoDBTarget(BaseStoreTarget):
             all_collections = db.list_collection_names()
             if collection_name not in all_collections:
                 if create_collection:
+                    # creat new collection with the given name
                     collection = db[collection_name]
                     collection.insert_one({"test": "test"})
                     collection.delete_one({"test": "test"})
@@ -1496,6 +1500,7 @@ class MongoDBTarget(BaseStoreTarget):
                         f"Collection named {collection_name} is not exist in {db_name} database"
                     )
             elif override_collection:
+                # override all the collection's documents
                 db[collection_name].delete_many({})
             attr = {
                 "collection_name": collection_name,
@@ -1503,6 +1508,7 @@ class MongoDBTarget(BaseStoreTarget):
                 "connection_string": connection_string,
             }
             path = f"mdb:///{connection_string}///{db_name}///{collection_name}"
+            mongodb_client.close()
         if attributes:
             attributes.update(attr)
         else:
@@ -1593,6 +1599,7 @@ class MongoDBTarget(BaseStoreTarget):
         except KeyError:
             query = {}
         if time_column:
+            # creat time query and adding it to the existed query.
             time_query = {time_column: {}}
             if start_time:
                 time_query[time_column]["$gte"] = start_time
@@ -1614,6 +1621,7 @@ class MongoDBTarget(BaseStoreTarget):
         df = pd.DataFrame(list(cursor))
         if "_id" in df.columns:
             df["_id"] = str(df["_id"])
+        mongodb_client.close()
         return df
 
     def write_dataframe(
@@ -1631,6 +1639,7 @@ class MongoDBTarget(BaseStoreTarget):
 
             data = df.to_dict(orient="records")
             collection.insert_many(data)
+            mongodb_client.close()
 
     def _parse_url(self):
         path = self.path[len("mdb:///") :]

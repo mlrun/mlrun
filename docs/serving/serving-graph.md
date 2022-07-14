@@ -17,7 +17,7 @@ Different steps can run on the same local function, or run on a remote function.
 them from other graphs, as well as scale up and down the different components individually.
 
 Graphs can run inside your IDE or Notebook for test and simulation. Serving graphs are built on 
-top of [Nuclio](https://github.com/nuclio/nuclio) (real-time serverless engine), MLRun Jobs, 
+top of [Nuclio](https://github.com/nuclio/nuclio) (real-time serverless engine), [MLRun jobs](../concepts/jobs.html), 
 [MLRun Storey](<https://github.com/mlrun/storey>) (native Python async and stream processing engine), 
 and other MLRun facilities. 
 

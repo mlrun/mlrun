@@ -89,4 +89,4 @@ point, and the offline datasets that were created to train each model.
 
 ## Further reading
 
-For more information, see [Feature store: data ingestion](../feature-store/feature-store-data-ingestion.html) and [Feature store: data retrieval](../feature-store/feature-store-data-retrieval.html), as well as the [Feature Store tutorials](../feature-store/feature-store-tutorials.html).
+For more information, see [Feature store: data ingestion](../feature-store/feature-store-data-ingestion.html) and [Feature store online access](../feature-store/feature-vectots.html), as well as the [feature store example](../feature-store/basic-demo.html).

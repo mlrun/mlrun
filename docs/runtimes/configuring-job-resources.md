@@ -1,7 +1,7 @@
 # Managing job resources
 
-MLRun orchestrates serverless functions over Kubernetes. You can specify the desired resource requirements (CPU, memory, GPUs) and preferences/priorities in the 
-logical function object. These are used during the function deployment.
+MLRun orchestrates serverless functions over Kubernetes. You can specify the resource requirements (CPU, memory, GPUs),
+preferences, and priorities in the logical function object. These are used during the function deployment.
 
 Configuration of job resources is relevant for all supported cloud platforms.
 
@@ -10,7 +10,7 @@ Configuration of job resources is relevant for all supported cloud platforms.
 - [CPU, GPU, and memory limits for user jobs](#cpu-gpu-and-memory-limits-for-user-jobs)
 - [Volumes](#volumes)
 - [Preemption mode: Spot vs. On-demand nodes](#preemption-mode-spot-vs-on-demand-nodes)
-- [Pod priority](#pod-priority-for-user-jobs)
+- [Pod priority for user jobs](#pod-priority-for-user-jobs)
 
 ## Replicas
 
@@ -142,7 +142,7 @@ nodes are designed to run stateful applications while spot nodes are designed fo
 MLRun jobs are more stateful by nature. An MLRun job that is assigned to run on a spot node might be subject to interruption; 
 it would have to be designed so that the job/function state will be saved when scaling to zero.
 
-## Supported preemption modes
+### Supported preemption modes
 
 Preemption mode has three values:
 - Allow: The function pod can run on a spot node if one is available.

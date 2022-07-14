@@ -10,7 +10,7 @@ handle the orchestration and monitoring of the distributed task.
 
 **In this section**
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 1
 
 ../runtimes/dask-overview
 ../runtimes/horovod

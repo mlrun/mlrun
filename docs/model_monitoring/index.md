@@ -1,6 +1,6 @@
 (model_monitoring)=
 
-# Model monitoring overview (beta)
+# Model monitoring (beta)
 
 ```{note}
 Model monitoring is based on Iguazio's streaming technology. Contact Iguazio to enable this feature.

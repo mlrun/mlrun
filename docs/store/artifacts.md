@@ -4,18 +4,15 @@
 An artifact is any data that is produced and/or consumed by functions, jobs, or pipelines. 
 
 Artifacts metadata is stored in the projects database. The main types of artifacts are:
--  **Files** **&mdash; files, directories, images, figures, and plotlines.
--  **Datasets** **&mdash; any data, such as tables and DataFrames.
--  **Models** **&mdash; all trained models.
--  **Feature Store Objects** **&mdash; Feature Sets and Feature Vectors
+-  **Files** &mdash; files, directories, images, figures, and plotlines.
+-  **Datasets** &mdash; any data, such as tables and DataFrames.
+-  **Models** &mdash; all trained models.
+-  **Feature Store Objects** &mdash; Feature Sets and Feature Vectors
 
 **In this section**
 - [Artifacts and versioning](#artifacts-and-versioning)
-  - [Artifact path](#artifact-path)
-  - [Artifact URIs, metadata and versioning](#artifact-uris-metadata-and-versioning)
 - [File and dir artifacts](#file-and-dir-artifacts)
 - [Dataset artifacts](#dataset-artifacts)
-  - [Logging a dataset from a job](#logging-a-dataset-from-a-job)
 - [Model Artifacts](#model-artifacts)
 - [Plot Artifacts](#plot-artifacts)
 

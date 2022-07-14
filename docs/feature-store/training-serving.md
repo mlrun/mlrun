@@ -1,4 +1,4 @@
-# Online access and serving
+# Feature store online access
 
 **In this section**
 - [Get online features](#get-online-features)

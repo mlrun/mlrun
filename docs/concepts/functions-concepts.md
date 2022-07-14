@@ -15,14 +15,4 @@ use in your projects.
 
 <img src="../_static/images/mlrun-functions.png" alt="mlrun-architecture" width="600"/><br>
 
-**In this section**
 
-```{toctree}
-   :maxdepth: 1
-
-functions-overview
-../runtimes/distributed
-nuclio-real-time-functions
-```
-
-See also [Creating and using functions](../runtimes/functions.html).

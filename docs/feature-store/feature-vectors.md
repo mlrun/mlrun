@@ -1,7 +1,8 @@
-# Creating and using feature vectors
+# Feature store online access
 
 You can define a group of features from different feature sets as a {py:class}`~mlrun.feature_store.FeatureVector`.  
-Feature vectors are used as an input for models, allowing you to define the feature vector once, and in turn create and track the datasets created from it or the online manifestation of the vector for real-time prediction needs.
+Feature vectors are used as an input for models, allowing you to define the feature vector once, and in turn create and track the 
+datasets created from it or the online manifestation of the vector for real-time prediction needs.
 
 The feature vector handles all the merging logic for you using an `asof merge` type merge that accounts for both the time and the entity.
 It ensures that all the latest relevant data is fetched, without concerns about "seeing the future" or other types of common time related errors.

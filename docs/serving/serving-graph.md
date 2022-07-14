@@ -34,4 +34,5 @@ available-steps
 <!--- best-practice --->
 demos
 graph-ha-cfg
+pipelines-error-handling
 ```

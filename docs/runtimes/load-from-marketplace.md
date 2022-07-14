@@ -1,4 +1,5 @@
-# MLRun Functions Marketplace  <!-- omit in toc -->
+# Using the function marketplace
+  <!-- omit in toc -->
 
 **In this section**
 - [Overview](#overview)

@@ -1,4 +1,4 @@
-# Creating a custom model serving class
+# Basic model serving class
 
 Model serving classes implement the full model serving functionality which include
 loading models, pre- and post-processing, prediction, explainability, and model monitoring.

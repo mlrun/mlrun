@@ -12,44 +12,67 @@
    :caption: Concepts
 
    projects/project
-   concepts/functions-concepts
    concepts/data-feature-store
-   feature-store/feature-store
-   concepts/runs-experiments-workflows
-   store/artifacts
-   concepts/deployment-monitoring
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Working with data
-
-   <!--- feature-store/data-access-versioning --->
-   <!--- feature-store/prepare-analyze-data --->
-   feature-store/feature-store-data-ingestion
-   feature-store/feature-store-data-retrieval
-   feature-store/feature-store-tutorials
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Develop functions and models
-
    runtimes/functions
-   runtimes/run-track-compare-jobs
-   <!-- runtimes/develop-ml-models -->
-   <!-- runtimes/develop-dl-nlp-models -->
-   <!-- runtimes/run-multistage-workflows -->
-   <!-- runtimes/manage-monitor-resources -->
+   runtimes/load-from-marketplace
+   <!--- Contributing to the function marketplace --->
+   store/artifacts
+   concepts/jobs
+   feature-store/feature-store
+   <!--- model training --->
+   serving/serving-graph
+   concepts/model-serving
+   concepts/multi-stage-workflows
+   concepts/deployment-monitoring
+   concepts/ci-cd-automation
+  
+.. toctree::
+   :maxdepth: 1
+   :caption: Data collection and preparation
+   
+   feature-store/feature-store-data-ingestion
+   
+  
+.. toctree::
+   :maxdepth: 1
+   :caption: Training
+   
+   <!--- Create a basic training job --->
+   <!--- Working with data and model artifacts --->
+   concepts/auto-logging-mlops
+   <!--- Comparing-training-jobs --->
+   <!--- Auto-trainer-job --->
+   feature-store/feature-vectors
+   feature-store/retrieve-offline-data
+   <!--- Frameworks --->
+   runtimes/distributed
+   hyper-params
+  
+.. toctree::
+   :maxdepth: 1
+   :caption: Model serving
+
+   serving/custom-model-serving-class
+   <!--- Model server marketplace function --->
+   <!--- Model serving pipeline --->
+   <!--- Real-time streaming --->
+   feature-store/training-serving
+   <!--- Model ensemble --->
+   <!--- Testing model server --->
+   <!--- Model deployment --->
+   <!--- Batch Serving --->
+   serving/model-api
 
 .. toctree::
    :maxdepth: 1
-   :caption: Deploy ML applications
-
-   <!-- model_monitoring/model-registry-mgmt -->
-   serving/serving-graph
-   serving/build-graph-model-serving
+   :caption: Continuous Monitoring and Retraining
+   
    model_monitoring/index
+   projects/workflows
    model_monitoring/ci-cd-rolling-upgrades-git
-
+   projects/ci-integration
+   
+   
 .. toctree::
    :maxdepth: 1
    :caption: References
@@ -60,3 +83,11 @@
    cli
    <!-- examples -->
    glossary
+
+
+
+
+
+
+
+

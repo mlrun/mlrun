@@ -135,7 +135,7 @@ default_config = {
             "security_context": {
                 # default security context to be applied to all functions - json string base64 encoded format
                 # in camelCase format: "{\"runAsUser\": 1000, \"runAsGroup\": 3000}"
-                "default": "e30=",
+                "default": "e30=",  # encoded empty dict
             },
         },
     },

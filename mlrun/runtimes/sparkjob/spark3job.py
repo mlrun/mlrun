@@ -165,10 +165,12 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         self.driver_cores = driver_cores
         self.executor_cores = executor_cores
         self.driver_security_context = (
-            driver_security_context or mlrun.mlconf.get_default_function_security_context()
+            driver_security_context
+            or mlrun.mlconf.get_default_function_security_context()
         )
         self.executor_security_context = (
-            executor_security_context or mlrun.mlconf.get_default_function_security_context()
+            executor_security_context
+            or mlrun.mlconf.get_default_function_security_context()
         )
 
     def to_dict(self, fields=None, exclude=None):

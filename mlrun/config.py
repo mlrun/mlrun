@@ -134,6 +134,7 @@ default_config = {
             "image_pull_secret": {"default": None},
             "security_context": {
                 # default security context to be applied to all functions - json string base64 encoded format
+                # in camelCase format: "{\"runAsUser\": 1000, \"runAsGroup\": 3000}"
                 "default": "e30=",
             },
         },

@@ -1,5 +1,5 @@
-import json
 import base64
+import json
 import os
 import typing
 
@@ -251,13 +251,20 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             expected_cores=expected_cores,
         )
 
-    def test_run_with_security_context(
+    def test_run_with_default_security_context(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):
+        default_security_context_dict = {
+            "runAsUser": 1000,
+            "runAsGroup": 3000,
+        }
+        default_security_context = self._generate_security_context(
+            default_security_context_dict["runAsUser"],
+            default_security_context_dict["runAsGroup"],
+        )
 
-        default_security_context = self._generate_security_context(1000, 3000)
-        mlconf.function.spec.security_context.default = base64.b64encode(
-            json.dumps(default_security_context.to_dict()).encode("utf-8")
+        mlrun.mlconf.function.spec.security_context.default = base64.b64encode(
+            json.dumps(default_security_context_dict).encode("utf-8")
         )
 
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
@@ -270,6 +277,13 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         self._assert_custom_object_creation_config(
             expected_driver_security_context=default_security_context,
             expected_executor_security_context=default_security_context,
+        )
+
+    def test_run_with_security_context(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=True
         )
 
         driver_security_context = self._generate_security_context(3000, 4000)

@@ -224,11 +224,18 @@ class TestKubejobRuntime(TestRuntimeBase):
             runtime.with_priority_class(medium_priority_class_name)
 
     def test_run_with_security_context(self, db: Session, client: TestClient):
+        default_security_context_dict = {
+            "runAsUser": 1000,
+            "runAsGroup": 3000,
+        }
         default_security_context = self._generate_security_context(
-            1000,
-            3000,
+            default_security_context_dict["runAsUser"],
+            default_security_context_dict["runAsGroup"],
         )
-        mlrun.mlconf.function.spec.security_context.default = default_security_context
+
+        mlrun.mlconf.function.spec.security_context.default = base64.b64encode(
+            json.dumps(default_security_context_dict).encode("utf-8")
+        )
         runtime = self._generate_runtime()
 
         self.execute_function(runtime)

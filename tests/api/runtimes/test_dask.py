@@ -314,18 +314,23 @@ class TestDaskRuntime(TestRuntimeBase):
             expected_node_selector=node_selector,
         )
 
-    def test_dask_with_security_context(self, db: Session, client: TestClient):
+    def test_dask_with_default_security_context(self, db: Session, client: TestClient):
+        default_security_context_dict = {
+            "runAsUser": 1000,
+            "runAsGroup": 3000,
+        }
         default_security_context = self._generate_security_context(
-            1000,
-            3000,
+            default_security_context_dict["runAsUser"],
+            default_security_context_dict["runAsGroup"],
         )
-        mlrun.mlconf.function.spec.security_context.default = default_security_context
+
+        mlrun.mlconf.function.spec.security_context.default = base64.b64encode(
+            json.dumps(default_security_context_dict).encode("utf-8")
+        )
         runtime = self._generate_runtime()
 
         _ = runtime.client
-
         self.kube_cluster_mock.assert_called_once()
-
         self._assert_pod_creation_config(
             expected_runtime_class_name="dask",
             assert_create_pod_called=False,
@@ -333,13 +338,15 @@ class TestDaskRuntime(TestRuntimeBase):
             expected_security_context=default_security_context,
         )
 
+    def test_dask_with_security_context(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
         other_security_context = self._generate_security_context(
             2000,
             2000,
         )
-        runtime.with_security_context(other_security_context)
 
+        # override security context
+        runtime.with_security_context(other_security_context)
         _ = runtime.client
 
         self._assert_pod_creation_config(

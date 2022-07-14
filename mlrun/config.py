@@ -43,6 +43,8 @@ env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
 _load_lock = Lock()
 _none_type = type(None)
+
+
 default_config = {
     "namespace": "",  # default kubernetes namespace
     "dbpath": "",  # db/api url
@@ -391,8 +393,6 @@ default_config = {
         "tolerations": "W10=",
     },
 }
-
-
 
 
 class Config:

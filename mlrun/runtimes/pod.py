@@ -78,11 +78,11 @@ sanitized_types = {
 sanitized_attributes = {
     "affinity": sanitized_types["affinity"],
     "tolerations": sanitized_types["tolerations"],
+    "security_context": sanitized_types["security_context"],
     "executor_tolerations": sanitized_types["tolerations"],
     "driver_tolerations": sanitized_types["tolerations"],
     "executor_affinity": sanitized_types["affinity"],
     "driver_affinity": sanitized_types["affinity"],
-    "security_context": sanitized_types["security_context"],
     "executor_security_context": sanitized_types["security_context"],
     "driver_security_context": sanitized_types["security_context"],
 }

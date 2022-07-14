@@ -1017,10 +1017,6 @@ class TestNuclioRuntime(TestRuntimeBase):
     def test_deploy_with_security_context(self, db: Session, client: TestClient):
         function = self._generate_runtime(self.runtime_kind)
 
-        default_security_context_dict = {
-            "runAsUser": 1000,
-            "runAsGroup": 3000,
-        }
         self.execute_function(function)
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
         args, _ = nuclio.deploy.deploy_config.call_args
@@ -1028,6 +1024,10 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         assert "securityContext" not in deploy_spec
 
+        default_security_context_dict = {
+            "runAsUser": 1000,
+            "runAsGroup": 3000,
+        }
         mlrun.mlconf.function.spec.security_context.default = base64.b64encode(
             json.dumps(default_security_context_dict).encode("utf-8")
         )

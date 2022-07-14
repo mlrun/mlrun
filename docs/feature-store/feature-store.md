@@ -37,8 +37,8 @@ from average, pattern on image, etc.).
 - **Feature set** &mdash;  A grouping of features that are ingested together and stored in a logical group. Feature sets take data from 
 offline or online sources, build a list of features through a set of transformations, and store the resulting features, along with the 
 associated metadata and statistics. For example, a transaction may be grouped by the ID of a person performing the transfer or by the device 
-identifier used to perform the transaction. You can also define in the the timestamp source in the feature set, and ingest data into a 
-feature set. See more details in [feature sets](transformations.md).
+identifier used to perform the transaction. You can also define in the timestamp source in the feature set, and ingest data into a 
+feature set. See more details in [feature sets](./feature-sets.html).
 - **Execution graph** &mdash; A set of operations performed on the data while it is ingested. The graph contains steps that represent 
 data sources and targets, and can also contain steps that transform and enrich the data that is passed through the feature set.
 - **Feature vector** &mdash; A set of features, taken from one or more feature sets. The feature vector is defined prior to model training 
@@ -61,7 +61,7 @@ MLRun can also leverage [Nuclio](https://nuclio.io/docs/latest/) to perform real
 serving you can update feature values, and not just read them. For example, you can update a sliding window aggregation as part of a model 
 serving process.
 
-The next step is to define the [feature vector](feature-vectors.md). Call the `get_offline_features` function to join together features across different feature sets. 
+The next step is to define the [feature vector](feature-vectors.html). Call the `get_offline_features` function to join together features across different feature sets. 
 
 ## Training and serving using the feature store 
 
@@ -89,4 +89,4 @@ point, and the offline datasets that were created to train each model.
 
 ## Further reading
 
-For more information, see [Feature store: data ingestion](../feature-store/feature-store-data-ingestion) and [Feature store: data retrieval](../feature-store/feature-store-data-retrieval), as well as the [Feature Store tutorials](../feature-store/feature-store-tutorials).
+For more information, see [Feature store: data ingestion](../feature-store/feature-store-data-ingestion.html) and [Feature store: data retrieval](../feature-store/feature-store-data-retrieval.html), as well as the [Feature Store tutorials](../feature-store/feature-store-tutorials.html).

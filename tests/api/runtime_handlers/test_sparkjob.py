@@ -13,6 +13,7 @@ from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
     def custom_setup(self):
+        self.kind = RuntimeKinds.spark
         self.runtime_handler = get_runtime_handler(RuntimeKinds.spark)
         self.runtime_handler.wait_for_deletion_interval = 0
 
@@ -122,8 +123,8 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
         list_namespaced_pods_calls = [
-            # for the get_logger_pods
-            [self.executor_pod, self.driver_pod],
+            # for the get_logger_pods with proper selector
+            [self.driver_pod],
             # additional time for wait for pods deletion - simulate pods not removed yet
             [self.executor_pod, self.driver_pod],
             # additional time for wait for pods deletion - simulate pods gone
@@ -210,8 +211,8 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
         list_namespaced_pods_calls = [
-            # for the get_logger_pods
-            [self.executor_pod, self.driver_pod],
+            # for the get_logger_pods with proper selector
+            [self.driver_pod],
             # additional time for wait for pods deletion - simulate pods gone
             [],
         ]
@@ -251,9 +252,9 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             [self.completed_crd_dict],
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
-        # for the get_logger_pods
+        # for the get_logger_pods with proper selector
         list_namespaced_pods_calls = [
-            [self.executor_pod, self.driver_pod],
+            [self.driver_pod],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
@@ -289,9 +290,9 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             [self.failed_crd_dict],
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
-        # for the get_logger_pods
+        # for the get_logger_pods with proper selector
         list_namespaced_pods_calls = [
-            [self.executor_pod, self.driver_pod],
+            [self.driver_pod],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
@@ -318,6 +319,12 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             log,
             self.driver_pod.metadata.name,
         )
+
+    def _generate_get_logger_pods_label_selector(self, runtime_handler):
+        logger_pods_label_selector = super()._generate_get_logger_pods_label_selector(
+            runtime_handler
+        )
+        return f"{logger_pods_label_selector},spark-role=driver"
 
     def _mock_list_resources_pods(self):
         mocked_responses = self._mock_list_namespaced_pods(

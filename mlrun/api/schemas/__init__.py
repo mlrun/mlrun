@@ -17,6 +17,10 @@ from .background_task import (
     BackgroundTaskStatus,
 )
 from .client_spec import ClientSpec
+from .clusterization_spec import (
+    ClusterizationSpec,
+    WaitForChiefToReachOnlineStateFeatureFlag,
+)
 from .constants import (
     APIStates,
     ClusterizationRole,

@@ -118,6 +118,22 @@ default_config = {
     "default_tensorboard_logs_path": "/User/.tensorboard/{{project}}",
     # ";" separated list of notebook cell tag names to ignore e.g. "ignore-this;ignore-that"
     "ignored_notebook_tags": "",
+    # when set it will force the local=True in run_function(), set to "auto" will run local if there is no k8s
+    "force_run_local": "auto",
+    "background_tasks": {
+        # enabled / disabled
+        "timeout_mode": "enabled",
+        # timeout in seconds to wait for background task to be updated / finished by the worker responsible for the task
+        "default_timeouts": {
+            "operations": {"migrations": "3600"},
+            "runtimes": {"dask": "600"},
+        },
+    },
+    "function": {
+        "spec": {
+            "image_pull_secret": {"default": None},
+        },
+    },
     "function_defaults": {
         "image_by_kind": {
             "job": "mlrun/mlrun",
@@ -135,6 +151,21 @@ default_config = {
         "clusterization": {
             # one of chief/worker
             "role": "chief",
+            "chief": {
+                # when url is specified, it takes precedence over service and port
+                "url": "",
+                "service": "mlrun-api-chief",
+                "port": 8080,
+            },
+            "worker": {
+                "sync_with_chief": {
+                    # enabled / disabled
+                    "mode": "enabled",
+                    "interval": 15,  # seconds
+                }
+            },
+            # see mlrun.api.utils.helpers.ensure_running_on_chief
+            "ensure_function_running_on_chief_mode": "enabled",
         },
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
@@ -238,6 +269,9 @@ default_config = {
             # setting the docker registry to be used for built images, can include the repository as well, e.g.
             # index.docker.io/<username>, if not included repository will default to mlrun
             "docker_registry": "",
+            # dockerconfigjson type secret to attach to kaniko pod.
+            # For amazon ECR, the secret is expected to provide AWS credentials. Leave empty to use EC2 IAM policy.
+            # https://github.com/GoogleContainerTools/kaniko#pushing-to-amazon-ecr
             "docker_registry_secret": "",
             # whether to allow the docker registry we're pulling from to be insecure. "enabled", "disabled" or "auto"
             # which will resolve by the existence of secret
@@ -249,8 +283,10 @@ default_config = {
             # pip install <requirement_specifier>, e.g. mlrun==0.5.4, mlrun~=0.5,
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
             "mlrun_version_specifier": "",
-            "kaniko_image": "gcr.io/kaniko-project/executor:v1.6.0",  # kaniko builder image
+            "kaniko_image": "gcr.io/kaniko-project/executor:v1.8.0",  # kaniko builder image
             "kaniko_init_container_image": "alpine:3.13.1",
+            # image for kaniko init container when docker registry is ECR
+            "kaniko_aws_cli_image": "amazon/aws-cli:2.7.10",
             # additional docker build args in json encoded base64 format
             "build_args": "",
             "pip_ca_secret_name": "",
@@ -326,7 +362,7 @@ default_config = {
         },
     },
     "storage": {
-        # What type of auto-mount to use for functions. Can be one of: none, auto, v3io_credentials, v3io_fuse, pvc.
+        # What type of auto-mount to use for functions. Can be one of: none, auto, v3io_credentials, v3io_fuse, pvc, s3.
         # Default is auto - which is v3io_credentials when running on Iguazio. If not Iguazio: pvc if the
         # MLRUN_PVC_MOUNT env is configured or auto_mount_params contain "pvc_name". Otherwise will do nothing (none).
         "auto_mount_type": "auto",
@@ -431,7 +467,7 @@ class Config:
     ):
         """
         decodes and loads the config attribute to expected type
-        :param attribute_path: the path in the default_config e.g preemptible_nodes.node_selector
+        :param attribute_path: the path in the default_config e.g. preemptible_nodes.node_selector
         :param expected_type: the object type valid values are : `dict`, `list` etc...
         :return: the expected type instance
         """
@@ -529,6 +565,25 @@ class Config:
             return f"http://ml-pipeline.{namespace}.svc.cluster.local:8888"
         return None
 
+    def resolve_chief_api_url(self) -> str:
+        if self.httpdb.clusterization.chief.url:
+            return self.httpdb.clusterization.chief.url
+        if not self.httpdb.clusterization.chief.service:
+            raise mlrun.errors.MLRunNotFoundError(
+                "For resolving chief url, chief service name must be provided"
+            )
+        if self.namespace is None:
+            raise mlrun.errors.MLRunNotFoundError(
+                "For resolving chief url, namespace must be provided"
+            )
+
+        chief_api_url = f"http://{self.httpdb.clusterization.chief.service}.{self.namespace}.svc.cluster.local"
+        if config.httpdb.clusterization.chief.port:
+            chief_api_url = f"{chief_api_url}:{self.httpdb.clusterization.chief.port}"
+
+        self.httpdb.clusterization.chief.url = chief_api_url
+        return self.httpdb.clusterization.chief.url
+
     @staticmethod
     def get_storage_auto_mount_params():
         auto_mount_params = {}
@@ -581,8 +636,8 @@ class Config:
     ):
         """
         :param requirement: kubernetes requirement resource one of the following : requests, limits
-        :param with_gpu: whether to return requirement resources with nvidia.com/gpu field (e.g you cannot specify GPU
-         requests without specifying GPU limits) https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
+        :param with_gpu: whether to return requirement resources with nvidia.com/gpu field (e.g. you cannot specify
+         GPU requests without specifying GPU limits) https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
         :return: a dict containing the defaults resources (cpu, memory, nvidia.com/gpu)
         """
         resources: dict = copy.deepcopy(config.default_function_pod_resources.to_dict())
@@ -694,6 +749,11 @@ class Config:
     @iguazio_api_url.setter
     def iguazio_api_url(self, value):
         self._iguazio_api_url = value
+
+    def is_api_running_on_k8s(self):
+        # determine if the API service is attached to K8s cluster
+        # when there is a cluster the .namespace is set
+        return True if mlrun.mlconf.namespace else False
 
 
 # Global configuration

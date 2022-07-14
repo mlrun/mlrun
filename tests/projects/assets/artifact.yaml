@@ -1,0 +1,17 @@
+kind: artifact
+metadata:
+  key: x
+  project: inline
+  iter: 0
+  tree: latest
+spec:
+  inline: '123'
+  db_key: x
+  producer:
+    kind: project
+    name: inline
+    tag: latest
+  sources: []
+  license: ''
+status:
+  state: created

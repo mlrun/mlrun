@@ -1,25 +1,19 @@
 # Using the Spark execution engine
 
-The feature store supports using Spark for ingesting, transforming and writing results to data targets. When 
-using Spark, the internal execution graph is executed synchronously, by utilizing a Spark session to perform read and
+The feature store supports using Spark for ingesting, transforming, and writing results to data targets. When 
+using Spark, the internal execution graph is executed synchronously by utilizing a Spark session to perform read and
 write operations, as well as potential transformations on the data. Executing synchronously means that the 
 source data is fully read into a data-frame that is processed, writing the output to the targets defined.
 
-Spark execution can be done locally, utilizing a local Spark session provided to the ingestion call. To 
-use Spark as the transformation engine in ingestion, follow these steps:
+To use Spark as the transformation engine in ingestion, follow these steps:
 
-1. When constructing the {py:class}`~mlrun.feature_store.FeatureSet` object, pass an `engine` parameter and set it 
+When constructing the {py:class}`~mlrun.feature_store.FeatureSet` object, pass an `engine` parameter and set it 
    to `spark`. For example:
    
     ```python
     feature_set = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")], engine="spark")
     ```
-
-2. To use a local Spark session, pass a Spark session context when calling the 
-   {py:func}`~mlrun.feature_store.ingest` function, as the `spark_context` parameter. This session is used for
-   data operations and transformations.
-   
-3. To use a remote execution engine (remote spark or spark operator), pass a `RunConfig` object as the `run_config` parameter for 
+To use a remote execution engine, pass a `RunConfig` object as the `run_config` parameter for 
 the `ingest` API. The actual remote function to execute depends on the object passed:
    
     - A default `RunConfig`, in which case the ingestion code either generates a new MLRun function runtime
@@ -29,16 +23,25 @@ the `ingest` API. The actual remote function to execute depends on the object pa
     - A `RunConfig` that has a function configured within it. As mentioned, the function runtime must be of 
        type `remote-spark` or `spark`.
        
-See full examples in:
+Spark execution can be done locally, utilizing a local Spark session provided to the ingestion call. To use a local Spark session, pass a 
+Spark session context when calling the {py:func}`~mlrun.feature_store.ingest` function, as the 
+`spark_context` parameter. This session is used for data operations and transformations.
+       
+See code examples in:
 - [Local Spark ingestion example](#local-spark-ingestion-example)
 - [Remote Spark ingestion example](#remote-spark-ingestion-example)
 - [Spark operator ingestion example](#spark-operator-ingestion-example)
-- [Spark execution engine over S3 - full flow example](#spark-execution-engine-over-S3-full-flow-example)       
+- [Spark dataframe ingestion example](#spark-dataframe-ingestion-example)
+- [Spark over S3 full flow example](#spark-over-s3-full-flow-example)
+- [Spark ingestion from Snowflake example](#spark-ingestion-from-snowflake-example)
+- [Spark ingestion from Azure example](#spark-ingestion-from-azure-example)
        
 ## Local Spark ingestion example
 
-The following code executes data ingestion using a local Spark session.
-When using a local Spark session, the `ingest` API would wait for its completion.
+A local Spark session is a session running in the Jupyter service.<br>
+The following code executes data ingestion using a local Spark session. 
+
+When using a local Spark session, the `ingest` API would wait for its completion. 
 
 ```python
 import mlrun
@@ -46,7 +49,7 @@ from mlrun.datastore.sources import CSVSource
 import mlrun.feature_store as fstore
 from pyspark.sql import SparkSession
 
-mlrun.set_environment(project="stocks")
+mlrun.get_or_create_project(name="stocks")
 feature_set = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")], engine="spark")
 
 # add_aggregation can be used in conjunction with Spark
@@ -61,7 +64,8 @@ fstore.ingest(feature_set, source, spark_context=spark)
 
 ## Remote Spark ingestion example
 
-When using remote execution the MLRun run execution details are returned, allowing tracking of its status and results.
+Remote Spark refers to  a session running from another service, for example, the Spark standalone service or the Spark operator service. 
+When using remote execution the MLRun run execution details are returned, allowing tracking of its status and results. 
 
 The following code should be executed only once to build the remote spark image before running the first ingest.
 It may take a few minutes to prepare the image.
@@ -106,7 +110,7 @@ fstore.ingest(feature_set, source, run_config=config, spark_context=spark_servic
 ```
 
 ## Spark operator ingestion example
-When running with a Spark operator, the MLRun execution details are returned, allowing tracking of the job's status and results.
+When running with a Spark operator, the MLRun execution details are returned, allowing tracking of the job's status and results. Spark operator ingestion is always executed remotely.
 
 The following code should be executed only once to build the spark job image before running the first ingest.
 It may take a few minutes to prepare the image.
@@ -130,6 +134,7 @@ def my_spark_func(df, context=None):
 
 # mlrun: end-code
 ```
+
 ```python
 from mlrun.datastore.sources import CSVSource
 from mlrun import code_to_function
@@ -160,9 +165,34 @@ config = fstore.RunConfig(local=False, function=my_func, handler="ingest_handler
 fstore.ingest(feature_set, source, run_config=config)
 ```
 
-## Spark execution engine over S3 - full flow example
 
-For Spark to work with S3, it requires several properties to be set. The following example writes a
+
+## Spark dataframe ingestion example
+
+The following code executes local data ingestion from a spark dataframe (Spark dataframe Ingestion cannot be executed remotely.)
+The specified dataframe should be associated with `spark_context`. 
+
+```
+from pyspark.sql import SparkSession
+import mlrun.feature_store as fstore
+
+columns = ["id", "count"]
+data = [("a", "12"), ("b", "14"), ("c", "88")]
+
+spark = SparkSession.builder.appName('example').getOrCreate()
+df = spark.createDataFrame(data).toDF(*columns)
+
+fset = fstore.FeatureSet("myset", entities=[fstore.Entity("id")], engine="spark")
+
+fstore.ingest(fset, df, spark_context=spark)
+
+spark.stop()
+```
+
+## Spark over S3 - full flow example
+
+For Spark to work with S3, it requires several properties to be set. Spark over S3 can be executed both remotely and locally, as long as access credentials to the S3 
+objects are available to it. The following example writes a
 feature set to S3 in the parquet format in a remote k8s job:
 
 One-time setup:
@@ -238,4 +268,72 @@ target = ParquetTarget(
 )
 
 fstore.ingest(feature_set, source, targets=[target], run_config=run_config, spark_context=spark_service_name)
+```
+
+## Spark ingestion from Snowflake example
+
+Spark ingestion from Snowflake can be executed both remotely and locally. The following code executes local data ingestion from Snowflake.
+
+```
+from pyspark.sql import SparkSession
+
+import mlrun
+import mlrun.feature_store as fstore
+from mlrun.datastore.sources import SnowflakeSource
+
+spark = SparkSession.builder.appName("snowy").getOrCreate()
+
+mlrun.get_or_create_project("feature_store")
+feature_set = fstore.FeatureSet(
+    name="customer", entities=[fstore.Entity("C_CUSTKEY")], engine="spark"
+)
+
+source = SnowflakeSource(
+    "customer_sf",
+    query="select * from customer limit 100000",
+    url="<url>",
+    user="<user>",
+    password="<password>",
+    database="SNOWFLAKE_SAMPLE_DATA",
+    schema="TPCH_SF1",
+    warehouse="compute_wh",
+)
+
+fstore.ingest(feature_set, source, spark_context=spark)
+```
+
+## Spark ingestion from Azure example
+
+Spark ingestion from Azure can be executed both remotely and locally. The following code executes remote data ingestion from Azure.
+
+```
+import mlrun
+
+# Initialize the MLRun project object
+project_name = "spark-azure-test"
+project = mlrun.get_or_create_project(project_name, context="./")
+
+from mlrun.runtimes import RemoteSparkRuntime
+RemoteSparkRuntime.deploy_default_image()
+
+from mlrun.datastore.sources import CSVSource
+from mlrun.datastore.targets import ParquetTarget
+from mlrun import code_to_function
+import mlrun.feature_store as fstore
+
+feature_set = fstore.FeatureSet("rides7", entities=[fstore.Entity("ride_id")], engine="spark", timestamp_key="key")
+
+source = CSVSource("rides", path="wasbs://warroom@mlrunwarroom.blob.core.windows.net/ny_taxi_train_subset_ride_id.csv")
+
+spark_service_name = "spark-fs" # As configured & shown in the Iguazio dashboard
+
+fn = code_to_function(kind='remote-spark',  name='func')
+
+run_config = fstore.RunConfig(local=False, function=fn, handler="ingest_handler")
+
+target = ParquetTarget(partitioned = True, time_partitioning_granularity="month")
+
+feature_set.set_targets(targets=[target],with_defaults=False)
+
+fstore.ingest(feature_set, source, run_config=run_config, spark_context=spark_service_name)
 ```

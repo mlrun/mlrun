@@ -88,7 +88,7 @@ the function/model deployment.
 ## predict() method
 
 The predict method is called when you access the `/infer` or `/predict` url suffix (operation).
-The method accepts the request object (as dict), see [Model server API](#model-api).
+The method accepts the request object (as dict), see [Model server API](model-api.html#infer-predict).
 And it should return the specified response object.
 
 ## explain() method
@@ -145,7 +145,7 @@ If you want to use multiple versions for the same model, use `:` to separate the
 For example, if the name is `mymodel:v2` it means model name `mymodel` version `v2`.
 
 You should specify the `model_path` (url of the model artifact/dir) and the `class_name` name 
-(or class `module.submodule.class`). Alternatively you can set the `model_url` for calling a 
+(or class `module.submodule.class`). Alternatively, you can set the `model_url` for calling a 
 model that is served by another function (can be used for ensembles).
 
 The function object(fn) accepts many options. You can specify replicas range (auto-scaling), cpu/gpu/mem resources, add shared 

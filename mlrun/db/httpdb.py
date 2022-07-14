@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import enum
 import http
 import os
 import tempfile
@@ -203,6 +203,14 @@ class HTTPRunDB(RunDBInterface):
                 {mlrun.api.schemas.HeaderNames.client_version: self.client_version}
             )
 
+        # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)
+        # convert to strings. Do the same for params for niceness
+        for dict_ in [headers, params]:
+            if dict_ is not None:
+                for key in dict_.keys():
+                    if isinstance(dict_[key], enum.Enum):
+                        dict_[key] = dict_[key].value
+
         if not self.session:
             self.session = requests.Session()
             self.session.mount("http://", http_adapter)
@@ -350,6 +358,10 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("preemptible_nodes_tolerations")
                 or config.preemptible_nodes.tolerations
             )
+            config.force_run_local = (
+                server_cfg.get("force_run_local") or config.force_run_local
+            )
+            config.function = server_cfg.get("function") or config.function
 
         except Exception as exc:
             logger.warning(
@@ -526,7 +538,7 @@ class HTTPRunDB(RunDBInterface):
         :param labels: List runs that have a specific label assigned. Currently only a single label filter can be
             applied, otherwise result will be empty.
         :param state: List only runs whose state is specified.
-        :param sort: Whether to sort the result according to their start time. Otherwise results will be
+        :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
         :param last: Deprecated - currently not used.
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
@@ -689,8 +701,6 @@ class HTTPRunDB(RunDBInterface):
         """
 
         project = project or config.default_project
-        if category and isinstance(category, schemas.ArtifactCategories):
-            category = category.value
 
         params = {
             "name": name,
@@ -819,8 +829,6 @@ class HTTPRunDB(RunDBInterface):
         resources are per Function, for which the identifier is the Function's name.
         :param group_by: Object to group results by. Allowed values are `job` and `project`.
         """
-        if isinstance(group_by, mlrun.api.schemas.ListRuntimeResourcesGroupByField):
-            group_by = group_by.value
         params = {
             "label_selector": label_selector,
             "group-by": group_by,
@@ -1428,8 +1436,6 @@ class HTTPRunDB(RunDBInterface):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Filtering by project can not be used together with pagination, or sorting"
             )
-        if isinstance(format_, mlrun.api.schemas.PipelinesFormat):
-            format_ = format_.value
         params = {
             "namespace": namespace,
             "sort_by": sort_by,
@@ -1457,8 +1463,6 @@ class HTTPRunDB(RunDBInterface):
     ):
         """Retrieve details of a specific pipeline using its run ID (as provided when the pipeline was executed)."""
 
-        if isinstance(format_, mlrun.api.schemas.PipelinesFormat):
-            format_ = format_.value
         try:
             params = {}
             if namespace:
@@ -1611,12 +1615,6 @@ class HTTPRunDB(RunDBInterface):
         order,
         max_partitions=None,
     ):
-        if isinstance(partition_by, partition_by_cls):
-            partition_by = partition_by.value
-        if isinstance(sort_by, schemas.SortField):
-            sort_by = sort_by.value
-        if isinstance(order, schemas.OrderType):
-            order = order.value
 
         partition_params = {
             "partition-by": partition_by,
@@ -1762,8 +1760,6 @@ class HTTPRunDB(RunDBInterface):
         """
         project = project or config.default_project
         reference = self._resolve_reference(tag, uid)
-        if isinstance(patch_mode, schemas.PatchMode):
-            patch_mode = patch_mode.value
         headers = {schemas.HeaderNames.patch_mode: patch_mode}
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed updating feature-set {project}/{name}"
@@ -1965,8 +1961,6 @@ class HTTPRunDB(RunDBInterface):
         """
         reference = self._resolve_reference(tag, uid)
         project = project or config.default_project
-        if isinstance(patch_mode, schemas.PatchMode):
-            patch_mode = patch_mode.value
         headers = {schemas.HeaderNames.patch_mode: patch_mode}
         path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
         error_message = f"Failed updating feature-vector {project}/{name}"
@@ -2014,10 +2008,6 @@ class HTTPRunDB(RunDBInterface):
         :param state: Filter by project's state. Can be either ``online`` or ``archived``.
         """
 
-        if isinstance(state, mlrun.api.schemas.ProjectState):
-            state = state.value
-        if isinstance(format_, mlrun.api.schemas.ProjectsFormat):
-            format_ = format_.value
         params = {
             "owner": owner,
             "state": state,
@@ -2068,8 +2058,6 @@ class HTTPRunDB(RunDBInterface):
         """
 
         path = f"projects/{name}"
-        if isinstance(deletion_strategy, schemas.DeletionStrategy):
-            deletion_strategy = deletion_strategy.value
         headers = {schemas.HeaderNames.deletion_strategy: deletion_strategy}
         error_message = f"Failed deleting project {name}"
         response = self.api_call("DELETE", path, error_message, headers=headers)
@@ -2114,8 +2102,6 @@ class HTTPRunDB(RunDBInterface):
         """
 
         path = f"projects/{name}"
-        if isinstance(patch_mode, schemas.PatchMode):
-            patch_mode = patch_mode.value
         headers = {schemas.HeaderNames.patch_mode: patch_mode}
         error_message = f"Failed patching project {name}"
         response = self.api_call(
@@ -2237,8 +2223,6 @@ class HTTPRunDB(RunDBInterface):
                     secrets=secrets
                 )
         """
-        if isinstance(provider, schemas.SecretProviderName):
-            provider = provider.value
         path = f"projects/{project}/secrets"
         secrets_input = schemas.SecretsData(secrets=secrets, provider=provider)
         body = secrets_input.dict()
@@ -2272,9 +2256,6 @@ class HTTPRunDB(RunDBInterface):
         :param secrets: A list of secret names to retrieve. An empty list ``[]`` will retrieve all secrets assigned
             to this specific project. ``kubernetes`` provider only supports an empty list.
         """
-
-        if isinstance(provider, schemas.SecretProviderName):
-            provider = provider.value
 
         if provider == schemas.SecretProviderName.vault.value and not token:
             raise MLRunInvalidArgumentError(
@@ -2315,9 +2296,6 @@ class HTTPRunDB(RunDBInterface):
             Must be a valid Vault token, with permissions to retrieve secrets of the project in question.
         """
 
-        if isinstance(provider, schemas.SecretProviderName):
-            provider = provider.value
-
         if provider == schemas.SecretProviderName.vault.value and not token:
             raise MLRunInvalidArgumentError(
                 "A vault token must be provided when accessing vault secrets"
@@ -2355,8 +2333,6 @@ class HTTPRunDB(RunDBInterface):
         :param secrets: A list of secret names to delete. An empty list will delete all secrets assigned
             to this specific project.
         """
-        if isinstance(provider, schemas.SecretProviderName):
-            provider = provider.value
 
         path = f"projects/{project}/secrets"
         params = {"provider": provider, "secret": secrets}
@@ -2387,8 +2363,6 @@ class HTTPRunDB(RunDBInterface):
         :param provider: The name of the secrets-provider to work with. Currently only ``vault`` is supported.
         :param secrets: A set of secret values to store within the Vault.
         """
-        if isinstance(provider, schemas.SecretProviderName):
-            provider = provider.value
         path = "user-secrets"
         secrets_creation_request = schemas.UserSecretCreationRequest(
             user=user,

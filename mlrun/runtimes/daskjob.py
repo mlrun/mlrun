@@ -493,20 +493,66 @@ class DaskCluster(KubejobRuntime):
 
 
 def deploy_function(function: DaskCluster, secrets=None, client_version: str = None):
+    _validate_dask_related_libraries_installed()
 
-    # TODO: why is this here :|
-    try:
-        import dask
-        from dask.distributed import Client, default_client  # noqa: F401
-        from dask_kubernetes import KubeCluster, make_pod_spec  # noqa: F401
-        from kubernetes import client
-    except ImportError as exc:
-        print(
-            "missing dask or dask_kubernetes, please run "
-            '"pip install dask distributed dask_kubernetes", %s',
-            exc,
-        )
-        raise exc
+    scheduler_pod, worker_pod, function, namespace = enrich_dask_cluster(
+        function, secrets, client_version
+    )
+    return initialize_dask_cluster(scheduler_pod, worker_pod, function, namespace)
+
+
+def initialize_dask_cluster(scheduler_pod, worker_pod, function, namespace):
+    import dask
+    import dask_kubernetes
+
+    spec, meta = function.spec, function.metadata
+
+    svc_temp = dask.config.get("kubernetes.scheduler-service-template")
+    if spec.service_type or spec.node_port:
+        if spec.node_port:
+            spec.service_type = "NodePort"
+            svc_temp["spec"]["ports"][1]["nodePort"] = spec.node_port
+        update_in(svc_temp, "spec.type", spec.service_type)
+
+    norm_name = normalize_name(meta.name)
+    dask.config.set(
+        {
+            "kubernetes.scheduler-service-template": svc_temp,
+            "kubernetes.name": "mlrun-" + norm_name + "-{uuid}",
+        }
+    )
+
+    cluster = dask_kubernetes.KubeCluster(
+        worker_pod,
+        scheduler_pod_template=scheduler_pod,
+        deploy_mode="remote",
+        namespace=namespace,
+        idle_timeout=spec.scheduler_timeout,
+    )
+
+    logger.info(f"cluster {cluster.name} started at {cluster.scheduler_address}")
+
+    function.status.scheduler_address = cluster.scheduler_address
+    function.status.cluster_name = cluster.name
+    if spec.service_type == "NodePort":
+        ports = cluster.scheduler.service.spec.ports
+        function.status.node_ports = {
+            "scheduler": ports[0].node_port,
+            "dashboard": ports[1].node_port,
+        }
+
+    if spec.replicas:
+        cluster.scale(spec.replicas)
+    else:
+        cluster.adapt(minimum=spec.min_replicas, maximum=spec.max_replicas)
+
+    return cluster
+
+
+def enrich_dask_cluster(function, secrets, client_version):
+    from dask.distributed import Client, default_client  # noqa: F401
+    from dask_kubernetes import KubeCluster, make_pod_spec  # noqa: F401
+    from kubernetes import client
 
     # Is it possible that the function will not have a project at this point?
     if function.metadata.project:
@@ -565,47 +611,22 @@ def deploy_function(function: DaskCluster, secrets=None, client_version: str = N
         # annotations=meta.annotation),
         spec=worker_pod_spec,
     )
+    return scheduler_pod, worker_pod, function, namespace
 
-    svc_temp = dask.config.get("kubernetes.scheduler-service-template")
-    if spec.service_type or spec.node_port:
-        if spec.node_port:
-            spec.service_type = "NodePort"
-            svc_temp["spec"]["ports"][1]["nodePort"] = spec.node_port
-        update_in(svc_temp, "spec.type", spec.service_type)
 
-    norm_name = normalize_name(meta.name)
-    dask.config.set(
-        {
-            "kubernetes.scheduler-service-template": svc_temp,
-            "kubernetes.name": "mlrun-" + norm_name + "-{uuid}",
-        }
-    )
-
-    cluster = KubeCluster(
-        worker_pod,
-        scheduler_pod_template=scheduler_pod,
-        deploy_mode="remote",
-        namespace=namespace,
-        idle_timeout=spec.scheduler_timeout,
-    )
-
-    logger.info(f"cluster {cluster.name} started at {cluster.scheduler_address}")
-
-    function.status.scheduler_address = cluster.scheduler_address
-    function.status.cluster_name = cluster.name
-    if spec.service_type == "NodePort":
-        ports = cluster.scheduler.service.spec.ports
-        function.status.node_ports = {
-            "scheduler": ports[0].node_port,
-            "dashboard": ports[1].node_port,
-        }
-
-    if spec.replicas:
-        cluster.scale(spec.replicas)
-    else:
-        cluster.adapt(minimum=spec.min_replicas, maximum=spec.max_replicas)
-
-    return cluster
+def _validate_dask_related_libraries_installed():
+    try:
+        import dask  # noqa: F401
+        from dask.distributed import Client, default_client  # noqa: F401
+        from dask_kubernetes import KubeCluster, make_pod_spec  # noqa: F401
+        from kubernetes import client  # noqa: F401
+    except ImportError as exc:
+        print(
+            "missing dask or dask_kubernetes, please run "
+            '"pip install dask distributed dask_kubernetes", %s',
+            exc,
+        )
+        raise exc
 
 
 def get_obj_status(selector=[], namespace=None):
@@ -630,6 +651,7 @@ def get_obj_status(selector=[], namespace=None):
 
 
 class DaskRuntimeHandler(BaseRuntimeHandler):
+    kind = "dask"
 
     # Dask runtime resources are per function (and not per run).
     # It means that monitoring runtime resources state doesn't say anything about the run state.

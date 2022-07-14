@@ -667,14 +667,6 @@ class BaseRuntime(ModelObj):
             if schedule:
                 logger.info(f"task scheduled, {resp}")
                 return
-
-            if resp:
-                txt = get_in(resp, "status.status_text")
-                if txt:
-                    logger.info(txt)
-            if watch or self.kfp:
-                runspec.logs(True, self._get_db())
-                resp = self._get_db_run(runspec)
         except Exception as err:
             logger.error(f"got remote run err, {err}")
             result = None
@@ -683,6 +675,16 @@ class BaseRuntime(ModelObj):
             if not schedule:
                 result = self._update_run_state(task=runspec, err=err)
             return self._wrap_run_result(result, runspec, schedule=schedule, err=err)
+
+        if resp:
+            txt = get_in(resp, "status.status_text")
+            if txt:
+                logger.info(txt)
+
+        if watch or self.kfp:
+            runspec.logs(True, self._get_db())
+            resp = self._get_db_run(runspec)
+
         return self._wrap_run_result(resp, runspec, schedule=schedule)
 
     def _store_function(self, runspec, meta, db):
@@ -1119,6 +1121,7 @@ def is_local(url):
 
 class BaseRuntimeHandler(ABC):
     # setting here to allow tests to override
+    kind = "base"
     wait_for_deletion_interval = 10
 
     @staticmethod
@@ -1298,14 +1301,17 @@ class BaseRuntimeHandler(ABC):
                     try:
                         if not run:
                             run = db.read_run(db_session, run_uid, project)
-                        self._ensure_run_not_stuck_on_non_terminal_state(
-                            db,
-                            db_session,
-                            project,
-                            run_uid,
-                            run,
-                            run_runtime_resources_map,
-                        )
+                        if self.kind == run.get("metadata", {}).get("labels", {}).get(
+                            "kind", ""
+                        ):
+                            self._ensure_run_not_stuck_on_non_terminal_state(
+                                db,
+                                db_session,
+                                project,
+                                run_uid,
+                                run,
+                                run_runtime_resources_map,
+                            )
                     except Exception as exc:
                         logger.warning(
                             "Failed ensuring run not stuck. Continuing",
@@ -1345,7 +1351,7 @@ class BaseRuntimeHandler(ABC):
                 db_run_state=db_run_state,
                 now=now,
             )
-            run.setdefault("status", {})["state"] = RunStates.absent
+            run.setdefault("status", {})["state"] = RunStates.error
             run.setdefault("status", {})["last_update"] = now.isoformat()
             db.store_run(db_session, run, run_uid, project)
             return
@@ -1378,7 +1384,7 @@ class BaseRuntimeHandler(ABC):
             ):
                 # we are setting non-terminal states to runs before the run is actually applied to k8s, meaning there is
                 # a timeframe where the run exists and no runtime resources exist and it's ok, therefore we're applying
-                # a debounce period before setting the state to absent
+                # a debounce period before setting the state to error
                 logger.warning(
                     "Monitoring did not discover a runtime resource that corresponded to a run in a "
                     "non-terminal state. but record has recently updated. Debouncing",
@@ -1391,9 +1397,9 @@ class BaseRuntimeHandler(ABC):
                 )
             else:
                 logger.info(
-                    "Updating run state", run_uid=run_uid, run_state=RunStates.absent
+                    "Updating run state", run_uid=run_uid, run_state=RunStates.error
                 )
-                run.setdefault("status", {})["state"] = RunStates.absent
+                run.setdefault("status", {})["state"] = RunStates.error
                 run.setdefault("status", {})["last_update"] = now.isoformat()
                 db.store_run(db_session, run, run_uid, project)
 

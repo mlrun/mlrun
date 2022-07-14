@@ -1,3 +1,4 @@
+(projects-workflows)=
 # Project workflows and automation
 
 A workflow is a definition of execution of functions. It defines the order of execution of multiple dependent steps in a  directed acyclic graph (DAG). A workflow 
@@ -5,14 +6,14 @@ can reference the project’s params, secrets, artifacts, etc. It can also use a
 input (which, of course, defines the order of execution).
 
 MLRun supports running workflows on a `local` or [`kubeflow`](https://www.kubeflow.org/docs/components/pipelines/overview/pipelines-overview/) pipeline engine. The `local` engine runs the workflow as a 
-local process, which is simpler for debuggimg and running simple/sequential tasks. The `kubeflow` ("kfp") engine runs as a task over the 
+local process, which is simpler for debugging and running simple/sequential tasks. The `kubeflow` ("kfp") engine runs as a task over the 
 cluster and supports more advanced operations (conditions, branches, etc.). You can select the engine at runtime. Kubeflow-specific
 directives like conditions and branches are not supported by the `local` engine.
 
 Workflows are saved/registered in the project using the {py:meth}`~mlrun.projects.MlrunProject.set_workflow`.  
 Workflows are executed using the {py:meth}`~mlrun.projects.MlrunProject.run` method or using the CLI command `mlrun project`.
 
-Refer to the [**tutorials section**](../tutorial/index.md) for complete examples.
+Refer to the [**tutorials section**](../howto/index.html) for complete examples.
 
 **In this section**
 * [Composing workflows](#composing-workflows)
@@ -138,7 +139,7 @@ or `workflow_path` (path to the workflow file) or `workflow_handler` (the workfl
 You can specify the input `arguments` for the workflow and can override the system default `artifact_path`.
 
 Workflows are asynchronous by default. You can set the `watch` flag to True and the run operation blocks until 
-completion and prints out the workflow progress. Alternatively you can use `.wait_for_completion()` on the run object.
+completion and prints out the workflow progress. Alternatively, you can use `.wait_for_completion()` on the run object.
 
 The default workflow engine is `kfp`. You can override it by specifying the `engine` in the `run()` or `set_workflow()` methods. 
 Using the `local` engine executes the workflow state machine locally (its functions still run as cluster jobs).

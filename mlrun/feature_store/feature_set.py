@@ -25,6 +25,7 @@ from ..config import config as mlconf
 from ..datastore import get_store_uri
 from ..datastore.targets import (
     TargetTypes,
+    convert_wasb_schema_to_az,
     default_target_names,
     get_offline_target,
     get_online_target,
@@ -253,6 +254,7 @@ class FeatureSet(ModelObj):
         entities: List[Union[Entity, str]] = None,
         timestamp_key: str = None,
         engine: str = None,
+        label_column: str = None,
     ):
         """Feature set object, defines a set of features and their data pipeline
 
@@ -267,6 +269,7 @@ class FeatureSet(ModelObj):
         :param entities:      list of entity (index key) names or :py:class:`~mlrun.features.FeatureSet.Entity`
         :param timestamp_key: timestamp column name
         :param engine:        name of the processing engine (storey, pandas, or spark), defaults to storey
+        :param label_column:  name of the label column (the one holding the target (y) values)
         """
         self._spec: FeatureSetSpec = None
         self._metadata = None
@@ -279,6 +282,7 @@ class FeatureSet(ModelObj):
             entities=entities,
             timestamp_key=timestamp_key,
             engine=engine,
+            label_column=label_column,
         )
 
         if timestamp_key in self.spec.entities.keys():
@@ -399,6 +403,10 @@ class FeatureSet(ModelObj):
                 )
             if not hasattr(target, "kind"):
                 target = DataTargetBase(target, name=str(target))
+            if target.path is not None and (
+                target.path.startswith("wasb") or target.path.startswith("wasbs")
+            ):
+                convert_wasb_schema_to_az(target)
             self.spec.targets.update(target)
         if default_final_step:
             self.spec.graph.final_step = default_final_step
@@ -599,7 +607,7 @@ class FeatureSet(ModelObj):
                            they cause errors in the ingestion.
         :param operations: aggregation operations, e.g. ['sum', 'std']
         :param windows:    time windows, can be a single window, e.g. '1h', '1d',
-                            or a list of same unit windows e.g ['1h', '6h']
+                            or a list of same unit windows e.g. ['1h', '6h']
                             windows are transformed to fixed windows or
                             sliding windows depending whether period parameter
                             provided.
@@ -617,7 +625,7 @@ class FeatureSet(ModelObj):
                               to a specific window. It is processed only once
                               (when the query processes the window to which the record belongs).
         :param period:     optional, sliding window granularity, e.g. '20s' '10m'  '3h' '7d'
-        :param name:       optional, aggregation name/prefix. Must be unique per feature set.If not passed,
+        :param name:       optional, aggregation name/prefix. Must be unique per feature set. If not passed,
                             the column will be used as name.
         :param step_name: optional, graph step name
         :param state_name: *Deprecated* - use step_name instead

@@ -1,4 +1,5 @@
-# Installing MLRun on a Kubernetes Cluster
+(install-on-kubernetes)=
+# Install MLRun on a Kubernetes Cluster
 
 **In this section**
 - [Prerequisites](#prerequisites)

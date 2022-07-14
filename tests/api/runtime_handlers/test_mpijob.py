@@ -13,6 +13,7 @@ from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
     def custom_setup(self):
+        self.kind = RuntimeKinds.mpijob
         self.runtime_handler = get_runtime_handler(RuntimeKinds.mpijob)
         self.runtime_handler.wait_for_deletion_interval = 0
 
@@ -328,6 +329,12 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             [[self.launcher_pod, self.worker_pod]]
         )
         return mocked_responses[0].items
+
+    def _generate_get_logger_pods_label_selector(self, runtime_handler):
+        logger_pods_label_selector = super()._generate_get_logger_pods_label_selector(
+            runtime_handler
+        )
+        return f"{logger_pods_label_selector},mpi-job-role=launcher"
 
     @staticmethod
     def _generate_mpijob_crd(project, uid, status=None):

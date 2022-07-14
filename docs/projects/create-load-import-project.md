@@ -12,6 +12,10 @@ There are three ways to create/load a `project` object:
 
 Projects can also be loaded and workflows/pipelines can be executed using the CLI (using the `mlrun project` command).
 
+```{admonition} Note
+Data-access permissions are given to the original creator of files. If you transfer ownership on a project to a user in a different user group, then you must give the new owner the relevant permissions on the data files and folders of the project (by modifying the POSIX permissions in the file-system on the project files if possible). Otherwise, the user will not be able to work with the project data.
+```
+
 **In this section**
 - [Creating a new project](#creating-a-new-project)
 - [Load and run projects from context, git or archive](#load-and-run-projects-from-context-git-or-archive)
@@ -43,7 +47,7 @@ The `context` dir holds the configuration, code, and workflow files. File paths 
 ```
 
 
-When projects are saved a `project.yaml` file with project definitions is written to the `context` dir. Alternatively you
+When projects are saved a `project.yaml` file with project definitions is written to the `context` dir. Alternatively, you
 can manually create the `project.yaml` file and load it using `load_project()` or the `from_template` parameter.
 The generated `project.yaml` for the above project looks like:
 
@@ -90,7 +94,7 @@ Example of creating a new project from a zip template:
 
 ```{admonition} Note
 * Projects are visible in the MLRun dashboard only after they're saved to the MLRun database (with `.save()`) or after the workflows are executed (with `.run()`).
-* You can ensure the project name is unique per user by setting the the `user_project` parameter to `True`.
+* You can ensure the project name is unique per user by setting the `user_project` parameter to `True`.
 ```
 
 ## Load and run projects from context, git or archive

@@ -43,8 +43,6 @@ env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
 _load_lock = Lock()
 _none_type = type(None)
-
-
 default_config = {
     "namespace": "",  # default kubernetes namespace
     "dbpath": "",  # db/api url
@@ -287,6 +285,16 @@ default_config = {
             "kaniko_init_container_image": "alpine:3.13.1",
             # image for kaniko init container when docker registry is ECR
             "kaniko_aws_cli_image": "amazon/aws-cli:2.7.10",
+            "kaniko_security_context": {
+
+                # fill these to override the kaniko builder security context
+                # "fs_group": 1000,
+                # "run_as_user": 1000,
+                # "run_as_group": 1000,
+
+                # security profile to use for the builder to gain access to docker daemon when rootless
+                # "seccomp_profile": "runtime/default",
+            },
             # additional docker build args in json encoded base64 format
             "build_args": "",
             "pip_ca_secret_name": "",
@@ -383,6 +391,8 @@ default_config = {
         "tolerations": "W10=",
     },
 }
+
+
 
 
 class Config:

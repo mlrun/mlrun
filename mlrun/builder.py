@@ -81,6 +81,7 @@ def make_kaniko_pod(
     builder_env=None,
     runtime_spec=None,
     registry=None,
+    security_context=None,
 ):
     extra_runtime_spec = {}
     if not registry:
@@ -132,6 +133,7 @@ def make_kaniko_pod(
         project=project,
         default_pod_spec_attributes=extra_runtime_spec,
         resources=resources,
+        security_context=security_context,
     )
     kpod.env = builder_env
 
@@ -272,6 +274,7 @@ def build_image(
     builder_env=None,
     client_version=None,
     runtime_spec=None,
+    builder_security_context=None,
 ):
     builder_env = builder_env or {}
     if registry:
@@ -364,6 +367,7 @@ def build_image(
         builder_env=builder_env,
         runtime_spec=runtime_spec,
         registry=registry,
+        security_context=builder_security_context,
     )
 
     if to_mount:

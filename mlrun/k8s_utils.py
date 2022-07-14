@@ -505,6 +505,7 @@ class BasePod:
         project=None,
         default_pod_spec_attributes=None,
         resources=None,
+        security_context=None,
     ):
         self.namespace = namespace
         self.name = ""
@@ -527,6 +528,12 @@ class BasePod:
         # will be applied on the pod spec only when calling .pod(), allows to override spec attributes
         self.default_pod_spec_attributes = default_pod_spec_attributes
         self.resources = resources
+
+        # if security context is not provided, use the default one.
+        # if default security context is empty, use None.
+        self.security_context = (
+            security_context or mlconfig.builder.kaniko_security_context or None
+        )
 
     @property
     def pod(self):
@@ -638,6 +645,7 @@ class BasePod:
             restart_policy="Never",
             volumes=self._volumes,
             node_selector=self.node_selector,
+            security_context=self.security_context,
         )
 
         # if attribute isn't defined use default pod spec attributes

@@ -52,6 +52,7 @@
    :maxdepth: 1
    :caption: Model serving
 
+   serving/model-serving-get-started
    serving/custom-model-serving-class
    <!--- Model server marketplace function --->
    <!--- Model serving pipeline --->

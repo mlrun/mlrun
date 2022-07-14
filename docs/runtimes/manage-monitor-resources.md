@@ -1,3 +1,4 @@
+(manage-monitor-resources)=
 # Manage and monitor resoures
 
 ## Auto scaling

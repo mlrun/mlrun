@@ -1,3 +1,4 @@
+(graph-ha-cfg)=
 # Serving graph high availability configuration
 
 This figure illustrates a simplistic flow of an MLRun serving graph with remote invocation:

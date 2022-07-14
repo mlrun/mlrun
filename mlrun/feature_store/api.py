@@ -863,7 +863,7 @@ def _ingest_with_spark(
         if created_spark_context:
             spark.stop()
             # We shouldn't return a dataframe that depends on a stopped context
-            return
+            df = None
     return df
 
 

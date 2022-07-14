@@ -7,11 +7,12 @@ from torch.utils.data import DataLoader
 
 import mlrun
 
-from .callbacks import Callback, MetricFunctionType, MetricValueType
+from .callbacks import Callback
 from .callbacks_handler import CallbacksHandler
 from .mlrun_interface import PyTorchMLRunInterface
 from .model_handler import PyTorchModelHandler
 from .model_server import PyTorchModelServer
+from .utils import PyTorchTypes, PyTorchUtils
 
 
 def train(
@@ -20,7 +21,7 @@ def train(
     loss_function: Module,
     optimizer: Optimizer,
     validation_set: DataLoader = None,
-    metric_functions: List[MetricFunctionType] = None,
+    metric_functions: List[PyTorchTypes.MetricFunctionType] = None,
     scheduler=None,
     scheduler_step_frequency: Union[int, float, str] = "epoch",
     epochs: int = 1,
@@ -190,7 +191,7 @@ def evaluate(
     dataset: DataLoader,
     model: Module = None,
     loss_function: Module = None,
-    metric_functions: List[MetricFunctionType] = None,
+    metric_functions: List[PyTorchTypes.MetricFunctionType] = None,
     iterations: int = None,
     callbacks_list: List[Callback] = None,
     use_cuda: bool = True,
@@ -202,7 +203,7 @@ def evaluate(
     custom_objects_directory: str = None,
     mlrun_callback_kwargs: Dict[str, Any] = None,
     context: mlrun.MLClientCtx = None,
-) -> Tuple[PyTorchModelHandler, List[MetricValueType]]:
+) -> Tuple[PyTorchModelHandler, List[PyTorchTypes.MetricValueType]]:
     """
     Use MLRun's PyTorch interface to evaluate the model with the given parameters. For more information and further
     options regarding the auto logging, see 'PyTorchMLRunInterface' documentation. Notice for auto-logging: In order to

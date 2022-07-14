@@ -4,10 +4,10 @@ from typing import Callable, Dict, List, Tuple, Type, Union
 import mlrun
 from mlrun.artifacts import get_model
 
-from .._common import ModelHandler, ModelType
+from .._common import CommonTypes, ModelHandler
 
 
-def get_framework_by_instance(model: ModelType) -> str:
+def get_framework_by_instance(model: CommonTypes.ModelType) -> str:
     """
     Get the framework name of the given model by its instance.
 
@@ -103,7 +103,7 @@ def get_framework_by_instance(model: ModelType) -> str:
     )
 
 
-def get_framework_by_class_name(model: ModelType) -> str:
+def get_framework_by_class_name(model: CommonTypes.ModelType) -> str:
     """
     Get the framework name of the given model by its class name.
 
@@ -247,7 +247,7 @@ class AutoMLRun:
 
     @staticmethod
     def _get_framework(
-        model: ModelType = None, model_path: str = None
+        model: CommonTypes.ModelType = None, model_path: str = None
     ) -> Union[Tuple[str, dict]]:
         """
         Try to get the framework from the model or model path provided. The framework can be read from the model path
@@ -397,7 +397,7 @@ class AutoMLRun:
 
     @staticmethod
     def apply_mlrun(
-        model: ModelType = None,
+        model: CommonTypes.ModelType = None,
         model_name: str = None,
         tag: str = "",
         model_path: str = None,

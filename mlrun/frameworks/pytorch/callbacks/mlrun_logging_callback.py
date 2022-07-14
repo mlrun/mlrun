@@ -6,9 +6,10 @@ from torch import Tensor
 import mlrun
 from mlrun.artifacts import Artifact
 
-from ..._common import TrackableType
-from ..._dl_common.loggers import LoggerMode, MLRunLogger
+from ..._common import LoggingMode
+from ..._dl_common.loggers import MLRunLogger
 from ..model_handler import PyTorchModelHandler
+from ..utils import PyTorchTypes
 from .logging_callback import LoggingCallback
 
 
@@ -38,14 +39,20 @@ class MLRunLoggingCallback(LoggingCallback):
         context: mlrun.MLClientCtx,
         model_handler: PyTorchModelHandler,
         log_model_tag: str = "",
-        log_model_labels: Dict[str, TrackableType] = None,
-        log_model_parameters: Dict[str, TrackableType] = None,
-        log_model_extra_data: Dict[str, Union[TrackableType, Artifact]] = None,
+        log_model_labels: Dict[str, PyTorchTypes.TrackableType] = None,
+        log_model_parameters: Dict[str, PyTorchTypes.TrackableType] = None,
+        log_model_extra_data: Dict[
+            str, Union[PyTorchTypes.TrackableType, Artifact]
+        ] = None,
         dynamic_hyperparameters: Dict[
-            str, Tuple[str, Union[List[Union[str, int]], Callable[[], TrackableType]]]
+            str,
+            Tuple[
+                str,
+                Union[List[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
+            ],
         ] = None,
         static_hyperparameters: Dict[
-            str, Union[TrackableType, Tuple[str, List[Union[str, int]]]]
+            str, Union[PyTorchTypes.TrackableType, Tuple[str, List[Union[str, int]]]]
         ] = None,
         auto_log: bool = False,
     ):
@@ -114,7 +121,7 @@ class MLRunLoggingCallback(LoggingCallback):
         Before the run ends, this method will be called to log the model and the run summaries charts.
         """
         # Check if the logger is in evaluation mode, if so, log the last epoch
-        if self._logger.mode == LoggerMode.EVALUATION:
+        if self._logger.mode == LoggingMode.EVALUATION:
             self._logger.log_epoch_to_context(epoch=1)
 
         # Set the inputs and outputs:

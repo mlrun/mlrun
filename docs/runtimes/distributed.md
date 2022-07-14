@@ -1,4 +1,4 @@
-
+(distributed-functions)=
 # Distributed Functions
 
 Many of the runtimes support horizontal scaling. You can specify the number of `replicas` or the 

@@ -1,3 +1,4 @@
+(projects-workflows)=
 # Project workflows and automation
 
 A workflow is a definition of execution of functions. It defines the order of execution of multiple dependent steps in a  directed acyclic graph (DAG). A workflow 

@@ -133,25 +133,25 @@ jobs:
       if: ${{ steps.git_info.outputs.branch != '0.5.x' }}
       run: |
         export google_big_query_credentials_json_path="/home/runner/work/mlrun/mlrun/tests/system/google-big-query-credentials.json"
-        echo  ${{ secrets.V06_MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON }} > "$google_big_query_credentials_json_path"
+        echo  ${{ secrets.LATEST_MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON }} > "$google_big_query_credentials_json_path"
     - name: Prepare System Test env.yaml and 0.6.x system
       if: ${{ steps.git_info.outputs.branch != '0.5.x' }}
       timeout-minutes: 20
       run: |
         python automation/system_test/prepare.py run \
           "${{ steps.computed_params.outputs.mlrun_version }}" \
-          "${{ secrets.V06_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
-          "${{ secrets.V06_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
-          "${{ secrets.V06_SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }}" \
           "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
-          "${{ secrets.V06_SYSTEM_TEST_MLRUN_DB_PATH }}" \
-          "${{ secrets.V06_SYSTEM_TEST_WEBAPI_DIRECT_URL }}" \
-          "${{ secrets.V06_SYSTEM_TEST_FRAMESD_URL }}" \
-          "${{ secrets.V06_SYSTEM_TEST_USERNAME }}" \
-          "${{ secrets.V06_SYSTEM_TEST_ACCESS_KEY }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_MLRUN_DB_PATH }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_WEBAPI_DIRECT_URL }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_FRAMESD_URL }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_USERNAME }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
           "${{ steps.computed_params.outputs.iguazio_version }}" \
-          "${{ secrets.V06_SYSTEM_TEST_SPARK_SERVICE }}" \
-          "${{ secrets.V06_SYSTEM_TEST_PASSWORD }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_SPARK_SERVICE }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_PASSWORD }}" \
           --mlrun-commit "${{ steps.computed_params.outputs.mlrun_hash }}" \
           --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
           --override-image-repo ${{ steps.computed_params.outputs.mlrun_docker_repo }} \

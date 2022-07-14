@@ -220,7 +220,7 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
                     pod_template,
                     "spec.securityContext",
                     mlrun.runtimes.pod.get_sanitized_attribute(
-                        self.spec.security_context, "security_context"
+                        self.spec, "security_context"
                     ),
                 )
             update_in(pod_template, "metadata.labels", pod_labels)

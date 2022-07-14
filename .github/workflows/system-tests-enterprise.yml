@@ -179,7 +179,8 @@ jobs:
 
   run-enterprise-system-tests:
     needs: prepare-enterprise-system
-    timeout-minutes: 360
+    # When increasing the timeout make sure it's not larger than the schedule cron interval
+    timeout-minutes: 480
     name: Run Enterprise System Tests
     runs-on: ubuntu-latest
     strategy:

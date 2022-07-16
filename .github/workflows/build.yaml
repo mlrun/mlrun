@@ -109,7 +109,7 @@ jobs:
             MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
             MLRUN_UPDATE_SECURITY_FIXES=${{ github.event.inputs.pull_latest_security_fixes }} \
             MLRUN_PUSH_DOCKER_CACHE_IMAGE="true" \
-            make ${{ matrix.image-name }}; \
+            make push-${{ matrix.image-name }}; \
           done;
 
     - name: Build and push unstable tag

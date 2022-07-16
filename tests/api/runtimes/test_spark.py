@@ -107,7 +107,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         if expected_driver_security_context:
             assert (
                 deepdiff.DeepDiff(
-                    body["spec"]["driver"]["podSecurityContext"],
+                    body["spec"]["driver"]["securityContext"],
                     expected_driver_security_context,
                     ignore_order=True,
                 )
@@ -117,7 +117,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         if expected_executor_security_context:
             assert (
                 deepdiff.DeepDiff(
-                    body["spec"]["executor"]["podSecurityContext"],
+                    body["spec"]["executor"]["securityContext"],
                     expected_executor_security_context,
                     ignore_order=True,
                 )

@@ -107,7 +107,7 @@ jobs:
             MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
             MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
             MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-            MLRUN_DOCKER_NO_CACHE_SECURITY_FLAG=${{ github.event.inputs.pull_latest_security_fixes }} \
+            MLRUN_UPDATE_SECURITY_FIXES=${{ github.event.inputs.pull_latest_security_fixes }} \
             MLRUN_PUSH_DOCKER_CACHE_IMAGE="true" \
             make ${{ matrix.image-name }}; \
           done;

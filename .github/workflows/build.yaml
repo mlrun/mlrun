@@ -25,6 +25,10 @@ on:
         description: 'Comma separated list of images to skip building, example with all possible images: mlrun,api,base,models,models-gpu,jupyter,test'
         required: false
         default: ''
+      pull_latest_security_fixes:
+        description: 'Whether to force cache misses and get the most recent security updates, the default is no because doing so significantly increases build time (set any character to force this action)'
+        required: false
+        default: ''
 jobs:
   matrix_prep:
     runs-on: ubuntu-latest
@@ -103,35 +107,36 @@ jobs:
             MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
             MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
             MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+            MLRUN_DOCKER_NO_CACHE_SECURITY_FLAG=${{ github.event.inputs.pull_latest_security_fixes }} \
             MLRUN_PUSH_DOCKER_CACHE_IMAGE="true" \
-            make push-${{ matrix.image-name }}; \
+            make ${{ matrix.image-name }}; \
           done;
 
-    - name: Build and push unstable tag
-
-      # we don't need to have unstable tag for the test image
-      # And we don't need to run this when triggered manually (workflow dispatch)
-      if: matrix.image-name != 'test' && github.event_name != 'workflow_dispatch' && github.ref_name == 'development'
-      run: |
-        for registry in "ghcr.io/" "quay.io/" "registry.hub.docker.com/"; \
-          do \
-            MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
-            MLRUN_DOCKER_REGISTRY=$registry \
-            MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
-            MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
-            MLRUN_VERSION=unstable \
-            MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-            make push-${{ matrix.image-name }}; \
-          done;
-    - name: Pull cache, build and push test image
-      # When version is given we're probably in a release process, we don't need the test image in that case
-      if: matrix.image-name == 'test' && github.event.inputs.version == ''
-      run: |
-        MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
-        MLRUN_DOCKER_REGISTRY=ghcr.io/ \
-        MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
-        MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
-        MLRUN_VERSION=${{ steps.docker_cache.outputs.tag }} \
-        MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-        MLRUN_PUSH_DOCKER_CACHE_IMAGE=true \
-        make push-${{ matrix.image-name }}
+#    - name: Build and push unstable tag
+#
+#      # we don't need to have unstable tag for the test image
+#      # And we don't need to run this when triggered manually (workflow dispatch)
+#      if: matrix.image-name != 'test' && github.event_name != 'workflow_dispatch' && github.ref_name == 'development'
+#      run: |
+#        for registry in "ghcr.io/" "quay.io/" "registry.hub.docker.com/"; \
+#          do \
+#            MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
+#            MLRUN_DOCKER_REGISTRY=$registry \
+#            MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
+#            MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
+#            MLRUN_VERSION=unstable \
+#            MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+#            make push-${{ matrix.image-name }}; \
+#          done;
+#    - name: Pull cache, build and push test image
+#      # When version is given we're probably in a release process, we don't need the test image in that case
+#      if: matrix.image-name == 'test' && github.event.inputs.version == ''
+#      run: |
+#        MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
+#        MLRUN_DOCKER_REGISTRY=ghcr.io/ \
+#        MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
+#        MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
+#        MLRUN_VERSION=${{ steps.docker_cache.outputs.tag }} \
+#        MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+#        MLRUN_PUSH_DOCKER_CACHE_IMAGE=true \
+#        make push-${{ matrix.image-name }}

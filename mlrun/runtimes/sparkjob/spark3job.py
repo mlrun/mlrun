@@ -641,7 +641,7 @@ class Spark3Runtime(AbstractSparkRuntime):
         Use with_driver_security_context / with_executor_security_context to setup security_context for spark operator
         """
         raise mlrun.errors.MLRunInvalidArgumentTypeError(
-            "with_security_context is not supported use with_driver_security_context / with_executor_security_context"
+            "with_security_context is not supported, use with_driver_security_context / with_executor_security_context"
             " to set security context for spark operator"
         )
 

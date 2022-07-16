@@ -1049,13 +1049,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
 
         function = self._generate_runtime(self.runtime_kind)
-        other_security_context_dict = {
-            "runAsUser": 2000,
-            "runAsGroup": 2000,
-        }
         other_security_context = self._generate_security_context(
-            other_security_context_dict["runAsUser"],
-            other_security_context_dict["runAsGroup"],
+            2000,
+            2000,
         )
 
         function.with_security_context(other_security_context)
@@ -1068,11 +1064,11 @@ class TestNuclioRuntime(TestRuntimeBase):
         deploy_spec = args[0]["spec"]
         assert (
             deploy_spec["securityContext"]["runAsUser"]
-            == other_security_context_dict["runAsUser"]
+            == other_security_context.run_as_user
         )
         assert (
             deploy_spec["securityContext"]["runAsGroup"]
-            == other_security_context_dict["runAsGroup"]
+            == other_security_context.run_as_group
         )
 
 

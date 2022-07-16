@@ -248,9 +248,9 @@ class KubeResourceSpec(FunctionSpec):
         )
 
     def to_dict(self, fields=None, exclude=None):
-        struct = super().to_dict(
-            fields, exclude=["affinity", "tolerations", "security_context"]
-        )
+        exclude = exclude or []
+        exclude = list(set(exclude + ["affinity", "tolerations", "security_context"]))
+        struct = super().to_dict(fields, exclude=exclude)
         api = k8s_client.ApiClient()
         struct["affinity"] = api.sanitize_for_serialization(self.affinity)
         struct["tolerations"] = api.sanitize_for_serialization(self.tolerations)

@@ -285,7 +285,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         )
 
     @property
-    def executor_security_context(self) -> kubernetes.client.V1SecurityContext:
+    def executor_security_context(self) -> kubernetes.client.V1PodSecurityContext:
         return self._executor_security_context
 
     @executor_security_context.setter
@@ -297,7 +297,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         )
 
     @property
-    def driver_security_context(self) -> kubernetes.client.V1SecurityContext:
+    def driver_security_context(self) -> kubernetes.client.V1PodSecurityContext:
         return self._driver_security_context
 
     @driver_security_context.setter
@@ -418,12 +418,12 @@ class Spark3Runtime(AbstractSparkRuntime):
 
         if self.spec.driver_security_context:
             update_in(
-                job, "spec.driver.securityContext", self.spec.driver_security_context
+                job, "spec.driver.podSecurityContext", self.spec.driver_security_context
             )
         if self.spec.executor_security_context:
             update_in(
                 job,
-                "spec.executor.securityContext",
+                "spec.executor.podSecurityContext",
                 self.spec.executor_security_context,
             )
 
@@ -646,7 +646,7 @@ class Spark3Runtime(AbstractSparkRuntime):
         )
 
     def with_driver_security_context(
-        self, security_context: kubernetes.client.V1SecurityContext
+        self, security_context: kubernetes.client.V1PodSecurityContext
     ):
         """
         Set security context for driver pod
@@ -658,7 +658,7 @@ class Spark3Runtime(AbstractSparkRuntime):
         self.spec.driver_security_context = security_context
 
     def with_executor_security_context(
-        self, security_context: kubernetes.client.V1SecurityContext
+        self, security_context: kubernetes.client.V1PodSecurityContext
     ):
         """
         Set security context for executor pod

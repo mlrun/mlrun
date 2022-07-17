@@ -1011,7 +1011,9 @@ class ParallelRun(BaseModelRouter):
             # create a function with a parallel router and 3 children
             fn = mlrun.new_function("parallel", kind="serving")
             graph = fn.set_topology(
-                "router", "ParallelRun", extend_event=True, executor_type="process")
+                "router",
+                mlrun.serving.routers.ParallelRun(extend_event=True, executor_type=executor),
+            )
             graph.add_route("child1", class_name="Cls1")
             graph.add_route("child2", class_name="Cls2", my_arg={"c": 7})
             graph.add_route("child3", handler="my_handler")

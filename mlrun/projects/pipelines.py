@@ -682,7 +682,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:1.0.15",
+                image="yonishelach/mlrun-remote-runner:1.0.16",
             )
 
             msg = "executing workflow "
@@ -857,4 +857,7 @@ def load_and_run(
     context.commit()
 
     if watch:
+        print("-" * 30)
+        print(f"timeout = {timeout}, watch = {watch}, engine = {type(run._engine)}")
+        print("-" * 30)
         run._engine.get_run_status(project=project, run=run, timeout=timeout)

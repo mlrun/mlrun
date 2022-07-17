@@ -1086,9 +1086,9 @@ class ParallelRun(BaseModelRouter):
     def merger(self, body, results):
         """Merging logic
 
-        input the event body and a list of route results and returns a dict with merged results
+        input the event body and a dict of route results and returns a dict with merged results
         """
-        for result in results:
+        for result in results.values():
             body.update(result)
         return body
 
@@ -1124,24 +1124,26 @@ class ParallelRun(BaseModelRouter):
 
     def _parallel_run(self, event):
         futures = []
-        results = []
+        results = {}
         executor = self._init_pool()
         for route in self.routes.keys():
             if self.executor_type == "process":
                 future = executor.submit(_wrap_step, route, copy.copy(event))
             else:
                 step = self.routes[route]
-                future = executor.submit(step.run, copy.copy(event))
+                future = executor.submit(
+                    _wrap_method, route, step.run, copy.copy(event)
+                )
 
             futures.append(future)
 
         for future in concurrent.futures.as_completed(futures):
             try:
-                results.append(future.result())
+                key, result = future.result()
+                results[key] = result.body
             except Exception as exc:
                 logger.error(traceback.format_exc())
                 print(f"child route generated an exception: {exc}")
-        results = [event.body for event in results]
         self.context.logger.debug(f"Collected results from children: {results}")
         return results
 
@@ -1158,4 +1160,8 @@ def init_pool(server_spec, routes):
 
 
 def _wrap_step(route, event):
-    return local_routes[route].run(event)
+    return route, local_routes[route].run(event)
+
+
+def _wrap_method(route, handler, event):
+    return route, handler(event)

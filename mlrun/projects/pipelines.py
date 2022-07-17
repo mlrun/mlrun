@@ -623,7 +623,7 @@ class _LocalRunner(_PipelineRunner):
                 f"Workflow {workflow_id} run failed!, error: {e}\n{trace}"
             )
             state = mlrun.run.RunStatuses.failed
-
+        # todo: THIS IS PREVENTING FROM REMOTE PIPELINE WITH LOCAL ENGINE TO FINISH THE PROCESS WITH watch = FALSE
         mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
         project.notifiers.push_run_results(
             pipeline_context.runs_map.values(), state=state
@@ -682,7 +682,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:1.0.14",
+                image="yonishelach/mlrun-remote-runner:1.0.15",
             )
 
             msg = "executing workflow "
@@ -691,7 +691,9 @@ class _RemoteRunner(_PipelineRunner):
             logger.info(
                 f"{msg}'{runner_name}' remotely with {workflow_spec.engine} engine"
             )
-
+            print("-" * 30)
+            print(f"timeout = {timeout}, watch = {watch}")
+            print("-" * 30)
             run = load_and_run_fn.run(
                 name=workflow_name,
                 params={
@@ -711,6 +713,7 @@ class _RemoteRunner(_PipelineRunner):
                 },
                 handler="mlrun.projects.load_and_run",
                 local=False,
+                watch=watch,
                 schedule=schedule,
             )
             if schedule:
@@ -752,12 +755,11 @@ class _RemoteRunner(_PipelineRunner):
     @staticmethod
     def get_run_status(
         project,
-        run,  # type: _PipelineRunStatus
+        run,
         timeout=None,
         expected_statuses=None,
         notifiers: RunNotifications = None,
     ):
-        # run.wait_for_completion(timeout=timeout)
         pass
 
 
@@ -855,4 +857,4 @@ def load_and_run(
     context.commit()
 
     if watch:
-        run.wait_for_completion(timeout=timeout)
+        run._engine.get_run_status(project=project, run=run, timeout=timeout)

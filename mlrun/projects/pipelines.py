@@ -74,18 +74,17 @@ class WorkflowSpec(mlrun.model.ModelObj):
         handler=None,
         ttl=None,
         args_schema: dict = None,
-        run_local: bool = None,
         schedule: str = None,
     ):
-        self.name = name
-        self.path = path
         self.engine = engine
         self.code = code
+        self.path = path
+        self.name = name
         self.args = args
         self.handler = handler
         self.ttl = ttl
         self.args_schema = args_schema
-        self.run_local = run_local
+        self.run_local = False
         self._tmp_path = None
         self.schedule = schedule
 
@@ -622,7 +621,6 @@ class _LocalRunner(_PipelineRunner):
                 f"Workflow {workflow_id} run failed!, error: {e}\n{trace}"
             )
             state = mlrun.run.RunStatuses.failed
-        # todo: THIS IS PREVENTING FROM REMOTE PIPELINE WITH LOCAL ENGINE TO FINISH THE PROCESS WITH watch = FALSE
         mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
         project.notifiers.push_run_results(
             pipeline_context.runs_map.values(), state=state
@@ -680,8 +678,8 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                # TODO: set image to mlrun/mlrun After merged to development
-                image="yonishelach/mlrun-remote-runner:1.0.18",
+                # TODO: Remove image After merged to development
+                image="yonishelach/mlrun-remote-runner-tmp",
             )
 
             msg = "executing workflow "

@@ -575,6 +575,126 @@ def test_build_runtime_ecr_with_aws_secret(monkeypatch):
         pytest.fail("no create-repo init container")
 
 
+@pytest.mark.parametrize(
+    "dest,registry,default_repository,expected_dest",
+    [
+        (
+            "test-image",
+            None,
+            None,
+            "test-image",
+        ),
+        (
+            "test-image",
+            "test-registry",
+            None,
+            "test-registry/test-image",
+        ),
+        (
+            "test-image",
+            "test-registry/test-repository",
+            None,
+            "test-registry/test-repository/test-image",
+        ),
+        (
+            ".test-image",
+            None,
+            "default.docker.registry/default-repository",
+            "default.docker.registry/default-repository/test-image",
+        ),
+        (
+            ".test-image",
+            None,
+            "default.docker.registry",
+            "default.docker.registry/test-image",
+        ),
+    ],
+)
+def test_get_image_dest(dest, registry, default_repository, expected_dest, monkeypatch):
+    docker_registry_secret = "default-docker-registry-secret"
+    monkeypatch.setattr(config.httpdb.builder, "docker_registry", default_repository)
+    monkeypatch.setattr(
+        config.httpdb.builder, "docker_registry_secret", docker_registry_secret
+    )
+    dest, _ = mlrun.builder._get_image_dest_and_registry_secret(dest, registry)
+    assert dest == expected_dest
+
+
+@pytest.mark.parametrize(
+    "dest,registry,secret_name,default_secret_name,expected_secret_name",
+    [
+        (
+            "test-image",
+            None,
+            None,
+            "default-secret-name",
+            None,
+        ),
+        (
+            "test-image",
+            None,
+            "test-secret-name",
+            "default-secret-name",
+            "test-secret-name",
+        ),
+        (
+            "test-image",
+            "test-registry",
+            None,
+            "default-secret-name",
+            None,
+        ),
+        (
+            "test-image",
+            "test-registry",
+            "test-secret-name",
+            "default-secret-name",
+            "test-secret-name",
+        ),
+        (
+            ".test-image",
+            None,
+            None,
+            "default-secret-name",
+            "default-secret-name",
+        ),
+        (
+            ".test-image",
+            None,
+            "test-secret-name",
+            "default-secret-name",
+            "test-secret-name",
+        ),
+        (
+            ".test-image",
+            None,
+            "test-secret-name",
+            None,
+            "test-secret-name",
+        ),
+        (
+            ".test-image",
+            None,
+            None,
+            None,
+            None,
+        ),
+    ],
+)
+def test_get_registry_secret(
+    dest, registry, secret_name, default_secret_name, expected_secret_name, monkeypatch
+):
+    docker_registry = "default.docker.registry/default-repository"
+    monkeypatch.setattr(config.httpdb.builder, "docker_registry", docker_registry)
+    monkeypatch.setattr(
+        config.httpdb.builder, "docker_registry_secret", default_secret_name
+    )
+    _, secret_name = mlrun.builder._get_image_dest_and_registry_secret(
+        dest, registry, secret_name
+    )
+    assert secret_name == expected_secret_name
+
+
 def _get_target_image_from_create_pod_mock():
     return _create_pod_mock_pod_spec().containers[0].args[5]
 

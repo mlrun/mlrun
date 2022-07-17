@@ -274,21 +274,7 @@ def build_image(
     runtime_spec=None,
 ):
     builder_env = builder_env or {}
-    if registry:
-        dest = "/".join([registry, dest])
-    elif dest.startswith(IMAGE_NAME_ENRICH_REGISTRY_PREFIX):
-        dest = dest[1:]
-        registry, repository = get_parsed_docker_registry()
-        secret_name = secret_name or config.httpdb.builder.docker_registry_secret
-        if not registry:
-            raise ValueError(
-                "Default docker registry is not defined, set "
-                "MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY/MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY_SECRET env vars"
-            )
-        if repository:
-            dest = "/".join([registry, repository, dest])
-        else:
-            dest = "/".join([registry, dest])
+    dest, secret_name = _get_image_dest_and_registry_secret(dest, registry, secret_name)
 
     if isinstance(requirements, list):
         requirements_list = requirements
@@ -541,3 +527,30 @@ def _generate_builder_env(project, builder_env):
     for key, value in builder_env.items():
         env.append(client.V1EnvVar(name=key, value=value))
     return env
+
+
+def _get_image_dest_and_registry_secret(
+    dest: str, registry: str = None, secret_name: str = None
+) -> (str, str):
+    if registry:
+        return "/".join([registry, dest]), secret_name
+
+    if dest.startswith(IMAGE_NAME_ENRICH_REGISTRY_PREFIX):
+
+        # remove prefix from image name
+        dest = dest[len(IMAGE_NAME_ENRICH_REGISTRY_PREFIX) :]
+
+        registry, repository = get_parsed_docker_registry()
+        secret_name = secret_name or config.httpdb.builder.docker_registry_secret
+        if not registry:
+            raise ValueError(
+                "Default docker registry is not defined, set "
+                "MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY/MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY_SECRET env vars"
+            )
+        dest_components = [registry, dest]
+        if repository:
+            dest_components = [registry, repository, dest]
+
+        return "/".join(dest_components), secret_name
+
+    return dest, secret_name

@@ -116,7 +116,6 @@ class TestDaskRuntime(TestRuntimeBase):
         security_context=None,
     ):
         pod = self._get_pod_creation_args()
-        # doesn't need a special case because the default it to be set with default security context
         assert pod.spec.security_context == (security_context or {})
 
     def test_dask_runtime(self, db: Session, client: TestClient):

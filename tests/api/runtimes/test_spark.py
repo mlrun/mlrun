@@ -158,9 +158,8 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         assert actual["gpu"]["name"] == expected["gpu_type"]
         assert actual["gpu"]["quantity"] == expected["gpus"]
 
-    def assert_security_context(
+    def _assert_security_context(
         self,
-        security_context=None,
         expected_driver_security_context=None,
         expected_executor_security_context=None,
     ):
@@ -259,7 +258,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         self.execute_function(runtime)
 
         # both should default to empty security context
-        self.assert_security_context()
+        self._assert_security_context()
 
         default_security_context_dict = {
             "runAsUser": 1000,
@@ -281,7 +280,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         self.execute_function(runtime)
 
         # both should default to driver_security_context
-        self.assert_security_context(
+        self._assert_security_context(
             expected_driver_security_context=default_security_context,
             expected_executor_security_context=default_security_context,
         )
@@ -303,7 +302,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         runtime.with_driver_security_context(driver_security_context)
 
         self.execute_function(runtime)
-        self.assert_security_context(
+        self._assert_security_context(
             expected_driver_security_context=driver_security_context,
             expected_executor_security_context=executor_security_context,
         )

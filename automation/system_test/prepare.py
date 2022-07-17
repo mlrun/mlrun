@@ -1,4 +1,5 @@
 import json
+import logging
 import pathlib
 import subprocess
 import sys
@@ -13,6 +14,7 @@ import yaml
 import mlrun.utils
 
 logger = mlrun.utils.create_logger(level="debug", name="automation")
+logging.getLogger("paramiko").setLevel(1)
 
 
 class SystemTestPreparer:

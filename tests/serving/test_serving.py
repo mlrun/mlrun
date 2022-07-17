@@ -295,7 +295,7 @@ def test_v2_explain():
 
 
 def test_v2_get_modelmeta():
-    project = mlrun.new_project("tstsrv")
+    project = mlrun.new_project("tstsrv", save=False)
     fn = mlrun.new_function("tst", kind="serving")
     model_uri = _log_model(project)
     print(model_uri)

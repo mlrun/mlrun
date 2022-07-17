@@ -6,10 +6,10 @@
 - [Storage credentials and parameters](#storage-credentials-and-parameters)
    - [v3io](#v3io)
    - [S3](#s3)
-   - [Azure Blob storage](#azureblob-storage)
+   - [Azure Blob storage](#azure-blob-storage)
    - [Google cloud storage](#google-cloud-storage)
 
-## Shared data store
+## Shared data stores
 
 MLRun supports multiple data stores. (More can easily added by extending the `DataStore` class.)
 Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`). The currently supported schemas and their urls:
@@ -19,7 +19,7 @@ Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`)
 * **v3io, v3ios** &mdash; Iguazio v3io data fabric, format: `v3io://[<remote-host>]/<data-container>/path/to/file`
 * **az** &mdash; Azure Blob storage, format: `az://<bucket>/path/to/file`
 * **gs, gcs** &mdash; Google Cloud Storage objects, format: `gs://<bucket>/path/to/file`
-* **store** &mdash; MLRun versioned artifacts [(see Artifacts)](./artifacts.md), format: `store://artifacts/<project>/<artifact-name>[:tag]`
+* **store** &mdash; MLRun versioned artifacts [(see Artifacts)](./artifacts.html), format: `store://artifacts/<project>/<artifact-name>[:tag]`
 * **memory** &mdash; in memory data registry for passing data within the same process, format `memory://key`, use `mlrun.datastore.set_in_memory_item(key, value)` to register in memory data items (byte buffers or DataFrames).
 
 ## Storage credentials and parameters
@@ -35,7 +35,7 @@ variables to the MLRun runtime itself, assigning secrets to it, or placing the v
 
 ```{warning}
 Passing secrets as environment variables to runtimes is discouraged, as they are exposed in the pod spec.
-Refer to [Working with secrets](../secrets.md) for details on secret handling in MLRun.
+Refer to [Working with secrets](../secrets.html) for details on secret handling in MLRun.
 ```
 
 For example, running a function locally:
@@ -72,7 +72,7 @@ The following sections list the credentials and configuration parameters applica
 ### v3io
 When running in an Iguazio system, MLRun automatically configures executed functions to use `v3io` storage, and passes 
 the needed parameters (such as access-key) for authentication. Refer to the 
-[auto-mount](Function_storage_auto_mount) section for more details on this process.
+[auto-mount](../runtimes/function-storage.html) section for more details on this process.
 
 In some cases, the v3io configuration needs to be overridden. The following parameters can be configured:
 

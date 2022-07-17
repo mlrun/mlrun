@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from os import listdir
+import os
 from tempfile import TemporaryDirectory
 from unittest.mock import Mock
 
@@ -37,18 +37,18 @@ df = pd.DataFrame(raw_data, columns=["name", "age"])
 def test_in_memory():
     context = mlrun.get_or_create_ctx("test-in-mem")
     context.artifact_path = "memory://"
-    context.log_artifact("k1", body="abc")
-    context.log_dataset("k2", df=df)
+    k1 = context.log_artifact("k1", body="abc")
+    k2 = context.log_dataset("k2", df=df)
 
     data = mlrun.datastore.set_in_memory_item("aa", "123")
     in_memory_store = mlrun.datastore.get_in_memory_items()
-    new_df = mlrun.run.get_dataitem("memory://k2").as_df()
+    new_df = mlrun.run.get_dataitem(k2.get_target_path()).as_df()
 
     assert len(in_memory_store) == 3, "data not written properly to in mem store"
     assert data.get() == "123", "in mem store failed to get/put"
     assert len(new_df) == 5, "in mem store failed dataframe test"
     assert (
-        mlrun.run.get_dataitem("memory://k1").get() == "abc"
+        mlrun.run.get_dataitem(k1.get_target_path()).get() == "abc"
     ), "failed to log in mem artifact"
 
 
@@ -71,19 +71,19 @@ def test_file():
         # test that we can get the artifact as dataitem
         assert k1.to_dataitem().get(encoding="utf-8") == "abc", "wrong .dataitem result"
 
-        alist = listdir(tmpdir)
-        print(alist)
-        assert mlrun.run.get_dataitem(tmpdir).listdir() == alist, "failed listdir"
+        assert "test1.txt" in mlrun.run.get_dataitem(tmpdir).listdir(), "failed listdir"
 
-        expected = ["test1.txt", "x.txt", "k2.csv"]
+        expected = [f"{tmpdir}/test1.txt", k2.get_target_path(), k1.get_target_path()]
         for a in expected:
-            assert a in alist, f"artifact {a} was not generated"
+            assert os.path.isfile(a) and a.startswith(
+                tmpdir
+            ), f"artifact {a} was not generated"
 
-        new_fd = mlrun.run.get_dataitem(tmpdir + "/k2.csv").as_df()
+        new_fd = mlrun.run.get_dataitem(k2.get_target_path()).as_df()
 
         assert len(new_fd) == 5, "failed dataframe test"
         assert (
-            mlrun.run.get_dataitem(tmpdir + "/x.txt").get() == b"abc"
+            mlrun.run.get_dataitem(k1.get_target_path()).get() == b"abc"
         ), "failed to log in file artifact"
 
         name = k2.uri
@@ -204,10 +204,10 @@ def test_get_store_resource_with_linked_artifacts(legacy_format):
         link_artifact.project = project
         model_artifact = LegacyModelArtifact(
             key=f"{artifact_key}#{link_iteration}",
-            project=project,
             target_path="/some/path/again",
             body="just a body",
         )
+        model_artifact.project = project
     else:
         link_artifact = LinkArtifact(
             key=artifact_key,

@@ -51,6 +51,13 @@ class MPIJobCRDVersions(object):
     def default():
         return MPIJobCRDVersions.v1alpha1
 
+    @staticmethod
+    def role_label_by_version(version):
+        return {
+            MPIJobCRDVersions.v1alpha1: "mpi_role_type",
+            MPIJobCRDVersions.v1: "mpi-job-role",
+        }[version]
+
 
 class RunStates(object):
     completed = "completed"

@@ -1,4 +1,4 @@
-
+(ci-integration)=
 # Github/Gitlab/Jenkins and CI/CD integration
 
 MLRun workflows can run inside the CI system. The most common method is to use the CLI command  `mlrun project` to load the project 
@@ -151,6 +151,6 @@ void auditTools() {
    '''
 }
 ```
-After the Jenkins pipeline is complete, you can see the MLRun job in the MLRun UI
+After the Jenkins pipeline is complete, you can see the MLRun job in the MLRun UI.
 
-See the full example in [**https://github.com/mlrun/project-demo**](https://github.com/mlrun/project-demo)
+See the full example in [**https://github.com/mlrun/project-demo**](https://github.com/mlrun/project-demo).

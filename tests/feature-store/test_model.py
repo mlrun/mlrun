@@ -94,7 +94,8 @@ def test_different_target_path_scenarios_for_run_id(
 @pytest.mark.parametrize(
     "time_for_source, is_through_init, should_succeed, time_delta",
     [
-        (None, None, True, None),
+        (None, False, True, None),
+        ("", False, True, None),
         (datetime(2021, 5, 25, 10, 30, 29, 592000), False, True, None),
         (datetime(2021, 5, 25, 10, 30, 29, 592000), True, True, None),
         (datetime(2021, 5, 25, 10, 30, 29, 592000, timezone.utc), False, True, 0),

@@ -1,0 +1,47 @@
+[
+  [
+    "mlrun",
+    "<=1.1.0rc1",
+    "1.0.3rc2",
+    "Mlrun 1.1.0rc1 and prior uses a version of 'TensorFlow' (2.4.1) that has known vulnerabilities.",
+    "48250",
+    null,
+    null
+  ],
+  [
+    "mlrun",
+    "<1.0.3rc1",
+    "1.0.0",
+    "Mlrun 1.0.3rc1 adds \"pillow~=9.0\" to requirements to tackle vulnerabilities.",
+    "49220",
+    null,
+    null
+  ],
+  [
+    "mlrun",
+    "<1.0.3rc1",
+    "1.0.0",
+    "Mlrun 1.0.3rc1 adds \"notebook~=6.4\" to requirements to tackle vulnerabilities.",
+    "49216",
+    null,
+    null
+  ],
+  [
+    "mlrun",
+    "<1.0.3rc1",
+    "1.0.0",
+    "Mlrun 1.0.3rc1 adds command to install security fixes in Docker base image.\r\nhttps://github.com/mlrun/mlrun/pull/1997/commits/de4c87f478f8d76dd8e46942588c81ef0d0b481e",
+    "49213",
+    null,
+    null
+  ],
+  [
+    "kubernetes",
+    ">0",
+    "12.0.1",
+    "Kubernetes (python client) uses Kubernetes API, which has an unfixed vulnerability, CVE-2021-29923: Go before 1.17 does not properly consider extraneous zero characters at the beginning of an IP address octet, which (in some situations) allows attackers to bypass access control that is based on IP addresses, because of unexpected octal interpretation. This affects net.ParseIP and net.ParseCIDR. Kubernetes interprets leading zeros on IPv4 addresses as decimal to keep backwards compatibility, but users relying on parser alignment will be impacted by this CVE.\\r\\nhttps://github.com/kubernetes/kubernetes/pull/104368\\r\\nhttps://github.com/kubernetes/kubernetes/issues/108074",
+    "45114",
+    null,
+    null
+  ]
+]

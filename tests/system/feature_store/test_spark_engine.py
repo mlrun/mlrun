@@ -612,7 +612,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             pd.read_parquet(target.get_target_path())
 
     @pytest.mark.parametrize(
-        "should_succeed, engine, is_parquet, is_partitioned, target_path",
+        "should_succeed, is_parquet, is_partitioned, target_path",
         [
             # spark - csv - fail for single file
             (True, False, None, "v3io:///bigdata/dif-eng/csv"),
@@ -644,3 +644,21 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         else:
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
                 fs.ingest(fset, source=stocks, targets=[target])
+
+    def test_error_is_properly_propagated(self):
+        key = "patient_id"
+        measurements = fs.FeatureSet(
+            "measurements",
+            entities=[fs.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        source = ParquetSource("myparquet", path="wrong-path.pq")
+        with pytest.raises(mlrun.runtimes.utils.RunError):
+            fs.ingest(
+                measurements,
+                source,
+                return_df=True,
+                spark_context=self.spark_service,
+                run_config=fs.RunConfig(local=False),
+            )

@@ -265,9 +265,6 @@ def get_online_feature_service(
 
     # todo: support remote service (using remote nuclio/mlrun function if run_config)
 
-    for old_name in service.vector.get_feature_aliases().keys():
-        if old_name in service.vector.status.features.keys():
-            del service.vector.status.features[old_name]
     return service
 
 
@@ -275,14 +272,15 @@ def _rename_source_dataframe_columns(df):
     rename_mapping = {}
     column_set = set(df.columns)
     for column in df.columns:
-        rename_to = column.replace(" ", "_").replace("(", "").replace(")", "")
-        if rename_to != column:
-            if rename_to in column_set:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f'column "{column}" cannot be renamed to "{rename_to}" because such a column already exists'
-                )
-            rename_mapping[column] = rename_to
-            column_set.add(rename_to)
+        if isinstance(column, str):
+            rename_to = column.replace(" ", "_").replace("(", "").replace(")", "")
+            if rename_to != column:
+                if rename_to in column_set:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f'column "{column}" cannot be renamed to "{rename_to}" because such a column already exists'
+                    )
+                rename_mapping[column] = rename_to
+                column_set.add(rename_to)
     if rename_mapping:
         logger.warn(
             f"the following dataframe columns have been renamed due to unsupported characters: {rename_mapping}"

@@ -9,11 +9,7 @@ from sklearn.datasets import (
 from sklearn.model_selection import train_test_split
 
 import mlrun
-from mlrun.frameworks._ml_common.utils import (
-    AlgorithmFunctionality,
-    DatasetType,
-    ModelType,
-)
+from mlrun.frameworks._ml_common.utils import AlgorithmFunctionality, MLTypes
 
 
 class MLFunctions(ABC):
@@ -33,15 +29,20 @@ class MLFunctions(ABC):
 
     @staticmethod
     @abstractmethod
-    def _get_model(algorithm_functionality: AlgorithmFunctionality) -> ModelType:
+    def get_model(algorithm_functionality: AlgorithmFunctionality) -> MLTypes.ModelType:
         pass
 
     @staticmethod
-    def _get_dataset(
+    def get_dataset(
         algorithm_functionality: AlgorithmFunctionality, for_training: bool
     ) -> Union[
-        Tuple[DatasetType, DatasetType],
-        Tuple[DatasetType, DatasetType, DatasetType, DatasetType],
+        Tuple[MLTypes.DatasetType, MLTypes.DatasetType],
+        Tuple[
+            MLTypes.DatasetType,
+            MLTypes.DatasetType,
+            MLTypes.DatasetType,
+            MLTypes.DatasetType,
+        ],
     ]:
         if algorithm_functionality.is_regression():
             n_targets = 1 if algorithm_functionality.is_single_output() else 5

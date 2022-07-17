@@ -292,7 +292,7 @@ class KubeResourceSpec(FunctionSpec):
         if attribute is None:
             return None
         if isinstance(attribute, dict):
-            if self._resolve_if_type_sanitized(attribute_name, attribute):
+            if _resolve_if_type_sanitized(attribute_name, attribute):
                 api = k8s_client.ApiClient()
                 # not ideal to use their private method, but looks like that's the only option
                 # Taken from https://github.com/kubernetes-client/python/issues/977

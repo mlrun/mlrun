@@ -1941,8 +1941,6 @@ class MlrunProject(ModelObj):
         if not inner_engine and engine == "remote":
             inner_engine = get_workflow_engine(workflow_spec.engine, local).engine
         workflow_spec.engine = inner_engine or workflow_engine.engine
-        if timeout is None:
-            timeout = 60 * 60
 
         run = workflow_engine.run(
             self,
@@ -1956,8 +1954,7 @@ class MlrunProject(ModelObj):
             watch=watch,
             timeout=timeout,
         )
-        run_msg = "started run workflow "
-        run_msg += run.workflow.name + " " if run.workflow.name else name + " "
+        run_msg = f"started run workflow {name} "
         if run and hasattr(run, "run_id"):
             run_msg += f"with run id = '{run.run_id}' "
         run_msg += f"by {workflow_engine.engine} engine"

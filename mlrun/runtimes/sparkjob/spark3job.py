@@ -175,37 +175,18 @@ class Spark3JobSpec(AbstractSparkJobSpec):
 
     def to_dict(self, fields=None, exclude=None):
         exclude = exclude or []
-        exclude = list(
-            set(
-                exclude
-                + [
-                    "executor_affinity",
-                    "executor_tolerations",
-                    "executor_security_context",
-                    "driver_affinity",
-                    "driver_tolerations",
-                    "driver_security_context",
-                ]
-            )
-        )
-        struct = super().to_dict(fields, exclude=exclude)
+        _exclude = [
+            "executor_affinity",
+            "executor_tolerations",
+            "executor_security_context",
+            "driver_affinity",
+            "driver_tolerations",
+            "driver_security_context",
+        ]
+        struct = super().to_dict(fields, exclude=list(set(exclude + _exclude)))
         api = kubernetes.client.ApiClient()
-        struct["executor_affinity"] = api.sanitize_for_serialization(
-            self.executor_affinity
-        )
-        struct["driver_affinity"] = api.sanitize_for_serialization(self.driver_affinity)
-        struct["executor_tolerations"] = api.sanitize_for_serialization(
-            self.executor_tolerations
-        )
-        struct["driver_tolerations"] = api.sanitize_for_serialization(
-            self.driver_tolerations
-        )
-        struct["executor_security_context"] = api.sanitize_for_serialization(
-            self.executor_security_context
-        )
-        struct["driver_security_context"] = api.sanitize_for_serialization(
-            self.driver_security_context
-        )
+        for field in _exclude:
+            struct[field] = api.sanitize_for_serialization(getattr(self, field))
         return struct
 
     @property
@@ -653,11 +634,21 @@ class Spark3Runtime(AbstractSparkRuntime):
         self, security_context: kubernetes.client.V1SecurityContext
     ):
         """
-        Set security context for driver pod
-        For more info:
+        Set security context for the pod
+        Example:
+
+            from kubernetes import client as k8s_client
+
+            security_context = k8s_client.V1SecurityContext(
+                        run_as_user=1000,
+                        run_as_group=3000,
+                    )
+            function.with_security_context(security_context)
+
+        More info:
         https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
 
-        :param security_context:         The security context for driver pod
+        :param security_context:         The security context for the pod
         """
         self.spec.driver_security_context = security_context
 
@@ -665,11 +656,21 @@ class Spark3Runtime(AbstractSparkRuntime):
         self, security_context: kubernetes.client.V1SecurityContext
     ):
         """
-        Set security context for executor pod
-        For more info:
+        Set security context for the pod
+        Example:
+
+            from kubernetes import client as k8s_client
+
+            security_context = k8s_client.V1SecurityContext(
+                        run_as_user=1000,
+                        run_as_group=3000,
+                    )
+            function.with_security_context(security_context)
+
+        More info:
         https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
 
-        :param security_context:         The security context for executor pod
+        :param security_context:         The security context for the pod
         """
         self.spec.executor_security_context = security_context
 

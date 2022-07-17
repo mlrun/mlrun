@@ -249,14 +249,11 @@ class KubeResourceSpec(FunctionSpec):
 
     def to_dict(self, fields=None, exclude=None):
         exclude = exclude or []
-        exclude = list(set(exclude + ["affinity", "tolerations", "security_context"]))
-        struct = super().to_dict(fields, exclude=exclude)
+        _exclude = ["affinity", "tolerations", "security_context"]
+        struct = super().to_dict(fields, exclude=list(set(exclude + _exclude)))
         api = k8s_client.ApiClient()
-        struct["affinity"] = api.sanitize_for_serialization(self.affinity)
-        struct["tolerations"] = api.sanitize_for_serialization(self.tolerations)
-        struct["security_context"] = api.sanitize_for_serialization(
-            self.security_context
-        )
+        for field in _exclude:
+            struct[field] = api.sanitize_for_serialization(getattr(self, field))
         return struct
 
     def update_vols_and_mounts(
@@ -1097,7 +1094,17 @@ class KubeResource(BaseRuntime):
     def with_security_context(self, security_context: k8s_client.V1SecurityContext):
         """
         Set security context for the pod
-        For more info:
+        Example:
+
+            from kubernetes import client as k8s_client
+
+            security_context = k8s_client.V1SecurityContext(
+                        run_as_user=1000,
+                        run_as_group=3000,
+                    )
+            function.with_security_context(security_context)
+
+        More info:
         https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
 
         :param security_context:         The security context for the pod

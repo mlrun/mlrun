@@ -18,7 +18,7 @@ Each of the following tutorials is a dedicated Jupyter notebook. You can downloa
 ```
 
 You can find different end-to-end demos in MLRun demos repository at [**github.com/mlrun/demos**](https://github.com/mlrun/demos).
-Alternatively, use the interactive MLRun [**Katacoda Scenarios**](https://www.katacoda.com/mlrun) that teach how to install and use MLRun.
+Alternatively, use the interactive MLRun [**Katacoda Scenarios**](https://www.katacoda.com/mlrun) that teach how to install and use MLRun. See
 
 ```{toctree}
 :maxdepth: 1
@@ -26,3 +26,9 @@ Alternatively, use the interactive MLRun [**Katacoda Scenarios**](https://www.ka
 MLRun demos repository <https://github.com/mlrun/demos>
 MLRun Katakoda Scenarios <https://www.katacoda.com/mlrun>
 ```
+## Running the demos in Open Source MLRun
+
+By default, these demos work with the online feature store, which is currently not part of the Open Source MLRun default deployment:
+- fraud-prevention-feature-store 
+- network-operations
+- azureml_demo

@@ -1,3 +1,4 @@
+(auto-logging-mlops)=
 # Automated Logging and MLOps with `apply_mlrun()`
 
 You can write custom training functions or use built-in marketplace functions for training models using 

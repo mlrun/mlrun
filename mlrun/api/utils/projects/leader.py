@@ -47,6 +47,7 @@ class Member(
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
+        commit_before_get: bool = False,
     ) -> typing.Tuple[typing.Optional[mlrun.api.schemas.Project], bool]:
         self._enrich_and_validate_before_creation(project)
         self._run_on_all_followers(True, "create_project", db_session, project)

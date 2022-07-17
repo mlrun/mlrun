@@ -547,17 +547,14 @@ class _KFPRunner(_PipelineRunner):
     ):
         if timeout is None:
             timeout = 60 * 60
-        print("in kfp:get_run_status")
         state = ""
         raise_error = None
         try:
-            start_time = time.time()
             if timeout:
                 logger.info("waiting for pipeline run completion")
                 state = run.wait_for_completion(
                     timeout=timeout, expected_statuses=expected_statuses
                 )
-                print(f"time of waiting: {time.time() - start_time}")
         except RuntimeError as exc:
             # push runs table also when we have errors
             raise_error = exc
@@ -679,12 +676,12 @@ class _RemoteRunner(_PipelineRunner):
 
         try:
             # Creating the load project and workflow running function:
-            # TODO: set image to mlrun/mlrun After merged to development
             load_and_run_fn = mlrun.new_function(
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:1.0.17",
+                # TODO: set image to mlrun/mlrun After merged to development
+                image="yonishelach/mlrun-remote-runner:1.0.18",
             )
 
             msg = "executing workflow "
@@ -693,9 +690,6 @@ class _RemoteRunner(_PipelineRunner):
             logger.info(
                 f"{msg}'{runner_name}' remotely with {workflow_spec.engine} engine"
             )
-            print("-" * 30)
-            print(f"timeout = {timeout}, watch = {watch}")
-            print("-" * 30)
             run = load_and_run_fn.run(
                 name=workflow_name,
                 params={
@@ -837,10 +831,10 @@ def load_and_run(
         subpath=subpath,
         clone=clone,
     )
-    context.logger.info(f"Loaded project {project.name} successfully")
+    context.logger.info(f"Loaded project {project.name} from remote successfully")
 
     wf_log_msg = workflow_name or workflow_path
-    context.logger.info(f"Running workflow {wf_log_msg}")
+    context.logger.info(f"Running workflow {wf_log_msg} from remote")
     run = project.run(
         name=workflow_name,
         workflow_path=workflow_path,
@@ -858,7 +852,4 @@ def load_and_run(
     context.log_result(key="workflow_id", value=run.run_id, commit=True)
 
     if watch:
-        print("-" * 30)
-        print(f"timeout = {timeout}, watch = {watch}, engine = {type(run._engine)}")
-        print("-" * 30)
         run._engine.get_run_status(project=project, run=run, timeout=timeout)

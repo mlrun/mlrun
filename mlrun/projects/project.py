@@ -1960,7 +1960,7 @@ class MlrunProject(ModelObj):
         run_msg += run.workflow.name + " " if run.workflow.name else name + " "
         if run and hasattr(run, "run_id"):
             run_msg += f"with run id = '{run.run_id}' "
-        run_msg += f"by {workflow_engine.engine}"
+        run_msg += f"by {workflow_engine.engine} engine"
         logger.info(run_msg)
         workflow_spec.clear_tmp()
         if watch and not schedule:
@@ -1984,51 +1984,6 @@ class MlrunProject(ModelObj):
         self.sync_functions()
         workflow_engine = get_workflow_engine(workflow_spec.engine)
         workflow_engine.save(self, workflow_spec, target, artifact_path=artifact_path)
-
-    # def get_run_status(
-    #     self,
-    #     run,
-    #     timeout=None,
-    #     expected_statuses=None,
-    #     notifiers: RunNotifications = None,
-    # ):
-    #     if timeout is None:
-    #         timeout = 60 * 60
-    #
-    #     state = ""
-    #     raise_error = None
-    #     try:
-    #         if timeout:
-    #             logger.info("waiting for pipeline run completion")
-    #             state = run.wait_for_completion(
-    #                 timeout=timeout, expected_statuses=expected_statuses
-    #             )
-    #     except RuntimeError as exc:
-    #         # push runs table also when we have errors
-    #         raise_error = exc
-    #
-    #     mldb = mlrun.db.get_run_db(secrets=self._secrets)
-    #     runs = mldb.list_runs(
-    #         project=self.metadata.name, labels=f"workflow={run.run_id}"
-    #     )
-    #
-    #     had_errors = 0
-    #     for r in runs:
-    #         if r["status"].get("state", "") == "error":
-    #             had_errors += 1
-    #
-    #     text = f"Workflow {run.run_id} finished"
-    #     if had_errors:
-    #         text += f" with {had_errors} errors"
-    #     if state:
-    #         text += f", state={state}"
-    #
-    #     notifiers = notifiers or self._notifiers
-    #     notifiers.push(text, runs)
-    #
-    #     if raise_error:
-    #         raise raise_error
-    #     return state, had_errors, text
 
     def clear_context(self):
         """delete all files and clear the context dir"""

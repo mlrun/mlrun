@@ -1,3 +1,4 @@
+(cli)=
 # Command-Line Interface (Tech preview) <!-- omit in toc -->
 
 - [CLI commands](#cli-commands)

@@ -1,4 +1,7 @@
+import typing
 from enum import Enum
+
+import pydantic
 
 
 # Ideally we would want this to be class FunctionState(str, enum.Enum) which is the "FastAPI-compatible" way of creating
@@ -37,3 +40,15 @@ class PreemptionModes(str, Enum):
     prevent = "prevent"
     # doesn't apply any preemptible node selection on the function
     none = "none"
+
+
+class ImagePullSecret(pydantic.BaseModel):
+    default: typing.Optional[str]
+
+
+class FunctionSpec(pydantic.BaseModel):
+    image_pull_secret: typing.Optional[ImagePullSecret]
+
+
+class Function(pydantic.BaseModel):
+    spec: typing.Optional[FunctionSpec]

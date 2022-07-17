@@ -2572,6 +2572,40 @@ class TestFeatureStore(TestMLRunSystem):
         for key in res.to_dataframe().to_dict().keys():
             assert key in expected
 
+    def test_set_event_with_spaces_or_hyphens(self):
+        from mlrun.feature_store.steps import OneHotEncoder
+
+        lst_1 = [
+            " Private",
+            " Private",
+            " Local-gov",
+            " Private",
+        ]
+        lst_2 = [0, 1, 2, 3]
+        lst_3 = [25, 38, 28, 44]
+        data = pd.DataFrame(
+            list(zip(lst_2, lst_1, lst_3)), columns=["id", "workclass", "age"]
+        )
+        # One Hot Encode the newly defined mappings
+        one_hot_encoder_mapping = {"workclass": list(data["workclass"].unique())}
+
+        # Define the corresponding FeatureSet
+        data_set = FeatureSet(
+            "test", entities=[Entity("id")], description="feature set"
+        )
+
+        data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
+        data_set.set_targets()
+
+        df_res = fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
+
+        expected_df = pd.DataFrame(
+            list(zip([1, 1, 0, 1], [0, 0, 1, 0], lst_3)),
+            columns=["workclass__Private", "workclass__Local_gov", "age"],
+        )
+
+        assert df_res.equals(expected_df)
+
     @pytest.mark.skipif(kafka_brokers == "", reason="KAFKA_BROKERS must be set")
     def test_kafka_target(self, kafka_consumer):
 

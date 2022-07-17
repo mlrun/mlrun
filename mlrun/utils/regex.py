@@ -16,6 +16,10 @@ dns_1123_label = [
     r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
 ]
 
+# DNS 1035 - used by k8s for services services
+# https://github.com/kubernetes/kubernetes/blob/v1.20.0/staging/src/k8s.io/apimachinery/pkg/util/validation/validation.go#L220
+dns_1035_label = [r"[a-z]([-a-z0-9]*[a-z0-9])?"]
+
 # https://github.com/kubernetes/kubernetes/blob/v1.20.0/staging/src/k8s.io/apimachinery/pkg/util/validation/validation.go#L424
 k8s_secret_and_config_map_key = [
     r"^.{0,253}$",
@@ -38,7 +42,12 @@ run_name = label_value
 #       63 - 25 - 9 = 29
 #       NOTE: If a name is between 30-33 characters - the function will complete successfully without creating the
 #           driver-svc meaning there is no way to get the response through a ui
-sparkjob_name = label_value + [r"^.{0,29}$"]
+sprakjob_length = [r"^.{0,29}$"]
+
+# part of creating sparkjob operator it creates a service with the same name of the job
+sparkjob_service_name = dns_1035_label
+
+sparkjob_name = label_value + sprakjob_length + sparkjob_service_name
 
 # A project name have the following restrictions:
 # It should be a valid Nuclio Project CRD name which is dns 1123 subdomain

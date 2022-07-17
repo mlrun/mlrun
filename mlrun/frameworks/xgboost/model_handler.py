@@ -3,14 +3,13 @@ import pickle
 from typing import Dict, List, Union
 
 import cloudpickle
-import xgboost as xgb
 
 import mlrun
 
 from .._common import without_mlrun_interface
 from .._ml_common import MLModelHandler
 from .mlrun_interface import XGBModelMLRunInterface
-from .utils import DatasetType
+from .utils import XGBoostTypes
 
 
 class XGBoostModelHandler(MLModelHandler):
@@ -31,7 +30,7 @@ class XGBoostModelHandler(MLModelHandler):
 
     def __init__(
         self,
-        model: xgb.XGBModel = None,
+        model: XGBoostTypes.ModelType = None,
         model_path: str = None,
         model_name: str = None,
         modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
@@ -175,7 +174,7 @@ class XGBoostModelHandler(MLModelHandler):
         self,
         model_name: str = None,
         optimize: bool = True,
-        input_sample: DatasetType = None,
+        input_sample: XGBoostTypes = None,
         log: bool = None,
     ):
         """

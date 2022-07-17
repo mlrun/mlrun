@@ -1,25 +1,35 @@
+(install-setup-guide)=
 # Installation and setup guide <!-- omit in toc -->
 
 This guide outlines the steps for installing and running MLRun. 
 
-## Overview
+MLRun comprises of two parts: MLRun Server and MLRUN client.
 
-- Install the MLRun service [locally using Docker](https://docs.mlrun.org/en/latest/install/local-docker.html) or [over Kubernetes Cluster](https://docs.mlrun.org/en/latest/install/kubernetes.html). Alternatively, you can use [Iguazio's managed MLRun service](https://www.iguazio.com/docs/latest-release/).
-- [Set up your client environment](https://docs.mlrun.org/en/latest/install/remote.html) to work with the local or remote MLRun service.
+## Deployment options
+
+
+There are several deployment options:
+- [Local deployment](https://docs.mlrun.org/en/latest/install/local-docker.html): Deploy a Docker on your laptop or on a single server.
+   This option is good for testing the waters or when working in a small scale environment. It's limited in terms of computing resources and scale, but
+   simpler for deployment.
+
+- [Kubernetes cluster](https://docs.mlrun.org/en/latest/install/kubernetes.html): Deploy an MLRun server on Kubernetes.
+   This option deploys MLRun on a Kubernetes cluster, which supports elastic scaling. Yet, it is more complex to install as it requires you to install Kubernetes on your own.
+  
+- [Iguazio's Managed  Service](https://www.iguazio.com): A commerical offering by Iguazio. This is the fastest way to explore the full set of MLRun functionalities.<br>
+  Note that Iguazio provides a 14 day free trial.
+
+
+## Set up your client
+
+- You can work with your favorite IDE (e.g. Pycharm, VScode, Jupyter , Colab etc..). Read how to configure your client against the deployed
+MLRun server in [How to configure your client](https://docs.mlrun.org/en/latest/install/remote.html).
 
 Once you have installed and configured MLRun, follow the [Quick Start tutorial](https://docs.mlrun.org/en/latest/tutorial/01-mlrun-basics.html) and additional [Tutorials and Examples](https://docs.mlrun.org/en/latest/tutorial/index.html) to learn how to use MLRun to develop and deploy machine 
 learning applications to production.
 
 For interactive installation and usage tutorials, try the [MLRun Katakoda Scenarios](https://www.katacoda.com/mlrun).
 
-**Installation options:**
-```{toctree}
-:maxdepth: 1
-
-install/remote
-install/local-docker
-install/kubernetes
-```
 
 <a id="MLRun-client-backward-compatibility"></a>
 ## MLRun client backward compatibility  
@@ -34,3 +44,12 @@ Starting from MLRun 0.10.0, the MLRun client and images are compatible with mino
 ```
 
 See also [Images and their usage in MLRun](https://docs.mlrun.org/en/latest/runtimes/images.html#mlrun-images-and-how-to-build-them).
+
+```{toctree}
+:hidden:
+:maxdepth: 1
+
+install/local-docker
+install/kubernetes
+install/remote
+```

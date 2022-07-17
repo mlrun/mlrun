@@ -35,17 +35,18 @@ Before you begin, ensure that the following prerequisites are met:
     ```
 	
 	There are a two `pip install` options:
-   - To install the requirements in the [requirements.txt](https://github.com/mlrun/mlrun/blob/development/requirements.txt), run:
-     `pip install mlrun` 
+   - To install the requirements in the [requirements.txt](https://github.com/mlrun/mlrun/blob/development/requirements.txt), run:<br>
+     ```pip install mlrun```
    - If you expect to connect to, or work with, cloud providers (Azure/Google Cloud/S3), you can install additional packages. 
       This is not part of the regular requirements since not all users work with those platforms. Using this option reduces the 
       dependencies and the size of the installation. The additional packages include:
-      - pip install mlrun[s3]       # Install requirements for  S3 
-      - pip install mlrun[azure-blob-storage]     # install requirements for Azure blob storage
-      - pip install mlrun[google-cloud-storage]      # install requirements for Google cloud storage
+      - pip install mlrun[s3] # Install requirements for S3 
+      - pip install mlrun[azure-blob-storage] # install requirements for Azure blob storage
+      - pip install mlrun[google-cloud-storage] # install requirements for Google cloud storage
+   
       See the full list [here](https://github.com/mlrun/mlrun/blob/development/setup.py#L75).<br>
-      To install all extras, run:
-      `pip install mlrun[complete]`
+      To install all extras, run:<br>
+      ```pip install mlrun[complete]```
      
 2. Alternatively, if you already installed a previous version of MLRun, upgrade it by running:
 

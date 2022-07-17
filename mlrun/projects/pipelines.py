@@ -547,15 +547,17 @@ class _KFPRunner(_PipelineRunner):
     ):
         if timeout is None:
             timeout = 60 * 60
-
+        print("in kfp:get_run_status")
         state = ""
         raise_error = None
         try:
+            start_time = time.time()
             if timeout:
                 logger.info("waiting for pipeline run completion")
                 state = run.wait_for_completion(
                     timeout=timeout, expected_statuses=expected_statuses
                 )
+                print(f"time of waiting: {time.time() - start_time}")
         except RuntimeError as exc:
             # push runs table also when we have errors
             raise_error = exc
@@ -682,7 +684,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image="yonishelach/mlrun-remote-runner:1.0.16",
+                image="yonishelach/mlrun-remote-runner:1.0.17",
             )
 
             msg = "executing workflow "
@@ -853,8 +855,7 @@ def load_and_run(
         engine=engine,
         local=local,
     )
-    context.log_result(key="workflow_id", value=run.run_id)
-    context.commit()
+    context.log_result(key="workflow_id", value=run.run_id, commit=True)
 
     if watch:
         print("-" * 30)

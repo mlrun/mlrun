@@ -19,7 +19,7 @@ _MONIOTINRG_BATCH_FUNCTION_PATH = (
 )
 
 
-def get_model_monitoring_stream_processing_function(
+def init_model_monitoring_stream_processing_function(
     project: str, model_monitoring_access_key: str, db_session: sqlalchemy.orm.Session
 ):
     """
@@ -48,7 +48,7 @@ def get_model_monitoring_stream_processing_function(
         project=project,
         filename=str(_STREAM_PROCESSING_FUNCTION_PATH),
         kind="serving",
-        image="mlrun/mlrun",
+        image="quay.io/eyaligu/mlrun-api:monitoring-feature-set-2",
     )
 
     # create monitoring serving graph
@@ -108,7 +108,7 @@ def get_model_monitoring_batch_function(
         project=project,
         filename=str(_MONIOTINRG_BATCH_FUNCTION_PATH),
         kind="job",
-        image="mlrun/mlrun",
+        image="quay.io/eyaligu/mlrun-api:monitoring-feature-set-2",
         handler="handler",
     )
     function.set_db_connection(mlrun.api.api.utils.get_run_db_instance(db_session))

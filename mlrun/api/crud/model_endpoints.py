@@ -799,7 +799,7 @@ class ModelEndpoints:
                 "Deploying model monitoring stream processing function", project=project
             )
 
-        fn = mlrun.model_monitoring.helpers.get_model_monitoring_stream_processing_function(
+        fn = mlrun.model_monitoring.helpers.init_model_monitoring_stream_processing_function(
             project, model_monitoring_access_key, db_session
         )
 
@@ -855,9 +855,7 @@ class ModelEndpoints:
         function_uri = fn.save(versioned=True)
         function_uri = function_uri.replace("db://", "")
 
-        logger.info(
-            "Deploying model monitoring batch processing function", project=project
-        )
+
         task = mlrun.new_task(name="model-monitoring-batch", project=project)
         task.spec.function = function_uri
 
@@ -865,6 +863,10 @@ class ModelEndpoints:
             "task": task.to_dict(),
             "schedule": "0 */1 * * *",
         }
+
+        logger.info(
+            "Deploying model monitoring batch processing function", project=project
+        )
 
         # add job schedule policy (every hour by default)
         mlrun.api.api.utils._submit_run(

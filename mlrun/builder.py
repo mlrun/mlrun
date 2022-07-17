@@ -548,7 +548,7 @@ def _get_image_dest_and_registry_secret(
                 "MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY/MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY_SECRET env vars"
             )
         dest_components = [registry, dest]
-        if repository:
+        if repository and repository not in dest:
             dest_components = [registry, repository, dest]
 
         return "/".join(dest_components), secret_name

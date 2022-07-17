@@ -603,6 +603,12 @@ def test_build_runtime_ecr_with_aws_secret(monkeypatch):
             "default.docker.registry/default-repository/test-image",
         ),
         (
+            ".default-repository/test-image",
+            None,
+            "default.docker.registry/default-repository",
+            "default.docker.registry/default-repository/test-image",
+        ),
+        (
             ".test-image",
             None,
             "default.docker.registry",

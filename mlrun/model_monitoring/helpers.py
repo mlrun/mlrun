@@ -19,7 +19,7 @@ _MONIOTINRG_BATCH_FUNCTION_PATH = (
 )
 
 
-def get_model_monitoring_stream_processing_function(
+def init_model_monitoring_stream_processing_function(
     project: str, model_monitoring_access_key: str, db_session: sqlalchemy.orm.Session
 ):
     """

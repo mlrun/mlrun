@@ -321,6 +321,23 @@ class TestNuclioRuntime(TestRuntimeBase):
         else:
             assert deploy_spec.get("tolerations") is None
 
+    def assert_security_context(
+        self,
+        security_context=None,
+    ):
+        args, _ = nuclio.deploy.deploy_config.call_args
+        deploy_spec = args[0]["spec"]
+
+        if security_context:
+            assert (
+                mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
+                    "security_context", deploy_spec.get("securityContext")
+                )
+                == security_context
+            )
+        else:
+            assert deploy_spec.get("securityContext") is None
+
     def test_enrich_with_ingress_no_overriding(self, db: Session, client: TestClient):
         """
         Expect no ingress template to be created, thought its mode is "always",
@@ -1019,10 +1036,7 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         self.execute_function(function)
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
-        args, _ = nuclio.deploy.deploy_config.call_args
-        deploy_spec = args[0]["spec"]
-
-        assert "securityContext" not in deploy_spec
+        self.assert_security_context()
 
         default_security_context_dict = {
             "runAsUser": 1000,
@@ -1031,22 +1045,17 @@ class TestNuclioRuntime(TestRuntimeBase):
         mlrun.mlconf.function.spec.security_context.default = base64.b64encode(
             json.dumps(default_security_context_dict).encode("utf-8")
         )
+        default_security_context = self._generate_security_context(
+            default_security_context_dict["runAsUser"],
+            default_security_context_dict["runAsGroup"],
+        )
         function = self._generate_runtime(self.runtime_kind)
         self.execute_function(function)
 
         self._assert_deploy_called_basic_config(
             call_count=2, expected_class=self.class_name
         )
-        args, _ = nuclio.deploy.deploy_config.call_args
-        deploy_spec = args[0]["spec"]
-        assert (
-            deploy_spec["securityContext"]["runAsUser"]
-            == default_security_context_dict["runAsUser"]
-        )
-        assert (
-            deploy_spec["securityContext"]["runAsGroup"]
-            == default_security_context_dict["runAsGroup"]
-        )
+        self.assert_security_context(default_security_context)
 
         function = self._generate_runtime(self.runtime_kind)
         other_security_context = self._generate_security_context(
@@ -1060,16 +1069,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._assert_deploy_called_basic_config(
             call_count=3, expected_class=self.class_name
         )
-        args, _ = nuclio.deploy.deploy_config.call_args
-        deploy_spec = args[0]["spec"]
-        assert (
-            deploy_spec["securityContext"]["runAsUser"]
-            == other_security_context.run_as_user
-        )
-        assert (
-            deploy_spec["securityContext"]["runAsGroup"]
-            == other_security_context.run_as_group
-        )
+        self.assert_security_context(other_security_context)
 
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well

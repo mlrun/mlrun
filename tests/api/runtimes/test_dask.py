@@ -111,6 +111,14 @@ class TestDaskRuntime(TestRuntimeBase):
             expected_scheduler_requests,
         )
 
+    def assert_security_context(
+        self,
+        security_context=None,
+    ):
+        pod = self._get_pod_creation_args()
+        # doesn't need a special case because the default it to be set with default security context
+        assert pod.spec.security_context == (security_context or {})
+
     def test_dask_runtime(self, db: Session, client: TestClient):
         runtime: mlrun.runtimes.DaskCluster = self._generate_runtime()
 
@@ -315,6 +323,12 @@ class TestDaskRuntime(TestRuntimeBase):
         )
 
     def test_dask_with_default_security_context(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+
+        _ = runtime.client
+        self.kube_cluster_mock.assert_called_once()
+        self.assert_security_context()
+
         default_security_context_dict = {
             "runAsUser": 1000,
             "runAsGroup": 3000,
@@ -330,13 +344,8 @@ class TestDaskRuntime(TestRuntimeBase):
         runtime = self._generate_runtime()
 
         _ = runtime.client
-        self.kube_cluster_mock.assert_called_once()
-        self._assert_pod_creation_config(
-            expected_runtime_class_name="dask",
-            assert_create_pod_called=False,
-            assert_namespace_env_variable=False,
-            expected_security_context=default_security_context,
-        )
+        assert self.kube_cluster_mock.call_count == 2
+        self.assert_security_context(default_security_context)
 
     def test_dask_with_security_context(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
@@ -348,10 +357,4 @@ class TestDaskRuntime(TestRuntimeBase):
         # override security context
         runtime.with_security_context(other_security_context)
         _ = runtime.client
-
-        self._assert_pod_creation_config(
-            expected_runtime_class_name="dask",
-            assert_create_pod_called=False,
-            assert_namespace_env_variable=False,
-            expected_security_context=other_security_context,
-        )
+        self.assert_security_context(other_security_context)

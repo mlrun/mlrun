@@ -194,6 +194,14 @@ class TestKubejobRuntime(TestRuntimeBase):
         else:
             assert pod.spec.tolerations is None
 
+    def assert_security_context(
+        self,
+        security_context=None,
+    ):
+        pod = self._get_pod_creation_args()
+        # doesn't need a special case because the default it to be set with default security context
+        assert pod.spec.security_context == (security_context or {})
+
     def test_run_with_priority_class_name(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
 
@@ -224,6 +232,11 @@ class TestKubejobRuntime(TestRuntimeBase):
             runtime.with_priority_class(medium_priority_class_name)
 
     def test_run_with_security_context(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+
+        self.execute_function(runtime)
+        self.assert_security_context()
+
         default_security_context_dict = {
             "runAsUser": 1000,
             "runAsGroup": 3000,
@@ -239,9 +252,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         runtime = self._generate_runtime()
 
         self.execute_function(runtime)
-        self._assert_pod_creation_config(
-            expected_security_context=default_security_context
-        )
+        self.assert_security_context(default_security_context)
 
         # override default
         other_security_context = self._generate_security_context(
@@ -252,9 +263,7 @@ class TestKubejobRuntime(TestRuntimeBase):
 
         runtime.with_security_context(other_security_context)
         self.execute_function(runtime)
-        self._assert_pod_creation_config(
-            expected_security_context=other_security_context
-        )
+        self.assert_security_context(other_security_context)
 
     def test_run_with_mounts(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()

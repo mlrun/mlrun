@@ -638,7 +638,6 @@ class TestRuntimeBase:
         expected_node_selector=None,
         expected_affinity=None,
         expected_priority_class_name=None,
-        expected_security_context=None,
         assert_create_pod_called=True,
         assert_namespace_env_variable=True,
         expected_labels=None,
@@ -716,16 +715,6 @@ class TestRuntimeBase:
         if expected_priority_class_name:
             assert pod.spec.priority_class_name == expected_priority_class_name
 
-        if expected_security_context:
-            assert (
-                deepdiff.DeepDiff(
-                    pod.spec.security_context.to_dict(),
-                    expected_security_context.to_dict(),
-                    ignore_order=True,
-                )
-                == {}
-            )
-
         assert pod.spec.containers[0].image == self.image_name
 
     def _assert_container_resources(
@@ -790,6 +779,12 @@ class TestRuntimeBase:
         node_selector=None,
         affinity=None,
         tolerations=None,
+    ):
+        pass
+
+    def assert_security_context(
+        self,
+        security_context=None,
     ):
         pass
 

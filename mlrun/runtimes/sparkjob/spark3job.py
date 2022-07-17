@@ -174,17 +174,21 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         )
 
     def to_dict(self, fields=None, exclude=None):
-        struct = super().to_dict(
-            fields,
-            exclude=[
-                "executor_affinity",
-                "executor_tolerations",
-                "executor_security_context",
-                "driver_affinity",
-                "driver_tolerations",
-                "driver_security_context",
-            ],
+        exclude = exclude or []
+        exclude = list(
+            set(
+                exclude
+                + [
+                    "executor_affinity",
+                    "executor_tolerations",
+                    "executor_security_context",
+                    "driver_affinity",
+                    "driver_tolerations",
+                    "driver_security_context",
+                ]
+            )
         )
+        struct = super().to_dict(fields, exclude=exclude)
         api = kubernetes.client.ApiClient()
         struct["executor_affinity"] = api.sanitize_for_serialization(
             self.executor_affinity

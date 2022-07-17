@@ -69,12 +69,6 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         expected_driver_resources: dict = None,
         expected_executor_resources: dict = None,
         expected_cores: dict = None,
-        expected_driver_security_context: typing.Optional[
-            kubernetes.client.V1SecurityContext
-        ] = None,
-        expected_executor_security_context: typing.Optional[
-            kubernetes.client.V1SecurityContext
-        ] = None,
     ):
         if assert_create_custom_object_called:
             mlrun.api.utils.singletons.k8s.get_k8s().crdapi.create_namespaced_custom_object.assert_called_once()
@@ -103,26 +97,6 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
 
         if expected_cores:
             self._assert_cores(body["spec"], expected_cores)
-
-        if expected_driver_security_context:
-            assert (
-                deepdiff.DeepDiff(
-                    body["spec"]["driver"]["securityContext"],
-                    expected_driver_security_context,
-                    ignore_order=True,
-                )
-                == {}
-            )
-
-        if expected_executor_security_context:
-            assert (
-                deepdiff.DeepDiff(
-                    body["spec"]["executor"]["securityContext"],
-                    expected_executor_security_context,
-                    ignore_order=True,
-                )
-                == {}
-            )
 
     def _assert_volume_and_mounts(
         self,
@@ -183,6 +157,31 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         assert actual["coreLimit"] == expected["cpu"]
         assert actual["gpu"]["name"] == expected["gpu_type"]
         assert actual["gpu"]["quantity"] == expected["gpus"]
+
+    def assert_security_context(
+        self,
+        security_context=None,
+        expected_driver_security_context=None,
+        expected_executor_security_context=None,
+    ):
+
+        body = self._get_custom_object_creation_body()
+
+        if expected_driver_security_context:
+            assert (
+                body["spec"]["driver"].get("securityContext")
+                == expected_driver_security_context
+            )
+        else:
+            assert body["spec"]["driver"].get("securityContext") is None
+
+        if expected_executor_security_context:
+            assert (
+                body["spec"]["executor"].get("securityContext")
+                == expected_executor_security_context
+            )
+        else:
+            assert body["spec"]["executor"].get("securityContext") is None
 
     def _sanitize_list_for_serialization(self, list_: list):
         kubernetes_api_client = kubernetes.client.ApiClient()
@@ -253,6 +252,15 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
     def test_run_with_default_security_context(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=True
+        )
+
+        self.execute_function(runtime)
+
+        # both should default to empty security context
+        self.assert_security_context()
+
         default_security_context_dict = {
             "runAsUser": 1000,
             "runAsGroup": 3000,
@@ -273,7 +281,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         self.execute_function(runtime)
 
         # both should default to driver_security_context
-        self._assert_custom_object_creation_config(
+        self.assert_security_context(
             expected_driver_security_context=default_security_context,
             expected_executor_security_context=default_security_context,
         )
@@ -295,7 +303,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         runtime.with_driver_security_context(driver_security_context)
 
         self.execute_function(runtime)
-        self._assert_custom_object_creation_config(
+        self.assert_security_context(
             expected_driver_security_context=driver_security_context,
             expected_executor_security_context=executor_security_context,
         )

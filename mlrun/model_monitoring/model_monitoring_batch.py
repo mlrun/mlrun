@@ -1,6 +1,5 @@
 import collections
 import dataclasses
-import datetime
 import json
 import os
 from typing import Any, Dict, List, Optional, Tuple
@@ -13,9 +12,8 @@ import v3io.dataplane
 import mlrun
 import mlrun.api.schemas
 import mlrun.data_types.infer
-import mlrun.feature_store as fstore
 import mlrun.run
-import mlrun.utils.helpers
+import mlrun.utils
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
 from mlrun.utils import logger
@@ -176,8 +174,7 @@ class VirtualDrift:
         # create a dictionary with feature histograms as values
         histograms = {}
         for feature, stats in histogram_dict.items():
-            if "hist" in stats:
-                histograms[feature] = stats["hist"][0]
+            histograms[feature] = stats["hist"][0]
 
         # convert the dictionary to pandas DataFrame
         histograms = pd.DataFrame(histograms)
@@ -351,7 +348,7 @@ class BatchProcessor:
         # define the required paths for the project objects.
         # note that the kv table, tsdb, and the input stream paths are located at the default location
         # while the parquet path is located at the user-space location
-        template = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default
+        template = mlrun.utils.config.model_endpoint_monitoring.store_prefixes.default
         kv_path = template.format(project=self.project, kind="endpoints")
         (
             _,
@@ -370,10 +367,8 @@ class BatchProcessor:
             self.stream_container,
             self.stream_path,
         ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(stream_path)
-        self.parquet_path = (
-            mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
-                project=project, kind="parquet"
-            )
+        self.parquet_path = mlrun.utils.config.model_endpoint_monitoring.store_prefixes.user_space.format(
+            project=project, kind="parquet"
         )
 
         logger.info(
@@ -392,10 +387,10 @@ class BatchProcessor:
 
         # get drift thresholds from the model monitoring configuration
         self.default_possible_drift_threshold = (
-            mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.possible_drift
+            mlrun.utils.config.model_endpoint_monitoring.drift_thresholds.default.possible_drift
         )
         self.default_drift_detected_threshold = (
-            mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.drift_detected
+            mlrun.utils.config.model_endpoint_monitoring.drift_thresholds.default.drift_detected
         )
 
         # get a runtime database
@@ -407,7 +402,7 @@ class BatchProcessor:
             access_key=self.v3io_access_key
         )
         self.frames = mlrun.utils.v3io_clients.get_frames_client(
-            address=mlrun.mlconf.v3io_framesd,
+            address=mlrun.utils.config.v3io_framesd,
             container=self.tsdb_container,
             token=self.v3io_access_key,
         )
@@ -442,12 +437,33 @@ class BatchProcessor:
 
         active_endpoints = set()
         for endpoint in endpoints.endpoints:
-            if endpoint.spec.active and endpoint.spec.monitoring_mode == "enabled":
+            if endpoint.spec.active:
                 active_endpoints.add(endpoint.metadata.uid)
+
+        store, sub = mlrun.store_manager.get_or_create_store(self.parquet_path)
+        prefix = self.parquet_path.replace(sub, "")
+        fs = store.get_filesystem(silent=False)
+
+        if not fs.exists(sub):
+            logger.warn(f"{sub} does not exist")
+            return
+
+        for endpoint_dir in fs.ls(sub):
+            endpoint_id = endpoint_dir["name"].split("=")[-1]
+            if endpoint_id not in active_endpoints:
+                continue
 
         # perform drift analysis for each model endpoint
         for endpoint_id in active_endpoints:
             try:
+                last_year = self.get_last_created_dir(fs, endpoint_dir)
+                last_month = self.get_last_created_dir(fs, last_year)
+                last_day = self.get_last_created_dir(fs, last_month)
+                last_hour = self.get_last_created_dir(fs, last_day)
+
+                full_path = f"{prefix}{last_hour['name']}"
+
+                logger.info(f"Now processing {full_path}")
 
                 # get model endpoint object
                 endpoint = self.db.get_model_endpoint(
@@ -463,58 +479,14 @@ class BatchProcessor:
                     logger.info(f"{endpoint_id} is router skipping")
                     continue
 
-                # convert feature set into dataframe and get the latest dataset
-                (
-                    _,
-                    serving_function_name,
-                    _,
-                    _,
-                ) = mlrun.utils.helpers.parse_versioned_object_uri(
-                    endpoint.spec.function_uri
-                )
-
-                model_name = endpoint.spec.model.replace(":", "-")
-
-                m_fs = fstore.get_feature_set(
-                    f"store://feature-sets/{self.project}/monitoring-{serving_function_name}-{model_name}"
-                )
-                df = m_fs.to_dataframe(
-                    start_time=datetime.datetime.now() - datetime.timedelta(hours=1),
-                    end_time=datetime.datetime.now(),
-                    time_column="timestamp",
-                )
-
-                # continue if no input provided in the previous hour
-                if len(df) == 0:
-                    continue
-
-                # get feature names from monitoring feature set
-                feature_names = [
-                    feature_name["name"]
-                    for feature_name in m_fs.spec.features.to_dict()
-                ]
-
-                # create DataFrame based on the input features
-                stats_columns = [
-                    "timestamp",
-                    *feature_names,
-                    "prediction",
-                ]
-
-                named_features_df = df[stats_columns].copy()
-
-                # infer feature set stats and schema
-                fstore.api._infer_from_static_df(
-                    named_features_df,
-                    m_fs,
-                    options=mlrun.data_types.infer.InferOptions.all_stats(),
-                )
-
-                # save feature set to apply changes
-                m_fs.save()
+                df = pd.read_parquet(full_path)
 
                 # get the timestamp of the latest request
                 timestamp = df["timestamp"].iloc[-1]
+
+                # create DataFrame based on the input features
+                named_features_df = list(df["named_features"])
+                named_features_df = pd.DataFrame(named_features_df)
 
                 # get the current stats that are represented by histogram of each feature within the dataset.
                 # in the following dictionary, each key is a feature with dictionary of stats
@@ -592,7 +564,7 @@ class BatchProcessor:
                     index_cols=["timestamp", "endpoint_id", "record_type"],
                 )
 
-                logger.info("Done updating drift measures", endpoint_id=endpoint_id)
+                # logger.info(f"Done updating drift measures {full_path}")
 
             except Exception as e:
                 logger.error(f"Exception for endpoint {endpoint_id}")
@@ -639,6 +611,12 @@ class BatchProcessor:
             drift_status = "POSSIBLE_DRIFT"
 
         return drift_status, drift_mean
+
+    @staticmethod
+    def get_last_created_dir(fs, endpoint_dir):
+        dirs = fs.ls(endpoint_dir["name"])
+        last_dir = sorted(dirs, key=lambda k: k["name"].split("=")[-1])[-1]
+        return last_dir
 
 
 def handler(context: mlrun.run.MLClientCtx):

@@ -1,3 +1,4 @@
+(data-feature-store)=
 # Data Stores and Data Items
 
 One of the biggest challenge in distributed systems is handling data given the different access methods, APIs, and 
@@ -13,7 +14,7 @@ Working with the abstractions enable you to securely access different data sourc
 
 **In this section**
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 1
 ../store/datastore
 data-items
 ```

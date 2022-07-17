@@ -1,5 +1,4 @@
 import collections
-import datetime
 import json
 import os
 import typing
@@ -13,6 +12,7 @@ import v3io.dataplane
 
 import mlrun.config
 import mlrun.datastore.targets
+import mlrun.feature_store as fs
 import mlrun.feature_store.steps
 import mlrun.utils
 import mlrun.utils.model_monitoring
@@ -54,7 +54,6 @@ ENDPOINT_FEATURES = "endpoint_features"
 METRICS = "metrics"
 BATCH_TIMESTAMP = "batch_timestamp"
 TIME_FORMAT: str = "%Y-%m-%d %H:%M:%S.%f"  # ISO 8061
-PROJECT = "project"
 
 
 # Stream processing code
@@ -96,9 +95,6 @@ class EventStreamProcessor:
             or os.environ.get("MODEL_MONITORING_ACCESS_KEY")
             or self.v3io_access_key
         )
-        self.storage_options = dict(
-            v3io_access_key=self.model_monitoring_access_key, v3io_api=self.v3io_api
-        )
 
         template = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default
 
@@ -139,20 +135,17 @@ class EventStreamProcessor:
             parquet_path=self.parquet_path,
         )
 
-    def apply_serving_graph(self, fn):
-        """
-        Apply monitoring serving graph to a given serving function
-
-        :param fn: A serving function
-        """
-        graph = fn.set_topology("flow")
-        graph.to(
+    def create_feature_set(self):
+        feature_set = fs.FeatureSet(
+            "monitoring", entities=[ENDPOINT_ID], timestamp_key=TIMESTAMP
+        )
+        feature_set.metadata.project = self.project
+        feature_set.graph.to(
             "ProcessEndpointEvent",
             kv_container=self.kv_container,
             kv_path=self.kv_path,
             v3io_access_key=self.v3io_access_key,
             full_event=True,
-            project=self.project,
         ).to("storey.Filter", "filter_none", _fn="(event is not None)").to(
             "storey.FlatMap", "flatten_events", _fn="(event)"
         ).to(
@@ -162,54 +155,42 @@ class EventStreamProcessor:
             kv_path=self.kv_path,
             access_key=self.v3io_access_key,
             infer_columns_from_data=True,
-        ).to(
-            class_name="storey.AggregateByKey",
-            aggregates=[
-                {
-                    "name": PREDICTIONS,
-                    "column": ENDPOINT_ID,
-                    "operations": ["count"],
-                    "windows": self.aggregate_count_windows,
-                    "period": self.aggregate_count_period,
-                }
-            ],
+        )
+        # kv and tsdb branch
+        feature_set.add_aggregation(
+            ENDPOINT_ID,
+            ["count"],
+            self.aggregate_count_windows,
+            self.aggregate_count_period,
             name=PREDICTIONS,
             after="MapFeatureNames",
             step_name="Aggregates",
-            table=".",
-            v3io_access_key=self.v3io_access_key,
-        ).to(
-            class_name="storey.AggregateByKey",
-            aggregates=[
-                {
-                    "name": LATENCY,
-                    "column": LATENCY,
-                    "operations": ["avg"],
-                    "windows": self.aggregate_avg_windows,
-                    "period": self.aggregate_avg_period,
-                }
-            ],
-            name=LATENCY,
-            after=PREDICTIONS,
-            table=".",
-            v3io_access_key=self.v3io_access_key,
-        ).to(
+        )
+        feature_set.add_aggregation(
+            LATENCY,
+            ["avg"],
+            self.aggregate_avg_windows,
+            self.aggregate_avg_period,
+        )
+        feature_set.graph.add_step(
             "storey.steps.SampleWindow",
             name="sample",
-            after=LATENCY,
+            after="Aggregates",
             window_size=self.sample_window,
             key=ENDPOINT_ID,
-            v3io_access_key=self.v3io_access_key,
-        ).to(
+        )
+        # kv
+        feature_set.graph.add_step(
             "ProcessBeforeKV", name="ProcessBeforeKV", after="sample"
-        ).to(
+        )
+        feature_set.graph.add_step(
             "WriteToKV",
             name="WriteToKV",
             after="ProcessBeforeKV",
             container=self.kv_container,
             table=self.kv_path,
-            v3io_access_key=self.v3io_access_key,
-        ).to(
+        )
+        feature_set.graph.add_step(
             "InferSchema",
             name="InferSchema",
             after="WriteToKV",
@@ -218,16 +199,17 @@ class EventStreamProcessor:
             container=self.kv_container,
             table=self.kv_path,
         )
-
-        # TSDB branch
-        graph.add_step(
+        # tsdb
+        feature_set.graph.add_step(
             "ProcessBeforeTSDB", name="ProcessBeforeTSDB", after="sample"
-        ).to(
+        )
+        feature_set.graph.add_step(
             "FilterAndUnpackKeys",
             name="FilterAndUnpackKeys1",
             after="ProcessBeforeTSDB",
             keys=[BASE_METRICS],
-        ).to(
+        )
+        feature_set.graph.add_step(
             "storey.TSDBTarget",
             name="tsdb1",
             after="FilterAndUnpackKeys1",
@@ -242,12 +224,13 @@ class EventStreamProcessor:
             timeout_secs=self.tsdb_batching_timeout_secs,
             key=ENDPOINT_ID,
         )
-        graph.add_step(
+        feature_set.graph.add_step(
             "FilterAndUnpackKeys",
             name="FilterAndUnpackKeys2",
             after="ProcessBeforeTSDB",
             keys=[ENDPOINT_FEATURES],
-        ).to(
+        )
+        feature_set.graph.add_step(
             "storey.TSDBTarget",
             name="tsdb2",
             after="FilterAndUnpackKeys2",
@@ -262,18 +245,19 @@ class EventStreamProcessor:
             timeout_secs=self.tsdb_batching_timeout_secs,
             key=ENDPOINT_ID,
         )
-
-        graph.add_step(
+        feature_set.graph.add_step(
             "FilterAndUnpackKeys",
             name="FilterAndUnpackKeys3",
             after="ProcessBeforeTSDB",
             keys=[CUSTOM_METRICS],
-        ).to(
+        )
+        feature_set.graph.add_step(
             "storey.Filter",
             "FilterNotNone",
             after="FilterAndUnpackKeys3",
             _fn="(event is not None)",
-        ).to(
+        )
+        feature_set.graph.add_step(
             "storey.TSDBTarget",
             name="tsdb3",
             after="FilterNotNone",
@@ -290,26 +274,33 @@ class EventStreamProcessor:
         )
 
         # parquet branch
-        graph.add_step(
+        feature_set.graph.add_step(
             "ProcessBeforeParquet",
             name="ProcessBeforeParquet",
             after="MapFeatureNames",
             _fn="(event)",
-        ).to(
-            "storey.ParquetTarget",
-            name="ParquetTarget",
-            after="ProcessBeforeParquet",
-            graph_shape="cylinder",
+        )
+        storage_options = dict(
+            v3io_access_key=self.model_monitoring_access_key, v3io_api=self.v3io_api
+        )
+
+        pq_target = mlrun.datastore.targets.ParquetTarget(
             path=self.parquet_path,
-            storage_options=self.storage_options,
-            max_events=self.parquet_batching_max_events,
-            flush_after_seconds=self.parquet_batching_timeout_secs,
-            attributes={"infer_columns_from_data": True},
-            index_cols=[ENDPOINT_ID],
+            after_step="ProcessBeforeParquet",
             key_bucketing_number=0,
             time_partitioning_granularity="hour",
-            partition_cols=["$key", "$year", "$month", "$day", "$hour"],
+            max_events=self.parquet_batching_max_events,
+            flush_after_seconds=self.parquet_batching_timeout_secs,
+            storage_options=storage_options,
+            attributes={"infer_columns_from_data": True},
         )
+
+        feature_set.set_targets(
+            targets=[pq_target],
+            with_defaults=False,
+            default_final_step="ProcessBeforeParquet",
+        )
+        return feature_set
 
 
 class ProcessBeforeKV(mlrun.feature_store.steps.MapClass):
@@ -379,6 +370,7 @@ class ProcessBeforeTSDB(mlrun.feature_store.steps.MapClass):
         }
 
         processed = {BASE_METRICS: base_metrics, ENDPOINT_FEATURES: endpoint_features}
+
         if event[METRICS]:
             processed[CUSTOM_METRICS] = {
                 RECORD_TYPE: CUSTOM_METRICS,
@@ -395,7 +387,7 @@ class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
 
     def do(self, event):
         logger.info("ProcessBeforeParquet1", event=event)
-        for key in [UNPACKED_LABELS, FEATURES, NAMED_FEATURES]:
+        for key in [UNPACKED_LABELS, FEATURES]:
             event.pop(key, None)
         value = event.get("entities")
         if value is not None:
@@ -408,14 +400,7 @@ class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
 
 
 class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
-    def __init__(
-        self,
-        kv_container: str,
-        kv_path: str,
-        v3io_access_key: str,
-        project: str,
-        **kwargs,
-    ):
+    def __init__(self, kv_container: str, kv_path: str, v3io_access_key: str, **kwargs):
         super().__init__(**kwargs)
         self.kv_container: str = kv_container
         self.kv_path: str = kv_path
@@ -424,7 +409,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         self.last_request: typing.Dict[str, str] = dict()
         self.error_count: typing.Dict[str, int] = collections.defaultdict(int)
         self.endpoints: typing.Set[str] = set()
-        self.project: str = project
 
     def do(self, full_event):
         event = full_event.body
@@ -445,7 +429,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             function_uri=function_uri,
             versioned_model=versioned_model,
         )
-
         endpoint_id = str(endpoint_id)
 
         event[VERSIONED_MODEL] = versioned_model
@@ -512,8 +495,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
         unpacked_labels = {f"_{k}": v for k, v in event.get(LABELS, {}).items()}
 
-        timestamp = datetime.datetime.strptime(timestamp[:-6], "%Y-%m-%d %H:%M:%S.%f")
-
         # Separate each model invocation into sub events
         events = []
         for i, (feature, prediction) in enumerate(zip(features, predictions)):
@@ -575,7 +556,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                 endpoint_id=endpoint_id,
                 access_key=self.v3io_access_key,
             )
-
             if endpoint_record:
                 first_request = endpoint_record.get(FIRST_REQUEST)
                 if first_request:
@@ -583,7 +563,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                 error_count = endpoint_record.get(ERROR_COUNT)
                 if error_count:
                     self.error_count[endpoint_id] = error_count
-
             self.endpoints.add(endpoint_id)
 
     def is_valid(
@@ -753,13 +732,9 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
 
         feature_names = self.feature_names[endpoint_id]
         features = event[FEATURES]
-
         event[NAMED_FEATURES] = {
             name: feature for name, feature in zip(feature_names, features)
         }
-
-        for name, feature in zip(feature_names, features):
-            event[name] = feature
 
         label_columns = self.label_columns[endpoint_id]
         prediction = event[PREDICTION]
@@ -771,11 +746,10 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
 
 
 class WriteToKV(mlrun.feature_store.steps.MapClass):
-    def __init__(self, container: str, table: str, v3io_access_key: str, **kwargs):
+    def __init__(self, container: str, table: str, **kwargs):
         super().__init__(**kwargs)
         self.container = container
         self.table = table
-        self.v3io_access_key = v3io_access_key
 
     def do(self, event: typing.Dict):
         mlrun.utils.v3io_clients.get_v3io_client().kv.update(
@@ -783,7 +757,6 @@ class WriteToKV(mlrun.feature_store.steps.MapClass):
             table_path=self.table,
             key=event[ENDPOINT_ID],
             attributes=event,
-            access_key=self.v3io_access_key,
         )
         return event
 
@@ -813,6 +786,9 @@ class InferSchema(mlrun.feature_store.steps.MapClass):
                 container=self.container,
                 address=self.v3io_framesd,
             ).execute(backend="kv", table=self.table, command="infer_schema")
+            logger.info(
+                "Found new keys, inferred schema", table=self.table, event=event
+            )
         return event
 
 

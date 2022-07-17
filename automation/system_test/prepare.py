@@ -14,7 +14,7 @@ import yaml
 import mlrun.utils
 
 logger = mlrun.utils.create_logger(level="debug", name="automation")
-logging.getLogger("paramiko").setLevel(1)
+logging.getLogger("paramiko").setLevel(logging.DEBUG)
 
 
 class SystemTestPreparer:

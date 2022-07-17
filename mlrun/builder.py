@@ -274,7 +274,9 @@ def build_image(
     runtime_spec=None,
 ):
     builder_env = builder_env or {}
-    dest, secret_name = _resolve_image_dest_and_registry_secret(dest, registry, secret_name)
+    dest, secret_name = _resolve_image_dest_and_registry_secret(
+        dest, registry, secret_name
+    )
 
     if isinstance(requirements, list):
         requirements_list = requirements

@@ -69,7 +69,6 @@
    :caption: Continuous Monitoring and Retraining
    
    model_monitoring/index
-   projects/workflows
    model_monitoring/ci-cd-rolling-upgrades-git
    projects/ci-integration
    

@@ -9,7 +9,7 @@ Every release of MLRun includes several images for different usages. The build a
 
 ## Using images
 
-See [Kubernetes Jobs & Images](./mlrun_jobs.ipynb).
+See [Kubernetes Jobs & Images](./mlrun_jobs.html).
 
 ## MLRun images and how to build them 
 

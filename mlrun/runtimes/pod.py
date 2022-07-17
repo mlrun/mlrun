@@ -51,27 +51,37 @@ sanitized_types = {
         "attribute_type": k8s_client.V1Affinity,
         "sub_attribute_type": None,
         "contains_many": False,
-        "not_sanitized": "node_affinity",
+        "not_sanitized": ["node_affinity", "pod_affinity", "pod_anti_affinity"],
         "not_sanitized_class": dict,
-        "sanitized": "nodeAffinity",
+        "sanitized": ["nodeAffinity", "podAffinity", "podAntiAffinity"],
     },
     "tolerations": {
         "attribute_type_name": "List[V1.Toleration]",
         "attribute_type": list,
         "contains_many": True,
         "sub_attribute_type": k8s_client.V1Toleration,
-        "not_sanitized": "toleration_seconds",
+        "not_sanitized": ["toleration_seconds"],
         "not_sanitized_class": list,
-        "sanitized": "tolerationSeconds",
+        "sanitized": ["tolerationSeconds"],
     },
     "security_context": {
         "attribute_type_name": "V1SecurityContext",
         "attribute_type": k8s_client.V1SecurityContext,
         "sub_attribute_type": None,
         "contains_many": False,
-        "not_sanitized": "run_as_user",
+        "not_sanitized": [
+            "run_as_user",
+            "run_as_group",
+            "allow_privilege_escalation",
+            "run_as_non_root",
+        ],
         "not_sanitized_class": dict,
-        "sanitized": "runAsUser",
+        "sanitized": [
+            "runAsUser",
+            "runAsGroup",
+            "allowPrivilegeEscalation",
+            "runAsNonRoot",
+        ],
     },
 }
 
@@ -1325,13 +1335,15 @@ def _resolve_if_type_sanitized(attribute_name, attribute):
     attribute_config = sanitized_attributes[attribute_name]
     # heuristic - if one of the keys contains _ as part of the dict it means to_dict on the kubernetes
     # object performed, there's nothing we can do at that point to transform it to the sanitized version
-    if get_in(attribute, attribute_config["not_sanitized"]):
-        raise mlrun.errors.MLRunInvalidArgumentTypeError(
-            f"{attribute_name} must be instance of kubernetes {attribute_config.get('attribute_type_name')} class"
-        )
+    for not_sanitized_key in attribute_config["not_sanitized"]:
+        if get_in(attribute, not_sanitized_key):
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                f"{attribute_name} must be instance of kubernetes {attribute_config.get('attribute_type_name')} class "
+                f"but contains not sanitized key: {not_sanitized_key}"
+            )
+
     # then it's already the sanitized version
-    elif get_in(attribute, attribute_config["sanitized"]):
-        return attribute
+    return attribute
 
 
 def transform_attribute_to_k8s_class_instance(

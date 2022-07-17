@@ -255,8 +255,7 @@ class TestKubejobRuntime(TestRuntimeBase):
 
         # override default
         other_security_context = self._generate_security_context(
-            2000,
-            2000,
+            run_as_group=2000,
         )
         runtime = self._generate_runtime()
 

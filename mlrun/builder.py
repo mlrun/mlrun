@@ -274,7 +274,7 @@ def build_image(
     runtime_spec=None,
 ):
     builder_env = builder_env or {}
-    dest, secret_name = _get_image_dest_and_registry_secret(dest, registry, secret_name)
+    dest, secret_name = _resolve_image_dest_and_registry_secret(dest, registry, secret_name)
 
     if isinstance(requirements, list):
         requirements_list = requirements
@@ -529,12 +529,13 @@ def _generate_builder_env(project, builder_env):
     return env
 
 
-def _get_image_dest_and_registry_secret(
+def _resolve_image_dest_and_registry_secret(
     dest: str, registry: str = None, secret_name: str = None
 ) -> (str, str):
     if registry:
         return "/".join([registry, dest]), secret_name
 
+    # if dest starts with a dot, we add the configured registry to the start of the dest
     if dest.startswith(IMAGE_NAME_ENRICH_REGISTRY_PREFIX):
 
         # remove prefix from image name

@@ -616,13 +616,12 @@ def test_build_runtime_ecr_with_aws_secret(monkeypatch):
         ),
     ],
 )
-def test_get_image_dest(dest, registry, default_repository, expected_dest, monkeypatch):
+def test_resolve_image_dest(dest, registry, default_repository, expected_dest):
     docker_registry_secret = "default-docker-registry-secret"
-    monkeypatch.setattr(config.httpdb.builder, "docker_registry", default_repository)
-    monkeypatch.setattr(
-        config.httpdb.builder, "docker_registry_secret", docker_registry_secret
-    )
-    dest, _ = mlrun.builder._get_image_dest_and_registry_secret(dest, registry)
+    config.httpdb.builder.docker_registry = default_repository
+    config.httpdb.builder.docker_registry_secret = docker_registry_secret
+
+    dest, _ = mlrun.builder._resolve_image_dest_and_registry_secret(dest, registry)
     assert dest == expected_dest
 
 
@@ -687,15 +686,14 @@ def test_get_image_dest(dest, registry, default_repository, expected_dest, monke
         ),
     ],
 )
-def test_get_registry_secret(
-    dest, registry, secret_name, default_secret_name, expected_secret_name, monkeypatch
+def test_resolve_registry_secret(
+    dest, registry, secret_name, default_secret_name, expected_secret_name
 ):
     docker_registry = "default.docker.registry/default-repository"
-    monkeypatch.setattr(config.httpdb.builder, "docker_registry", docker_registry)
-    monkeypatch.setattr(
-        config.httpdb.builder, "docker_registry_secret", default_secret_name
-    )
-    _, secret_name = mlrun.builder._get_image_dest_and_registry_secret(
+    config.httpdb.builder.docker_registry = docker_registry
+    config.httpdb.builder.docker_registry_secret = default_secret_name
+
+    _, secret_name = mlrun.builder._resolve_image_dest_and_registry_secret(
         dest, registry, secret_name
     )
     assert secret_name == expected_secret_name

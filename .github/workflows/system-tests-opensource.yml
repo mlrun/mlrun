@@ -153,6 +153,7 @@ jobs:
             install mlrun-kit \
             --debug \
             --wait \
+            --timeout 600 \
             --set global.registry.url=$(minikube ip):5000 \
             --set global.registry.secretName="" \
             --set global.externalHostAddress=$(minikube ip) \

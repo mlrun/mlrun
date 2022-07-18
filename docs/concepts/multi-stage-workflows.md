@@ -1,4 +1,5 @@
-# Workflows
+(multi-stage-workflows)=
+# Multi-stage workflows
 
 A workflow is a definition of execution of functions. It defines the order of execution of multiple dependent steps in a DAG. A workflow 
 can reference the project’s params, secrets, artifacts, etc. It can also use a function execution output as a function execution 

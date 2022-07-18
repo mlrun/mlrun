@@ -1,3 +1,4 @@
+(install-local-docker)=
 # Install MLRun locally using Docker
 
 You can install and use MLRun and Nuclio locally on your computer. This does not include all the services and elastic 

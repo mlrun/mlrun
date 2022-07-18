@@ -1,3 +1,4 @@
+(custom-model-serving-class)=
 # Basic model serving class
 
 Model serving classes implement the full model serving functionality, which includes

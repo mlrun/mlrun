@@ -33,7 +33,7 @@ from ..k8s_utils import (
     generate_preemptible_tolerations,
 )
 from ..secrets import SecretsStore
-from ..utils import get_in, logger, normalize_name, update_in
+from ..utils import logger, normalize_name, update_in
 from .base import BaseRuntime, FunctionSpec, spec_fields
 from .utils import (
     apply_kfp,

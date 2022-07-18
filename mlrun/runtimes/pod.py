@@ -51,37 +51,21 @@ sanitized_types = {
         "attribute_type": k8s_client.V1Affinity,
         "sub_attribute_type": None,
         "contains_many": False,
-        "not_sanitized": ["node_affinity", "pod_affinity", "pod_anti_affinity"],
         "not_sanitized_class": dict,
-        "sanitized": ["nodeAffinity", "podAffinity", "podAntiAffinity"],
     },
     "tolerations": {
         "attribute_type_name": "List[V1.Toleration]",
         "attribute_type": list,
         "contains_many": True,
         "sub_attribute_type": k8s_client.V1Toleration,
-        "not_sanitized": ["toleration_seconds"],
         "not_sanitized_class": list,
-        "sanitized": ["tolerationSeconds"],
     },
     "security_context": {
         "attribute_type_name": "V1SecurityContext",
         "attribute_type": k8s_client.V1SecurityContext,
         "sub_attribute_type": None,
         "contains_many": False,
-        "not_sanitized": [
-            "run_as_user",
-            "run_as_group",
-            "allow_privilege_escalation",
-            "run_as_non_root",
-        ],
         "not_sanitized_class": dict,
-        "sanitized": [
-            "runAsUser",
-            "runAsGroup",
-            "allowPrivilegeEscalation",
-            "runAsNonRoot",
-        ],
     },
 }
 
@@ -263,7 +247,8 @@ class KubeResourceSpec(FunctionSpec):
         struct = super().to_dict(fields, exclude=list(set(exclude + _exclude)))
         api = k8s_client.ApiClient()
         for field in _exclude:
-            struct[field] = api.sanitize_for_serialization(getattr(self, field))
+            if field not in exclude:
+                struct[field] = api.sanitize_for_serialization(getattr(self, field))
         return struct
 
     def update_vols_and_mounts(
@@ -1253,11 +1238,11 @@ def _resolve_if_type_sanitized(attribute_name, attribute):
     attribute_config = sanitized_attributes[attribute_name]
     # heuristic - if one of the keys contains _ as part of the dict it means to_dict on the kubernetes
     # object performed, there's nothing we can do at that point to transform it to the sanitized version
-    for not_sanitized_key in attribute_config["not_sanitized"]:
-        if get_in(attribute, not_sanitized_key):
+    for key in attribute.keys():
+        if "_" in key:
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 f"{attribute_name} must be instance of kubernetes {attribute_config.get('attribute_type_name')} class "
-                f"but contains not sanitized key: {not_sanitized_key}"
+                f"but contains not sanitized key: {key}"
             )
 
     # then it's already the sanitized version

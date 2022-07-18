@@ -43,8 +43,6 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         "executor_java_options",
         "driver_cores",
         "executor_cores",
-        "driver_security_context",
-        "executor_security_context",
     ]
 
     def __init__(
@@ -102,8 +100,6 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         driver_cores=None,
         executor_cores=None,
         security_context=None,
-        driver_security_context=None,
-        executor_security_context=None,
     ):
 
         super().__init__(
@@ -164,29 +160,23 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         self.executor_java_options = executor_java_options
         self.driver_cores = driver_cores
         self.executor_cores = executor_cores
-        self.driver_security_context = (
-            driver_security_context
-            or mlrun.mlconf.get_default_function_security_context()
-        )
-        self.executor_security_context = (
-            executor_security_context
-            or mlrun.mlconf.get_default_function_security_context()
-        )
 
     def to_dict(self, fields=None, exclude=None):
         exclude = exclude or []
         _exclude = [
+            "affinity",
+            "tolerations",
+            "security_context",
             "executor_affinity",
             "executor_tolerations",
-            "executor_security_context",
             "driver_affinity",
             "driver_tolerations",
-            "driver_security_context",
         ]
         struct = super().to_dict(fields, exclude=list(set(exclude + _exclude)))
         api = kubernetes.client.ApiClient()
         for field in _exclude:
-            struct[field] = api.sanitize_for_serialization(getattr(self, field))
+            if field not in exclude:
+                struct[field] = api.sanitize_for_serialization(getattr(self, field))
         return struct
 
     @property
@@ -267,30 +257,6 @@ class Spark3JobSpec(AbstractSparkJobSpec):
             tolerations_field_name="executor_tolerations",
             affinity_field_name="executor_affinity",
             node_selector_field_name="executor_node_selector",
-        )
-
-    @property
-    def executor_security_context(self) -> kubernetes.client.V1SecurityContext:
-        return self._executor_security_context
-
-    @executor_security_context.setter
-    def executor_security_context(self, security_context):
-        self._executor_security_context = (
-            mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
-                "executor_security_context", security_context
-            )
-        )
-
-    @property
-    def driver_security_context(self) -> kubernetes.client.V1SecurityContext:
-        return self._driver_security_context
-
-    @driver_security_context.setter
-    def driver_security_context(self, security_context):
-        self._driver_security_context = (
-            mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
-                "executor_security_context", security_context
-            )
         )
 
     @property
@@ -400,17 +366,6 @@ class Spark3Runtime(AbstractSparkRuntime):
             update_in(job, "spec.driver.affinity", self.spec.driver_affinity)
         if self.spec.executor_affinity:
             update_in(job, "spec.executor.affinity", self.spec.executor_affinity)
-
-        if self.spec.driver_security_context:
-            update_in(
-                job, "spec.driver.securityContext", self.spec.driver_security_context
-            )
-        if self.spec.executor_security_context:
-            update_in(
-                job,
-                "spec.executor.securityContext",
-                self.spec.executor_security_context,
-            )
 
         if self.spec.monitoring:
             if "enabled" in self.spec.monitoring and self.spec.monitoring["enabled"]:
@@ -623,56 +578,13 @@ class Spark3Runtime(AbstractSparkRuntime):
         self, security_context: kubernetes.client.V1SecurityContext
     ):
         """
-        Use with_driver_security_context / with_executor_security_context to setup security_context for spark operator
+        With security context is not supported for spark runtime.
+        Driver / Executor processes run with uid / gid 1000 as long as security context is not defined.
+        If in the future we want to support setting security context it will work only from spark version 3.2 onwards.
         """
         raise mlrun.errors.MLRunInvalidArgumentTypeError(
-            "with_security_context is not supported, use with_driver_security_context / with_executor_security_context"
-            " to set security context for spark operator"
+            "with_security_context is not supported with spark operator"
         )
-
-    def with_driver_security_context(
-        self, security_context: kubernetes.client.V1SecurityContext
-    ):
-        """
-        Set security context for the pod
-        Example:
-
-            from kubernetes import client as k8s_client
-
-            security_context = k8s_client.V1SecurityContext(
-                        run_as_user=1000,
-                        run_as_group=3000,
-                    )
-            function.with_security_context(security_context)
-
-        More info:
-        https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
-
-        :param security_context:         The security context for the pod
-        """
-        self.spec.driver_security_context = security_context
-
-    def with_executor_security_context(
-        self, security_context: kubernetes.client.V1SecurityContext
-    ):
-        """
-        Set security context for the pod
-        Example:
-
-            from kubernetes import client as k8s_client
-
-            security_context = k8s_client.V1SecurityContext(
-                        run_as_user=1000,
-                        run_as_group=3000,
-                    )
-            function.with_security_context(security_context)
-
-        More info:
-        https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
-
-        :param security_context:         The security context for the pod
-        """
-        self.spec.executor_security_context = security_context
 
     def with_driver_host_path_volume(
         self,

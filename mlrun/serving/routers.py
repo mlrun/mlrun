@@ -36,7 +36,14 @@ from ..utils.model_monitoring import EndpointType
 from .utils import RouterToDict, _extract_input_data, _update_result_body
 from .v2_serving import _ModelLogPusher
 
-executor_types = ["thread", "process"]
+
+class ExecutorTypes:
+    thread = "thread"
+    process = "process"
+
+    @staticmethod
+    def all():
+        return [ExecutorTypes.thread, ExecutorTypes.process]
 
 
 class BaseModelRouter(RouterToDict):
@@ -996,7 +1003,7 @@ class ParallelRun(BaseModelRouter):
         name: str = None,
         routes=None,
         extend_event=None,
-        executor_type=None,
+        executor_type: ExecutorTypes = None,
         **kwargs,
     ):
         """Process multiple steps (child routes) in parallel and merge the results
@@ -1041,9 +1048,9 @@ class ParallelRun(BaseModelRouter):
         """
         super().__init__(context, name, routes, **kwargs)
         self.name = name or "ParallelRun"
-        if executor_type and executor_type not in executor_types:
+        if executor_type and executor_type not in ExecutorTypes.all():
             raise ValueError(
-                f"executor_type must be one of {' | '.join(executor_types)}"
+                f"executor_type must be one of {' | '.join(ExecutorTypes.all())}"
             )
         self.executor_type = executor_type
         self.extend_event = extend_event
@@ -1052,7 +1059,7 @@ class ParallelRun(BaseModelRouter):
 
     def _init_pool(self):
         if self._pool is None:
-            if self.executor_type == "process":
+            if self.executor_type == ExecutorTypes.process:
                 # init the context and route on the worker side (cannot be pickeled)
                 server = self.context.server.to_dict()
                 routes = {}
@@ -1127,7 +1134,7 @@ class ParallelRun(BaseModelRouter):
         results = {}
         executor = self._init_pool()
         for route in self.routes.keys():
-            if self.executor_type == "process":
+            if self.executor_type == ExecutorTypes.process:
                 future = executor.submit(_wrap_step, route, copy.copy(event))
             else:
                 step = self.routes[route]

@@ -22,7 +22,7 @@ def my_hnd(event):
     return {"mul": event["x"] * 2}
 
 
-@pytest.mark.parametrize("executor", ["thread", "process"])
+@pytest.mark.parametrize("executor", mlrun.serving.routers.ExecutorTypes.all())
 def test_parallel(executor):
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology(

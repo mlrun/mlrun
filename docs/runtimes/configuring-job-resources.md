@@ -1,3 +1,4 @@
+(configuring-job-resources)=
 # Managing job resources
 
 MLRun orchestrates serverless functions over Kubernetes. You can specify the resource requirements (CPU, memory, GPUs),

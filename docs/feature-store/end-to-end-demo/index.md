@@ -1,3 +1,4 @@
+(fs-end-to-end-demo)=
 # Feature store end-to-end demo
 
 This demo shows the usage of MLRun and the feature store:

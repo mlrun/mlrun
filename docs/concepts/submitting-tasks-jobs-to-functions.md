@@ -1,4 +1,5 @@
-#  Running a job
+(submitting-tasks-jobs-to-functions)=
+#  Submitting tasks/jobs to functions
 
 MLRun batch function objects support a {py:meth}`~mlrun.runtimes.BaseRuntime.run` method for invoking a job over them. 
 The run method accepts various parameters such as `name`, `handler`, `params`, `inputs`, `schedule`, etc. 

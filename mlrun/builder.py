@@ -252,7 +252,7 @@ def upload_tarball(source_dir, target, secrets=None):
 def build_image(
     auth_info: mlrun.api.schemas.AuthInfo,
     project: str,
-    dest,
+    image_target,
     commands=None,
     source="",
     mounter="v3io",
@@ -274,8 +274,8 @@ def build_image(
     runtime_spec=None,
 ):
     builder_env = builder_env or {}
-    dest, secret_name = _resolve_image_dest_and_registry_secret(
-        dest, registry, secret_name
+    image_target, secret_name = _resolve_image_target_and_registry_secret(
+        image_target, registry, secret_name
     )
 
     if isinstance(requirements, list):
@@ -344,7 +344,7 @@ def build_image(
     kpod = make_kaniko_pod(
         project,
         context,
-        dest,
+        image_target,
         dockertext=dock,
         inline_code=inline_code,
         inline_path=inline_path,
@@ -531,17 +531,17 @@ def _generate_builder_env(project, builder_env):
     return env
 
 
-def _resolve_image_dest_and_registry_secret(
-    dest: str, registry: str = None, secret_name: str = None
+def _resolve_image_target_and_registry_secret(
+    image_target: str, registry: str = None, secret_name: str = None
 ) -> (str, str):
     if registry:
-        return "/".join([registry, dest]), secret_name
+        return "/".join([registry, image_target]), secret_name
 
     # if dest starts with a dot, we add the configured registry to the start of the dest
-    if dest.startswith(IMAGE_NAME_ENRICH_REGISTRY_PREFIX):
+    if image_target.startswith(IMAGE_NAME_ENRICH_REGISTRY_PREFIX):
 
         # remove prefix from image name
-        dest = dest[len(IMAGE_NAME_ENRICH_REGISTRY_PREFIX) :]
+        image_target = image_target[len(IMAGE_NAME_ENRICH_REGISTRY_PREFIX) :]
 
         registry, repository = get_parsed_docker_registry()
         secret_name = secret_name or config.httpdb.builder.docker_registry_secret
@@ -550,10 +550,10 @@ def _resolve_image_dest_and_registry_secret(
                 "Default docker registry is not defined, set "
                 "MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY/MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY_SECRET env vars"
             )
-        dest_components = [registry, dest]
-        if repository and repository not in dest:
-            dest_components = [registry, repository, dest]
+        image_target_components = [registry, image_target]
+        if repository and repository not in image_target:
+            image_target_components = [registry, repository, image_target]
 
-        return "/".join(dest_components), secret_name
+        return "/".join(image_target_components), secret_name
 
-    return dest, secret_name
+    return image_target, secret_name

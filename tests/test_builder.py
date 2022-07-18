@@ -576,7 +576,7 @@ def test_build_runtime_ecr_with_aws_secret(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "dest,registry,default_repository,expected_dest",
+    "image_target,registry,default_repository,expected_dest",
     [
         (
             "test-image",
@@ -616,17 +616,19 @@ def test_build_runtime_ecr_with_aws_secret(monkeypatch):
         ),
     ],
 )
-def test_resolve_image_dest(dest, registry, default_repository, expected_dest):
+def test_resolve_image_dest(image_target, registry, default_repository, expected_dest):
     docker_registry_secret = "default-docker-registry-secret"
     config.httpdb.builder.docker_registry = default_repository
     config.httpdb.builder.docker_registry_secret = docker_registry_secret
 
-    dest, _ = mlrun.builder._resolve_image_dest_and_registry_secret(dest, registry)
-    assert dest == expected_dest
+    image_target, _ = mlrun.builder._resolve_image_target_and_registry_secret(
+        image_target, registry
+    )
+    assert image_target == expected_dest
 
 
 @pytest.mark.parametrize(
-    "dest,registry,secret_name,default_secret_name,expected_secret_name",
+    "image_target,registry,secret_name,default_secret_name,expected_secret_name",
     [
         (
             "test-image",
@@ -687,14 +689,14 @@ def test_resolve_image_dest(dest, registry, default_repository, expected_dest):
     ],
 )
 def test_resolve_registry_secret(
-    dest, registry, secret_name, default_secret_name, expected_secret_name
+    image_target, registry, secret_name, default_secret_name, expected_secret_name
 ):
     docker_registry = "default.docker.registry/default-repository"
     config.httpdb.builder.docker_registry = docker_registry
     config.httpdb.builder.docker_registry_secret = default_secret_name
 
-    _, secret_name = mlrun.builder._resolve_image_dest_and_registry_secret(
-        dest, registry, secret_name
+    _, secret_name = mlrun.builder._resolve_image_target_and_registry_secret(
+        image_target, registry, secret_name
     )
     assert secret_name == expected_secret_name
 

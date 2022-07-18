@@ -220,6 +220,7 @@ class EventStreamProcessor:
         )
 
         # TSDB branch
+        print('[EYAL]: TSDB TARGET: ', self.tsdb_path)
         graph.add_step(
             "ProcessBeforeTSDB", name="ProcessBeforeTSDB", after="sample"
         ).to(
@@ -352,6 +353,7 @@ class ProcessBeforeTSDB(mlrun.feature_store.steps.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
+        print('[EYAL]: now in ProcessBeforeTSDB: ', event)
         # compute prediction per second
         event[PREDICTIONS_PER_SECOND] = float(event[PREDICTIONS_COUNT_5M]) / 300
         base_fields = [TIMESTAMP, ENDPOINT_ID]
@@ -428,7 +430,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
     def do(self, full_event):
         event = full_event.body
-
+        print('[EYAL]: at the beginning of ProcessEndpointEvent: ', event)
         # code that calculates the endppint id. should be
         function_uri = event.get(FUNCTION_URI)
         if not is_not_none(function_uri, [FUNCTION_URI]):

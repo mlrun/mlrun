@@ -447,6 +447,7 @@ class ServingRuntime(RemoteRuntime):
                     trigger = KafkaTrigger(
                         brokers=brokers,
                         topics=[topic],
+                        consumer_group=f"{function_name}-consumer-group",
                         **trigger_args,
                     )
                     child_function.function_object.add_trigger("kafka", trigger)

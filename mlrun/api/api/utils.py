@@ -479,6 +479,7 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
         return
 
     function: mlrun.runtimes.pod.KubeResource
+    nogroup_id = 65533
     if function.spec.security_context:
         if function.spec.security_context.run_as_user != auth_info.user_unix_id:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -486,10 +487,10 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
                 + f"for user with unix id: {auth_info.user_unix_id}"
             )
 
-        if function.spec.security_context.run_as_group != -1:
+        if function.spec.security_context.run_as_group != nogroup_id:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Run as group {function.spec.security_context.run_as_group} is not allowed. "
-                + f"Use unix nogroup instead"
+                + f"Use unix nogroup instead: {nogroup_id}"
             )
 
         return
@@ -497,7 +498,7 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
     # function.with_security_context(security_context)
     function.spec.security_context = kubernetes.client.V1SecurityContext(
         run_as_user=auth_info.user_unix_id,
-        run_as_group=-1,
+        run_as_group=nogroup_id,
     )
 
 

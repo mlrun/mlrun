@@ -469,7 +469,7 @@ def process_function_service_account(function):
 
 def ensure_function_security_context(function, auth_info: mlrun.api.schemas.AuthInfo):
     """
-    For iguazio we enforce that the security context is set to the matching unix user id.
+    For iguazio we enforce that pods are running with the matching unix user id and nogroup group id.
     """
     if (
         mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
@@ -495,7 +495,6 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
 
         return
 
-    # function.with_security_context(security_context)
     function.spec.security_context = kubernetes.client.V1SecurityContext(
         run_as_user=auth_info.user_unix_id,
         run_as_group=nogroup_id,

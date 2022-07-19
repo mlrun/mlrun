@@ -176,8 +176,8 @@ mlrun: update-version-file ## Build mlrun docker image
 		--file dockerfiles/mlrun/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
-		$(MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
+		$(MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_IMAGE_NAME_TAGGED) .
 
 .PHONY: push-mlrun
@@ -274,8 +274,8 @@ models-gpu: update-version-file ## Build models-gpu docker image
 		--build-arg CUDA_VER=$(MLRUN_CUDA_VERSION) \
 		--build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
 		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
-		$(MLRUN_MODELS_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
+		$(MLRUN_MODELS_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED) .
 
 .PHONY: push-models-gpu

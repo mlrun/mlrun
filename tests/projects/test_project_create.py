@@ -23,7 +23,7 @@ class TestNewProject:
             "newproj",
             "./",
             from_template=str(self.assets_path / "project.yaml"),
-            skip_save=True,
+            save=False,
         )
         assert project.spec.description == "test", "failed to load yaml template"
 
@@ -33,7 +33,7 @@ class TestNewProject:
             "newproj2",
             project_dir,
             from_template=str(self.assets_path / "project.zip"),
-            skip_save=True,
+            save=False,
         )
         assert project.spec.description == "test", "failed to load yaml template"
 
@@ -47,7 +47,7 @@ class TestNewProject:
             "newproj3",
             project_dir,
             from_template="git://github.com/mlrun/project-demo.git",
-            skip_save=True,
+            save=False,
         )
         assert project.spec.description == "test", "failed to load yaml template"
 

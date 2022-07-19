@@ -24,4 +24,5 @@ def parse_kafka_url(url, bootstrap_servers=None):
     if url.netloc:
         bootstrap_servers = [url.netloc] + bootstrap_servers
     topic = url.path
+    topic = topic.lstrip("/")
     return topic, bootstrap_servers

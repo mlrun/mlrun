@@ -331,9 +331,19 @@ class TestFeatureStore(TestMLRunSystem):
         ), "'ticker' column shouldn't be present"
 
         # with_indexes = False, entity_timestamp_column = "time"
-        df_no_time = fs.get_offline_features(
-            vector, entity_timestamp_column="time"
-        ).to_dataframe()
+        resp = fs.get_offline_features(vector, entity_timestamp_column="time")
+        df_no_time = resp.to_dataframe()
+
+        tmpdir = tempfile.mkdtemp()
+        pq_path = f"{tmpdir}/features.parquet"
+        resp.to_parquet(pq_path)
+        read_back_df = pd.read_parquet(pq_path)
+        assert read_back_df.equals(df_no_time)
+        csv_path = f"{tmpdir}/features.csv"
+        resp.to_csv(csv_path)
+        read_back_df = pd.read_csv(csv_path, parse_dates=[2])
+        assert read_back_df.equals(df_no_time)
+
         assert isinstance(
             df_no_time.index, pd.core.indexes.range.RangeIndex
         ), "index column is not of default type"
@@ -2562,6 +2572,40 @@ class TestFeatureStore(TestMLRunSystem):
         for key in res.to_dataframe().to_dict().keys():
             assert key in expected
 
+    def test_set_event_with_spaces_or_hyphens(self):
+        from mlrun.feature_store.steps import OneHotEncoder
+
+        lst_1 = [
+            " Private",
+            " Private",
+            " Local-gov",
+            " Private",
+        ]
+        lst_2 = [0, 1, 2, 3]
+        lst_3 = [25, 38, 28, 44]
+        data = pd.DataFrame(
+            list(zip(lst_2, lst_1, lst_3)), columns=["id", "workclass", "age"]
+        )
+        # One Hot Encode the newly defined mappings
+        one_hot_encoder_mapping = {"workclass": list(data["workclass"].unique())}
+
+        # Define the corresponding FeatureSet
+        data_set = FeatureSet(
+            "test", entities=[Entity("id")], description="feature set"
+        )
+
+        data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
+        data_set.set_targets()
+
+        df_res = fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
+
+        expected_df = pd.DataFrame(
+            list(zip([1, 1, 0, 1], [0, 0, 1, 0], lst_3)),
+            columns=["workclass__Private", "workclass__Local_gov", "age"],
+        )
+
+        assert df_res.equals(expected_df)
+
     @pytest.mark.skipif(kafka_brokers == "", reason="KAFKA_BROKERS must be set")
     def test_kafka_target(self, kafka_consumer):
 
@@ -2725,13 +2769,15 @@ class TestFeatureStore(TestMLRunSystem):
             resp = service.get([{"ticker": "AAPL"}])
             assert resp == [
                 {
+                    "new_alias_for_total_ask": 0.0,
                     "bids_min_1h": math.inf,
                     "bids_max_1h": -math.inf,
-                    "new_alias_for_total_ask": 0.0,
                     "name": "Apple Inc",
                     "exchange": "NASDAQ",
                 }
             ]
+            resp = service.get([{"ticker": "AAPL"}], as_list=True)
+            assert resp == [[0.0, math.inf, -math.inf, "Apple Inc", "NASDAQ"]]
         finally:
             service.close()
 

@@ -265,9 +265,6 @@ def get_online_feature_service(
 
     # todo: support remote service (using remote nuclio/mlrun function if run_config)
 
-    for old_name in service.vector.get_feature_aliases().keys():
-        if old_name in service.vector.status.features.keys():
-            del service.vector.status.features[old_name]
     return service
 
 
@@ -866,7 +863,7 @@ def _ingest_with_spark(
         if created_spark_context:
             spark.stop()
             # We shouldn't return a dataframe that depends on a stopped context
-            return
+            df = None
     return df
 
 

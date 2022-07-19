@@ -1,5 +1,5 @@
 (auto-logging-mlops)=
-# Automated Logging and MLOps with `apply_mlrun()`
+# Applying MLRun onto existing training code
 
 You can write custom training functions or use built-in marketplace functions for training models using 
 common open-source frameworks and/or cloud services (such as AzureML, Sagemaker, etc.). 
@@ -10,9 +10,9 @@ functionality.
 With `apply_mlrun()` the following outputs are generated automatically:
 * Plots &mdash; loss convergence, ROC, confusion matrix, feature importance, etc.
 * Metrics &mdash; accuracy, loss, etc.
-* Dataset Artifacts &mdash; like the dataset used for training and / or testing
+* Dataset artifacts &mdash; like the dataset used for training and / or testing
 * Custom code &mdash; like custom layers, metrics, and so on
-* Model Artifact &mdash; enables versioning, monitoring and automated deployment
+* Model artifacts &mdash; enables versioning, monitoring and automated deployment
 
 In addition it handles automation of various MLOps tasks like scaling runs over multiple containers 
 (with Dask, Horovod, and Spark), run profiling, hyperparameter tuning, ML Pipeline, and CI/CD integration, etc.

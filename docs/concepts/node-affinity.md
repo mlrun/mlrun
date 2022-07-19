@@ -1,5 +1,5 @@
 (node-affinity)=
-# Node affinity (node selectors)
+# Node affinity
 
 You can assign a node or a node group for services or for jobs executed by a service. When specified, the service or the pods of a function can only run on nodes whose 
 labels match the node selector entries configured for the specific service. If node selection for the service is not specified, the 

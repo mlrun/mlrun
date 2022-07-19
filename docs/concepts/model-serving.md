@@ -1,17 +1,6 @@
 (model-serving)=
 # Model serving
 
-**In this section**
-- [Model serving](#model-serving)
-
-```{toctree}
-:maxdepth: 1
-
-nuclio-real-time-functions
-```
-
-## Model serving
-
 MLRun Serving allow composition of multi-stage real-time pipelines made of serverless Nuclio functions, including data processing, 
 advanced model serving, custom logic, and fast access to a variety of data systems, and deploying them quickly to production with 
 minimal effort.
@@ -23,3 +12,10 @@ Graphs are used to deploy and serve ML/DL models. Graphs can be deployed into a 
 
 See full details and examples in [Getting started with model serving](../serving/model-serving-get-started.html).
 
+**In this section**
+
+```{toctree}
+:maxdepth: 1
+
+nuclio-real-time-functions
+```

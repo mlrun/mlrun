@@ -32,12 +32,9 @@ use in your projects.
 ```{toctree}
 :maxdepth: 1
 
-../functions/concepts
 using-functions
-../concepts/functions-overview
 mlrun_code_annotations
 code-archive
-<!--- resource-allocation --->
 function-storage
 images
 ```

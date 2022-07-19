@@ -11,4 +11,4 @@ with the CI systems.
 - Extensive function marketplace 
 
 
-See full details and examples in [Github/Gitlab and CI/CD Integration](../projects/ci-integration.html).
+See full details and examples in [CI/CD, rolling upgrades, git](../projects/ci-integration.html).

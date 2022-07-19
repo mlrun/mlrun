@@ -1,4 +1,4 @@
-# Feature Store:  Data ingestion
+# Feature store:  data ingestion
 
 Learn how to ingest data into the feature store, with transformations, using the supported engines.
 
@@ -9,7 +9,4 @@ Learn how to ingest data into the feature store, with transformations, using the
 feature-sets
 transformations
 using-spark-engine
-<!--- using-pandas-engine --->
-<!--- using-storey-engine --->
-<!--- using-dask-engine --->
 ```

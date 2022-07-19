@@ -1,5 +1,5 @@
 (demos-serving)=
-# Demos and Tutorials
+# Demos and tutorials
 
 Read these tutorials to get an even better understanding of serving graphs.
 

@@ -528,12 +528,7 @@ class BasePod:
         # will be applied on the pod spec only when calling .pod(), allows to override spec attributes
         self.default_pod_spec_attributes = default_pod_spec_attributes
         self.resources = resources
-
-        # if security context is not provided, use the default one.
-        # if default security context is empty, use None.
-        self.security_context = (
-            security_context or mlconfig.get_kaniko_security_context() or None
-        )
+        self.security_context = security_context
 
     @property
     def pod(self):

@@ -125,6 +125,10 @@ def make_kaniko_pod(
             mem=default_requests.get("memory"), cpu=default_requests.get("cpu")
         )
     }
+
+    # if security context is not provided, use the default one.
+    # if default security context is empty, use None.
+    security_context = security_context or config.get_kaniko_security_context() or None
     kpod = BasePod(
         name or "mlrun-build",
         config.httpdb.builder.kaniko_image,

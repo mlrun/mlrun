@@ -2654,7 +2654,7 @@ class TestFeatureStore(TestMLRunSystem):
         try:
             data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
             data_set.set_targets()
-            df_res = fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
+            fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
         except ValueError:
             # suppose to catch this error
             return

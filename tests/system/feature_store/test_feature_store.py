@@ -2635,6 +2635,31 @@ class TestFeatureStore(TestMLRunSystem):
 
         assert df_res.equals(expected_df)
 
+    def test_onehot_with_array_values(self):
+        from mlrun.feature_store.steps import OneHotEncoder
+
+        lst_1 = [[1, 2], [1, 2], [0, 1], [1, 2]]
+        lst_2 = [0, 1, 2, 3]
+        lst_3 = [25, 38, 28, 44]
+        data = pd.DataFrame(
+            list(zip(lst_2, lst_1, lst_3)), columns=["id", "workclass", "age"]
+        )
+        # One Hot Encode the newly defined mappings
+        one_hot_encoder_mapping = {"workclass": [[1, 2], [0, 1]]}
+
+        # Define the corresponding FeatureSet
+        data_set = FeatureSet(
+            "test", entities=[Entity("id")], description="feature set"
+        )
+        try:
+            data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
+            data_set.set_targets()
+            df_res = fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
+        except ValueError:
+            # suppose to catch this error
+            return
+        assert False
+
     @pytest.mark.skipif(kafka_brokers == "", reason="KAFKA_BROKERS must be set")
     def test_kafka_target(self, kafka_consumer):
 

@@ -148,7 +148,7 @@ class Imputer(StepToDict, MapClass):
 
 
 class OneHotEncoder(StepToDict, MapClass):
-    def __init__(self, mapping: Dict[str, Dict[str, Any]], **kwargs):
+    def __init__(self, mapping: Dict[str, Union[int, str]], **kwargs):
         """Create new binary fields, one per category (one hot encoded)
 
         example::
@@ -162,6 +162,12 @@ class OneHotEncoder(StepToDict, MapClass):
         """
         super().__init__(**kwargs)
         self.mapping = mapping
+        for values in mapping.values():
+            for val in values:
+                if not (isinstance(val, str) or isinstance(val, (int, np.integer))):
+                    raise ValueError(
+                        "For OneHotEncoder you must provide int or string mapping list"
+                    )
 
     def _encode(self, feature: str, value):
         encoding = self.mapping.get(feature, [])

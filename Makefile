@@ -58,9 +58,6 @@ MLRUN_CACHE_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_CACHE_FROM_REGISTRY),$(st
 MLRUN_CORE_DOCKER_TAG_SUFFIX := -core
 MLRUN_DOCKER_CACHE_FROM_FLAG :=
 MLRUN_DOCKER_NO_CACHE_FLAG := $(if $(MLRUN_NO_CACHE),--no-cache,)
-# this is used for pulling security updates for the image, we set different variable from MLRUN_DOCKER_NO_CACHE_FLAG,
-# because not all images at the moment are being updated with security fixes (e.g models-gpu), so we don't want to apply it for not relevant images
-MLRUN_DOCKER_NO_CACHE_SECURITY_FLAG := $(if $(MLRUN_UPDATE_SECURITY_FIXES), --no-cache,)
 MLRUN_PIP_NO_CACHE_FLAG := $(if $(MLRUN_NO_CACHE),--no-cache-dir,)
 
 MLRUN_OLD_VERSION_ESCAPED = $(shell echo "$(MLRUN_OLD_VERSION)" | sed 's/\./\\\./g')
@@ -179,7 +176,6 @@ mlrun: update-version-file ## Build mlrun docker image
 		--file dockerfiles/mlrun/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
-		$(MLRUN_DOCKER_NO_CACHE_SECURITY_FLAG) \
 		$(MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_IMAGE_NAME_TAGGED) .
@@ -205,9 +201,8 @@ base-core: pull-cache update-version-file ## Build base core docker image
 		--file dockerfiles/base/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
-		$(MLRUN_DOCKER_NO_CACHE_SECURITY_FLAG) \
-		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
+		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_CORE_BASE_IMAGE_NAME_TAGGED) .
 
 .PHONY: base
@@ -215,9 +210,8 @@ base: base-core ## Build base docker image
 	docker build \
 		--file dockerfiles/common/Dockerfile \
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_BASE_IMAGE_NAME_TAGGED) \
-		$(MLRUN_DOCKER_NO_CACHE_SECURITY_FLAG) \
-		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
+		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_BASE_IMAGE_NAME_TAGGED) .
 
 .PHONY: push-base
@@ -242,9 +236,8 @@ models-core: base-core ## Build models core docker image
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_BASE_IMAGE_NAME_TAGGED) \
 		--build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
 		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
-		$(MLRUN_DOCKER_NO_CACHE_SECURITY_FLAG) \
-		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
+		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_CORE_MODELS_IMAGE_NAME_TAGGED) .
 
 .PHONY: models
@@ -253,9 +246,8 @@ models: models-core ## Build models docker image
 	docker build \
 		--file dockerfiles/common/Dockerfile \
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_MODELS_IMAGE_NAME_TAGGED) \
-		$(MLRUN_DOCKER_NO_CACHE_SECURITY_FLAG) \
-		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
+		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_MODELS_IMAGE_NAME_TAGGED) .
 
 .PHONY: push-models
@@ -301,7 +293,6 @@ jupyter: update-version-file ## Build mlrun jupyter docker image
 		--file dockerfiles/jupyter/Dockerfile \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_CACHE_DATE=$(MLRUN_CACHE_DATE) \
-		$(MLRUN_DOCKER_NO_CACHE_SECURITY_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_JUPYTER_IMAGE_NAME) .
 
@@ -326,9 +317,8 @@ api: update-version-file ## Build mlrun-api docker image
 		--file dockerfiles/mlrun-api/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
-		$(MLRUN_DOCKER_NO_CACHE_SECURITY_FLAG) \
-		$(MLRUN_API_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
+		$(MLRUN_API_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_API_IMAGE_NAME_TAGGED) .
 
 .PHONY: push-api
@@ -352,9 +342,8 @@ build-test: update-version-file ## Build test docker image
 		--file dockerfiles/test/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
-		$(MLRUN_DOCKER_NO_CACHE_SECURITY_FLAG) \
-		$(MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
+		$(MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		--tag $(MLRUN_TEST_IMAGE_NAME_TAGGED) .
 
 .PHONY: push-test
@@ -370,7 +359,6 @@ build-test-system: update-version-file ## Build system tests docker image
 		--file dockerfiles/test-system/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
-		$(MLRUN_DOCKER_NO_CACHE_SECURITY_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_SYSTEM_TEST_IMAGE_NAME) .
 

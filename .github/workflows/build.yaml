@@ -25,8 +25,8 @@ on:
         description: 'Comma separated list of images to skip building, example with all possible images: mlrun,api,base,models,models-gpu,jupyter,test'
         required: false
         default: ''
-      pull_latest_security_fixes:
-        description: 'Whether to force cache miss and get the most recent security updates, the default is no because doing so significantly increases build time (set any character to force this action)'
+      disable_cache:
+        description: 'Whether to force cache miss, the default is no because doing so significantly increases build time (set any character to force this action)'
         required: false
         default: ''
 jobs:
@@ -107,7 +107,7 @@ jobs:
             MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
             MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
             MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-            MLRUN_UPDATE_SECURITY_FIXES=${{ github.event.inputs.pull_latest_security_fixes }} \
+            MLRUN_NO_CACHE=${{ github.event.inputs.disable_cache }} \
             MLRUN_PUSH_DOCKER_CACHE_IMAGE="true" \
             make push-${{ matrix.image-name }}; \
           done;
@@ -125,6 +125,7 @@ jobs:
             MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
             MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
             MLRUN_VERSION=unstable \
+            MLRUN_NO_CACHE=${{ github.event.inputs.disable_cache }} \
             MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
             make push-${{ matrix.image-name }}; \
           done;
@@ -137,6 +138,7 @@ jobs:
         MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
         MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
         MLRUN_VERSION=${{ steps.docker_cache.outputs.tag }} \
+        MLRUN_NO_CACHE=${{ github.event.inputs.disable_cache }} \
         MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
         MLRUN_PUSH_DOCKER_CACHE_IMAGE=true \
         make push-${{ matrix.image-name }}

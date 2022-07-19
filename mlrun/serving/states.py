@@ -952,8 +952,9 @@ class FlowStep(BaseStep):
                 responders.append(step.name)
             if step.on_error and step.on_error in start_steps:
                 start_steps.remove(step.on_error)
-            for prev_step in step.after:
-                self[prev_step].set_next(step.name)
+            if step.after:
+                for prev_step in step.after:
+                    self[prev_step].set_next(step.name)
         if self.on_error and self.on_error in start_steps:
             start_steps.remove(self.on_error)
 

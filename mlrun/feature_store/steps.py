@@ -191,7 +191,9 @@ class OneHotEncoder(StepToDict, MapClass):
     @staticmethod
     def _sanitized_category(category):
         # replace(" " and "-") -> "_"
-        return "_".join(("_".join(category.split())).split("-"))
+        if isinstance(category, str):
+            return re.sub("[ -]", "_", category)
+        return category
 
 
 class DateExtractor(StepToDict, MapClass):

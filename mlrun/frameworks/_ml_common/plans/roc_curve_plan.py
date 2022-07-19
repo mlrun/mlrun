@@ -7,9 +7,8 @@ from sklearn.metrics import roc_auc_score, roc_curve
 
 from mlrun.artifacts import Artifact, PlotlyArtifact
 
-from ..._common import ModelType
 from ..plan import MLPlanStages, MLPlotPlan
-from ..utils import DatasetType, to_dataframe
+from ..utils import MLTypes, MLUtils
 
 
 class ROCCurvePlan(MLPlotPlan):
@@ -79,10 +78,10 @@ class ROCCurvePlan(MLPlotPlan):
 
     def produce(
         self,
-        y: DatasetType,
-        y_pred: DatasetType = None,
-        model: ModelType = None,
-        x: DatasetType = None,
+        y: MLTypes.DatasetType,
+        y_pred: MLTypes.DatasetType = None,
+        model: MLTypes.ModelType = None,
+        x: MLTypes.DatasetType = None,
         **kwargs,
     ) -> Dict[str, Artifact]:
         """
@@ -100,8 +99,8 @@ class ROCCurvePlan(MLPlotPlan):
         y_pred = self._calculate_predictions(y_pred=y_pred, model=model, x=x)
 
         # Convert to DataFrame:
-        y = to_dataframe(dataset=y)
-        y_pred = to_dataframe(dataset=y_pred)
+        y = MLUtils.to_dataframe(dataset=y)
+        y_pred = MLUtils.to_dataframe(dataset=y_pred)
 
         # One hot encode the labels in order to plot them
         y_one_hot = pd.get_dummies(y, columns=y.columns.to_list())

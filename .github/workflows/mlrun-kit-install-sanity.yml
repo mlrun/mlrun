@@ -36,6 +36,13 @@ jobs:
     - name: Install curl and jq
       run: sudo apt-get install curl jq
 
+    # since github-actions gives us 14G only, and fills it up with some garbage
+    # we will free up some space for us (~2GB)
+    - name: Freeing up disk space
+      run: |
+        chmod +x "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
+        "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
+
     - uses: azure/setup-helm@v1
       with:
         version: "v3.9.1"
@@ -57,11 +64,12 @@ jobs:
         minikube kubectl -- create namespace ${NAMESPACE}
 
     - name: Install MLRun Kit helm chart
+      # the --devel flag is needed to install the latest unstable version of the chart
       run: |
         helm --namespace ${NAMESPACE} \
             install mlrun-kit \
             --debug \
-            --devel \  # this is needed to install the latest unstable version of the chart
+            --devel \
             --wait \
             --timeout 600s \
             --set global.registry.url=$(minikube ip):5000 \

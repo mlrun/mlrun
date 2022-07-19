@@ -62,6 +62,13 @@ jobs:
         pip install -r automation/requirements.txt -r dockerfiles/test-system/requirements.txt \
           -r dockerfiles/mlrun-api/requirements.txt && pip install -e .
 
+    # since github-actions gives us 14G only, and fills it up with some garbage
+    # we will free up some space for us (~2GB)
+    - name: Freeing up disk space
+      run: |
+        chmod +x "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
+        "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
+
       # TODO: How can we avoid these duplicate lines from the enterprise system tests, up until line 120.
     - name: Install curl and jq
       run: sudo apt-get install curl jq

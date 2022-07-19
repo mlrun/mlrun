@@ -151,6 +151,8 @@ def _generate_function_and_task_from_submit_run_body(
     process_function_service_account(function)
 
     mask_sensitive_data(function, auth_info)
+
+    ensure_function_security_context(function, auth_info)
     return function, task
 
 
@@ -462,6 +464,40 @@ def process_function_service_account(function):
 
     function.validate_and_enrich_service_account(
         allowed_service_accounts, default_service_account
+    )
+
+
+def ensure_function_security_context(function, auth_info: mlrun.api.schemas.AuthInfo):
+    """
+    For iguazio we enforce that the security context is set to the matching unix user id.
+    """
+    if (
+        mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
+        or function.kind == mlrun.runtimes.RuntimeKinds.spark
+        or not mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
+    ):
+        return
+
+    function: mlrun.runtimes.pod.KubeResource
+    if function.spec.security_context:
+        if function.spec.security_context.run_as_user != auth_info.user_unix_id:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Run as user {function.spec.security_context.run_as_user} is not allowed "
+                + f"for user with unix id: {auth_info.user_unix_id}"
+            )
+
+        if function.spec.security_context.run_as_group != -1:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Run as group {function.spec.security_context.run_as_group} is not allowed. "
+                + f"Use unix nogroup instead"
+            )
+
+        return
+
+    # function.with_security_context(security_context)
+    function.spec.security_context = kubernetes.client.V1SecurityContext(
+        run_as_user=auth_info.user_unix_id,
+        run_as_group=-1,
     )
 
 

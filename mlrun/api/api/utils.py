@@ -152,6 +152,7 @@ def _generate_function_and_task_from_submit_run_body(
 
     mask_sensitive_data(function, auth_info)
 
+    # ensure security context is allowed or enrich it
     ensure_function_security_context(function, auth_info)
     return function, task
 

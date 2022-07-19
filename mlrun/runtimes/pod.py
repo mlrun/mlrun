@@ -1007,7 +1007,7 @@ class KubeResource(BaseRuntime):
     def with_security_context(self, security_context: k8s_client.V1SecurityContext):
         """
         Set security context for the pod.
-        For iguazio we enforce that the security context is set to the matching unix user id.
+        For iguazio we enforce that pods are running with the matching unix user id and nogroup group id.
         Example:
 
             from kubernetes import client as k8s_client

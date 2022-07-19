@@ -479,7 +479,7 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
         return
 
     function: mlrun.runtimes.pod.KubeResource
-    nogroup_id = 65533
+    nogroup_id = 65534
     if function.spec.security_context:
         if function.spec.security_context.run_as_user != auth_info.user_unix_id:
             raise mlrun.errors.MLRunInvalidArgumentError(

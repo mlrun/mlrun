@@ -538,7 +538,7 @@ class RouterStep(TaskStep):
         :param function:   function this step should run in
         """
 
-        if not route and not class_name:
+        if not route and not class_name and not handler:
             raise MLRunInvalidArgumentError("route or class_name must be specified")
         if not route:
             route = TaskStep(class_name, class_args, handler=handler)

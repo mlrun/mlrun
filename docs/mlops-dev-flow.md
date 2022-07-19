@@ -115,7 +115,7 @@ Production pipeline development and deployment flow:
 
 ## Continuous monitoring, governance, and retraining
 
-Once the model is deployed, use MLRun to track the operational statistics as well as identify drift. 
+Once the model is deployed, use MLRun to track the [operational statistics](./model_monitoring/model-monitoring-deployment.html#architecture) as well as [identify drift](./model_monitoring/model-monitoring-deployment.html#drift-analysis).
 When drift is identified, MLRun can trigger the training pipeline to train a new model.
 
 AI services and applications are becoming an essential part of any business. This trend brings with it liabilities, which drive further 

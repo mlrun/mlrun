@@ -127,6 +127,45 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 == {}
             )
 
+    def _assert_resources(self, actual_resources, expected_values):
+        self._assert_limits(actual_resources, expected_values["limits"])
+        self._assert_requests(actual_resources, expected_values["requests"])
+
+    @staticmethod
+    def _assert_requests(actual, expected):
+        assert actual["coreRequest"] == expected["cpu"]
+        assert actual["memory"] == expected["mem"]
+
+    @staticmethod
+    def _assert_limits(actual, expected):
+        assert actual["coreLimit"] == expected["cpu"]
+        assert actual["gpu"]["name"] == expected["gpu_type"]
+        assert actual["gpu"]["quantity"] == expected["gpus"]
+
+    def _assert_security_context(
+        self,
+        expected_driver_security_context=None,
+        expected_executor_security_context=None,
+    ):
+
+        body = self._get_custom_object_creation_body()
+
+        if expected_driver_security_context:
+            assert (
+                body["spec"]["driver"].get("securityContext")
+                == expected_driver_security_context
+            )
+        else:
+            assert body["spec"]["driver"].get("securityContext") is None
+
+        if expected_executor_security_context:
+            assert (
+                body["spec"]["executor"].get("securityContext")
+                == expected_executor_security_context
+            )
+        else:
+            assert body["spec"]["executor"].get("securityContext") is None
+
     def _sanitize_list_for_serialization(self, list_: list):
         kubernetes_api_client = kubernetes.client.ApiClient()
         return list(map(kubernetes_api_client.sanitize_for_serialization, list_))

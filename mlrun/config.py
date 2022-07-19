@@ -120,6 +120,25 @@ default_config = {
     "ignored_notebook_tags": "",
     # when set it will force the local=True in run_function(), set to "auto" will run local if there is no k8s
     "force_run_local": "auto",
+    "background_tasks": {
+        # enabled / disabled
+        "timeout_mode": "enabled",
+        # timeout in seconds to wait for background task to be updated / finished by the worker responsible for the task
+        "default_timeouts": {
+            "operations": {"migrations": "3600"},
+            "runtimes": {"dask": "600"},
+        },
+    },
+    "function": {
+        "spec": {
+            "image_pull_secret": {"default": None},
+            "security_context": {
+                # default security context to be applied to all functions - json string base64 encoded format
+                # in camelCase format: {"runAsUser": 1000, "runAsGroup": 3000}
+                "default": "e30=",  # encoded empty dict
+            },
+        },
+    },
     "function_defaults": {
         "image_by_kind": {
             "job": "mlrun/mlrun",
@@ -472,6 +491,11 @@ class Config:
     def get_preemptible_tolerations(self) -> list:
         return self.decode_base64_config_and_load_to_object(
             "preemptible_nodes.tolerations", list
+        )
+
+    def get_default_function_security_context(self) -> dict:
+        return self.decode_base64_config_and_load_to_object(
+            "function.spec.security_context.default", dict
         )
 
     def is_preemption_nodes_configured(self):

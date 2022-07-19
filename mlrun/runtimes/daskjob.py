@@ -103,6 +103,7 @@ class DaskSpec(KubeResourceSpec):
         workdir=None,
         tolerations=None,
         preemption_mode=None,
+        security_context=None,
     ):
 
         super().__init__(
@@ -131,6 +132,7 @@ class DaskSpec(KubeResourceSpec):
             workdir=workdir,
             tolerations=tolerations,
             preemption_mode=preemption_mode,
+            security_context=security_context,
         )
         self.args = args
 

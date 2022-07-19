@@ -37,3 +37,20 @@ class PreemptionModes(str, Enum):
     prevent = "prevent"
     # doesn't apply any preemptible node selection on the function
     none = "none"
+
+
+class ImagePullSecret(pydantic.BaseModel):
+    default: typing.Optional[str]
+
+
+class SecurityContext(pydantic.BaseModel):
+    default: typing.Optional[str]
+
+
+class FunctionSpec(pydantic.BaseModel):
+    image_pull_secret: typing.Optional[ImagePullSecret]
+    security_context: typing.Optional[SecurityContext]
+
+
+class Function(pydantic.BaseModel):
+    spec: typing.Optional[FunctionSpec]

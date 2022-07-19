@@ -51,7 +51,7 @@ def get_source_step(source, key_fields=None, time_field=None, context=None):
     return source.to_step(key_fields, time_field, context)
 
 
-class _MongoDBiter:
+class _MondoDBIterator:
     def __init__(self, collection, iter_chunksize, iter_query):
         """
         Iterate over given collection
@@ -866,8 +866,8 @@ class MongoDBSource(BaseSourceDriver):
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
-        start_time=None,
-        end_time=None,
+        start_time: Optional[Union[datetime, str]] = None,
+        end_time: Optional[Union[datetime, str]] = None,
         db_name: str = None,
         connection_string: str = None,
         collection_name: str = None,
@@ -877,34 +877,36 @@ class MongoDBSource(BaseSourceDriver):
         Reads MongoDB as input source for a flow.
 
         example::
-             connection_string = "???"
-             query = {age: {"$gt: 5}}
-             MongoDBSource(connection_string=connection_string, collection_name="coll",
-             db_name="my_dataset", chunksize=5, query=query)
+            CONNECTION_STRING = "???"
+            target = MongoDBTarget(connection_string=CONNECTION_STRING,
+                              db_name="db_name",
+                              collection_name='collection',
+                              create_collection=True,
+                              override_collection=True)
 
-        :param name:  source name
-        :param query: dictionary query for mongodb
-        :param chunksize: number of rows per chunk (default large single chunk)
-        :param key_field: the column to be used as the key for events. Can be a list of keys.
-        :param time_field: the column to be parsed as the timestamp for events. Defaults to None
-        :param start_time: filters out data before this time
-        :param end_time: filters out data after this time
-        :param schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
-             cause the job to run every 30 minutes
-        :param db_name: the name of the database to access
-        :param connection_string: your mongodb connection string
-        :param collection_name: the name of the collection to access,
+        :param name:                source name
+        :param query:               dictionary query for mongodb
+        :param chunksize:           number of rows per chunk (default large single chunk)
+        :param key_field:           the column to be used as the key for events. Can be a list of keys.
+        :param time_field:          the column to be parsed as the timestamp for events. Defaults to None
+        :param start_time:          filters out data before this time
+        :param end_time:            filters out data after this time
+        :param schedule:            string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
+                                    cause the job to run every 30 minutes
+        :param db_name:             the name of the database to access
+        :param connection_string:   your mongodb connection string
+        :param collection_name:     the name of the collection to access,
                                         from the current database
-        :param spark_options: additional spark read options
+        :param spark_options:       additional spark read options
         """
 
-        MONGO_CONNECTION_STRING_ENV_VAR = "MONGO_CONNECTION_STRING"
+        _MONGO_CONNECTION_STRING_ENV_VAR = "MONGO_CONNECTION_STRING"
         connection_string = connection_string or os.getenv(
-            MONGO_CONNECTION_STRING_ENV_VAR
+            _MONGO_CONNECTION_STRING_ENV_VAR
         )
         if connection_string is None:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"cannot specify without connection_string arg or secret {MONGO_CONNECTION_STRING_ENV_VAR}"
+                f"cannot specify without connection_string arg or secret {_MONGO_CONNECTION_STRING_ENV_VAR}"
             )
         attrs = {
             "query": query,
@@ -926,7 +928,7 @@ class MongoDBSource(BaseSourceDriver):
             end_time=end_time,
         )
 
-    def to_dataframe(self):
+    def to_dataframe(self) -> Union[pd.DataFrame, _MondoDBIterator]:
         from pymongo import MongoClient
 
         query = self.attributes.get("query")
@@ -942,7 +944,7 @@ class MongoDBSource(BaseSourceDriver):
             collection = db[collection_name]
 
             if chunksize:
-                return_val = _MongoDBiter(collection, chunksize, query)
+                return_val = _MondoDBIterator(collection, chunksize, query)
             else:
                 df = pd.DataFrame(list(collection.find(query)))
                 df["_id"] = df["_id"].astype(str)

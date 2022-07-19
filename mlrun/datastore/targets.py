@@ -1461,6 +1461,12 @@ class MongoDBTarget(BaseStoreTarget):
         """
         Write to MongoDB as output target for a flow.
 
+        example::
+             connection_string = "???"
+             query = {age: {"$gt: 5}}
+             MongoDBTarget(connection_string=connection_string, collection_name="coll",
+             db_name="my_dataset", chunksize=5, query=query)
+
         :param db_name:             the name of the database to access
         :param connection_string:   your mongodb connection string
         :param collection_name:     the name of the collection to access,
@@ -1594,10 +1600,7 @@ class MongoDBTarget(BaseStoreTarget):
         time_column=None,
         **kwargs,
     ):
-        try:
-            query = kwargs["query"]
-        except KeyError:
-            query = {}
+        query = {}
         if time_column:
             # creat time query and adding it to the existed query.
             time_query = {time_column: {}}

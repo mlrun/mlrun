@@ -137,7 +137,7 @@ default_config = {
                 # in camelCase format: {"runAsUser": 1000, "runAsGroup": 3000}
                 "default": "e30=",  # encoded empty dict
             },
-            "service_account": None,
+            "service_account": {"default": None},
         },
     },
     "function_defaults": {

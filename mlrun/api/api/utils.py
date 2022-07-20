@@ -451,7 +451,7 @@ def process_function_service_account(function):
 
     # If default SA was not configured for the project, try to retrieve it from global config (if exists)
     default_service_account = (
-        default_service_account or mlrun.mlconf.function.spec.service_account
+        default_service_account or mlrun.mlconf.function.spec.service_account.default
     )
 
     # Sanity check on project configuration

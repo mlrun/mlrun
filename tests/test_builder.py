@@ -472,22 +472,36 @@ def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
 
 def test_build_runtime_resolve_ecr_registry(monkeypatch):
     registry = "aws_account_id.dkr.ecr.us-east-2.amazonaws.com"
-    tag = "some-tag"
-    for repo in [
-        "some-repo",
-        "mlrun/some-repo",
+    for case in [
+        {
+            "name": "sanity",
+            "repo": "some-repo",
+            "tag": "latest",
+        },
+        {
+            "name": "nested repo",
+            "repo": "mlrun/some-repo",
+            "tag": "1.2.3",
+        },
+        {
+            "name": "no tag",
+            "repo": "some-repo",
+            "tag": None,
+        },
     ]:
         _patch_k8s_helper(monkeypatch)
         mlrun.mlconf.httpdb.builder.docker_registry = ""
         function = mlrun.new_function(
             "some-function",
             "some-project",
-            "some-tag",
             image="mlrun/mlrun",
             kind="job",
             requirements=["some-package"],
         )
-        function.spec.build.image = f"{registry}/{repo}:{tag}"
+        image = f"{registry}/{case.get('repo')}"
+        if case.get("tag"):
+            image += f":{case.get('tag')}"
+        function.spec.build.image = image
         mlrun.builder.build_runtime(
             mlrun.api.schemas.AuthInfo(),
             function,
@@ -496,12 +510,12 @@ def test_build_runtime_resolve_ecr_registry(monkeypatch):
         for init_container in pod_spec.init_containers:
             if init_container.name == "create-repo":
                 assert (
-                    f"aws ecr create-repository --region us-east-2 --repository-name {repo}"
+                    f"aws ecr create-repository --region us-east-2 --repository-name {case.get('repo')}"
                     in init_container.args[1]
-                )
+                ), f"test case: {case.get('name')}"
                 break
         else:
-            pytest.fail("no create-repo init container")
+            pytest.fail(f"no create-repo init container, test case: {case.get('name')}")
 
 
 def test_build_runtime_ecr_with_aws_secret(monkeypatch):

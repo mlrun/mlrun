@@ -63,6 +63,9 @@ jobs:
         helm repo update
         minikube kubectl -- create namespace ${NAMESPACE}
 
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
+
     - name: Install MLRun Kit helm chart
       # the --devel flag is needed to install the latest unstable version of the chart
       run: |

@@ -62,6 +62,13 @@ jobs:
         pip install -r automation/requirements.txt -r dockerfiles/test-system/requirements.txt \
           -r dockerfiles/mlrun-api/requirements.txt && pip install -e .
 
+    # since github-actions gives us 14G only, and fills it up with some garbage
+    # we will free up some space for us (~2GB)
+    - name: Freeing up disk space
+      run: |
+        chmod +x "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
+        "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
+
       # TODO: How can we avoid these duplicate lines from the enterprise system tests, up until line 120.
     - name: Install curl and jq
       run: sudo apt-get install curl jq
@@ -129,12 +136,12 @@ jobs:
 
     - uses: azure/setup-helm@v1
       with:
-        version: "v3.3.4"
+        version: "v3.9.1"
 
     - uses: manusa/actions-setup-minikube@v2.4.2
       with:
-        minikube version: "v1.22.0"
-        kubernetes version: "v1.20.11"
+        minikube version: "v1.26.0"
+        kubernetes version: "v1.23.9"
         driver: docker
         github token: ${{ github.token }}
         # I couldn't find a way to configure the IP (https://github.com/kubernetes/minikube/issues/951)
@@ -153,6 +160,7 @@ jobs:
             install mlrun-kit \
             --debug \
             --wait \
+            --timeout 600s \
             --set global.registry.url=$(minikube ip):5000 \
             --set global.registry.secretName="" \
             --set global.externalHostAddress=$(minikube ip) \

@@ -12,7 +12,7 @@ sudo apt-get remove --yes '^dotnet-.*' 'php.*' azure-cli google-cloud-sdk google
 sudo apt-get autoremove --yes
 sudo apt clean
 
-# cleanup unneeded share dirs ~30GB
+# cleanup unneeded share dirs ~25GB
 sudo rm --recursive --force \
     /usr/local/lib/android \
     /usr/share/dotnet \

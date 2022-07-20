@@ -199,9 +199,12 @@ def make_kaniko_pod(
 
 def configure_kaniko_ecr_init_container(kpod, registry, repo):
     region = registry.split(".")[3]
+
+    # fail silently in order to ignore "repository already exists" errors
+    # if any other error occurs - kaniko will fail similarly
     command = (
-        f"aws ecr create-repository --region {region} --repository-name {repo} "
-        f"|| if [ $? -eq 254 ]; then echo 'Ignoring repository already exits'; else exit $?; fi"
+        f"aws ecr create-repository --region {region} --repository-name {repo} || true"
+        + f"aws ecr create-repository --region {region}/cache --repository-name {repo} || true"
     )
     init_container_env = {}
 

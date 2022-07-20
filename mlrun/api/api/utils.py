@@ -449,6 +449,11 @@ def process_function_service_account(function):
         allow_internal_secrets=True,
     )
 
+    # If default SA was not configured for the project, try to retrieve it from global config (if exists)
+    default_service_account = (
+        default_service_account or mlrun.mlconf.httpdb.default_service_account
+    )
+
     # Sanity check on project configuration
     if (
         default_service_account

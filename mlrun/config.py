@@ -303,6 +303,7 @@ default_config = {
         },
         "v3io_api": "",
         "v3io_framesd": "",
+        "default_service_account": "",
     },
     "model_endpoint_monitoring": {
         "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},

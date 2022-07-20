@@ -1,0 +1,101 @@
+name: MLRun Kit Install Sanity
+
+on:
+  push:
+    branches:
+      - '.+-system-tests'
+
+  schedule:
+
+    # * is a special character in YAML so you have to quote this string
+    # Run the system tests every 3 hours
+    - cron:  '0 */3 * * *'
+
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        description: 'Run the build with tmate debugging enabled (https://github.com/marketplace/actions/debugging-with-tmate)'
+        required: false
+        default: 'false'
+
+env:
+  NAMESPACE: mlrun
+
+jobs:
+  run-mlrun-kit-install-sanity-ci:
+    timeout-minutes: 60
+    name: Run MLRun Kit Install Sanity
+    runs-on: ubuntu-latest
+
+    # let's not run this on every fork, change to your fork when developing
+    if: github.repository == 'quaark/mlrun' || github.event_name == 'workflow_dispatch'
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install curl and jq
+      run: sudo apt-get install curl jq
+
+    # since github-actions gives us 14G only, and fills it up with some garbage
+    # we will free up some space for us (~2GB)
+    - name: Freeing up disk space
+      run: |
+        chmod +x "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
+        "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
+
+    - uses: azure/setup-helm@v1
+      with:
+        version: "v3.9.1"
+
+    - uses: manusa/actions-setup-minikube@v2.4.2
+      with:
+        minikube version: "v1.26.0"
+        kubernetes version: "v1.23.9"
+        driver: docker
+        github token: ${{ github.token }}
+        # I couldn't find a way to configure the IP (https://github.com/kubernetes/minikube/issues/951)
+        # but this seems to work
+        start args: '--addons=registry --insecure-registry="192.168.49.2:5000"'
+
+    - name: Get mlrun kit charts and create namespace
+      run: |
+        helm repo add v3io-stable https://v3io.github.io/helm-charts/stable
+        helm repo update
+        minikube kubectl -- create namespace ${NAMESPACE}
+
+    - name: Install MLRun Kit helm chart
+      # the --devel flag is needed to install the latest unstable version of the chart
+      run: |
+        helm --namespace ${NAMESPACE} \
+            install mlrun-kit \
+            --debug \
+            --devel \
+            --wait \
+            --timeout 600s \
+            --set global.registry.url=$(minikube ip):5000 \
+            --set global.registry.secretName="" \
+            v3io-stable/mlrun-kit
+
+    - name: Output some logs in case of failure
+      if: ${{ failure() }}
+      # add set -x to print commands before executing to make logs reading easier
+      run: |
+        set -x
+        minikube ip
+        minikube logs
+        minikube kubectl -- --namespace ${NAMESPACE} logs -l app.kubernetes.io/component=api,app.kubernetes.io/name=mlrun --tail=-1
+        minikube kubectl -- --namespace ${NAMESPACE} get all
+        minikube kubectl -- --namespace ${NAMESPACE} get all -o yaml
+        minikube kubectl -- --namespace ${NAMESPACE} describe pods
+        minikube kubectl -- --namespace ${NAMESPACE} get cm
+        minikube kubectl -- --namespace ${NAMESPACE} get cm -o yaml
+        minikube kubectl -- --namespace ${NAMESPACE} get secrets
+        minikube kubectl -- --namespace ${NAMESPACE} get secrets -o yaml
+        minikube kubectl -- --namespace ${NAMESPACE} get pvc
+        minikube kubectl -- --namespace ${NAMESPACE} get pv
+        set +x
+
+    # Enable tmate debugging of manually-triggered workflows if the input option was provided
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
+      if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true' }}

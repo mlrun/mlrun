@@ -494,9 +494,7 @@ def test_build_runtime_resolve_ecr_registry(monkeypatch):
         function = mlrun.new_function(
             "some-function",
             "some-project",
-            image="mlrun/mlrun",
             kind="job",
-            requirements=["some-package"],
         )
         image = f"{registry}/{case.get('repo')}"
         if case.get("tag"):

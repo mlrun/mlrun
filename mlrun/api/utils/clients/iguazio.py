@@ -484,7 +484,7 @@ class Client(
             session=response.headers["x-v3io-session-key"],
             user_id=response.headers.get("x-user-id"),
             user_group_ids=gids or [],
-            user_unix_id=response.headers.get("x-unix-uid"),
+            user_unix_id=int(response.headers.get("x-unix-uid")),
         )
         if SessionPlanes.data in planes:
             auth_info.data_session = auth_info.session

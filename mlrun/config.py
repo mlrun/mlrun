@@ -288,13 +288,17 @@ default_config = {
             # pip install <requirement_specifier>, e.g. mlrun==0.5.4, mlrun~=0.5,
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
             "mlrun_version_specifier": "",
-            "kaniko_image": "gcr.io/kaniko-project/executor:v1.8.0",  # kaniko builder image
+            "kaniko_image": "gcr.io/kaniko-project/executor:v1.8.1",  # kaniko builder image
             "kaniko_init_container_image": "alpine:3.13.1",
             # image for kaniko init container when docker registry is ECR
             "kaniko_aws_cli_image": "amazon/aws-cli:2.7.10",
             # When setting the kaniko builder security context to be rootless, it might be needed to set
             # the `seccomp_profile` to `runtime/default` to allow the builder to gain access to the docker daemon.
-            "kaniko_security_context": "e30=",  # encoded empty dict
+            "kaniko_security_context": base64.encodebytes(bytes(json.dumps({
+                "run_as_user": 1000,
+                "run_as_group": 1000,
+                "fs_group": 1000,
+            }), "utf-8")).decode("utf-8")[:-1],  # encoded empty dict
             # additional docker build args in json encoded base64 format
             "build_args": "",
             "pip_ca_secret_name": "",

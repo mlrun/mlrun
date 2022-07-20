@@ -640,7 +640,9 @@ class BasePod:
             restart_policy="Never",
             volumes=self._volumes,
             node_selector=self.node_selector,
-            security_context=client.V1PodSecurityContext(**self.security_context),
+            security_context=client.V1PodSecurityContext(**self.security_context)
+            if self.security_context
+            else None,
         )
 
         # if attribute isn't defined use default pod spec attributes

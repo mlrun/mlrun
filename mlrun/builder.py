@@ -101,7 +101,19 @@ def make_kaniko_pod(
     if dockertext:
         dockerfile = "/empty/Dockerfile"
 
-    args = ["--dockerfile", dockerfile, "--context", context, "--destination", dest]
+    kaniko_mount = "/kaniko_mnt"
+    kaniko_workdir = f"{kaniko_mount}/workdir"
+
+    args = [
+        "--dockerfile",
+        dockerfile,
+        "--context",
+        context,
+        "--destination",
+        dest,
+        "--kaniko-dir",
+        kaniko_workdir,
+    ]
     for value, flag in [
         (config.httpdb.builder.insecure_pull_registry_mode, "--insecure-pull"),
         (config.httpdb.builder.insecure_push_registry_mode, "--insecure"),
@@ -140,6 +152,8 @@ def make_kaniko_pod(
         security_context=security_context,
     )
     kpod.env = builder_env
+    kpod.env.append(client.V1EnvVar(name="KANIKO_DIR", value=kaniko_workdir))
+    kpod.mount_empty(name="kaniko-work-dir", mount_path=kaniko_mount)
 
     if config.is_pip_ca_configured():
         items = [

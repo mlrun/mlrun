@@ -479,12 +479,17 @@ class Client(
             planes = planes.split(",")
         planes = planes or []
         logger.warning("TEST ALON", headers=response.headers)
+        user_unix_id = None
+        x_unix_uid = response.headers.get("x-unix-uid")
+        if x_unix_uid and x_unix_uid.lower() != "unknown":
+            user_unix_id = int(x_unix_uid)
+
         auth_info = mlrun.api.schemas.AuthInfo(
             username=response.headers["x-remote-user"],
             session=response.headers["x-v3io-session-key"],
             user_id=response.headers.get("x-user-id"),
             user_group_ids=gids or [],
-            user_unix_id=int(response.headers.get("x-unix-uid")),
+            user_unix_id=user_unix_id,
         )
         if SessionPlanes.data in planes:
             auth_info.data_session = auth_info.session

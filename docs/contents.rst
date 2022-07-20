@@ -30,7 +30,7 @@
    :caption: Data collection and preparation
    
    feature-store/feature-store-data-ingestion
-   
+   feature-store/feature-store-tutorials   
   
 .. toctree::
    :maxdepth: 1
@@ -44,6 +44,7 @@
    :maxdepth: 1
    :caption: Model serving
 
+   serving/model-serving-get-started
    serving/custom-model-serving-class
    feature-store/training-serving
    serving/model-api

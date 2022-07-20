@@ -1,5 +1,5 @@
 (artifacts)=
-# Artifacts and models 
+# Artifacts
 
 An artifact is any data that is produced and/or consumed by functions, jobs, or pipelines. 
 

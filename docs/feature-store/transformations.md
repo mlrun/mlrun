@@ -3,7 +3,7 @@
 
 A feature set contains an execution graph of operations that are performed when data is ingested, or 
 when simulating data flow for inferring its metadata. This graph utilizes MLRun's
-[serving graph](../serving/serving-graph.html).
+{ref}`serving`.
 
 The graph contains steps that represent data sources and targets, and may also contain steps whose
 purpose is transformations and enrichment of the data passed through the feature set. These transformations

@@ -32,6 +32,7 @@ use in your projects.
 ```{toctree}
 :maxdepth: 1
 
+../concepts/functions-overview
 using-functions
 mlrun_code_annotations
 code-archive

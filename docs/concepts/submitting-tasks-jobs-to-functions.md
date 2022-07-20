@@ -25,7 +25,7 @@ tracking and security in an optimal way. Read more about data objects in [Data s
     run_results = fn.run(params={"label_column": "label"}, inputs={'data': data_url})
 
 MLRun also supports iterative jobs that can run and track multiple child jobs (for hyperparameter tasks, AutoML, etc.). 
-See [Hyperparam and iterative jobs](../hyper-params.html) for details and examples.
+See {ref}`hyper-params` for details and examples.
  
 The `run()` command returns a run object that you can use to track the job and its results. If you
 pass the parameter `watch=True` (default) the {py:meth}`~mlrun.runtimes.BaseRuntime.run` command blocks 

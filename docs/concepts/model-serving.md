@@ -10,7 +10,7 @@ handle any type of structured or unstructured data, and run complex computation 
 
 Graphs are used to deploy and serve ML/DL models. Graphs can be deployed into a production serverless pipeline with a single command. 
 
-See full details and examples in [Getting started with model serving](../serving/model-serving-get-started.html).
+See full details and examples in {ref}`model-serving-get-started`.
 
 **In this section**
 

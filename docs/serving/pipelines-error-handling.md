@@ -16,7 +16,7 @@ graph.add_step("ErrHandler", name="catcher", full_event=True, after="")
 ```{admonition} Note
 Additional steps can follow the catcher step.
 ```
-Using the example in [Getting started with model serving](./model-serving-get-started.html#flow), you can add an error handler as follows:
+Using the example in [Model serving graph](./model-serving-get-started.html#flow), you can add an error handler as follows:
 ```
 graph2_enrich.error_handler("catcher")
 graph2.add_step("ErrHandler", name="catcher", full_event=True, after="")

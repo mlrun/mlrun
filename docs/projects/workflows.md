@@ -13,7 +13,7 @@ directives like conditions and branches are not supported by the `local` engine.
 Workflows are saved/registered in the project using the {py:meth}`~mlrun.projects.MlrunProject.set_workflow`.  
 Workflows are executed using the {py:meth}`~mlrun.projects.MlrunProject.run` method or using the CLI command `mlrun project`.
 
-Refer to the [**tutorials section**](../howto/index.html) for complete examples.
+Refer to the **{ref}`tutorial`** for complete examples.
 
 **In this section**
 * [Composing workflows](#composing-workflows)
@@ -22,8 +22,8 @@ Refer to the [**tutorials section**](../howto/index.html) for complete examples.
 
 ## Composing workflows
 
-Workflows are written as python functions that make use of function [operations (run, build, deploy)](Run_project_functions)
-operations and can access project parameters, secrets, and artifacts using {py:meth}`~mlrun.projects.MlrunProject.get_param`, {py:meth}`~mlrun.projects.MlrunProject.get_secret` and {py:meth}`~mlrun.projects.MlrunProject.get_artifact_uri`.
+Workflows are written as python functions that make use of {ref}` function <using-functions>` operations (run, build, deploy)
+and can access project parameters, secrets, and artifacts using {py:meth}`~mlrun.projects.MlrunProject.get_param`, {py:meth}`~mlrun.projects.MlrunProject.get_secret` and {py:meth}`~mlrun.projects.MlrunProject.get_artifact_uri`.
 
 For workflows to work in Kubeflow you need to add a decorator (`@dsl.pipeline(..)`) as shown below.
 

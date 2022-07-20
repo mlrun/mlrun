@@ -12,9 +12,7 @@ It ensures that all the latest relevant data is fetched, without concerns about 
 
 - [Creating a feature vector](#creating-a-feature-vector)
 - [Using a feature vector](#using-a-feature-vector)
-   - [Creating an offline feature vector](#creating-an-offline-feature-vector)
-   - [Creating an online feature vector](#creating-an-online-feature-vector)
-   
+    
 ## Creating a feature vector
 
 The feature vector object holds the following information:

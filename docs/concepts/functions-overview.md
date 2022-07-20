@@ -1,4 +1,4 @@
-(Function_runtimes)=
+(function_runtimes)=
 # Function runtimes
 
 When you create an MLRun function you need to specify a runtime kind (e.g. `kind='job'`). Each runtime supports 

@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
 
     # let's not run this on every fork, change to your fork when developing
-    if: github.repository == 'quaark/mlrun' || github.event_name == 'workflow_dispatch'
+    if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
 
     steps:
     - uses: actions/checkout@v2

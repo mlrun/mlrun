@@ -63,42 +63,39 @@ jobs:
         helm repo update
         minikube kubectl -- create namespace ${NAMESPACE}
 
+    - name: Install MLRun Kit helm chart
+      # the --devel flag is needed to install the latest unstable version of the chart
+      run: |
+        helm --namespace ${NAMESPACE} \
+            install mlrun-kit \
+            --debug \
+            --devel \
+            --wait \
+            --timeout 600s \
+            --set global.registry.url=$(minikube ip):5000 \
+            --set global.registry.secretName="" \
+            v3io-stable/mlrun-kit
+
+    - name: Output some logs in case of failure
+      if: ${{ failure() }}
+      # add set -x to print commands before executing to make logs reading easier
+      run: |
+        set -x
+        minikube ip
+        minikube logs
+        minikube kubectl -- --namespace ${NAMESPACE} logs -l app.kubernetes.io/component=api,app.kubernetes.io/name=mlrun --tail=-1
+        minikube kubectl -- --namespace ${NAMESPACE} get all
+        minikube kubectl -- --namespace ${NAMESPACE} get all -o yaml
+        minikube kubectl -- --namespace ${NAMESPACE} describe pods
+        minikube kubectl -- --namespace ${NAMESPACE} get cm
+        minikube kubectl -- --namespace ${NAMESPACE} get cm -o yaml
+        minikube kubectl -- --namespace ${NAMESPACE} get secrets
+        minikube kubectl -- --namespace ${NAMESPACE} get secrets -o yaml
+        minikube kubectl -- --namespace ${NAMESPACE} get pvc
+        minikube kubectl -- --namespace ${NAMESPACE} get pv
+        set +x
+
+    # Enable tmate debugging of manually-triggered workflows if the input option was provided
     - name: Setup tmate session
       uses: mxschmitt/action-tmate@v3
-
-#    - name: Install MLRun Kit helm chart
-#      # the --devel flag is needed to install the latest unstable version of the chart
-#      run: |
-#        helm --namespace ${NAMESPACE} \
-#            install mlrun-kit \
-#            --debug \
-#            --devel \
-#            --wait \
-#            --timeout 600s \
-#            --set global.registry.url=$(minikube ip):5000 \
-#            --set global.registry.secretName="" \
-#            v3io-stable/mlrun-kit
-#
-#    - name: Output some logs in case of failure
-#      if: ${{ failure() }}
-#      # add set -x to print commands before executing to make logs reading easier
-#      run: |
-#        set -x
-#        minikube ip
-#        minikube logs
-#        minikube kubectl -- --namespace ${NAMESPACE} logs -l app.kubernetes.io/component=api,app.kubernetes.io/name=mlrun --tail=-1
-#        minikube kubectl -- --namespace ${NAMESPACE} get all
-#        minikube kubectl -- --namespace ${NAMESPACE} get all -o yaml
-#        minikube kubectl -- --namespace ${NAMESPACE} describe pods
-#        minikube kubectl -- --namespace ${NAMESPACE} get cm
-#        minikube kubectl -- --namespace ${NAMESPACE} get cm -o yaml
-#        minikube kubectl -- --namespace ${NAMESPACE} get secrets
-#        minikube kubectl -- --namespace ${NAMESPACE} get secrets -o yaml
-#        minikube kubectl -- --namespace ${NAMESPACE} get pvc
-#        minikube kubectl -- --namespace ${NAMESPACE} get pv
-#        set +x
-#
-#    # Enable tmate debugging of manually-triggered workflows if the input option was provided
-#    - name: Setup tmate session
-#      uses: mxschmitt/action-tmate@v3
-#      if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true' }}
+      if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true' }}

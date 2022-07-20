@@ -4,14 +4,14 @@ from typing import Any, Dict, List, Union
 import lightgbm as lgb
 
 import mlrun
-from mlrun.frameworks.lgbm.mlrun_interfaces import (
+
+from .._ml_common import MLArtifactsLibrary, MLPlan
+from ..sklearn import Metric, MetricsLibrary
+from .mlrun_interfaces import (
     LGBMBoosterMLRunInterface,
     LGBMMLRunInterface,
     LGBMModelMLRunInterface,
 )
-
-from .._ml_common import MLArtifactsLibrary, MLPlan
-from ..sklearn import Metric, MetricsLibrary
 from .model_handler import LGBMModelHandler
 from .model_server import LGBMModelServer
 from .utils import LGBMTypes, LGBMUtils

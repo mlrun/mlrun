@@ -54,6 +54,7 @@ class RemoteSparkSpec(KubeResourceSpec):
         pythonpath=None,
         tolerations=None,
         preemption_mode=None,
+        security_context=None,
     ):
         super().__init__(
             command=command,
@@ -81,6 +82,7 @@ class RemoteSparkSpec(KubeResourceSpec):
             pythonpath=pythonpath,
             tolerations=tolerations,
             preemption_mode=preemption_mode,
+            security_context=security_context,
         )
         self.provider = provider
 

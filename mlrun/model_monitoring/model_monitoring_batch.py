@@ -1,9 +1,9 @@
-from enum import Enum
 import collections
 import dataclasses
 import json
 import os
-from typing import Any, Dict, List, Optional, Tuple, Union, ClassVar
+from enum import Enum
+from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -180,9 +180,7 @@ class VirtualDrift:
         }
 
     @staticmethod
-    def dict_to_histogram(
-        histogram_dict: Dict[str, Dict[str, Any]]
-    ) -> pd.DataFrame:
+    def dict_to_histogram(histogram_dict: Dict[str, Dict[str, Any]]) -> pd.DataFrame:
         """
         Convert histogram dictionary to pandas DataFrame with feature histograms as columns
 
@@ -396,7 +394,9 @@ class VirtualDrift:
         """
         # Calculate the mean drift result:
         tvd_mean = metrics_results_dictionary[f"{TotalVarianceDistance.NAME}_mean"]
-        hellinger_mean = metrics_results_dictionary.get(f"{HellingerDistance.NAME}_mean")
+        hellinger_mean = metrics_results_dictionary.get(
+            f"{HellingerDistance.NAME}_mean"
+        )
         drift_result = 0.0
         if tvd_mean and hellinger_mean:
             drift_result = (tvd_mean + hellinger_mean) / 2

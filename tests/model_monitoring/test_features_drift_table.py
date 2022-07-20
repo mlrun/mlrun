@@ -76,7 +76,7 @@ def test_plot_produce():
         inputs_statistics=inputs_statistics,
         metrics=metrics,
         drift_results=drift_results,
-        output_path="./"  # output_path.name,
+        output_path=output_path.name,
     )
 
     # Check the plot was saved:

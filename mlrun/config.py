@@ -137,6 +137,7 @@ default_config = {
                 # in camelCase format: {"runAsUser": 1000, "runAsGroup": 3000}
                 "default": "e30=",  # encoded empty dict
             },
+            "service_account": None,
         },
     },
     "function_defaults": {
@@ -303,7 +304,6 @@ default_config = {
         },
         "v3io_api": "",
         "v3io_framesd": "",
-        "default_service_account": "",
     },
     "model_endpoint_monitoring": {
         "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},

@@ -680,6 +680,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
+                image=mlrun.config.config.default_base_image,
             )
 
             msg = "executing workflow "

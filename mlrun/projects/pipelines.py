@@ -380,7 +380,7 @@ class _PipelineRunStatus:
             project=self.project,
             timeout=timeout,
             expected_statuses=expected_statuses,
-            run=self.run_object,
+            run_object=self.run_object,
         )
         return self._state
 
@@ -748,10 +748,10 @@ class _RemoteRunner(_PipelineRunner):
 
     @staticmethod
     def wait_for_completion(
-        run_id, project=None, timeout=None, expected_statuses=None, run=None
+        run_id, project=None, timeout=None, expected_statuses=None, run_object=None
     ):
         # Note: here the run parameter is a RunObject
-        run.wait_for_completion(timeout=timeout)
+        run_object.wait_for_completion(timeout=timeout)
 
     @staticmethod
     def get_run_status(

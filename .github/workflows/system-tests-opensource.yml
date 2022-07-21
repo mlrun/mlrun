@@ -44,7 +44,7 @@ env:
 
 jobs:
   run-system-tests-opensource-ci:
-    timeout-minutes: 120
+    timeout-minutes: 90
     name: Run System Tests Open Source
     runs-on: ubuntu-latest
 

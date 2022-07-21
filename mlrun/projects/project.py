@@ -1925,7 +1925,7 @@ class MlrunProject(ModelObj):
         if workflow_path or (workflow_handler and callable(workflow_handler)):
             workflow_spec = WorkflowSpec(path=workflow_path, args=arguments)
         else:
-            workflow_spec = self.spec._workflows[name].deepcopy()
+            workflow_spec = self.spec._workflows[name].copy()
             workflow_spec.merge_args(arguments)
             workflow_spec.ttl = ttl or workflow_spec.ttl
         workflow_spec.run_local = local

@@ -435,7 +435,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             expected_class=self.class_name, expected_env_from_secrets=expected_secrets
         )
 
-    def test_deploy_with_service_accounts(
+    def test_deploy_with_project_service_accounts(
         self, db: Session, k8s_secrets_mock: K8sSecretsMock
     ):
         k8s_secrets_mock.set_service_account_keys(self.project, "sa1", ["sa1", "sa2"])
@@ -453,11 +453,30 @@ class TestNuclioRuntime(TestRuntimeBase):
         with pytest.raises(HTTPException):
             _build_function(db, None, function)
 
+        # verify that project SA overrides the global SA
+        mlconf.function.spec.service_account.default = "some-other-sa"
         function.spec.service_account = "sa2"
         _build_function(db, None, function)
         self._assert_deploy_called_basic_config(
             expected_class=self.class_name, expected_service_account="sa2"
         )
+        mlconf.function.spec.service_account.default = None
+
+    def test_deploy_with_global_service_account(
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+    ):
+        service_account_name = "default-sa"
+        mlconf.function.spec.service_account.default = service_account_name
+
+        function = self._generate_runtime(self.runtime_kind)
+        # Need to call _build_function, since service-account enrichment is happening only on server side, before the
+        # call to deploy_nuclio_function
+        _build_function(db, None, function)
+        self._assert_deploy_called_basic_config(
+            expected_class=self.class_name,
+            expected_service_account=service_account_name,
+        )
+        mlconf.function.spec.service_account.default = None
 
     def test_deploy_basic_function(self, db: Session, client: TestClient):
         function = self._generate_runtime(self.runtime_kind)

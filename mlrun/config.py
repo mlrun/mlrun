@@ -132,6 +132,7 @@ default_config = {
     "function": {
         "spec": {
             "image_pull_secret": {"default": None},
+            "service_account": {"default": None},
         },
     },
     "function_defaults": {

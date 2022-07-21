@@ -173,7 +173,9 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
 
         graph.add_step(
             name="other-child", class_name="Augment", after="q1", function="other-child"
-        ).to(">>", "out2", path=self.topic_out, kafka_bootstrap_servers=self.brokers)
+        )
+
+        graph["out"].after_step("other-child")
 
         function.add_child_function(
             "child",

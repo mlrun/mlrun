@@ -1955,8 +1955,6 @@ class MlrunProject(ModelObj):
             artifact_path=artifact_path,
             namespace=namespace,
             schedule=schedule,
-            watch=watch,
-            timeout=timeout,
         )
         run_msg = f"started run workflow {name} "
         if run and hasattr(run, "run_id"):

@@ -56,7 +56,7 @@ def newpipe():
         outputs=[DATASET],
     ).after(builder)
 
-    # train with hyper-paremeters
+    # train with hyper-parameters
     train = mlrun.run_function(
         "train",
         name="train",

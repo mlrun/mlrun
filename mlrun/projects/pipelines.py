@@ -765,8 +765,9 @@ class _RemoteRunner(_PipelineRunner):
         # Watching inner workflow:
         inner_engine_kind = run.run_object.status.results.get("engine", None)
         inner_engine = get_workflow_engine(inner_engine_kind)
+        run._engine = inner_engine
         inner_engine.get_run_status(project=project, run=run, timeout=timeout)
-
+        run._engine = _RemoteRunner
         # Watching load_and_run function:
         run.wait_for_completion(timeout=timeout)
 

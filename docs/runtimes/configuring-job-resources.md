@@ -130,7 +130,7 @@ Here are some questions to consider when choosing the type of node:
 - Is this a job that should run only when there are available inexpensive resources?
 
 ```{admonition} Important
-When an MLRun job is running on a spot node and it fails, it won't get back up again. Howewer, if Nuclio goes down due to a spot issue, it 
+When an MLRun job is running on a spot node and it fails, it won't get back up again. However, if Nuclio goes down due to a spot issue, it 
 is brought up by Kubernetes.
 ```
 

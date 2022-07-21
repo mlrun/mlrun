@@ -168,16 +168,22 @@ class FeaturesDriftTablePlot:
                  [1] - Sub-header.
         """
         # Generate the header of the table:
-        # [0] - The feature name column
-        # [1:-2] - Statistics and metrics columns.
-        # [-2] - The histograms column
-        # [-1] - The notifications column
-        headers = ["", *self._statistics_columns, *self._metrics_columns, "", ""]
+        headers = [
+            # [0] - The feature name column
+            "",
+            # [1:-2] - Statistics and metrics columns.
+            *self._statistics_columns,
+            *self._metrics_columns,
+            # [-2] - The histograms column
+            "histograms",
+            # [-1] - The notifications column
+            "",
+        ]
         header_table = go.Table(
             header={
                 "values": [
-                    f"<b>{header}</b>" for header in headers
-                ],  # Make the text bold.
+                    f"<b>{header.capitalize()}</b>" for header in headers
+                ],  # Make the text bold and with starting capital letter.
                 "align": "center",
                 "font": {"size": self._FONT_SIZE, "color": self._FONT_COLOR},
                 "line": {"color": self._SEPARATORS_COLOR},
@@ -195,7 +201,7 @@ class FeaturesDriftTablePlot:
         # set and one for the inputs):
         sub_headers = (
             [""]
-            + ["sample", "input"] * len(self._statistics_columns)
+            + ["Sample", "Input"] * len(self._statistics_columns)
             + [""] * len(self._metrics_columns)
             + ["", ""]
         )
@@ -231,40 +237,27 @@ class FeaturesDriftTablePlot:
             for i in range(0, len(feature_name), self._FEATURE_NAME_MAX_LENGTH)
         ]
 
-    def _get_values_formats(self, values: List[Union[str, int, float]]) -> List[str]:
+    def _get_value_format(self, value: Union[str, int, float]) -> str:
         """
-        Plotly uses D3 formatter to format values. This method return the list of formats according to the configured
-        properties in the class to the given row of values - list of feature statistics and metrics values.
+        Plotly uses D3 formatter to format values. This method return the format according to the configured
+        properties in the class to the given value - one of the cells in a feature row statistics and metrics values.
 
-        :param values: Feature row values.
+        :param value: A value of a feature row cell.
 
-        :return: List of all the formats to use for the given row.
+        :return: The value's format.
         """
-        # Initialize the formats per value list:
-        formats = []  # type: List[str]
+        # A string does not need reformatting:
+        if isinstance(value, str):
+            return ""
 
-        # Start going over the values:
-        for value in values:
-            if isinstance(value, int):
-                # An integer should be parsed into short characters (e.g: 10000 -> 10k, 1100000 -> 1.1m)
-                formats.append("~s")
-            elif isinstance(value, float):
-                if value.is_integer():
-                    # A float with an integer value should be parsed like an integer:
-                    formats.append("~s")
-                else:
-                    integer_length = len(str(int(value)))
-                    if integer_length > self._VALUES_MAX_DIGITS:
-                        # If the integer value of the float is that long, parse like an integer:
-                        formats.append("~s")
-                    else:
-                        # Round it to the remaining digits left considering the integer length:
-                        formats.append(f".{self._VALUES_MAX_DIGITS - integer_length}")
-            else:
-                # A string do not need reformatting:
-                formats.append("")
+        # Any whole number or number with a long integer value should be parsed into short characters
+        # (e.g: 10000 -> 10k, 1100000 -> 1.1m):
+        integer_length = len(str(int(value)))
+        if value % 1 == 0 or integer_length > self._VALUES_MAX_DIGITS:
+            return "~s"
 
-        return formats
+        # Round it to the remaining digits left considering the integer length:
+        return f".{self._VALUES_MAX_DIGITS - integer_length}"
 
     def _plot_feature_row_table(
         self,
@@ -301,6 +294,11 @@ class FeaturesDriftTablePlot:
         for column in self._metrics_columns:
             cells_values.append(metrics[column])
 
+        # Get the cells values formats:
+        cells_formats = [
+            self._get_value_format(value=cell_value) for cell_value in cells_values
+        ]
+
         # Create the row:
         feature_row_table = go.Table(
             header={
@@ -309,7 +307,7 @@ class FeaturesDriftTablePlot:
                 "font": {"size": self._FONT_SIZE, "color": self._FONT_COLOR},
                 "line": {"color": self._SEPARATORS_COLOR},
                 "height": row_height,
-                "format": self._get_values_formats(values=cells_values),
+                "format": cells_formats,
             },
             columnwidth=[self._FEATURE_NAME_COLUMN_WIDTH, self._VALUE_COLUMN_WIDTH],
             header_fill_color=self._BACKGROUND_COLOR,

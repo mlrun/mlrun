@@ -113,8 +113,8 @@ jobs:
             make ${{ matrix.image-name }}; \
           done;
 
-    - name: Build and push unstable tag
-
+#    - name: Build and push unstable tag
+#
 #      # we don't need to have unstable tag for the test image
 #      # And we don't need to run this when triggered manually (workflow dispatch)
 #      if: matrix.image-name != 'test' && github.event_name != 'workflow_dispatch' && github.ref_name == 'development'

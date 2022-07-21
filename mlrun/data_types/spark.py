@@ -143,6 +143,9 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
                     stats_dict[stat] = str(val)
         results_dict[col] = stats_dict
 
+        print(f'df.columns={df.columns}')
+        print(f'df.dtypes={df.dtypes}')
+        print(f'col={col}')
         if (
             InferOptions.get_common_options(options, InferOptions.Histogram)
             and get_dtype(df, col) in ["double", "int"]

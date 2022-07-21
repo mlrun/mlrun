@@ -204,7 +204,7 @@ def configure_kaniko_ecr_init_container(kpod, registry, repo):
     # if any other error occurs - kaniko will fail similarly
     command = (
         f"aws ecr create-repository --region {region} --repository-name {repo} || true"
-        + f" && aws ecr create-repository --region {region}/cache --repository-name {repo} || true"
+        + f" && aws ecr create-repository --region {region} --repository-name {repo}/cache || true"
     )
     init_container_env = {}
 

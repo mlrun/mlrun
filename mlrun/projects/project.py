@@ -608,12 +608,14 @@ class ProjectSpec(ModelObj):
             del self._function_definitions[name]
 
     @property
-    def workflows(self) -> list:
-        """list of workflows specs used in this project"""
+    def workflows(self) -> typing.List[dict]:
+        """
+        :returns: list of workflows specs dicts used in this project
+        """
         return [workflow.to_dict() for workflow in self._workflows.values()]
 
     @workflows.setter
-    def workflows(self, workflows):
+    def workflows(self, workflows: typing.List[typing.Union[dict, WorkflowSpec]]):
         if not workflows:
             workflows = []
         if not isinstance(workflows, list):
@@ -624,7 +626,9 @@ class ProjectSpec(ModelObj):
             if not isinstance(workflow, dict) and not isinstance(
                 workflow, WorkflowSpec
             ):
-                raise ValueError("workflow must be a dict or WorkflowSpec object")
+                raise ValueError(
+                    f"workflow must be a dict or `WorkflowSpec` type. Given: {type(workflow)}"
+                )
             if isinstance(workflow, dict):
                 workflow = WorkflowSpec.from_dict(workflow)
             name = workflow.name
@@ -1921,7 +1925,7 @@ class MlrunProject(ModelObj):
         if workflow_path or (workflow_handler and callable(workflow_handler)):
             workflow_spec = WorkflowSpec(path=workflow_path, args=arguments)
         else:
-            workflow_spec = self.spec._workflows[name].copy()
+            workflow_spec = self.spec._workflows[name].deepcopy()
             workflow_spec.merge_args(arguments)
             workflow_spec.ttl = ttl or workflow_spec.ttl
         workflow_spec.run_local = local

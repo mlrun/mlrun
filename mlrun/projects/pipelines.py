@@ -46,8 +46,8 @@ def get_workflow_engine(engine_kind, local=False):
             )
         elif engine_kind == "remote":
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "running remote pipeline locally is not possible. "
-                "for running local pipeline remotely, use 'remote:local' engine"
+                "cannot run a remote pipeline locally using `kind='remote'` and `local=True`. "
+                "in order to run a local pipeline remotely, please use `engine='remote: local'` instead"
             )
         return _LocalRunner
     if not engine_kind or engine_kind == "kfp":
@@ -79,8 +79,8 @@ class WorkflowSpec(mlrun.model.ModelObj):
         self.engine = engine
         self.code = code
         self.path = path
-        self.name = name
         self.args = args
+        self.name = name
         self.handler = handler
         self.ttl = ttl
         self.args_schema = args_schema
@@ -358,12 +358,15 @@ def enrich_function_object(
 class _PipelineRunStatus:
     """pipeline run result (status)"""
 
-    def __init__(self, run_id, engine, project, workflow=None, state=""):
+    def __init__(
+        self, run_id, engine, project, workflow=None, state="", run_object=None
+    ):
         self.run_id = run_id
         self.project = project
         self.workflow = workflow
         self._engine = engine
         self._state = state
+        self.run_object = run_object  # for _RemoteRunner
 
     @property
     def state(self):
@@ -377,6 +380,7 @@ class _PipelineRunStatus:
             project=self.project,
             timeout=timeout,
             expected_statuses=expected_statuses,
+            run=self.run_object,
         )
         return self._state
 
@@ -411,14 +415,14 @@ class _PipelineRunner(abc.ABC):
         artifact_path=None,
         namespace=None,
         schedule=None,
-        watch=None,
-        timeout=None,
     ) -> _PipelineRunStatus:
         return None
 
     @staticmethod
     @abc.abstractmethod
-    def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
+    def wait_for_completion(
+        run_id, project=None, timeout=None, expected_statuses=None, run_object=None
+    ):
         return ""
 
     @staticmethod
@@ -487,8 +491,6 @@ class _KFPRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         schedule=None,
-        watch=None,
-        timeout=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -515,7 +517,9 @@ class _KFPRunner(_PipelineRunner):
         return _PipelineRunStatus(id, cls, project=project, workflow=workflow_spec)
 
     @staticmethod
-    def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
+    def wait_for_completion(
+        run_id, project=None, timeout=None, expected_statuses=None, run_object=None
+    ):
         project_name = project.metadata.name if project else ""
         run_info = wait_for_pipeline_completion(
             run_id,
@@ -596,8 +600,6 @@ class _LocalRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         schedule=None,
-        watch=None,
-        timeout=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -635,7 +637,9 @@ class _LocalRunner(_PipelineRunner):
         return ""
 
     @staticmethod
-    def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
+    def wait_for_completion(
+        run_id, project=None, timeout=None, expected_statuses=None, run_object=None
+    ):
         pass
 
     @staticmethod
@@ -665,9 +669,7 @@ class _RemoteRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         schedule=None,
-        watch=None,
-        timeout=None,
-    ) -> typing.Union[_PipelineRunStatus, None]:
+    ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
         runner_name = f"workflow-runner-{workflow_name}"
         run_id = None
@@ -678,8 +680,6 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                # TODO: Remove image After merged to development
-                image="yonishelach/mlrun-remote-runner-tmp",
             )
 
             msg = "executing workflow "
@@ -699,15 +699,12 @@ class _RemoteRunner(_PipelineRunner):
                     "artifact_path": artifact_path,
                     "workflow_handler": workflow_handler or workflow_spec.handler,
                     "namespace": namespace,
-                    "watch": watch,
                     "ttl": workflow_spec.ttl,
                     "engine": workflow_spec.engine,
                     "local": workflow_spec.run_local,
-                    "timeout": timeout,
                 },
                 handler="mlrun.projects.load_and_run",
                 local=False,
-                watch=watch,
                 schedule=schedule,
             )
             if schedule:
@@ -717,6 +714,7 @@ class _RemoteRunner(_PipelineRunner):
                 run.refresh()
                 run_id = run.status.results.get("workflow_id", None)
                 time.sleep(1)
+            # After fetching the workflow_id the workflow executed successfully
             state = mlrun.run.RunStatuses.succeeded
 
         except Exception as e:
@@ -739,12 +737,20 @@ class _RemoteRunner(_PipelineRunner):
         )
         pipeline_context.clear()
         return _PipelineRunStatus(
-            run_id, cls, project=project, workflow=workflow_spec, state=state
+            run_id,
+            cls,
+            project=project,
+            workflow=workflow_spec,
+            state=state,
+            run_object=run,
         )
 
     @staticmethod
-    def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
-        pass
+    def wait_for_completion(
+        run_id, project=None, timeout=None, expected_statuses=None, run=None
+    ):
+        # Note: here the run parameter is a RunObject
+        run.wait_for_completion(timeout=timeout)
 
     @staticmethod
     def get_run_status(
@@ -754,7 +760,14 @@ class _RemoteRunner(_PipelineRunner):
         expected_statuses=None,
         notifiers: RunNotifications = None,
     ):
-        pass
+        # Note: here the run parameter is _PipelineRunStatus
+        # Watching inner workflow:
+        inner_engine_kind = run.run_object.status.results.get("engine", None)
+        inner_engine = get_workflow_engine(inner_engine_kind)
+        inner_engine.get_run_status(project=project, run=run, timeout=timeout)
+
+        # Watching load_and_run function:
+        run.wait_for_completion(timeout=timeout)
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):
@@ -801,26 +814,23 @@ def github_webhook(request):
 
 def load_and_run(
     context,
-    url: str = None,
+    url: typing.Optional[str] = None,
     project_name: str = "",
-    init_git: bool = None,
-    subpath: str = None,
-    clone: bool = False,
-    workflow_name: str = None,
-    workflow_path: str = None,
-    workflow_arguments=None,
-    artifact_path: str = None,
-    workflow_handler=None,
-    namespace=None,
+    init_git: typing.Optional[bool] = None,
+    subpath: typing.Optional[str] = None,
+    clone: typing.Optional[bool] = False,
+    workflow_name: typing.Optional[str] = None,
+    workflow_path: typing.Optional[str] = None,
+    workflow_arguments: typing.Optional[dict] = None,
+    artifact_path: typing.Optional[str] = None,
+    workflow_handler: typing.Optional[str] = None,
+    namespace: typing.Optional[str] = None,
     sync: bool = False,
-    watch: bool = False,
     dirty: bool = False,
-    ttl=None,
-    engine=None,
-    local: bool = None,
-    timeout: int = None,
+    ttl: typing.Optional[int] = None,
+    engine: typing.Optional[str] = None,
+    local: typing.Optional[bool] = None,
 ):
-    # Loading the project:
     project = mlrun.load_project(
         context=f"./{project_name}",
         url=url,
@@ -831,8 +841,8 @@ def load_and_run(
     )
     context.logger.info(f"Loaded project {project.name} from remote successfully")
 
-    wf_log_msg = workflow_name or workflow_path
-    context.logger.info(f"Running workflow {wf_log_msg} from remote")
+    workflow_log_message = workflow_name or workflow_path
+    context.logger.info(f"Running workflow {workflow_log_message} from remote")
     run = project.run(
         name=workflow_name,
         workflow_path=workflow_path,
@@ -847,7 +857,6 @@ def load_and_run(
         engine=engine,
         local=local,
     )
-    context.log_result(key="workflow_id", value=run.run_id, commit=True)
+    context.log_result(key="workflow_id", value=run.run_id)
 
-    if watch:
-        run._engine.get_run_status(project=project, run=run, timeout=timeout)
+    context.log_result(key="engine", value=run._engine.engine, commit=True)

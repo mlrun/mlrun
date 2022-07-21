@@ -293,10 +293,14 @@ class TestProject(TestMLRunSystem):
     ):
         project_dir = f"{projects_dir}/{name}"
         shutil.rmtree(project_dir, ignore_errors=True)
-        # TODO: Need to replace with git://github.com/mlrun/project-demo.git
         project = mlrun.load_project(
-            project_dir, "git://github.com/yonishelach/project-demo.git", name=name
+            project_dir, "git://github.com/mlrun/project-demo.git", name=name
         )
+        # Skipping until mlrun/project-demo will contain newflow workflow in project
+        workflow_names = [workflow["name"] for workflow in project.spec.workflows]
+        if workflow_name not in workflow_names:
+            self._delete_test_project()
+            return
         workflow_dict = project.spec._workflows[workflow_name].to_dict()
         run = project.run(
             workflow_name,

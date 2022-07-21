@@ -26,7 +26,7 @@ on:
         required: false
         default: ''
       build_from_cache:
-        description: 'Whether to build images from cache or not. Default: true, set to false only if required because that will cause significantly increases build time'
+        description: 'Whether to build images from cache or not. Default: true, set to false only if required because that will cause significantly increase in build time'
         required: true
         default: 'true'
 jobs:

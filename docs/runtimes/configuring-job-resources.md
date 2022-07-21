@@ -118,7 +118,7 @@ Preemption mode uses Kubernets Taints and Toleration to enforce the mode selecte
 ### Why preemption mode
 
 On-demand instances provide full control over the instance lifecycle. You decide when to launch, stop, hibernate, start, 
-reboot, or terminate it. With Spot instances you request capacity from specific availabile zones, though it is  
+reboot, or terminate it. With Spot instances you request capacity from specific available zones, though it is  
 susceptible to spot capacity availability. This is a good choice if you can be flexible about when your applications run 
 and if your applications can be interrupted. 
 

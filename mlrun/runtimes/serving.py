@@ -138,6 +138,7 @@ class ServingSpec(NuclioSpec):
         image_pull_secret=None,
         tolerations=None,
         preemption_mode=None,
+        security_context=None,
     ):
 
         super().__init__(
@@ -174,6 +175,7 @@ class ServingSpec(NuclioSpec):
             image_pull_secret=image_pull_secret,
             tolerations=tolerations,
             preemption_mode=preemption_mode,
+            security_context=security_context,
         )
 
         self.models = models or {}

@@ -13,4 +13,4 @@ directives like conditions and branches are not supported by the `local` engine.
 Workflows are saved/registered in the project using the {py:meth}`~mlrun.projects.MlrunProject.set_workflow`.  
 Workflows are executed using the {py:meth}`~mlrun.projects.MlrunProject.run` method or using the CLI command `mlrun project`.
 
-See full details in {ref}`Project workflows <projects-workflows>`.
+See full details in {ref}`projects-workflows`.

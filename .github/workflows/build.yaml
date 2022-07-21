@@ -25,10 +25,6 @@ on:
         description: 'Comma separated list of images to skip building, example with all possible images: mlrun,api,base,models,models-gpu,jupyter,test'
         required: false
         default: ''
-      build_from_cache:
-        description: 'Whether to build images from cache or not. Defaults to true, because not doing so significantly increases build time'
-        required: false
-        default: 'true'
 jobs:
   matrix_prep:
     runs-on: ubuntu-latest
@@ -65,10 +61,7 @@ jobs:
       run: |
         export version_suffix=$(echo "$GITHUB_REF_NAME" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.');
         export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi);
-        export tag=$(if [ "${{ github.event.inputs.build_from_cache }}" = "true" ]; then echo "$unstable_tag" ; else echo "";fi);
-        export no_cache=$(if [ "${{ github.event.inputs.build_from_cache }}" = "false" ]; then echo "${{ github.event.inputs.build_from_cache }}" ; else echo "";fi);
-        echo "::set-output name=tag::$(echo $tag)"
-        echo "::set-output name=no_cache::$(echo $no_cache)"
+        echo "::set-output name=tag::$(echo $unstable_tag)"
     - name: Set computed versions params
       id: computed_params
       run: |
@@ -110,7 +103,6 @@ jobs:
             MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
             MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
             MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-            MLRUN_NO_CACHE=${{ steps.docker_cache.outputs.no_cache }} \
             MLRUN_PUSH_DOCKER_CACHE_IMAGE="true" \
             make push-${{ matrix.image-name }}; \
           done;

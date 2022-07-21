@@ -117,10 +117,11 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
 
     # if a column named "summary" already exists, we have to rename it to something else and back
     summary_renamed = False
+    df_for_summary = df
     if "summary" in df.columns:
-        df = df.withColumnRenamed("summary", "__summary_internal__")
+        df_for_summary = df.withColumnRenamed("summary", "__summary_internal__")
         summary_renamed = True
-    summary_df = df.summary().toPandas()
+    summary_df = df_for_summary.summary().toPandas()
     summary_df.set_index(["summary"], drop=True, inplace=True)
     if summary_renamed:
         summary_df.rename(columns={"__summary_internal__": "summary"}, inplace=True)
@@ -143,9 +144,6 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
                     stats_dict[stat] = str(val)
         results_dict[col] = stats_dict
 
-        print(f'df.columns={df.columns}')
-        print(f'df.dtypes={df.dtypes}')
-        print(f'col={col}')
         if (
             InferOptions.get_common_options(options, InferOptions.Histogram)
             and get_dtype(df, col) in ["double", "int"]

@@ -44,7 +44,7 @@ env:
 
 jobs:
   run-system-tests-opensource-ci:
-    timeout-minutes: 60
+    timeout-minutes: 90
     name: Run System Tests Open Source
     runs-on: ubuntu-latest
 
@@ -178,7 +178,7 @@ jobs:
         echo "MLRUN_DBPATH: http://$(minikube ip):${MLRUN_API_NODE_PORT}" > tests/system/env.yml
 
     - name: Run system tests
-      timeout-minutes: 25
+      timeout-minutes: 60
       run: |
         MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}" \
         MLRUN_VERSION="${{ steps.computed_params.outputs.mlrun_version }}" \

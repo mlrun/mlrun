@@ -84,9 +84,7 @@ class HellingerDistance:
 
         :returns: Hellinger Distance
         """
-        return np.sqrt(
-            0.5 * ((np.sqrt(self.distrib_u) - np.sqrt(self.distrib_t)) ** 2).sum()
-        )
+        return np.sqrt(1 - np.sum(np.sqrt(self.distrib_u * self.distrib_t)))
 
 
 @dataclasses.dataclass
@@ -192,13 +190,11 @@ class VirtualDrift:
         # create a dictionary with feature histograms as values
         histograms = {}
         for feature, stats in histogram_dict.items():
-            histograms[feature] = stats["hist"][0]
+            # normalize to probability distribution of each feature
+            histograms[feature] = np.array(stats["hist"][0]) / stats["count"]
 
         # convert the dictionary to pandas DataFrame
         histograms = pd.DataFrame(histograms)
-
-        # normalize to probability distribution of each feature
-        histograms = histograms / histograms.sum()
 
         return histograms
 
@@ -622,6 +618,14 @@ class BatchProcessor:
                     df=named_features_df,
                     options=mlrun.data_types.infer.InferOptions.Histogram,
                 )
+
+                # Recalculate the histograms over the bins that are set in the sample-set of the end point:
+                for feature in current_stats.keys():
+                    if feature in endpoint.status.feature_stats:
+                        current_stats[feature]["hist"] = np.histogram(
+                            current_stats[feature].to_numpy(),
+                            bins=endpoint.status.feature_stats[feature]["hist"][1],
+                        )
 
                 # Compute the drift based on the histogram of the current stats and the histogram of the original
                 # feature stats that can be found in the model endpoint object:

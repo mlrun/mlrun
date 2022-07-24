@@ -46,7 +46,7 @@ def test_plot_produce():
 
     # Generate data:
     sample_data, inputs = generate_data(
-        250000, 40, inputs_diff_range=(0, 150000), scale_range=(0, 1500)
+        250000, 40, inputs_diff_range=(0, 3), scale_range=(0, 1)
     )
 
     # Calculate statistics:
@@ -58,6 +58,12 @@ def test_plot_produce():
         df=inputs,
         options=mlrun.data_types.infer.InferOptions.Histogram,
     )
+
+    # Change the bins of the inputs to the sample-set ones:
+    for feature in inputs_statistics.keys():
+        inputs_statistics[feature]["hist"] = np.histogram(
+            inputs[feature].to_numpy(), bins=sample_data_statistics[feature]["hist"][1]
+        )
 
     # Calculate drift:
     virtual_drift = VirtualDrift(inf_capping=10)

@@ -953,8 +953,8 @@ class FlowStep(BaseStep):
             if step.on_error and step.on_error in start_steps:
                 start_steps.remove(step.on_error)
             if step.after:
-                prev_step = step.after[0]
-                self[prev_step].set_next(step.name)
+                for prev_step in step.after:
+                    self[prev_step].set_next(step.name)
         if self.on_error and self.on_error in start_steps:
             start_steps.remove(self.on_error)
 

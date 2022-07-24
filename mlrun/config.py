@@ -141,6 +141,7 @@ default_config = {
                 # override: use the user id of the user requesting to submit the run
                 "mode": "keep",
             },
+            "service_account": {"default": None},
         },
     },
     "function_defaults": {

@@ -1024,10 +1024,6 @@ class KubeResource(BaseRuntime):
 
         :param security_context:         The security context for the pod
         """
-        if mlrun.mlconf.httpdb.authentication.mode == "iguazio":
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Security context is handled internally on Iguazio"
-            )
         self.spec.security_context = security_context
 
     def list_valid_priority_class_names(self):

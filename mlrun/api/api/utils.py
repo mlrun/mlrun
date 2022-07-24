@@ -486,14 +486,19 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
         or function.kind == mlrun.runtimes.RuntimeKinds.spark
         or mlrun.mlconf.httpdb.authentication.mode != "iguazio"
     ):
-        return
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Fails here"
+        )
+        # return
 
     # TODO: for old functions being triggered after upgrading mlrun - enrich with project owner uid
     if (
         mlrun.mlconf.function.spec.security_context.mode == "keep"
         and function.spec.security_context is not None
     ):
-        return
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "No, here"
+        )
 
     function: mlrun.runtimes.pod.KubeResource
     nogroup_id = 65534

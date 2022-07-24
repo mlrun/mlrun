@@ -205,8 +205,10 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             if "x-data-session-override" in request.headers:
                 auth_info.data_session = request.headers["x-data-session-override"]
 
-            # if not auth_info.user_unix_id:
-            #     raise mlrun.errors.MLRunUnauthorizedError("Missing user unix id")
+            # TODO: this is just to test user unix id is being enriched by response headers
+            #       what we need to do is to enrich if missing (for backward compatibility)
+            if not auth_info.user_unix_id:
+                raise mlrun.errors.MLRunUnauthorizedError("Missing user unix id")
             # else:
             #     auth_info.user_unix_id = iguazio_client.get_user_unix_id(request)
 

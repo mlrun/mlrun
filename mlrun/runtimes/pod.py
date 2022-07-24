@@ -1007,7 +1007,8 @@ class KubeResource(BaseRuntime):
     def with_security_context(self, security_context: k8s_client.V1SecurityContext):
         """
         Set security context for the pod.
-        For iguazio we enforce that pods are running with the matching unix user id and nogroup group id.
+        For Iguazio we handle security context internally - see mlrun.mlconf.function.spec.security_context.mode
+
         Example:
 
             from kubernetes import client as k8s_client
@@ -1023,6 +1024,10 @@ class KubeResource(BaseRuntime):
 
         :param security_context:         The security context for the pod
         """
+        if mlrun.mlconf.httpdb.authentication.mode == "iguazio":
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Security context is handled internally on Iguazio"
+            )
         self.spec.security_context = security_context
 
     def list_valid_priority_class_names(self):

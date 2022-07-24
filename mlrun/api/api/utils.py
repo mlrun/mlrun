@@ -470,32 +470,33 @@ def process_function_service_account(function):
 
 def ensure_function_security_context(function, auth_info: mlrun.api.schemas.AuthInfo):
     """
-    For iguazio we enforce that pods are running with the matching unix user id and nogroup group id.
+    For iguazio we enforce that pods are running with the matching unix user id (depending on keep/override mode)
+    and nogroup group id.
+
+    :keep: always use the user id of the user who created the function.
+    :override: use the user id of the user requesting to submit the run.
     """
+
+    # if security context is not required
     if (
         mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
         or function.kind == mlrun.runtimes.RuntimeKinds.spark
-        or not mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
+        or mlrun.mlconf.httpdb.authentication.mode != "iguazio"
     ):
+        return
+
+    # TODO: ensure user id is the same as the user who created the function
+    if (
+        mlrun.mlconf.function.spec.security_context.mode == "keep"
+        and function.spec.security_context is not None
+    ):
+        return
+
+    if mlrun.mlconf.function.spec.security_context.mode != "override":
         return
 
     function: mlrun.runtimes.pod.KubeResource
     nogroup_id = 65534
-    if function.spec.security_context:
-        if function.spec.security_context.run_as_user != auth_info.user_unix_id:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Run as user {function.spec.security_context.run_as_user} is not allowed "
-                + f"for user with unix id: {auth_info.user_unix_id}"
-            )
-
-        if function.spec.security_context.run_as_group != nogroup_id:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Run as group {function.spec.security_context.run_as_group} is not allowed. "
-                + f"Use unix nogroup instead: {nogroup_id}"
-            )
-
-        return
-
     function.spec.security_context = kubernetes.client.V1SecurityContext(
         run_as_user=auth_info.user_unix_id,
         run_as_group=nogroup_id,

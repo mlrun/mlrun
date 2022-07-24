@@ -48,11 +48,17 @@ class ImagePullSecret(pydantic.BaseModel):
 
 class SecurityContext(pydantic.BaseModel):
     default: typing.Optional[str]
+    mode: typing.Optional[str]
+
+
+class ServiceAccount(pydantic.BaseModel):
+    default: typing.Optional[str]
 
 
 class FunctionSpec(pydantic.BaseModel):
     image_pull_secret: typing.Optional[ImagePullSecret]
     security_context: typing.Optional[SecurityContext]
+    service_account: typing.Optional[ServiceAccount]
 
 
 class Function(pydantic.BaseModel):

@@ -479,6 +479,8 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
     keep - always use the user id of the user that triggered the 1st run
     override - use the user id of the user requesting to submit the run
     """
+    if mlrun.mlconf.function.spec.security_context.mode == "disabled":
+        return
 
     # if security context is not required
     if (

@@ -1024,9 +1024,9 @@ class KubeResource(BaseRuntime):
 
         :param security_context:         The security context for the pod
         """
-        if mlrun.mlconf.httpdb.authentication.mode == "iguazio":
+        if mlrun.mlconf.function.spec.security_context.mode != "disabled":
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Security context is handled internally on Iguazio"
+                "Security context is handled internally when mode is not disabled"
             )
         self.spec.security_context = security_context
 

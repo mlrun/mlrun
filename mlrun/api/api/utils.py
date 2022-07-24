@@ -151,8 +151,6 @@ def _generate_function_and_task_from_submit_run_body(
     process_function_service_account(function)
 
     mask_sensitive_data(function, auth_info)
-
-    # ensure security context is allowed or enrich it
     ensure_function_security_context(function, auth_info)
     return function, task
 
@@ -475,11 +473,11 @@ def process_function_service_account(function):
 
 def ensure_function_security_context(function, auth_info: mlrun.api.schemas.AuthInfo):
     """
-    For iguazio we enforce that pods are running with the matching unix user id (depending on keep/override mode)
-    and nogroup group id.
+    For iguazio we enforce that pods are running with the matching unix user id
+    (depending on keep/override mode) and nogroup group id.
 
-    :keep: always use the user id of the user who created the function.
-    :override: use the user id of the user requesting to submit the run.
+    keep - always use the user id of the user that triggered the 1st run
+    override - use the user id of the user requesting to submit the run
     """
 
     # if security context is not required
@@ -490,14 +488,14 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
     ):
         return
 
-    # TODO: ensure user id is the same as the user who created the function
+    # TODO: for old functions being triggered after upgrading mlrun - enrich with project owner uid
     if (
         mlrun.mlconf.function.spec.security_context.mode == "keep"
         and function.spec.security_context is not None
     ):
         return
 
-    if mlrun.mlconf.function.spec.security_context.mode != "override":
+    elif mlrun.mlconf.function.spec.security_context.mode != "override":
         return
 
     function: mlrun.runtimes.pod.KubeResource

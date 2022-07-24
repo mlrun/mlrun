@@ -495,9 +495,6 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
     ):
         return
 
-    elif mlrun.mlconf.function.spec.security_context.mode != "override":
-        return
-
     function: mlrun.runtimes.pod.KubeResource
     nogroup_id = 65534
     function.spec.security_context = kubernetes.client.V1SecurityContext(

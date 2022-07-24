@@ -389,6 +389,9 @@ class AbstractSparkRuntime(KubejobRuntime):
             self.spec.replicas or 1,
             int,
         )
+        if self.spec.image_pull_secret:
+            update_in(job, "spec.imagePullSecrets", [self.spec.image_pull_secret])
+
         if self.spec.node_selector:
             update_in(job, "spec.nodeSelector", self.spec.node_selector)
 

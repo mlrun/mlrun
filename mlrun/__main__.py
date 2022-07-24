@@ -878,6 +878,13 @@ def logs(uid, project, offset, db, watch):
     is_flag=True,
     help="ensure the project exists, if not, create project",
 )
+@click.option(
+    "--schedule",
+    type=str,
+    default=None,
+    help="a standard crontab expression string, for help see: "
+    "https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron",
+)
 def project(
     context,
     name,
@@ -902,6 +909,7 @@ def project(
     env_file,
     timeout,
     ensure_project,
+    schedule,
 ):
     """load and/or run a project"""
     if env_file:
@@ -971,6 +979,7 @@ def project(
                 workflow_handler=handler,
                 engine=engine,
                 local=local,
+                schedule=schedule,
             )
         except Exception as exc:
             print(traceback.format_exc())

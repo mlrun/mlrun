@@ -1021,6 +1021,7 @@ class MlrunProject(ModelObj):
         engine=None,
         args_schema: typing.List[EntrypointParam] = None,
         handler=None,
+        schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
         **args,
     ):
         """add or update a workflow, specify a name and the code path
@@ -1031,6 +1032,10 @@ class MlrunProject(ModelObj):
         :param engine:        workflow processing engine ("kfp" or "local")
         :param args_schema:   list of arg schema definitions (:py:class`~mlrun.model.EntrypointParam`)
         :param handler:       workflow function handler
+        :param schedule:      ScheduleCronTrigger class instance or a standard crontab expression string
+                              (which will be converted to the class using its `from_crontab` constructor),
+                              see this link for help:
+                              https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param args:          argument values (key=value, ..)
         """
         if not workflow_path:
@@ -1054,6 +1059,7 @@ class MlrunProject(ModelObj):
             ]
             workflow["args_schema"] = args_schema
         workflow["engine"] = engine
+        workflow["schedule"] = schedule
         self.spec.set_workflow(name, workflow)
 
     @property
@@ -1893,7 +1899,7 @@ class MlrunProject(ModelObj):
         :param schedule:  ScheduleCronTrigger class instance or a standard crontab expression string
                           (which will be converted to the class using its `from_crontab` constructor),
                           see this link for help:
-                          https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
+                          https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
         :returns: run id
         """
@@ -1933,12 +1939,14 @@ class MlrunProject(ModelObj):
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name
         artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
 
-        schedule = schedule or workflow_spec.schedule
+        if schedule is not None:
+            workflow_spec.schedule = schedule
+
         inner_engine = None
         if engine and engine.startswith("remote"):
             if ":" in engine:
                 engine, inner_engine = engine.split(":")
-        elif schedule:
+        elif workflow_spec.schedule:
             inner_engine = engine
             engine = "remote"
         workflow_engine = get_workflow_engine(engine or workflow_spec.engine, local)
@@ -1954,7 +1962,6 @@ class MlrunProject(ModelObj):
             secrets=self._secrets,
             artifact_path=artifact_path,
             namespace=namespace,
-            schedule=schedule,
         )
         run_msg = f"started run workflow {name} "
         if run and hasattr(run, "run_id"):
@@ -1962,7 +1969,7 @@ class MlrunProject(ModelObj):
         run_msg += f"by {workflow_engine.engine} engine"
         logger.info(run_msg)
         workflow_spec.clear_tmp()
-        if watch and not schedule:
+        if watch and not workflow_spec.schedule:
             workflow_engine.get_run_status(project=self, run=run, timeout=timeout)
         return run
 

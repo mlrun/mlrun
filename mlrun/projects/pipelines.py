@@ -26,6 +26,7 @@ from kfp import dsl
 from kfp.compiler import compiler
 
 import mlrun
+import mlrun.api.schemas
 from mlrun.utils import (
     RunNotifications,
     logger,
@@ -74,7 +75,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         handler=None,
         ttl=None,
         args_schema: dict = None,
-        schedule: str = None,
+        schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
     ):
         self.engine = engine
         self.code = code
@@ -414,7 +415,6 @@ class _PipelineRunner(abc.ABC):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        schedule=None,
     ) -> _PipelineRunStatus:
         return None
 
@@ -490,7 +490,6 @@ class _KFPRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        schedule=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -599,7 +598,6 @@ class _LocalRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        schedule=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -668,7 +666,6 @@ class _RemoteRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        schedule=None,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
         runner_name = f"workflow-runner-{workflow_name}"
@@ -684,7 +681,7 @@ class _RemoteRunner(_PipelineRunner):
             )
 
             msg = "executing workflow "
-            if schedule:
+            if workflow_spec.schedule:
                 msg += "scheduling "
             logger.info(
                 f"{msg}'{runner_name}' remotely with {workflow_spec.engine} engine"
@@ -706,9 +703,9 @@ class _RemoteRunner(_PipelineRunner):
                 },
                 handler="mlrun.projects.load_and_run",
                 local=False,
-                schedule=schedule,
+                schedule=workflow_spec.schedule,
             )
-            if schedule:
+            if workflow_spec.schedule:
                 return
             # Fetching workflow id:
             while not run_id:

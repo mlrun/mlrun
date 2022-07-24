@@ -4,9 +4,9 @@ USER root
 RUN apt-get update && \
     apt-get -s dist-upgrade | \
     grep "^Inst" | \
-    grep -i securi | \
+    grep -i "stable\|securi" | \
     awk -F " " {'print $2'} | \
-    xargs apt-get install -y --no-install-recommends && \
+    DEBIAN_FRONTEND=noninteractive xargs apt-get install -y --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
 
 RUN apt-get update && apt-get install --no-install-recommends -y \

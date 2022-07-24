@@ -5,9 +5,9 @@ FROM quay.io/mlrun/python:${MLRUN_PYTHON_VERSION}-slim
 RUN apt-get update && \
     apt-get -s dist-upgrade | \
     grep "^Inst" | \
-    grep -i securi | \
+    grep -i "stable\|securi" | \
     awk -F " " {'print $2'} | \
-    xargs apt-get install -y --no-install-recommends && \
+    DEBIAN_FRONTEND=noninteractive xargs apt-get install -y --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
 
 # need to be redeclared since used in the from

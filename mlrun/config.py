@@ -138,7 +138,9 @@ default_config = {
                 "default": "e30=",  # encoded empty dict
                 # used when running in Iguazio (otherwise use manual mode).
                 # see mlrun.api.schemas.function.SecurityContextModes for available options
-                "mode": "keep",
+                "enrichment_mode": "disabled",
+                # default 65534 (nogroup), set to -1 to use the user unix id
+                "enrichment_group_id": "65534",
             },
             "service_account": {"default": None},
         },

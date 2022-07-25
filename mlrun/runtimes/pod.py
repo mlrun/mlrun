@@ -24,7 +24,11 @@ import kubernetes.client as k8s_client
 import mlrun.errors
 import mlrun.utils.regex
 
-from ..api.schemas import NodeSelectorOperator, PreemptionModes, SecurityContextModes
+from ..api.schemas import (
+    NodeSelectorOperator,
+    PreemptionModes,
+    SecurityContextEnrichmentModes,
+)
 from ..config import config as mlconf
 from ..k8s_utils import (
     generate_preemptible_node_selector_requirements,
@@ -1007,7 +1011,7 @@ class KubeResource(BaseRuntime):
     def with_security_context(self, security_context: k8s_client.V1SecurityContext):
         """
         Set security context for the pod.
-        For Iguazio we handle security context internally - see mlrun.mlconf.function.spec.security_context.mode
+        For Iguazio we handle security context internally - see mlrun.mlconf.function.spec.security_context.enrichment_mode
 
         Example:
 
@@ -1025,8 +1029,8 @@ class KubeResource(BaseRuntime):
         :param security_context:         The security context for the pod
         """
         if (
-            mlrun.mlconf.function.spec.security_context.mode
-            != SecurityContextModes.manual
+            mlrun.mlconf.function.spec.security_context.enrichment_mode
+            != SecurityContextEnrichmentModes.manual
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Security context is handled internally when mode is not manual"

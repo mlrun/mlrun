@@ -63,7 +63,7 @@ from .frontend_spec import (
     PreemptionNodesFeatureFlag,
     ProjectMembershipFeatureFlag,
 )
-from .function import FunctionState, PreemptionModes, SecurityContextModes
+from .function import FunctionState, PreemptionModes, SecurityContextEnrichmentModes
 from .k8s import NodeSelectorOperator, Resources, ResourceSpec
 from .marketplace import (
     IndexedMarketplaceSource,

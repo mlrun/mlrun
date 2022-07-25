@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.schemas
 import mlrun.errors
 import mlrun.k8s_utils
-from mlrun.api.schemas import SecurityContextModes
+from mlrun.api.schemas import SecurityContextEnrichmentModes
 from mlrun.config import config as mlconf
 from mlrun.platforms import auto_mount
 from mlrun.runtimes.utils import generate_resources
@@ -260,14 +260,16 @@ class TestKubejobRuntime(TestRuntimeBase):
         )
         runtime = self._generate_runtime()
 
-        # default mode is 'keep' which is internally managed
+        # default mode is 'retain' which is internally managed
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
             runtime.with_security_context(other_security_context)
         assert "Security context is handled internally when mode is not manual" in str(
             exc.value
         )
 
-        mlrun.mlconf.function.spec.security_context.mode = SecurityContextModes.manual
+        mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+            SecurityContextEnrichmentModes.manual
+        )
         runtime.with_security_context(other_security_context)
         self.execute_function(runtime)
         self.assert_security_context(other_security_context)

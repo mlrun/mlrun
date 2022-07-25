@@ -136,7 +136,7 @@ default_config = {
                 # default security context to be applied to all functions - json string base64 encoded format
                 # in camelCase format: {"runAsUser": 1000, "runAsGroup": 3000}
                 "default": "e30=",  # encoded empty dict
-                # used when running in Iguazio.
+                # used when running in Iguazio (otherwise use manual mode).
                 # keep: always use the user id of the user that triggered the 1st run
                 # override: use the user id of the user requesting to submit the run
                 # manual: security context is not auto applied

@@ -478,7 +478,6 @@ class Client(
         if planes:
             planes = planes.split(",")
         planes = planes or []
-        logger.warning("TEST ALON", headers=response.headers)
         user_unix_id = None
         x_unix_uid = response.headers.get("x-unix-uid")
         if x_unix_uid and x_unix_uid.lower() != "unknown":

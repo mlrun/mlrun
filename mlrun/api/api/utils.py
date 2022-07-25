@@ -478,9 +478,11 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
 
     keep - always use the user id of the user that triggered the 1st run
     override - use the user id of the user requesting to submit the run
+    manual - security context is not auto applied
     """
 
     # if security context is not required
+    # security context is not yet supported with spark runtime
     if (
         mlrun.mlconf.function.spec.security_context.mode == "manual"
         or mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)

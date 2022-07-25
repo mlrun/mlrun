@@ -1,12 +1,11 @@
 from datetime import datetime, timezone
 
+import pytest
 from sqlalchemy.orm import Session
 
 import mlrun.api.db.sqldb.helpers
 import mlrun.api.initial_data
 from mlrun.api.db.base import DBInterface
-from mlrun.api.db.sqldb.models import Run
-from tests.api.db.conftest import dbs
 
 
 def test_list_runs_name_filter(db: DBInterface, db_session: Session):
@@ -75,10 +74,6 @@ def test_list_runs_state_filter(db: DBInterface, db_session: Session):
     assert runs[0]["metadata"]["uid"] == run_uid_completed
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_store_run_overriding_start_time(db: DBInterface, db_session: Session):
     # First store - fills the start_time
     project, name, uid, iteration, run = _create_new_run(db, db_session)
@@ -105,10 +100,6 @@ def test_store_run_overriding_start_time(db: DBInterface, db_session: Session):
     assert runs[0].struct["status"]["start_time"] == run["status"]["start_time"]
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_data_migration_align_runs_table(db: DBInterface, db_session: Session):
     time_before_creation = datetime.now(tz=timezone.utc)
     # Create runs
@@ -141,10 +132,6 @@ def test_data_migration_align_runs_table(db: DBInterface, db_session: Session):
         _ensure_run_after_align_runs_migration(db, run, time_before_creation)
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_data_migration_align_runs_table_with_empty_run_body(
     db: DBInterface, db_session: Session
 ):
@@ -171,10 +158,6 @@ def test_data_migration_align_runs_table_with_empty_run_body(
     _ensure_run_after_align_runs_migration(db, run)
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_store_run_success(db: DBInterface, db_session: Session):
     project, name, uid, iteration, run = _create_new_run(db, db_session)
 
@@ -199,10 +182,6 @@ def test_store_run_success(db: DBInterface, db_session: Session):
     )
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_update_run_success(db: DBInterface, db_session: Session):
     project, name, uid, iteration, run = _create_new_run(db, db_session)
 
@@ -220,10 +199,6 @@ def test_update_run_success(db: DBInterface, db_session: Session):
     assert run["spec"]["another-new-field"] == "value"
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_store_and_update_run_update_name_failure(db: DBInterface, db_session: Session):
     project, name, uid, iteration, run = _create_new_run(db, db_session)
 
@@ -253,10 +228,6 @@ def test_store_and_update_run_update_name_failure(db: DBInterface, db_session: S
         )
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_list_runs_limited_unsorted_failure(db: DBInterface, db_session: Session):
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,

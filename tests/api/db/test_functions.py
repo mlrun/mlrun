@@ -186,10 +186,6 @@ def test_list_functions_by_tag(db: DBInterface, db_session: Session):
     assert len(names) == 0
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_list_functions_with_non_existent_tag(db: DBInterface, db_session: Session):
     names = ["some_name", "some_name2", "some_name3"]
     for name in names:
@@ -199,9 +195,6 @@ def test_list_functions_with_non_existent_tag(db: DBInterface, db_session: Sessi
     assert len(functions) == 0
 
 
-@pytest.mark.parametrize(
-    "db,db_session", [(db, db) for db in dbs], indirect=["db", "db_session"]
-)
 def test_list_functions_filtering_unversioned_untagged(
     db: DBInterface, db_session: Session
 ):

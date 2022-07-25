@@ -4,8 +4,8 @@ import pytest
 import sqlalchemy.orm
 
 import mlrun
-from mlrun.serving import GraphContext, V2ModelServer
 import mlrun.api.db.sqldb.db
+from mlrun.serving import GraphContext, V2ModelServer
 from mlrun.utils import logger
 
 from .demo_states import *  # noqa
@@ -49,7 +49,7 @@ class ModelTestingClass(V2ModelServer):
 
 
 def test_basic_flow(
-        db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("flow", engine="sync")

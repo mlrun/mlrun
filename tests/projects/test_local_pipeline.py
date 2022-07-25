@@ -1,13 +1,11 @@
 import pathlib
 
 import pytest
-
 import sqlalchemy.orm
 
 import mlrun
 import mlrun.api.db.sqldb.db
 import mlrun.artifacts
-from tests.conftest import out_path
 import tests.conftest
 import tests.projects.base_pipeline
 

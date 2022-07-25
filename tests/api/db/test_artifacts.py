@@ -649,7 +649,8 @@ def test_data_migration_fix_artifact_tags_duplications(
 
 
 def test_data_migration_fix_legacy_datasets_large_previews(
-    data_migration_db: DBInterface, db_session: Session,
+    data_migration_db: DBInterface,
+    db_session: Session,
 ):
     artifact_with_valid_preview_key = "artifact-with-valid-preview-key"
     artifact_with_valid_preview_uid = "artifact-with-valid-preview-uid"
@@ -738,12 +739,6 @@ def test_data_migration_fix_legacy_datasets_large_previews(
     )
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "data_migration_db,db_session",
-    [(dbs[0], dbs[0])],
-    indirect=["data_migration_db", "db_session"],
-)
 def test_data_migration_fix_datasets_large_previews(
     data_migration_db: DBInterface,
     db_session: Session,

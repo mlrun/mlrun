@@ -69,7 +69,8 @@ def test_get_project_with_pre_060_record(
 
 
 def test_data_migration_enrich_project_state(
-    db: DBInterface, db_session: sqlalchemy.orm.Session,
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
 ):
     for i in range(10):
         project_name = f"project-name-{i}"

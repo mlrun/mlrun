@@ -3,9 +3,9 @@ import os
 import pathlib
 import time
 
-import sqlalchemy.orm
 import pandas as pd
 import pytest
+import sqlalchemy.orm
 from nuclio_sdk import Context as NuclioContext
 from sklearn.datasets import load_iris
 
@@ -177,7 +177,9 @@ def test_v2_get_models(
     assert len(data["models"]) == 4, f"wrong get models response {resp.body}"
 
 
-def test_ensemble_get_models(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
+def test_ensemble_get_models(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology(
         "router",
@@ -308,7 +310,9 @@ def test_v2_explain(
     assert data["outputs"]["explained"] == 5, f"wrong explain response {resp.body}"
 
 
-def test_v2_get_modelmeta(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
+def test_v2_get_modelmeta(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
     project = mlrun.new_project("tstsrv", save=False)
     fn = mlrun.new_function("tst", kind="serving")
     model_uri = _log_model(project)

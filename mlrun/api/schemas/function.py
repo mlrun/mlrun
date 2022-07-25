@@ -43,10 +43,11 @@ class PreemptionModes(str, Enum):
 
 
 # used when running in Iguazio (otherwise use disabled mode)
+# populates mlrun.mlconf.function.spec.security_context.enrichment_mode
 class SecurityContextEnrichmentModes(str, Enum):
     # always use the user id of the user that triggered the 1st run / created the function
     retain = "retain"
-    # use the user id of the user that triggered the last run
+    # use the user id of the user that triggered the current run
     override = "override"
     # security context is not auto applied
     disabled = "disabled"

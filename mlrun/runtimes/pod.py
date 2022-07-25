@@ -1012,7 +1012,7 @@ class KubeResource(BaseRuntime):
         """
         Set security context for the pod.
         For Iguazio we handle security context internally -
-        see mlrun.mlconf.function.spec.security_context.enrichment_mode
+        see mlrun.api.schemas.function.SecurityContextEnrichmentModes
 
         Example:
 

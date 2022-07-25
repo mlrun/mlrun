@@ -473,16 +473,13 @@ def process_function_service_account(function):
 
 def ensure_function_security_context(function, auth_info: mlrun.api.schemas.AuthInfo):
     """
-    For iguazio we enforce that pods are running with the matching unix user id
-    (depending on keep/override mode) and nogroup group id.
-
-    keep - always use the user id of the user that triggered the 1st run
-    override - use the user id of the user requesting to submit the run
-    manual - security context is not auto applied
+    For iguazio we enforce that pods run with user id and group id depending on
+    mlrun.mlconf.function.spec.security_context.enrichment_mode
+    and mlrun.mlconf.function.spec.security_context.enrichment_group_id
     """
     function: mlrun.runtimes.pod.KubeResource
 
-    # if security context is not required
+    # if security context is not required.
     # security context is not yet supported with spark runtime since it requires spark 3.2+
     if (
         mlrun.mlconf.function.spec.security_context.enrichment_mode
@@ -498,7 +495,7 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
         )
         return
 
-    # TODO: for old functions being triggered after upgrading mlrun to 1.0.5 or above - enrich with project owner uid.
+    # TODO: enrich old functions being triggered after upgrading mlrun to 1.0.5 or above with project owner uid.
     #  Enrichment with retain enrichment mode should occur on function creation only.
     if (
         mlrun.mlconf.function.spec.security_context.enrichment_mode
@@ -527,7 +524,7 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
         )
 
         logger.debug(
-            "Enriching security context",
+            "Enriching/overriding security context",
             mode=mlrun.mlconf.function.spec.security_context.enrichment_mode,
             function_name=function.metadata.name,
             nogroup_id=nogroup_id,

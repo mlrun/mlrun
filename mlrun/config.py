@@ -136,8 +136,7 @@ default_config = {
                 # default security context to be applied to all functions - json string base64 encoded format
                 # in camelCase format: {"runAsUser": 1000, "runAsGroup": 3000}
                 "default": "e30=",  # encoded empty dict
-                # used when running in Iguazio (otherwise use manual mode).
-                # see mlrun.api.schemas.function.SecurityContextModes for available options
+                # see mlrun.api.schemas.function.SecurityContextEnrichmentModes for available options
                 "enrichment_mode": "disabled",
                 # default 65534 (nogroup), set to -1 to use the user unix id
                 "enrichment_group_id": 65534,

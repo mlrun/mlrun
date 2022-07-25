@@ -422,7 +422,7 @@ class VirtualDrift:
         :param possible_drift_threshold: Threshold for the calculated result to be in a possible drift status.
         :param drift_detected_threshold: Threshold for the calculated result to be in a drift detected status.
 
-        :return: The figured drift status.
+        :returns: The figured drift status.
         """
         drift_status = DriftStatus.NO_DRIFT
         if drift_result >= drift_detected_threshold:
@@ -639,10 +639,6 @@ class BatchProcessor:
                 # Get the timestamp of the latest request:
                 timestamp = df["timestamp"].iloc[-1]
 
-                # Create DataFrame based on the input features:
-                named_features_df = list(df["named_features"])
-                named_features_df = pd.DataFrame(named_features_df)
-
                 # Get the current stats that are represented by histogram of each feature within the dataset. In the
                 # following dictionary, each key is a feature with dictionary of stats (including histogram
                 # distribution) as a value:
@@ -654,10 +650,14 @@ class BatchProcessor:
                 # Recalculate the histograms over the bins that are set in the sample-set of the end point:
                 for feature in current_stats.keys():
                     if feature in endpoint.status.feature_stats:
-                        current_stats[feature]["hist"] = np.histogram(
-                            current_stats[feature].to_numpy(),
+                        current_values, sample_bins = np.histogram(
+                            named_features_df[feature].to_numpy(),
                             bins=endpoint.status.feature_stats[feature]["hist"][1],
                         )
+                        current_stats[feature]["hist"] = [
+                            current_values.tolist(),
+                            sample_bins.tolist(),
+                        ]
 
                 # Compute the drift based on the histogram of the current stats and the histogram of the original
                 # feature stats that can be found in the model endpoint object:

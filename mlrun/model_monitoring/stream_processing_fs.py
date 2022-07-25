@@ -14,10 +14,14 @@ import v3io.dataplane
 import mlrun.config
 import mlrun.datastore.targets
 import mlrun.feature_store.steps
-import mlrun.model_monitoring.constants
 import mlrun.utils
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
+from mlrun.model_monitoring.constants import (
+    EventFieldType,
+    EventKeyMetrics,
+    EventLiveStats,
+)
 from mlrun.utils import logger
 
 
@@ -180,14 +184,14 @@ class EventStreamProcessor:
                 class_name="storey.AggregateByKey",
                 aggregates=[
                     {
-                        "name": mlrun.model_monitoring.constants.EventFieldType.PREDICTIONS,
-                        "column": mlrun.model_monitoring.constants.EventFieldType.ENDPOINT_ID,
+                        "name": EventFieldType.PREDICTIONS,
+                        "column": EventFieldType.ENDPOINT_ID,
                         "operations": ["count"],
                         "windows": self.aggregate_count_windows,
                         "period": self.aggregate_count_period,
                     }
                 ],
-                name=mlrun.model_monitoring.constants.EventFieldType.PREDICTIONS,
+                name=EventFieldType.PREDICTIONS,
                 after="MapFeatureNames",
                 step_name="Aggregates",
                 table=".",
@@ -198,15 +202,15 @@ class EventStreamProcessor:
                 class_name="storey.AggregateByKey",
                 aggregates=[
                     {
-                        "name": mlrun.model_monitoring.constants.EventFieldType.LATENCY,
-                        "column": mlrun.model_monitoring.constants.EventFieldType.LATENCY,
+                        "name": EventFieldType.LATENCY,
+                        "column": EventFieldType.LATENCY,
                         "operations": ["avg"],
                         "windows": self.aggregate_avg_windows,
                         "period": self.aggregate_avg_period,
                     }
                 ],
-                name=mlrun.model_monitoring.constants.EventFieldType.LATENCY,
-                after=mlrun.model_monitoring.constants.EventFieldType.PREDICTIONS,
+                name=EventFieldType.LATENCY,
+                after=EventFieldType.PREDICTIONS,
                 table=".",
                 v3io_access_key=self.v3io_access_key,
             )
@@ -218,9 +222,9 @@ class EventStreamProcessor:
             graph.add_step(
                 "storey.steps.SampleWindow",
                 name="sample",
-                after=mlrun.model_monitoring.constants.EventFieldType.LATENCY,
+                after=EventFieldType.LATENCY,
                 window_size=self.sample_window,
-                key=mlrun.model_monitoring.constants.EventFieldType.ENDPOINT_ID,
+                key=EventFieldType.ENDPOINT_ID,
                 v3io_access_key=self.v3io_access_key,
             )
 
@@ -288,38 +292,38 @@ class EventStreamProcessor:
                 after=after,
                 path=self.tsdb_path,
                 rate="10/m",
-                time_col=mlrun.model_monitoring.constants.EventFieldType.TIMESTAMP,
+                time_col=EventFieldType.TIMESTAMP,
                 container=self.tsdb_container,
                 access_key=self.v3io_access_key,
                 v3io_frames=self.v3io_framesd,
                 infer_columns_from_data=True,
                 index_cols=[
-                    mlrun.model_monitoring.constants.EventFieldType.ENDPOINT_ID,
-                    mlrun.model_monitoring.constants.EventFieldType.RECORD_TYPE,
+                    EventFieldType.ENDPOINT_ID,
+                    EventFieldType.RECORD_TYPE,
                 ],
                 max_events=self.tsdb_batching_max_events,
                 timeout_secs=self.tsdb_batching_timeout_secs,
-                key=mlrun.model_monitoring.constants.EventFieldType.ENDPOINT_ID,
+                key=EventFieldType.ENDPOINT_ID,
             )
 
         # Steps 12-13 - unpacked base_metrics dictionary
         apply_filter_and_unpacked_keys(
             name="FilterAndUnpackKeys1",
-            keys=mlrun.model_monitoring.constants.EventKeyMetrics.BASE_METRICS,
+            keys=EventKeyMetrics.BASE_METRICS,
         )
         apply_tsdb_target(name="tsdb1", after="FilterAndUnpackKeys1")
 
         # Steps 14-15 - unpacked endpoint_features dictionary
         apply_filter_and_unpacked_keys(
             name="FilterAndUnpackKeys2",
-            keys=mlrun.model_monitoring.constants.EventKeyMetrics.ENDPOINT_FEATURES,
+            keys=EventKeyMetrics.ENDPOINT_FEATURES,
         )
         apply_tsdb_target(name="tsdb2", after="FilterAndUnpackKeys2")
 
         # Steps 16-18 - unpacked custom_metrics dictionary. In addition, use storey.Filter remove none values
         apply_filter_and_unpacked_keys(
             name="FilterAndUnpackKeys3",
-            keys=mlrun.model_monitoring.constants.EventKeyMetrics.CUSTOM_METRICS,
+            keys=EventKeyMetrics.CUSTOM_METRICS,
         )
 
         def apply_storey_filter():
@@ -357,9 +361,7 @@ class EventStreamProcessor:
                 max_events=self.parquet_batching_max_events,
                 flush_after_seconds=self.parquet_batching_timeout_secs,
                 attributes={"infer_columns_from_data": True},
-                index_cols=[
-                    mlrun.model_monitoring.constants.EventFieldType.ENDPOINT_ID
-                ],
+                index_cols=[EventFieldType.ENDPOINT_ID],
                 key_bucketing_number=0,
                 time_partitioning_granularity="hour",
                 partition_cols=["$key", "$year", "$month", "$day", "$hour"],
@@ -381,48 +383,37 @@ class ProcessBeforeKV(mlrun.feature_store.steps.MapClass):
 
     def do(self, event):
         # Compute prediction per second
-        event[
-            mlrun.model_monitoring.constants.EventLiveStats.PREDICTIONS_PER_SECOND
-        ] = (
-            float(
-                event[
-                    mlrun.model_monitoring.constants.EventLiveStats.PREDICTIONS_COUNT_5M
-                ]
-            )
-            / 300
+        event[EventLiveStats.PREDICTIONS_PER_SECOND] = (
+            float(event[EventLiveStats.PREDICTIONS_COUNT_5M]) / 300
         )
         # Filter relevant keys
         e = {
             k: event[k]
             for k in [
-                mlrun.model_monitoring.constants.EventFieldType.FUNCTION_URI,
-                mlrun.model_monitoring.constants.EventFieldType.MODEL,
-                mlrun.model_monitoring.constants.EventFieldType.MODEL_CLASS,
-                mlrun.model_monitoring.constants.EventFieldType.TIMESTAMP,
-                mlrun.model_monitoring.constants.EventFieldType.ENDPOINT_ID,
-                mlrun.model_monitoring.constants.EventFieldType.LABELS,
-                mlrun.model_monitoring.constants.EventFieldType.UNPACKED_LABELS,
-                mlrun.model_monitoring.constants.EventLiveStats.LATENCY_AVG_5M,
-                mlrun.model_monitoring.constants.EventLiveStats.LATENCY_AVG_1H,
-                mlrun.model_monitoring.constants.EventLiveStats.PREDICTIONS_PER_SECOND,
-                mlrun.model_monitoring.constants.EventLiveStats.PREDICTIONS_COUNT_5M,
-                mlrun.model_monitoring.constants.EventLiveStats.PREDICTIONS_COUNT_1H,
-                mlrun.model_monitoring.constants.EventFieldType.FIRST_REQUEST,
-                mlrun.model_monitoring.constants.EventFieldType.LAST_REQUEST,
-                mlrun.model_monitoring.constants.EventFieldType.ERROR_COUNT,
+                EventFieldType.FUNCTION_URI,
+                EventFieldType.MODEL,
+                EventFieldType.MODEL_CLASS,
+                EventFieldType.TIMESTAMP,
+                EventFieldType.ENDPOINT_ID,
+                EventFieldType.LABELS,
+                EventFieldType.UNPACKED_LABELS,
+                EventLiveStats.LATENCY_AVG_5M,
+                EventLiveStats.LATENCY_AVG_1H,
+                EventLiveStats.PREDICTIONS_PER_SECOND,
+                EventLiveStats.PREDICTIONS_COUNT_5M,
+                EventLiveStats.PREDICTIONS_COUNT_1H,
+                EventFieldType.FIRST_REQUEST,
+                EventFieldType.LAST_REQUEST,
+                EventFieldType.ERROR_COUNT,
             ]
         }
         # Unpack labels dictionary
         e = {
             **e,
-            **e.pop(
-                mlrun.model_monitoring.constants.EventFieldType.UNPACKED_LABELS, {}
-            ),
+            **e.pop(EventFieldType.UNPACKED_LABELS, {}),
         }
         # Write labels to kv as json string to be presentable later
-        e[mlrun.model_monitoring.constants.EventFieldType.LABELS] = json.dumps(
-            e[mlrun.model_monitoring.constants.EventFieldType.LABELS]
-        )
+        e[EventFieldType.LABELS] = json.dumps(e[EventFieldType.LABELS])
         return e
 
 
@@ -443,74 +434,56 @@ class ProcessBeforeTSDB(mlrun.feature_store.steps.MapClass):
 
     def do(self, event):
         # Compute prediction per second
-        event[
-            mlrun.model_monitoring.constants.EventLiveStats.PREDICTIONS_PER_SECOND
-        ] = (
-            float(
-                event[
-                    mlrun.model_monitoring.constants.EventLiveStats.PREDICTIONS_COUNT_5M
-                ]
-            )
-            / 300
+        event[EventLiveStats.PREDICTIONS_PER_SECOND] = (
+            float(event[EventLiveStats.PREDICTIONS_COUNT_5M]) / 300
         )
         base_fields = [
-            mlrun.model_monitoring.constants.EventFieldType.TIMESTAMP,
-            mlrun.model_monitoring.constants.EventFieldType.ENDPOINT_ID,
+            EventFieldType.TIMESTAMP,
+            EventFieldType.ENDPOINT_ID,
         ]
 
         # Getting event timestamp and endpoint_id
         base_event = {k: event[k] for k in base_fields}
-        base_event[
-            mlrun.model_monitoring.constants.EventFieldType.TIMESTAMP
-        ] = pd.to_datetime(
-            base_event[mlrun.model_monitoring.constants.EventFieldType.TIMESTAMP],
-            format=mlrun.model_monitoring.constants.EventFieldType.TIME_FORMAT,
+        base_event[EventFieldType.TIMESTAMP] = pd.to_datetime(
+            base_event[EventFieldType.TIMESTAMP],
+            format=EventFieldType.TIME_FORMAT,
         )
 
         # base_metrics includes the stats about the average latency and the amount of predictions over time
         base_metrics = {
-            mlrun.model_monitoring.constants.EventFieldType.RECORD_TYPE:
-                mlrun.model_monitoring.constants.EventKeyMetrics.BASE_METRICS,
-            mlrun.model_monitoring.constants.EventLiveStats.PREDICTIONS_PER_SECOND: event[
-                mlrun.model_monitoring.constants.EventLiveStats.PREDICTIONS_PER_SECOND
+            EventFieldType.RECORD_TYPE: EventKeyMetrics.BASE_METRICS,
+            EventLiveStats.PREDICTIONS_PER_SECOND: event[
+                EventLiveStats.PREDICTIONS_PER_SECOND
             ],
-            mlrun.model_monitoring.constants.EventLiveStats.PREDICTIONS_COUNT_5M: event[
-                mlrun.model_monitoring.constants.EventLiveStats.PREDICTIONS_COUNT_5M
+            EventLiveStats.PREDICTIONS_COUNT_5M: event[
+                EventLiveStats.PREDICTIONS_COUNT_5M
             ],
-            mlrun.model_monitoring.constants.EventLiveStats.PREDICTIONS_COUNT_1H: event[
-                mlrun.model_monitoring.constants.EventLiveStats.PREDICTIONS_COUNT_1H
+            EventLiveStats.PREDICTIONS_COUNT_1H: event[
+                EventLiveStats.PREDICTIONS_COUNT_1H
             ],
-            mlrun.model_monitoring.constants.EventLiveStats.LATENCY_AVG_5M: event[
-                mlrun.model_monitoring.constants.EventLiveStats.LATENCY_AVG_5M
-            ],
-            mlrun.model_monitoring.constants.EventLiveStats.LATENCY_AVG_1H: event[
-                mlrun.model_monitoring.constants.EventLiveStats.LATENCY_AVG_1H
-            ],
+            EventLiveStats.LATENCY_AVG_5M: event[EventLiveStats.LATENCY_AVG_5M],
+            EventLiveStats.LATENCY_AVG_1H: event[EventLiveStats.LATENCY_AVG_1H],
             **base_event,
         }
 
         # endpoint_features includes the event values of each feature and prediction
         endpoint_features = {
-            mlrun.model_monitoring.constants.EventFieldType.RECORD_TYPE:
-                mlrun.model_monitoring.constants.EventKeyMetrics.ENDPOINT_FEATURES,
-            **event[mlrun.model_monitoring.constants.EventFieldType.NAMED_PREDICTIONS],
-            **event[mlrun.model_monitoring.constants.EventFieldType.NAMED_FEATURES],
+            EventFieldType.RECORD_TYPE: EventKeyMetrics.ENDPOINT_FEATURES,
+            **event[EventFieldType.NAMED_PREDICTIONS],
+            **event[EventFieldType.NAMED_FEATURES],
             **base_event,
         }
         # Create a dictionary that includes both base_metrics and endpoint_features
         processed = {
-            mlrun.model_monitoring.constants.EventKeyMetrics.BASE_METRICS: base_metrics,
-            mlrun.model_monitoring.constants.EventKeyMetrics.ENDPOINT_FEATURES: endpoint_features,
+            EventKeyMetrics.BASE_METRICS: base_metrics,
+            EventKeyMetrics.ENDPOINT_FEATURES: endpoint_features,
         }
 
         # If metrics provided, add another dictionary if custom_metrics values
-        if event[mlrun.model_monitoring.constants.EventFieldType.METRICS]:
-            processed[
-                mlrun.model_monitoring.constants.EventKeyMetrics.CUSTOM_METRICS
-            ] = {
-                mlrun.model_monitoring.constants.EventFieldType.RECORD_TYPE:
-                    mlrun.model_monitoring.constants.EventKeyMetrics.CUSTOM_METRICS,
-                **event[mlrun.model_monitoring.constants.EventFieldType.METRICS],
+        if event[EventFieldType.METRICS]:
+            processed[EventKeyMetrics.CUSTOM_METRICS] = {
+                EventFieldType.RECORD_TYPE: EventKeyMetrics.CUSTOM_METRICS,
+                **event[EventFieldType.METRICS],
                 **base_event,
             }
 
@@ -532,9 +505,9 @@ class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
         logger.info("ProcessBeforeParquet1", event=event)
         # Remove the following keys from the event
         for key in [
-            mlrun.model_monitoring.constants.EventFieldType.UNPACKED_LABELS,
-            mlrun.model_monitoring.constants.EventFieldType.FEATURES,
-            mlrun.model_monitoring.constants.EventFieldType.NAMED_FEATURES,
+            EventFieldType.UNPACKED_LABELS,
+            EventFieldType.FEATURES,
+            EventFieldType.NAMED_FEATURES,
         ]:
             event.pop(key, None)
 
@@ -545,9 +518,9 @@ class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
 
         # Validate that the following keys exist
         for key in [
-            mlrun.model_monitoring.constants.EventFieldType.LABELS,
-            mlrun.model_monitoring.constants.EventFieldType.METRICS,
-            mlrun.model_monitoring.constants.EventFieldType.ENTITIES,
+            EventFieldType.LABELS,
+            EventFieldType.METRICS,
+            EventFieldType.ENTITIES,
         ]:
             if not event.get(key):
                 event[key] = None
@@ -561,7 +534,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         kv_container: str,
         kv_path: str,
         v3io_access_key: str,
-        project: str,
         **kwargs,
     ):
         """
@@ -601,21 +573,15 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
         # Getting model version and function uri from event
         # and use them for retrieving the endpoint_id
-        function_uri = event.get(
-            mlrun.model_monitoring.constants.EventFieldType.FUNCTION_URI
-        )
-        if not is_not_none(
-            function_uri, [mlrun.model_monitoring.constants.EventFieldType.FUNCTION_URI]
-        ):
+        function_uri = event.get(EventFieldType.FUNCTION_URI)
+        if not is_not_none(function_uri, [EventFieldType.FUNCTION_URI]):
             return None
 
-        model = event.get(mlrun.model_monitoring.constants.EventFieldType.MODEL)
-        if not is_not_none(
-            model, [mlrun.model_monitoring.constants.EventFieldType.MODEL]
-        ):
+        model = event.get(EventFieldType.MODEL)
+        if not is_not_none(model, [EventFieldType.MODEL]):
             return None
 
-        version = event.get(mlrun.model_monitoring.constants.EventFieldType.VERSION)
+        version = event.get(EventFieldType.VERSION)
         versioned_model = f"{model}:{version}" if version else f"{model}:latest"
 
         endpoint_id = mlrun.utils.model_monitoring.create_model_endpoint_id(
@@ -625,10 +591,8 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
         endpoint_id = str(endpoint_id)
 
-        event[
-            mlrun.model_monitoring.constants.EventFieldType.VERSIONED_MODEL
-        ] = versioned_model
-        event[mlrun.model_monitoring.constants.EventFieldType.ENDPOINT_ID] = endpoint_id
+        event[EventFieldType.VERSIONED_MODEL] = versioned_model
+        event[EventFieldType.ENDPOINT_ID] = endpoint_id
 
         # In case this process fails, resume state from existing record
         self.resume_state(endpoint_id)
@@ -691,10 +655,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
         # Get labels from event (if exist)
         unpacked_labels = {
-            f"_{k}": v
-            for k, v in event.get(
-                mlrun.model_monitoring.constants.EventFieldType.LABELS, {}
-            ).items()
+            f"_{k}": v for k, v in event.get(EventFieldType.LABELS, {}).items()
         }
 
         # Adjust timestamp format
@@ -718,34 +679,24 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
             events.append(
                 {
-                    mlrun.model_monitoring.constants.EventFieldType.FUNCTION_URI: function_uri,
-                    mlrun.model_monitoring.constants.EventFieldType.MODEL: versioned_model,
-                    mlrun.model_monitoring.constants.EventFieldType.MODEL_CLASS: model_class,
-                    mlrun.model_monitoring.constants.EventFieldType.TIMESTAMP: timestamp,
-                    mlrun.model_monitoring.constants.EventFieldType.ENDPOINT_ID: endpoint_id,
-                    mlrun.model_monitoring.constants.EventFieldType.REQUEST_ID: request_id,
-                    mlrun.model_monitoring.constants.EventFieldType.LATENCY: latency,
-                    mlrun.model_monitoring.constants.EventFieldType.FEATURES: feature,
-                    mlrun.model_monitoring.constants.EventFieldType.PREDICTION: prediction,
-                    mlrun.model_monitoring.constants.EventFieldType.FIRST_REQUEST: self.first_request[
-                        endpoint_id
-                    ],
-                    mlrun.model_monitoring.constants.EventFieldType.LAST_REQUEST: self.last_request[
-                        endpoint_id
-                    ],
-                    mlrun.model_monitoring.constants.EventFieldType.ERROR_COUNT: self.error_count[
-                        endpoint_id
-                    ],
-                    mlrun.model_monitoring.constants.EventFieldType.LABELS: event.get(
-                        mlrun.model_monitoring.constants.EventFieldType.LABELS, {}
+                    EventFieldType.FUNCTION_URI: function_uri,
+                    EventFieldType.MODEL: versioned_model,
+                    EventFieldType.MODEL_CLASS: model_class,
+                    EventFieldType.TIMESTAMP: timestamp,
+                    EventFieldType.ENDPOINT_ID: endpoint_id,
+                    EventFieldType.REQUEST_ID: request_id,
+                    EventFieldType.LATENCY: latency,
+                    EventFieldType.FEATURES: feature,
+                    EventFieldType.PREDICTION: prediction,
+                    EventFieldType.FIRST_REQUEST: self.first_request[endpoint_id],
+                    EventFieldType.LAST_REQUEST: self.last_request[endpoint_id],
+                    EventFieldType.ERROR_COUNT: self.error_count[endpoint_id],
+                    EventFieldType.LABELS: event.get(EventFieldType.LABELS, {}),
+                    EventFieldType.METRICS: event.get(EventFieldType.METRICS, {}),
+                    EventFieldType.ENTITIES: event.get("request", {}).get(
+                        EventFieldType.ENTITIES, {}
                     ),
-                    mlrun.model_monitoring.constants.EventFieldType.METRICS: event.get(
-                        mlrun.model_monitoring.constants.EventFieldType.METRICS, {}
-                    ),
-                    mlrun.model_monitoring.constants.EventFieldType.ENTITIES: event.get(
-                        "request", {}
-                    ).get(mlrun.model_monitoring.constants.EventFieldType.ENTITIES, {}),
-                    mlrun.model_monitoring.constants.EventFieldType.UNPACKED_LABELS: unpacked_labels,
+                    EventFieldType.UNPACKED_LABELS: unpacked_labels,
                 }
             )
 
@@ -780,14 +731,10 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
             # If model endpoint found, validate first_request and error_count values
             if endpoint_record:
-                first_request = endpoint_record.get(
-                    mlrun.model_monitoring.constants.EventFieldType.FIRST_REQUEST
-                )
+                first_request = endpoint_record.get(EventFieldType.FIRST_REQUEST)
                 if first_request:
                     self.first_request[endpoint_id] = first_request
-                error_count = endpoint_record.get(
-                    mlrun.model_monitoring.constants.EventFieldType.ERROR_COUNT
-                )
+                error_count = endpoint_record.get(EventFieldType.ERROR_COUNT)
                 if error_count:
                     self.error_count[endpoint_id] = error_count
 
@@ -894,7 +841,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
     def _infer_feature_names_from_data(self, event):
         for endpoint_id in self.feature_names:
             if len(self.feature_names[endpoint_id]) >= len(
-                event[mlrun.model_monitoring.constants.EventFieldType.FEATURES]
+                event[EventFieldType.FEATURES]
             ):
                 return self.feature_names[endpoint_id]
         return None
@@ -902,13 +849,13 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
     def _infer_label_columns_from_data(self, event):
         for endpoint_id in self.label_columns:
             if len(self.label_columns[endpoint_id]) >= len(
-                event[mlrun.model_monitoring.constants.EventFieldType.PREDICTION]
+                event[EventFieldType.PREDICTION]
             ):
                 return self.label_columns[endpoint_id]
         return None
 
     def do(self, event: typing.Dict):
-        endpoint_id = event[mlrun.model_monitoring.constants.EventFieldType.ENDPOINT_ID]
+        endpoint_id = event[EventFieldType.ENDPOINT_ID]
 
         # Get feature names and label columns
         if endpoint_id not in self.feature_names:
@@ -918,14 +865,10 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                 endpoint_id=endpoint_id,
                 access_key=self.access_key,
             )
-            feature_names = endpoint_record.get(
-                mlrun.model_monitoring.constants.EventFieldType.FEATURE_NAMES
-            )
+            feature_names = endpoint_record.get(EventFieldType.FEATURE_NAMES)
             feature_names = json.loads(feature_names) if feature_names else None
 
-            label_columns = endpoint_record.get(
-                mlrun.model_monitoring.constants.EventFieldType.LABEL_COLUMNS
-            )
+            label_columns = endpoint_record.get(EventFieldType.LABEL_COLUMNS)
             label_columns = json.loads(label_columns) if label_columns else None
 
             # Ff feature names were not found,
@@ -939,10 +882,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     endpoint_id=endpoint_id,
                 )
                 feature_names = [
-                    f"f{i}"
-                    for i, _ in enumerate(
-                        event[mlrun.model_monitoring.constants.EventFieldType.FEATURES]
-                    )
+                    f"f{i}" for i, _ in enumerate(event[EventFieldType.FEATURES])
                 ]
 
                 # Update the endpoint record with the generated features
@@ -950,13 +890,9 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     container=self.kv_container,
                     table_path=self.kv_path,
                     access_key=self.access_key,
-                    key=event[
-                        mlrun.model_monitoring.constants.EventFieldType.ENDPOINT_ID
-                    ],
+                    key=event[EventFieldType.ENDPOINT_ID],
                     attributes={
-                        mlrun.model_monitoring.constants.EventFieldType.FEATURE_NAMES: json.dumps(
-                            feature_names
-                        )
+                        EventFieldType.FEATURE_NAMES: json.dumps(feature_names)
                     },
                     raise_for_status=v3io.dataplane.RaiseForStatus.always,
                 )
@@ -971,24 +907,15 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     endpoint_id=endpoint_id,
                 )
                 label_columns = [
-                    f"p{i}"
-                    for i, _ in enumerate(
-                        event[
-                            mlrun.model_monitoring.constants.EventFieldType.PREDICTION
-                        ]
-                    )
+                    f"p{i}" for i, _ in enumerate(event[EventFieldType.PREDICTION])
                 ]
                 mlrun.utils.v3io_clients.get_v3io_client().kv.update(
                     container=self.kv_container,
                     table_path=self.kv_path,
                     access_key=self.access_key,
-                    key=event[
-                        mlrun.model_monitoring.constants.EventFieldType.ENDPOINT_ID
-                    ],
+                    key=event[EventFieldType.ENDPOINT_ID],
                     attributes={
-                        mlrun.model_monitoring.constants.EventFieldType.LABEL_COLUMNS: json.dumps(
-                            label_columns
-                        )
+                        EventFieldType.LABEL_COLUMNS: json.dumps(label_columns)
                     },
                     raise_for_status=v3io.dataplane.RaiseForStatus.always,
                 )
@@ -1004,10 +931,10 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
             )
 
         feature_names = self.feature_names[endpoint_id]
-        features = event[mlrun.model_monitoring.constants.EventFieldType.FEATURES]
+        features = event[EventFieldType.FEATURES]
 
         # Create named_features dict that will be used later for the Parquet target
-        event[mlrun.model_monitoring.constants.EventFieldType.NAMED_FEATURES] = {
+        event[EventFieldType.NAMED_FEATURES] = {
             name: feature for name, feature in zip(feature_names, features)
         }
 
@@ -1017,8 +944,8 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
 
         # Create name_predictions dict that will be used later for the Parquet target
         label_columns = self.label_columns[endpoint_id]
-        prediction = event[mlrun.model_monitoring.constants.EventFieldType.PREDICTION]
-        event[mlrun.model_monitoring.constants.EventFieldType.NAMED_PREDICTIONS] = {
+        prediction = event[EventFieldType.PREDICTION]
+        event[EventFieldType.NAMED_PREDICTIONS] = {
             name: prediction for name, prediction in zip(label_columns, prediction)
         }
         logger.info("Mapped event", event=event)
@@ -1049,7 +976,7 @@ class WriteToKV(mlrun.feature_store.steps.MapClass):
         mlrun.utils.v3io_clients.get_v3io_client().kv.update(
             container=self.container,
             table_path=self.table,
-            key=event[mlrun.model_monitoring.constants.EventFieldType.ENDPOINT_ID],
+            key=event[EventFieldType.ENDPOINT_ID],
             attributes=event,
             access_key=self.v3io_access_key,
         )

@@ -1,14 +1,16 @@
 import os
 import tempfile
 from typing import Tuple
+import json
 
 import numpy as np
 import pandas as pd
 
 import mlrun
+from mlrun.artifacts import Artifact
 from mlrun.data_types.infer import DFDataInfer
 from mlrun.model_monitoring.features_drift_table import FeaturesDriftTablePlot
-from mlrun.model_monitoring.model_monitoring_batch import VirtualDrift
+from mlrun.model_monitoring.model_monitoring_batch import VirtualDrift, calculate_inputs_statistics
 
 
 def generate_data(
@@ -40,13 +42,10 @@ def generate_data(
     return sample_data, inputs
 
 
-def test_plot_produce():
-    # Create a temp directory:
-    output_path = tempfile.TemporaryDirectory()
-
+def plot_produce(context: mlrun.MLClientCtx):
     # Generate data:
     sample_data, inputs = generate_data(
-        250000, 40, inputs_diff_range=(0, 3), scale_range=(0, 1)
+        250000, 40, inputs_diff_range=(0, 1), scale_range=(0, 1)
     )
 
     # Calculate statistics:
@@ -54,16 +53,10 @@ def test_plot_produce():
         df=sample_data,
         options=mlrun.data_types.infer.InferOptions.Histogram,
     )
-    inputs_statistics = DFDataInfer.get_stats(
-        df=inputs,
-        options=mlrun.data_types.infer.InferOptions.Histogram,
+    inputs_statistics = calculate_inputs_statistics(
+        sample_set_statistics=sample_data_statistics,
+        inputs=inputs,
     )
-
-    # Change the bins of the inputs to the sample-set ones:
-    for feature in inputs_statistics.keys():
-        inputs_statistics[feature]["hist"] = np.histogram(
-            inputs[feature].to_numpy(), bins=sample_data_statistics[feature]["hist"][1]
-        )
 
     # Calculate drift:
     virtual_drift = VirtualDrift(inf_capping=10)
@@ -76,17 +69,38 @@ def test_plot_produce():
     )
 
     # Plot:
-    FeaturesDriftTablePlot().produce(
+    html_plot = FeaturesDriftTablePlot().produce(
         features=list(sample_data.columns),
         sample_set_statistics=sample_data_statistics,
         inputs_statistics=inputs_statistics,
         metrics=metrics,
         drift_results=drift_results,
-        output_path=output_path.name,
     )
 
-    # Check the plot was saved:
-    assert len(os.listdir(output_path.name)) == 1
+    # Log:
+    context.log_artifact(Artifact(body=html_plot, format="html", key="drift_table_plot"))
+
+
+def test_plot_produce():
+    # Create a temp directory:
+    output_path = tempfile.TemporaryDirectory()
+
+    # Run the plot production and logging:
+    train_run = mlrun.new_function().run(
+        artifact_path=output_path.name,
+        handler=plot_produce,
+    )
+
+    # Print the outputs for manual validation:
+    print(json.dumps(train_run.outputs, indent=4))
+
+    # Validate the artifact was logged:
+    assert len(train_run.status.artifacts) == 1
+
+    # Check the plot was saved properly (only the drift table plot should appear):
+    artifact_directory_content = os.listdir(os.path.dirname(train_run.outputs["drift_table_plot"]))
+    assert len(artifact_directory_content) == 1
+    assert artifact_directory_content[0] == 'drift_table_plot.html'
 
     # Clean up the temporary directory:
     output_path.cleanup()

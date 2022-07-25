@@ -82,10 +82,9 @@ class FeaturesDriftTablePlot:
         inputs_statistics: dict,
         metrics: Dict[str, Union[dict, float]],
         drift_results: Dict[str, DriftResultType],
-        output_path: str = "./",
     ) -> str:
         """
-        Produce the html file of the table plot with the given information and the stored configurations in the class.
+        Produce the html code of the table plot with the given information and the stored configurations in the class.
 
         :param features:              List of all the features names to include in the table. These names expected to be
                                       in the statistics and metrics dictionaries.
@@ -93,7 +92,6 @@ class FeaturesDriftTablePlot:
         :param inputs_statistics:     The inputs calculated statistics dictionary.
         :param metrics:               The drift detection metrics calculated on the sample set and inputs.
         :param drift_results:         The drift results per feature according to the rules of the monitor.
-        :param output_path:           Directory for the html file of the plot to be saved in.
 
         :return: The full path to the html file of the plot.
         """
@@ -107,22 +105,17 @@ class FeaturesDriftTablePlot:
         )
 
         # Get its HTML representation:
-        html_plot = figure.to_html()
+        figure_html = figure.to_html()
 
         # Turn off the table columns dragging by injecting the following JavaScript code:
-        start, end = html_plot.rsplit(";", 1)
+        start, end = figure_html.rsplit(";", 1)
         middle = (
             ';for (const element of document.getElementsByClassName("table")) '
             '{element.style.pointerEvents = "none";}'
         )
-        html_plot = start + middle + end
+        figure_html = start + middle + end
 
-        # Save the plot into the html file:
-        plot_file = os.path.join(output_path, "table_plot.html")
-        with open(plot_file, "w") as html_file:
-            html_file.write(html_plot)
-
-        return plot_file
+        return figure_html
 
     def _read_columns_names(self, statistics_dictionary: dict, drift_metrics: dict):
         """

@@ -430,6 +430,40 @@ class VirtualDrift:
         return drift_status
 
 
+def calculate_inputs_statistics(
+    sample_set_statistics: dict, inputs: pd.DataFrame
+) -> dict:
+    """
+    Calculate the inputs data statistics for drift monitoring purpose.
+
+    :param sample_set_statistics: The sample set (stored end point's dataset to reference) statistics. The bins of the
+                                  histograms of each feature will be used to recalculate the histograms of the inputs.
+    :param inputs:                The inputs to calculate their statistics and later on - the drift with respect to the
+                                  sample set.
+
+    :return: The calculated statistics of the inputs data.
+    """
+    # Use `DFDataInfer` to calculate the statistics over the inputs:
+    inputs_statistics = mlrun.data_types.infer.DFDataInfer.get_stats(
+        df=inputs,
+        options=mlrun.data_types.infer.InferOptions.Histogram,
+    )
+
+    # Recalculate the histograms over the bins that are set in the sample-set of the end point:
+    for feature in inputs_statistics.keys():
+        if feature in sample_set_statistics:
+            counts, bins = np.histogram(
+                inputs[feature].to_numpy(),
+                bins=sample_set_statistics[feature]["hist"][1],
+            )
+            inputs_statistics[feature]["hist"] = [
+                counts.tolist(),
+                bins.tolist(),
+            ]
+
+    return inputs_statistics
+
+
 class BatchProcessor:
     """
     The main object to handle the batch processing job. This object is used to get the required configurations and
@@ -611,21 +645,11 @@ class BatchProcessor:
                 named_features_df = list(df["named_features"])
                 named_features_df = pd.DataFrame(named_features_df)
 
-                # Get the current stats that are represented by histogram of each feature within the dataset. In the
-                # following dictionary, each key is a feature with dictionary of stats (including histogram
-                # distribution) as a value:
-                current_stats = mlrun.data_types.infer.DFDataInfer.get_stats(
-                    df=named_features_df,
-                    options=mlrun.data_types.infer.InferOptions.Histogram,
+                # Get the current stats:
+                current_stats = calculate_inputs_statistics(
+                    sample_set_statistics=endpoint.status.feature_stats,
+                    inputs=named_features_df,
                 )
-
-                # Recalculate the histograms over the bins that are set in the sample-set of the end point:
-                for feature in current_stats.keys():
-                    if feature in endpoint.status.feature_stats:
-                        current_stats[feature]["hist"] = np.histogram(
-                            current_stats[feature].to_numpy(),
-                            bins=endpoint.status.feature_stats[feature]["hist"][1],
-                        )
 
                 # Compute the drift based on the histogram of the current stats and the histogram of the original
                 # feature stats that can be found in the model endpoint object:

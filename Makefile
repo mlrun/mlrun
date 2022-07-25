@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# THIS BLOCK IS FOR VARIABLES USER MAY OVERRIDE
 MLRUN_VERSION ?= unstable
 # pip requires the python version to be according to some regex (so "unstable" is not valid for example) this regex only
 # allows us to have free text (like unstable) after the "+". on the contrary in a docker tag "+" is not a valid
@@ -52,7 +53,7 @@ MLRUN_CUDA_VERSION = 11.0
 MLRUN_TENSORFLOW_VERSION = 2.4.1
 MLRUN_HOROVOD_VERSION = 0.22.1
 
-
+# THIS BLOCK IS FOR COMPUTED VARIABLES
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
 MLRUN_CACHE_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_CACHE_FROM_REGISTRY),$(strip $(MLRUN_DOCKER_CACHE_FROM_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
 MLRUN_CORE_DOCKER_TAG_SUFFIX := -core

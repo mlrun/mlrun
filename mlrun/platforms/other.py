@@ -176,6 +176,7 @@ def mount_s3(
     endpoint_url=None,
     prefix="",
     aws_region=None,
+    non_anonymous=False,
 ):
     """Modifier function to add s3 env vars or secrets to container
 
@@ -185,6 +186,8 @@ def mount_s3(
     :param endpoint_url: s3 endpoint address (for non AWS s3)
     :param prefix: string prefix to add before the env var name (for working with multiple s3 data stores)
     :param aws_region: amazon region
+    :param non_anonymous: force the S3 API to use non-anonymous connection, even if no credentials are provided
+        (for authenticating externally, such as through IAM instance-roles)
     :return:
     """
 
@@ -216,6 +219,10 @@ def mount_s3(
         if aws_region:
             container.add_env_variable(
                 k8s_client.V1EnvVar(name=prefix + "AWS_REGION", value=aws_region)
+            )
+        if non_anonymous:
+            container.add_env_variable(
+                k8s_client.V1EnvVar(name=prefix + "S3_NON_ANONYMOUS", value="true")
             )
 
         if secret_name:

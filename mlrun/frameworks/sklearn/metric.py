@@ -6,8 +6,7 @@ from typing import Callable, Union
 
 import mlrun.errors
 
-from .._common.utils import ModelType
-from .utils import DatasetType
+from .utils import SKLearnTypes
 
 
 class Metric:
@@ -43,10 +42,10 @@ class Metric:
 
     def __call__(
         self,
-        y_true: DatasetType,
-        y_pred: DatasetType = None,
-        model: ModelType = None,
-        x: DatasetType = None,
+        y_true: SKLearnTypes.DatasetType,
+        y_pred: SKLearnTypes.DatasetType = None,
+        model: SKLearnTypes.ModelType = None,
+        x: SKLearnTypes.DatasetType = None,
     ) -> float:
         """
         Call the metric function on the provided y_true and y_pred values using the stored additional arguments.

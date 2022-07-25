@@ -9,6 +9,7 @@ from .callbacks import MLRunLoggingCallback, TensorboardLoggingCallback
 from .mlrun_interface import TFKerasMLRunInterface
 from .model_handler import TFKerasModelHandler
 from .model_server import TFKerasModelServer
+from .utils import TFKerasTypes, TFKerasUtils
 
 
 def apply_mlrun(

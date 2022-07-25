@@ -1,3 +1,4 @@
+(glossary)=
 # Glossary
 
 ## MLRun Terms
